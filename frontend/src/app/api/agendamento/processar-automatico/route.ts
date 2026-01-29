@@ -192,18 +192,19 @@ export async function POST(request: NextRequest) {
     });
 
     // Validar dados de entrada
-    if (!conta || !chave_pix || !nome_beneficiario || !valor || !categoria_id || !centro_custo_id) {
+    // centro_custo_id é opcional
+    if (!conta || !chave_pix || !nome_beneficiario || !valor || !categoria_id) {
       console.log('❌ Validação falhou - campos faltando:', {
         conta: !conta ? 'FALTANDO' : 'OK',
         chave_pix: !chave_pix ? 'FALTANDO' : 'OK',
         nome_beneficiario: !nome_beneficiario ? 'FALTANDO' : 'OK',
         valor: !valor ? 'FALTANDO' : 'OK',
         categoria_id: !categoria_id ? 'FALTANDO' : 'OK',
-        centro_custo_id: !centro_custo_id ? 'FALTANDO' : 'OK',
+        centro_custo_id: centro_custo_id || 'NÃO INFORMADO (opcional)',
       });
       return NextResponse.json({
         success: false,
-        error: 'Dados obrigatórios faltando (conta, chave_pix, nome_beneficiario, valor, categoria_id, centro_custo_id)'
+        error: 'Dados obrigatórios faltando (conta, chave_pix, nome_beneficiario, valor, categoria_id)'
       }, { status: 400 });
     }
 
