@@ -86,10 +86,18 @@ export async function POST(request: NextRequest) {
         .not('prd_desc', 'ilike', '%HappyHour%')
         .not('prd_desc', 'ilike', '%Happy-Hour%');
       
-      // GRUPO HAPPY HOUR (excluir pelo grupo, não apenas pelo nome)
-      // Produtos como "Debochinho HH" pertencem ao grupo Happy Hour mas não têm "Happy Hour" no nome
+      // GRUPOS A IGNORAR (excluir pelo grupo, não apenas pelo nome)
+      // Produtos podem pertencer a grupos específicos sem ter o nome do grupo no nome do produto
       query = query
-        .not('raw_data->>grp_desc', 'eq', 'Happy Hour');
+        .not('raw_data->>grp_desc', 'eq', 'Happy Hour')
+        .not('raw_data->>grp_desc', 'eq', 'Chegadeira')
+        .not('raw_data->>grp_desc', 'eq', 'Dose dupla')
+        .not('raw_data->>grp_desc', 'eq', 'Dose dupla!')
+        .not('raw_data->>grp_desc', 'eq', 'Dose dupla sem álcool')
+        .not('raw_data->>grp_desc', 'eq', 'Grupo adicional')
+        .not('raw_data->>grp_desc', 'eq', 'Insumos')
+        .not('raw_data->>grp_desc', 'eq', 'Promo chivas')
+        .not('raw_data->>grp_desc', 'eq', 'Uso interno');
       
       // PRODUTOS DOSE DUPLA (excluir - são variações que não devem contar no stockout)
       // Inclui "Dose Dulpa" que é um typo comum
