@@ -1,4 +1,4 @@
-{
+﻿{
   "crons": [
     {
       "path": "/api/configuracoes/credenciais/nibo-sync-simple",
@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/contahub/sync-diario",
-      "schedule": "0 7 * * *"
+      "schedule": "0 13 * * *"
     }
   ],
   "functions": {
