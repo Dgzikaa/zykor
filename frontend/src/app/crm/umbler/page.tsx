@@ -5,8 +5,23 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   MessageCircle,
   Phone,
@@ -27,7 +42,14 @@ import {
   ArrowUpRight,
   BarChart3,
   PieChart,
-  Activity
+  Activity,
+  Send,
+  Plus,
+  Mail,
+  Trash2,
+  AlertCircle,
+  Zap,
+  Eye
 } from 'lucide-react';
 
 interface Metricas {
@@ -58,6 +80,112 @@ interface TopContato {
   ultima_conversa: string;
 }
 
+interface Campanha {
+  id: string;
+  nome: string;
+  tipo: string;
+  channel_id: string;
+  template_mensagem: string;
+  template_name?: string;
+  variaveis?: Record<string, string>;
+  segmento_criterios?: Record<string, unknown>;
+  total_destinatarios: number;
+  enviados: number;
+  entregues: number;
+  lidos: number;
+  erros: number;
+  respostas: number;
+  status: 'rascunho' | 'agendada' | 'em_execucao' | 'concluida' | 'cancelada';
+  agendado_para?: string;
+  iniciado_em?: string;
+  finalizado_em?: string;
+  criado_por_email?: string;
+  created_at: string;
+}
+
+interface Template {
+  nome: string;
+  tipo: 'whatsapp' | 'email';
+  conteudo: string;
+  variaveis: string[];
+  categoria: string;
+}
+
+interface UmblerConfig {
+  configurado: boolean;
+  config: {
+    channel_name: string;
+    phone_number: string;
+  } | null;
+}
+
+const SEGMENTOS = [
+  { value: 'VIP Champions', label: '⭐ VIP Champions', cor: 'purple', desc: 'Visitas frequentes e recentes' },
+  { value: 'Clientes Fiéis', label: '💎 Clientes Fiéis', cor: 'blue', desc: 'Muitas visitas, ativos' },
+  { value: 'Grande Potencial', label: '🚀 Grande Potencial', cor: 'green', desc: 'Engajados recentemente' },
+  { value: 'Em Risco (Churn)', label: '⚠️ Em Risco (Churn)', cor: 'orange', desc: 'Eram ativos, sumiram' },
+  { value: 'Novos Promissores', label: '✨ Novos Promissores', cor: 'cyan', desc: 'Novos e ativos' },
+  { value: 'Regulares', label: '📊 Regulares', cor: 'gray', desc: 'Frequência moderada' },
+  { value: 'Inativos', label: '💤 Inativos', cor: 'red', desc: 'Muito tempo sem visitar' },
+];
+
+const TEMPLATES_WHATSAPP: Template[] = [
+  {
+    nome: 'Reengajamento - Cliente em Risco',
+    tipo: 'whatsapp',
+    categoria: 'reengajamento',
+    conteudo: `Olá {nome}! 👋
+
+Sentimos sua falta no Ordinário! 🍺✨
+
+Preparamos algo especial para você: *{cupom_desconto}% de desconto* em sua próxima visita!
+
+Venha nos visitar! 🎉`,
+    variaveis: ['{nome}', '{cupom_desconto}']
+  },
+  {
+    nome: 'Boas-vindas - Novo Cliente',
+    tipo: 'whatsapp',
+    categoria: 'boas_vindas',
+    conteudo: `Olá {nome}! 🎉
+
+Foi um prazer te receber no Ordinário!
+
+Como primeira visita, queremos te dar um presente: *{cupom_desconto}% de desconto* na sua próxima vez!
+
+Mal podemos esperar pra te ver de novo! 🍻`,
+    variaveis: ['{nome}', '{cupom_desconto}']
+  },
+  {
+    nome: 'VIP - Cliente Especial',
+    tipo: 'whatsapp',
+    categoria: 'vip',
+    conteudo: `Olá {nome}! ⭐
+
+Você é um cliente VIP do Ordinário!
+
+Como agradecimento pela sua fidelidade, temos um presente exclusivo: *{cupom_desconto}% de desconto* para você!
+
+Você faz parte da nossa família! 🍺❤️`,
+    variaveis: ['{nome}', '{cupom_desconto}']
+  },
+  {
+    nome: 'Saudade - Cliente Inativo',
+    tipo: 'whatsapp',
+    categoria: 'reativacao',
+    conteudo: `Ei {nome}! 😢
+
+Faz tempo que você não aparece por aqui...
+
+O Ordinário tá com saudade! 🍺
+
+Volta pra gente? Temos *{cupom_desconto}% de desconto* te esperando!
+
+Bora matar a saudade? 🤗`,
+    variaveis: ['{nome}', '{cupom_desconto}']
+  }
+];
+
 export default function UmblerPage() {
   const [metricas, setMetricas] = useState<Metricas | null>(null);
   const [cruzamento, setCruzamento] = useState<CruzamentoDados | null>(null);
@@ -65,6 +193,24 @@ export default function UmblerPage() {
   const [loading, setLoading] = useState(true);
   const [loadingCruzamento, setLoadingCruzamento] = useState(true);
   const [ultimoSync, setUltimoSync] = useState<string | null>(null);
+
+  // Estados para Campanhas
+  const [campanhas, setCampanhas] = useState<Campanha[]>([]);
+  const [umblerConfig, setUmblerConfig] = useState<UmblerConfig | null>(null);
+  const [segmentosStats, setSegmentosStats] = useState<Record<string, number>>({});
+  const [loadingCampanhas, setLoadingCampanhas] = useState(true);
+  const [modalAberto, setModalAberto] = useState(false);
+  const [criandoCampanha, setCriandoCampanha] = useState(false);
+
+  // Form state para nova campanha
+  const [nome, setNome] = useState('');
+  const [tipo, setTipo] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [segmentosSelecionados, setSegmentosSelecionados] = useState<string[]>([]);
+  const [templateSelecionado, setTemplateSelecionado] = useState('');
+  const [mensagemCustom, setMensagemCustom] = useState('');
+  const [cupomDesconto, setCupomDesconto] = useState(20);
+  const [executarAgora, setExecutarAgora] = useState(true);
+  const [limiteEnvios, setLimiteEnvios] = useState<number | undefined>(undefined);
 
   const fetchMetricas = useCallback(async () => {
     setLoading(true);
@@ -100,10 +246,178 @@ export default function UmblerPage() {
     }
   }, []);
 
+  // Funções de Campanhas
+  const fetchCampanhas = useCallback(async () => {
+    setLoadingCampanhas(true);
+    try {
+      const response = await fetch('/api/umbler/campanhas?bar_id=3');
+      const result = await response.json();
+      setCampanhas(result.campanhas || []);
+
+      const configResponse = await fetch('/api/umbler/config?bar_id=3');
+      const configResult = await configResponse.json();
+      setUmblerConfig(configResult);
+
+      try {
+        const segmentosResponse = await fetch('/api/crm/campanhas?stats=true');
+        const segmentosResult = await segmentosResponse.json();
+        if (segmentosResult.success) {
+          setSegmentosStats(segmentosResult.segmentos_stats || {});
+        }
+      } catch {
+        // Ignorar erro de segmentos
+      }
+    } catch (error) {
+      console.error('Erro ao carregar campanhas:', error);
+    } finally {
+      setLoadingCampanhas(false);
+    }
+  }, []);
+
+  const totalClientesSelecionados = segmentosSelecionados.reduce(
+    (sum, seg) => sum + (segmentosStats[seg] || 0), 
+    0
+  );
+
+  const resetForm = () => {
+    setNome('');
+    setTipo('whatsapp');
+    setSegmentosSelecionados([]);
+    setTemplateSelecionado('');
+    setMensagemCustom('');
+    setCupomDesconto(20);
+    setExecutarAgora(true);
+    setLimiteEnvios(undefined);
+  };
+
+  const criarCampanha = async () => {
+    if (!nome || segmentosSelecionados.length === 0) {
+      alert('Preencha o nome e selecione pelo menos um segmento');
+      return;
+    }
+
+    if (!umblerConfig?.configurado) {
+      alert('Umbler não configurado!');
+      return;
+    }
+
+    if (executarAgora && totalClientesSelecionados > 10) {
+      const confirmar = confirm(
+        `Você está prestes a enviar mensagens para ${totalClientesSelecionados.toLocaleString()} clientes.\n\nDeseja continuar?`
+      );
+      if (!confirmar) return;
+    }
+
+    setCriandoCampanha(true);
+    try {
+      const clientesResponse = await fetch('/api/crm/campanhas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome,
+          tipo,
+          segmento_alvo: segmentosSelecionados,
+          template_id: templateSelecionado || undefined,
+          template_custom: mensagemCustom || undefined,
+          cupom_desconto: cupomDesconto,
+          executar_agora: false,
+          limite_envios: limiteEnvios
+        })
+      });
+
+      const clientesResult = await clientesResponse.json();
+
+      if (!clientesResult.success) {
+        alert(`Erro ao preparar campanha: ${clientesResult.error}`);
+        return;
+      }
+
+      const templateContent = templateSelecionado 
+        ? TEMPLATES_WHATSAPP.find(t => t.nome === templateSelecionado)?.conteudo || mensagemCustom
+        : mensagemCustom;
+
+      const destinatarios = clientesResult.clientes?.map((c: { telefone: string; nome: string; id: number }) => ({
+        telefone: c.telefone,
+        nome: c.nome,
+        cliente_contahub_id: c.id
+      })) || [];
+
+      if (destinatarios.length === 0) {
+        alert('Nenhum cliente encontrado nos segmentos selecionados.');
+        return;
+      }
+
+      const response = await fetch('/api/umbler/campanhas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bar_id: 3,
+          nome,
+          tipo: 'marketing',
+          template_mensagem: templateContent,
+          variaveis: { cupom_desconto: cupomDesconto.toString() },
+          destinatarios: limiteEnvios ? destinatarios.slice(0, limiteEnvios) : destinatarios,
+          segmento_criterios: { segmentos: segmentosSelecionados },
+          executar_agora: executarAgora
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`Campanha criada com sucesso! ${result.total_destinatarios} destinatários.`);
+        setModalAberto(false);
+        resetForm();
+        fetchCampanhas();
+      } else {
+        alert(`Erro: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Erro ao criar campanha:', error);
+      alert('Erro ao criar campanha');
+    } finally {
+      setCriandoCampanha(false);
+    }
+  };
+
+  const cancelarCampanha = async (id: string) => {
+    if (!confirm('Tem certeza que deseja cancelar esta campanha?')) return;
+    try {
+      const response = await fetch(`/api/umbler/campanhas?id=${id}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (result.success) {
+        alert('Campanha cancelada!');
+        fetchCampanhas();
+      }
+    } catch (error) {
+      console.error('Erro ao cancelar campanha:', error);
+    }
+  };
+
+  const toggleSegmento = (segmento: string) => {
+    if (segmentosSelecionados.includes(segmento)) {
+      setSegmentosSelecionados(segmentosSelecionados.filter(s => s !== segmento));
+    } else {
+      setSegmentosSelecionados([...segmentosSelecionados, segmento]);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'rascunho': return <Badge className="bg-gray-500">📝 Rascunho</Badge>;
+      case 'agendada': return <Badge className="bg-blue-600">📅 Agendada</Badge>;
+      case 'em_execucao': return <Badge className="bg-yellow-600">⚡ Executando</Badge>;
+      case 'concluida': return <Badge className="bg-green-600">✅ Concluída</Badge>;
+      case 'cancelada': return <Badge className="bg-red-600">❌ Cancelada</Badge>;
+      default: return <Badge>-</Badge>;
+    }
+  };
+
   useEffect(() => {
     fetchMetricas();
     fetchCruzamento();
-  }, [fetchMetricas, fetchCruzamento]);
+    fetchCampanhas();
+  }, [fetchMetricas, fetchCruzamento, fetchCampanhas]);
 
   const formatarData = (data: string | null): string => {
     if (!data) return '-';
@@ -247,6 +561,10 @@ export default function UmblerPage() {
             <TabsTrigger value="status" className="data-[state=active]:bg-blue-100 dark:data-[state=active]:bg-blue-900/30">
               <PieChart className="w-4 h-4 mr-2" />
               Status das Conversas
+            </TabsTrigger>
+            <TabsTrigger value="campanhas" className="data-[state=active]:bg-cyan-100 dark:data-[state=active]:bg-cyan-900/30">
+              <Send className="w-4 h-4 mr-2" />
+              Campanhas
             </TabsTrigger>
           </TabsList>
 
@@ -568,7 +886,357 @@ export default function UmblerPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Tab: Campanhas */}
+          <TabsContent value="campanhas">
+            <div className="space-y-6">
+              {/* Header Campanhas */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Campanhas WhatsApp</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Disparo em massa via Umbler Talk
+                    {umblerConfig?.config && (
+                      <span className="ml-2 text-green-600 dark:text-green-400">
+                        • {umblerConfig.config.channel_name}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <Button 
+                  onClick={() => setModalAberto(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={!umblerConfig?.configurado}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Nova Campanha
+                </Button>
+              </div>
+
+              {/* Alerta se Umbler não configurado */}
+              {!loadingCampanhas && !umblerConfig?.configurado && (
+                <Card className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+                      <div>
+                        <p className="font-medium text-yellow-800 dark:text-yellow-200">
+                          Integração Umbler não configurada
+                        </p>
+                        <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                          Configure as credenciais da Umbler Talk para habilitar o disparo em massa.
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Stats Campanhas */}
+              {!loadingCampanhas && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Total</div>
+                          <div className="text-2xl font-bold text-gray-900 dark:text-white">{campanhas.length}</div>
+                        </div>
+                        <TrendingUp className="w-6 h-6 text-gray-400" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm text-green-600 dark:text-green-400">Concluídas</div>
+                          <div className="text-2xl font-bold text-green-700 dark:text-green-300">
+                            {campanhas.filter(c => c.status === 'concluida').length}
+                          </div>
+                        </div>
+                        <CheckCircle className="w-6 h-6 text-green-600" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm text-blue-600 dark:text-blue-400">Enviados</div>
+                          <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                            {campanhas.reduce((sum, c) => sum + (c.enviados || 0), 0)}
+                          </div>
+                        </div>
+                        <Send className="w-6 h-6 text-blue-600" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm text-red-600 dark:text-red-400">Erros</div>
+                          <div className="text-2xl font-bold text-red-700 dark:text-red-300">
+                            {campanhas.reduce((sum, c) => sum + (c.erros || 0), 0)}
+                          </div>
+                        </div>
+                        <XCircle className="w-6 h-6 text-red-600" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Lista de Campanhas */}
+              <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-gray-900 dark:text-white">Histórico de Campanhas</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loadingCampanhas ? (
+                    <div className="space-y-4">
+                      {[...Array(3)].map((_, i) => (
+                        <Skeleton key={i} className="h-32" />
+                      ))}
+                    </div>
+                  ) : campanhas.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                      <Send className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>Nenhuma campanha criada ainda.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {campanhas.map((campanha) => (
+                        <div key={campanha.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h3 className="font-bold text-gray-900 dark:text-white">{campanha.nome}</h3>
+                              <div className="flex gap-2 mt-1">
+                                {getStatusBadge(campanha.status)}
+                                <Badge variant="outline">{campanha.total_destinatarios} destinatários</Badge>
+                              </div>
+                            </div>
+                            {(campanha.status === 'agendada' || campanha.status === 'rascunho') && (
+                              <Button
+                                onClick={() => cancelarCampanha(campanha.id)}
+                                variant="outline"
+                                size="sm"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-5 gap-2 text-center text-sm">
+                            <div className="p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                              <div className="font-bold">{campanha.total_destinatarios}</div>
+                              <div className="text-xs text-gray-500">Total</div>
+                            </div>
+                            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
+                              <div className="font-bold text-blue-600">{campanha.enviados}</div>
+                              <div className="text-xs text-gray-500">Enviados</div>
+                            </div>
+                            <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded">
+                              <div className="font-bold text-green-600">{campanha.entregues}</div>
+                              <div className="text-xs text-gray-500">Entregues</div>
+                            </div>
+                            <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded">
+                              <div className="font-bold text-purple-600">{campanha.respostas}</div>
+                              <div className="text-xs text-gray-500">Respostas</div>
+                            </div>
+                            <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded">
+                              <div className="font-bold text-red-600">{campanha.erros}</div>
+                              <div className="text-xs text-gray-500">Erros</div>
+                            </div>
+                          </div>
+                          <div className="mt-2 text-xs text-gray-500">
+                            Criada em: {new Date(campanha.created_at).toLocaleString('pt-BR')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
         </Tabs>
+
+        {/* Modal Nova Campanha */}
+        <Dialog open={modalAberto} onOpenChange={setModalAberto}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800">
+            <DialogHeader>
+              <DialogTitle className="text-gray-900 dark:text-white">Criar Nova Campanha</DialogTitle>
+              <DialogDescription className="text-gray-600 dark:text-gray-400">
+                Configure sua campanha de marketing personalizada
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6 mt-4">
+              {/* Nome */}
+              <div>
+                <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
+                  Nome da Campanha
+                </label>
+                <Input
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  placeholder="Ex: Reengajamento Black Friday"
+                  className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                />
+              </div>
+
+              {/* Segmentos */}
+              <div>
+                <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
+                  Segmentos Alvo
+                  {segmentosSelecionados.length > 0 && (
+                    <span className="ml-2 text-blue-600 font-bold">
+                      ({totalClientesSelecionados.toLocaleString()} clientes)
+                    </span>
+                  )}
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {SEGMENTOS.map(seg => {
+                    const count = segmentosStats[seg.value] || 0;
+                    return (
+                      <Button
+                        key={seg.value}
+                        type="button"
+                        variant={segmentosSelecionados.includes(seg.value) ? "default" : "outline"}
+                        className={`justify-between ${
+                          segmentosSelecionados.includes(seg.value)
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                            : 'bg-white dark:bg-gray-700'
+                        }`}
+                        onClick={() => toggleSegmento(seg.value)}
+                      >
+                        <span>{seg.label}</span>
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          {count.toLocaleString()}
+                        </Badge>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Template */}
+              <div>
+                <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
+                  Template de Mensagem
+                </label>
+                <Select value={templateSelecionado} onValueChange={setTemplateSelecionado}>
+                  <SelectTrigger className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600">
+                    <SelectValue placeholder="Selecione um template ou personalize" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Mensagem Personalizada</SelectItem>
+                    {TEMPLATES_WHATSAPP.map(t => (
+                      <SelectItem key={t.nome} value={t.nome}>
+                        {t.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Preview Template */}
+              {templateSelecionado && (
+                <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                    {TEMPLATES_WHATSAPP.find(t => t.nome === templateSelecionado)?.conteudo}
+                  </div>
+                </div>
+              )}
+
+              {/* Mensagem Custom */}
+              {!templateSelecionado && (
+                <div>
+                  <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
+                    Mensagem Personalizada
+                  </label>
+                  <Textarea
+                    value={mensagemCustom}
+                    onChange={(e) => setMensagemCustom(e.target.value)}
+                    placeholder="Digite sua mensagem... Use {nome}, {cupom_desconto}"
+                    rows={6}
+                    className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                  />
+                </div>
+              )}
+
+              {/* Cupom e Limite */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
+                    Desconto (%)
+                  </label>
+                  <Input
+                    type="number"
+                    value={cupomDesconto}
+                    onChange={(e) => setCupomDesconto(parseInt(e.target.value))}
+                    min={0}
+                    max={100}
+                    className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
+                    Limite de Envios (teste)
+                  </label>
+                  <Input
+                    type="number"
+                    value={limiteEnvios || ''}
+                    onChange={(e) => setLimiteEnvios(e.target.value ? parseInt(e.target.value) : undefined)}
+                    placeholder="Vazio = todos"
+                    min={1}
+                    className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                  />
+                </div>
+              </div>
+
+              {/* Executar Agora */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="executar_agora"
+                  checked={executarAgora}
+                  onChange={(e) => setExecutarAgora(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="executar_agora" className="text-sm text-gray-900 dark:text-white">
+                  Executar campanha imediatamente
+                </label>
+              </div>
+
+              {/* Botões */}
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={criarCampanha}
+                  disabled={criandoCampanha}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {criandoCampanha ? (
+                    <>Criando...</>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 mr-2" />
+                      {executarAgora ? 'Criar e Enviar' : 'Criar Campanha'}
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={() => setModalAberto(false)}
+                  variant="outline"
+                  className="bg-white dark:bg-gray-700"
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

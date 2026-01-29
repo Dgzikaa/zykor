@@ -26,6 +26,9 @@ import {
   ChevronRight,
   Sparkles,
   Megaphone,
+  MessageCircle,
+  Send,
+  DollarSign,
 } from 'lucide-react';
 
 interface BottomNavItem {
@@ -119,8 +122,22 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
         { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', permission: 'relatorios' },
         { icon: Users, label: 'Simulação de CMO', href: '/ferramentas/simulacao-cmo', permission: 'gestao' },
         { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'operacoes' },
-        { icon: TrendingUp, label: 'CFP - Finanças', href: '/fp', permission: 'home' },
+        // { icon: TrendingUp, label: 'CFP - Finanças', href: '/fp', permission: 'home' }, // TODO: Implementar
         { icon: Sparkles, label: 'Agente IA', href: '/ferramentas/agente', permission: 'home' },
+      ],
+    },
+    {
+      icon: MessageCircle,
+      label: 'CRM',
+      href: '/crm',
+      color: 'text-pink-600 dark:text-pink-400',
+      permission: 'gestao',
+      subItems: [
+        { icon: Send, label: 'Umbler Talk', href: '/crm/umbler', permission: 'gestao' },
+        { icon: Sparkles, label: 'Segmentação RFM', href: '/crm/inteligente', permission: 'gestao' },
+        { icon: AlertTriangle, label: 'Predição Churn', href: '/crm/churn-prediction', permission: 'gestao' },
+        { icon: DollarSign, label: 'LTV e Engajamento', href: '/crm/ltv-engajamento', permission: 'gestao' },
+        { icon: Target, label: 'Padrões', href: '/crm/padroes-comportamento', permission: 'gestao' },
       ],
     },
     {

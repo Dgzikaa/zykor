@@ -28,6 +28,8 @@ import {
   Ticket,
   FileSearch,
   Activity,
+  Send,
+  MessageCircle,
   Wallet,
   Tag,
   Receipt,
@@ -100,9 +102,22 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: Users, label: 'Clientes', href: '/analitico/clientes', permission: 'relatorios' },
       { icon: Clock, label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
       { icon: Ticket, label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'relatorios' },
-      { icon: Sparkles, label: 'CRM', href: '/crm', permission: 'gestao' },
       { icon: BarChart3, label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
       { icon: Sparkles, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },
+    ],
+  },
+  {
+    icon: MessageCircle,
+    label: 'CRM',
+    href: '/crm',
+    color: 'text-pink-600 dark:text-pink-400',
+    permission: 'gestao',
+    subItems: [
+      { icon: Send, label: 'Umbler Talk', href: '/crm/umbler', description: 'Conversas e Campanhas', permission: 'gestao' },
+      { icon: Sparkles, label: 'Segmentação RFM', href: '/crm/inteligente', permission: 'gestao' },
+      { icon: AlertTriangle, label: 'Predição Churn', href: '/crm/churn-prediction', permission: 'gestao' },
+      { icon: DollarSign, label: 'LTV e Engajamento', href: '/crm/ltv-engajamento', permission: 'gestao' },
+      { icon: Target, label: 'Padrões', href: '/crm/padroes-comportamento', permission: 'gestao' },
     ],
   },
   {
@@ -121,7 +136,7 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
       { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
       { icon: DollarSign, label: 'DRE', href: '/ferramentas/dre', permission: 'dashboard_financeiro_mensal' },
-      { icon: Wallet, label: 'CFP - Finanças', href: '/fp', description: 'Controle Financeiro Pessoal', permission: 'home' },
+      // { icon: Wallet, label: 'CFP - Finanças', href: '/fp', description: 'Controle Financeiro Pessoal', permission: 'home' }, // TODO: Implementar
     ],
   },
   {
