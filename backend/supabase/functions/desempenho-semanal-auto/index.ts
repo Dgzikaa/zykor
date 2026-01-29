@@ -466,7 +466,8 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   // ============================================
   const googleData = await fetchAllData(supabase, 'windsor_google', 'review_star_rating, review_average_rating', {
     'gte_date': startDate,
-    'lte_date': endDate
+    'lte_date': endDate,
+    'eq_bar_id': barId
   })
 
   const avaliacoes5Estrelas = googleData?.filter(item => item.review_star_rating === 'FIVE').length || 0
@@ -474,7 +475,7 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     ? googleData.reduce((sum, item) => sum + (parseFloat(item.review_average_rating) || 0), 0) / googleData.length 
     : null
 
-  console.log(`⭐ Avaliações Google: ${avaliacoes5Estrelas} com 5★, Média: ${mediaGoogle?.toFixed(2) || 'N/A'}`)
+  console.log(`⭐ Avaliações Google (bar_id=${barId}): ${avaliacoes5Estrelas} com 5★, Média: ${mediaGoogle?.toFixed(2) || 'N/A'}`)
 
   // ============================================
   // 10. % CLIENTES NOVOS (stored procedure)
@@ -665,25 +666,44 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   console.log(`⏱️ Tempo Bar: ${tempoSaidaBar.toFixed(1)}min (${atrasosBar} atrasos, ${percAtrasosBar.toFixed(1)}%)`)
   console.log(`⏱️ Tempo Cozinha: ${tempoSaidaCozinha.toFixed(1)}min (${atrasosCozinha} atrasos, ${percAtrasosCozinha.toFixed(1)}%)`)
 
-  // 12.3 STOCKOUT (contahub_stockout)
-  const stockoutData = await fetchAllData(supabase, 'contahub_stockout', 'loc_desc, prd_venda, prd_estoque', {
+  // 12.3 STOCKOUT (contahub_stockout) - agrupando por produto único para evitar duplicatas
+  const stockoutData = await fetchAllData(supabase, 'contahub_stockout', 'prd, loc_desc, prd_venda, prd_estoque', {
     'gte_data_consulta': startDate,
     'lte_data_consulta': endDate,
     'eq_bar_id': barId
   })
 
-  // Produtos em ruptura (prd_venda = 'S' e estoque <= 0)
+  // Produtos em ruptura (prd_venda = 'S' e estoque <= 0) - agrupando por prd para contar produtos únicos
   const emRuptura = stockoutData?.filter(item => item.prd_venda === 'S' && (parseFloat(item.prd_estoque) || 0) <= 0) || []
+  
+  // Agrupar por código do produto (prd) para evitar contar o mesmo produto várias vezes
+  const produtosUnicos = new Map<string, any>()
+  emRuptura.forEach(item => {
+    const key = `${item.prd}-${item.loc_desc}`
+    if (!produtosUnicos.has(key)) {
+      produtosUnicos.set(key, item)
+    }
+  })
+  const rupturaUnica = Array.from(produtosUnicos.values())
   
   const locaisBar = ['Bar', 'Baldes', 'Chopp', 'Shot e Dose', 'Pegue e Pague', 'Batidos', 'Preshh']
   const locaisCozinha = ['Cozinha 1', 'Cozinha 2', 'Montados', 'Mexido']
   const locaisDrinks = ['Bar', 'Batidos', 'Preshh']
 
-  const stockoutBar = emRuptura.filter(item => locaisBar.some(l => item.loc_desc?.includes(l))).length
-  const stockoutCozinha = emRuptura.filter(item => locaisCozinha.some(l => item.loc_desc?.includes(l))).length
-  const stockoutDrinks = emRuptura.filter(item => locaisDrinks.some(l => item.loc_desc?.includes(l))).length
+  const stockoutBar = rupturaUnica.filter(item => locaisBar.some(l => item.loc_desc?.includes(l))).length
+  const stockoutCozinha = rupturaUnica.filter(item => locaisCozinha.some(l => item.loc_desc?.includes(l))).length
+  const stockoutDrinks = rupturaUnica.filter(item => locaisDrinks.some(l => item.loc_desc?.includes(l))).length
 
-  console.log(`📦 Stockout - Bar: ${stockoutBar}, Cozinha: ${stockoutCozinha}, Drinks: ${stockoutDrinks}`)
+  // Calcular total de produtos ativos para percentual de ruptura
+  const produtosAtivos = stockoutData?.filter(item => item.prd_venda === 'S') || []
+  const produtosAtivosUnicos = new Set(produtosAtivos.map(item => `${item.prd}-${item.loc_desc}`)).size
+  
+  // Percentuais de stockout
+  const stockoutBarPerc = produtosAtivosUnicos > 0 ? (stockoutBar / produtosAtivosUnicos) * 100 : 0
+  const stockoutCozinhaPerc = produtosAtivosUnicos > 0 ? (stockoutCozinha / produtosAtivosUnicos) * 100 : 0
+  const stockoutDrinksPerc = produtosAtivosUnicos > 0 ? (stockoutDrinks / produtosAtivosUnicos) * 100 : 0
+
+  console.log(`📦 Stockout (produtos únicos) - Bar: ${stockoutBar} (${stockoutBarPerc.toFixed(1)}%), Cozinha: ${stockoutCozinha} (${stockoutCozinhaPerc.toFixed(1)}%), Drinks: ${stockoutDrinks} (${stockoutDrinksPerc.toFixed(1)}%)`)
 
   // 12.4 PERCENTUAIS DE VENDA POR CATEGORIA (usando eventos_base consolidado)
   const eventosBase = await fetchAllData(supabase, 'eventos_base', 'percent_b, percent_d, percent_c, fat_19h_percent, dia_semana, real_r', {
@@ -750,6 +770,23 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   ).reduce((sum, e) => sum + (parseFloat(e.real_r) || 0), 0) || 0
 
   console.log(`📅 Faturamento QUI+SAB+DOM: R$ ${fatQuiSabDom.toFixed(2)}`)
+
+  // 13.5 % FATURAMENTO APÓS 22H (usando contahub_fatporhora)
+  const fatPorHoraData = await fetchAllData(supabase, 'contahub_fatporhora', 'hora, valor', {
+    'gte_data': startDate,
+    'lte_data': endDate,
+    'eq_bar_id': barId
+  })
+  
+  const fatTotalHora = fatPorHoraData?.reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0) || 0
+  const fatApos22h = fatPorHoraData?.filter(item => {
+    const hora = parseInt(item.hora) || 0
+    return hora >= 22 || hora < 6 // Após 22h ou madrugada
+  }).reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0) || 0
+  
+  const percFat22h = fatTotalHora > 0 ? (fatApos22h / fatTotalHora) * 100 : 0
+
+  console.log(`🌙 % Faturamento após 22h: ${percFat22h.toFixed(1)}%`)
 
   // ============================================
   // 14. ATUALIZAR REGISTRO COM TODOS OS DADOS
@@ -822,9 +859,14 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     tempo_saida_cozinha: tempoSaidaCozinha,
     atrasos_bar: Math.round(atrasosBar),
     atrasos_cozinha: Math.round(atrasosCozinha),
+    atrasos_bar_perc: percAtrasosBar,
+    atrasos_cozinha_perc: percAtrasosCozinha,
     stockout_bar: stockoutBar,
     stockout_comidas: stockoutCozinha,
     stockout_drinks: stockoutDrinks,
+    stockout_bar_perc: stockoutBarPerc,
+    stockout_comidas_perc: stockoutCozinhaPerc,
+    stockout_drinks_perc: stockoutDrinksPerc,
     perc_bebidas: percBebidas,
     perc_drinks: percDrinks,
     perc_comida: percComida,
@@ -832,7 +874,7 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     
     // Cockpit Vendas
     perc_faturamento_ate_19h: percFat19h,
-    venda_balcao: vendaBalcao,
+    perc_faturamento_apos_22h: percFat22h,
     qui_sab_dom: fatQuiSabDom,
     
     // Timestamp
