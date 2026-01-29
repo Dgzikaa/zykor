@@ -284,10 +284,13 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Verificando stakeholder no NIBO...');
     let stakeholderId: string | null = null;
     
+    // Usar URL base para chamadas internas - prioriza variável de ambiente, depois Vercel, depois produção
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://zykor.com.br');
+    
     try {
       // Buscar stakeholder existente por CPF/CNPJ
       const cpfCnpj = chaveFormatada;
-      const stakeholderResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/financeiro/nibo/stakeholders?q=${cpfCnpj}`);
+      const stakeholderResponse = await fetch(`${baseUrl}/api/financeiro/nibo/stakeholders?q=${cpfCnpj}`);
       const stakeholderData = await stakeholderResponse.json();
 
       if (stakeholderData.success && stakeholderData.data.length > 0) {
@@ -298,7 +301,7 @@ export async function POST(request: NextRequest) {
         // Verificar se precisa atualizar chave PIX
         if (stakeholder.pixKey !== chaveFormatada) {
           console.log('🔄 Atualizando chave PIX do stakeholder...');
-          const updateResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/financeiro/nibo/stakeholders/${stakeholderId}`, {
+          const updateResponse = await fetch(`${baseUrl}/api/financeiro/nibo/stakeholders/${stakeholderId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -330,7 +333,7 @@ export async function POST(request: NextRequest) {
 
         console.log('📤 Payload do novo stakeholder:', novoStakeholder);
 
-        const createResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/financeiro/nibo/stakeholders`, {
+        const createResponse = await fetch(`${baseUrl}/api/financeiro/nibo/stakeholders`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(novoStakeholder),
@@ -389,7 +392,7 @@ export async function POST(request: NextRequest) {
         bar_id: bar_id
       });
 
-      const niboResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/financeiro/nibo/schedules`, {
+      const niboResponse = await fetch(`${baseUrl}/api/financeiro/nibo/schedules`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
