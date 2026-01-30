@@ -421,18 +421,22 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   // ============================================
   // 7. RESERVAS (getin_reservations)
   // ============================================
-  const getinReservas = await fetchAllData(supabase, 'getin_reservations', 'status, no_show', {
+  const getinReservas = await fetchAllData(supabase, 'getin_reservations', 'status, no_show, people', {
     'gte_reservation_date': startDate,
     'lte_reservation_date': endDate,
     'eq_bar_id': barId
   })
 
   const reservasTotais = getinReservas?.length || 0
-  const reservasPresentes = getinReservas?.filter(item => 
+  const pessoasReservasTotais = getinReservas?.reduce((sum, item) => sum + (parseInt(item.people) || 0), 0) || 0
+  
+  const reservasPresentesList = getinReservas?.filter(item => 
     item.status === 'seated' || (item.status === 'confirmed' && !item.no_show)
-  ).length || 0
+  ) || []
+  const reservasPresentes = reservasPresentesList.length
+  const pessoasReservasPresentes = reservasPresentesList.reduce((sum, item) => sum + (parseInt(item.people) || 0), 0)
 
-  console.log(`📋 Reservas: ${reservasTotais} totais, ${reservasPresentes} presentes`)
+  console.log(`📋 Reservas: ${reservasTotais} totais (${pessoasReservasTotais} pessoas), ${reservasPresentes} presentes (${pessoasReservasPresentes} pessoas)`)
 
   // ============================================
   // 8. NPS (tabela nps)
@@ -836,6 +840,8 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     // Reservas
     reservas_totais: Math.round(reservasTotais),
     reservas_presentes: Math.round(reservasPresentes),
+    pessoas_reservas_totais: Math.round(pessoasReservasTotais),
+    pessoas_reservas_presentes: Math.round(pessoasReservasPresentes),
     
     // Avaliações
     avaliacoes_5_google_trip: Math.round(avaliacoes5Estrelas),

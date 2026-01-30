@@ -72,6 +72,8 @@ interface DadosSemana {
   clientes_ativos: number;
   reservas_totais: number;
   reservas_presentes: number;
+  pessoas_reservas_totais?: number;
+  pessoas_reservas_presentes?: number;
   // Indicadores de Qualidade
   avaliacoes_5_google_trip: number;
   media_avaliacoes_google: number;
@@ -390,6 +392,8 @@ interface IndicadorProps {
   inverso?: boolean;
   sufixo?: string;
   reservasTotais?: number;
+  pessoasReservasTotais?: number;
+  pessoasReservasPresentes?: number;
   editavel?: boolean;
   onSave?: (valor: number) => void;
   semanaId?: number;
@@ -404,6 +408,8 @@ function Indicador({
   inverso = false, 
   sufixo = '',
   reservasTotais,
+  pessoasReservasTotais,
+  pessoasReservasPresentes,
   editavel = false,
   onSave,
   semanaId
@@ -426,7 +432,15 @@ function Indicador({
       case 'decimal':
         return v.toFixed(2) + sufixo;
       case 'reservas':
-        return `${v}/${reservasTotais || 0}`;
+        // Formato: "X/Y reservas (A/B pessoas)"
+        const presentes = v;
+        const totais = reservasTotais || 0;
+        const pessoasPresentes = pessoasReservasPresentes || 0;
+        const pessoasTotais = pessoasReservasTotais || 0;
+        if (pessoasTotais > 0) {
+          return `${presentes}/${totais} (${pessoasPresentes}/${pessoasTotais} pax)`;
+        }
+        return `${presentes}/${totais}`;
       default:
         return v.toLocaleString('pt-BR') + sufixo;
     }
@@ -837,6 +851,8 @@ export default function DesempenhoPage() {
             valorAnterior={dadosAnt?.reservas_presentes} 
             formato="reservas"
             reservasTotais={dados.reservas_totais}
+            pessoasReservasTotais={dados.pessoas_reservas_totais}
+            pessoasReservasPresentes={dados.pessoas_reservas_presentes}
             editavel={editavel}
             onSave={(v) => dados.id && salvarMetrica(dados.id, 'reservas_presentes', v)}
           />
