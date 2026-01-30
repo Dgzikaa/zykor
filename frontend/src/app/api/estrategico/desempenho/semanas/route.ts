@@ -39,6 +39,17 @@ export async function GET(request: NextRequest) {
       anoFinal = d.getUTCFullYear();
     }
 
+    // Função para calcular quantas semanas ISO um ano tem
+    const getISOWeeksInYear = (year: number): number => {
+      const jan1 = new Date(Date.UTC(year, 0, 1));
+      const jan1Weekday = jan1.getUTCDay(); // 0=domingo, 4=quinta
+      const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+      if (jan1Weekday === 4 || (isLeap && jan1Weekday === 3)) {
+        return 53;
+      }
+      return 52;
+    };
+
     // Calcular as semanas a buscar (da mais antiga para a mais recente)
     const semanasParaBuscar: { semana: number; ano: number }[] = [];
     let semanaAtual = semanaFinal;
@@ -50,10 +61,14 @@ export async function GET(request: NextRequest) {
       // Voltar uma semana
       semanaAtual--;
       if (semanaAtual < 1) {
-        semanaAtual = 53;
+        // Usar o número correto de semanas do ano anterior
         anoAtualCalc--;
+        semanaAtual = getISOWeeksInYear(anoAtualCalc);
       }
     }
+    
+    console.log(`[Semanas API] Bar ${barId}: Buscando ${quantidade} semanas até S${semanaFinal}/${anoFinal}:`, 
+      semanasParaBuscar.map(s => `S${s.semana}/${s.ano}`).join(', '));
 
     // Buscar todas as semanas em paralelo
     const promises = semanasParaBuscar.map(async ({ semana, ano: anoSemana }) => {
