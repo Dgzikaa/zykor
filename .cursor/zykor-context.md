@@ -1,7 +1,7 @@
 # ZYKOR - CONTEXTO COMPLETO DO AGENTE
 
 > LEIA ESTE ARQUIVO EM CADA NOVO CHAT!
-> Ultima atualizacao: 2026-01-19
+> Ultima atualizacao: 2026-01-30
 
 ---
 
@@ -502,10 +502,10 @@ Meses FRACOS:
 | **% Happy Hour** | `contahub_prodporhora` grupo HH | ✅ AUTO |
 | **Qtde Itens Bar** | `contahub_prodporhora` grupos bar | ✅ AUTO |
 | **Qtde Itens Cozinha** | `contahub_prodporhora` grupos cozinha | ✅ AUTO |
-| **Atrasos Bar** | `contahub_tempo` t0_t2 > 4min | ✅ AUTO |
-| **Atrasos Cozinha** | `contahub_tempo` t0_t2 > 12min | ✅ AUTO |
-| **Tempo Saída Bar** | `contahub_tempo` média t0_t2 | ✅ AUTO |
-| **Tempo Saída Cozinha** | `contahub_tempo` média t0_t2 | ✅ AUTO |
+| **Atrasos Bar** | `contahub_tempo` t0_t3 > 4min (exclui outliers >30min) | ✅ AUTO |
+| **Atrasos Cozinha** | `contahub_tempo` t0_t2 > 12min (exclui outliers >60min) | ✅ AUTO |
+| **Tempo Saída Bar** | `contahub_tempo` média t0_t3 (lançamento→entrega) | ✅ AUTO |
+| **Tempo Saída Cozinha** | `contahub_tempo` média t0_t2 (lançamento→fim produção) | ✅ AUTO |
 
 ### Cockpit Vendas ✅
 
@@ -573,6 +573,42 @@ Campos existem na tabela, preenchidos manualmente:
 ### Uso Principal:
 Gerar listas "quentes" de clientes para campanhas de marketing segmentadas.
 Exemplo: Clientes ativos de quinta-feira com ticket médio > R$100.
+
+---
+
+## CORREÇÕES IMPLEMENTADAS (30/01/2026)
+
+### 1. Correção de dt_gerencial (Turno Aberto Errado)
+
+**Problema:** Quando o turno era aberto no dia errado (ex: quarta em vez de terça), 
+os pagamentos ficavam com `dt_gerencial` incorreto.
+
+**Solução:** Edge function `contahub-processor` agora tem função `calcularDataReal()`:
+- Regra: Se `hr_lancamento::date > dt_gerencial` E `hora >= 15h` → usa data do lançamento
+- Aplica em: `contahub_pagamentos`, `contahub_tempo`, `contahub_periodo`, `contahub_vendas`
+- Dados históricos corrigidos via UPDATE massivo
+
+### 2. Correção de Tempos Bar/Cozinha
+
+**Problema:** Tempo de bar estava usando `t0_t2` (muito baixo), deveria usar `t0_t3`.
+
+**Solução:**
+- **Bar:** Usa `t0_t3` (lançamento → entrega ao cliente)
+- **Cozinha:** Usa `t0_t2` (lançamento → fim produção)
+- **Atrasos Bar:** `t0_t3 > 4 minutos`
+- **Atrasos Cozinha:** `t0_t2 > 12 minutos`
+- **Outliers removidos:** Bar > 30min, Cozinha > 60min (pedidos não fechados)
+- Edge function `desempenho-semanal-auto` já estava correta
+- Recalculadas todas as 57 semanas históricas
+
+### 3. Sincronização ContaHub Incompleta
+
+**Problema:** Sync automático às 04:00 trazia dados parciais se turno ainda não fechado.
+
+**Solução:**
+- Usar `contahub-sync-retroativo` para ressincronizar dias com dados incompletos
+- Deletar `contahub_raw_data` existente antes de ressincronizar
+- Processador aplica correção de data automaticamente
 
 ---
 

@@ -7,6 +7,39 @@
 
 ## 2026-01
 
+### 2026-01-30 - Correção de Tempos Bar/Cozinha e dt_gerencial
+
+**O que foi feito:**
+
+1. **Correção de Tempos de Produção:**
+   - ✅ Bar agora usa `t0_t3` (lançamento → entrega) em vez de `t0_t2`
+   - ✅ Cozinha continua usando `t0_t2` (lançamento → fim produção)
+   - ✅ Atrasos Bar: `t0_t3 > 4 minutos`
+   - ✅ Atrasos Cozinha: `t0_t2 > 12 minutos`
+   - ✅ Outliers removidos do cálculo (>30min bar, >60min cozinha)
+   - ✅ Recalculadas todas as 57 semanas históricas
+
+2. **Correção de dt_gerencial (Turno Errado):**
+   - ✅ Adicionada função `calcularDataReal()` no `contahub-processor`
+   - ✅ Regra: Se `hr_lancamento::date > dt_gerencial` E `hora >= 15h` → corrige data
+   - ✅ Aplica em: pagamentos, tempo, periodo, vendas
+   - ✅ Corrigidos 5.707 registros históricos
+
+3. **Ressincronização ContaHub:**
+   - ✅ Ressincronizados dias 26, 27, 29 e 30 de janeiro
+   - ✅ Faturamento corrigido: R$34k → R$75k na semana
+
+**Edge Functions atualizadas:**
+- `contahub-processor` (v6) - com função `calcularDataReal()`
+- `desempenho-semanal-auto` (v33) - já estava com t0_t3 para bar
+
+**Arquivos alterados:**
+- `backend/supabase/functions/contahub-processor/index.ts`
+- `frontend/src/app/estrategico/desempenho/page.tsx` (calculo display)
+- `.cursor/zykor-context.md` (documentação atualizada)
+
+---
+
 ### 2026-01-16 - Página de Eventos e Correção de Produtos
 
 **O que foi feito:**

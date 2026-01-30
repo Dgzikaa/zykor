@@ -11,6 +11,35 @@ const corsHeaders = {
 // Tamanho do batch para inserções (evitar timeout com muitos registros)
 const BATCH_SIZE = 500;
 
+// ============================================
+// FUNÇÃO PARA CALCULAR DATA REAL
+// Regra: Se hr_lancamento é de um dia diferente do dt_gerencial E hora >= 15h
+// então usar a data do hr_lancamento (corrige turno aberto errado)
+// ============================================
+function calcularDataReal(dtGerencial: string, hrLancamento: string | null | undefined): string {
+  if (!hrLancamento || !dtGerencial) return dtGerencial;
+  
+  try {
+    // Parsear hr_lancamento (formato: "2026-01-28 17:34:15" ou "2026-01-28T17:34:15")
+    const lancamentoDate = new Date(hrLancamento.replace(' ', 'T'));
+    if (isNaN(lancamentoDate.getTime())) return dtGerencial;
+    
+    const dataLancamento = lancamentoDate.toISOString().split('T')[0];
+    const horaLancamento = lancamentoDate.getHours();
+    
+    // Se a data do lançamento é diferente da gerencial E hora >= 15h
+    // significa que o turno foi aberto errado, usar data do lançamento
+    if (dataLancamento > dtGerencial && horaLancamento >= 15) {
+      console.log(`📅 Corrigindo data: ${dtGerencial} → ${dataLancamento} (lançamento às ${horaLancamento}h)`);
+      return dataLancamento;
+    }
+    
+    return dtGerencial;
+  } catch (e) {
+    return dtGerencial;
+  }
+}
+
 // Função helper para inserir registros em batches
 async function insertInBatches(supabase: any, tableName: string, records: any[]): Promise<{ success: boolean, count: number, errors: number }> {
   let totalInserted = 0;
@@ -157,8 +186,14 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           .eq('bar_id', barId)
           .eq('dt_gerencial', dataDate);
         
-        const periodoRecords = records.map((item: any) => ({
-          dt_gerencial: item.dt_gerencial || dataDate,
+        const periodoRecords = records.map((item: any) => {
+          // Calcular data real baseada no ultimo_pedido (vd_hrultimo)
+          const ultimoPedido = item.vd_hrultimo || item.ultimo_pedido;
+          const dtGerencialOriginal = item.dt_gerencial || dataDate;
+          const dtGerencialReal = calcularDataReal(dtGerencialOriginal, ultimoPedido);
+          
+          return {
+          dt_gerencial: dtGerencialReal,
           tipovenda: item.tipovenda || '',
           vd_mesadesc: item.vd_mesadesc || '',
           vd_localizacao: item.vd_localizacao || '',
@@ -182,7 +217,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           bar_id: barId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        }));
+        }});
         
         if (periodoRecords.length > 0) {
           const { error } = await supabase
@@ -239,8 +274,13 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           .eq('bar_id', barId)
           .eq('dt_gerencial', dataDate);
         
-        const pagamentosRecords = records.map((item: any) => ({
-          dt_gerencial: item.dt_gerencial || dataDate,
+        const pagamentosRecords = records.map((item: any) => {
+          // Calcular data real baseada no hr_lancamento
+          const dtGerencialOriginal = item.dt_gerencial || dataDate;
+          const dtGerencialReal = calcularDataReal(dtGerencialOriginal, item.hr_lancamento);
+          
+          return {
+          dt_gerencial: dtGerencialReal,
           vd: String(item.vd || ''),
           trn: String(item.trn || ''),
           hr_lancamento: item.hr_lancamento || '',
@@ -267,7 +307,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           bar_id: barId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        }));
+        }});
         
         if (pagamentosRecords.length > 0) {
           console.log(`📊 Processando ${pagamentosRecords.length} registros de pagamentos em batches...`);
@@ -293,8 +333,13 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           .eq('bar_id', barId)
           .eq('data', dataDate);
         
-        const tempoRecords = records.map((item: any) => ({
-          data: dataDate,
+        const tempoRecords = records.map((item: any) => {
+          // Calcular data real baseada no t0_lancamento
+          const t0Lancamento = item['t0-lancamento'] || item.t0_lancamento;
+          const dataReal = calcularDataReal(dataDate, t0Lancamento);
+          
+          return {
+          data: dataReal,
           prd: parseInt(item.prd) || null,
           prd_desc: item.prd_desc || '',
           grp_desc: item.grp_desc || '',
@@ -329,7 +374,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           bar_id: barId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        }));
+        }});
         
         if (tempoRecords.length > 0) {
           console.log(`📊 Processando ${tempoRecords.length} registros de tempo em batches...`);
