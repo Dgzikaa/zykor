@@ -1,7 +1,8 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { safeLocalStorage, isClient } from '@/lib/client-utils';
+import { MODULO_TO_PERMISSIONS } from '@/lib/menu-config';
 
 interface Usuario {
   id: number;
@@ -133,18 +134,22 @@ export function usePermissions(): PermissionsHook {
   }, []);
 
   // Memoizar as permissões do usuário para evitar recálculos desnecessários
+  // Agora também expande módulos específicos para permissões genéricas
   const userPermissions = useMemo(() => {
     if (!user || !user.ativo || !user.modulos_permitidos) {
       return new Set<string>();
     }
     
     const permissions = new Set<string>();
+    const modulosDoUsuario: string[] = [];
     
     // Se modulos_permitidos é um array
     if (Array.isArray(user.modulos_permitidos)) {
       user.modulos_permitidos.forEach(modulo => {
         if (typeof modulo === 'string') {
-          permissions.add(modulo.toLowerCase());
+          const moduloLower = modulo.toLowerCase();
+          permissions.add(moduloLower);
+          modulosDoUsuario.push(moduloLower);
         }
       });
     }
@@ -152,9 +157,20 @@ export function usePermissions(): PermissionsHook {
     else if (typeof user.modulos_permitidos === 'object') {
       Object.entries(user.modulos_permitidos).forEach(([modulo, value]) => {
         if (value === true) {
-          permissions.add(modulo.toLowerCase());
+          const moduloLower = modulo.toLowerCase();
+          permissions.add(moduloLower);
+          modulosDoUsuario.push(moduloLower);
         }
       });
+    }
+
+    // Expandir módulos específicos para permissões genéricas
+    // Ex: 'ferramentas_producao' -> também concede 'operacoes' e 'ferramentas'
+    for (const modulo of modulosDoUsuario) {
+      const permissoesGenericas = MODULO_TO_PERMISSIONS[modulo];
+      if (permissoesGenericas) {
+        permissoesGenericas.forEach(perm => permissions.add(perm.toLowerCase()));
+      }
     }
 
     return permissions;
