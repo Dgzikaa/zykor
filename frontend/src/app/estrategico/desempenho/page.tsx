@@ -962,8 +962,9 @@ export default function DesempenhoPage() {
                                   </div>
                                 );
                               })}
-                          </div>
-                        ))}
+                            </div>
+                          );
+                        })}
                       </div>
                     ))}
                   </div>
