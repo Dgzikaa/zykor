@@ -1,102 +1,89 @@
-const CACHE_NAME = 'ordinario-card-v1'
-const STATIC_CACHE = 'static-v1'
+﻿// Service Worker com estratÃ©gia NETWORK FIRST
+// VersÃ£o atualizada automaticamente a cada deploy
+const CACHE_VERSION = 'v' + Date.now();
+const CACHE_NAME = 'zykor-cache-' + CACHE_VERSION;
 
-// Arquivos para cache offline
-const STATIC_FILES = [
-  '/',
-  '/manifest.json'
-]
+// Arquivos que podem ser cacheados para offline
+const OFFLINE_CACHE = [
+  '/offline.html'
+];
 
-// Install event
+// Install - prÃ©-cachear apenas recursos essenciais offline
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(STATIC_CACHE)
-      .then((cache) => cache.addAll(STATIC_FILES))
-      .then(() => self.skipWaiting())
-  )
-})
+  console.log('[SW] Installing new version:', CACHE_VERSION);
+  // ForÃ§a o novo SW a tomar controle imediatamente
+  self.skipWaiting();
+});
 
-// Activate event
+// Activate - limpa caches antigos
 self.addEventListener('activate', (event) => {
+  console.log('[SW] Activating new version:', CACHE_VERSION);
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME && cacheName !== STATIC_CACHE) {
-            return caches.delete(cacheName)
-          }
-        })
-      )
-    }).then(() => self.clients.claim())
-  )
-})
-
-// Fetch event
-self.addEventListener('fetch', (event) => {
-  // Para cartões, sempre buscar online primeiro
-  if (event.request.url.includes('/cartao/')) {
-    event.respondWith(
-      fetch(event.request)
-        .catch(() => caches.match(event.request))
-    )
-    return
-  }
-
-  // Para outros recursos, cache first
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        if (response) {
-          return response
-        }
-        return fetch(event.request)
-          .then((response) => {
-            if (response.status === 200 && event.request.method === 'GET') {
-              const responseClone = response.clone()
-              caches.open(CACHE_NAME)
-                .then((cache) => cache.put(event.request, responseClone))
-            }
-            return response
+        cacheNames
+          .filter((name) => name.startsWith('zykor-cache-') && name !== CACHE_NAME)
+          .map((name) => {
+            console.log('[SW] Deleting old cache:', name);
+            return caches.delete(name);
           })
-      })
-  )
-})
+      );
+    }).then(() => {
+      // ForÃ§a todos os clients a usar o novo SW
+      return self.clients.claim();
+    })
+  );
+});
 
-// Push notifications (futuro)
-self.addEventListener('push', (event) => {
-  if (event.data) {
-    const data = event.data.json()
-    
-    const options = {
-      body: data.body || 'Nova notificação do Ordinário Bar',
-      icon: '/logos/ordinario-transparente.png',
-      badge: '/logos/ordinario-transparente.png',
-      tag: 'ordinario-notification',
-      actions: [
-        {
-          action: 'open',
-          title: 'Abrir App'
-        },
-        {
-          action: 'close',
-          title: 'Fechar'
-        }
-      ]
-    }
-    
-    event.waitUntil(
-      self.registration.showNotification(data.title || 'Ordinário Bar', options)
-    )
-  }
-})
-
-// Notification click
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close()
+// Fetch - NETWORK FIRST para tudo (exceto assets estÃ¡ticos)
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
   
-  if (event.action === 'open' || !event.action) {
-    event.waitUntil(
-      self.clients.openWindow('/')
-    )
+  // Ignorar requests que nÃ£o sÃ£o HTTP/HTTPS
+  if (!url.protocol.startsWith('http')) return;
+  
+  // Ignorar APIs externas
+  if (!url.origin.includes('zykor.com.br') && !url.origin.includes('localhost')) return;
+  
+  // Para APIs, sempre network only (sem cache)
+  if (url.pathname.startsWith('/api/')) {
+    return; // Deixa o browser lidar normalmente
   }
-})
+  
+  // Para assets estÃ¡ticos (_next/static), podemos cachear
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+  
+  // Para todo o resto (HTML, JS dinÃ¢mico), NETWORK FIRST
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        // Se conseguiu da rede, retorna (nÃ£o cacheia HTML/JS dinÃ¢mico)
+        return response;
+      })
+      .catch(() => {
+        // Se offline, tenta o cache
+        return caches.match(event.request);
+      })
+  );
+});
+
+// Listener para mensagens do app (forÃ§ar update)
+self.addEventListener('message', (event) => {
+  if (event.data === 'skipWaiting') {
+    self.skipWaiting();
+  }
+});

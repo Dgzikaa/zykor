@@ -30,9 +30,10 @@ const nextConfig = {
     unoptimized: process.env.NODE_ENV === 'development',
   },
   
-  // ✅ Headers de segurança
+  // ✅ Headers de segurança e cache
   async headers() {
     return [
+      // Headers gerais de segurança
       {
         source: '/(.*)',
         headers: [
@@ -53,6 +54,41 @@ const nextConfig = {
             value: process.env.NODE_ENV === 'development' 
               ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.pluggy.ai; style-src 'self' 'unsafe-inline' https://cdn.pluggy.ai; img-src 'self' data: blob: https:; connect-src 'self' https: wss: ws: https://api.pluggy.ai; font-src 'self' data: https:; worker-src 'self' blob:; frame-src 'self' https://docs.google.com https://vercel.live https://cdn.pluggy.ai https://connect.pluggy.ai; frame-ancestors 'none';"
               : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.pluggy.ai; style-src 'self' 'unsafe-inline' https://cdn.pluggy.ai; img-src 'self' data: blob: https:; connect-src 'self' https: wss: https://api.pluggy.ai; font-src 'self' data: https:; worker-src 'self' blob:; frame-src 'self' https://docs.google.com https://vercel.live https://cdn.pluggy.ai https://connect.pluggy.ai; frame-ancestors 'none';",
+          },
+        ],
+      },
+      // Páginas HTML - sempre revalidar
+      {
+        source: '/:path*',
+        has: [{ type: 'header', key: 'accept', value: '(.*text/html.*)' }],
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+        ],
+      },
+      // APIs - nunca cachear
+      {
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+        ],
+      },
+      // Service Worker - nunca cachear
+      {
+        source: '/sw.js',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+          {
+            key: 'Service-Worker-Allowed',
+            value: '/',
           },
         ],
       },
