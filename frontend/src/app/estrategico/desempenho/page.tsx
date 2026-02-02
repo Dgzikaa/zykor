@@ -119,6 +119,14 @@ interface MetricaConfig {
   sufixo?: string;
   editavel?: boolean;
   keyPessoas?: string; // Campo secundário para formato 'reservas' (mostra "reservas/pessoas")
+  indentado?: boolean; // Indica se está indentado (sub-item de um grupo)
+}
+
+// Grupo de métricas relacionadas
+interface GrupoMetricas {
+  id: string;
+  label: string;        // Label do grupo (ex: "Faturamento Total")
+  metricas: MetricaConfig[];
 }
 
 interface SecaoConfig {
@@ -126,7 +134,7 @@ interface SecaoConfig {
   titulo: string;
   icone: React.ReactNode;
   cor: string;
-  metricas: MetricaConfig[];
+  grupos: GrupoMetricas[];  // Agora usa grupos ao invés de métricas diretas
 }
 
 // Cores por status
@@ -136,27 +144,51 @@ const STATUS_COLORS = {
   nao_confiavel: { dot: 'bg-amber-500', text: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' }
 };
 
-// Configuração das seções e métricas
+// Configuração das seções e métricas COM AGRUPAMENTO
 const SECOES: SecaoConfig[] = [
   {
     id: 'guardrail',
     titulo: 'GUARDRAIL - Estratégicos',
     icone: <DollarSign className="w-4 h-4" />,
     cor: 'bg-emerald-600',
-    metricas: [
-      { key: 'faturamento_total', label: 'Faturamento Total', status: 'auto', fonte: 'ContaHub + Yuzer + Sympla', calculo: 'Soma de todos os pagamentos', formato: 'moeda' },
-      { key: 'faturamento_entrada', label: 'Fat. Couvert', status: 'auto', fonte: 'ContaHub', calculo: 'Soma do vr_couvert', formato: 'moeda' },
-      { key: 'faturamento_bar', label: 'Fat. Bar', status: 'auto', fonte: 'Calculado', calculo: 'Total - Couvert', formato: 'moeda' },
-      { key: 'faturamento_cmovivel', label: 'Fat. CMvível', status: 'auto', fonte: 'Calculado', calculo: 'Bar - Repique', formato: 'moeda' },
-      { key: 'cmv_rs', label: 'CMV R$', status: 'manual', fonte: 'Planilha', calculo: 'Inserido manualmente', formato: 'moeda', inverso: true, editavel: true },
-      { key: 'ticket_medio', label: 'Ticket Médio', status: 'auto', fonte: 'ContaHub', calculo: 'vr_pagamentos / pessoas', formato: 'moeda_decimal' },
-      { key: 'tm_entrada', label: 'TM Entrada', status: 'auto', fonte: 'ContaHub', calculo: 'Couvert / Clientes', formato: 'moeda_decimal' },
-      { key: 'tm_bar', label: 'TM Bar', status: 'auto', fonte: 'ContaHub', calculo: 'Fat Bar / Clientes', formato: 'moeda_decimal' },
-      { key: 'cmv_limpo', label: 'CMV Limpo %', status: 'auto', fonte: 'Calculado', calculo: 'CMV / CMvível × 100', formato: 'percentual', inverso: true },
-      { key: 'cmv_global_real', label: 'CMV Global %', status: 'auto', fonte: 'Calculado', calculo: 'CMV / Total × 100', formato: 'percentual', inverso: true },
-      { key: 'cmv_teorico', label: 'CMV Teórico', status: 'nao_confiavel', fonte: 'Fichas Técnicas', calculo: 'Pode estar desatualizado', formato: 'percentual', inverso: true },
-      { key: 'cmo', label: 'CMO %', status: 'auto', fonte: 'NIBO', calculo: 'Custos MO / Faturamento', formato: 'percentual', inverso: true },
-      { key: 'custo_atracao_faturamento', label: 'Atração/Fat.', status: 'auto', fonte: 'NIBO', calculo: 'Atrações / Faturamento', formato: 'percentual', inverso: true },
+    grupos: [
+      {
+        id: 'faturamento',
+        label: 'Faturamento Total',
+        metricas: [
+          { key: 'faturamento_total', label: 'Faturamento Total', status: 'auto', fonte: 'ContaHub + Yuzer + Sympla', calculo: 'Soma de todos os pagamentos', formato: 'moeda' },
+          { key: 'faturamento_entrada', label: 'Fat. Couvert', status: 'auto', fonte: 'ContaHub', calculo: 'Soma do vr_couvert', formato: 'moeda', indentado: true },
+          { key: 'faturamento_bar', label: 'Fat. Bar', status: 'auto', fonte: 'Calculado', calculo: 'Total - Couvert', formato: 'moeda', indentado: true },
+          { key: 'faturamento_cmovivel', label: 'Fat. CMvível', status: 'auto', fonte: 'Calculado', calculo: 'Bar - Repique', formato: 'moeda', indentado: true },
+        ]
+      },
+      {
+        id: 'cmv',
+        label: 'CMV Teórico %',
+        metricas: [
+          { key: 'cmv_teorico', label: 'CMV Teórico %', status: 'manual', fonte: 'Planilha', calculo: 'Inserido manualmente', formato: 'percentual', inverso: true, editavel: true },
+          { key: 'cmv_global_real', label: 'CMV Global %', status: 'auto', fonte: 'Calculado', calculo: 'CMV / Total × 100', formato: 'percentual', inverso: true, indentado: true },
+          { key: 'cmv_limpo', label: 'CMV Limpo %', status: 'auto', fonte: 'Calculado', calculo: 'CMV / CMvível × 100', formato: 'percentual', inverso: true, indentado: true },
+          { key: 'cmv_rs', label: 'CMV R$', status: 'manual', fonte: 'Planilha', calculo: 'Inserido manualmente', formato: 'moeda', inverso: true, editavel: true, indentado: true },
+        ]
+      },
+      {
+        id: 'ticket',
+        label: 'Ticket Médio',
+        metricas: [
+          { key: 'ticket_medio', label: 'Ticket Médio', status: 'auto', fonte: 'ContaHub', calculo: 'vr_pagamentos / pessoas', formato: 'moeda_decimal' },
+          { key: 'tm_entrada', label: 'TM Entrada', status: 'auto', fonte: 'ContaHub', calculo: 'Couvert / Clientes', formato: 'moeda_decimal', indentado: true },
+          { key: 'tm_bar', label: 'TM Bar', status: 'auto', fonte: 'ContaHub', calculo: 'Fat Bar / Clientes', formato: 'moeda_decimal', indentado: true },
+        ]
+      },
+      {
+        id: 'custos',
+        label: 'Custos Operacionais',
+        metricas: [
+          { key: 'cmo', label: 'CMO %', status: 'auto', fonte: 'NIBO', calculo: 'Custos MO / Faturamento', formato: 'percentual', inverso: true },
+          { key: 'custo_atracao_faturamento', label: 'Atração/Fat.', status: 'auto', fonte: 'NIBO', calculo: 'Atrações / Faturamento', formato: 'percentual', inverso: true },
+        ]
+      }
     ]
   },
   {
@@ -164,18 +196,42 @@ const SECOES: SecaoConfig[] = [
     titulo: 'OVT - Clientes & Qualidade',
     icone: <Users className="w-4 h-4" />,
     cor: 'bg-blue-600',
-    metricas: [
-      { key: 'retencao_1m', label: 'Retenção 1 mês', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram', formato: 'percentual' },
-      { key: 'retencao_2m', label: 'Retenção 2 meses', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram', formato: 'percentual' },
-      { key: 'perc_clientes_novos', label: '% Novos Clientes', status: 'auto', fonte: 'Stored Procedure', calculo: 'Novos / Total', formato: 'percentual' },
-      { key: 'clientes_atendidos', label: 'Visitas', status: 'auto', fonte: 'ContaHub + Yuzer', calculo: 'Soma de pessoas', formato: 'numero' },
-      { key: 'clientes_ativos', label: 'Clientes Ativos', status: 'auto', fonte: 'Stored Procedure', calculo: '2+ visitas em 90 dias', formato: 'numero' },
-      { key: 'reservas_totais', label: 'Reservas Realizadas', status: 'auto', fonte: 'GetIn', calculo: 'Total reservas/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_totais' },
-      { key: 'reservas_presentes', label: 'Reservas Presentes', status: 'auto', fonte: 'GetIn', calculo: 'Reservas seated/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_presentes' },
-      { key: 'avaliacoes_5_google_trip', label: 'Avaliações 5★', status: 'nao_confiavel', fonte: 'Windsor', calculo: 'Verificar bar_id', formato: 'numero' },
-      { key: 'media_avaliacoes_google', label: 'Média Google', status: 'nao_confiavel', fonte: 'Windsor', calculo: 'Verificar sincronização', formato: 'decimal' },
-      { key: 'nps_reservas', label: 'NPS Reservas', status: 'auto', fonte: 'NPS', calculo: 'Média das notas', formato: 'numero' },
-      { key: 'nota_felicidade_equipe', label: 'Felicidade Equipe', status: 'manual', fonte: 'Pesquisa', calculo: 'Manual', formato: 'numero', editavel: true },
+    grupos: [
+      {
+        id: 'retencao',
+        label: 'Retenção',
+        metricas: [
+          { key: 'retencao_1m', label: 'Retenção 1 mês', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram', formato: 'percentual' },
+          { key: 'retencao_2m', label: 'Retenção 2 meses', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram', formato: 'percentual' },
+          { key: 'perc_clientes_novos', label: '% Novos Clientes', status: 'auto', fonte: 'Stored Procedure', calculo: 'Novos / Total', formato: 'percentual' },
+        ]
+      },
+      {
+        id: 'volume',
+        label: 'Volume',
+        metricas: [
+          { key: 'clientes_atendidos', label: 'Visitas', status: 'auto', fonte: 'ContaHub + Yuzer', calculo: 'Soma de pessoas', formato: 'numero' },
+          { key: 'clientes_ativos', label: 'Clientes Ativos', status: 'auto', fonte: 'Stored Procedure', calculo: '2+ visitas em 90 dias', formato: 'numero' },
+        ]
+      },
+      {
+        id: 'reservas',
+        label: 'Reservas',
+        metricas: [
+          { key: 'reservas_totais', label: 'Reservas Realizadas', status: 'auto', fonte: 'GetIn', calculo: 'Total reservas/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_totais' },
+          { key: 'reservas_presentes', label: 'Reservas Presentes', status: 'auto', fonte: 'GetIn', calculo: 'Reservas seated/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_presentes' },
+        ]
+      },
+      {
+        id: 'qualidade',
+        label: 'Qualidade',
+        metricas: [
+          { key: 'avaliacoes_5_google_trip', label: 'Avaliações 5★', status: 'nao_confiavel', fonte: 'Windsor', calculo: 'Verificar bar_id', formato: 'numero' },
+          { key: 'media_avaliacoes_google', label: 'Média Google', status: 'nao_confiavel', fonte: 'Windsor', calculo: 'Verificar sincronização', formato: 'decimal' },
+          { key: 'nps_reservas', label: 'NPS Reservas', status: 'auto', fonte: 'NPS', calculo: 'Média das notas', formato: 'numero' },
+          { key: 'nota_felicidade_equipe', label: 'Felicidade Equipe', status: 'manual', fonte: 'Pesquisa', calculo: 'Manual', formato: 'numero', editavel: true },
+        ]
+      }
     ]
   },
   {
@@ -183,20 +239,44 @@ const SECOES: SecaoConfig[] = [
     titulo: 'Cockpit Produtos',
     icone: <ShoppingCart className="w-4 h-4" />,
     cor: 'bg-orange-500',
-    metricas: [
-      { key: 'stockout_comidas_perc', label: '% Stockout Comidas', status: 'auto', fonte: 'ContaHub Stockout', calculo: 'Média da semana: Cozinha 1 + Cozinha 2', formato: 'percentual', inverso: true },
-      { key: 'stockout_drinks_perc', label: '% Stockout Drinks', status: 'auto', fonte: 'ContaHub Stockout', calculo: 'Média da semana: Batidos + Montados + Mexido + Preshh', formato: 'percentual', inverso: true },
-      { key: 'stockout_bar_perc', label: '% Stockout Bar', status: 'auto', fonte: 'ContaHub Stockout', calculo: 'Média da semana: Bar + Baldes + Shot e Dose + Chopp', formato: 'percentual', inverso: true },
-      { key: 'perc_bebidas', label: '% Bebidas', status: 'auto', fonte: 'eventos_base', calculo: 'Média percent_b', formato: 'percentual' },
-      { key: 'perc_drinks', label: '% Drinks', status: 'auto', fonte: 'eventos_base', calculo: 'Média percent_d', formato: 'percentual' },
-      { key: 'perc_comida', label: '% Comida', status: 'auto', fonte: 'eventos_base', calculo: 'Média percent_c', formato: 'percentual' },
-      { key: 'perc_happy_hour', label: '% Happy Hour', status: 'auto', fonte: 'contahub_analitico', calculo: 'Vendas HH / Total', formato: 'percentual' },
-      { key: 'qtde_itens_bar', label: 'Itens Bar', status: 'auto', fonte: 'contahub_analitico', calculo: 'Soma qtd bar', formato: 'numero' },
-      { key: 'qtde_itens_cozinha', label: 'Itens Cozinha', status: 'auto', fonte: 'contahub_analitico', calculo: 'Soma qtd cozinha', formato: 'numero' },
-      { key: 'tempo_saida_bar', label: 'Tempo Bar (min)', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 'Média t0_t3', formato: 'decimal', inverso: true, sufixo: ' min' },
-      { key: 'tempo_saida_cozinha', label: 'Tempo Cozinha (min)', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 'Média t0_t2', formato: 'decimal', inverso: true, sufixo: ' min' },
-      { key: 'atrasos_bar', label: 'Atrasos Bar', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 't0_t3 > 4min', formato: 'numero', inverso: true },
-      { key: 'atrasos_cozinha', label: 'Atrasos Cozinha', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 't0_t2 > 12min', formato: 'numero', inverso: true },
+    grupos: [
+      {
+        id: 'stockout',
+        label: 'Stockout',
+        metricas: [
+          { key: 'stockout_comidas_perc', label: '% Stockout Comidas', status: 'auto', fonte: 'ContaHub Stockout', calculo: 'Média da semana: Cozinha 1 + Cozinha 2', formato: 'percentual', inverso: true },
+          { key: 'stockout_drinks_perc', label: '% Stockout Drinks', status: 'auto', fonte: 'ContaHub Stockout', calculo: 'Média da semana: Batidos + Montados + Mexido + Preshh', formato: 'percentual', inverso: true },
+          { key: 'stockout_bar_perc', label: '% Stockout Bar', status: 'auto', fonte: 'ContaHub Stockout', calculo: 'Média da semana: Bar + Baldes + Shot e Dose + Chopp', formato: 'percentual', inverso: true },
+        ]
+      },
+      {
+        id: 'mix',
+        label: 'Mix de Vendas',
+        metricas: [
+          { key: 'perc_bebidas', label: '% Bebidas', status: 'auto', fonte: 'eventos_base', calculo: 'Média percent_b', formato: 'percentual' },
+          { key: 'perc_drinks', label: '% Drinks', status: 'auto', fonte: 'eventos_base', calculo: 'Média percent_d', formato: 'percentual' },
+          { key: 'perc_comida', label: '% Comida', status: 'auto', fonte: 'eventos_base', calculo: 'Média percent_c', formato: 'percentual' },
+          { key: 'perc_happy_hour', label: '% Happy Hour', status: 'auto', fonte: 'contahub_analitico', calculo: 'Vendas HH / Total', formato: 'percentual' },
+        ]
+      },
+      {
+        id: 'producao',
+        label: 'Produção',
+        metricas: [
+          { key: 'qtde_itens_bar', label: 'Itens Bar', status: 'auto', fonte: 'contahub_analitico', calculo: 'Soma qtd bar', formato: 'numero' },
+          { key: 'qtde_itens_cozinha', label: 'Itens Cozinha', status: 'auto', fonte: 'contahub_analitico', calculo: 'Soma qtd cozinha', formato: 'numero' },
+        ]
+      },
+      {
+        id: 'tempos',
+        label: 'Tempos & Atrasos',
+        metricas: [
+          { key: 'tempo_saida_bar', label: 'Tempo Bar (min)', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 'Média t0_t3', formato: 'decimal', inverso: true, sufixo: ' min' },
+          { key: 'tempo_saida_cozinha', label: 'Tempo Cozinha (min)', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 'Média t0_t2', formato: 'decimal', inverso: true, sufixo: ' min' },
+          { key: 'atrasos_bar', label: 'Atrasos Bar', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 't0_t3 > 4min', formato: 'numero', inverso: true },
+          { key: 'atrasos_cozinha', label: 'Atrasos Cozinha', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 't0_t2 > 12min', formato: 'numero', inverso: true },
+        ]
+      }
     ]
   },
   {
@@ -204,20 +284,43 @@ const SECOES: SecaoConfig[] = [
     titulo: 'Vendas & Marketing',
     icone: <Megaphone className="w-4 h-4" />,
     cor: 'bg-pink-500',
-    metricas: [
-      { key: 'perc_faturamento_ate_19h', label: '% Fat. até 19h', status: 'auto', fonte: 'eventos_base', calculo: 'Média fat_19h_percent', formato: 'percentual' },
-      { key: 'perc_faturamento_apos_22h', label: '% Fat. após 22h', status: 'auto', fonte: 'contahub_fatporhora', calculo: 'Soma após 22h', formato: 'percentual' },
-      { key: 'qui_sab_dom', label: 'QUI+SÁB+DOM', status: 'auto', fonte: 'eventos_base', calculo: 'Soma real_r', formato: 'moeda' },
-      { key: 'o_num_posts', label: 'Nº Posts', status: 'manual', fonte: 'Marketing', calculo: 'Manual', formato: 'numero', editavel: true },
-      { key: 'o_alcance', label: 'Alcance Orgânico', status: 'manual', fonte: 'Marketing', calculo: 'Manual', formato: 'numero', editavel: true },
-      { key: 'o_engajamento', label: 'Engajamento %', status: 'manual', fonte: 'Marketing', calculo: 'Manual', formato: 'percentual', editavel: true },
-      { key: 'm_valor_investido', label: 'Investido Ads', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda', editavel: true },
-      { key: 'm_alcance', label: 'Alcance Pago', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
-      { key: 'm_cliques', label: 'Cliques Ads', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
-      { key: 'm_ctr', label: 'CTR', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'percentual', editavel: true },
+    grupos: [
+      {
+        id: 'horarios',
+        label: 'Horários',
+        metricas: [
+          { key: 'perc_faturamento_ate_19h', label: '% Fat. até 19h', status: 'auto', fonte: 'eventos_base', calculo: 'Média fat_19h_percent', formato: 'percentual' },
+          { key: 'perc_faturamento_apos_22h', label: '% Fat. após 22h', status: 'auto', fonte: 'contahub_fatporhora', calculo: 'Soma após 22h', formato: 'percentual' },
+          { key: 'qui_sab_dom', label: 'QUI+SÁB+DOM', status: 'auto', fonte: 'eventos_base', calculo: 'Soma real_r', formato: 'moeda' },
+        ]
+      },
+      {
+        id: 'organico',
+        label: 'Marketing Orgânico',
+        metricas: [
+          { key: 'o_num_posts', label: 'Nº Posts', status: 'manual', fonte: 'Marketing', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'o_alcance', label: 'Alcance Orgânico', status: 'manual', fonte: 'Marketing', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'o_engajamento', label: 'Engajamento %', status: 'manual', fonte: 'Marketing', calculo: 'Manual', formato: 'percentual', editavel: true },
+        ]
+      },
+      {
+        id: 'pago',
+        label: 'Marketing Pago',
+        metricas: [
+          { key: 'm_valor_investido', label: 'Investido Ads', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda', editavel: true },
+          { key: 'm_alcance', label: 'Alcance Pago', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'm_cliques', label: 'Cliques Ads', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'm_ctr', label: 'CTR', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'percentual', editavel: true },
+        ]
+      }
     ]
   }
 ];
+
+// Helper para obter todas as métricas de uma seção (flatten)
+const getMetricasSecao = (secao: SecaoConfig): MetricaConfig[] => {
+  return secao.grupos.flatMap(g => g.metricas);
+};
 
 // Formatador de valores
 const formatarValor = (valor: number | null | undefined, formato: string, sufixo?: string): string => {
@@ -286,76 +389,122 @@ export default function DesempenhoPage() {
     produtos: true,
     vendas: true
   });
+  // Estado para grupos abertos/fechados (para as subcategorias)
+  const [gruposAbertos, setGruposAbertos] = useState<Record<string, boolean>>({});
+  // Visão: 'semanal' ou 'mensal'
+  const [visao, setVisao] = useState<'semanal' | 'mensal'>('semanal');
   const [editando, setEditando] = useState<{ semanaId: number; campo: string } | null>(null);
   const [valorEdit, setValorEdit] = useState('');
+  
+  // Toggle grupo aberto/fechado
+  const toggleGrupo = useCallback((grupoId: string) => {
+    setGruposAbertos(prev => ({ ...prev, [grupoId]: !prev[grupoId] }));
+  }, []);
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const semanaAtualRef = useRef<HTMLDivElement>(null);
 
-  // Carregar todas as semanas
+  // Carregar dados (semanas ou meses)
   const carregarSemanas = useCallback(async () => {
     if (!selectedBar || !user) return;
     
     setLoading(true);
     try {
-      const response = await fetch('/api/estrategico/desempenho/todas-semanas', {
-        headers: {
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
-        }
-      });
-
-      if (!response.ok) throw new Error('Erro ao carregar dados');
-      
-      const data = await response.json();
-      let semanasCompletas = data.semanas || [];
-      
-      // Adicionar semanas futuras vazias para permitir scroll (5 semanas à frente)
-      if (data.semanaAtual && data.anoAtual) {
-        let semanaFutura = data.semanaAtual;
-        let anoFuturo = data.anoAtual;
+      if (visao === 'mensal') {
+        // Carregar dados mensais - todos os meses do ano atual
+        const anoAtual = new Date().getFullYear();
+        const mesAtual = new Date().getMonth() + 1;
+        const mesesData: DadosSemana[] = [];
         
-        for (let i = 0; i < 5; i++) {
-          semanaFutura++;
-          const semanasNoAno = getSemanasNoAno(anoFuturo);
-          if (semanaFutura > semanasNoAno) {
-            semanaFutura = 1;
-            anoFuturo++;
-          }
-          
-          // Verificar se já existe
-          const jaExiste = semanasCompletas.some((s: DadosSemana) => 
-            s.numero_semana === semanaFutura && s.ano === anoFuturo
-          );
-          
-          if (!jaExiste) {
-            const dataInicio = getDataInicioSemana(anoFuturo, semanaFutura);
-            const dataFim = getDataFimSemana(dataInicio);
-            
-            semanasCompletas.push({
-              id: undefined,
-              numero_semana: semanaFutura,
-              ano: anoFuturo,
-              data_inicio: dataInicio,
-              data_fim: dataFim,
-              // Todos os valores como null/undefined para indicar "sem dados"
-            } as DadosSemana);
-          }
-        }
+        // Carregar todos os meses em paralelo
+        const promises = Array.from({ length: 12 }, (_, i) => i + 1).map(mes =>
+          fetch(`/api/estrategico/desempenho/mensal?mes=${mes}&ano=${anoAtual}`, {
+            headers: {
+              'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+            }
+          }).then(r => r.json())
+        );
         
-        // Ordenar por ano e semana
-        semanasCompletas.sort((a: DadosSemana, b: DadosSemana) => {
-          if (a.ano !== b.ano) return a.ano - b.ano;
-          return a.numero_semana - b.numero_semana;
+        const resultados = await Promise.all(promises);
+        
+        resultados.forEach((data, idx) => {
+          const mes = idx + 1;
+          const nomesMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+          
+          mesesData.push({
+            id: mes,
+            numero_semana: mes, // Usamos numero_semana para armazenar o mês
+            ano: anoAtual,
+            data_inicio: `${anoAtual}-${String(mes).padStart(2, '0')}-01`,
+            data_fim: `${anoAtual}-${String(mes).padStart(2, '0')}-${new Date(anoAtual, mes, 0).getDate()}`,
+            ...(data.consolidado || {})
+          } as DadosSemana);
         });
+        
+        setSemanas(mesesData);
+        setSemanaAtualIdx(mesAtual - 1);
+        
+      } else {
+        // Carregar dados semanais
+        const response = await fetch('/api/estrategico/desempenho/todas-semanas', {
+          headers: {
+            'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+          }
+        });
+
+        if (!response.ok) throw new Error('Erro ao carregar dados');
+        
+        const data = await response.json();
+        let semanasCompletas = data.semanas || [];
+        
+        // Adicionar semanas futuras vazias para permitir scroll (5 semanas à frente)
+        if (data.semanaAtual && data.anoAtual) {
+          let semanaFutura = data.semanaAtual;
+          let anoFuturo = data.anoAtual;
+          
+          for (let i = 0; i < 5; i++) {
+            semanaFutura++;
+            const semanasNoAno = getSemanasNoAno(anoFuturo);
+            if (semanaFutura > semanasNoAno) {
+              semanaFutura = 1;
+              anoFuturo++;
+            }
+            
+            // Verificar se já existe
+            const jaExiste = semanasCompletas.some((s: DadosSemana) => 
+              s.numero_semana === semanaFutura && s.ano === anoFuturo
+            );
+            
+            if (!jaExiste) {
+              const dataInicio = getDataInicioSemana(anoFuturo, semanaFutura);
+              const dataFim = getDataFimSemana(dataInicio);
+              
+              semanasCompletas.push({
+                id: undefined,
+                numero_semana: semanaFutura,
+                ano: anoFuturo,
+                data_inicio: dataInicio,
+                data_fim: dataFim,
+                // Todos os valores como null/undefined para indicar "sem dados"
+              } as DadosSemana);
+            }
+          }
+          
+          // Ordenar por ano e semana
+          semanasCompletas.sort((a: DadosSemana, b: DadosSemana) => {
+            if (a.ano !== b.ano) return a.ano - b.ano;
+            return a.numero_semana - b.numero_semana;
+          });
+        }
+        
+        setSemanas(semanasCompletas);
+        
+        // Encontrar índice da semana atual
+        const idx = semanasCompletas.findIndex((s: DadosSemana) => 
+          s.numero_semana === data.semanaAtual && s.ano === data.anoAtual
+        );
+        setSemanaAtualIdx(idx >= 0 ? idx : semanasCompletas.length - 1 || 0);
       }
-      
-      setSemanas(semanasCompletas);
-      
-      // Encontrar índice da semana atual
-      const idx = semanasCompletas.findIndex((s: DadosSemana) => 
-        s.numero_semana === data.semanaAtual && s.ano === data.anoAtual
-      );
-      setSemanaAtualIdx(idx >= 0 ? idx : semanasCompletas.length - 1 || 0);
       
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -363,7 +512,7 @@ export default function DesempenhoPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedBar?.id, user?.id]);
+  }, [selectedBar?.id, user?.id, visao]);
 
   // Scroll para semana atual após carregar - deixar semana atual mais ao centro-direita
   useEffect(() => {
@@ -380,9 +529,29 @@ export default function DesempenhoPage() {
     }
   }, [loading, semanaAtualIdx]);
 
+  // Recarregar quando visão mudar
+  useEffect(() => {
+    carregarSemanas();
+  }, [visao]);
+
   // Toggle seção
   const toggleSecao = (id: string) => {
     setSecoesAbertas(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+  
+  // Helper para formatar header de coluna (semana ou mês)
+  const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const formatarHeaderColuna = (item: DadosSemana): { titulo: string; subtitulo: string } => {
+    if (visao === 'mensal') {
+      return {
+        titulo: `${NOMES_MESES[item.numero_semana - 1]}/${item.ano.toString().slice(-2)}`,
+        subtitulo: `Mês ${item.numero_semana}`
+      };
+    }
+    return {
+      titulo: `S${item.numero_semana.toString().padStart(2, '0')}/${item.ano.toString().slice(-2)}`,
+      subtitulo: `${formatarDataCurta(item.data_inicio)} - ${formatarDataCurta(item.data_fim)}`
+    };
   };
 
   // Salvar métrica
@@ -445,10 +614,24 @@ export default function DesempenhoPage() {
         <div className="max-w-full mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
+              {/* Toggle Semanal/Mensal */}
+              <Tabs value={visao} onValueChange={(v) => setVisao(v as 'semanal' | 'mensal')}>
+                <TabsList className="h-9">
+                  <TabsTrigger value="semanal" className="text-xs px-3">
+                    <Calendar className="w-3.5 h-3.5 mr-1.5" />
+                    Semanal
+                  </TabsTrigger>
+                  <TabsTrigger value="mensal" className="text-xs px-3">
+                    <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
+                    Mensal
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              
               <div className="flex items-center gap-2">
                 <Table2 className="w-5 h-5 text-gray-500" />
                 <span className="font-semibold text-gray-900 dark:text-white">
-                  {semanas.length} semanas carregadas
+                  {semanas.length} {visao === 'semanal' ? 'semanas' : 'meses'} carregados
                 </span>
               </div>
             </div>
@@ -493,7 +676,7 @@ export default function DesempenhoPage() {
             <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 text-center">INDICADOR</span>
           </div>
           
-          {/* Labels das métricas por seção */}
+          {/* Labels das métricas por seção COM GRUPOS */}
           {SECOES.map(secao => (
             <div key={secao.id}>
               {/* Header da seção */}
@@ -511,36 +694,71 @@ export default function DesempenhoPage() {
                 <span className="text-xs font-semibold text-white truncate">{secao.titulo}</span>
               </div>
               
-              {/* Linhas de métricas */}
-              {secoesAbertas[secao.id] && secao.metricas.map(metrica => (
-                <TooltipProvider key={metrica.key}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div 
-                        className="flex items-center gap-2 px-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-help"
-                        style={{ height: '36px' }}
-                      >
-                        <div className={cn("w-2 h-2 rounded-full flex-shrink-0", STATUS_COLORS[metrica.status].dot)} />
-                        <span className="text-xs text-gray-700 dark:text-gray-300 truncate leading-none">{metrica.label}</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className={cn("max-w-xs p-3", STATUS_COLORS[metrica.status].bg)}>
-                      <div className="space-y-1">
-                        <div className={cn("font-semibold text-sm", STATUS_COLORS[metrica.status].text)}>
-                          {metrica.status === 'auto' && 'Automático'}
-                          {metrica.status === 'manual' && 'Manual'}
-                          {metrica.status === 'nao_confiavel' && 'Não Confiável'}
-                        </div>
-                        <div className="text-xs text-gray-600 dark:text-gray-300">
-                          <strong>Fonte:</strong> {metrica.fonte}
-                        </div>
-                        <div className="text-xs text-gray-600 dark:text-gray-300">
-                          <strong>Cálculo:</strong> {metrica.calculo}
-                        </div>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+              {/* Grupos de métricas */}
+              {secoesAbertas[secao.id] && secao.grupos.map(grupo => (
+                <div key={grupo.id}>
+                  {/* Header do grupo (subcategoria) */}
+                  <div 
+                    className="flex items-center gap-2 px-3 bg-gray-100 dark:bg-gray-700/80 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600/80 border-b border-gray-200 dark:border-gray-600"
+                    style={{ height: '32px' }}
+                    onClick={() => toggleGrupo(`${secao.id}-${grupo.id}`)}
+                  >
+                    {gruposAbertos[`${secao.id}-${grupo.id}`] ? (
+                      <ChevronDown className="w-3 h-3 text-gray-500 dark:text-gray-400" />
+                    ) : (
+                      <ChevronRight className="w-3 h-3 text-gray-500 dark:text-gray-400" />
+                    )}
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{grupo.label}</span>
+                  </div>
+                  
+                  {/* Métricas do grupo (quando expandido ou primeira métrica sempre visível) */}
+                  {grupo.metricas.map((metrica, idx) => {
+                    // Primeira métrica sempre visível, demais só quando grupo aberto
+                    const isVisible = idx === 0 || gruposAbertos[`${secao.id}-${grupo.id}`];
+                    if (!isVisible) return null;
+                    
+                    return (
+                      <TooltipProvider key={metrica.key}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div 
+                              className={cn(
+                                "flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-help",
+                                metrica.indentado ? "px-6 bg-gray-50/50 dark:bg-gray-800/50" : "px-3"
+                              )}
+                              style={{ height: '36px' }}
+                            >
+                              <div className={cn("w-2 h-2 rounded-full flex-shrink-0", STATUS_COLORS[metrica.status].dot)} />
+                              <span className={cn(
+                                "text-xs truncate leading-none",
+                                metrica.indentado 
+                                  ? "text-gray-500 dark:text-gray-400" 
+                                  : "text-gray-700 dark:text-gray-300 font-medium"
+                              )}>
+                                {metrica.indentado ? `└ ${metrica.label}` : metrica.label}
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className={cn("max-w-xs p-3", STATUS_COLORS[metrica.status].bg)}>
+                            <div className="space-y-1">
+                              <div className={cn("font-semibold text-sm", STATUS_COLORS[metrica.status].text)}>
+                                {metrica.status === 'auto' && 'Automático'}
+                                {metrica.status === 'manual' && 'Manual'}
+                                {metrica.status === 'nao_confiavel' && 'Não Confiável'}
+                              </div>
+                              <div className="text-xs text-gray-600 dark:text-gray-300">
+                                <strong>Fonte:</strong> {metrica.fonte}
+                              </div>
+                              <div className="text-xs text-gray-600 dark:text-gray-300">
+                                <strong>Cálculo:</strong> {metrica.calculo}
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  })}
+                </div>
               ))}
             </div>
           ))}
@@ -578,18 +796,25 @@ export default function DesempenhoPage() {
                       "h-[72px] border-b border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center px-1 sticky top-0 z-10",
                       isAtual ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-gray-50 dark:bg-gray-700"
                     )}>
-                      <span className={cn(
-                        "text-sm font-bold text-center",
-                        isAtual ? "text-emerald-700 dark:text-emerald-400" : "text-gray-700 dark:text-gray-300"
-                      )}>
-                        S{semana.numero_semana.toString().padStart(2, '0')}/{semana.ano.toString().slice(-2)}
-                      </span>
-                      <span className="text-[10px] text-gray-500 dark:text-gray-400 text-center">
-                        {formatarDataCurta(semana.data_inicio)} - {formatarDataCurta(semana.data_fim)}
-                      </span>
+                      {(() => {
+                        const header = formatarHeaderColuna(semana);
+                        return (
+                          <>
+                            <span className={cn(
+                              "text-sm font-bold text-center",
+                              isAtual ? "text-emerald-700 dark:text-emerald-400" : "text-gray-700 dark:text-gray-300"
+                            )}>
+                              {header.titulo}
+                            </span>
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 text-center">
+                              {header.subtitulo}
+                            </span>
+                          </>
+                        );
+                      })()}
                     </div>
                     
-                    {/* Valores por seção */}
+                    {/* Valores por seção COM GRUPOS */}
                     {SECOES.map(secao => (
                       <div key={secao.id}>
                         {/* Espaço para header da seção */}
@@ -598,70 +823,94 @@ export default function DesempenhoPage() {
                           style={{ height: '40px' }}
                         />
                         
-                        {/* Valores das métricas */}
-                        {secoesAbertas[secao.id] && secao.metricas.map(metrica => {
-                          const valor = (semana as any)[metrica.key];
-                          const valorPessoas = metrica.keyPessoas ? (semana as any)[metrica.keyPessoas] : null;
-                          const isEditando = editando?.semanaId === semana.id && editando?.campo === metrica.key;
-                          
-                          // Formatar valor para exibição
-                          const valorFormatado = metrica.formato === 'reservas' 
-                            ? (valor !== null && valor !== undefined 
-                                ? `${Math.round(valor)}/${valorPessoas !== null && valorPessoas !== undefined ? Math.round(valorPessoas) : '-'}` 
-                                : '-')
-                            : formatarValor(valor, metrica.formato, metrica.sufixo);
-                          
-                          return (
+                        {/* Valores dos grupos */}
+                        {secoesAbertas[secao.id] && secao.grupos.map(grupo => (
+                          <div key={grupo.id}>
+                            {/* Espaço para header do grupo */}
                             <div 
-                              key={metrica.key}
                               className={cn(
-                                "relative flex items-center justify-center px-2 border-b border-gray-100 dark:border-gray-700 group",
-                                isAtual ? "bg-emerald-50/50 dark:bg-emerald-900/10" : "bg-white dark:bg-gray-800"
+                                "bg-gray-100 dark:bg-gray-700/80",
+                                isAtual ? "bg-emerald-100/50 dark:bg-emerald-800/20" : ""
                               )}
-                              style={{ height: '36px' }}
-                            >
-                              {isEditando ? (
-                                <div className="flex items-center gap-1">
-                                  <Input
-                                    type="text"
-                                    value={valorEdit}
-                                    onChange={(e) => setValorEdit(e.target.value)}
-                                    className="w-16 h-6 text-xs p-1"
-                                    autoFocus
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') salvarMetrica(semana.id!, metrica.key);
-                                      if (e.key === 'Escape') setEditando(null);
-                                    }}
-                                  />
-                                  <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => salvarMetrica(semana.id!, metrica.key)}>
-                                    <Check className="h-3 w-3 text-emerald-600" />
-                                  </Button>
-                                  <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditando(null)}>
-                                    <X className="h-3 w-3 text-red-600" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                <span className="text-xs font-medium text-gray-900 dark:text-white text-center">
-                                  {valorFormatado}
-                                </span>
-                              )}
-                              {/* Botão de edição - posição absoluta para não afetar layout */}
-                              {!isEditando && metrica.editavel && metrica.status === 'manual' && semana.id && (
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={() => {
-                                    setEditando({ semanaId: semana.id!, campo: metrica.key });
-                                    setValorEdit(valor?.toString().replace('.', ',') || '');
-                                  }}
+                              style={{ height: '32px' }}
+                            />
+                            
+                            {/* Valores das métricas do grupo */}
+                            {grupo.metricas.map((metrica, idx) => {
+                              // Primeira métrica sempre visível, demais só quando grupo aberto
+                              const isVisible = idx === 0 || gruposAbertos[`${secao.id}-${grupo.id}`];
+                              if (!isVisible) return null;
+                              
+                              const valor = (semana as any)[metrica.key];
+                              const valorPessoas = metrica.keyPessoas ? (semana as any)[metrica.keyPessoas] : null;
+                              const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
+                              
+                              // Formatar valor para exibição
+                              const valorFormatado = metrica.formato === 'reservas' 
+                                ? (valor !== null && valor !== undefined 
+                                    ? `${Math.round(valor)}/${valorPessoas !== null && valorPessoas !== undefined ? Math.round(valorPessoas) : '-'}` 
+                                    : '-')
+                                : formatarValor(valor, metrica.formato, metrica.sufixo);
+                              
+                              return (
+                                <div 
+                                  key={metrica.key}
+                                  className={cn(
+                                    "relative flex items-center justify-center px-2 border-b border-gray-100 dark:border-gray-700 group",
+                                    isAtual ? "bg-emerald-50/50 dark:bg-emerald-900/10" : "bg-white dark:bg-gray-800",
+                                    metrica.indentado && "bg-gray-50/50 dark:bg-gray-800/50"
+                                  )}
+                                  style={{ height: '36px' }}
                                 >
-                                  <Pencil className="h-3 w-3 text-blue-600" />
-                                </Button>
-                              )}
-                            </div>
-                          );
-                        })}
+                                  {isEditandoCell ? (
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        type="text"
+                                        value={valorEdit}
+                                        onChange={(e) => setValorEdit(e.target.value)}
+                                        className="w-16 h-6 text-xs p-1"
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') salvarMetrica(semana.id!, metrica.key);
+                                          if (e.key === 'Escape') setEditando(null);
+                                        }}
+                                      />
+                                      <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => salvarMetrica(semana.id!, metrica.key)}>
+                                        <Check className="h-3 w-3 text-emerald-600" />
+                                      </Button>
+                                      <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditando(null)}>
+                                        <X className="h-3 w-3 text-red-600" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <span className={cn(
+                                      "text-xs text-center",
+                                      metrica.indentado 
+                                        ? "text-gray-600 dark:text-gray-400" 
+                                        : "font-medium text-gray-900 dark:text-white"
+                                    )}>
+                                      {valorFormatado}
+                                    </span>
+                                  )}
+                                  {/* Botão de edição - posição absoluta para não afetar layout */}
+                                  {!isEditandoCell && metrica.editavel && semana.id && (
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      onClick={() => {
+                                        setEditando({ semanaId: semana.id!, campo: metrica.key });
+                                        setValorEdit(valor?.toString().replace('.', ',') || '');
+                                      }}
+                                    >
+                                      <Pencil className="h-3 w-3 text-blue-600" />
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>
