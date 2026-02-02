@@ -144,6 +144,18 @@ const STATUS_COLORS = {
   nao_confiavel: { dot: 'bg-amber-500', text: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' }
 };
 
+// Helper: verifica se grupo é hierárquico (primeira métrica representa o grupo)
+// Ex: "Faturamento Total" grupo com métrica "Faturamento Total" = hierárquico
+// Ex: "Custos Operacionais" grupo com métrica "CMO %" = plano (todas métricas são iguais)
+const isGrupoHierarquico = (grupo: GrupoMetricas): boolean => {
+  if (!grupo.metricas.length) return false;
+  // Compara se o label do grupo começa igual ao label da primeira métrica
+  // ou se são exatamente iguais (ex: "Faturamento Total" === "Faturamento Total")
+  const labelGrupo = grupo.label.toLowerCase().replace(/[%]/g, '').trim();
+  const labelMetrica = grupo.metricas[0].label.toLowerCase().replace(/[%]/g, '').trim();
+  return labelGrupo === labelMetrica;
+};
+
 // Configuração das seções e métricas COM AGRUPAMENTO
 const SECOES: SecaoConfig[] = [
   {
@@ -695,84 +707,103 @@ export default function DesempenhoPage() {
               </div>
               
               {/* Grupos de métricas */}
-              {secoesAbertas[secao.id] && secao.grupos.map(grupo => (
-                <div key={grupo.id}>
-                  {/* Header do grupo com bolinha de status + expansão */}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div 
-                          className="flex items-center gap-2 px-3 bg-gray-50 dark:bg-gray-800 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-600"
-                          style={{ height: '36px' }}
-                          onClick={() => toggleGrupo(`${secao.id}-${grupo.id}`)}
-                        >
-                          {gruposAbertos[`${secao.id}-${grupo.id}`] ? (
-                            <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                          ) : (
-                            <ChevronRight className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                          )}
-                          <div className={cn("w-2 h-2 rounded-full flex-shrink-0", STATUS_COLORS[grupo.metricas[0]?.status || 'auto'].dot)} />
-                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{grupo.label}</span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className={cn("max-w-xs p-3", STATUS_COLORS[grupo.metricas[0]?.status || 'auto'].bg)}>
-                        <div className="space-y-1">
-                          <div className={cn("font-semibold text-sm", STATUS_COLORS[grupo.metricas[0]?.status || 'auto'].text)}>
-                            {grupo.metricas[0]?.status === 'auto' && 'Automático'}
-                            {grupo.metricas[0]?.status === 'manual' && 'Manual'}
-                            {grupo.metricas[0]?.status === 'nao_confiavel' && 'Não Confiável'}
-                          </div>
-                          <div className="text-xs text-gray-600 dark:text-gray-300">
-                            <strong>Fonte:</strong> {grupo.metricas[0]?.fonte}
-                          </div>
-                          <div className="text-xs text-gray-600 dark:text-gray-300">
-                            <strong>Cálculo:</strong> {grupo.metricas[0]?.calculo}
-                          </div>
-                          {grupo.metricas.length > 1 && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400 pt-1 border-t border-gray-200 dark:border-gray-600 mt-1">
-                              Clique para ver {grupo.metricas.length - 1} sub-indicador(es)
-                            </div>
-                          )}
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  
-                  {/* Sub-métricas do grupo (apenas quando expandido) */}
-                  {gruposAbertos[`${secao.id}-${grupo.id}`] && grupo.metricas.slice(1).map((metrica) => (
-                    <TooltipProvider key={metrica.key}>
+              {secoesAbertas[secao.id] && secao.grupos.map(grupo => {
+                const hierarquico = isGrupoHierarquico(grupo);
+                const metricasParaMostrar = hierarquico ? grupo.metricas.slice(1) : grupo.metricas;
+                
+                return (
+                  <div key={grupo.id}>
+                    {/* Header do grupo com bolinha de status + expansão */}
+                    <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div 
-                            className="flex items-center gap-2 px-6 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-help bg-gray-50/50 dark:bg-gray-800/50"
-                            style={{ height: '32px' }}
+                            className="flex items-center gap-2 px-3 bg-gray-50 dark:bg-gray-800 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-600"
+                            style={{ height: '36px' }}
+                            onClick={() => toggleGrupo(`${secao.id}-${grupo.id}`)}
                           >
-                            <div className={cn("w-2 h-2 rounded-full flex-shrink-0", STATUS_COLORS[metrica.status].dot)} />
-                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate leading-none">
-                              └ {metrica.label}
-                            </span>
+                            {gruposAbertos[`${secao.id}-${grupo.id}`] ? (
+                              <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                            ) : (
+                              <ChevronRight className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                            )}
+                            {/* Bolinha só aparece em grupos hierárquicos (onde a primeira métrica representa o grupo) */}
+                            {hierarquico && (
+                              <div className={cn("w-2 h-2 rounded-full flex-shrink-0", STATUS_COLORS[grupo.metricas[0]?.status || 'auto'].dot)} />
+                            )}
+                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{grupo.label}</span>
+                            {!hierarquico && (
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500">({grupo.metricas.length})</span>
+                            )}
                           </div>
                         </TooltipTrigger>
-                        <TooltipContent side="right" className={cn("max-w-xs p-3", STATUS_COLORS[metrica.status].bg)}>
+                        <TooltipContent side="right" className="max-w-xs p-3 bg-gray-50 dark:bg-gray-800">
                           <div className="space-y-1">
-                            <div className={cn("font-semibold text-sm", STATUS_COLORS[metrica.status].text)}>
-                              {metrica.status === 'auto' && 'Automático'}
-                              {metrica.status === 'manual' && 'Manual'}
-                              {metrica.status === 'nao_confiavel' && 'Não Confiável'}
-                            </div>
-                            <div className="text-xs text-gray-600 dark:text-gray-300">
-                              <strong>Fonte:</strong> {metrica.fonte}
-                            </div>
-                            <div className="text-xs text-gray-600 dark:text-gray-300">
-                              <strong>Cálculo:</strong> {metrica.calculo}
-                            </div>
+                            {hierarquico ? (
+                              <>
+                                <div className={cn("font-semibold text-sm", STATUS_COLORS[grupo.metricas[0]?.status || 'auto'].text)}>
+                                  {grupo.metricas[0]?.status === 'auto' && 'Automático'}
+                                  {grupo.metricas[0]?.status === 'manual' && 'Manual'}
+                                  {grupo.metricas[0]?.status === 'nao_confiavel' && 'Não Confiável'}
+                                </div>
+                                <div className="text-xs text-gray-600 dark:text-gray-300">
+                                  <strong>Fonte:</strong> {grupo.metricas[0]?.fonte}
+                                </div>
+                                <div className="text-xs text-gray-600 dark:text-gray-300">
+                                  <strong>Cálculo:</strong> {grupo.metricas[0]?.calculo}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-xs text-gray-600 dark:text-gray-300">
+                                Clique para expandir {grupo.metricas.length} indicadores
+                              </div>
+                            )}
+                            {metricasParaMostrar.length > 0 && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 pt-1 border-t border-gray-200 dark:border-gray-600 mt-1">
+                                Clique para ver {metricasParaMostrar.length} {hierarquico ? 'sub-indicador(es)' : 'indicador(es)'}
+                              </div>
+                            )}
                           </div>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-                  ))}
-                </div>
-              ))}
+                    
+                    {/* Sub-métricas do grupo (apenas quando expandido) */}
+                    {gruposAbertos[`${secao.id}-${grupo.id}`] && metricasParaMostrar.map((metrica) => (
+                      <TooltipProvider key={metrica.key}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div 
+                              className="flex items-center gap-2 px-6 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-help bg-gray-50/50 dark:bg-gray-800/50"
+                              style={{ height: '32px' }}
+                            >
+                              <div className={cn("w-2 h-2 rounded-full flex-shrink-0", STATUS_COLORS[metrica.status].dot)} />
+                              <span className="text-xs text-gray-500 dark:text-gray-400 truncate leading-none">
+                                {hierarquico ? '└ ' : ''}{metrica.label}
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className={cn("max-w-xs p-3", STATUS_COLORS[metrica.status].bg)}>
+                            <div className="space-y-1">
+                              <div className={cn("font-semibold text-sm", STATUS_COLORS[metrica.status].text)}>
+                                {metrica.status === 'auto' && 'Automático'}
+                                {metrica.status === 'manual' && 'Manual'}
+                                {metrica.status === 'nao_confiavel' && 'Não Confiável'}
+                              </div>
+                              <div className="text-xs text-gray-600 dark:text-gray-300">
+                                <strong>Fonte:</strong> {metrica.fonte}
+                              </div>
+                              <div className="text-xs text-gray-600 dark:text-gray-300">
+                                <strong>Cálculo:</strong> {metrica.calculo}
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>
@@ -838,21 +869,24 @@ export default function DesempenhoPage() {
                         
                         {/* Valores dos grupos */}
                         {secoesAbertas[secao.id] && secao.grupos.map(grupo => {
-                          // Primeira métrica (a principal do grupo)
+                          const hierarquico = isGrupoHierarquico(grupo);
                           const metricaPrincipal = grupo.metricas[0];
-                          const valorPrincipal = metricaPrincipal ? (semana as any)[metricaPrincipal.key] : null;
-                          const valorPessoasPrincipal = metricaPrincipal?.keyPessoas ? (semana as any)[metricaPrincipal.keyPessoas] : null;
-                          const isEditandoPrincipal = editando?.semanaId === semana.id && editando?.campo === metricaPrincipal?.key;
+                          const metricasParaMostrar = hierarquico ? grupo.metricas.slice(1) : grupo.metricas;
                           
-                          const valorPrincipalFormatado = metricaPrincipal?.formato === 'reservas' 
+                          // Para grupos hierárquicos, mostra o valor da primeira métrica no header
+                          const valorPrincipal = hierarquico && metricaPrincipal ? (semana as any)[metricaPrincipal.key] : null;
+                          const valorPessoasPrincipal = hierarquico && metricaPrincipal?.keyPessoas ? (semana as any)[metricaPrincipal.keyPessoas] : null;
+                          const isEditandoPrincipal = hierarquico && editando?.semanaId === semana.id && editando?.campo === metricaPrincipal?.key;
+                          
+                          const valorPrincipalFormatado = hierarquico && metricaPrincipal?.formato === 'reservas' 
                             ? (valorPrincipal !== null && valorPrincipal !== undefined 
                                 ? `${Math.round(valorPrincipal)}/${valorPessoasPrincipal !== null && valorPessoasPrincipal !== undefined ? Math.round(valorPessoasPrincipal) : '-'}` 
                                 : '-')
-                            : formatarValor(valorPrincipal, metricaPrincipal?.formato || 'numero', metricaPrincipal?.sufixo);
+                            : hierarquico ? formatarValor(valorPrincipal, metricaPrincipal?.formato || 'numero', metricaPrincipal?.sufixo) : null;
                           
                           return (
                             <div key={grupo.id}>
-                              {/* Valor da métrica principal (no header do grupo) */}
+                              {/* Header do grupo - valor apenas para grupos hierárquicos */}
                               <div 
                                 className={cn(
                                   "relative flex items-center justify-center px-2 border-b border-gray-200 dark:border-gray-600 group",
@@ -860,32 +894,40 @@ export default function DesempenhoPage() {
                                 )}
                                 style={{ height: '36px' }}
                               >
-                                {isEditandoPrincipal ? (
-                                  <div className="flex items-center gap-1">
-                                    <Input
-                                      type="text"
-                                      value={valorEdit}
-                                      onChange={(e) => setValorEdit(e.target.value)}
-                                      className="w-16 h-6 text-xs p-1"
-                                      autoFocus
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') salvarMetrica(semana.id!, metricaPrincipal.key);
-                                        if (e.key === 'Escape') setEditando(null);
-                                      }}
-                                    />
-                                    <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => salvarMetrica(semana.id!, metricaPrincipal.key)}>
-                                      <Check className="h-3 w-3 text-emerald-600" />
-                                    </Button>
-                                    <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditando(null)}>
-                                      <X className="h-3 w-3 text-red-600" />
-                                    </Button>
-                                  </div>
+                                {hierarquico ? (
+                                  // Grupo hierárquico: mostra valor editável
+                                  isEditandoPrincipal ? (
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        type="text"
+                                        value={valorEdit}
+                                        onChange={(e) => setValorEdit(e.target.value)}
+                                        className="w-16 h-6 text-xs p-1"
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') salvarMetrica(semana.id!, metricaPrincipal.key);
+                                          if (e.key === 'Escape') setEditando(null);
+                                        }}
+                                      />
+                                      <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => salvarMetrica(semana.id!, metricaPrincipal.key)}>
+                                        <Check className="h-3 w-3 text-emerald-600" />
+                                      </Button>
+                                      <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditando(null)}>
+                                        <X className="h-3 w-3 text-red-600" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs font-medium text-gray-900 dark:text-white text-center">
+                                      {valorPrincipalFormatado}
+                                    </span>
+                                  )
                                 ) : (
-                                  <span className="text-xs font-medium text-gray-900 dark:text-white text-center">
-                                    {valorPrincipalFormatado}
+                                  // Grupo plano: não mostra valor, apenas indicador de expandir
+                                  <span className="text-[10px] text-gray-400 dark:text-gray-500 italic">
+                                    {gruposAbertos[`${secao.id}-${grupo.id}`] ? '' : '▶'}
                                   </span>
                                 )}
-                                {!isEditandoPrincipal && metricaPrincipal?.editavel && semana.id && (
+                                {hierarquico && !isEditandoPrincipal && metricaPrincipal?.editavel && semana.id && (
                                   <Button
                                     size="icon"
                                     variant="ghost"
@@ -900,8 +942,8 @@ export default function DesempenhoPage() {
                                 )}
                               </div>
                               
-                              {/* Valores das sub-métricas (quando expandido) */}
-                              {gruposAbertos[`${secao.id}-${grupo.id}`] && grupo.metricas.slice(1).map((metrica) => {
+                              {/* Valores das métricas (quando expandido) */}
+                              {gruposAbertos[`${secao.id}-${grupo.id}`] && metricasParaMostrar.map((metrica) => {
                                 const valor = (semana as any)[metrica.key];
                                 const valorPessoas = metrica.keyPessoas ? (semana as any)[metrica.keyPessoas] : null;
                                 const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
