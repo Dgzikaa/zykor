@@ -697,67 +697,80 @@ export default function DesempenhoPage() {
               {/* Grupos de métricas */}
               {secoesAbertas[secao.id] && secao.grupos.map(grupo => (
                 <div key={grupo.id}>
-                  {/* Header do grupo (subcategoria) */}
-                  <div 
-                    className="flex items-center gap-2 px-3 bg-gray-100 dark:bg-gray-700/80 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600/80 border-b border-gray-200 dark:border-gray-600"
-                    style={{ height: '32px' }}
-                    onClick={() => toggleGrupo(`${secao.id}-${grupo.id}`)}
-                  >
-                    {gruposAbertos[`${secao.id}-${grupo.id}`] ? (
-                      <ChevronDown className="w-3 h-3 text-gray-500 dark:text-gray-400" />
-                    ) : (
-                      <ChevronRight className="w-3 h-3 text-gray-500 dark:text-gray-400" />
-                    )}
-                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{grupo.label}</span>
-                  </div>
+                  {/* Header do grupo com bolinha de status + expansão */}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div 
+                          className="flex items-center gap-2 px-3 bg-gray-50 dark:bg-gray-800 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-600"
+                          style={{ height: '36px' }}
+                          onClick={() => toggleGrupo(`${secao.id}-${grupo.id}`)}
+                        >
+                          {gruposAbertos[`${secao.id}-${grupo.id}`] ? (
+                            <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          ) : (
+                            <ChevronRight className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          )}
+                          <div className={cn("w-2 h-2 rounded-full flex-shrink-0", STATUS_COLORS[grupo.metricas[0]?.status || 'auto'].dot)} />
+                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{grupo.label}</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className={cn("max-w-xs p-3", STATUS_COLORS[grupo.metricas[0]?.status || 'auto'].bg)}>
+                        <div className="space-y-1">
+                          <div className={cn("font-semibold text-sm", STATUS_COLORS[grupo.metricas[0]?.status || 'auto'].text)}>
+                            {grupo.metricas[0]?.status === 'auto' && 'Automático'}
+                            {grupo.metricas[0]?.status === 'manual' && 'Manual'}
+                            {grupo.metricas[0]?.status === 'nao_confiavel' && 'Não Confiável'}
+                          </div>
+                          <div className="text-xs text-gray-600 dark:text-gray-300">
+                            <strong>Fonte:</strong> {grupo.metricas[0]?.fonte}
+                          </div>
+                          <div className="text-xs text-gray-600 dark:text-gray-300">
+                            <strong>Cálculo:</strong> {grupo.metricas[0]?.calculo}
+                          </div>
+                          {grupo.metricas.length > 1 && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 pt-1 border-t border-gray-200 dark:border-gray-600 mt-1">
+                              Clique para ver {grupo.metricas.length - 1} sub-indicador(es)
+                            </div>
+                          )}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   
-                  {/* Métricas do grupo (quando expandido ou primeira métrica sempre visível) */}
-                  {grupo.metricas.map((metrica, idx) => {
-                    // Primeira métrica sempre visível, demais só quando grupo aberto
-                    const isVisible = idx === 0 || gruposAbertos[`${secao.id}-${grupo.id}`];
-                    if (!isVisible) return null;
-                    
-                    return (
-                      <TooltipProvider key={metrica.key}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div 
-                              className={cn(
-                                "flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-help",
-                                metrica.indentado ? "px-6 bg-gray-50/50 dark:bg-gray-800/50" : "px-3"
-                              )}
-                              style={{ height: '36px' }}
-                            >
-                              <div className={cn("w-2 h-2 rounded-full flex-shrink-0", STATUS_COLORS[metrica.status].dot)} />
-                              <span className={cn(
-                                "text-xs truncate leading-none",
-                                metrica.indentado 
-                                  ? "text-gray-500 dark:text-gray-400" 
-                                  : "text-gray-700 dark:text-gray-300 font-medium"
-                              )}>
-                                {metrica.indentado ? `└ ${metrica.label}` : metrica.label}
-                              </span>
+                  {/* Sub-métricas do grupo (apenas quando expandido) */}
+                  {gruposAbertos[`${secao.id}-${grupo.id}`] && grupo.metricas.slice(1).map((metrica) => (
+                    <TooltipProvider key={metrica.key}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div 
+                            className="flex items-center gap-2 px-6 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-help bg-gray-50/50 dark:bg-gray-800/50"
+                            style={{ height: '32px' }}
+                          >
+                            <div className={cn("w-2 h-2 rounded-full flex-shrink-0", STATUS_COLORS[metrica.status].dot)} />
+                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate leading-none">
+                              └ {metrica.label}
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className={cn("max-w-xs p-3", STATUS_COLORS[metrica.status].bg)}>
+                          <div className="space-y-1">
+                            <div className={cn("font-semibold text-sm", STATUS_COLORS[metrica.status].text)}>
+                              {metrica.status === 'auto' && 'Automático'}
+                              {metrica.status === 'manual' && 'Manual'}
+                              {metrica.status === 'nao_confiavel' && 'Não Confiável'}
                             </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className={cn("max-w-xs p-3", STATUS_COLORS[metrica.status].bg)}>
-                            <div className="space-y-1">
-                              <div className={cn("font-semibold text-sm", STATUS_COLORS[metrica.status].text)}>
-                                {metrica.status === 'auto' && 'Automático'}
-                                {metrica.status === 'manual' && 'Manual'}
-                                {metrica.status === 'nao_confiavel' && 'Não Confiável'}
-                              </div>
-                              <div className="text-xs text-gray-600 dark:text-gray-300">
-                                <strong>Fonte:</strong> {metrica.fonte}
-                              </div>
-                              <div className="text-xs text-gray-600 dark:text-gray-300">
-                                <strong>Cálculo:</strong> {metrica.calculo}
-                              </div>
+                            <div className="text-xs text-gray-600 dark:text-gray-300">
+                              <strong>Fonte:</strong> {metrica.fonte}
                             </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    );
-                  })}
+                            <div className="text-xs text-gray-600 dark:text-gray-300">
+                              <strong>Cálculo:</strong> {metrica.calculo}
+                            </div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ))}
                 </div>
               ))}
             </div>
@@ -824,91 +837,131 @@ export default function DesempenhoPage() {
                         />
                         
                         {/* Valores dos grupos */}
-                        {secoesAbertas[secao.id] && secao.grupos.map(grupo => (
-                          <div key={grupo.id}>
-                            {/* Espaço para header do grupo */}
-                            <div 
-                              className={cn(
-                                "bg-gray-100 dark:bg-gray-700/80",
-                                isAtual ? "bg-emerald-100/50 dark:bg-emerald-800/20" : ""
-                              )}
-                              style={{ height: '32px' }}
-                            />
-                            
-                            {/* Valores das métricas do grupo */}
-                            {grupo.metricas.map((metrica, idx) => {
-                              // Primeira métrica sempre visível, demais só quando grupo aberto
-                              const isVisible = idx === 0 || gruposAbertos[`${secao.id}-${grupo.id}`];
-                              if (!isVisible) return null;
-                              
-                              const valor = (semana as any)[metrica.key];
-                              const valorPessoas = metrica.keyPessoas ? (semana as any)[metrica.keyPessoas] : null;
-                              const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
-                              
-                              // Formatar valor para exibição
-                              const valorFormatado = metrica.formato === 'reservas' 
-                                ? (valor !== null && valor !== undefined 
-                                    ? `${Math.round(valor)}/${valorPessoas !== null && valorPessoas !== undefined ? Math.round(valorPessoas) : '-'}` 
-                                    : '-')
-                                : formatarValor(valor, metrica.formato, metrica.sufixo);
-                              
-                              return (
-                                <div 
-                                  key={metrica.key}
-                                  className={cn(
-                                    "relative flex items-center justify-center px-2 border-b border-gray-100 dark:border-gray-700 group",
-                                    isAtual ? "bg-emerald-50/50 dark:bg-emerald-900/10" : "bg-white dark:bg-gray-800",
-                                    metrica.indentado && "bg-gray-50/50 dark:bg-gray-800/50"
-                                  )}
-                                  style={{ height: '36px' }}
-                                >
-                                  {isEditandoCell ? (
-                                    <div className="flex items-center gap-1">
-                                      <Input
-                                        type="text"
-                                        value={valorEdit}
-                                        onChange={(e) => setValorEdit(e.target.value)}
-                                        className="w-16 h-6 text-xs p-1"
-                                        autoFocus
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') salvarMetrica(semana.id!, metrica.key);
-                                          if (e.key === 'Escape') setEditando(null);
-                                        }}
-                                      />
-                                      <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => salvarMetrica(semana.id!, metrica.key)}>
-                                        <Check className="h-3 w-3 text-emerald-600" />
-                                      </Button>
-                                      <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditando(null)}>
-                                        <X className="h-3 w-3 text-red-600" />
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <span className={cn(
-                                      "text-xs text-center",
-                                      metrica.indentado 
-                                        ? "text-gray-600 dark:text-gray-400" 
-                                        : "font-medium text-gray-900 dark:text-white"
-                                    )}>
-                                      {valorFormatado}
-                                    </span>
-                                  )}
-                                  {/* Botão de edição - posição absoluta para não afetar layout */}
-                                  {!isEditandoCell && metrica.editavel && semana.id && (
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                      onClick={() => {
-                                        setEditando({ semanaId: semana.id!, campo: metrica.key });
-                                        setValorEdit(valor?.toString().replace('.', ',') || '');
+                        {secoesAbertas[secao.id] && secao.grupos.map(grupo => {
+                          // Primeira métrica (a principal do grupo)
+                          const metricaPrincipal = grupo.metricas[0];
+                          const valorPrincipal = metricaPrincipal ? (semana as any)[metricaPrincipal.key] : null;
+                          const valorPessoasPrincipal = metricaPrincipal?.keyPessoas ? (semana as any)[metricaPrincipal.keyPessoas] : null;
+                          const isEditandoPrincipal = editando?.semanaId === semana.id && editando?.campo === metricaPrincipal?.key;
+                          
+                          const valorPrincipalFormatado = metricaPrincipal?.formato === 'reservas' 
+                            ? (valorPrincipal !== null && valorPrincipal !== undefined 
+                                ? `${Math.round(valorPrincipal)}/${valorPessoasPrincipal !== null && valorPessoasPrincipal !== undefined ? Math.round(valorPessoasPrincipal) : '-'}` 
+                                : '-')
+                            : formatarValor(valorPrincipal, metricaPrincipal?.formato || 'numero', metricaPrincipal?.sufixo);
+                          
+                          return (
+                            <div key={grupo.id}>
+                              {/* Valor da métrica principal (no header do grupo) */}
+                              <div 
+                                className={cn(
+                                  "relative flex items-center justify-center px-2 border-b border-gray-200 dark:border-gray-600 group",
+                                  isAtual ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-gray-50 dark:bg-gray-800"
+                                )}
+                                style={{ height: '36px' }}
+                              >
+                                {isEditandoPrincipal ? (
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      type="text"
+                                      value={valorEdit}
+                                      onChange={(e) => setValorEdit(e.target.value)}
+                                      className="w-16 h-6 text-xs p-1"
+                                      autoFocus
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') salvarMetrica(semana.id!, metricaPrincipal.key);
+                                        if (e.key === 'Escape') setEditando(null);
                                       }}
-                                    >
-                                      <Pencil className="h-3 w-3 text-blue-600" />
+                                    />
+                                    <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => salvarMetrica(semana.id!, metricaPrincipal.key)}>
+                                      <Check className="h-3 w-3 text-emerald-600" />
                                     </Button>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                    <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditando(null)}>
+                                      <X className="h-3 w-3 text-red-600" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs font-medium text-gray-900 dark:text-white text-center">
+                                    {valorPrincipalFormatado}
+                                  </span>
+                                )}
+                                {!isEditandoPrincipal && metricaPrincipal?.editavel && semana.id && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={() => {
+                                      setEditando({ semanaId: semana.id!, campo: metricaPrincipal.key });
+                                      setValorEdit(valorPrincipal?.toString().replace('.', ',') || '');
+                                    }}
+                                  >
+                                    <Pencil className="h-3 w-3 text-blue-600" />
+                                  </Button>
+                                )}
+                              </div>
+                              
+                              {/* Valores das sub-métricas (quando expandido) */}
+                              {gruposAbertos[`${secao.id}-${grupo.id}`] && grupo.metricas.slice(1).map((metrica) => {
+                                const valor = (semana as any)[metrica.key];
+                                const valorPessoas = metrica.keyPessoas ? (semana as any)[metrica.keyPessoas] : null;
+                                const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
+                                
+                                const valorFormatado = metrica.formato === 'reservas' 
+                                  ? (valor !== null && valor !== undefined 
+                                      ? `${Math.round(valor)}/${valorPessoas !== null && valorPessoas !== undefined ? Math.round(valorPessoas) : '-'}` 
+                                      : '-')
+                                  : formatarValor(valor, metrica.formato, metrica.sufixo);
+                                
+                                return (
+                                  <div 
+                                    key={metrica.key}
+                                    className={cn(
+                                      "relative flex items-center justify-center px-2 border-b border-gray-100 dark:border-gray-700 group",
+                                      isAtual ? "bg-emerald-50/30 dark:bg-emerald-900/10" : "bg-gray-50/50 dark:bg-gray-800/50"
+                                    )}
+                                    style={{ height: '32px' }}
+                                  >
+                                    {isEditandoCell ? (
+                                      <div className="flex items-center gap-1">
+                                        <Input
+                                          type="text"
+                                          value={valorEdit}
+                                          onChange={(e) => setValorEdit(e.target.value)}
+                                          className="w-16 h-6 text-xs p-1"
+                                          autoFocus
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') salvarMetrica(semana.id!, metrica.key);
+                                            if (e.key === 'Escape') setEditando(null);
+                                          }}
+                                        />
+                                        <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => salvarMetrica(semana.id!, metrica.key)}>
+                                          <Check className="h-3 w-3 text-emerald-600" />
+                                        </Button>
+                                        <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditando(null)}>
+                                          <X className="h-3 w-3 text-red-600" />
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-gray-600 dark:text-gray-400 text-center">
+                                        {valorFormatado}
+                                      </span>
+                                    )}
+                                    {!isEditandoCell && metrica.editavel && semana.id && (
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        onClick={() => {
+                                          setEditando({ semanaId: semana.id!, campo: metrica.key });
+                                          setValorEdit(valor?.toString().replace('.', ',') || '');
+                                        }}
+                                      >
+                                        <Pencil className="h-3 w-3 text-blue-600" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                );
+                              })}
                           </div>
                         ))}
                       </div>
