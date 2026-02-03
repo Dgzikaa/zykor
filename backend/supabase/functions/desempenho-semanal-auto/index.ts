@@ -694,38 +694,41 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     'eq_bar_id': barId
   })
 
-  // Separar Bar e Cozinha
-  const tempoBar = tempoData?.filter(item => 
-    item.categoria === 'bebida' || 
-    ['Bar', 'Baldes', 'Chopp', 'Pegue e Pague'].some(l => item.loc_desc?.includes(l))
+  // Separar Drinks (preparados) e Cozinha (comida)
+  // DRINKS: Apenas locais de drinks preparados
+  const locaisDrinks = ['Batidos', 'Montados', 'Mexido', 'Preshh', 'Drinks', 'Drinks Autorais', 'Shot e Dose']
+  const tempoDrinks = tempoData?.filter(item => 
+    locaisDrinks.some(l => item.loc_desc?.includes(l))
   ) || []
   
+  // COZINHA: Apenas locais de comida
+  const locaisCozinha = ['Cozinha', 'Cozinha 1', 'Cozinha 2']
   const tempoCozinha = tempoData?.filter(item => 
     item.categoria === 'comida' || 
-    ['Cozinha', 'Montados', 'Mexido'].some(l => item.loc_desc?.includes(l))
+    locaisCozinha.some(l => item.loc_desc?.includes(l))
   ) || []
 
-  // Tempo médio de saída - Bar usa t0_t3, Cozinha usa t0_t2 (em segundos, convertendo para minutos)
-  const tempoSaidaBarSegundos = tempoBar.length > 0 
-    ? tempoBar.reduce((sum, item) => sum + (parseFloat(item.t0_t3) || 0), 0) / tempoBar.length 
+  // Tempo médio de saída - Drinks usa t0_t3, Cozinha usa t0_t2 (em segundos, convertendo para minutos)
+  const tempoSaidaDrinksSegundos = tempoDrinks.length > 0 
+    ? tempoDrinks.reduce((sum, item) => sum + (parseFloat(item.t0_t3) || 0), 0) / tempoDrinks.length 
     : 0
   const tempoSaidaCozinhaSegundos = tempoCozinha.length > 0 
     ? tempoCozinha.reduce((sum, item) => sum + (parseFloat(item.t0_t2) || 0), 0) / tempoCozinha.length 
     : 0
   
   // Converter para minutos
-  const tempoSaidaBar = tempoSaidaBarSegundos / 60
+  const tempoSaidaDrinks = tempoSaidaDrinksSegundos / 60
   const tempoSaidaCozinha = tempoSaidaCozinhaSegundos / 60
 
-  // Atrasos - Bar com t0_t3 > 10min = 600s, Cozinha com t0_t2 > 20min = 1200s
-  const atrasosBar = tempoBar.filter(item => (parseFloat(item.t0_t3) || 0) > 600).length
+  // Atrasos - Drinks com t0_t3 > 10min = 600s, Cozinha com t0_t2 > 20min = 1200s
+  const atrasosDrinks = tempoDrinks.filter(item => (parseFloat(item.t0_t3) || 0) > 600).length
   const atrasosCozinha = tempoCozinha.filter(item => (parseFloat(item.t0_t2) || 0) > 1200).length
 
   // % Atrasos
-  const percAtrasosBar = tempoBar.length > 0 ? (atrasosBar / tempoBar.length) * 100 : 0
+  const percAtrasosDrinks = tempoDrinks.length > 0 ? (atrasosDrinks / tempoDrinks.length) * 100 : 0
   const percAtrasosCozinha = tempoCozinha.length > 0 ? (atrasosCozinha / tempoCozinha.length) * 100 : 0
 
-  console.log(`⏱️ Tempo Bar (t0_t3): ${tempoSaidaBar.toFixed(1)}min (${atrasosBar} atrasos >10min, ${percAtrasosBar.toFixed(1)}%)`)
+  console.log(`⏱️ Tempo Drinks (t0_t3): ${tempoSaidaDrinks.toFixed(1)}min (${atrasosDrinks} atrasos >10min, ${percAtrasosDrinks.toFixed(1)}%)`)
   console.log(`⏱️ Tempo Cozinha (t0_t2): ${tempoSaidaCozinha.toFixed(1)}min (${atrasosCozinha} atrasos >20min, ${percAtrasosCozinha.toFixed(1)}%)`)
 
   // 12.3 STOCKOUT (contahub_stockout) - NOVA LÓGICA: igual página de stockout
@@ -1030,11 +1033,11 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     // Cockpit Produtos
     qtde_itens_bar: Math.round(qtdeItensBar),
     qtde_itens_cozinha: Math.round(qtdeItensCozinha),
-    tempo_saida_bar: tempoSaidaBar,
+    tempo_saida_bar: tempoSaidaDrinks, // Drinks preparados: Batidos, Montados, Mexido, Preshh, Drinks, Drinks Autorais, Shot e Dose
     tempo_saida_cozinha: tempoSaidaCozinha,
-    atrasos_bar: Math.round(atrasosBar),
-    atrasos_cozinha: Math.round(atrasosCozinha),
-    atrasos_bar_perc: percAtrasosBar,
+    atrasos_bar: Math.round(atrasosDrinks), // Atrasos de drinks > 10min
+    atrasos_cozinha: Math.round(atrasosCozinha), // Atrasos de comida > 20min
+    atrasos_bar_perc: percAtrasosDrinks,
     atrasos_cozinha_perc: percAtrasosCozinha,
     stockout_bar: stockoutBar,
     stockout_comidas: stockoutCozinha,

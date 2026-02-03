@@ -356,8 +356,8 @@ const SECOES: SecaoConfig[] = [
         label: 'Tempos',
         agregacao: { tipo: 'media', formato: 'decimal', sufixo: ' min' },
         metricas: [
-          { key: 'tempo_saida_bar', label: 'Tempo Bar', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 'Média t0_t3', formato: 'decimal', inverso: true, sufixo: ' min' },
-          { key: 'tempo_saida_cozinha', label: 'Tempo Cozinha', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 'Média t0_t2', formato: 'decimal', inverso: true, sufixo: ' min' },
+          { key: 'tempo_saida_bar', label: 'Tempo Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 'Média t0_t3 (Drinks preparados)', formato: 'decimal', inverso: true, sufixo: ' min' },
+          { key: 'tempo_saida_cozinha', label: 'Tempo Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 'Média t0_t2 (Cozinha)', formato: 'decimal', inverso: true, sufixo: ' min' },
         ]
       },
       {
@@ -365,8 +365,8 @@ const SECOES: SecaoConfig[] = [
         label: 'Atrasos',
         agregacao: { tipo: 'soma', formato: 'numero' },
         metricas: [
-          { key: 'atrasos_bar', label: 'Atrasos Bar', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 't0_t3 > 10min', formato: 'numero', inverso: true },
-          { key: 'atrasos_cozinha', label: 'Atrasos Cozinha', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 't0_t2 > 20min', formato: 'numero', inverso: true },
+          { key: 'atrasos_bar', label: 'Atrasos Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 'Drinks preparados t0_t3 > 10min (Batidos, Montados, Mexido, Preshh, Drinks, Drinks Autorais, Shot e Dose)', formato: 'numero', inverso: true },
+          { key: 'atrasos_cozinha', label: 'Atrasos Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 'Comida t0_t2 > 20min (Cozinha 1, Cozinha 2)', formato: 'numero', inverso: true },
         ]
       }
     ]
