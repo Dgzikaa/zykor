@@ -424,177 +424,57 @@ export async function GET(request: Request) {
 
     // Buscar dados anuais
     if (periodo === 'anual') {
-      // Performance Anual - Desde abertura até data atual
       const anoAtual = new Date().getFullYear();
-      const startDate = `${anoAtual}-01-01`; // Início do ano atual
-      const hoje = new Date();
-      const endDate = hoje.toISOString().split('T')[0]; // Data atual
-      // 🚨 DESABILITAR VIEW ANUAL TEMPORARIAMENTE PARA FORÇAR RECÁLCULO
-      // Log apenas em desenvolvimento
+      
+      // 🚀 OTIMIZAÇÃO: Usar stored procedure consolidada (1 query em vez de 7+)
       if (process.env.NODE_ENV === 'development') {
-        console.log('🚨 VIEW ANUAL DESABILITADA - FORÇANDO RECÁLCULO MANUAL');
+        console.log('🚀 USANDO STORED PROCEDURE: calcular_visao_geral_anual');
       }
       
-      // COMENTADO PARA FORÇAR RECÁLCULO MANUAL
-      /*
-      try {
-        const { data: anualView, error: anualViewErr } = await supabase
-          .from('view_visao_geral_anual')
-          .select('faturamento_total, faturamento_contahub, faturamento_yuzer, faturamento_sympla, pessoas_total, pessoas_contahub, pessoas_yuzer, pessoas_sympla, reputacao_media')
-          .eq('bar_id', barIdNum)
-          .eq('ano', 2025)
-          .limit(1);
-        if (!anualViewErr && anualView && anualView.length > 0) {
-          // Log apenas em desenvolvimento
-          if (process.env.NODE_ENV === 'development') {
-            console.log('📊 USANDO VIEW ANUAL:', anualView[0]);
-          }
-          const row = anualView[0] as any;
-          const resp = NextResponse.json({
-            anual: {
-              faturamento: {
-                valor: row.faturamento_total || 0,
-                meta: 10000000,
-                detalhes: {
-                  contahub: row.faturamento_contahub || 0,
-                  yuzer: row.faturamento_yuzer || 0,
-                  sympla: row.faturamento_sympla || 0,
-                },
-              },
-              pessoas: {
-                valor: row.pessoas_total || 0,
-                meta: 144000,
-                detalhes: {
-                  contahub: row.pessoas_contahub || 0,
-                  yuzer: row.pessoas_yuzer || 0,
-                  sympla: row.pessoas_sympla || 0,
-                },
-              },
-              reputacao: {
-                valor: row.reputacao_media || 0,
-                meta: 4.8,
-              },
-              ebitda: {
-                valor: 0,
-                meta: 1000000,
-              },
-            },
-          });
-          resp.headers.set('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
-          resp.headers.set('X-View-Used', 'view_visao_geral_anual');
-          return resp;
-        }
-      } catch (err) {
-        // Log de erro apenas em desenvolvimento
-        if (process.env.NODE_ENV === 'development') {
-          console.log('❌ Erro ao buscar view anual:', err);
-        }
+      const { data: anualData, error: anualError } = await supabase
+        .rpc('calcular_visao_geral_anual', {
+          p_bar_id: barIdNum,
+          p_ano: anoAtual
+        });
+      
+      if (anualError) {
+        console.error('❌ Erro ao buscar dados anuais:', anualError);
+        throw anualError;
       }
-      */
-      // 🚀 OTIMIZAÇÃO: Buscar TODOS os dados em paralelo
-      const [
-        contahubData,
-        yuzerData,
-        symplaData,
-        pessoasContahubData,
-        pessoasYuzer,
-        pessoasSympla,
-        reputacaoData
-      ] = await Promise.all([
-        // Faturamento ContaHub
-        fetchAllData(supabase, 'contahub_pagamentos', 'liquido, meio', {
-          'gte_dt_gerencial': startDate,
-          'lte_dt_gerencial': endDate,
-          'eq_bar_id': barIdNum
-        }),
-        // Faturamento Yuzer
-        fetchAllData(supabase, 'yuzer_pagamento', 'valor_liquido', {
-          'gte_data_evento': startDate,
-          'lte_data_evento': endDate,
-          'eq_bar_id': barIdNum
-        }),
-        // Faturamento Sympla
-        fetchAllData(supabase, 'sympla_pedidos', 'valor_liquido', {
-          'gte_data_pedido': startDate,
-          'lte_data_pedido': endDate
-        }),
-        // Pessoas ContaHub
-        fetchAllData(supabase, 'contahub_periodo', 'pessoas', {
-          'eq_bar_id': barIdNum,
-          'gte_dt_gerencial': startDate,
-          'lte_dt_gerencial': endDate
-        }),
-        // Pessoas Yuzer
-        supabase
-          .from('yuzer_produtos')
-          .select('quantidade, produto_nome')
-          .eq('bar_id', barIdNum)
-          .or('produto_nome.ilike.%ingresso%,produto_nome.ilike.%entrada%')
-          .gte('data_evento', startDate)
-          .lte('data_evento', endDate),
-        // Pessoas Sympla
-        supabase
-          .from('sympla_resumo')
-          .select('checkins_realizados')
-          .gte('data_inicio', startDate)
-          .lte('data_inicio', endDate),
-        // Reputação Google
-        fetchAllData(supabase, 'windsor_google', 'review_average_rating_total', {
-          'gte_date': startDate,
-          'lte_date': endDate
-        })
-      ]);
-
-      // Calcular Faturamento
-      const contahubFiltrado = contahubData?.filter(item => item.meio !== 'Conta Assinada') || [];
-      const faturamentoContahub = contahubFiltrado?.reduce((sum, item) => sum + (item.liquido || 0), 0) || 0;
-      const faturamentoYuzer = yuzerData?.reduce((sum, item) => sum + (item.valor_liquido || 0), 0) || 0;
-      const faturamentoSympla = symplaData?.reduce((sum, item) => sum + (item.valor_liquido || 0), 0) || 0;
-      const faturamentoTotal = faturamentoContahub + faturamentoYuzer + faturamentoSympla;
-
-      // Calcular Pessoas
-      const totalPessoasContahub = pessoasContahubData?.reduce((sum, item) => sum + (item.pessoas || 0), 0) || 0;
-      const totalPessoasYuzer = pessoasYuzer.data?.reduce((sum, item) => sum + (item.quantidade || 0), 0) || 0;
-      const totalPessoasSympla = pessoasSympla.data?.reduce((sum, item) => sum + (item.checkins_realizados || 0), 0) || 0;
-      const totalPessoas = totalPessoasContahub + totalPessoasYuzer + totalPessoasSympla;
+      
+      const dados = anualData[0];
       
       // Log apenas em desenvolvimento
       if (process.env.NODE_ENV === 'development') {
-        console.log(`💰 Faturamento Anual: R$ ${faturamentoTotal.toLocaleString('pt-BR')}`);
-        console.log(`👥 Total Pessoas: ${totalPessoas.toLocaleString('pt-BR')}`);
+        console.log(`💰 Faturamento Anual: R$ ${Number(dados.faturamento_total).toLocaleString('pt-BR')}`);
+        console.log(`👥 Total Pessoas: ${dados.pessoas_total.toLocaleString('pt-BR')}`);
       }
-
-      // Calcular Reputação (já buscado em paralelo acima)
-      const reputacaoValida = reputacaoData?.filter(item => item.review_average_rating_total != null && item.review_average_rating_total > 0) || [];
-      const reputacao = reputacaoValida.length > 0 
-        ? reputacaoValida.reduce((sum, item) => sum + item.review_average_rating_total, 0) / reputacaoValida.length
-        : 0;
 
       // EBITDA (será calculado futuramente com DRE)
       const ebitda = 0;
 
-      return NextResponse.json({
+      const resp = NextResponse.json({
         anual: {
           faturamento: {
-            valor: faturamentoTotal,
+            valor: Number(dados.faturamento_total),
             meta: 18000000, // Meta 2026: R$ 18M
             detalhes: {
-              contahub: faturamentoContahub,
-              yuzer: faturamentoYuzer,
-              sympla: faturamentoSympla
+              contahub: Number(dados.faturamento_contahub),
+              yuzer: Number(dados.faturamento_yuzer),
+              sympla: Number(dados.faturamento_sympla)
             }
           },
           pessoas: {
-            valor: totalPessoas,
+            valor: dados.pessoas_total,
             meta: 78000, // 6.500 média/mês * 12
             detalhes: {
-              contahub: totalPessoasContahub,
-              yuzer: totalPessoasYuzer,
-              sympla: totalPessoasSympla
+              contahub: dados.pessoas_contahub,
+              yuzer: dados.pessoas_yuzer,
+              sympla: dados.pessoas_sympla
             }
           },
           reputacao: {
-            valor: reputacao,
+            valor: Number(dados.reputacao_media),
             meta: 4.9 // Meta 2026
           },
           ebitda: {
@@ -603,470 +483,50 @@ export async function GET(request: Request) {
           }
         }
       });
+      
+      // Cache agressivo de 5 minutos
+      resp.headers.set('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
+      resp.headers.set('X-Optimized', 'stored-procedure');
+      return resp;
     }
 
     // Buscar dados trimestrais
     if (periodo === 'trimestral') {
-      // Datas dinâmicas baseadas no trimestre selecionado
-      const { start: startDate, end: endDate } = getTrimestreDates(trimestre);
-      const { start: startDateAnterior, end: endDateAnterior } = getTrimestreAnterior(trimestre);
+      const anoAtual = new Date().getFullYear();
       
-      // Ajustar endDate para não ultrapassar a data atual
+      // 🚀 OTIMIZAÇÃO: Usar stored procedure consolidada (1 query em vez de 20+)
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🚀 USANDO STORED PROCEDURE: calcular_visao_geral_trimestral (T${trimestre})`);
+      }
+      
+      const { data: trimestreData, error: trimestreError } = await supabase
+        .rpc('calcular_visao_geral_trimestral', {
+          p_bar_id: barIdNum,
+          p_trimestre: trimestre,
+          p_ano: anoAtual
+        });
+      
+      if (trimestreError) {
+        console.error('❌ Erro ao buscar dados trimestrais:', trimestreError);
+        throw trimestreError;
+      }
+      
+      const dados = trimestreData[0];
+      
+      // Log apenas em desenvolvimento
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`👥 Clientes Ativos (90d): ${dados.clientes_ativos} | Var: ${Number(dados.variacao_clientes_ativos).toFixed(1)}%`);
+        console.log(`👥 Clientes Totais T${trimestre}: ${dados.clientes_totais} | Var: ${Number(dados.variacao_clientes_totais).toFixed(1)}%`);
+        console.log(`💰 Faturamento T${trimestre}: R$ ${Number(dados.faturamento_trimestre).toLocaleString('pt-BR')}`);
+        console.log(`📊 CMO: ${Number(dados.cmo_percentual).toFixed(1)}% | Var: ${Number(dados.variacao_cmo).toFixed(1)}%`);
+        console.log(`🎭 Artística: ${Number(dados.artistica_percentual).toFixed(1)}% | Var: ${Number(dados.variacao_artistica).toFixed(1)}%`);
+      }
+      
+      // Datas para retenção (ainda usa funções existentes)
+      const { start: startDate, end: endDate } = getTrimestreDates(trimestre);
       const hoje = new Date();
       const endDateObj = new Date(endDate);
       const endDateEfetivo = hoje < endDateObj ? hoje.toISOString().split('T')[0] : endDate;
-      
-      // 🔥 CLIENTES ATIVOS: Usar regra dos 90 dias (rolling window)
-      const formatDate = (date: Date) => date.toISOString().split('T')[0];
-      
-      // Período atual: últimos 90 dias
-      const inicio90dias = new Date(hoje);
-      inicio90dias.setDate(hoje.getDate() - 90);
-      const periodo90diasAtual = {
-        inicio: formatDate(inicio90dias),
-        fim: formatDate(hoje)
-      };
-      
-      // Período anterior: 90 dias antes do período atual (para comparação)
-      const fim90diasAnterior = new Date(inicio90dias);
-      fim90diasAnterior.setDate(fim90diasAnterior.getDate() - 1);
-      const inicio90diasAnterior = new Date(fim90diasAnterior);
-      inicio90diasAnterior.setDate(fim90diasAnterior.getDate() - 90);
-      const periodo90diasAnterior = {
-        inicio: formatDate(inicio90diasAnterior),
-        fim: formatDate(fim90diasAnterior)
-      };
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🔥 CLIENTES ATIVOS - Regra 90 dias:');
-        console.log(`   Período atual: ${periodo90diasAtual.inicio} a ${periodo90diasAtual.fim}`);
-        console.log(`   Período anterior: ${periodo90diasAnterior.inicio} a ${periodo90diasAnterior.fim}`);
-      }
-
-      // 🚀 OTIMIZAÇÃO: Buscar dados de clientes em PARALELO
-      const [
-        clientesAtivos90diasData,
-        clientesAtivos90diasAnteriorData,
-        clientesTotaisContahubData,
-        clientesTotaisYuzerData,
-        clientesTotaisSymplaData
-      ] = await Promise.all([
-        // Clientes ativos - ÚLTIMOS 90 DIAS (rolling window)
-        fetchAllData(supabase, 'contahub_periodo', 'cli_fone, dt_gerencial', {
-          'eq_bar_id': barIdNum,
-          'gte_dt_gerencial': periodo90diasAtual.inicio,
-          'lte_dt_gerencial': periodo90diasAtual.fim
-        }),
-        // Clientes ativos - 90 DIAS ANTERIORES (para comparação)
-        fetchAllData(supabase, 'contahub_periodo', 'cli_fone, dt_gerencial', {
-          'eq_bar_id': barIdNum,
-          'gte_dt_gerencial': periodo90diasAnterior.inicio,
-          'lte_dt_gerencial': periodo90diasAnterior.fim
-        }),
-        // Clientes totais ContaHub - TRIMESTRE
-        fetchAllData(supabase, 'contahub_periodo', 'pessoas', {
-          'eq_bar_id': barIdNum,
-          'gte_dt_gerencial': startDate,
-          'lte_dt_gerencial': endDateEfetivo
-        }),
-        // Clientes totais Yuzer - TRIMESTRE
-        fetchAllData(supabase, 'yuzer_produtos', 'quantidade, produto_nome', {
-          'eq_bar_id': barIdNum,
-          'gte_data_evento': startDate,
-          'lte_data_evento': endDateEfetivo
-        }),
-        // Clientes totais Sympla - TRIMESTRE
-        fetchAllData(supabase, 'sympla_resumo', 'checkins_realizados', {
-          'gte_data_inicio': startDate,
-          'lte_data_inicio': endDateEfetivo
-        })
-      ]);
-      
-      // Calcular Clientes Ativos (2+ visitas nos últimos 90 dias)
-      const clientesComTelefone = clientesAtivos90diasData?.filter(item => item.cli_fone) || [];
-      const clientesMap = new Map();
-      clientesComTelefone.forEach(item => {
-        const count = clientesMap.get(item.cli_fone) || 0;
-        clientesMap.set(item.cli_fone, count + 1);
-      });
-      let clientesAtivos = 0;
-      clientesMap.forEach(count => {
-        if (count >= 2) clientesAtivos++;
-      });
-      
-      // Calcular Clientes Ativos - Período Anterior (90 dias anteriores)
-      const clientesComTelefoneAnterior = clientesAtivos90diasAnteriorData?.filter(item => item.cli_fone) || [];
-      const clientesMapAnterior = new Map();
-      clientesComTelefoneAnterior.forEach(item => {
-        const count = clientesMapAnterior.get(item.cli_fone) || 0;
-        clientesMapAnterior.set(item.cli_fone, count + 1);
-      });
-      let clientesAtivosAnterior = 0;
-      clientesMapAnterior.forEach(count => {
-        if (count >= 2) clientesAtivosAnterior++;
-      });
-      
-      const variacaoClientesAtivos = clientesAtivosAnterior > 0 ? ((clientesAtivos - clientesAtivosAnterior) / clientesAtivosAnterior * 100) : 0;
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`👥 Clientes Ativos (90d): ${clientesAtivos} | Anterior: ${clientesAtivosAnterior} | Var: ${variacaoClientesAtivos.toFixed(1)}%`);
-      }
-      
-      // View desabilitada - usando cálculo manual
-      const viewTri: any | null = null;
-
-      // Logs detalhados removidos
-      
-      // Filtrar produtos Yuzer que são ingressos/entradas
-      const ingressosYuzer = viewTri ? [] : clientesTotaisYuzerData?.filter(item => 
-        item.produto_nome && (
-          item.produto_nome.toLowerCase().includes('ingresso') ||
-          item.produto_nome.toLowerCase().includes('entrada')
-        )
-      ) || [];
-      
-      // 🔍 DEBUG: Detalhes dos produtos Yuzer
-      if (!viewTri && ingressosYuzer.length > 0 && process.env.NODE_ENV === 'development') {
-        console.log('🎫 PRODUTOS YUZER DETALHADOS:');
-        ingressosYuzer.forEach((item, index) => {
-          if (index < 5) { // Mostrar apenas os 5 primeiros
-            console.log(`  ${item.produto_nome}: ${item.quantidade} unidades`);
-          }
-        });
-        if (ingressosYuzer.length > 5) {
-          console.log(`  ... e mais ${ingressosYuzer.length - 5} produtos`);
-        }
-      }
-      
-      const totalClientesContahub = viewTri ? 0 : (clientesTotaisContahubData?.reduce((sum, item) => sum + (item.pessoas || 0), 0) || 0);
-      // ✅ CORREÇÃO: Somar unidades de ingressos = pessoas que foram ao evento
-      // Cada ingresso vendido representa uma pessoa
-      const totalClientesYuzer = viewTri ? 0 : ingressosYuzer.reduce((sum, item) => sum + (item.quantidade || 0), 0);
-      // ✅ CORRIGIDO: Somar checkins_realizados do sympla_resumo no trimestral
-      const totalClientesSympla = viewTri ? 0 : (clientesTotaisSymplaData?.reduce((sum, item) => sum + (item.checkins_realizados || 0), 0) || 0);
-      const totalClientesTrimestre = viewTri ? (viewTri.clientes_totais || 0) : (totalClientesContahub + totalClientesYuzer + totalClientesSympla);
-      
-      // ✅ COMPARAÇÃO CLIENTES TOTAIS COM TRIMESTRE ANTERIOR
-      // 🔧 CORREÇÃO: Usar trimestre anterior REAL (T3: Jul-Set) não D-90
-      const trimestreAnteriorDatesClientes = getTrimestreAnterior(trimestre);
-      const trimestreAnteriorStartClientes = trimestreAnteriorDatesClientes.start;
-      const trimestreAnteriorEndClientes = trimestreAnteriorDatesClientes.end;
-      
-      const [clientesContahubAnterior, clientesYuzerAnterior, clientesSymplaAnterior] = await Promise.all([
-        fetchAllData(supabase, 'contahub_periodo', 'pessoas', {
-          'eq_bar_id': barIdNum,
-          'gte_dt_gerencial': trimestreAnteriorStartClientes,
-          'lte_dt_gerencial': trimestreAnteriorEndClientes
-        }),
-        supabase.from('yuzer_produtos').select('quantidade, produto_nome').eq('bar_id', barIdNum)
-          .gte('data_evento', trimestreAnteriorStartClientes)
-          .lte('data_evento', trimestreAnteriorEndClientes),
-        fetchAllData(supabase, 'sympla_resumo', 'checkins_realizados', {
-          'gte_data_inicio': trimestreAnteriorStartClientes,
-          'lte_data_inicio': trimestreAnteriorEndClientes
-        })
-      ]);
-      
-      const ingressosYuzerAnterior = clientesYuzerAnterior.data?.filter(item => 
-        item.produto_nome && (
-          item.produto_nome.toLowerCase().includes('ingresso') ||
-          item.produto_nome.toLowerCase().includes('entrada')
-        )
-      ) || [];
-      
-      const totalClientesContahubAnterior = clientesContahubAnterior?.reduce((sum, item) => sum + (item.pessoas || 0), 0) || 0;
-      const totalClientesYuzerAnterior = ingressosYuzerAnterior.reduce((sum, item) => sum + (item.quantidade || 0), 0);
-      const totalClientesSymplaAnterior = clientesSymplaAnterior?.reduce((sum, item) => sum + (item.checkins_realizados || 0), 0) || 0;
-      const totalClientesTrimestreAnterior = totalClientesContahubAnterior + totalClientesYuzerAnterior + totalClientesSymplaAnterior;
-      
-      const variacaoClientesTotais = totalClientesTrimestreAnterior > 0 ? 
-        ((totalClientesTrimestre - totalClientesTrimestreAnterior) / totalClientesTrimestreAnterior * 100) : 0;
-      
-      // 🔍 DEBUG: Logs detalhados dos clientes totais
-      console.log('👥 CLIENTES TOTAIS TRIMESTRE DETALHADOS - ✅ CORRIGIDO:');
-      console.log(`Trimestre ATUAL (T${trimestre}): ${startDate} a ${endDate}`);
-      console.log(`Trimestre ANTERIOR (T${trimestre - 1}): ${trimestreAnteriorStartClientes} a ${trimestreAnteriorEndClientes}`);
-      if (viewTri) {
-        console.log(`📊 Usando VIEW materializada: ${viewTri.clientes_totais || 0} clientes`);
-      } else {
-        console.log(`\nT${trimestre} (atual):`);
-        console.log(`  ContaHub: ${clientesTotaisContahubData?.length || 0} registros = ${totalClientesContahub} pessoas`);
-        console.log(`  Yuzer: ${ingressosYuzer.length || 0} produtos = ${totalClientesYuzer} pessoas`);
-        console.log(`  Sympla: ${clientesTotaisSymplaData?.length || 0} participantes = ${totalClientesSympla} pessoas`);
-      }
-      console.log(`\nTOTAL CLIENTES T${trimestre} (atual): ${totalClientesTrimestre}`);
-      console.log(`TOTAL CLIENTES T${trimestre - 1} (anterior): ${totalClientesTrimestreAnterior}`);
-      console.log(`✅ Variação correta: ${variacaoClientesTotais.toFixed(1)}%`);
-      
-      // Logs detalhados removidos
-
-      // CMO % (Nibo)
-      const categoriasCMO = [
-        'SALARIO FUNCIONARIOS', 'ALIMENTAÇÃO', 'PROVISÃO TRABALHISTA', 'VALE TRANSPORTE',
-        'FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA',
-        'FREELA LIMPEZA', 'FREELA SEGURANÇA', 'Marketing', 'MANUTENÇÃO',
-        'Materiais Operação', 'Outros Operação'
-      ];
-
-      let totalCMO = viewTri ? (viewTri.cmo_total || 0) : 0;
-      if (!viewTri) {
-        const { data: cmoData } = await supabase
-          .from('nibo_agendamentos')
-          .select('valor, categoria_nome')
-          .eq('bar_id', barIdNum)
-          .in('categoria_nome', categoriasCMO)
-          .gte('data_competencia', startDate)
-          .lte('data_competencia', endDateEfetivo);
-        totalCMO = cmoData?.reduce((sum, item) => sum + (item.valor || 0), 0) || 0;
-        
-        // 🔍 DEBUG: Detalhes do CMO
-        console.log('💰 CMO DETALHADO:');
-        console.log(`Registros Nibo: ${cmoData?.length || 0}`);
-        console.log(`Categorias CMO: ${categoriasCMO.join(', ')}`);
-        console.log(`Total CMO: R$ ${totalCMO}`);
-        if (cmoData && cmoData.length > 0) {
-          const categoriasSoma = {};
-          cmoData.forEach(item => {
-            categoriasSoma[item.categoria_nome] = (categoriasSoma[item.categoria_nome] || 0) + (item.valor || 0);
-          });
-          console.log('Por categoria:', categoriasSoma);
-        }
-      }
-      
-      // Logs detalhados removidos
-
-            // Faturamento trimestral - MESMA LÓGICA DO ANUAL (últimos 3 meses)
-      let faturamentoTrimestre = viewTri ? (viewTri.faturamento_trimestre || 0) : 0;
-      
-      // 🔍 DEBUG: Verificar se está usando VIEW
-      if (viewTri) {
-        console.log('📊 USANDO VIEW MATERIALIZADA para faturamento:');
-        console.log(`Faturamento Trimestre: R$ ${faturamentoTrimestre}`);
-      }
-      
-      if (!viewTri) {
-        // USAR A MESMA LÓGICA DO FATURAMENTO ANUAL (excluindo Conta Assinada)
-        const fatContahubData = await fetchAllData(supabase, 'contahub_pagamentos', 'liquido, meio', {
-          'gte_dt_gerencial': startDate,
-          'lte_dt_gerencial': endDateEfetivo,
-          'eq_bar_id': barIdNum  // Mesma ordem dos parâmetros do anual
-        });
-        
-        // Filtrar para excluir 'Conta Assinada' (consumo de sócios)
-        const fatContahubFiltrado = fatContahubData?.filter(item => item.meio !== 'Conta Assinada') || [];
-        const fatYuzerData = await fetchAllData(supabase, 'yuzer_pagamento', 'valor_liquido', {
-          'gte_data_evento': startDate,
-          'lte_data_evento': endDateEfetivo,
-          'eq_bar_id': barIdNum  // Mesma ordem dos parâmetros do anual
-        });
-        const fatSymplaData = await fetchAllData(supabase, 'sympla_pedidos', 'valor_liquido', {
-          'gte_data_pedido': startDate,
-          'lte_data_pedido': endDateEfetivo
-          // Sympla não tem bar_id (mesma lógica do anual)
-        });
-        
-        // Calcular com dados paginados (mesma lógica do anual)
-        const faturamentoContahubTri = fatContahubFiltrado?.reduce((sum, item) => sum + (item.liquido || 0), 0) || 0;
-        const faturamentoYuzerTri = fatYuzerData?.reduce((sum, item) => sum + (item.valor_liquido || 0), 0) || 0;
-        const faturamentoSymplaTri = fatSymplaData?.reduce((sum, item) => sum + (item.valor_liquido || 0), 0) || 0;
-        faturamentoTrimestre = faturamentoContahubTri + faturamentoYuzerTri + faturamentoSymplaTri;
-
-        // Log final faturamento trimestre
-        console.log(`💰 Faturamento T${trimestre} (${startDate} a ${endDateEfetivo}): R$ ${faturamentoTrimestre.toLocaleString('pt-BR')}`);
-      }
-      
-      // FORÇAR RECÁLCULO DO CMO % (não usar VIEW para garantir valor correto)
-      const percentualCMO = faturamentoTrimestre > 0 ? (totalCMO / faturamentoTrimestre) * 100 : 0;
-      
-      // 🔍 DEBUG: Cálculo final CMO
-      console.log('🧮 CÁLCULO CMO FINAL (FORÇADO):');
-      console.log(`CMO Total: R$ ${totalCMO.toLocaleString('pt-BR')}`);
-      console.log(`Faturamento Trimestre: R$ ${faturamentoTrimestre.toLocaleString('pt-BR')}`);
-      console.log(`Divisão: ${totalCMO} ÷ ${faturamentoTrimestre} = ${(totalCMO / faturamentoTrimestre).toFixed(4)}`);
-      console.log(`Percentual CMO: ${percentualCMO.toFixed(2)}%`);
-      console.log(`Usando VIEW? ${viewTri ? 'SIM' : 'NÃO - RECÁLCULO MANUAL'}`);
-      
-      if (viewTri) {
-        console.log(`⚠️  VIEW tinha: ${viewTri.cmo_percent}% (IGNORADO)`);
-      }
-      
-      // ✅ COMPARAÇÃO CMO COM TRIMESTRE ANTERIOR
-      // 🔧 CORREÇÃO: Usar trimestre anterior REAL (T3: Jul-Set) não D-90
-      const trimestreAnteriorDatesCMO = getTrimestreAnterior(trimestre);
-      const cmoTrimestreAnteriorStart = trimestreAnteriorDatesCMO.start;
-      const cmoTrimestreAnteriorEnd = trimestreAnteriorDatesCMO.end;
-      
-      // Buscar CMO do trimestre anterior
-      const cmoAnteriorData = await fetchAllData(supabase, 'nibo_agendamentos', 'valor', {
-        'eq_bar_id': barIdNum,
-        'gte_data_competencia': cmoTrimestreAnteriorStart,
-        'lte_data_competencia': cmoTrimestreAnteriorEnd,
-        'in_categoria_nome': categoriasCMO
-      });
-      
-      // Buscar faturamento do trimestre anterior (excluindo Conta Assinada)
-      const faturamentoTrimestreAnteriorContahubData = await fetchAllData(supabase, 'contahub_pagamentos', 'liquido, meio', {
-        'eq_bar_id': barIdNum,
-        'gte_dt_gerencial': cmoTrimestreAnteriorStart,
-        'lte_dt_gerencial': cmoTrimestreAnteriorEnd
-      });
-      
-      // Filtrar para excluir 'Conta Assinada' (consumo de sócios)
-      const faturamentoTrimestreAnteriorContahub = faturamentoTrimestreAnteriorContahubData?.filter(item => item.meio !== 'Conta Assinada') || [];
-      
-      const [faturamentoYuzerTriAnterior, faturamentoSymplaTriAnterior] = await Promise.all([
-        supabase.from('yuzer_pagamento').select('valor_liquido').eq('bar_id', barIdNum)
-          .gte('data_evento', cmoTrimestreAnteriorStart).lte('data_evento', cmoTrimestreAnteriorEnd),
-        supabase.from('sympla_pedidos').select('valor_liquido')
-          .gte('data_pedido', cmoTrimestreAnteriorStart).lte('data_pedido', cmoTrimestreAnteriorEnd)
-      ]);
-      
-      const totalCMOAnterior = cmoAnteriorData?.reduce((sum, item) => sum + Math.abs(item.valor || 0), 0) || 0;
-      const faturamentoAnteriorContahub = faturamentoTrimestreAnteriorContahub?.reduce((sum, item) => sum + (item.liquido || 0), 0) || 0;
-      const faturamentoAnteriorYuzer = faturamentoYuzerTriAnterior.data?.reduce((sum, item) => sum + (item.valor_liquido || 0), 0) || 0;
-      const faturamentoAnteriorSympla = faturamentoSymplaTriAnterior.data?.reduce((sum, item) => sum + (item.valor_liquido || 0), 0) || 0;
-      const faturamentoTrimestreAnteriorTotal = faturamentoAnteriorContahub + faturamentoAnteriorYuzer + faturamentoAnteriorSympla;
-      
-      const percentualCMOAnterior = faturamentoTrimestreAnteriorTotal > 0 ? (totalCMOAnterior / faturamentoTrimestreAnteriorTotal) * 100 : 0;
-      const variacaoCMO = percentualCMOAnterior > 0 ? ((percentualCMO - percentualCMOAnterior) / percentualCMOAnterior * 100) : 0;
-      
-      // 🔍 DEBUG: Comparação CMO detalhada
-      console.log('🔄 COMPARAÇÃO CMO TRIMESTRE - ✅ CORRIGIDO:');
-      console.log(`Trimestre ATUAL (T${trimestre}): ${startDate} a ${endDate}`);
-      console.log(`Trimestre ANTERIOR (T${trimestre - 1}): ${cmoTrimestreAnteriorStart} a ${cmoTrimestreAnteriorEnd}`);
-      console.log(`\nDados T${trimestre - 1} (anterior):`);
-      console.log(`  CMO: R$ ${totalCMOAnterior.toLocaleString('pt-BR')}`);
-      console.log(`  Faturamento ContaHub: R$ ${faturamentoAnteriorContahub.toLocaleString('pt-BR')}`);
-      console.log(`  Faturamento Yuzer: R$ ${faturamentoAnteriorYuzer.toLocaleString('pt-BR')}`);
-      console.log(`  Faturamento Sympla: R$ ${faturamentoAnteriorSympla.toLocaleString('pt-BR')}`);
-      console.log(`  Faturamento TOTAL: R$ ${faturamentoTrimestreAnteriorTotal.toLocaleString('pt-BR')}`);
-      console.log(`  CMO%: ${percentualCMOAnterior.toFixed(2)}%`);
-      console.log(`\nCMO% T${trimestre} (atual): ${percentualCMO.toFixed(2)}%`);
-      console.log(`✅ Variação correta: ${variacaoCMO.toFixed(1)}%`);
-      
-      // Logs detalhados removidos
-
-      // % Artística (Planejamento Comercial) - CÁLCULO CORRIGIDO USANDO NIBO_AGENDAMENTOS
-      let viewOk = true;
-      let variacaoArtistica = 0;
-      const percentualArtistica = viewTri ? (viewTri.artistica_percent || 0) : (async () => {
-        // Buscar custos artísticos e de produção na nibo_agendamentos
-        const [custoArtisticoData, custoProducaoData] = await Promise.all([
-          fetchAllData(supabase, 'nibo_agendamentos', 'valor', {
-            'eq_bar_id': barIdNum,
-            'gte_data_competencia': startDate,
-            'lte_data_competencia': endDateEfetivo,
-            'eq_categoria_nome': 'Atrações Programação'
-          }),
-          fetchAllData(supabase, 'nibo_agendamentos', 'valor', {
-            'eq_bar_id': barIdNum,
-            'gte_data_competencia': startDate,
-            'lte_data_competencia': endDateEfetivo,
-            'eq_categoria_nome': 'Produção Eventos'
-          })
-        ]);
-        
-        // Calcular totais
-        const totalCustoArtistico = custoArtisticoData?.reduce((sum, item) => sum + Math.abs(item.valor || 0), 0) || 0;
-        const totalCustoProducao = custoProducaoData?.reduce((sum, item) => sum + Math.abs(item.valor || 0), 0) || 0;
-        
-        // Usar o faturamento já calculado acima
-        const totalFaturamento = faturamentoTrimestre;
-        
-        // 🔍 DEBUG: Logs do cálculo artística
-        console.log('🎭 CÁLCULO % ARTÍSTICA (NIBO_AGENDAMENTOS):');
-        console.log(`Registros Atrações: ${custoArtisticoData?.length || 0}`);
-        console.log(`Registros Produção: ${custoProducaoData?.length || 0}`);
-        console.log(`Total Custo Artístico: R$ ${totalCustoArtistico.toLocaleString('pt-BR')}`);
-        console.log(`Total Custo Produção: R$ ${totalCustoProducao.toLocaleString('pt-BR')}`);
-        console.log(`Total Faturamento: R$ ${totalFaturamento.toLocaleString('pt-BR')}`);
-        
-        const totalCustoCompleto = totalCustoArtistico + totalCustoProducao;
-        
-        const percentualCalculado = totalFaturamento > 0 ? (totalCustoCompleto / totalFaturamento) * 100 : 0;
-        
-        // ✅ COMPARAÇÃO % ARTÍSTICA COM TRIMESTRE ANTERIOR CORRETO (NIBO_AGENDAMENTOS)
-        // 🔧 CORREÇÃO: Usar trimestre anterior REAL (T3: Jul-Set) não D-90
-        const trimestreAnteriorDatesArtistica = getTrimestreAnterior(trimestre);
-        const trimestreAnteriorStartArtistica = trimestreAnteriorDatesArtistica.start;
-        const trimestreAnteriorEndArtistica = trimestreAnteriorDatesArtistica.end;
-        
-        const [custoArtisticoAnterior, custoProducaoAnterior] = await Promise.all([
-          fetchAllData(supabase, 'nibo_agendamentos', 'valor', {
-            'eq_bar_id': barIdNum,
-            'gte_data_competencia': trimestreAnteriorStartArtistica,
-            'lte_data_competencia': trimestreAnteriorEndArtistica,
-            'eq_categoria_nome': 'Atrações Programação'
-          }),
-          fetchAllData(supabase, 'nibo_agendamentos', 'valor', {
-            'eq_bar_id': barIdNum,
-            'gte_data_competencia': trimestreAnteriorStartArtistica,
-            'lte_data_competencia': trimestreAnteriorEndArtistica,
-            'eq_categoria_nome': 'Produção Eventos'
-          })
-        ]);
-        
-        const totalCustoArtisticoAnterior = custoArtisticoAnterior?.reduce((sum, item) => sum + Math.abs(item.valor || 0), 0) || 0;
-        const totalCustoProducaoAnterior = custoProducaoAnterior?.reduce((sum, item) => sum + Math.abs(item.valor || 0), 0) || 0;
-        const totalCustoCompletoAnterior = totalCustoArtisticoAnterior + totalCustoProducaoAnterior;
-        
-        // 🔧 CORREÇÃO: Calcular faturamento do trimestre anterior CORRETO (T3: Jul-Set)
-        const [fatContahubAnteriorArtistica, fatYuzerAnteriorArtistica, fatSymplaAnteriorArtistica] = await Promise.all([
-          fetchAllData(supabase, 'contahub_pagamentos', 'liquido, meio', {
-            'eq_bar_id': barIdNum,
-            'gte_dt_gerencial': trimestreAnteriorStartArtistica,
-            'lte_dt_gerencial': trimestreAnteriorEndArtistica
-          }),
-          fetchAllData(supabase, 'yuzer_pagamento', 'valor_liquido', {
-            'eq_bar_id': barIdNum,
-            'gte_data_evento': trimestreAnteriorStartArtistica,
-            'lte_data_evento': trimestreAnteriorEndArtistica
-          }),
-          fetchAllData(supabase, 'sympla_pedidos', 'valor_liquido', {
-            'gte_data_pedido': trimestreAnteriorStartArtistica,
-            'lte_data_pedido': trimestreAnteriorEndArtistica
-          })
-        ]);
-        
-        // Filtrar Conta Assinada
-        const fatContahubFiltradoAnterior = fatContahubAnteriorArtistica?.filter(item => item.meio !== 'Conta Assinada') || [];
-        const faturamentoContahubAnterior = fatContahubFiltradoAnterior?.reduce((sum, item) => sum + (item.liquido || 0), 0) || 0;
-        const faturamentoYuzerAnterior = fatYuzerAnteriorArtistica?.reduce((sum, item) => sum + (item.valor_liquido || 0), 0) || 0;
-        const faturamentoSymplaAnterior = fatSymplaAnteriorArtistica?.reduce((sum, item) => sum + (item.valor_liquido || 0), 0) || 0;
-        const totalFaturamentoAnterior = faturamentoContahubAnterior + faturamentoYuzerAnterior + faturamentoSymplaAnterior;
-        
-        const percentualAnterior = totalFaturamentoAnterior > 0 ? (totalCustoCompletoAnterior / totalFaturamentoAnterior) * 100 : 0;
-        variacaoArtistica = percentualAnterior > 0 ? ((percentualCalculado - percentualAnterior) / percentualAnterior * 100) : 0;
-        
-        console.log('🎭 COMPARAÇÃO % ARTÍSTICA (TRIMESTRE - NIBO) - ✅ CORRIGIDO:');
-        console.log(`Trimestre ATUAL (T${trimestre}): ${startDate} até ${endDate}`);
-        console.log(`Trimestre ANTERIOR (T${trimestre - 1}): ${trimestreAnteriorStartArtistica} até ${trimestreAnteriorEndArtistica}`);
-        console.log(`\nDados T${trimestre - 1} (anterior):`);
-        console.log(`  Registros Atrações: ${custoArtisticoAnterior?.length || 0}`);
-        console.log(`  Registros Produção: ${custoProducaoAnterior?.length || 0}`);
-        console.log(`  Custo Artístico: R$ ${totalCustoArtisticoAnterior.toLocaleString('pt-BR')}`);
-        console.log(`  Custo Produção: R$ ${totalCustoProducaoAnterior.toLocaleString('pt-BR')}`);
-        console.log(`  Faturamento Total: R$ ${totalFaturamentoAnterior.toLocaleString('pt-BR')}`);
-        console.log(`  % Artística: ${percentualAnterior.toFixed(2)}%`);
-        console.log(`\n% Artística T${trimestre} (atual): ${percentualCalculado.toFixed(2)}%`);
-        console.log(`✅ Variação correta: ${variacaoArtistica.toFixed(1)}%`);
-        
-        // Variação será usada no retorno da função
-        
-        return percentualCalculado;
-      })();
-
-      // Log final do CMO
-      console.log(`📊 CMO T${trimestre}: ${percentualCMO.toFixed(1)}% (R$ ${totalCMO.toLocaleString('pt-BR')} / R$ ${faturamentoTrimestre.toLocaleString('pt-BR')})`);
-
-      // 🔧 CORREÇÃO: Usar trimestre anterior REAL em vez de D-90 para % Artística
-      const trimestreAnteriorDates = getTrimestreAnterior(trimestre);
-      const trimestreAnteriorStart = trimestreAnteriorDates.start;
-      const trimestreAnteriorEnd = trimestreAnteriorDates.end;
-
-      console.log('🔄 CORREÇÃO: Usando trimestre anterior REAL para comparações:');
-      console.log(`T${trimestre} atual: ${startDate} a ${endDate}`);
-      console.log(`T${trimestre - 1} anterior: ${trimestreAnteriorStart} a ${trimestreAnteriorEnd}`);
 
       // Metas dinâmicas por trimestre - 2026
       const getMetasTrimestre = (trimestre: number) => {
@@ -1113,17 +573,64 @@ export async function GET(request: Request) {
 
       const metasTrimestre = getMetasTrimestre(trimestre);
 
+      // Buscar CMV Limpo (ainda usa tabela cmv_manual)
+      const cmvLimpo = await (async () => {
+        const ano = new Date().getFullYear();
+        const trimestresDatas: Record<number, { inicio: string; fim: string }> = {
+          2: { inicio: `${ano}-04-01`, fim: `${ano}-06-30` },
+          3: { inicio: `${ano}-07-01`, fim: `${ano}-09-30` },
+          4: { inicio: `${ano}-10-01`, fim: `${ano}-12-31` }
+        };
+        
+        const periodoAtual = trimestresDatas[trimestre] || trimestresDatas[4];
+        
+        const { data: cmvData } = await supabase
+          .from('cmv_manual')
+          .select('cmv_percentual')
+          .eq('bar_id', barIdNum)
+          .eq('periodo_tipo', 'trimestral')
+          .eq('periodo_inicio', periodoAtual.inicio)
+          .single();
+        
+        // Buscar CMV do trimestre anterior para variação
+        const trimestreAnterior = trimestre === 2 ? 4 : trimestre - 1;
+        const anoAnterior = trimestre === 2 ? ano - 1 : ano;
+        const periodoAnterior = {
+          2: { inicio: `${anoAnterior}-04-01`, fim: `${anoAnterior}-06-30` },
+          3: { inicio: `${anoAnterior}-07-01`, fim: `${anoAnterior}-09-30` },
+          4: { inicio: `${anoAnterior}-10-01`, fim: `${anoAnterior}-12-31` }
+        }[trimestreAnterior] || { inicio: `${anoAnterior}-10-01`, fim: `${anoAnterior}-12-31` };
+        
+        const { data: cmvAnterior } = await supabase
+          .from('cmv_manual')
+          .select('cmv_percentual')
+          .eq('bar_id', barIdNum)
+          .eq('periodo_tipo', 'trimestral')
+          .eq('periodo_inicio', periodoAnterior.inicio)
+          .single();
+        
+        const valorAtual = cmvData?.cmv_percentual || 0;
+        const valorAnterior = cmvAnterior?.cmv_percentual || 0;
+        const variacao = valorAnterior > 0 ? ((valorAtual - valorAnterior) / valorAnterior) * 100 : 0;
+        
+        return {
+          valor: valorAtual,
+          meta: metasTrimestre.cmvLimpo,
+          variacao: variacao
+        };
+      })();
+
       const resp = NextResponse.json({
         trimestral: {
           clientesAtivos: {
-            valor: clientesAtivos,
+            valor: dados.clientes_ativos,
             meta: metasTrimestre.clientesAtivos,
-            variacao: variacaoClientesAtivos
+            variacao: Number(dados.variacao_clientes_ativos)
           },
           clientesTotais: {
-            valor: totalClientesTrimestre,
+            valor: dados.clientes_totais,
             meta: metasTrimestre.clientesTotais,
-            variacao: variacaoClientesTotais
+            variacao: Number(dados.variacao_clientes_totais)
           },
           retencao: {
             ...(await calcularRetencao(supabase, barIdNum, mesRetencao || undefined, trimestre)),
@@ -1133,68 +640,24 @@ export async function GET(request: Request) {
             ...(await calcularRetencaoReal(supabase, barIdNum, trimestre)),
             meta: metasTrimestre.retencaoReal
           },
-          cmvLimpo: await (async () => {
-            // Buscar CMV do trimestre atual da tabela cmv_manual
-            const ano = new Date().getFullYear();
-            const trimestresDatas: Record<number, { inicio: string; fim: string }> = {
-              2: { inicio: `${ano}-04-01`, fim: `${ano}-06-30` },
-              3: { inicio: `${ano}-07-01`, fim: `${ano}-09-30` },
-              4: { inicio: `${ano}-10-01`, fim: `${ano}-12-31` }
-            };
-            
-            const periodoAtual = trimestresDatas[trimestre] || trimestresDatas[4];
-            
-            const { data: cmvData } = await supabase
-              .from('cmv_manual')
-              .select('cmv_percentual')
-              .eq('bar_id', barIdNum)
-              .eq('periodo_tipo', 'trimestral')
-              .eq('periodo_inicio', periodoAtual.inicio)
-              .single();
-            
-            // Buscar CMV do trimestre anterior para variação
-            const trimestreAnterior = trimestre === 2 ? 4 : trimestre - 1;
-            const anoAnterior = trimestre === 2 ? ano - 1 : ano;
-            const periodoAnterior = {
-              2: { inicio: `${anoAnterior}-04-01`, fim: `${anoAnterior}-06-30` },
-              3: { inicio: `${anoAnterior}-07-01`, fim: `${anoAnterior}-09-30` },
-              4: { inicio: `${anoAnterior}-10-01`, fim: `${anoAnterior}-12-31` }
-            }[trimestreAnterior] || { inicio: `${anoAnterior}-10-01`, fim: `${anoAnterior}-12-31` };
-            
-            const { data: cmvAnterior } = await supabase
-              .from('cmv_manual')
-              .select('cmv_percentual')
-              .eq('bar_id', barIdNum)
-              .eq('periodo_tipo', 'trimestral')
-              .eq('periodo_inicio', periodoAnterior.inicio)
-              .single();
-            
-            const valorAtual = cmvData?.cmv_percentual || 0;
-            const valorAnterior = cmvAnterior?.cmv_percentual || 0;
-            const variacao = valorAnterior > 0 ? ((valorAtual - valorAnterior) / valorAnterior) * 100 : 0;
-            
-            return {
-              valor: valorAtual,
-              meta: metasTrimestre.cmvLimpo,
-              variacao: variacao
-            };
-          })(),
+          cmvLimpo: cmvLimpo,
           cmo: {
-            valor: percentualCMO,
+            valor: Number(dados.cmo_percentual),
             meta: metasTrimestre.cmo,
-            valorAbsoluto: viewTri ? (viewTri.cmo_total || 0) : totalCMO,
-            variacao: variacaoCMO
+            valorAbsoluto: Number(dados.cmo_total),
+            variacao: Number(dados.variacao_cmo)
           },
           artistica: {
-            valor: await percentualArtistica,
+            valor: Number(dados.artistica_percentual),
             meta: metasTrimestre.artistica,
-            variacao: variacaoArtistica
+            variacao: Number(dados.variacao_artistica)
           }
         }
       });
-      resp.headers.set('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
-      if (!viewOk) resp.headers.set('X-Artistica-View', 'missing:view_eventos');
-      if (viewTri) resp.headers.set('X-View-Used', 'view_visao_geral_trimestral');
+      
+      // Cache agressivo de 5 minutos
+      resp.headers.set('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
+      resp.headers.set('X-Optimized', 'stored-procedure');
       return resp;
     }
 

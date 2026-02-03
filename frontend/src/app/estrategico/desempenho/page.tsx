@@ -510,7 +510,9 @@ export default function DesempenhoPage() {
     vendas: true
   });
   // Estado para grupos abertos/fechados (para as subcategorias)
-  const [gruposAbertos, setGruposAbertos] = useState<Record<string, boolean>>({});
+  const [gruposAbertos, setGruposAbertos] = useState<Record<string, boolean>>({
+    'guardrail-custos': true, // Custos Operacionais expandido por padrão
+  });
   // Visão: 'semanal' ou 'mensal'
   const [visao, setVisao] = useState<'semanal' | 'mensal'>('semanal');
   const [editando, setEditando] = useState<{ semanaId: number; campo: string } | null>(null);
