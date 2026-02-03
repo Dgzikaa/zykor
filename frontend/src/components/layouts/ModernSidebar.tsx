@@ -135,7 +135,7 @@ const defaultSidebarItems: SidebarItem[] = [
           label: 'Orçamentação',
           href: '/estrategico/orcamentacao',
           description: 'Gestão orçamentária integrada',
-          permission: 'configuracoes',
+          permission: 'home',
         },
       ],
     },

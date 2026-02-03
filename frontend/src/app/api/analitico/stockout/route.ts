@@ -7,6 +7,20 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Função para normalizar locais - agrupa "Cozinha" e "Cozinha 2" para o Deboche
+function normalizarLocal(locDesc: string | null, barId: number): string {
+  if (!locDesc) return 'Sem local definido';
+  
+  // Deboche (bar_id = 4): agrupar "Cozinha" e "Cozinha 2" como "Cozinha"
+  if (barId === 4) {
+    if (locDesc === 'Cozinha' || locDesc === 'Cozinha 2') {
+      return 'Cozinha';
+    }
+  }
+  
+  return locDesc.trim();
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { data_selecionada, bar_id, filtros = [] } = await request.json();
@@ -84,7 +98,9 @@ export async function POST(request: NextRequest) {
       query = query
         .not('prd_desc', 'ilike', '%Happy Hour%')
         .not('prd_desc', 'ilike', '%HappyHour%')
-        .not('prd_desc', 'ilike', '%Happy-Hour%');
+        .not('prd_desc', 'ilike', '%Happy-Hour%')
+        .not('prd_desc', 'ilike', '% HH')       // Produtos que terminam com " HH" (ex: Debochinho HH)
+        .not('prd_desc', 'ilike', '% HH %');    // Produtos com " HH " no meio
       
       // GRUPOS A IGNORAR (excluir pelo grupo, não apenas pelo nome)
       // Produtos podem pertencer a grupos específicos sem ter o nome do grupo no nome do produto
@@ -177,9 +193,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Processar dados por local com NOVA LÓGICA
+    // Usa normalizarLocal para agrupar locais (ex: Cozinha + Cozinha 2 = Cozinha no Deboche)
     const locaisMap = new Map();
     dadosLocais?.forEach(item => {
-      const local = item.loc_desc || 'Sem local definido';
+      const local = normalizarLocal(item.loc_desc, bar_id);
       if (!locaisMap.has(local)) {
         locaisMap.set(local, { total: 0, disponiveis: 0, stockout: 0 });
       }

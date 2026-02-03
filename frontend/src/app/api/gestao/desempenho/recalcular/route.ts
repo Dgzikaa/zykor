@@ -321,28 +321,50 @@ export async function POST(request: Request) {
       }
 
       // =============================================
-      // 7. CLIENTES ATIVOS (2+ visitas em 90 dias)
+      // 7. CLIENTES ATIVOS (por período: 30d, 60d, 90d)
       // =============================================
-      console.log(`⭐ Calculando Clientes Ativos...`);
+      console.log(`⭐ Calculando Clientes Ativos por período...`);
       
-      // Calcular 90 dias antes do fim do período
-      const data90DiasAtras = new Date(dataFim);
-      data90DiasAtras.setDate(dataFim.getDate() - 90);
-      const data90DiasAtrasStr = data90DiasAtras.toISOString().split('T')[0];
+      let clientes30d = 0;
+      let clientes60d = 0;
+      let clientes90d = 0;
 
-      // Chamar stored procedure para base ativa
-      const { data: baseAtivaResult, error: baseAtivaError } = await supabase.rpc('get_count_base_ativa', {
+      // Clientes 30 dias (0-30 dias)
+      const { data: result30d, error: error30d } = await supabase.rpc('calcular_clientes_ativos_faixa', {
         p_bar_id: barId,
-        p_data_inicio: data90DiasAtrasStr,
-        p_data_fim: endDate
+        p_data_fim: endDate,
+        p_dias_inicio: 0,
+        p_dias_fim: 30
       });
-
-      if (!baseAtivaError && baseAtivaResult !== null) {
-        clientesAtivosCalculado = Number(baseAtivaResult) || 0;
-        console.log(`⭐ Clientes Ativos (2+ visitas em 90d): ${clientesAtivosCalculado}`);
-      } else {
-        console.error(`❌ Erro ao calcular clientes ativos:`, baseAtivaError);
+      if (!error30d && result30d !== null) {
+        clientes30d = Number(result30d) || 0;
       }
+
+      // Clientes 60 dias (31-60 dias)
+      const { data: result60d, error: error60d } = await supabase.rpc('calcular_clientes_ativos_faixa', {
+        p_bar_id: barId,
+        p_data_fim: endDate,
+        p_dias_inicio: 31,
+        p_dias_fim: 60
+      });
+      if (!error60d && result60d !== null) {
+        clientes60d = Number(result60d) || 0;
+      }
+
+      // Clientes 90 dias (61-90 dias)
+      const { data: result90d, error: error90d } = await supabase.rpc('calcular_clientes_ativos_faixa', {
+        p_bar_id: barId,
+        p_data_fim: endDate,
+        p_dias_inicio: 61,
+        p_dias_fim: 90
+      });
+      if (!error90d && result90d !== null) {
+        clientes90d = Number(result90d) || 0;
+      }
+
+      // Total de clientes ativos = soma das 3 faixas
+      clientesAtivosCalculado = clientes30d + clientes60d + clientes90d;
+      console.log(`⭐ Clientes Ativos: 30d=${clientes30d}, 60d=${clientes60d}, 90d=${clientes90d}, Total=${clientesAtivosCalculado}`);
 
       // =============================================
       // 8. ATUALIZAR REGISTRO NO BANCO
@@ -359,6 +381,9 @@ export async function POST(request: Request) {
         cmo: custoTotalCMO, // CMO AUTOMÁTICO
         perc_clientes_novos: parseFloat(percClientesNovos.toFixed(2)),
         clientes_ativos: clientesAtivosCalculado,
+        clientes_30d: clientes30d,
+        clientes_60d: clientes60d,
+        clientes_90d: clientes90d,
         updated_at: new Date().toISOString(),
         
         // MANTER VALORES MANUAIS EXISTENTES

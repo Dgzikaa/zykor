@@ -49,6 +49,7 @@ async function fetchAllDataWithBuilder(queryBuilder: () => any) {
 }
 
 // Função auxiliar para aplicar filtros base (locais e prefixos a ignorar)
+// IMPORTANTE: Deve ser idêntica à função em stockout/route.ts
 const aplicarFiltrosBase = (query: any) => {
   // LOCAIS A IGNORAR PERMANENTEMENTE
   query = query
@@ -68,7 +69,22 @@ const aplicarFiltrosBase = (query: any) => {
   query = query
     .not('prd_desc', 'ilike', '%Happy Hour%')
     .not('prd_desc', 'ilike', '%HappyHour%')
-    .not('prd_desc', 'ilike', '%Happy-Hour%');
+    .not('prd_desc', 'ilike', '%Happy-Hour%')
+    .not('prd_desc', 'ilike', '% HH')       // Produtos que terminam com " HH" (ex: Debochinho HH)
+    .not('prd_desc', 'ilike', '% HH %');    // Produtos com " HH " no meio
+  
+  // GRUPOS A IGNORAR (excluir pelo grupo, não apenas pelo nome)
+  // Produtos podem pertencer a grupos específicos sem ter o nome do grupo no nome do produto
+  query = query
+    .not('raw_data->>grp_desc', 'eq', 'Happy Hour')
+    .not('raw_data->>grp_desc', 'eq', 'Chegadeira')
+    .not('raw_data->>grp_desc', 'eq', 'Dose dupla')
+    .not('raw_data->>grp_desc', 'eq', 'Dose dupla!')
+    .not('raw_data->>grp_desc', 'eq', 'Dose dupla sem álcool')
+    .not('raw_data->>grp_desc', 'eq', 'Grupo adicional')
+    .not('raw_data->>grp_desc', 'eq', 'Insumos')
+    .not('raw_data->>grp_desc', 'eq', 'Promo chivas')
+    .not('raw_data->>grp_desc', 'eq', 'Uso interno');
   
   // PRODUTOS DOSE DUPLA (excluir - são variações que não devem contar no stockout)
   // Inclui "Dose Dulpa" que é um typo comum
@@ -179,10 +195,25 @@ function getInicioFimSemana(data: string): { inicio: string; fim: string } {
 }
 
 // Locais são usados diretamente dos dados - cada bar tem seus próprios locais
-// Exemplo Deboche: Bar, Cozinha, Cozinha 2, Salao
+// Exemplo Deboche: Bar, Cozinha (agrupado), Salao
 // Exemplo Ordinário: Preshh, Mexido, Batidos, Montados, Chopp, Cozinha 1, Cozinha 2
 
+// Função para normalizar locais - agrupa "Cozinha" e "Cozinha 2" para o Deboche
+function normalizarLocal(locDesc: string | null, barId: number): string {
+  if (!locDesc) return 'Sem local definido';
+  
+  // Deboche (bar_id = 4): agrupar "Cozinha" e "Cozinha 2" como "Cozinha"
+  if (barId === 4) {
+    if (locDesc === 'Cozinha' || locDesc === 'Cozinha 2') {
+      return 'Cozinha';
+    }
+  }
+  
+  return locDesc.trim();
+}
+
 // Função para obter o local normalizado (usa o loc_desc diretamente)
+// Mantida para compatibilidade - use normalizarLocal quando tiver bar_id disponível
 function obterLocal(locDesc: string | null): string {
   if (!locDesc) return 'Sem local definido';
   return locDesc.trim();
@@ -394,7 +425,7 @@ export async function POST(request: NextRequest) {
 
     const dadosPorCategoria = new Map<string, StatsCategoria>();
     dadosValidosFiltrados.forEach(item => {
-      const categoria = obterLocal(item.loc_desc);
+      const categoria = normalizarLocal(item.loc_desc, bar_id);
       const dataConsulta = item.data_consulta;
       
       if (!dadosPorCategoria.has(categoria)) {

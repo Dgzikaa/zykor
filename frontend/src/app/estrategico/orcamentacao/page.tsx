@@ -1,904 +1,672 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Card } from '@/components/ui/card';
 import PageHeader from '@/components/layouts/PageHeader';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useBar } from '@/contexts/BarContext';
-import { AnimatedCounter, AnimatedCurrency } from '@/components/ui/animated-counter';
+import { AnimatedCurrency } from '@/components/ui/animated-counter';
 import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 import {
   DollarSign,
-  Edit,
   Check,
   X,
   RefreshCw,
-  Calendar,
-  CalendarDays,
   TrendingUp,
   TrendingDown,
-  ArrowUp,
-  ArrowDown,
-  Minus,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Pencil,
+  BarChart3,
 } from 'lucide-react';
+
+// Tipos
+interface SubcategoriaOrcamento {
+  nome: string;
+  planejado: number;
+  projecao: number;
+  realizado: number;
+  isPercentage?: boolean;
+}
 
 interface CategoriaOrcamento {
   nome: string;
   cor: string;
-  subcategorias: {
-    nome: string;
-    planejado: number;
-    projecao: number;
-    realizado: number;
-    editavel: boolean;
-    isPercentage?: boolean;
-  }[];
+  tipo: string;
+  subcategorias: SubcategoriaOrcamento[];
 }
 
-interface DadosOrcamento {
-  id?: number;
-  bar_id: number;
-  ano: number;
-  mes: number;
-  categoria: string;
-  subcategoria?: string;
-  valor_planejado: number;
-  valor_projecao: number;
-  valor_realizado?: number;
-  percentual_realizado?: number;
-  observacoes?: string;
+interface TotaisMes {
+  receita_planejado: number;
+  receita_projecao: number;
+  receita_realizado: number;
+  despesas_planejado: number;
+  despesas_projecao: number;
+  despesas_realizado: number;
+  lucro_planejado: number;
+  lucro_projecao: number;
+  lucro_realizado: number;
+  margem_planejado: number;
+  margem_projecao: number;
+  margem_realizado: number;
 }
+
+interface MesOrcamento {
+  mes: number;
+  ano: number;
+  label: string;
+  isAtual: boolean;
+  categorias: CategoriaOrcamento[];
+  totais: TotaisMes;
+}
+
+// Formatadores
+const formatarMoeda = (valor: number | null | undefined): string => {
+  if (valor === null || valor === undefined) return 'R$ 0';
+  if (Math.abs(valor) >= 1000) {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+      notation: 'compact',
+      compactDisplay: 'short'
+    }).format(valor);
+  }
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(valor);
+};
+
+const formatarMoedaCompleta = (valor: number | null | undefined): string => {
+  if (valor === null || valor === undefined) return 'R$ 0';
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(valor);
+};
+
+const formatarPorcentagem = (valor: number | null | undefined): string => {
+  if (valor === null || valor === undefined) return '0.0%';
+  return `${valor.toFixed(1)}%`;
+};
 
 export default function OrcamentacaoPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(false);
-  const [categorias, setCategorias] = useState<CategoriaOrcamento[]>([]);
-  const [mesSelecionado, setMesSelecionado] = useState<string>('8'); // Agosto pré-selecionado
-  const [anoSelecionado, setAnoSelecionado] = useState<string>('2025');
-  const [editMode, setEditMode] = useState<Record<string, boolean>>({});
-  const [editedValues, setEditedValues] = useState<Record<string, string>>({});
-  const [editModeRealizado, setEditModeRealizado] = useState<Record<string, boolean>>({});
-  const [editedValuesRealizado, setEditedValuesRealizado] = useState<Record<string, string>>({});
-  const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('planejamento');
-  
-  // Estados para campos editáveis específicos
-  const [despesasVariaveis, setDespesasVariaveis] = useState({ planejado: 11.5, projecao: 11.5, realizado: 0 });
-  const [cmv, setCmv] = useState({ planejado: 27, projecao: 27, realizado: 0 });
+  const [meses, setMeses] = useState<MesOrcamento[]>([]);
+  const [mesAtualIdx, setMesAtualIdx] = useState<number>(-1);
+  const [semestreAtual, setSemestreAtual] = useState<1 | 2>(1);
+  const [anoSelecionado, setAnoSelecionado] = useState<number>(new Date().getFullYear());
+  const [secoesAbertas, setSecoesAbertas] = useState<Record<string, boolean>>({});
+  const [editando, setEditando] = useState<{ mes: number; ano: number; subcategoria: string } | null>(null);
+  const [valorEdit, setValorEdit] = useState('');
 
-  // Ref para evitar dependências desnecessárias
-  const isLoadingRef = useRef(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const mesAtualRef = useRef<HTMLDivElement>(null);
 
-  // Categorias que podem ter valores realizados editados manualmente
-  const categoriasEditaveisRealizado = [
-    'Custo Bebidas',
-    'CONTRATOS', 
-    'Produção Eventos',
-    'Marketing',
-    'Outros Sócios',
-    'RECURSOS HUMANOS',
-    'Escritório Central',
-    'Custo Comida',
-    'Custo Drinks',
-    'LUZ'
-  ];
+  // Calcular mês de início baseado no semestre
+  const getMesInicio = () => {
+    return semestreAtual === 1 ? 1 : 7;
+  };
 
-  // Função para obter estrutura base das categorias baseada no NIBO real
-  const getCategoriasEstruturadas = (): CategoriaOrcamento[] => [
-    {
-      nome: 'Despesas Variáveis (%)',
-      cor: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
-      subcategorias: [
-        { nome: 'IMPOSTO/TX MAQ/COMISSAO', planejado: despesasVariaveis.planejado, projecao: despesasVariaveis.projecao, realizado: despesasVariaveis.realizado, editavel: true, isPercentage: true }
-      ]
-    },
-    {
-      nome: 'CMV (%)',
-      cor: 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300',
-      subcategorias: [
-        { nome: 'CMV', planejado: cmv.planejado, projecao: cmv.projecao, realizado: cmv.realizado, editavel: true, isPercentage: true }
-      ]
-    },
-    {
-      nome: 'Pessoal',
-      cor: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
-      subcategorias: [
-        { nome: 'CUSTO-EMPRESA FUNCIONÁRIOS', planejado: 45000, projecao: 45000, realizado: 0, editavel: true },
-        { nome: 'ADICIONAIS', planejado: 5000, projecao: 5000, realizado: 0, editavel: true },
-        { nome: 'FREELA ATENDIMENTO', planejado: 8000, projecao: 8000, realizado: 0, editavel: true },
-        { nome: 'FREELA BAR', planejado: 6000, projecao: 6000, realizado: 0, editavel: true },
-        { nome: 'FREELA COZINHA', planejado: 4000, projecao: 4000, realizado: 0, editavel: true },
-        { nome: 'FREELA LIMPEZA', planejado: 2000, projecao: 2000, realizado: 0, editavel: true },
-        { nome: 'FREELA SEGURANÇA', planejado: 3000, projecao: 3000, realizado: 0, editavel: true },
-        { nome: 'PRO LABORE', planejado: 15000, projecao: 15000, realizado: 0, editavel: true }
-      ]
-    },
-    {
-      nome: 'Administrativas',
-      cor: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300',
-      subcategorias: [
-        { nome: 'Escritório Central', planejado: 2000, projecao: 2000, realizado: 0, editavel: true },
-        { nome: 'Administrativo Ordinário', planejado: 1500, projecao: 1500, realizado: 0, editavel: true },
-        { nome: 'RECURSOS HUMANOS', planejado: 1000, projecao: 1000, realizado: 0, editavel: true },
-        { nome: 'VALE TRANSPORTE', planejado: 15000, projecao: 15000, realizado: 0, editavel: true }
-      ]
-    },
-    {
-      nome: 'Marketing e Eventos',
-      cor: 'bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300',
-      subcategorias: [
-        { nome: 'Marketing', planejado: 5000, projecao: 5000, realizado: 0, editavel: true },
-        { nome: 'Atrações Programação', planejado: 25000, projecao: 25000, realizado: 0, editavel: true },
-        { nome: 'Produção Eventos', planejado: 8000, projecao: 8000, realizado: 0, editavel: true }
-      ]
-    },
-    {
-      nome: 'Operacionais',
-      cor: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300',
-      subcategorias: [
-        { nome: 'Materiais Operação', planejado: 3000, projecao: 3000, realizado: 0, editavel: true },
-        { nome: 'Estorno', planejado: 500, projecao: 500, realizado: 0, editavel: true },
-        { nome: 'Equipamentos Operação', planejado: 2000, projecao: 2000, realizado: 0, editavel: true },
-        { nome: 'Materiais de Limpeza e Descartáveis', planejado: 1500, projecao: 1500, realizado: 0, editavel: true },
-        { nome: 'Utensílios', planejado: 800, projecao: 800, realizado: 0, editavel: true },
-        { nome: 'Outros Operação', planejado: 1000, projecao: 1000, realizado: 0, editavel: true }
-      ]
-    },
-    {
-      nome: 'Ocupação',
-      cor: 'bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-300',
-      subcategorias: [
-        { nome: 'ALUGUEL/CONDOMÍNIO/IPTU', planejado: 12000, projecao: 12000, realizado: 0, editavel: true },
-        { nome: 'ÁGUA', planejado: 800, projecao: 800, realizado: 0, editavel: true },
-        { nome: 'GÁS', planejado: 600, projecao: 600, realizado: 0, editavel: true },
-        { nome: 'INTERNET', planejado: 500, projecao: 500, realizado: 0, editavel: true },
-        { nome: 'Manutenção', planejado: 2000, projecao: 2000, realizado: 0, editavel: true },
-        { nome: 'LUZ', planejado: 3500, projecao: 3500, realizado: 0, editavel: true }
-      ]
-    },
-    {
-      nome: 'Receitas',
-      cor: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
-      subcategorias: [
-        { nome: 'RECEITA BRUTA', planejado: 195000, projecao: 195000, realizado: 0, editavel: true }
-      ]
-    },
-    {
-      nome: 'Não Operacionais',
-      cor: 'bg-gray-100 dark:bg-gray-900/30 text-gray-800 dark:text-gray-300',
-      subcategorias: [
-        { nome: 'CONTRATOS', planejado: 0, projecao: 15700, realizado: 0, editavel: true }
-      ]
-    }
-  ];
+  // Carregar dados de 6 meses
+  const carregarDados = useCallback(async () => {
+    if (!selectedBar) return;
 
-  // Função para carregar dados sem useCallback para evitar loops
-  const carregarDados = async () => {
-    if (!selectedBar || isLoadingRef.current) return;
-
-    isLoadingRef.current = true;
     setLoading(true);
-    
     try {
-      // Buscar dados orçamentários (planejado + realizado calculado do NIBO)
-      const apiUrl = `/api/estrategico/orcamentacao?bar_id=${selectedBar.id}&ano=${anoSelecionado}&mes=${mesSelecionado}`;
-      console.log('🔍 Buscando dados orçamentários:', apiUrl);
-      
-      const response = await fetch(apiUrl);
+      const mesInicio = getMesInicio();
+      const response = await fetch(
+        `/api/estrategico/orcamentacao/todos-meses?bar_id=${selectedBar.id}&ano=${anoSelecionado}&mes_inicio=${mesInicio}&quantidade=6`
+      );
+
+      if (!response.ok) throw new Error('Erro ao carregar dados');
+
       const result = await response.json();
       
-      console.log('📋 Resposta da API orçamentação:', {
-        success: result.success,
-        dataLength: result.data?.length || 0,
-        data: result.data
-      });
-      
-      if (result.success && result.data && result.data.length > 0) {
-        console.log('📊 Dados orçamentários recebidos:', result.data);
+      if (result.success && result.data) {
+        console.log('📊 Dados recebidos da API:', {
+          totalMeses: result.data.length,
+          primeiroMes: result.data[0]?.label,
+          categoriasCount: result.data[0]?.categorias?.length,
+          amostraSubcat: result.data[0]?.categorias?.[0]?.subcategorias?.[0]
+        });
+        setMeses(result.data);
         
-        // Aplicar valores realizados na estrutura (forçar nova referência)
-        const categoriasAtualizadas = getCategoriasEstruturadas().map(categoria => ({
-          ...categoria,
-          id: Math.random(), // Forçar re-render
-          subcategorias: categoria.subcategorias.map(sub => {
-            // Buscar correspondência nos dados recebidos (match exato por categoria)
-            const dadosCorrespondentes = result.data.find((item: any) => 
-              item.categoria === sub.nome || 
-              (item.subcategoria && item.subcategoria === sub.nome)
-            );
-            
-            if (dadosCorrespondentes) {
-              console.log(`✅ Match encontrado: ${sub.nome} → Realizado: R$ ${dadosCorrespondentes.valor_realizado}`);
-              return {
-                ...sub,
-                id: Math.random(), // Forçar re-render
-                realizado: Number(dadosCorrespondentes.valor_realizado) || 0,
-                planejado: Number(dadosCorrespondentes.valor_planejado) || sub.planejado
-              };
-            }
-            
-            return { ...sub, id: Math.random() }; // Forçar re-render mesmo sem dados
-          })
-        }));
+        // Encontrar índice do mês atual
+        const mesAtual = new Date().getMonth() + 1;
+        const anoAtual = new Date().getFullYear();
+        const idx = result.data.findIndex((m: MesOrcamento) => 
+          m.mes === mesAtual && m.ano === anoAtual
+        );
+        setMesAtualIdx(idx >= 0 ? idx : -1);
 
-        setCategorias(categoriasAtualizadas);
-        setUltimaAtualizacao(new Date());
-        console.log('✅ Categorias atualizadas com dados reais');
-        
-        // Debug: verificar se os dados foram realmente atualizados no estado
-        console.log('🔍 Estado das categorias após atualização:');
-        categoriasAtualizadas.forEach(cat => {
-          console.log(`📁 Categoria: ${cat.nome}`);
-          cat.subcategorias.forEach(sub => {
-            if (sub.realizado > 0) {
-              console.log(`  ✅ ${sub.nome}: Realizado = ${sub.realizado}, Planejado = ${sub.planejado}`);
-            } else {
-              console.log(`  ❌ ${sub.nome}: Realizado = ${sub.realizado} (ZERO!)`);
-            }
+        // Abrir todas as seções por padrão
+        if (result.data.length > 0 && result.data[0].categorias) {
+          const secoesIniciais: Record<string, boolean> = {};
+          result.data[0].categorias.forEach((cat: CategoriaOrcamento) => {
+            secoesIniciais[cat.nome] = true;
           });
-        });
-      } else {
-        console.log('⚠️ Sem dados específicos, usando estrutura base');
-        setCategorias(getCategoriasEstruturadas());
-        toast({
-          title: 'Dados base carregados',
-          description: 'Usando estrutura padrão. Valores realizados podem estar desatualizados.',
-          variant: 'default',
-        });
+          setSecoesAbertas(secoesIniciais);
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
-      // Fallback para dados base
-      setCategorias(getCategoriasEstruturadas());
       toast({
-        title: 'Erro ao carregar',
-        description: 'Usando dados base. Verifique conexão.',
+        title: 'Erro',
+        description: 'Falha ao carregar dados de orçamentação',
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
-      isLoadingRef.current = false;
+    }
+  }, [selectedBar?.id, anoSelecionado, semestreAtual]);
+
+  // Scroll para mês atual após carregar
+  useEffect(() => {
+    if (!loading && scrollContainerRef.current && mesAtualRef.current) {
+      const container = scrollContainerRef.current;
+      const element = mesAtualRef.current;
+      const containerWidth = container.offsetWidth;
+      const elementLeft = element.offsetLeft;
+      const elementWidth = element.offsetWidth;
+
+      container.scrollLeft = elementLeft - (containerWidth * 0.4) + (elementWidth / 2);
+    }
+  }, [loading, mesAtualIdx]);
+
+  // Toggle seção
+  const toggleSecao = (nome: string) => {
+    setSecoesAbertas(prev => ({ ...prev, [nome]: !prev[nome] }));
+  };
+
+  // Navegar entre semestres
+  const irParaSemestreAnterior = () => {
+    if (semestreAtual === 1) {
+      setAnoSelecionado(prev => prev - 1);
+      setSemestreAtual(2);
+    } else {
+      setSemestreAtual(1);
     }
   };
+
+  const irParaProximoSemestre = () => {
+    if (semestreAtual === 2) {
+      setAnoSelecionado(prev => prev + 1);
+      setSemestreAtual(1);
+    } else {
+      setSemestreAtual(2);
+    }
+  };
+
+  // Salvar valor planejado
+  const salvarValor = async () => {
+    if (!editando || !selectedBar) return;
+
+    const numValue = parseFloat(valorEdit.replace(',', '.').replace(/[^\d.-]/g, ''));
+    if (isNaN(numValue)) {
+      setEditando(null);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/estrategico/orcamentacao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bar_id: selectedBar.id,
+          ano: editando.ano,
+          mes: editando.mes,
+          categoria_nome: editando.subcategoria,
+          valor_planejado: numValue,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Erro ao salvar');
+
+      toast({ title: 'Salvo!', description: 'Valor planejado atualizado' });
+      setEditando(null);
+      carregarDados();
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Falha ao salvar valor', variant: 'destructive' });
+    }
+  };
+
+  // Calcular totais do período visível
+  const calcularTotaisPeriodo = () => {
+    if (meses.length === 0) {
+      return {
+        receita_planejado: 0,
+        receita_projecao: 0,
+        receita_realizado: 0,
+        despesas_planejado: 0,
+        despesas_projecao: 0,
+        despesas_realizado: 0,
+        lucro_planejado: 0,
+        lucro_projecao: 0,
+        lucro_realizado: 0,
+      };
+    }
+
+    return meses.reduce((acc, mes) => ({
+      receita_planejado: acc.receita_planejado + mes.totais.receita_planejado,
+      receita_projecao: acc.receita_projecao + mes.totais.receita_projecao,
+      receita_realizado: acc.receita_realizado + mes.totais.receita_realizado,
+      despesas_planejado: acc.despesas_planejado + mes.totais.despesas_planejado,
+      despesas_projecao: acc.despesas_projecao + mes.totais.despesas_projecao,
+      despesas_realizado: acc.despesas_realizado + mes.totais.despesas_realizado,
+      lucro_planejado: acc.lucro_planejado + mes.totais.lucro_planejado,
+      lucro_projecao: acc.lucro_projecao + mes.totais.lucro_projecao,
+      lucro_realizado: acc.lucro_realizado + mes.totais.lucro_realizado,
+    }), {
+      receita_planejado: 0,
+      receita_projecao: 0,
+      receita_realizado: 0,
+      despesas_planejado: 0,
+      despesas_projecao: 0,
+      despesas_realizado: 0,
+      lucro_planejado: 0,
+      lucro_projecao: 0,
+      lucro_realizado: 0,
+    });
+  };
+
+  useEffect(() => {
+    // Definir semestre baseado no mês atual
+    const mesAtual = new Date().getMonth() + 1;
+    setSemestreAtual(mesAtual <= 6 ? 1 : 2);
+    setAnoSelecionado(new Date().getFullYear());
+  }, []);
 
   useEffect(() => {
     if (selectedBar) {
       carregarDados();
     }
-  }, [selectedBar, anoSelecionado, mesSelecionado]); // Removido carregarDados das dependências
+  }, [carregarDados]);
 
-  const recarregarDados = async () => {
-    await carregarDados();
-    toast({
-      title: "Dados atualizados",
-      description: "Os dados foram recarregados automaticamente do NIBO",
-    });
-  };
+  const totaisPeriodo = calcularTotaisPeriodo();
 
-
-
-  const handleEdit = (categoriaIndex: number, subIndex: number, valorAtual: number) => {
-    const key = `${categoriaIndex}-${subIndex}`;
-    setEditedValues(prev => ({ ...prev, [key]: valorAtual.toString() }));
-    setEditMode(prev => ({ ...prev, [key]: true }));
-  };
-
-  const handleSave = async (categoriaIndex: number, subIndex: number) => {
-    const key = `${categoriaIndex}-${subIndex}`;
-    const novoValor = editedValues[key];
-    if (!novoValor) return;
-
-    try {
-      const subcategoria = categorias[categoriaIndex].subcategorias[subIndex];
-
-      // Atualizar localmente primeiro
-      setCategorias(prev => prev.map((cat, catIndex) => 
-        catIndex === categoriaIndex 
-          ? {
-              ...cat,
-              subcategorias: cat.subcategorias.map((sub, subIdx) => 
-                subIdx === subIndex 
-                  ? { ...sub, planejado: parseFloat(novoValor) }
-                  : sub
-              )
-            }
-          : cat
-      ));
-
-      // Atualizar estados específicos se necessário
-      if (subcategoria.nome === 'IMPOSTO/TX MAQ/COMISSÃO') {
-        setDespesasVariaveis(prev => ({
-          ...prev,
-          planejado: parseFloat(novoValor)
-        }));
-      } else if (subcategoria.nome === 'CMV') {
-        setCmv(prev => ({
-          ...prev,
-          planejado: parseFloat(novoValor)
-        }));
-      }
-
-      toast({
-        title: 'Sucesso',
-        description: 'Valores atualizados com sucesso',
-      });
-      setEditMode(prev => ({ ...prev, [key]: false }));
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível salvar a alteração',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleCancel = (categoriaIndex: number, subIndex: number) => {
-    const key = `${categoriaIndex}-${subIndex}`;
-    setEditedValues(prev => {
-      const newValues = { ...prev };
-      delete newValues[key];
-      return newValues;
-    });
-    setEditMode(prev => ({ ...prev, [key]: false }));
-  };
-
-  // Funções para editar valores realizados
-  const handleEditRealizado = (categoriaIndex: number, subIndex: number, valorAtual: number) => {
-    const key = `${categoriaIndex}-${subIndex}`;
-    setEditedValuesRealizado(prev => ({ ...prev, [key]: valorAtual.toString() }));
-    setEditModeRealizado(prev => ({ ...prev, [key]: true }));
-  };
-
-  const handleSaveRealizado = async (categoriaIndex: number, subIndex: number) => {
-    const key = `${categoriaIndex}-${subIndex}`;
-    const novoValor = editedValuesRealizado[key];
-    if (!novoValor || !selectedBar) return;
-
-    try {
-      const subcategoria = categorias[categoriaIndex].subcategorias[subIndex];
-      const valorNumerico = parseFloat(novoValor);
-
-      // Salvar na tabela orcamentacao como valor_realizado
-      const response = await fetch('/api/estrategico/orcamentacao', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          bar_id: selectedBar.id,
-          ano: parseInt(anoSelecionado),
-          mes: parseInt(mesSelecionado),
-          categoria_nome: subcategoria.nome,
-          valor_realizado: valorNumerico,
-          tipo: 'manual' // Indicar que é um valor manual
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao salvar valor realizado');
-      }
-
-      // Atualizar localmente
-      setCategorias(prev => prev.map((cat, catIndex) => 
-        catIndex === categoriaIndex 
-          ? {
-              ...cat,
-              subcategorias: cat.subcategorias.map((sub, subIdx) => 
-                subIdx === subIndex 
-                  ? { ...sub, realizado: valorNumerico }
-                  : sub
-              )
-            }
-          : cat
-      ));
-
-      toast({
-        title: 'Sucesso',
-        description: `Valor realizado de ${subcategoria.nome} atualizado para ${formatarMoeda(valorNumerico)}`,
-      });
-      
-      setEditModeRealizado(prev => ({ ...prev, [key]: false }));
-    } catch (error) {
-      console.error('Erro ao salvar valor realizado:', error);
-      toast({
-        title: 'Erro',
-        description: 'Erro ao salvar valor realizado',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleCancelRealizado = (categoriaIndex: number, subIndex: number) => {
-    const key = `${categoriaIndex}-${subIndex}`;
-    setEditedValuesRealizado(prev => {
-      const newValues = { ...prev };
-      delete newValues[key];
-      return newValues;
-    });
-    setEditModeRealizado(prev => ({ ...prev, [key]: false }));
-  };
-
-  const formatarMoeda = (valor: number): string => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(valor);
-  };
-
-  const formatarPorcentagem = (valor: number) => {
-    return `${valor.toFixed(1)}%`;
-  };
-
-  // Função para obter indicador de performance
-  const obterIndicadorPerformance = (realizado: number, planejado: number, isPercentage: boolean = false) => {
-    if (realizado === 0) {
-      return { icon: Minus, color: 'text-gray-400 dark:text-gray-500', tooltip: 'Sem dados' };
-    }
-
-    const diferenca = realizado - planejado;
-    const percentualDiferenca = planejado !== 0 ? (diferenca / planejado) * 100 : 0;
-
-    // Para receitas, acima do planejado é bom (verde)
-    // Para despesas, abaixo do planejado é bom (verde)
-    const isReceita = planejado > 50000; // Assumindo que receitas são valores altos
-    
-    if (Math.abs(percentualDiferenca) < 5) {
-      return { 
-        icon: Minus, 
-        color: 'text-yellow-500 dark:text-yellow-400', 
-        tooltip: `Dentro da meta (${percentualDiferenca.toFixed(1)}%)` 
-      };
-    }
-
-    if ((isReceita && diferenca > 0) || (!isReceita && diferenca < 0)) {
-      return { 
-        icon: ArrowUp, 
-        color: 'text-green-500 dark:text-green-400', 
-        tooltip: `Acima da meta (+${Math.abs(percentualDiferenca).toFixed(1)}%)` 
-      };
-    } else {
-      return { 
-        icon: ArrowDown, 
-        color: 'text-red-500 dark:text-red-400', 
-        tooltip: `Abaixo da meta (-${Math.abs(percentualDiferenca).toFixed(1)}%)` 
-      };
-    }
-  };
-
-  // Cálculos automáticos
-  const calcularValores = () => {
-    const totalReceitaPlanejado = categorias.find(cat => cat.nome === 'Receitas')?.subcategorias.reduce((acc, sub) => acc + sub.planejado, 0) || 0;
-    const totalDespesasPlanejado = categorias.reduce((acc, cat) => {
-      if (cat.nome === 'Receitas') return acc;
-      return acc + cat.subcategorias.reduce((subAcc, sub) => subAcc + sub.planejado, 0);
-    }, 0);
-    
-    const lucroPlanejado = totalReceitaPlanejado - totalDespesasPlanejado;
-    const margemPlanejada = totalReceitaPlanejado > 0 ? (lucroPlanejado / totalReceitaPlanejado) * 100 : 0;
-
-    return {
-      totalReceitaPlanejado,
-      totalDespesasPlanejado,
-      lucroPlanejado,
-      margemPlanejada,
-    };
-  };
-
-  const valoresCalculados = calcularValores();
-
-  // Opções de meses com nomes
-  const mesesOptions = [
-    { value: '1', label: 'Janeiro', icon: '❄️' },
-    { value: '2', label: 'Fevereiro', icon: '💝' },
-    { value: '3', label: 'Março', icon: '🌸' },
-    { value: '4', label: 'Abril', icon: '🌱' },
-    { value: '5', label: 'Maio', icon: '🌺' },
-    { value: '6', label: 'Junho', icon: '☀️' },
-    { value: '7', label: 'Julho', icon: '🎆' },
-    { value: '8', label: 'Agosto', icon: '🌻' },
-    { value: '9', label: 'Setembro', icon: '🍂' },
-    { value: '10', label: 'Outubro', icon: '🎃' },
-    { value: '11', label: 'Novembro', icon: '🦃' },
-    { value: '12', label: 'Dezembro', icon: '🎄' },
-  ];
-
-  const anosOptions = [
-    { value: '2024', label: '2024' },
-    { value: '2025', label: '2025' },
-    { value: '2026', label: '2026' },
-  ];
-
-  if (loading) {
+  if (!selectedBar) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-        <div className="max-w-7xl mx-auto space-y-6">
-          <Skeleton className="h-12 w-64" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-32" />
-            ))}
-          </div>
-          <Skeleton className="h-96" />
-        </div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <Card className="bg-white dark:bg-gray-800 p-8 text-center max-w-md">
+          <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            Selecione um Bar
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Escolha um bar no seletor acima para visualizar a orçamentação.
+          </p>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
-        {/* Header */}
-        <PageHeader
-          title="💰 Orçamentação"
-          description="Planejamento e controle orçamentário detalhado"
-        />
-
-        {/* Filtros Avançados */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-wrap items-center gap-4 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
-        >
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Período:</span>
-          </div>
-          
-          <Select value={anoSelecionado} onValueChange={setAnoSelecionado}>
-            <SelectTrigger className="w-[140px] bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {anosOptions.map((ano) => (
-                <SelectItem key={ano.value} value={ano.value} className="text-gray-900 dark:text-white">
-                  {ano.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={mesSelecionado} onValueChange={setMesSelecionado}>
-            <SelectTrigger className="w-[180px] bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {mesesOptions.map((mes) => (
-                <SelectItem key={mes.value} value={mes.value} className="text-gray-900 dark:text-white">
-                  <span className="flex items-center gap-2">
-                    <span>{mes.icon}</span>
-                    <span>{mes.label}</span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div className="flex-1" />
-
-          {ultimaAtualizacao && (
-            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-              <CalendarDays className="h-4 w-4" />
-              <span>Última atualização: {ultimaAtualizacao.toLocaleString('pt-BR')}</span>
+    <div className="h-[calc(100vh-80px)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      {/* Header com navegação e cards de resumo */}
+      <div className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="max-w-full mx-auto px-4 py-3">
+          {/* Linha 1: Título e navegação */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-4">
+              <PageHeader
+                title="Orçamentação"
+                description=""
+              />
             </div>
-          )}
 
-          <div className="flex gap-2">
-            <Button
-              onClick={recarregarDados}
-              disabled={loading}
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Atualizar Dados
-            </Button>
-          </div>
-        </motion.div>
-
-        {/* Cards de Resumo Animados */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
-        >
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-700">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Receita Planejada
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <AnimatedCurrency
-                value={valoresCalculados.totalReceitaPlanejado}
-                className="text-2xl font-bold text-green-600 dark:text-green-400"
-              />
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-red-200 dark:border-red-700">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-red-700 dark:text-red-300 flex items-center gap-2">
-                <TrendingDown className="h-4 w-4" />
-                Despesas Planejadas
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <AnimatedCurrency
-                value={valoresCalculados.totalDespesasPlanejado}
-                className="text-2xl font-bold text-red-600 dark:text-red-400"
-              />
-            </CardContent>
-          </Card>
-
-          <Card className={`bg-gradient-to-br ${valoresCalculados.lucroPlanejado >= 0 ? 'from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 border-emerald-200 dark:border-emerald-700' : 'from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-red-200 dark:border-red-700'}`}>
-            <CardHeader className="pb-2">
-              <CardTitle className={`text-sm font-medium flex items-center gap-2 ${valoresCalculados.lucroPlanejado >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
-                <TrendingUp className="h-4 w-4" />
-                Lucro Planejado
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <AnimatedCurrency
-                value={valoresCalculados.lucroPlanejado}
-                className={`text-2xl font-bold ${valoresCalculados.lucroPlanejado >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
-              />
-            </CardContent>
-          </Card>
-
-          <Card className={`bg-gradient-to-br ${valoresCalculados.margemPlanejada >= 0 ? 'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-700' : 'from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-red-200 dark:border-red-700'}`}>
-            <CardHeader className="pb-2">
-              <CardTitle className={`text-sm font-medium flex items-center gap-2 ${valoresCalculados.margemPlanejada >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-red-700 dark:text-red-300'}`}>
-                <TrendingDown className="h-4 w-4" />
-                Margem Planejada
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${valoresCalculados.margemPlanejada >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
-                {formatarPorcentagem(valoresCalculados.margemPlanejada)}
+            {/* Navegação por semestre */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={irParaSemestreAnterior}
+                className="gap-1"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Anterior
+              </Button>
+              
+              <div className="px-4 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <span className="font-semibold text-gray-900 dark:text-white">
+                  {semestreAtual === 1 ? 'Jan - Jun' : 'Jul - Dez'} / {anoSelecionado}
+                </span>
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={irParaProximoSemestre}
+                className="gap-1"
+              >
+                Próximo
+                <ChevronRight className="h-4 w-4" />
+              </Button>
 
-        {/* Tabs para diferentes visões */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-              <TabsTrigger value="planejamento" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/50 dark:data-[state=active]:text-blue-300">
-                <Calendar className="h-4 w-4 mr-2" />
-                Planejamento
-              </TabsTrigger>
-              <TabsTrigger value="comparativo" className="data-[state=active]:bg-green-50 data-[state=active]:text-green-700 dark:data-[state=active]:bg-green-900/50 dark:data-[state=active]:text-green-300">
-                <TrendingUp className="h-4 w-4 mr-2" />
-                Comparativo
-              </TabsTrigger>
-              <TabsTrigger value="analise" className="data-[state=active]:bg-purple-50 data-[state=active]:text-purple-700 dark:data-[state=active]:bg-purple-900/50 dark:data-[state=active]:text-purple-300">
-                <TrendingDown className="h-4 w-4 mr-2" />
-                Análise
-              </TabsTrigger>
-            </TabsList>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={carregarDados}
+                disabled={loading}
+                className="gap-2 ml-4"
+              >
+                <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+                Atualizar
+              </Button>
+            </div>
+          </div>
 
-            <TabsContent value="planejamento">
-              <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-                    <DollarSign className="h-5 w-5" />
-                    Detalhamento Orçamentário
-                  </CardTitle>
-                  <CardDescription className="text-gray-600 dark:text-gray-400">
-                    Planeje e edite valores para cada categoria de despesa
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-                          <TableHead className="text-gray-900 dark:text-white font-semibold text-left">Categoria</TableHead>
-                          <TableHead className="text-gray-900 dark:text-white font-semibold text-center">Planejado</TableHead>
-                          <TableHead className="text-gray-900 dark:text-white font-semibold text-center">Projeção</TableHead>
-                          <TableHead className="text-gray-900 dark:text-white font-semibold text-center">Realizado</TableHead>
-                          <TableHead className="text-gray-900 dark:text-white font-semibold text-center">Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {categorias.map((categoria, catIndex) => (
-                          <React.Fragment key={`categoria-${categoria.nome}-${catIndex}`}>
-                            {/* Cabeçalho da Categoria */}
-                            <TableRow className="border-gray-200 dark:border-gray-700">
-                              <TableCell colSpan={5} className={`font-semibold ${categoria.cor} p-3 rounded-lg`}>
-                                {categoria.nome}
-                              </TableCell>
-                            </TableRow>
-                            
-                            {/* Subcategorias */}
-                            {categoria.subcategorias.map((sub, subIndex) => {
-                              const key = `${catIndex}-${subIndex}`;
-                              const isEditing = editMode[key];
-                              
-                              return (
-                                <TableRow key={`sub-${sub.nome}-${key}`} className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                                  <TableCell className="text-gray-900 dark:text-white pl-8 font-medium">
-                                    {sub.nome}
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    {isEditing ? (
+          {/* Linha 2: Cards de resumo do período */}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-3 md:grid-cols-6 gap-2"
+          >
+            {/* Receita Planejada */}
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-2 border border-blue-200 dark:border-blue-700">
+              <div className="text-blue-700 dark:text-blue-300 text-[10px] font-medium mb-0.5">Receita Plan.</div>
+              <AnimatedCurrency value={totaisPeriodo.receita_planejado} className="text-sm font-bold text-blue-600 dark:text-blue-400" />
+            </div>
+
+            {/* Receita Projeção */}
+            <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-2 border border-green-200 dark:border-green-700">
+              <div className="text-green-700 dark:text-green-300 text-[10px] font-medium mb-0.5">Receita Proj.</div>
+              <AnimatedCurrency value={totaisPeriodo.receita_projecao} className="text-sm font-bold text-green-600 dark:text-green-400" />
+            </div>
+
+            {/* Receita Realizada */}
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-lg p-2 border border-emerald-200 dark:border-emerald-700">
+              <div className="text-emerald-700 dark:text-emerald-300 text-[10px] font-medium mb-0.5">Receita Real.</div>
+              <AnimatedCurrency value={totaisPeriodo.receita_realizado} className="text-sm font-bold text-emerald-600 dark:text-emerald-400" />
+            </div>
+
+            {/* Lucro Planejado */}
+            <div className={cn(
+              "rounded-lg p-2 border",
+              totaisPeriodo.lucro_planejado >= 0
+                ? "bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-700"
+                : "bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-red-200 dark:border-red-700"
+            )}>
+              <div className={cn("text-[10px] font-medium mb-0.5", totaisPeriodo.lucro_planejado >= 0 ? "text-purple-700 dark:text-purple-300" : "text-red-700 dark:text-red-300")}>Lucro Plan.</div>
+              <AnimatedCurrency value={totaisPeriodo.lucro_planejado} className={cn("text-sm font-bold", totaisPeriodo.lucro_planejado >= 0 ? "text-purple-600 dark:text-purple-400" : "text-red-600 dark:text-red-400")} />
+            </div>
+
+            {/* Lucro Projeção */}
+            <div className={cn(
+              "rounded-lg p-2 border",
+              totaisPeriodo.lucro_projecao >= 0
+                ? "bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 border-indigo-200 dark:border-indigo-700"
+                : "bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-red-200 dark:border-red-700"
+            )}>
+              <div className={cn("text-[10px] font-medium mb-0.5", totaisPeriodo.lucro_projecao >= 0 ? "text-indigo-700 dark:text-indigo-300" : "text-red-700 dark:text-red-300")}>Lucro Proj.</div>
+              <AnimatedCurrency value={totaisPeriodo.lucro_projecao} className={cn("text-sm font-bold", totaisPeriodo.lucro_projecao >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-red-600 dark:text-red-400")} />
+            </div>
+
+            {/* Lucro Realizado */}
+            <div className={cn(
+              "rounded-lg p-2 border",
+              totaisPeriodo.lucro_realizado >= 0
+                ? "bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-900/20 dark:to-teal-800/20 border-teal-200 dark:border-teal-700"
+                : "bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-red-200 dark:border-red-700"
+            )}>
+              <div className={cn("text-[10px] font-medium mb-0.5", totaisPeriodo.lucro_realizado >= 0 ? "text-teal-700 dark:text-teal-300" : "text-red-700 dark:text-red-300")}>Lucro Real.</div>
+              <AnimatedCurrency value={totaisPeriodo.lucro_realizado} className={cn("text-sm font-bold", totaisPeriodo.lucro_realizado >= 0 ? "text-teal-600 dark:text-teal-400" : "text-red-600 dark:text-red-400")} />
+            </div>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Conteúdo - Layout Excel com scroll horizontal e vertical */}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-auto"
+        style={{ scrollBehavior: 'smooth' }}
+      >
+        <div className="flex" style={{ minWidth: 'max-content' }}>
+          {/* Coluna fixa - Labels das categorias */}
+          <div className="sticky left-0 z-20 flex-shrink-0 w-[200px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md">
+            {/* Header vazio para alinhar */}
+            <div className="h-[48px] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center sticky top-0 z-30">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 text-center">CATEGORIA</span>
+            </div>
+
+            {/* Labels das categorias */}
+            {meses.length > 0 && meses[0].categorias.map(categoria => (
+              <div key={categoria.nome}>
+                {/* Header da seção */}
+                <div
+                  className={cn("flex items-center gap-2 px-2 cursor-pointer", categoria.cor)}
+                  style={{ height: '32px' }}
+                  onClick={() => toggleSecao(categoria.nome)}
+                >
+                  {secoesAbertas[categoria.nome] ? (
+                    <ChevronDown className="w-3 h-3" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3" />
+                  )}
+                  <span className="text-[10px] font-semibold truncate">{categoria.nome}</span>
+                </div>
+
+                {/* Subcategorias */}
+                {secoesAbertas[categoria.nome] && categoria.subcategorias.map(sub => (
+                  <div
+                    key={sub.nome}
+                    className="flex items-center gap-1 px-2 pl-5 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                    style={{ height: '28px' }}
+                  >
+                    <span className="text-[10px] text-gray-700 dark:text-gray-300 truncate">{sub.nome}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+
+            {/* Linha de Lucro */}
+            <div
+              className="flex items-center gap-2 px-2 border-t-2 border-gray-300 dark:border-gray-600 bg-emerald-100 dark:bg-emerald-900/30"
+              style={{ height: '36px' }}
+            >
+              <DollarSign className="w-3 h-3 text-emerald-700 dark:text-emerald-300" />
+              <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-200">LUCRO</span>
+            </div>
+          </div>
+
+          {/* Área dos Meses */}
+          <div className="flex-1">
+            {loading ? (
+              <div className="flex gap-0">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="flex-shrink-0 w-[180px]">
+                    <Skeleton className="h-[48px] rounded-none" />
+                    {[...Array(20)].map((_, j) => (
+                      <Skeleton key={j} className="h-7 rounded-none" />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="inline-flex" style={{ minWidth: 'max-content' }}>
+                {meses.map((mes) => {
+                  const isAtual = mes.isAtual;
+
+                  return (
+                    <div
+                      key={`${mes.ano}-${mes.mes}`}
+                      ref={isAtual ? mesAtualRef : undefined}
+                      className={cn(
+                        "flex-shrink-0 w-[180px] border-r border-gray-200 dark:border-gray-700",
+                        isAtual && "bg-emerald-50 dark:bg-emerald-900/20"
+                      )}
+                    >
+                      {/* Header do mês */}
+                      <div
+                        className={cn(
+                          "h-[48px] border-b border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center px-1 sticky top-0 z-10",
+                          isAtual ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-gray-50 dark:bg-gray-700"
+                        )}
+                      >
+                        <span className={cn(
+                          "text-xs font-bold text-center",
+                          isAtual ? "text-emerald-700 dark:text-emerald-400" : "text-gray-700 dark:text-gray-300"
+                        )}>
+                          {mes.label}
+                        </span>
+                        <div className="flex gap-1 text-[8px] text-gray-500 dark:text-gray-400">
+                          <span className="text-blue-600 dark:text-blue-400">Plan.</span>
+                          <span>|</span>
+                          <span className="text-green-600 dark:text-green-400">Proj.</span>
+                          <span>|</span>
+                          <span className="text-gray-600 dark:text-gray-300">Real.</span>
+                        </div>
+                      </div>
+
+                      {/* Valores por categoria */}
+                      {mes.categorias.map(categoria => (
+                        <div key={categoria.nome}>
+                          {/* Espaço para header da seção */}
+                          <div
+                            className={cn(categoria.cor, "opacity-80")}
+                            style={{ height: '32px' }}
+                          />
+
+                          {/* Valores das subcategorias */}
+                          {secoesAbertas[categoria.nome] && categoria.subcategorias.map(sub => {
+                            const isEditando = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome;
+
+                            return (
+                              <div
+                                key={sub.nome}
+                                className={cn(
+                                  "relative flex items-center justify-between px-1 border-b border-gray-100 dark:border-gray-700 group",
+                                  isAtual ? "bg-emerald-50/50 dark:bg-emerald-900/10" : "bg-white dark:bg-gray-800"
+                                )}
+                                style={{ height: '28px' }}
+                              >
+                                {/* Valor Planejado (editável) */}
+                                <div className="flex-1 flex items-center justify-center">
+                                  {isEditando ? (
+                                    <div className="flex items-center gap-0.5">
                                       <Input
-                                        value={editedValues[key] || ''}
-                                        onChange={(e) => setEditedValues(prev => ({ ...prev, [key]: e.target.value }))}
-                                        className="w-32 text-center bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 mx-auto"
+                                        type="text"
+                                        value={valorEdit}
+                                        onChange={(e) => setValorEdit(e.target.value)}
+                                        className="w-12 h-5 text-[9px] p-0.5 text-center"
                                         autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') salvarValor();
+                                          if (e.key === 'Escape') setEditando(null);
+                                        }}
                                       />
-                                    ) : (
-                                      <span className="text-gray-900 dark:text-white font-mono">
+                                      <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}>
+                                        <Check className="h-2.5 w-2.5 text-emerald-600" />
+                                      </Button>
+                                      <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}>
+                                        <X className="h-2.5 w-2.5 text-red-600" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div 
+                                      className="flex items-center gap-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded px-0.5"
+                                      onClick={() => {
+                                        setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome });
+                                        setValorEdit(sub.planejado.toString());
+                                      }}
+                                    >
+                                      <span className="text-[9px] font-medium text-blue-600 dark:text-blue-400">
                                         {sub.isPercentage ? formatarPorcentagem(sub.planejado) : formatarMoeda(sub.planejado)}
                                       </span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-center text-gray-900 dark:text-white font-mono">
+                                      <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Divisor */}
+                                <div className="w-px h-3 bg-gray-200 dark:bg-gray-600" />
+
+                                {/* Valor Projeção (automático do NIBO) */}
+                                <div className="flex-1 flex items-center justify-center">
+                                  <span className={cn(
+                                    "text-[9px] font-medium",
+                                    sub.projecao > 0 ? "text-green-600 dark:text-green-400" : "text-gray-400 dark:text-gray-500"
+                                  )}>
                                     {sub.isPercentage ? formatarPorcentagem(sub.projecao) : formatarMoeda(sub.projecao)}
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    {editModeRealizado[key] ? (
-                                      <div className="flex items-center justify-center gap-2">
-                                        <Input
-                                          value={editedValuesRealizado[key] || ''}
-                                          onChange={(e) => setEditedValuesRealizado(prev => ({ ...prev, [key]: e.target.value }))}
-                                          className="w-32 text-center bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                                          autoFocus
-                                        />
-                                        <Button
-                                          size="sm"
-                                          onClick={() => handleSaveRealizado(catIndex, subIndex)}
-                                          className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700 text-white"
-                                        >
-                                          <Check className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => handleCancelRealizado(catIndex, subIndex)}
-                                          className="h-8 w-8 p-0 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                        >
-                                          <X className="h-4 w-4" />
-                                        </Button>
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center justify-center gap-2">
-                                        <span 
-                                          className={`text-gray-900 dark:text-white font-mono font-semibold ${
-                                            categoriasEditaveisRealizado.includes(sub.nome) ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 rounded' : ''
-                                          }`}
-                                          onClick={() => {
-                                            if (categoriasEditaveisRealizado.includes(sub.nome)) {
-                                              handleEditRealizado(catIndex, subIndex, sub.realizado);
-                                            }
-                                          }}
-                                        >
-                                          {sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sub.realizado)}
-                                        </span>
-                                        {categoriasEditaveisRealizado.includes(sub.nome) && (
-                                          <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => handleEditRealizado(catIndex, subIndex, sub.realizado)}
-                                            className="h-6 w-6 p-0 opacity-50 hover:opacity-100"
-                                          >
-                                            <Edit className="h-3 w-3" />
-                                          </Button>
-                                        )}
-                                        {(() => {
-                                          const indicador = obterIndicadorPerformance(sub.realizado, sub.planejado, sub.isPercentage);
-                                          const IconComponent = indicador.icon;
-                                          return (
-                                            <div key={`indicator-${key}`} className="relative group">
-                                              <IconComponent className={`h-4 w-4 ${indicador.color}`} />
-                                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                                                {indicador.tooltip}
-                                              </div>
-                                            </div>
-                                          );
-                                        })()}
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    {sub.editavel && (
-                                      <div className="flex justify-center gap-2">
-                                        {isEditing ? (
-                                          <>
-                                            <Button
-                                              size="sm"
-                                              onClick={() => handleSave(catIndex, subIndex)}
-                                              className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700 text-white"
-                                            >
-                                              <Check className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              onClick={() => handleCancel(catIndex, subIndex)}
-                                              className="h-8 w-8 p-0 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                            >
-                                              <X className="h-4 w-4" />
-                                            </Button>
-                                          </>
-                                        ) : (
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleEdit(catIndex, subIndex, sub.planejado)}
-                                            className="h-8 w-8 p-0 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                          >
-                                            <Edit className="h-4 w-4" />
-                                          </Button>
-                                        )}
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </React.Fragment>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                                  </span>
+                                </div>
 
-            <TabsContent value="comparativo">
-              <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-gray-900 dark:text-white">Análise Comparativa</CardTitle>
-                  <CardDescription className="text-gray-600 dark:text-gray-400">
-                    Compare valores planejados vs realizados
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                    Em desenvolvimento - Gráficos comparativos
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                                {/* Divisor */}
+                                <div className="w-px h-3 bg-gray-200 dark:bg-gray-600" />
 
-            <TabsContent value="analise">
-              <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-gray-900 dark:text-white">Análise de Performance</CardTitle>
-                  <CardDescription className="text-gray-600 dark:text-gray-400">
-                    Insights e recomendações baseadas nos dados
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                    Em desenvolvimento - Análises e insights
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </motion.div>
+                                {/* Valor Realizado (automático do NIBO - pagos) */}
+                                <div className="flex-1 flex items-center justify-center">
+                                  <span className={cn(
+                                    "text-[9px] font-medium",
+                                    sub.realizado > 0 ? "text-gray-900 dark:text-white" : "text-gray-400 dark:text-gray-500"
+                                  )}>
+                                    {sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sub.realizado)}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+
+                      {/* Linha de Lucro */}
+                      <div
+                        className={cn(
+                          "flex items-center justify-between px-1 border-t-2 border-gray-300 dark:border-gray-600",
+                          isAtual ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-emerald-50 dark:bg-emerald-900/20"
+                        )}
+                        style={{ height: '36px' }}
+                      >
+                        {/* Lucro Planejado */}
+                        <span className={cn(
+                          "flex-1 text-[9px] font-bold text-center",
+                          mes.totais.lucro_planejado >= 0 ? "text-blue-700 dark:text-blue-300" : "text-red-600 dark:text-red-400"
+                        )}>
+                          {formatarMoeda(mes.totais.lucro_planejado)}
+                        </span>
+                        
+                        <div className="w-px h-4 bg-emerald-300 dark:bg-emerald-600" />
+                        
+                        {/* Lucro Projeção */}
+                        <span className={cn(
+                          "flex-1 text-[9px] font-bold text-center",
+                          mes.totais.lucro_projecao >= 0 ? "text-green-700 dark:text-green-300" : "text-red-600 dark:text-red-400"
+                        )}>
+                          {formatarMoeda(mes.totais.lucro_projecao)}
+                        </span>
+                        
+                        <div className="w-px h-4 bg-emerald-300 dark:bg-emerald-600" />
+                        
+                        {/* Lucro Realizado */}
+                        <span className={cn(
+                          "flex-1 text-[9px] font-bold text-center",
+                          mes.totais.lucro_realizado >= 0 ? "text-emerald-800 dark:text-emerald-200" : "text-red-600 dark:text-red-400"
+                        )}>
+                          {formatarMoeda(mes.totais.lucro_realizado)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
