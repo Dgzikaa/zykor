@@ -531,7 +531,7 @@ export default function DesempenhoPage() {
         
         const resultados = await Promise.all(promises);
         
-        // Ordenar do mais recente para o mais antigo
+        // Ordenar do mais antigo para o mais recente (igual semanal)
         const mesesData: DadosSemana[] = resultados
           .map(({ data, mes, ano }) => ({
             id: ano * 100 + mes, // ID único baseado em ano e mês
@@ -542,9 +542,9 @@ export default function DesempenhoPage() {
             ...(data.mes || {})
           } as DadosSemana))
           .sort((a, b) => {
-            // Ordenar do mais recente para o mais antigo
-            if (b.ano !== a.ano) return b.ano - a.ano;
-            return b.numero_semana - a.numero_semana;
+            // Ordenar do mais antigo para o mais recente
+            if (a.ano !== b.ano) return a.ano - b.ano;
+            return a.numero_semana - b.numero_semana;
           });
         
         setSemanas(mesesData);
