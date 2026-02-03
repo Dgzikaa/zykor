@@ -8,6 +8,7 @@ const supabase = createClient(
 );
 
 // Função auxiliar para aplicar filtros base (locais e prefixos a ignorar)
+// IMPORTANTE: Deve ser idêntica à função em stockout/route.ts
 const aplicarFiltrosBase = (query: any) => {
   // LOCAIS A IGNORAR PERMANENTEMENTE
   query = query
@@ -22,6 +23,36 @@ const aplicarFiltrosBase = (query: any) => {
     .not('prd_desc', 'ilike', '%[PP]%')  // Pegue Pague
     .not('prd_desc', 'ilike', '%[DD]%')  // Dose Dupla
     .not('prd_desc', 'ilike', '%[IN]%'); // Insumos
+  
+  // PRODUTOS HAPPY HOUR (excluir independente do formato)
+  query = query
+    .not('prd_desc', 'ilike', '%Happy Hour%')
+    .not('prd_desc', 'ilike', '%HappyHour%')
+    .not('prd_desc', 'ilike', '%Happy-Hour%');
+  
+  // GRUPOS A IGNORAR (excluir pelo grupo, não apenas pelo nome)
+  // IMPORTANTE: Usar exatamente como está no ContaHub (case-sensitive)
+  query = query
+    .not('raw_data->>grp_desc', 'eq', 'Happy Hour')
+    .not('raw_data->>grp_desc', 'eq', 'Chegadeira')
+    .not('raw_data->>grp_desc', 'eq', 'Dose dupla')
+    .not('raw_data->>grp_desc', 'eq', 'Dose Dupla')
+    .not('raw_data->>grp_desc', 'eq', 'Dose dupla!')
+    .not('raw_data->>grp_desc', 'eq', 'Dose Dupla!')
+    .not('raw_data->>grp_desc', 'eq', 'Dose dupla sem álcool')
+    .not('raw_data->>grp_desc', 'eq', 'Dose Dupla sem álcool')
+    .not('raw_data->>grp_desc', 'eq', 'Grupo adicional')
+    .not('raw_data->>grp_desc', 'eq', 'Grupo Adicional')
+    .not('raw_data->>grp_desc', 'eq', 'Insumos')
+    .not('raw_data->>grp_desc', 'eq', 'Promo chivas')
+    .not('raw_data->>grp_desc', 'eq', 'Promo Chivas')
+    .not('raw_data->>grp_desc', 'eq', 'Uso interno')
+    .not('raw_data->>grp_desc', 'eq', 'Uso Interno');
+  
+  // PRODUTOS DOSE DUPLA (excluir - são variações que não devem contar no stockout)
+  query = query
+    .not('prd_desc', 'ilike', '%Dose Dupla%')
+    .not('prd_desc', 'ilike', '%Dose Dulpa%');
   
   return query;
 };

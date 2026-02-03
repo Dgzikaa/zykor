@@ -75,16 +75,23 @@ const aplicarFiltrosBase = (query: any) => {
   
   // GRUPOS A IGNORAR (excluir pelo grupo, não apenas pelo nome)
   // Produtos podem pertencer a grupos específicos sem ter o nome do grupo no nome do produto
+  // IMPORTANTE: Usar exatamente como está no ContaHub (case-sensitive)
   query = query
     .not('raw_data->>grp_desc', 'eq', 'Happy Hour')
     .not('raw_data->>grp_desc', 'eq', 'Chegadeira')
     .not('raw_data->>grp_desc', 'eq', 'Dose dupla')
+    .not('raw_data->>grp_desc', 'eq', 'Dose Dupla')
     .not('raw_data->>grp_desc', 'eq', 'Dose dupla!')
+    .not('raw_data->>grp_desc', 'eq', 'Dose Dupla!')
     .not('raw_data->>grp_desc', 'eq', 'Dose dupla sem álcool')
+    .not('raw_data->>grp_desc', 'eq', 'Dose Dupla sem álcool')
     .not('raw_data->>grp_desc', 'eq', 'Grupo adicional')
+    .not('raw_data->>grp_desc', 'eq', 'Grupo Adicional')
     .not('raw_data->>grp_desc', 'eq', 'Insumos')
     .not('raw_data->>grp_desc', 'eq', 'Promo chivas')
-    .not('raw_data->>grp_desc', 'eq', 'Uso interno');
+    .not('raw_data->>grp_desc', 'eq', 'Promo Chivas')
+    .not('raw_data->>grp_desc', 'eq', 'Uso interno')
+    .not('raw_data->>grp_desc', 'eq', 'Uso Interno');
   
   // PRODUTOS DOSE DUPLA (excluir - são variações que não devem contar no stockout)
   // Inclui "Dose Dulpa" que é um typo comum

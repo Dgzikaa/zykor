@@ -61,11 +61,105 @@ export async function GET(request: NextRequest) {
       marketingMap.set(`${m.ano}-${m.semana}`, m);
     });
 
+    // Buscar dados de Conta Assinada para todas as semanas
+    // Primeiro, obter as datas min/max das semanas
+    const datas = semanas?.map(s => ({ inicio: s.data_inicio, fim: s.data_fim })) || [];
+    const dataMin = datas.length > 0 ? datas.reduce((min, d) => d.inicio < min ? d.inicio : min, datas[0].inicio) : null;
+    const dataMax = datas.length > 0 ? datas.reduce((max, d) => d.fim > max ? d.fim : max, datas[0].fim) : null;
+
+    // Buscar todos os pagamentos de Conta Assinada no período
+    let contaAssinadaMap = new Map<string, number>();
+    // Buscar todos os descontos no período
+    let descontosMap = new Map<string, { valor: number; detalhes: Map<string, { valor: number; qtd: number }> }>();
+    
+    if (dataMin && dataMax) {
+      // Conta Assinada
+      const { data: pagamentos } = await supabase
+        .from('contahub_pagamentos')
+        .select('dt_gerencial, valor')
+        .eq('bar_id', barId)
+        .eq('meio', 'Conta Assinada')
+        .gte('dt_gerencial', dataMin)
+        .lte('dt_gerencial', dataMax);
+
+      // Agrupar por semana
+      pagamentos?.forEach(p => {
+        const semana = semanas?.find(s => 
+          p.dt_gerencial >= s.data_inicio && p.dt_gerencial <= s.data_fim
+        );
+        if (semana) {
+          const key = `${semana.ano}-${semana.numero_semana}`;
+          contaAssinadaMap.set(key, (contaAssinadaMap.get(key) || 0) + Number(p.valor || 0));
+        }
+      });
+
+      // Descontos de contahub_periodo
+      const { data: descontos } = await supabase
+        .from('contahub_periodo')
+        .select('dt_gerencial, vr_desconto, motivo')
+        .eq('bar_id', barId)
+        .gt('vr_desconto', 0)
+        .gte('dt_gerencial', dataMin)
+        .lte('dt_gerencial', dataMax);
+
+      // Agrupar por semana e por motivo
+      descontos?.forEach(d => {
+        const semana = semanas?.find(s => 
+          d.dt_gerencial >= s.data_inicio && d.dt_gerencial <= s.data_fim
+        );
+        if (semana) {
+          const key = `${semana.ano}-${semana.numero_semana}`;
+          const valorDesconto = Number(d.vr_desconto || 0);
+          const motivo = d.motivo || 'Sem motivo';
+          
+          if (!descontosMap.has(key)) {
+            descontosMap.set(key, { valor: 0, detalhes: new Map() });
+          }
+          const semanaData = descontosMap.get(key)!;
+          semanaData.valor += valorDesconto;
+          
+          // Agrupar por motivo
+          if (!semanaData.detalhes.has(motivo)) {
+            semanaData.detalhes.set(motivo, { valor: 0, qtd: 0 });
+          }
+          const motivoData = semanaData.detalhes.get(motivo)!;
+          motivoData.valor += valorDesconto;
+          motivoData.qtd += 1;
+        }
+      });
+    }
+
     // Mesclar dados
     const semanasCompletas = semanas?.map(s => {
       const marketing = marketingMap.get(`${s.ano}-${s.numero_semana}`);
+      const key = `${s.ano}-${s.numero_semana}`;
+      
+      // Conta Assinada
+      const contaAssinadaValor = contaAssinadaMap.get(key) || 0;
+      const contaAssinadaPerc = s.faturamento_total && s.faturamento_total > 0 
+        ? (contaAssinadaValor / s.faturamento_total) * 100 
+        : 0;
+      
+      // Descontos
+      const descontosData = descontosMap.get(key);
+      const descontosValor = descontosData?.valor || 0;
+      const descontosPerc = s.faturamento_total && s.faturamento_total > 0 
+        ? (descontosValor / s.faturamento_total) * 100 
+        : 0;
+      // Converter Map de detalhes para array ordenado por valor
+      const descontosDetalhes = descontosData 
+        ? Array.from(descontosData.detalhes.entries())
+            .map(([motivo, data]) => ({ motivo, valor: data.valor, qtd: data.qtd }))
+            .sort((a, b) => b.valor - a.valor)
+        : [];
+      
       return {
         ...s,
+        conta_assinada_valor: contaAssinadaValor,
+        conta_assinada_perc: contaAssinadaPerc,
+        descontos_valor: descontosValor,
+        descontos_perc: descontosPerc,
+        descontos_detalhes: descontosDetalhes,
         ...(marketing ? {
           o_num_posts: marketing.o_num_posts,
           o_alcance: marketing.o_alcance,

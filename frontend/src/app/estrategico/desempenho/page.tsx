@@ -63,6 +63,12 @@ interface DadosSemana {
   reservas_presentes: number;
   pessoas_reservas_totais?: number;
   pessoas_reservas_presentes?: number;
+  quebra_reservas?: number;
+  conta_assinada_valor?: number;
+  conta_assinada_perc?: number;
+  descontos_valor?: number;
+  descontos_perc?: number;
+  descontos_detalhes?: { motivo: string; valor: number; qtd: number }[];
   avaliacoes_5_google_trip: number;
   media_avaliacoes_google: number;
   nps_geral: number;
@@ -121,6 +127,7 @@ interface MetricaConfig {
   editavel?: boolean;
   keyPessoas?: string; // Campo secundário para formato 'reservas' (mostra "reservas/pessoas")
   indentado?: boolean; // Indica se está indentado (sub-item de um grupo)
+  temTooltipDetalhes?: boolean; // Se true, mostra tooltip com detalhes especiais (ex: motivos de desconto)
 }
 
 // Tipo de agregação para grupos planos
@@ -292,6 +299,7 @@ const SECOES: SecaoConfig[] = [
         metricas: [
           { key: 'reservas_totais', label: 'Reservas Realizadas', status: 'auto', fonte: 'GetIn', calculo: 'Total reservas/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_totais' },
           { key: 'reservas_presentes', label: 'Reservas Presentes', status: 'auto', fonte: 'GetIn', calculo: 'Reservas seated/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_presentes' },
+          { key: 'quebra_reservas', label: 'Quebra de Reservas', status: 'auto', fonte: 'Calculado', calculo: '(Total - Presentes) / Total', formato: 'percentual' },
         ]
       },
       {
@@ -398,6 +406,24 @@ const SECOES: SecaoConfig[] = [
           { key: 'm_alcance', label: 'Alcance Pago', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
           { key: 'm_cliques', label: 'Cliques Ads', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
           { key: 'm_ctr', label: 'CTR', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'percentual', editavel: true },
+        ]
+      },
+      {
+        id: 'conta_assinada',
+        label: 'Conta Assinada',
+        // Sem agregação: métricas têm formatos diferentes (moeda e %)
+        metricas: [
+          { key: 'conta_assinada_valor', label: 'Valor R$', status: 'auto', fonte: 'contahub_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda' },
+          { key: 'conta_assinada_perc', label: '% do Faturamento', status: 'auto', fonte: 'Calculado', calculo: 'Valor / Faturamento Total', formato: 'percentual' },
+        ]
+      },
+      {
+        id: 'descontos',
+        label: 'Descontos',
+        // Sem agregação: métricas têm formatos diferentes (moeda e %)
+        metricas: [
+          { key: 'descontos_valor', label: 'Valor R$', status: 'auto', fonte: 'contahub_periodo', calculo: 'Soma vr_desconto', formato: 'moeda', temTooltipDetalhes: true },
+          { key: 'descontos_perc', label: '% do Faturamento', status: 'auto', fonte: 'Calculado', calculo: 'Valor / Faturamento Total', formato: 'percentual' },
         ]
       }
     ]
@@ -607,6 +633,15 @@ export default function DesempenhoPage() {
             return a.numero_semana - b.numero_semana;
           });
         }
+        
+        // Calcular campos derivados
+        semanasCompletas = semanasCompletas.map((s: DadosSemana) => ({
+          ...s,
+          // Quebra de reservas: (total - presentes) / total * 100
+          quebra_reservas: s.reservas_totais && s.reservas_totais > 0
+            ? ((s.reservas_totais - (s.reservas_presentes || 0)) / s.reservas_totais) * 100
+            : null
+        }));
         
         setSemanas(semanasCompletas);
         
@@ -1090,6 +1125,10 @@ export default function DesempenhoPage() {
                                       : '-')
                                   : formatarValor(valor, metrica.formato, metrica.sufixo);
                                 
+                                // Tooltip de detalhes especial (ex: motivos de desconto)
+                                const temDetalhes = metrica.temTooltipDetalhes && metrica.key === 'descontos_valor';
+                                const detalhesDesconto = temDetalhes ? (semana as any).descontos_detalhes : null;
+                                
                                 return (
                                   <div 
                                     key={metrica.key}
@@ -1119,6 +1158,40 @@ export default function DesempenhoPage() {
                                           <X className="h-3 w-3 text-red-600" />
                                         </Button>
                                       </div>
+                                    ) : temDetalhes && detalhesDesconto && detalhesDesconto.length > 0 ? (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <span className="text-xs text-gray-600 dark:text-gray-400 text-center cursor-help underline decoration-dotted">
+                                              {valorFormatado}
+                                            </span>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" className="max-w-sm p-3 bg-white dark:bg-gray-800 shadow-lg">
+                                            <div className="space-y-1">
+                                              <div className="font-semibold text-sm text-gray-900 dark:text-white mb-2">
+                                                Motivos de Desconto
+                                              </div>
+                                              <div className="max-h-48 overflow-y-auto space-y-1">
+                                                {detalhesDesconto.slice(0, 10).map((d: any, i: number) => (
+                                                  <div key={i} className="flex justify-between text-xs gap-3">
+                                                    <span className="text-gray-600 dark:text-gray-400 truncate">
+                                                      {d.motivo} ({d.qtd}x)
+                                                    </span>
+                                                    <span className="text-gray-900 dark:text-white font-medium whitespace-nowrap">
+                                                      {formatarValor(d.valor, 'moeda')}
+                                                    </span>
+                                                  </div>
+                                                ))}
+                                                {detalhesDesconto.length > 10 && (
+                                                  <div className="text-xs text-gray-500 pt-1">
+                                                    +{detalhesDesconto.length - 10} outros motivos...
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
                                     ) : (
                                       <span className="text-xs text-gray-600 dark:text-gray-400 text-center">
                                         {valorFormatado}

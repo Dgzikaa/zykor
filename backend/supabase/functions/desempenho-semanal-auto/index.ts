@@ -729,8 +729,8 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   console.log(`⏱️ Tempo Cozinha (t0_t2): ${tempoSaidaCozinha.toFixed(1)}min (${atrasosCozinha} atrasos >12min, ${percAtrasosCozinha.toFixed(1)}%)`)
 
   // 12.3 STOCKOUT (contahub_stockout) - NOVA LÓGICA: igual página de stockout
-  // Buscar dados com prd_ativo para filtrar corretamente
-  const stockoutData = await fetchAllData(supabase, 'contahub_stockout', 'prd, loc_desc, prd_venda, prd_ativo, data_consulta', {
+  // Buscar dados com prd_ativo e raw_data para filtrar corretamente por grupo
+  const stockoutData = await fetchAllData(supabase, 'contahub_stockout', 'prd, loc_desc, prd_venda, prd_ativo, prd_desc, data_consulta, raw_data', {
     'gte_data_consulta': startDate,
     'lte_data_consulta': endDate,
     'eq_bar_id': barId
@@ -743,13 +743,47 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   
   // Locais a ignorar (igual página de stockout)
   const locaisIgnorar = ['Pegue e Pague', 'Venda Volante']
+  
+  // GRUPOS A IGNORAR (igual página de stockout) - case-sensitive conforme ContaHub
+  const gruposIgnorar = [
+    'Happy Hour', 'Chegadeira', 
+    'Dose dupla', 'Dose Dupla', 'Dose dupla!', 'Dose Dupla!',
+    'Dose dupla sem álcool', 'Dose Dupla sem álcool',
+    'Grupo adicional', 'Grupo Adicional',
+    'Insumos', 'Promo chivas', 'Promo Chivas',
+    'Uso interno', 'Uso Interno'
+  ]
+  
+  // Prefixos de produtos a ignorar
+  const prefixosIgnorar = ['[HH]', '[PP]', '[DD]', '[IN]']
+  
+  // Termos de produtos a ignorar
+  const termosIgnorar = ['Happy Hour', 'HappyHour', 'Happy-Hour', 'Dose Dupla', 'Dose Dulpa', 'Balde', 'Garrafa']
 
   // Filtrar produtos válidos (igual página de stockout)
-  const produtosValidos = stockoutData?.filter(item => 
-    item.prd_ativo === 'S' && // Apenas produtos ativos
-    item.loc_desc && // Tem local definido
-    !locaisIgnorar.includes(item.loc_desc) // Não está em locais ignorados
-  ) || []
+  const produtosValidos = stockoutData?.filter(item => {
+    // Apenas produtos ativos
+    if (item.prd_ativo !== 'S') return false
+    
+    // Tem local definido
+    if (!item.loc_desc) return false
+    
+    // Não está em locais ignorados
+    if (locaisIgnorar.includes(item.loc_desc)) return false
+    
+    // Verificar grupo do produto (via raw_data)
+    const grupoDescricao = item.raw_data?.grp_desc || ''
+    if (gruposIgnorar.includes(grupoDescricao)) return false
+    
+    // Verificar prefixos no nome do produto
+    const prdDesc = item.prd_desc || ''
+    if (prefixosIgnorar.some(prefixo => prdDesc.includes(prefixo))) return false
+    
+    // Verificar termos no nome do produto
+    if (termosIgnorar.some(termo => prdDesc.toLowerCase().includes(termo.toLowerCase()))) return false
+    
+    return true
+  }) || []
 
   // Agrupar por dia para calcular média dos dias
   const diasMap = new Map<string, { 
