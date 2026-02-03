@@ -274,11 +274,7 @@ const SECOES: SecaoConfig[] = [
         id: 'clientes_ativos',
         label: 'Clientes Ativos',
         agregacao: { tipo: 'campo', campo: 'clientes_ativos', formato: 'numero' },
-        metricas: [
-          { key: 'clientes_30d', label: 'Clientes 30 dias', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes com 2+ visitas nos últimos 30 dias', formato: 'numero' },
-          { key: 'clientes_60d', label: 'Clientes 60 dias', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes com 2+ visitas entre 31-60 dias', formato: 'numero' },
-          { key: 'clientes_90d', label: 'Clientes 90 dias', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes com 2+ visitas entre 61-90 dias', formato: 'numero' },
-        ]
+        metricas: []
       },
       {
         id: 'volume',
