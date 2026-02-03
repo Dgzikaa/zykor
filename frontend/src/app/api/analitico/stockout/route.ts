@@ -7,18 +7,36 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Função para normalizar locais - agrupa "Cozinha" e "Cozinha 2" para o Deboche
+// Função para normalizar locais - agrupa locais por categoria
 function normalizarLocal(locDesc: string | null, barId: number): string {
   if (!locDesc) return 'Sem local definido';
   
+  const loc = locDesc.trim();
+  
+  // Ordinário (bar_id = 3): agrupamentos específicos
+  if (barId === 3) {
+    // Cozinha agrupa: Cozinha 1, Cozinha 2
+    if (loc === 'Cozinha 1' || loc === 'Cozinha 2') {
+      return 'Cozinha';
+    }
+    // Drinks agrupa: Montados, Batidos, Shot e Dose, Mexido, Preshh
+    if (['Montados', 'Batidos', 'Shot e Dose', 'Mexido', 'Preshh'].includes(loc)) {
+      return 'Drinks';
+    }
+    // Bebidas agrupa: Bar, Baldes, Chopp
+    if (['Bar', 'Baldes', 'Chopp'].includes(loc)) {
+      return 'Bebidas';
+    }
+  }
+  
   // Deboche (bar_id = 4): agrupar "Cozinha" e "Cozinha 2" como "Cozinha"
   if (barId === 4) {
-    if (locDesc === 'Cozinha' || locDesc === 'Cozinha 2') {
+    if (loc === 'Cozinha' || loc === 'Cozinha 2') {
       return 'Cozinha';
     }
   }
   
-  return locDesc.trim();
+  return loc;
 }
 
 export async function POST(request: NextRequest) {

@@ -194,22 +194,40 @@ function getInicioFimSemana(data: string): { inicio: string; fim: string } {
   };
 }
 
-// Locais são usados diretamente dos dados - cada bar tem seus próprios locais
-// Exemplo Deboche: Bar, Cozinha (agrupado), Salao
-// Exemplo Ordinário: Preshh, Mexido, Batidos, Montados, Chopp, Cozinha 1, Cozinha 2
+// Locais são agrupados por categoria - cada bar tem suas próprias regras
+// Deboche (bar_id=4): Bar, Cozinha (agrupa Cozinha + Cozinha 2), Salao
+// Ordinário (bar_id=3): Cozinha (agrupa Cozinha 1 + Cozinha 2), Drinks (Montados, Batidos, Shot e Dose, Mexido, Preshh), Bebidas (Bar, Baldes, Chopp)
 
-// Função para normalizar locais - agrupa "Cozinha" e "Cozinha 2" para o Deboche
+// Função para normalizar locais - agrupa locais por categoria
 function normalizarLocal(locDesc: string | null, barId: number): string {
   if (!locDesc) return 'Sem local definido';
   
+  const loc = locDesc.trim();
+  
+  // Ordinário (bar_id = 3): agrupamentos específicos
+  if (barId === 3) {
+    // Cozinha agrupa: Cozinha 1, Cozinha 2
+    if (loc === 'Cozinha 1' || loc === 'Cozinha 2') {
+      return 'Cozinha';
+    }
+    // Drinks agrupa: Montados, Batidos, Shot e Dose, Mexido, Preshh
+    if (['Montados', 'Batidos', 'Shot e Dose', 'Mexido', 'Preshh'].includes(loc)) {
+      return 'Drinks';
+    }
+    // Bebidas agrupa: Bar, Baldes, Chopp
+    if (['Bar', 'Baldes', 'Chopp'].includes(loc)) {
+      return 'Bebidas';
+    }
+  }
+  
   // Deboche (bar_id = 4): agrupar "Cozinha" e "Cozinha 2" como "Cozinha"
   if (barId === 4) {
-    if (locDesc === 'Cozinha' || locDesc === 'Cozinha 2') {
+    if (loc === 'Cozinha' || loc === 'Cozinha 2') {
       return 'Cozinha';
     }
   }
   
-  return locDesc.trim();
+  return loc;
 }
 
 // Função para obter o local normalizado (usa o loc_desc diretamente)
