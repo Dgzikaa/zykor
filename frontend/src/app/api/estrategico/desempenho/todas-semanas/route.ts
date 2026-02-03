@@ -73,14 +73,15 @@ export async function GET(request: NextRequest) {
     let descontosMap = new Map<string, { valor: number; detalhes: Map<string, { valor: number; qtd: number }> }>();
     
     if (dataMin && dataMax) {
-      // Conta Assinada
+      // Conta Assinada - usar limit para pegar todos os registros
       const { data: pagamentos } = await supabase
         .from('contahub_pagamentos')
         .select('dt_gerencial, valor')
         .eq('bar_id', barId)
         .eq('meio', 'Conta Assinada')
         .gte('dt_gerencial', dataMin)
-        .lte('dt_gerencial', dataMax);
+        .lte('dt_gerencial', dataMax)
+        .limit(5000);
 
       // Agrupar por semana
       pagamentos?.forEach(p => {
@@ -93,14 +94,15 @@ export async function GET(request: NextRequest) {
         }
       });
 
-      // Descontos de contahub_periodo
+      // Descontos de contahub_periodo - usar range para pegar todos os registros
       const { data: descontos } = await supabase
         .from('contahub_periodo')
         .select('dt_gerencial, vr_desconto, motivo')
         .eq('bar_id', barId)
         .gt('vr_desconto', 0)
         .gte('dt_gerencial', dataMin)
-        .lte('dt_gerencial', dataMax);
+        .lte('dt_gerencial', dataMax)
+        .limit(10000);
 
       // Agrupar por semana e por motivo
       descontos?.forEach(d => {
