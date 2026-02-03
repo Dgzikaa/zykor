@@ -188,16 +188,35 @@ export async function PUT(request: Request) {
       );
     }
 
+    // Extrair dados do usuário para auditoria
+    let userId = null;
+    let userName = null;
+    if (userDataHeader) {
+      try {
+        const decoded = decodeURIComponent(userDataHeader);
+        const parsed = JSON.parse(decoded);
+        userId = parsed.id || null;
+        userName = parsed.nome || parsed.email || null;
+      } catch (e) {
+        // Ignora erro de parse para auditoria
+      }
+    }
+
     // Usar service_role para dados administrativos (bypass RLS)
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    // Atualizar o registro
+    // Atualizar o registro com dados de auditoria
     const { data, error } = await supabase
       .from('desempenho_semanal')
-      .update(updateData)
+      .update({
+        ...updateData,
+        atualizado_em: new Date().toISOString(),
+        atualizado_por: userId,
+        atualizado_por_nome: userName
+      })
       .eq('id', id)
       .eq('bar_id', barId)
       .select()
