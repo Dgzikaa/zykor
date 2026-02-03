@@ -1192,27 +1192,39 @@ export default function DesempenhoPage() {
                                               {valorFormatado}
                                             </span>
                                           </TooltipTrigger>
-                                          <TooltipContent side="top" className="max-w-sm p-3 bg-white dark:bg-gray-800 shadow-lg">
+                                          <TooltipContent side="top" className="max-w-md p-3 bg-white dark:bg-gray-800 shadow-lg">
                                             <div className="space-y-1">
-                                              <div className="font-semibold text-sm text-gray-900 dark:text-white mb-2">
-                                                Motivos de Desconto
+                                              <div className="font-semibold text-sm text-gray-900 dark:text-white mb-3 flex items-center justify-between">
+                                                <span>Descontos por Dia da Semana</span>
+                                                <span className="text-xs font-normal text-gray-500">
+                                                  {detalhesDesconto.length} motivos
+                                                </span>
                                               </div>
-                                              <div className="max-h-48 overflow-y-auto space-y-1">
-                                                {detalhesDesconto.slice(0, 10).map((d: any, i: number) => (
-                                                  <div key={i} className="flex justify-between text-xs gap-3">
-                                                    <span className="text-gray-600 dark:text-gray-400 truncate">
-                                                      {d.motivo} ({d.qtd}x)
-                                                    </span>
-                                                    <span className="text-gray-900 dark:text-white font-medium whitespace-nowrap">
-                                                      {formatarValor(d.valor, 'moeda')}
-                                                    </span>
+                                              <div className="max-h-96 overflow-y-auto space-y-3 pr-2">
+                                                {detalhesDesconto.map((d: any, i: number) => (
+                                                  <div key={i} className="border-b border-gray-200 dark:border-gray-700 pb-2 last:border-b-0">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                      <span className="text-xs font-semibold text-gray-900 dark:text-white">
+                                                        {d.motivo}
+                                                      </span>
+                                                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                                                        {formatarValor(d.valor, 'moeda')}
+                                                      </span>
+                                                    </div>
+                                                    <div className="space-y-0.5 mt-1">
+                                                      {d.por_dia?.map((dia: any, j: number) => (
+                                                        <div key={j} className="flex justify-between text-xs pl-2">
+                                                          <span className="text-gray-600 dark:text-gray-400">
+                                                            {dia.dia_semana} ({dia.qtd}x)
+                                                          </span>
+                                                          <span className="text-gray-700 dark:text-gray-300 font-medium">
+                                                            {formatarValor(dia.valor, 'moeda')}
+                                                          </span>
+                                                        </div>
+                                                      ))}
+                                                    </div>
                                                   </div>
                                                 ))}
-                                                {detalhesDesconto.length > 10 && (
-                                                  <div className="text-xs text-gray-500 pt-1">
-                                                    +{detalhesDesconto.length - 10} outros motivos...
-                                                  </div>
-                                                )}
                                               </div>
                                             </div>
                                           </TooltipContent>

@@ -157,7 +157,7 @@ export async function GET(request: NextRequest) {
         ]
       );
 
-      // Agrupar por semana e por motivo
+      // Agrupar por semana, por motivo (case-insensitive) e por dia da semana
       descontos?.forEach(d => {
         const semana = semanas?.find(s => 
           d.dt_gerencial >= s.data_inicio && d.dt_gerencial <= s.data_fim
@@ -165,7 +165,14 @@ export async function GET(request: NextRequest) {
         if (semana) {
           const key = `${semana.ano}-${semana.numero_semana}`;
           const valorDesconto = Number(d.vr_desconto || 0);
-          const motivo = d.motivo || 'Sem motivo';
+          const motivoOriginal = d.motivo || 'Sem motivo';
+          // Normalizar motivo para case-insensitive (trim + lowercase)
+          const motivoNormalizado = motivoOriginal.trim().toLowerCase();
+          
+          // Dia da semana
+          const data = new Date(d.dt_gerencial + 'T00:00:00');
+          const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+          const diaSemana = diasSemana[data.getDay()];
           
           if (!descontosMap.has(key)) {
             descontosMap.set(key, { valor: 0, detalhes: new Map() });
@@ -173,13 +180,26 @@ export async function GET(request: NextRequest) {
           const semanaData = descontosMap.get(key)!;
           semanaData.valor += valorDesconto;
           
-          // Agrupar por motivo
-          if (!semanaData.detalhes.has(motivo)) {
-            semanaData.detalhes.set(motivo, { valor: 0, qtd: 0 });
+          // Agrupar por motivo normalizado
+          if (!semanaData.detalhes.has(motivoNormalizado)) {
+            semanaData.detalhes.set(motivoNormalizado, { 
+              motivo_exibicao: motivoOriginal, // Manter primeiro motivo original para exibição
+              valor: 0, 
+              qtd: 0,
+              por_dia: new Map()
+            });
           }
-          const motivoData = semanaData.detalhes.get(motivo)!;
+          const motivoData = semanaData.detalhes.get(motivoNormalizado)!;
           motivoData.valor += valorDesconto;
           motivoData.qtd += 1;
+          
+          // Agrupar por dia da semana
+          if (!motivoData.por_dia.has(diaSemana)) {
+            motivoData.por_dia.set(diaSemana, { valor: 0, qtd: 0 });
+          }
+          const diaData = motivoData.por_dia.get(diaSemana)!;
+          diaData.valor += valorDesconto;
+          diaData.qtd += 1;
         }
       });
     }
@@ -201,10 +221,25 @@ export async function GET(request: NextRequest) {
       const descontosPerc = s.faturamento_total && s.faturamento_total > 0 
         ? (descontosValor / s.faturamento_total) * 100 
         : 0;
-      // Converter Map de detalhes para array ordenado por valor
+      // Converter Map de detalhes para array ordenado por valor, com separação por dia
       const descontosDetalhes = descontosData 
         ? Array.from(descontosData.detalhes.entries())
-            .map(([motivo, data]) => ({ motivo, valor: data.valor, qtd: data.qtd }))
+            .map(([motivoNormalizado, data]) => ({ 
+              motivo: data.motivo_exibicao, // Usar motivo original para exibição
+              valor: data.valor, 
+              qtd: data.qtd,
+              por_dia: Array.from(data.por_dia.entries())
+                .map(([dia, diaData]) => ({ 
+                  dia_semana: dia, 
+                  valor: diaData.valor, 
+                  qtd: diaData.qtd 
+                }))
+                .sort((a, b) => {
+                  // Ordenar por dia da semana (Domingo primeiro)
+                  const ordem = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+                  return ordem.indexOf(a.dia_semana) - ordem.indexOf(b.dia_semana);
+                })
+            }))
             .sort((a, b) => b.valor - a.valor)
         : [];
       
