@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useUser } from '@/contexts/UserContext';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
@@ -174,14 +174,26 @@ export default function PlanejamentoComercialPage() {
   const [salvando, setSalvando] = useState(false);
   
 
-  // Buscar dados da API
-  const buscarDados = async (mes?: number, ano?: number) => {
+  // Ref para controlar chamadas duplicadas
+  const isFetchingRef = useRef(false);
+  const lastFetchRef = useRef<string>('');
+
+  // Buscar dados da API - MEMOIZADO para evitar loops
+  const buscarDados = useCallback(async (mes?: number, ano?: number) => {
     try {
-      setLoading(true);
-      setError(null);
-      
       const mesParam = mes || filtroMes;
       const anoParam = ano || filtroAno;
+      
+      // Prevenir chamadas duplicadas
+      const fetchKey = `${mesParam}-${anoParam}`;
+      if (isFetchingRef.current || lastFetchRef.current === fetchKey) {
+        return;
+      }
+      
+      isFetchingRef.current = true;
+      lastFetchRef.current = fetchKey;
+      setLoading(true);
+      setError(null);
       
       const timestamp = new Date().getTime();
       // Debug verbose apenas quando necessário
@@ -254,90 +266,117 @@ export default function PlanejamentoComercialPage() {
       setError('Erro ao carregar dados');
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  };
+  }, [filtroMes, filtroAno, user, selectedBar?.id]);
 
-  // Atualizar filtros quando parâmetros da URL mudarem
-  useEffect(() => {
-    const mesFromUrl = searchParams.get('mes');
-    const anoFromUrl = searchParams.get('ano');
-    
-    if (mesFromUrl && anoFromUrl) {
-      const mes = parseInt(mesFromUrl);
-      const ano = parseInt(anoFromUrl);
-      
-      if (mes >= 1 && mes <= 12 && ano >= 2020 && ano <= 2030) {
-        setFiltroMes(mes);
-        setFiltroAno(ano);
-        setMesAtual(new Date(ano, mes - 1, 1));
-      }
-    }
-  }, [searchParams]);
-
-  // Carregar dados iniciais
   // Definir título da página
   useEffect(() => {
     setPageTitle('📊 Planejamento Comercial');
     return () => setPageTitle('');
   }, [setPageTitle]);
 
+  // CONSOLIDADO: Atualizar filtros da URL e buscar dados
   useEffect(() => {
-    if (user && selectedBar) {
-      buscarDados();
-    }
-  }, [user, selectedBar?.id, filtroMes, filtroAno]);
+    if (!user || !selectedBar) return;
 
-  // Alterar mês/ano
-  const alterarPeriodo = (novoMes: number, novoAno: number) => {
+    const mesFromUrl = searchParams.get('mes');
+    const anoFromUrl = searchParams.get('ano');
+    
+    // Se URL tem parâmetros, atualizar estados locais
+    if (mesFromUrl && anoFromUrl) {
+      const mes = parseInt(mesFromUrl);
+      const ano = parseInt(anoFromUrl);
+      
+      if (mes >= 1 && mes <= 12 && ano >= 2020 && ano <= 2030) {
+        // Limpar cache antes de mudar filtros via URL
+        lastFetchRef.current = '';
+        setFiltroMes(mes);
+        setFiltroAno(ano);
+        setMesAtual(new Date(ano, mes - 1, 1));
+        return; // Não buscar aqui, o próximo useEffect vai buscar
+      }
+    }
+    
+    // Buscar dados com filtros atuais
+    buscarDados();
+  }, [user, selectedBar, searchParams, filtroMes, filtroAno, buscarDados]);
+
+  // Alterar mês/ano - OTIMIZADO para batch updates
+  const alterarPeriodo = useCallback((novoMes: number, novoAno: number) => {
+    // React 18+ batch updates automaticamente, mas garantir que lastFetch seja limpo
+    lastFetchRef.current = '';
     setFiltroMes(novoMes);
     setFiltroAno(novoAno);
     setMesAtual(new Date(novoAno, novoMes - 1, 1));
-  };
+  }, []);
 
 
 
-  // Abrir modal de edição unificado (planejamento + valores reais)
-  const abrirModal = async (evento: PlanejamentoData, editMode: boolean = false) => {
+  // Cache para dados do modal (evita re-buscar)
+  const modalDataCacheRef = useRef<Record<string, any>>({});
+
+  // Abrir modal de edição unificado (planejamento + valores reais) - OTIMIZADO
+  const abrirModal = useCallback(async (evento: PlanejamentoData, editMode: boolean = false) => {
     console.log('🔍 Debug - Evento selecionado para edição:', evento);
     
     setEventoSelecionado(evento);
     setModoEdicao(editMode);
     
-    // Buscar dados de atrasos de entrega para o evento
-    let atrasosData = { atrasos_cozinha: 0, atrasos_bar: 0 };
-    try {
-      const response = await apiCall(`/api/estrategico/atrasos-evento?data=${evento.data_evento}`, {
+    // Verificar cache primeiro
+    const cacheKey = `${evento.evento_id}-${evento.data_evento}`;
+    if (modalDataCacheRef.current[cacheKey]) {
+      const cachedData = modalDataCacheRef.current[cacheKey];
+      setEventoEdicao(cachedData);
+      setModalOpen(true);
+      return;
+    }
+    
+    const isDomingo = evento.dia_semana === 'DOMINGO' || evento.dia_semana === 'Domingo';
+    
+    // OTIMIZAÇÃO: Fazer chamadas em paralelo
+    const promises = [
+      // Sempre buscar atrasos
+      apiCall(`/api/estrategico/atrasos-evento?data=${evento.data_evento}`, {
         headers: {
           'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
         }
-      });
-      if (response.success && response.data) {
-        atrasosData = response.data;
-      }
-    } catch (error) {
-      console.warn('⚠️ Erro ao buscar atrasos:', error);
-    }
+      }).catch(error => {
+        console.warn('⚠️ Erro ao buscar atrasos:', error);
+        return { success: false, data: { atrasos_cozinha: 0, atrasos_bar: 0 } };
+      })
+    ];
     
-    // Buscar dados do Sympla/Yuzer se for domingo
-    let dadosSymplaYuzer = {};
-    if (evento.dia_semana === 'DOMINGO' || evento.dia_semana === 'Domingo') {
-      try {
-        const { data: eventoCompleto } = await apiCall(`/api/eventos/${evento.evento_id}`, {
+    // Se for domingo, adicionar busca Sympla/Yuzer em paralelo
+    if (isDomingo) {
+      promises.push(
+        apiCall(`/api/eventos/${evento.evento_id}`, {
           headers: {
             'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
           }
-        });
-        if (eventoCompleto) {
-          dadosSymplaYuzer = {
-            sympla_liquido: eventoCompleto.sympla_liquido || 0,
-            sympla_checkins: eventoCompleto.sympla_checkins || 0,
-            yuzer_liquido: eventoCompleto.yuzer_liquido || 0,
-            yuzer_ingressos: eventoCompleto.yuzer_ingressos || 0
-          };
-        }
-      } catch (error) {
-        console.warn('⚠️ Erro ao buscar dados Sympla/Yuzer:', error);
-      }
+        }).catch(error => {
+          console.warn('⚠️ Erro ao buscar dados Sympla/Yuzer:', error);
+          return { data: null };
+        })
+      );
+    }
+    
+    // Aguardar todas as chamadas em paralelo
+    const [atrasosResponse, symplaYuzerResponse] = await Promise.all(promises);
+    
+    const atrasosData = atrasosResponse?.success && atrasosResponse?.data 
+      ? atrasosResponse.data 
+      : { atrasos_cozinha: 0, atrasos_bar: 0 };
+    
+    let dadosSymplaYuzer = {};
+    if (isDomingo && symplaYuzerResponse?.data) {
+      const eventoCompleto = symplaYuzerResponse.data;
+      dadosSymplaYuzer = {
+        sympla_liquido: eventoCompleto.sympla_liquido || 0,
+        sympla_checkins: eventoCompleto.sympla_checkins || 0,
+        yuzer_liquido: eventoCompleto.yuzer_liquido || 0,
+        yuzer_ingressos: eventoCompleto.yuzer_ingressos || 0
+      };
     }
 
     const dadosIniciais: EventoEdicaoCompleta = {
@@ -377,9 +416,12 @@ export default function PlanejamentoComercialPage() {
     
     console.log('🔍 Debug - Dados iniciais do modal unificado:', dadosIniciais);
     
+    // Salvar no cache
+    modalDataCacheRef.current[cacheKey] = dadosIniciais;
+    
     setEventoEdicao(dadosIniciais);
     setModalOpen(true);
-  };
+  }, [user, selectedBar]);
 
   // Fechar modal unificado
   const fecharModal = () => {
@@ -523,6 +565,42 @@ export default function PlanejamentoComercialPage() {
 
   // Anos disponíveis
   const anos = [2025, 2026];
+
+  // OTIMIZAÇÃO: Memoizar cálculos agregados pesados
+  const totaisAgregados = useMemo(() => {
+    const empilhamento = dados.reduce((sum, evento) => {
+      if (evento.real_receita && evento.real_receita > 0) {
+        return sum + evento.real_receita;
+      }
+      return sum + (evento.m1_receita || 0);
+    }, 0);
+    
+    const metaM1 = dados.reduce((sum, evento) => sum + (evento.m1_receita || 0), 0);
+    const gap = empilhamento - metaM1;
+    const gapPercent = metaM1 > 0 ? (gap / metaM1) * 100 : 0;
+    const isPositive = gap >= 0;
+    
+    // Médias de tickets
+    const eventosComTE = dados.filter(e => e.te_plan > 0);
+    const mediaTEPlan = eventosComTE.length > 0 
+      ? eventosComTE.reduce((sum, e) => sum + e.te_plan, 0) / eventosComTE.length 
+      : 0;
+    
+    const eventosComTB = dados.filter(e => e.tb_plan > 0);
+    const mediaTBPlan = eventosComTB.length > 0
+      ? eventosComTB.reduce((sum, e) => sum + e.tb_plan, 0) / eventosComTB.length
+      : 0;
+    
+    return {
+      empilhamento,
+      metaM1,
+      gap,
+      gapPercent,
+      isPositive,
+      mediaTEPlan,
+      mediaTBPlan
+    };
+  }, [dados]);
 
   if (loading) {
     return (
@@ -1134,40 +1212,23 @@ export default function PlanejamentoComercialPage() {
                           </span>
                         </div>
                         
-                        {/* GAP para Meta M1 */}
-                        {(() => {
-                          const empilhamento = dados.reduce((sum, evento) => {
-                            if (evento.real_receita && evento.real_receita > 0) {
-                              return sum + evento.real_receita;
-                            }
-                            return sum + (evento.m1_receita || 0);
-                          }, 0);
-                          
-                          const metaM1 = dados.reduce((sum, evento) => sum + (evento.m1_receita || 0), 0);
-                          const gap = empilhamento - metaM1;
-                          const gapPercent = metaM1 > 0 ? (gap / metaM1) * 100 : 0;
-                          const isPositive = gap >= 0;
-                          
-                          return (
-                            <div className="flex justify-between items-center mt-1 pt-1 border-t border-blue-200 dark:border-blue-700">
-                              <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">GAP:</span>
-                              <div className="text-xs font-medium">
-                                <span className={isPositive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
-                                  {isPositive ? "+" : ""}{formatarMoeda(gap)} ({isPositive ? "+" : ""}{gapPercent.toFixed(1)}%)
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })()}
+                        {/* GAP para Meta M1 - OTIMIZADO com useMemo */}
+                        <div className="flex justify-between items-center mt-1 pt-1 border-t border-blue-200 dark:border-blue-700">
+                          <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">GAP:</span>
+                          <div className="text-xs font-medium">
+                            <span className={totaisAgregados.isPositive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                              {totaisAgregados.isPositive ? "+" : ""}{formatarMoeda(totaisAgregados.gap)} ({totaisAgregados.isPositive ? "+" : ""}{totaisAgregados.gapPercent.toFixed(1)}%)
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* T.M Entrada */}
+                      {/* T.M Entrada - OTIMIZADO */}
                       <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
                         <div className="flex justify-between items-center mb-1">
                           <span className="text-gray-600 dark:text-gray-400">T.M Entrada:</span>
                           <span className="font-medium text-gray-900 dark:text-white">
-                            {formatarMoeda(dados.filter(e => e.te_plan > 0)
-                              .reduce((sum, evento, _, arr) => sum + (evento.te_plan || 0) / arr.length, 0))}
+                            {formatarMoeda(totaisAgregados.mediaTEPlan)}
                           </span>
                         </div>
                         <div className="flex justify-between items-center mb-1">
