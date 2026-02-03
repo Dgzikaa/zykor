@@ -197,10 +197,7 @@ export async function PUT(request: Request) {
     // Atualizar o registro
     const { data, error } = await supabase
       .from('desempenho_semanal')
-      .update({
-        ...updateData,
-        atualizado_em: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', id)
       .eq('bar_id', barId)
       .select()

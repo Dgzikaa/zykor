@@ -639,7 +639,17 @@ export default function DesempenhoPage() {
 
   // Salvar métrica
   const salvarMetrica = async (semanaId: number, campo: string) => {
+    console.log('🔵 salvarMetrica chamada:', { semanaId, campo, valorEdit });
+    
+    if (!semanaId) {
+      console.error('❌ semanaId está undefined/null');
+      toast({ title: 'Erro', description: 'ID da semana não encontrado', variant: 'destructive' });
+      return;
+    }
+    
     const numValue = parseFloat(valorEdit.replace(',', '.'));
+    console.log('🔵 Valor parseado:', numValue);
+    
     if (isNaN(numValue)) {
       setEditando(null);
       toast({ title: 'Erro', description: 'Valor inválido', variant: 'destructive' });
@@ -650,6 +660,8 @@ export default function DesempenhoPage() {
       toast({ title: 'Erro', description: 'Selecione um bar primeiro', variant: 'destructive' });
       return;
     }
+    
+    console.log('🔵 Enviando para API:', { id: semanaId, [campo]: numValue, bar_id: selectedBar.id });
     
     try {
       const response = await fetch('/api/gestao/desempenho', {
@@ -662,9 +674,10 @@ export default function DesempenhoPage() {
       });
 
       const result = await response.json();
+      console.log('🔵 Resposta da API:', result);
       
       if (!response.ok) {
-        console.error('Erro ao salvar:', result);
+        console.error('❌ Erro ao salvar:', result);
         throw new Error(result.error || 'Erro ao salvar');
       }
       
@@ -672,7 +685,7 @@ export default function DesempenhoPage() {
       setEditando(null);
       carregarSemanas();
     } catch (error) {
-      console.error('Erro na requisição:', error);
+      console.error('❌ Erro na requisição:', error);
       toast({ title: 'Erro', description: error instanceof Error ? error.message : 'Falha ao salvar', variant: 'destructive' });
     }
   };
