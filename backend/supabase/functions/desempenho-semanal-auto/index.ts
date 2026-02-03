@@ -456,19 +456,49 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   // ============================================
   // 8. NPS (tabela nps)
   // ============================================
-  const npsData = await fetchAllData(supabase, 'nps', 'nps_geral, nps_ambiente, nps_atendimento, nps_limpeza, nps_musica, nps_comida, nps_drink, nps_preco, nps_reservas', {
+  const npsData = await fetchAllData(supabase, 'nps', 'nps_geral, nps_ambiente, nps_atendimento, nps_limpeza, nps_musica, nps_comida, nps_drink, nps_preco, fez_reserva', {
     'gte_data_pesquisa': startDate,
     'lte_data_pesquisa': endDate,
     'eq_bar_id': barId
   })
 
-  const calcularMediaNps = (campo: string) => {
-    const valores = npsData?.filter(item => item[campo] !== null && item[campo] !== undefined)
-      .map(item => parseFloat(item[campo]) || 0) || []
+  // Função para calcular NPS tradicional: % Promotores (9-10) - % Detratores (0-6)
+  const calcularNpsTradicional = (campo: string, filtro?: (item: any) => boolean) => {
+    let dados = npsData || []
+    if (filtro) {
+      dados = dados.filter(filtro)
+    }
+    const valores = dados.filter(item => item[campo] !== null && item[campo] !== undefined && parseFloat(item[campo]) > 0)
+      .map(item => parseFloat(item[campo]) || 0)
+    
+    if (valores.length === 0) return null
+    
+    const promotores = valores.filter(v => v >= 9).length
+    const detratores = valores.filter(v => v <= 6).length
+    const total = valores.length
+    
+    const percPromotores = (promotores / total) * 100
+    const percDetratores = (detratores / total) * 100
+    
+    return Math.round(percPromotores - percDetratores) // NPS vai de -100 a +100
+  }
+
+  // Função para calcular média (para as categorias específicas)
+  const calcularMediaNps = (campo: string, filtro?: (item: any) => boolean) => {
+    let dados = npsData || []
+    if (filtro) {
+      dados = dados.filter(filtro)
+    }
+    const valores = dados.filter(item => item[campo] !== null && item[campo] !== undefined && parseFloat(item[campo]) > 0)
+      .map(item => parseFloat(item[campo]) || 0)
     return valores.length > 0 ? valores.reduce((a, b) => a + b, 0) / valores.length : null
   }
 
-  const npsGeral = calcularMediaNps('nps_geral')
+  // NPS Geral e Reservas usam cálculo tradicional (% Promotores - % Detratores)
+  const npsGeral = calcularNpsTradicional('nps_geral')
+  const npsReservas = calcularNpsTradicional('nps_geral', item => item.fez_reserva === true)
+  
+  // Categorias específicas continuam com média
   const npsAmbiente = calcularMediaNps('nps_ambiente')
   const npsAtendimento = calcularMediaNps('nps_atendimento')
   const npsLimpeza = calcularMediaNps('nps_limpeza')
@@ -476,9 +506,8 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   const npsComida = calcularMediaNps('nps_comida')
   const npsDrink = calcularMediaNps('nps_drink')
   const npsPreco = calcularMediaNps('nps_preco')
-  const npsReservas = calcularMediaNps('nps_reservas')
 
-  console.log(`⭐ NPS Geral: ${npsGeral?.toFixed(1) || 'N/A'} (${npsData?.length || 0} respostas)`)
+  console.log(`⭐ NPS Geral: ${npsGeral ?? 'N/A'} (${npsData?.length || 0} respostas) | NPS Reservas: ${npsReservas ?? 'N/A'}`)
 
   // ============================================
   // 9. AVALIAÇÕES GOOGLE (windsor_google)
@@ -813,23 +842,26 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     'eq_ativo': true
   })
 
-  // Filtrar apenas eventos que têm dados (real_r > 0 ou percent_b > 0)
-  const eventosComDados = eventosBase?.filter(e => 
-    (parseFloat(e.real_r) || 0) > 0 || (parseFloat(e.percent_b) || 0) > 0
-  ) || []
+  // CORREÇÃO: Filtrar apenas eventos que têm percentuais válidos (soma > 0)
+  // Dias sem dados do ContaHub Analítico terão soma = 0 e não devem entrar na média
+  // Para que %B + %D + %C sempre some 100%
+  const eventosComPercentuais = eventosBase?.filter(e => {
+    const somaPercent = (parseFloat(e.percent_b) || 0) + (parseFloat(e.percent_d) || 0) + (parseFloat(e.percent_c) || 0)
+    return somaPercent > 0  // Apenas dias com dados de percentual válidos
+  }) || []
   
-  // Médias apenas de dias com dados
-  const percBebidas = eventosComDados.length > 0 
-    ? eventosComDados.reduce((sum, e) => sum + (parseFloat(e.percent_b) || 0), 0) / eventosComDados.length 
+  // Médias apenas de dias com percentuais válidos (garantindo soma = 100%)
+  const percBebidas = eventosComPercentuais.length > 0 
+    ? eventosComPercentuais.reduce((sum, e) => sum + (parseFloat(e.percent_b) || 0), 0) / eventosComPercentuais.length 
     : 0
-  const percDrinks = eventosComDados.length > 0 
-    ? eventosComDados.reduce((sum, e) => sum + (parseFloat(e.percent_d) || 0), 0) / eventosComDados.length 
+  const percDrinks = eventosComPercentuais.length > 0 
+    ? eventosComPercentuais.reduce((sum, e) => sum + (parseFloat(e.percent_d) || 0), 0) / eventosComPercentuais.length 
     : 0
-  const percComida = eventosComDados.length > 0 
-    ? eventosComDados.reduce((sum, e) => sum + (parseFloat(e.percent_c) || 0), 0) / eventosComDados.length 
+  const percComida = eventosComPercentuais.length > 0 
+    ? eventosComPercentuais.reduce((sum, e) => sum + (parseFloat(e.percent_c) || 0), 0) / eventosComPercentuais.length 
     : 0
 
-  console.log(`📊 % Bebidas: ${percBebidas.toFixed(1)}%, Drinks: ${percDrinks.toFixed(1)}%, Comida: ${percComida.toFixed(1)}% (${eventosComDados.length}/${eventosBase?.length || 0} dias com dados)`)
+  console.log(`📊 % Bebidas: ${percBebidas.toFixed(1)}%, Drinks: ${percDrinks.toFixed(1)}%, Comida: ${percComida.toFixed(1)}% (${eventosComPercentuais.length}/${eventosBase?.length || 0} dias com percentuais válidos)`)
 
   // ============================================
   // 13. COCKPIT VENDAS (faturamento por hora, venda balcão)
@@ -837,9 +869,10 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   console.log(`💰 Calculando Cockpit Vendas...`)
 
   // 13.1 % FATURAMENTO ATÉ 19H (usando eventos_base que já tem fat_19h_percent)
-  // Também filtrar apenas dias com dados
-  const percFat19h = eventosComDados.length > 0 
-    ? eventosComDados.reduce((sum, e) => sum + (parseFloat(e.fat_19h_percent) || 0), 0) / eventosComDados.length 
+  // Filtrar apenas dias com faturamento real (real_r > 0)
+  const eventosComFaturamento = eventosBase?.filter(e => (parseFloat(e.real_r) || 0) > 0) || []
+  const percFat19h = eventosComFaturamento.length > 0 
+    ? eventosComFaturamento.reduce((sum, e) => sum + (parseFloat(e.fat_19h_percent) || 0), 0) / eventosComFaturamento.length 
     : 0
 
   console.log(`💰 % Faturamento até 19h: ${percFat19h.toFixed(1)}%`)

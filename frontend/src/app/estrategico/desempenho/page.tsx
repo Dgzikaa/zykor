@@ -298,8 +298,8 @@ const SECOES: SecaoConfig[] = [
         metricas: [
           { key: 'avaliacoes_5_google_trip', label: 'Avaliações 5★ Google', status: 'manual', fonte: 'SuperSal', calculo: 'Relatório semanal', formato: 'numero', editavel: true },
           { key: 'media_avaliacoes_google', label: 'Média Google', status: 'manual', fonte: 'SuperSal', calculo: 'Relatório semanal', formato: 'decimal', editavel: true },
-          { key: 'nps_geral', label: 'NPS Geral', status: 'auto', fonte: 'NPS', calculo: 'Média de todas as respostas', formato: 'decimal' },
-          { key: 'nps_reservas', label: 'NPS Reservas', status: 'auto', fonte: 'NPS', calculo: 'Média das notas com reserva', formato: 'decimal' },
+          { key: 'nps_geral', label: 'NPS Geral', status: 'auto', fonte: 'NPS', calculo: '% Promotores - % Detratores', formato: 'numero' },
+          { key: 'nps_reservas', label: 'NPS Reservas', status: 'auto', fonte: 'NPS', calculo: '% Promotores - % Detratores (com reserva)', formato: 'numero' },
           { key: 'nota_felicidade_equipe', label: 'Felicidade Equipe', status: 'manual', fonte: 'Pesquisa', calculo: 'Manual', formato: 'numero', editavel: true },
         ]
       }
