@@ -25,17 +25,40 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Calcular quais semanas pertencem ao mês (considerando ano ISO)
-    const semanasDoMes = calcularSemanasDoMesComAno(mes, ano);
-    
-    // Agrupar semanas por ano para fazer queries eficientes
-    const semanasPorAno: Record<number, number[]> = {};
-    for (const { semana, anoISO } of semanasDoMes) {
-      if (!semanasPorAno[anoISO]) semanasPorAno[anoISO] = [];
-      semanasPorAno[anoISO].push(semana);
+    // Datas do mês
+    const dataInicio = `${ano}-${String(mes).padStart(2, '0')}-01`;
+    const ultimoDia = new Date(ano, mes, 0).getDate();
+    const dataFim = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
+
+    // ========== PARTE 1: Dados diários de eventos_base ==========
+    const { data: eventosDiarios, error: eventosError } = await supabase
+      .from('eventos_base')
+      .select('data_evento, real_r, cl_real, t_medio, percent_b, percent_d, percent_c, res_tot, res_p, t_coz, t_bar, fat_19h_percent, faturamento_couvert, faturamento_bar')
+      .eq('bar_id', barId)
+      .gte('data_evento', dataInicio)
+      .lte('data_evento', dataFim);
+
+    if (eventosError) {
+      console.error('Erro ao buscar eventos diários:', eventosError);
     }
 
-    // Buscar dados de todas as semanas do mês (considerando múltiplos anos)
+    // Agregar dados diários
+    const dadosDiarios = agregarDadosDiarios(eventosDiarios || []);
+
+    // ========== PARTE 2: Dados semanais proporcionais ==========
+    // Identificar semanas que têm dias no mês e calcular proporção
+    const semanasComProporcao = calcularSemanasComProporcao(mes, ano);
+    
+    // Buscar dados de todas as semanas envolvidas
+    const todasSemanas = [...new Set(semanasComProporcao.map(s => `${s.anoISO}-${s.semana}`))];
+    const semanasPorAno: Record<number, number[]> = {};
+    for (const s of semanasComProporcao) {
+      if (!semanasPorAno[s.anoISO]) semanasPorAno[s.anoISO] = [];
+      if (!semanasPorAno[s.anoISO].includes(s.semana)) {
+        semanasPorAno[s.anoISO].push(s.semana);
+      }
+    }
+
     const desempenhoPromises = Object.entries(semanasPorAno).map(([anoISO, semanas]) =>
       supabase
         .from('desempenho_semanal')
@@ -59,80 +82,39 @@ export async function GET(request: NextRequest) {
       Promise.all(marketingPromises)
     ]);
 
-    // Combinar resultados de múltiplos anos
     const desempenhoData = desempenhoResults.flatMap(r => r.data || []);
     const marketingData = marketingResults.flatMap(r => r.data || []);
-    
-    const desempenhoResult = { data: desempenhoData, error: desempenhoResults.find(r => r.error)?.error };
 
-    if (desempenhoResult.error) {
-      console.error('Erro ao buscar dados mensais:', desempenhoResult.error);
-      return NextResponse.json({ error: desempenhoResult.error.message }, { status: 500 });
+    // Criar mapa de dados por semana
+    const desempenhoMap = new Map<string, any>();
+    for (const d of desempenhoData) {
+      desempenhoMap.set(`${d.ano}-${d.numero_semana}`, d);
+    }
+    const marketingMap = new Map<string, any>();
+    for (const m of marketingData) {
+      marketingMap.set(`${m.ano}-${m.semana}`, m);
     }
 
-    // Mesclar dados de desempenho com marketing por semana
-    const semanasData = mesclarDadosMarketing(desempenhoData, marketingData);
+    // Agregar dados semanais com proporção
+    const dadosSemanais = agregarDadosSemanaisProporcionais(semanasComProporcao, desempenhoMap, marketingMap);
 
-    // Agregar os dados
-    const dadosMensais = agregarDadosMensais(semanasData);
-
-    // Buscar dados do mês anterior para comparação
-    let mesAnterior = mes - 1;
-    let anoAnterior = ano;
-    if (mesAnterior < 1) {
-      mesAnterior = 12;
-      anoAnterior = ano - 1;
-    }
-
-    const semanasMesAnteriorComAno = calcularSemanasDoMesComAno(mesAnterior, anoAnterior);
-    
-    // Agrupar semanas do mês anterior por ano
-    const semanasAnteriorPorAno: Record<number, number[]> = {};
-    for (const { semana, anoISO } of semanasMesAnteriorComAno) {
-      if (!semanasAnteriorPorAno[anoISO]) semanasAnteriorPorAno[anoISO] = [];
-      semanasAnteriorPorAno[anoISO].push(semana);
-    }
-
-    const desempenhoAnteriorPromises = Object.entries(semanasAnteriorPorAno).map(([anoISO, semanas]) =>
-      supabase
-        .from('desempenho_semanal')
-        .select('*')
-        .eq('bar_id', barId)
-        .eq('ano', parseInt(anoISO))
-        .in('numero_semana', semanas)
-    );
-    
-    const marketingAnteriorPromises = Object.entries(semanasAnteriorPorAno).map(([anoISO, semanas]) =>
-      supabase
-        .from('marketing_semanal')
-        .select('*')
-        .eq('bar_id', barId)
-        .eq('ano', parseInt(anoISO))
-        .in('semana', semanas)
-    );
-
-    const [desempenhoAnteriorResults, marketingAnteriorResults] = await Promise.all([
-      Promise.all(desempenhoAnteriorPromises),
-      Promise.all(marketingAnteriorPromises)
-    ]);
-
-    const desempenhoAnteriorData = desempenhoAnteriorResults.flatMap(r => r.data || []);
-    const marketingAnteriorData = marketingAnteriorResults.flatMap(r => r.data || []);
-
-    const semanasAnteriorData = mesclarDadosMarketing(desempenhoAnteriorData, marketingAnteriorData);
-    const dadosMesAnterior = agregarDadosMensais(semanasAnteriorData);
+    // ========== Combinar dados diários e semanais ==========
+    const dadosMensais = {
+      // Dados semanais proporcionais (para métricas que só existem por semana: CMV, retenção, NPS, marketing)
+      ...dadosSemanais,
+      // Dados diários sobrescrevem (são mais precisos para faturamento, clientes, mix, etc)
+      ...dadosDiarios,
+      // Quantidade de dias com dados
+      dias_com_dados: eventosDiarios?.filter(e => parseFloat(e.real_r) > 0).length || 0,
+    };
 
     return NextResponse.json({
       success: true,
       mes: dadosMensais,
-      mesAnterior: dadosMesAnterior,
-      semanasIncluidas: semanasDoMes.map(s => `${s.anoISO}-S${s.semana}`),
-      quantidadeSemanas: semanasData?.length || 0,
-      parametros: {
-        mes,
-        ano,
-        barId
-      }
+      periodo: { dataInicio, dataFim },
+      semanasIncluidas: semanasComProporcao.map(s => `${s.anoISO}-S${s.semana} (${Math.round(s.proporcao * 100)}%)`),
+      diasEventos: eventosDiarios?.length || 0,
+      parametros: { mes, ano, barId }
     });
 
   } catch (error) {
@@ -144,87 +126,29 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Mesclar dados de desempenho com marketing
-function mesclarDadosMarketing(desempenhoData: any[], marketingData: any[]): any[] {
-  // Criar um mapa de marketing por semana
-  const marketingMap = new Map<number, any>();
-  for (const m of marketingData) {
-    marketingMap.set(m.semana, m);
-  }
-
-  // Mesclar dados
-  return desempenhoData.map(d => {
-    const marketing = marketingMap.get(d.numero_semana);
-    if (!marketing) return d;
-
-    return {
-      ...d,
-      o_num_posts: marketing.o_num_posts,
-      o_alcance: marketing.o_alcance,
-      o_interacao: marketing.o_interacao,
-      o_compartilhamento: marketing.o_compartilhamento,
-      o_engajamento: marketing.o_engajamento,
-      o_num_stories: marketing.o_num_stories,
-      o_visu_stories: marketing.o_visu_stories,
-      m_valor_investido: marketing.m_valor_investido,
-      m_alcance: marketing.m_alcance,
-      m_frequencia: marketing.m_frequencia,
-      m_cpm: marketing.m_cpm,
-      m_cliques: marketing.m_cliques,
-      m_ctr: marketing.m_ctr,
-      m_custo_por_clique: marketing.m_cpc,
-      m_conversas_iniciadas: marketing.m_conversas_iniciadas,
-      g_valor_investido: marketing.g_valor_investido,
-      g_impressoes: marketing.g_impressoes,
-      g_cliques: marketing.g_cliques,
-      g_ctr: marketing.g_ctr,
-      g_solicitacoes_rotas: marketing.g_solicitacoes_rotas,
-      gmn_total_acoes: marketing.gmn_total_acoes,
-      gmn_total_visualizacoes: marketing.gmn_total_visualizacoes,
-      gmn_solicitacoes_rotas: marketing.gmn_solicitacoes_rotas,
-    };
-  });
-}
-
-// Calcular quais semanas pertencem a um mês (versão antiga - mantida para compatibilidade)
-function calcularSemanasDoMes(mes: number, ano: number): number[] {
-  const semanas: number[] = [];
-  
-  // Primeiro dia do mês
+// Calcular semanas com proporção de dias no mês
+function calcularSemanasComProporcao(mes: number, ano: number): { semana: number; anoISO: number; proporcao: number; diasNoMes: number }[] {
   const primeiroDia = new Date(ano, mes - 1, 1);
-  // Último dia do mês
   const ultimoDia = new Date(ano, mes, 0);
   
-  // Iterar por cada dia do mês e encontrar as semanas
-  const semanasSet = new Set<number>();
-  
-  for (let d = new Date(primeiroDia); d <= ultimoDia; d.setDate(d.getDate() + 1)) {
-    const semana = getWeekNumber(new Date(d));
-    semanasSet.add(semana);
-  }
-  
-  return Array.from(semanasSet).sort((a, b) => a - b);
-}
-
-// Calcular quais semanas pertencem a um mês (com ano ISO correto)
-function calcularSemanasDoMesComAno(mes: number, ano: number): { semana: number; anoISO: number }[] {
-  // Primeiro dia do mês
-  const primeiroDia = new Date(ano, mes - 1, 1);
-  // Último dia do mês
-  const ultimoDia = new Date(ano, mes, 0);
-  
-  // Usar um Map para evitar duplicatas (chave = "ano-semana")
-  const semanasMap = new Map<string, { semana: number; anoISO: number }>();
+  // Contar dias de cada semana que pertencem ao mês
+  const contagemDias = new Map<string, { semana: number; anoISO: number; diasNoMes: number }>();
   
   for (let d = new Date(primeiroDia); d <= ultimoDia; d.setDate(d.getDate() + 1)) {
     const { semana, ano: anoISO } = getWeekAndYear(new Date(d));
     const key = `${anoISO}-${semana}`;
-    if (!semanasMap.has(key)) {
-      semanasMap.set(key, { semana, anoISO });
+    
+    if (!contagemDias.has(key)) {
+      contagemDias.set(key, { semana, anoISO, diasNoMes: 0 });
     }
+    contagemDias.get(key)!.diasNoMes++;
   }
   
-  return Array.from(semanasMap.values());
+  // Calcular proporção (diasNoMes / 7)
+  return Array.from(contagemDias.values()).map(s => ({
+    ...s,
+    proporcao: s.diasNoMes / 7
+  }));
 }
 
 // Obter número da semana ISO e o ano ISO
@@ -234,131 +158,235 @@ function getWeekAndYear(date: Date): { semana: number; ano: number } {
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const semana = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  const ano = d.getUTCFullYear(); // Este é o ano ISO correto
+  const ano = d.getUTCFullYear();
   return { semana, ano };
 }
 
-// Obter número da semana ISO
-function getWeekNumber(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-}
-
-// Agregar dados de múltiplas semanas
-function agregarDadosMensais(semanas: any[]): any {
-  if (!semanas || semanas.length === 0) {
-    return null;
+// Agregar dados diários de eventos_base
+function agregarDadosDiarios(eventos: any[]): any {
+  if (!eventos || eventos.length === 0) {
+    return {};
   }
 
-  const n = semanas.length;
+  // Filtrar dias com faturamento real
+  const diasComFaturamento = eventos.filter(e => parseFloat(e.real_r) > 0);
+  const n = diasComFaturamento.length;
 
-  // Funções auxiliares
-  const soma = (campo: string) => semanas.reduce((acc, s) => acc + (parseFloat(s[campo]) || 0), 0);
-  const media = (campo: string) => soma(campo) / n;
-  const mediaValida = (campo: string) => {
-    const valores = semanas.filter(s => s[campo] !== null && s[campo] !== undefined);
-    if (valores.length === 0) return 0;
-    return valores.reduce((acc, s) => acc + (parseFloat(s[campo]) || 0), 0) / valores.length;
+  if (n === 0) {
+    return {
+      faturamento_total: 0,
+      clientes_atendidos: 0,
+      ticket_medio: 0,
+      perc_bebidas: 0,
+      perc_drinks: 0,
+      perc_comida: 0,
+    };
+  }
+
+  // Somas
+  const faturamentoTotal = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.real_r) || 0), 0);
+  const clientesTotal = diasComFaturamento.reduce((acc, e) => acc + (parseInt(e.cl_real) || 0), 0);
+  const reservasTotal = eventos.reduce((acc, e) => acc + (parseInt(e.res_tot) || 0), 0);
+  const reservasPresentes = eventos.reduce((acc, e) => acc + (parseInt(e.res_p) || 0), 0);
+  const faturamentoCouvert = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.faturamento_couvert) || 0), 0);
+  const faturamentoBar = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.faturamento_bar) || 0), 0);
+
+  // Médias ponderadas por faturamento para percentuais
+  const somaPercentB = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.percent_b) || 0), 0);
+  const somaPercentD = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.percent_d) || 0), 0);
+  const somaPercentC = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.percent_c) || 0), 0);
+
+  // Médias simples para tempos e percentuais
+  const diasComTempo = diasComFaturamento.filter(e => parseFloat(e.t_coz) > 0 || parseFloat(e.t_bar) > 0);
+  const tempoMedioCoz = diasComTempo.length > 0 
+    ? diasComTempo.reduce((acc, e) => acc + (parseFloat(e.t_coz) || 0), 0) / diasComTempo.length 
+    : 0;
+  const tempoMedioBar = diasComTempo.length > 0 
+    ? diasComTempo.reduce((acc, e) => acc + (parseFloat(e.t_bar) || 0), 0) / diasComTempo.length 
+    : 0;
+
+  const diasComFat19h = diasComFaturamento.filter(e => parseFloat(e.fat_19h_percent) > 0);
+  const percFat19h = diasComFat19h.length > 0
+    ? diasComFat19h.reduce((acc, e) => acc + (parseFloat(e.fat_19h_percent) || 0), 0) / diasComFat19h.length
+    : 0;
+
+  return {
+    // Faturamentos
+    faturamento_total: faturamentoTotal,
+    faturamento_entrada: faturamentoCouvert,
+    faturamento_bar: faturamentoBar,
+    
+    // Clientes
+    clientes_atendidos: clientesTotal,
+    
+    // Ticket médio (faturamento / clientes)
+    ticket_medio: clientesTotal > 0 ? faturamentoTotal / clientesTotal : 0,
+    
+    // Mix de vendas (média dos dias)
+    perc_bebidas: somaPercentB / n,
+    perc_drinks: somaPercentD / n,
+    perc_comida: somaPercentC / n,
+    
+    // Reservas
+    reservas_totais: reservasTotal,
+    reservas_presentes: reservasPresentes,
+    
+    // Tempos
+    tempo_saida_cozinha: tempoMedioCoz,
+    tempo_saida_bar: tempoMedioBar,
+    
+    // Faturamento até 19h
+    perc_faturamento_ate_19h: percFat19h,
+  };
+}
+
+// Agregar dados semanais com proporção
+function agregarDadosSemanaisProporcionais(
+  semanasComProporcao: { semana: number; anoISO: number; proporcao: number }[],
+  desempenhoMap: Map<string, any>,
+  marketingMap: Map<string, any>
+): any {
+  let totalProporcao = 0;
+  
+  // Funções para somar com proporção
+  const somaProportional = (campo: string) => {
+    let soma = 0;
+    for (const s of semanasComProporcao) {
+      const dados = desempenhoMap.get(`${s.anoISO}-${s.semana}`);
+      if (dados && dados[campo] !== null && dados[campo] !== undefined) {
+        soma += (parseFloat(dados[campo]) || 0) * s.proporcao;
+      }
+    }
+    return soma;
+  };
+
+  const mediaProportional = (campo: string) => {
+    let soma = 0;
+    let pesoTotal = 0;
+    for (const s of semanasComProporcao) {
+      const dados = desempenhoMap.get(`${s.anoISO}-${s.semana}`);
+      if (dados && dados[campo] !== null && dados[campo] !== undefined) {
+        soma += (parseFloat(dados[campo]) || 0) * s.proporcao;
+        pesoTotal += s.proporcao;
+      }
+    }
+    return pesoTotal > 0 ? soma / pesoTotal : 0;
+  };
+
+  const somaMarketingProportional = (campo: string) => {
+    let soma = 0;
+    for (const s of semanasComProporcao) {
+      const dados = marketingMap.get(`${s.anoISO}-${s.semana}`);
+      if (dados && dados[campo] !== null && dados[campo] !== undefined) {
+        soma += (parseFloat(dados[campo]) || 0) * s.proporcao;
+      }
+    }
+    return soma;
+  };
+
+  const mediaMarketingProportional = (campo: string) => {
+    let soma = 0;
+    let pesoTotal = 0;
+    for (const s of semanasComProporcao) {
+      const dados = marketingMap.get(`${s.anoISO}-${s.semana}`);
+      if (dados && dados[campo] !== null && dados[campo] !== undefined) {
+        soma += (parseFloat(dados[campo]) || 0) * s.proporcao;
+        pesoTotal += s.proporcao;
+      }
+    }
+    return pesoTotal > 0 ? soma / pesoTotal : 0;
   };
 
   return {
-    // Identificação
-    quantidade_semanas: n,
-    
-    // Faturamentos (soma)
-    faturamento_total: soma('faturamento_total'),
-    faturamento_entrada: soma('faturamento_entrada'),
-    faturamento_bar: soma('faturamento_bar'),
-    faturamento_cmovivel: soma('faturamento_cmovivel'),
-    
-    // CMV
-    cmv_rs: soma('cmv_rs'),
-    cmv_limpo: mediaValida('cmv_limpo'),
-    cmv_global_real: mediaValida('cmv_global_real'),
-    cmv_teorico: mediaValida('cmv_teorico'),
-    
-    // Tickets (média)
-    ticket_medio: mediaValida('ticket_medio'),
-    tm_entrada: mediaValida('tm_entrada'),
-    tm_bar: mediaValida('tm_bar'),
+    // CMV (proporcionais)
+    cmv_rs: somaProportional('cmv_rs'),
+    cmv_limpo: mediaProportional('cmv_limpo'),
+    cmv_global_real: mediaProportional('cmv_global_real'),
+    cmv_teorico: mediaProportional('cmv_teorico'),
     
     // CMO
-    cmo: mediaValida('cmo'),
-    cmo_custo: soma('cmo_custo'),
-    custo_atracao_faturamento: mediaValida('custo_atracao_faturamento'),
+    cmo: mediaProportional('cmo'),
+    cmo_custo: somaProportional('cmo_custo'),
+    custo_atracao_faturamento: mediaProportional('custo_atracao_faturamento'),
     
-    // Clientes (soma)
-    clientes_atendidos: soma('clientes_atendidos'),
-    clientes_ativos: mediaValida('clientes_ativos'),
+    // Clientes ativos (média)
+    clientes_ativos: mediaProportional('clientes_ativos'),
+    clientes_30d: mediaProportional('clientes_30d'),
+    clientes_60d: mediaProportional('clientes_60d'),
+    clientes_90d: mediaProportional('clientes_90d'),
     
     // Retenção (média)
-    retencao_1m: mediaValida('retencao_1m'),
-    retencao_2m: mediaValida('retencao_2m'),
-    perc_clientes_novos: mediaValida('perc_clientes_novos'),
+    retencao_1m: mediaProportional('retencao_1m'),
+    retencao_2m: mediaProportional('retencao_2m'),
+    perc_clientes_novos: mediaProportional('perc_clientes_novos'),
     
-    // Reservas (soma)
-    reservas_totais: soma('reservas_totais'),
-    reservas_presentes: soma('reservas_presentes'),
+    // Qualidade
+    avaliacoes_5_google_trip: somaProportional('avaliacoes_5_google_trip'),
+    media_avaliacoes_google: mediaProportional('media_avaliacoes_google'),
+    nps_geral: mediaProportional('nps_geral'),
+    nps_reservas: mediaProportional('nps_reservas'),
+    nota_felicidade_equipe: mediaProportional('nota_felicidade_equipe'),
     
-    // Qualidade (média)
-    avaliacoes_5_google_trip: soma('avaliacoes_5_google_trip'),
-    media_avaliacoes_google: mediaValida('media_avaliacoes_google'),
-    nps_reservas: mediaValida('nps_reservas'),
-    nota_felicidade_equipe: mediaValida('nota_felicidade_equipe'),
+    // Happy Hour
+    perc_happy_hour: mediaProportional('perc_happy_hour'),
     
-    // Cockpit Financeiro (soma)
-    imposto: soma('imposto'),
-    comissao: soma('comissao'),
-    cmv: soma('cmv'),
-    freelas: soma('freelas'),
-    cmo_fixo_simulacao: soma('cmo_fixo_simulacao'),
-    alimentacao: soma('alimentacao'),
-    pro_labore: soma('pro_labore'),
-    rh_estorno_outros_operacao: soma('rh_estorno_outros_operacao'),
-    materiais: soma('materiais'),
-    manutencao: soma('manutencao'),
-    atracoes_eventos: soma('atracoes_eventos'),
-    utensilios: soma('utensilios'),
+    // Cockpit Financeiro (proporcionais)
+    imposto: somaProportional('imposto'),
+    comissao: somaProportional('comissao'),
+    cmv: somaProportional('cmv'),
+    freelas: somaProportional('freelas'),
+    cmo_fixo_simulacao: somaProportional('cmo_fixo_simulacao'),
+    alimentacao: somaProportional('alimentacao'),
+    pro_labore: somaProportional('pro_labore'),
+    rh_estorno_outros_operacao: somaProportional('rh_estorno_outros_operacao'),
+    materiais: somaProportional('materiais'),
+    manutencao: somaProportional('manutencao'),
+    atracoes_eventos: somaProportional('atracoes_eventos'),
+    utensilios: somaProportional('utensilios'),
     
-    // Cockpit Produtos (soma para quantidades, média para percentuais)
-    stockout_comidas: soma('stockout_comidas'),
-    stockout_drinks: soma('stockout_drinks'),
-    stockout_bar: soma('stockout_bar'),
-    perc_bebidas: mediaValida('perc_bebidas'),
-    perc_drinks: mediaValida('perc_drinks'),
-    perc_comida: mediaValida('perc_comida'),
-    perc_happy_hour: mediaValida('perc_happy_hour'),
-    qtde_itens_bar: soma('qtde_itens_bar'),
-    atrasos_bar: soma('atrasos_bar'),
-    tempo_saida_bar: mediaValida('tempo_saida_bar'),
-    qtde_itens_cozinha: soma('qtde_itens_cozinha'),
-    atrasos_cozinha: soma('atrasos_cozinha'),
-    tempo_saida_cozinha: mediaValida('tempo_saida_cozinha'),
+    // Stockout e produção
+    stockout_comidas: somaProportional('stockout_comidas'),
+    stockout_drinks: somaProportional('stockout_drinks'),
+    stockout_bar: somaProportional('stockout_bar'),
+    qtde_itens_bar: somaProportional('qtde_itens_bar'),
+    atrasos_bar: somaProportional('atrasos_bar'),
+    qtde_itens_cozinha: somaProportional('qtde_itens_cozinha'),
+    atrasos_cozinha: somaProportional('atrasos_cozinha'),
     
-    // Vendas (soma e média)
-    perc_faturamento_ate_19h: mediaValida('perc_faturamento_ate_19h'),
-    venda_balcao: soma('venda_balcao'),
-    couvert_atracoes: soma('couvert_atracoes'),
-    qui_sab_dom: soma('qui_sab_dom'),
+    // Vendas extras
+    venda_balcao: somaProportional('venda_balcao'),
+    couvert_atracoes: somaProportional('couvert_atracoes'),
+    qui_sab_dom: somaProportional('qui_sab_dom'),
     
-    // Marketing (soma)
-    o_num_posts: soma('o_num_posts'),
-    o_alcance: soma('o_alcance'),
-    o_interacao: soma('o_interacao'),
-    o_compartilhamento: soma('o_compartilhamento'),
-    o_engajamento: mediaValida('o_engajamento'),
-    o_num_stories: soma('o_num_stories'),
-    o_visu_stories: soma('o_visu_stories'),
-    m_valor_investido: soma('m_valor_investido'),
-    m_alcance: soma('m_alcance'),
-    m_frequencia: mediaValida('m_frequencia'),
-    m_cpm: mediaValida('m_cpm'),
-    m_cliques: soma('m_cliques'),
-    m_ctr: mediaValida('m_ctr'),
-    m_custo_por_clique: mediaValida('m_custo_por_clique'),
-    m_conversas_iniciadas: soma('m_conversas_iniciadas'),
+    // Marketing Orgânico
+    o_num_posts: somaMarketingProportional('o_num_posts'),
+    o_alcance: somaMarketingProportional('o_alcance'),
+    o_interacao: somaMarketingProportional('o_interacao'),
+    o_compartilhamento: somaMarketingProportional('o_compartilhamento'),
+    o_engajamento: mediaMarketingProportional('o_engajamento'),
+    o_num_stories: somaMarketingProportional('o_num_stories'),
+    o_visu_stories: somaMarketingProportional('o_visu_stories'),
+    
+    // Marketing Pago - Meta
+    m_valor_investido: somaMarketingProportional('m_valor_investido'),
+    m_alcance: somaMarketingProportional('m_alcance'),
+    m_frequencia: mediaMarketingProportional('m_frequencia'),
+    m_cpm: mediaMarketingProportional('m_cpm'),
+    m_cliques: somaMarketingProportional('m_cliques'),
+    m_ctr: mediaMarketingProportional('m_ctr'),
+    m_custo_por_clique: mediaMarketingProportional('m_cpc'),
+    m_conversas_iniciadas: somaMarketingProportional('m_conversas_iniciadas'),
+    
+    // Google Ads
+    g_valor_investido: somaMarketingProportional('g_valor_investido'),
+    g_impressoes: somaMarketingProportional('g_impressoes'),
+    g_cliques: somaMarketingProportional('g_cliques'),
+    g_ctr: mediaMarketingProportional('g_ctr'),
+    g_solicitacoes_rotas: somaMarketingProportional('g_solicitacoes_rotas'),
+    
+    // GMN
+    gmn_total_acoes: somaMarketingProportional('gmn_total_acoes'),
+    gmn_total_visualizacoes: somaMarketingProportional('gmn_total_visualizacoes'),
+    gmn_solicitacoes_rotas: somaMarketingProportional('gmn_solicitacoes_rotas'),
   };
 }
