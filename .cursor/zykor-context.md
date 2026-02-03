@@ -1,7 +1,7 @@
 # ZYKOR - CONTEXTO COMPLETO DO AGENTE
 
 > LEIA ESTE ARQUIVO EM CADA NOVO CHAT!
-> Ultima atualizacao: 2026-01-30
+> Ultima atualizacao: 2026-02-03
 
 ---
 
@@ -188,18 +188,33 @@ Meta mensal: ~R$ 930.000
 
 ---
 
-## NPS E AVALIACOES (1.646 respostas)
+## NPS E AVALIACOES (1.836 respostas - Atualizado 03/02/2026)
 
-| Categoria | Nota |
-|-----------|------|
-| Geral | 9.3 |
-| Atendimento | 9.5 |
-| Musica | 9.5 |
-| Ambiente | 9.4 |
-| Limpeza | 9.3 |
-| Preco | 8.4 |
-| Comida | 7.7 |
-| Drinks | 7.4 |
+### Calculo NPS Tradicional:
+- **Formula**: % Promotores (9-10) - % Detratores (0-6)
+- **Escala**: -100 a +100 (exibido sem casas decimais)
+
+| Categoria | Quantidade | % |
+|-----------|------------|---|
+| Promotores (9-10) | 1.558 | 86,4% |
+| Neutros (7-8) | 205 | 11,4% |
+| Detratores (0-6) | 40 | 2,2% |
+
+**NPS Geral Calculado**: 84
+
+### NPS por Semana (2026):
+| Semana | NPS Geral | NPS Reservas |
+|--------|-----------|--------------|
+| S5 | 86 | 75 |
+| S4 | 84 | 94 |
+| S3 | 93 | 93 |
+| S2 | 78 | 70 |
+| S1 | 83 | 86 |
+
+### Campo `fez_reserva` na tabela `nps`:
+- Indica se cliente fez reserva (Sim/Nao da planilha)
+- NPS Reservas = calculo apenas de quem fez_reserva = true
+- 511 respostas com reserva, 1325 sem reserva
 
 Pontos fortes: Atendimento, Musica, Ambiente
 Pontos a melhorar: Drinks, Comida
@@ -475,19 +490,20 @@ Meses FRACOS:
 
 ### Indicadores de Qualidade ✅
 
-| Indicador | Fonte | Status |
-|-----------|-------|--------|
-| **Avaliações 5★ Google** | `windsor_google` | ✅ AUTO |
-| **Média Avaliações Google** | `windsor_google` | ✅ AUTO |
-| **NPS Geral** | `nps` | ✅ AUTO |
-| **NPS Ambiente** | `nps` | ✅ AUTO |
-| **NPS Atendimento** | `nps` | ✅ AUTO |
-| **NPS Limpeza** | `nps` | ✅ AUTO |
-| **NPS Música** | `nps` | ✅ AUTO |
-| **NPS Comida** | `nps` | ✅ AUTO |
-| **NPS Drink** | `nps` | ✅ AUTO |
-| **NPS Preço** | `nps` | ✅ AUTO |
-| **NPS Reservas** | `nps` | ✅ AUTO |
+| Indicador | Fonte | Status | Calculo |
+|-----------|-------|--------|---------|
+| **Avaliações 5★ Google** | Manual | 📝 MANUAL | SuperSal |
+| **Média Avaliações Google** | Manual | 📝 MANUAL | SuperSal |
+| **NPS Geral** | `nps` | ✅ AUTO | % Promotores - % Detratores |
+| **NPS Reservas** | `nps` (fez_reserva=true) | ✅ AUTO | % Promotores - % Detratores |
+| **Felicidade Equipe** | Manual | 📝 MANUAL | Pesquisa interna |
+| **NPS Ambiente** | `nps` | ✅ AUTO | Media notas |
+| **NPS Atendimento** | `nps` | ✅ AUTO | Media notas |
+| **NPS Limpeza** | `nps` | ✅ AUTO | Media notas |
+| **NPS Música** | `nps` | ✅ AUTO | Media notas |
+| **NPS Comida** | `nps` | ✅ AUTO | Media notas |
+| **NPS Drink** | `nps` | ✅ AUTO | Media notas |
+| **NPS Preço** | `nps` | ✅ AUTO | Media notas |
 
 ### Cockpit Produtos ✅
 
@@ -499,7 +515,12 @@ Meses FRACOS:
 | **% Bebidas** | `eventos_base.percent_b` | ✅ AUTO |
 | **% Drinks** | `eventos_base.percent_d` | ✅ AUTO |
 | **% Comida** | `eventos_base.percent_c` | ✅ AUTO |
-| **% Happy Hour** | `contahub_prodporhora` grupo HH | ✅ AUTO |
+| **% Happy Hour** | `contahub_analitico` grupo HH | ✅ AUTO (fora do Mix) |
+
+**IMPORTANTE - Mix de Vendas:**
+- %Bebidas + %Drinks + %Comida = **100%** (sempre)
+- %Happy Hour é calculado separadamente (não faz parte dos 100%)
+- Média semanal ignora dias sem dados de percentual válidos
 | **Qtde Itens Bar** | `contahub_prodporhora` grupos bar | ✅ AUTO |
 | **Qtde Itens Cozinha** | `contahub_prodporhora` grupos cozinha | ✅ AUTO |
 | **Atrasos Bar** | `contahub_tempo` t0_t3 > 4min (exclui outliers >30min) | ✅ AUTO |
@@ -573,6 +594,74 @@ Campos existem na tabela, preenchidos manualmente:
 ### Uso Principal:
 Gerar listas "quentes" de clientes para campanhas de marketing segmentadas.
 Exemplo: Clientes ativos de quinta-feira com ticket médio > R$100.
+
+---
+
+## VOZ DO CLIENTE - NOVA PAGINA (03/02/2026)
+
+### Localizacao:
+- **Menu**: Ferramentas → Voz do Cliente
+- **URL**: `/ferramentas/voz-cliente`
+- **API**: `/api/ferramentas/voz-cliente`
+
+### Funcionalidades:
+- Visualizacao de feedbacks por periodo (dia, semana, mes)
+- Filtro por tom: Positivo, Negativo, Sugestao
+- Filtro por categoria
+- Botao "Reuniao de Terca" - filtra automaticamente semana anterior
+- Resumo por semana com grafico de proporcao
+- Cards de estatisticas (total, positivos, negativos, sugestoes)
+
+### Tabela: `voz_cliente`
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| bar_id | INTEGER | Referencia ao bar |
+| data_feedback | DATE | Data do feedback |
+| semana | INTEGER | Numero da semana |
+| dia_semana | VARCHAR | Dia da semana |
+| feedback | TEXT | Texto do feedback |
+| tom | VARCHAR | Positivo/Negativo/Sugestao/Neutro |
+| categoria | VARCHAR | Categoria do feedback |
+| fonte | VARCHAR | Origem do feedback |
+| criticidade | VARCHAR | Nivel de criticidade |
+
+### Edge Function: `sync-voz-cliente`
+- Sincroniza da planilha Google: `10YoLlCX1K5bPI6qeZ56wagFSY8q7oOMCOJVgObNEKdo`
+- Cron diario configurado
+- Abas: "Ordinario - VDC", "Deboche - VDC"
+
+### Dados Atuais:
+| Bar | Positivos | Negativos | Sugestoes |
+|-----|-----------|-----------|-----------|
+| Ordinario | 163 | 363 | 76 |
+| Deboche | 119 | 91 | 6 |
+
+---
+
+## CORREÇÕES IMPLEMENTADAS (03/02/2026)
+
+### 1. Erro 500 ao Salvar Felicidade Equipe
+**Problema:** Campo `atualizado_por` era UUID mas ID do usuario vinha como numero.
+**Solucao:** Alterado campo para TEXT no banco.
+
+### 2. NPS Calculo Tradicional
+**Problema:** NPS exibia media das notas (9.46) ao inves do calculo tradicional.
+**Solucao:** 
+- Formula: % Promotores (9-10) - % Detratores (0-6)
+- Exibicao sem casas decimais (84 ao inves de 9.46)
+- Edge function `desempenho-semanal-auto` atualizada
+- Dados retroativos recalculados
+
+### 3. NPS Reservas
+**Problema:** Campo `fez_reserva` nao era populado corretamente.
+**Solucao:**
+- Edge function `sync-nps` agora le coluna N (Voce fez reserva?)
+- Converte "Sim" para boolean true
+- NPS Reservas = calculo tradicional apenas de quem fez_reserva = true
+
+### 4. Felicidade Equipe - Dados Retroativos
+**Acao:** Atualizados valores das semanas 21 a 52 de 2025 manualmente.
+- S21: 87 | S22: 70 | S23: 81 | ... | S50: 91 | S51: 92
 
 ---
 
