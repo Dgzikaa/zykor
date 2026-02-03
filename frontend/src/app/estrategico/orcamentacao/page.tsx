@@ -433,8 +433,12 @@ export default function OrcamentacaoPage() {
       {/* Conteúdo - Layout Excel com scroll horizontal e vertical */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-auto"
-        style={{ scrollBehavior: 'smooth' }}
+        className="flex-1 overflow-auto scrollbar-visible"
+        style={{ 
+          scrollBehavior: 'smooth',
+          scrollbarWidth: 'thin', // Firefox
+          WebkitOverflowScrolling: 'touch', // iOS
+        }}
       >
         <div className="flex" style={{ minWidth: 'max-content' }}>
           {/* Coluna fixa - Labels das categorias */}
