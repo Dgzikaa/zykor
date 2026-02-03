@@ -418,7 +418,8 @@ const formatarValor = (valor: number | null | undefined, formato: string, sufixo
     case 'percentual':
       return `${valor.toFixed(1)}%`;
     case 'decimal':
-      return valor.toFixed(2) + (sufixo || '');
+      // Arredondar para 2 casas decimais (ex: 9.385 → 9.39)
+      return (Math.round(valor * 100) / 100).toFixed(2).replace('.', ',') + (sufixo || '');
     default:
       return valor.toLocaleString('pt-BR') + (sufixo || '');
   }
