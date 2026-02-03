@@ -642,6 +642,12 @@ export default function DesempenhoPage() {
     const numValue = parseFloat(valorEdit.replace(',', '.'));
     if (isNaN(numValue)) {
       setEditando(null);
+      toast({ title: 'Erro', description: 'Valor inválido', variant: 'destructive' });
+      return;
+    }
+    
+    if (!selectedBar?.id) {
+      toast({ title: 'Erro', description: 'Selecione um bar primeiro', variant: 'destructive' });
       return;
     }
     
@@ -650,18 +656,24 @@ export default function DesempenhoPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar.id }))
         },
         body: JSON.stringify({ id: semanaId, [campo]: numValue })
       });
 
-      if (!response.ok) throw new Error('Erro ao salvar');
+      const result = await response.json();
+      
+      if (!response.ok) {
+        console.error('Erro ao salvar:', result);
+        throw new Error(result.error || 'Erro ao salvar');
+      }
       
       toast({ title: 'Salvo!', description: 'Valor atualizado' });
       setEditando(null);
       carregarSemanas();
     } catch (error) {
-      toast({ title: 'Erro', description: 'Falha ao salvar', variant: 'destructive' });
+      console.error('Erro na requisição:', error);
+      toast({ title: 'Erro', description: error instanceof Error ? error.message : 'Falha ao salvar', variant: 'destructive' });
     }
   };
 
