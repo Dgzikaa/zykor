@@ -25,25 +25,45 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Calcular quais semanas pertencem ao mês
-    // Uma semana pertence a um mês se a maioria dos dias (4+) está naquele mês
-    const semanasDoMes = calcularSemanasDoMes(mes, ano);
+    // Calcular quais semanas pertencem ao mês (considerando ano ISO)
+    const semanasDoMes = calcularSemanasDoMesComAno(mes, ano);
+    
+    // Agrupar semanas por ano para fazer queries eficientes
+    const semanasPorAno: Record<number, number[]> = {};
+    for (const { semana, anoISO } of semanasDoMes) {
+      if (!semanasPorAno[anoISO]) semanasPorAno[anoISO] = [];
+      semanasPorAno[anoISO].push(semana);
+    }
 
-    // Buscar dados de todas as semanas do mês (desempenho + marketing em paralelo)
-    const [desempenhoResult, marketingResult] = await Promise.all([
+    // Buscar dados de todas as semanas do mês (considerando múltiplos anos)
+    const desempenhoPromises = Object.entries(semanasPorAno).map(([anoISO, semanas]) =>
       supabase
         .from('desempenho_semanal')
         .select('*')
         .eq('bar_id', barId)
-        .eq('ano', ano)
-        .in('numero_semana', semanasDoMes),
+        .eq('ano', parseInt(anoISO))
+        .in('numero_semana', semanas)
+    );
+    
+    const marketingPromises = Object.entries(semanasPorAno).map(([anoISO, semanas]) =>
       supabase
         .from('marketing_semanal')
         .select('*')
         .eq('bar_id', barId)
-        .eq('ano', ano)
-        .in('semana', semanasDoMes)
+        .eq('ano', parseInt(anoISO))
+        .in('semana', semanas)
+    );
+
+    const [desempenhoResults, marketingResults] = await Promise.all([
+      Promise.all(desempenhoPromises),
+      Promise.all(marketingPromises)
     ]);
+
+    // Combinar resultados de múltiplos anos
+    const desempenhoData = desempenhoResults.flatMap(r => r.data || []);
+    const marketingData = marketingResults.flatMap(r => r.data || []);
+    
+    const desempenhoResult = { data: desempenhoData, error: desempenhoResults.find(r => r.error)?.error };
 
     if (desempenhoResult.error) {
       console.error('Erro ao buscar dados mensais:', desempenhoResult.error);
@@ -51,7 +71,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Mesclar dados de desempenho com marketing por semana
-    const semanasData = mesclarDadosMarketing(desempenhoResult.data || [], marketingResult.data || []);
+    const semanasData = mesclarDadosMarketing(desempenhoData, marketingData);
 
     // Agregar os dados
     const dadosMensais = agregarDadosMensais(semanasData);
@@ -64,31 +84,49 @@ export async function GET(request: NextRequest) {
       anoAnterior = ano - 1;
     }
 
-    const semanasMesAnterior = calcularSemanasDoMes(mesAnterior, anoAnterior);
+    const semanasMesAnteriorComAno = calcularSemanasDoMesComAno(mesAnterior, anoAnterior);
     
-    const [desempenhoAnteriorResult, marketingAnteriorResult] = await Promise.all([
+    // Agrupar semanas do mês anterior por ano
+    const semanasAnteriorPorAno: Record<number, number[]> = {};
+    for (const { semana, anoISO } of semanasMesAnteriorComAno) {
+      if (!semanasAnteriorPorAno[anoISO]) semanasAnteriorPorAno[anoISO] = [];
+      semanasAnteriorPorAno[anoISO].push(semana);
+    }
+
+    const desempenhoAnteriorPromises = Object.entries(semanasAnteriorPorAno).map(([anoISO, semanas]) =>
       supabase
         .from('desempenho_semanal')
         .select('*')
         .eq('bar_id', barId)
-        .eq('ano', anoAnterior)
-        .in('numero_semana', semanasMesAnterior),
+        .eq('ano', parseInt(anoISO))
+        .in('numero_semana', semanas)
+    );
+    
+    const marketingAnteriorPromises = Object.entries(semanasAnteriorPorAno).map(([anoISO, semanas]) =>
       supabase
         .from('marketing_semanal')
         .select('*')
         .eq('bar_id', barId)
-        .eq('ano', anoAnterior)
-        .in('semana', semanasMesAnterior)
+        .eq('ano', parseInt(anoISO))
+        .in('semana', semanas)
+    );
+
+    const [desempenhoAnteriorResults, marketingAnteriorResults] = await Promise.all([
+      Promise.all(desempenhoAnteriorPromises),
+      Promise.all(marketingAnteriorPromises)
     ]);
 
-    const semanasAnteriorData = mesclarDadosMarketing(desempenhoAnteriorResult.data || [], marketingAnteriorResult.data || []);
+    const desempenhoAnteriorData = desempenhoAnteriorResults.flatMap(r => r.data || []);
+    const marketingAnteriorData = marketingAnteriorResults.flatMap(r => r.data || []);
+
+    const semanasAnteriorData = mesclarDadosMarketing(desempenhoAnteriorData, marketingAnteriorData);
     const dadosMesAnterior = agregarDadosMensais(semanasAnteriorData);
 
     return NextResponse.json({
       success: true,
       mes: dadosMensais,
       mesAnterior: dadosMesAnterior,
-      semanasIncluidas: semanasDoMes,
+      semanasIncluidas: semanasDoMes.map(s => `${s.anoISO}-S${s.semana}`),
       quantidadeSemanas: semanasData?.length || 0,
       parametros: {
         mes,
@@ -148,7 +186,7 @@ function mesclarDadosMarketing(desempenhoData: any[], marketingData: any[]): any
   });
 }
 
-// Calcular quais semanas pertencem a um mês
+// Calcular quais semanas pertencem a um mês (versão antiga - mantida para compatibilidade)
 function calcularSemanasDoMes(mes: number, ano: number): number[] {
   const semanas: number[] = [];
   
@@ -166,6 +204,38 @@ function calcularSemanasDoMes(mes: number, ano: number): number[] {
   }
   
   return Array.from(semanasSet).sort((a, b) => a - b);
+}
+
+// Calcular quais semanas pertencem a um mês (com ano ISO correto)
+function calcularSemanasDoMesComAno(mes: number, ano: number): { semana: number; anoISO: number }[] {
+  // Primeiro dia do mês
+  const primeiroDia = new Date(ano, mes - 1, 1);
+  // Último dia do mês
+  const ultimoDia = new Date(ano, mes, 0);
+  
+  // Usar um Map para evitar duplicatas (chave = "ano-semana")
+  const semanasMap = new Map<string, { semana: number; anoISO: number }>();
+  
+  for (let d = new Date(primeiroDia); d <= ultimoDia; d.setDate(d.getDate() + 1)) {
+    const { semana, ano: anoISO } = getWeekAndYear(new Date(d));
+    const key = `${anoISO}-${semana}`;
+    if (!semanasMap.has(key)) {
+      semanasMap.set(key, { semana, anoISO });
+    }
+  }
+  
+  return Array.from(semanasMap.values());
+}
+
+// Obter número da semana ISO e o ano ISO
+function getWeekAndYear(date: Date): { semana: number; ano: number } {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const semana = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  const ano = d.getUTCFullYear(); // Este é o ano ISO correto
+  return { semana, ano };
 }
 
 // Obter número da semana ISO
