@@ -365,8 +365,8 @@ const SECOES: SecaoConfig[] = [
         label: 'Atrasos',
         agregacao: { tipo: 'soma', formato: 'numero' },
         metricas: [
-          { key: 'atrasos_bar', label: 'Atrasos Bar', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 't0_t3 > 4min', formato: 'numero', inverso: true },
-          { key: 'atrasos_cozinha', label: 'Atrasos Cozinha', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 't0_t2 > 12min', formato: 'numero', inverso: true },
+          { key: 'atrasos_bar', label: 'Atrasos Bar', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 't0_t3 > 10min', formato: 'numero', inverso: true },
+          { key: 'atrasos_cozinha', label: 'Atrasos Cozinha', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 't0_t2 > 20min', formato: 'numero', inverso: true },
         ]
       }
     ]

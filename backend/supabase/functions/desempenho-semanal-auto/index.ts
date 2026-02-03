@@ -717,16 +717,16 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   const tempoSaidaBar = tempoSaidaBarSegundos / 60
   const tempoSaidaCozinha = tempoSaidaCozinhaSegundos / 60
 
-  // Atrasos - Bar com t0_t3 > 4min = 240s, Cozinha com t0_t2 > 12min = 720s
-  const atrasosBar = tempoBar.filter(item => (parseFloat(item.t0_t3) || 0) > 240).length
-  const atrasosCozinha = tempoCozinha.filter(item => (parseFloat(item.t0_t2) || 0) > 720).length
+  // Atrasos - Bar com t0_t3 > 10min = 600s, Cozinha com t0_t2 > 20min = 1200s
+  const atrasosBar = tempoBar.filter(item => (parseFloat(item.t0_t3) || 0) > 600).length
+  const atrasosCozinha = tempoCozinha.filter(item => (parseFloat(item.t0_t2) || 0) > 1200).length
 
   // % Atrasos
   const percAtrasosBar = tempoBar.length > 0 ? (atrasosBar / tempoBar.length) * 100 : 0
   const percAtrasosCozinha = tempoCozinha.length > 0 ? (atrasosCozinha / tempoCozinha.length) * 100 : 0
 
-  console.log(`⏱️ Tempo Bar (t0_t3): ${tempoSaidaBar.toFixed(1)}min (${atrasosBar} atrasos >4min, ${percAtrasosBar.toFixed(1)}%)`)
-  console.log(`⏱️ Tempo Cozinha (t0_t2): ${tempoSaidaCozinha.toFixed(1)}min (${atrasosCozinha} atrasos >12min, ${percAtrasosCozinha.toFixed(1)}%)`)
+  console.log(`⏱️ Tempo Bar (t0_t3): ${tempoSaidaBar.toFixed(1)}min (${atrasosBar} atrasos >10min, ${percAtrasosBar.toFixed(1)}%)`)
+  console.log(`⏱️ Tempo Cozinha (t0_t2): ${tempoSaidaCozinha.toFixed(1)}min (${atrasosCozinha} atrasos >20min, ${percAtrasosCozinha.toFixed(1)}%)`)
 
   // 12.3 STOCKOUT (contahub_stockout) - NOVA LÓGICA: igual página de stockout
   // Buscar dados com prd_ativo e raw_data para filtrar corretamente por grupo
