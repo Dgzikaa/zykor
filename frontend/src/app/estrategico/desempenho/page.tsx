@@ -299,7 +299,7 @@ const SECOES: SecaoConfig[] = [
         metricas: [
           { key: 'reservas_totais', label: 'Reservas Realizadas', status: 'auto', fonte: 'GetIn', calculo: 'Total reservas/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_totais' },
           { key: 'reservas_presentes', label: 'Reservas Presentes', status: 'auto', fonte: 'GetIn', calculo: 'Reservas seated/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_presentes' },
-          { key: 'quebra_reservas', label: 'Quebra de Reservas', status: 'auto', fonte: 'Calculado', calculo: '(Total - Presentes) / Total', formato: 'percentual' },
+          { key: 'quebra_reservas', label: 'Quebra de Reservas', status: 'auto', fonte: 'Calculado', calculo: '(Pessoas Total - Pessoas Presentes) / Pessoas Total', formato: 'percentual' },
         ]
       },
       {
@@ -662,9 +662,10 @@ export default function DesempenhoPage() {
         // Calcular campos derivados
         semanasCompletas = semanasCompletas.map((s: DadosSemana) => ({
           ...s,
-          // Quebra de reservas: (total - presentes) / total * 100
-          quebra_reservas: s.reservas_totais && s.reservas_totais > 0
-            ? ((s.reservas_totais - (s.reservas_presentes || 0)) / s.reservas_totais) * 100
+          // Quebra de reservas: BASEADO EM PESSOAS, não número de reservas
+          // (Pessoas Total - Pessoas Presentes) / Pessoas Total × 100
+          quebra_reservas: s.pessoas_reservas_totais && s.pessoas_reservas_totais > 0
+            ? ((s.pessoas_reservas_totais - (s.pessoas_reservas_presentes || 0)) / s.pessoas_reservas_totais) * 100
             : null
         }));
         
