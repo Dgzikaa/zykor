@@ -510,8 +510,31 @@ export default function DesempenhoPage() {
     vendas: true
   });
   // Estado para grupos abertos/fechados (para as subcategorias)
+  // TODOS OS GRUPOS EXPANDIDOS POR PADRÃO
   const [gruposAbertos, setGruposAbertos] = useState<Record<string, boolean>>({
-    'guardrail-custos': true, // Custos Operacionais expandido por padrão
+    // GUARDRAIL
+    'guardrail-faturamento': true,
+    'guardrail-cmv': true,
+    'guardrail-ticket': true,
+    'guardrail-custos': true,
+    // OVT
+    'ovt-retencao': true,
+    'ovt-clientes_ativos': true,
+    'ovt-volume': true,
+    'ovt-reservas': true,
+    'ovt-qualidade': true,
+    // PRODUTOS
+    'produtos-stockout': true,
+    'produtos-mix': true,
+    'produtos-producao': true,
+    'produtos-tempos': true,
+    'produtos-atrasos': true,
+    // VENDAS
+    'vendas-horarios': true,
+    'vendas-organico': true,
+    'vendas-pago': true,
+    'vendas-conta_assinada': true,
+    'vendas-descontos': true,
   });
   // Visão: 'semanal' ou 'mensal'
   const [visao, setVisao] = useState<'semanal' | 'mensal'>('semanal');
