@@ -257,7 +257,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'retencao',
         label: 'Retenção',
-        agregacao: { tipo: 'media', formato: 'percentual' },
+        agregacao: { tipo: 'soma', formato: 'percentual' },
         metricas: [
           { key: 'retencao_1m', label: 'Retenção 1 mês', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram em 30 dias', formato: 'percentual' },
           { key: 'retencao_2m', label: 'Retenção 2 meses', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram em 60 dias', formato: 'percentual' },
@@ -421,7 +421,13 @@ const formatarValor = (valor: number | null | undefined, formato: string, sufixo
       // Arredondar para 2 casas decimais (ex: 9.385 → 9.39)
       return (Math.round(valor * 100) / 100).toFixed(2).replace('.', ',') + (sufixo || '');
     default:
-      return valor.toLocaleString('pt-BR') + (sufixo || '');
+      // Números inteiros sem casas decimais, números decimais com até 2 casas
+      const valorArredondado = Math.round(valor * 100) / 100;
+      const isInteiro = valorArredondado === Math.floor(valorArredondado);
+      return new Intl.NumberFormat('pt-BR', { 
+        minimumFractionDigits: 0, 
+        maximumFractionDigits: isInteiro ? 0 : 2 
+      }).format(valorArredondado) + (sufixo || '');
   }
 };
 
@@ -496,38 +502,55 @@ export default function DesempenhoPage() {
     setLoading(true);
     try {
       if (visao === 'mensal') {
-        // Carregar dados mensais - todos os meses do ano atual
+        // Carregar dados mensais - desde março/2025 até o mês atual
         const anoAtual = new Date().getFullYear();
         const mesAtual = new Date().getMonth() + 1;
-        const mesesData: DadosSemana[] = [];
+        
+        // Gerar lista de meses desde março/2025 até o mês atual
+        const mesesParaCarregar: { mes: number; ano: number }[] = [];
+        const anoInicio = 2025;
+        const mesInicio = 3; // Março
+        
+        for (let ano = anoInicio; ano <= anoAtual; ano++) {
+          const mesInicialDoAno = ano === anoInicio ? mesInicio : 1;
+          const mesFinalDoAno = ano === anoAtual ? mesAtual : 12;
+          
+          for (let mes = mesInicialDoAno; mes <= mesFinalDoAno; mes++) {
+            mesesParaCarregar.push({ mes, ano });
+          }
+        }
         
         // Carregar todos os meses em paralelo
-        const promises = Array.from({ length: 12 }, (_, i) => i + 1).map(mes =>
-          fetch(`/api/estrategico/desempenho/mensal?mes=${mes}&ano=${anoAtual}`, {
+        const promises = mesesParaCarregar.map(({ mes, ano }) =>
+          fetch(`/api/estrategico/desempenho/mensal?mes=${mes}&ano=${ano}`, {
             headers: {
               'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
             }
-          }).then(r => r.json())
+          }).then(r => r.json()).then(data => ({ data, mes, ano }))
         );
         
         const resultados = await Promise.all(promises);
         
-        resultados.forEach((data, idx) => {
-          const mes = idx + 1;
-          const nomesMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-          
-          mesesData.push({
-            id: mes,
+        // Ordenar do mais recente para o mais antigo
+        const mesesData: DadosSemana[] = resultados
+          .map(({ data, mes, ano }) => ({
+            id: ano * 100 + mes, // ID único baseado em ano e mês
             numero_semana: mes, // Usamos numero_semana para armazenar o mês
-            ano: anoAtual,
-            data_inicio: `${anoAtual}-${String(mes).padStart(2, '0')}-01`,
-            data_fim: `${anoAtual}-${String(mes).padStart(2, '0')}-${new Date(anoAtual, mes, 0).getDate()}`,
-            ...(data.consolidado || {})
-          } as DadosSemana);
-        });
+            ano: ano,
+            data_inicio: `${ano}-${String(mes).padStart(2, '0')}-01`,
+            data_fim: `${ano}-${String(mes).padStart(2, '0')}-${new Date(ano, mes, 0).getDate()}`,
+            ...(data.mes || {})
+          } as DadosSemana))
+          .sort((a, b) => {
+            // Ordenar do mais recente para o mais antigo
+            if (b.ano !== a.ano) return b.ano - a.ano;
+            return b.numero_semana - a.numero_semana;
+          });
         
         setSemanas(mesesData);
-        setSemanaAtualIdx(mesAtual - 1);
+        // Encontrar o índice do mês atual
+        const idxMesAtual = mesesData.findIndex(m => m.ano === anoAtual && m.numero_semana === mesAtual);
+        setSemanaAtualIdx(idxMesAtual >= 0 ? idxMesAtual : 0);
         
       } else {
         // Carregar dados semanais
