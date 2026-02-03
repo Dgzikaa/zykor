@@ -258,18 +258,27 @@ const SECOES: SecaoConfig[] = [
         label: 'Retenção',
         agregacao: { tipo: 'media', formato: 'percentual' },
         metricas: [
-          { key: 'retencao_1m', label: 'Retenção 1 mês', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram', formato: 'percentual' },
-          { key: 'retencao_2m', label: 'Retenção 2 meses', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram', formato: 'percentual' },
-          { key: 'perc_clientes_novos', label: '% Novos Clientes', status: 'auto', fonte: 'Stored Procedure', calculo: 'Novos / Total', formato: 'percentual' },
+          { key: 'retencao_1m', label: 'Retenção 1 mês', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram em 30 dias', formato: 'percentual' },
+          { key: 'retencao_2m', label: 'Retenção 2 meses', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram em 60 dias', formato: 'percentual' },
+        ]
+      },
+      {
+        id: 'clientes_ativos',
+        label: 'Clientes Ativos',
+        agregacao: { tipo: 'soma', formato: 'numero' },
+        metricas: [
+          { key: 'clientes_30d', label: 'Clientes 30 dias', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes que vieram 2+ vezes em 30 dias', formato: 'numero' },
+          { key: 'clientes_60d', label: 'Clientes 60 dias', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes que vieram 2+ vezes em 60 dias', formato: 'numero' },
+          { key: 'clientes_90d', label: 'Clientes 90 dias', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes que vieram 2+ vezes em 90 dias', formato: 'numero' },
         ]
       },
       {
         id: 'volume',
         label: 'Volume',
-        agregacao: { tipo: 'soma', formato: 'numero' },
+        // Sem agregação: Visitas e % Novos têm contextos diferentes
         metricas: [
-          { key: 'clientes_atendidos', label: 'Visitas', status: 'auto', fonte: 'ContaHub + Yuzer', calculo: 'Soma de pessoas', formato: 'numero' },
-          { key: 'clientes_ativos', label: 'Clientes Ativos', status: 'auto', fonte: 'Stored Procedure', calculo: '2+ visitas em 90 dias', formato: 'numero' },
+          { key: 'clientes_atendidos', label: 'Visitas', status: 'auto', fonte: 'ContaHub + Yuzer', calculo: 'Soma de pessoas na semana', formato: 'numero' },
+          { key: 'perc_clientes_novos', label: '% Novos Clientes', status: 'auto', fonte: 'Stored Procedure', calculo: 'Novos / Total', formato: 'percentual' },
         ]
       },
       {
