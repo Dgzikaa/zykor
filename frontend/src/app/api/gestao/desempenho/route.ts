@@ -157,16 +157,33 @@ export async function DELETE(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
+    console.log('PUT desempenho - body:', JSON.stringify(body));
+    
     const userDataHeader = request.headers.get('x-user-data');
-    const barId = userDataHeader
-      ? JSON.parse(decodeURIComponent(userDataHeader)).bar_id
-      : null;
+    console.log('PUT desempenho - userDataHeader:', userDataHeader);
+    
+    let barId = null;
+    if (userDataHeader) {
+      try {
+        const decoded = decodeURIComponent(userDataHeader);
+        console.log('PUT desempenho - decoded:', decoded);
+        const parsed = JSON.parse(decoded);
+        barId = parsed.bar_id;
+      } catch (parseError) {
+        console.error('Erro ao parsear header:', parseError);
+        return NextResponse.json(
+          { success: false, error: 'Erro ao parsear header x-user-data' },
+          { status: 400 }
+        );
+      }
+    }
 
     const { id, ...updateData } = body;
+    console.log('PUT desempenho - barId:', barId, 'id:', id, 'updateData:', JSON.stringify(updateData));
 
     if (!barId || !id) {
       return NextResponse.json(
-        { success: false, error: 'Parâmetros inválidos' },
+        { success: false, error: `Parâmetros inválidos: barId=${barId}, id=${id}` },
         { status: 400 }
       );
     }
@@ -190,13 +207,14 @@ export async function PUT(request: Request) {
       .single();
 
     if (error) {
-      console.error('Erro ao atualizar:', error);
+      console.error('Erro Supabase ao atualizar:', error);
       return NextResponse.json(
-        { success: false, error: 'Erro ao atualizar registro' },
+        { success: false, error: `Erro ao atualizar: ${error.message}` },
         { status: 500 }
       );
     }
 
+    console.log('PUT desempenho - sucesso:', data);
     return NextResponse.json({ 
       success: true, 
       message: 'Registro atualizado com sucesso',
@@ -204,9 +222,9 @@ export async function PUT(request: Request) {
     });
 
   } catch (error) {
-    console.error('Erro ao atualizar:', error);
+    console.error('Erro geral ao atualizar:', error);
     return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
+      { success: false, error: `Erro interno: ${error instanceof Error ? error.message : String(error)}` },
       { status: 500 }
     );
   }
