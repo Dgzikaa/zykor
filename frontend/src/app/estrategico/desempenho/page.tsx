@@ -275,7 +275,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'reservas',
         label: 'Reservas',
-        agregacao: { tipo: 'soma', formato: 'numero' },
+        // Sem agregação: formato especial "reservas/pessoas"
         metricas: [
           { key: 'reservas_totais', label: 'Reservas Realizadas', status: 'auto', fonte: 'GetIn', calculo: 'Total reservas/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_totais' },
           { key: 'reservas_presentes', label: 'Reservas Presentes', status: 'auto', fonte: 'GetIn', calculo: 'Reservas seated/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_presentes' },
@@ -284,7 +284,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'qualidade',
         label: 'Qualidade',
-        agregacao: { tipo: 'media', formato: 'decimal' },
+        // Sem agregação: métricas têm formatos e escalas diferentes (quantidade, nota, NPS)
         metricas: [
           { key: 'avaliacoes_5_google_trip', label: 'Avaliações 5★', status: 'nao_confiavel', fonte: 'Windsor', calculo: 'Verificar bar_id', formato: 'numero' },
           { key: 'media_avaliacoes_google', label: 'Média Google', status: 'nao_confiavel', fonte: 'Windsor', calculo: 'Verificar sincronização', formato: 'decimal' },
@@ -359,7 +359,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'horarios',
         label: 'Horários',
-        agregacao: { tipo: 'soma', formato: 'percentual' },
+        // Sem agregação: métricas têm formatos diferentes (% e R$)
         metricas: [
           { key: 'perc_faturamento_ate_19h', label: '% Fat. até 19h', status: 'auto', fonte: 'eventos_base', calculo: 'Média fat_19h_percent', formato: 'percentual' },
           { key: 'perc_faturamento_apos_22h', label: '% Fat. após 22h', status: 'auto', fonte: 'contahub_fatporhora', calculo: 'Soma após 22h', formato: 'percentual' },
@@ -369,7 +369,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'organico',
         label: 'Marketing Orgânico',
-        agregacao: { tipo: 'soma', formato: 'numero' },
+        // Sem agregação: métricas têm formatos diferentes (numero e %)
         metricas: [
           { key: 'o_num_posts', label: 'Nº Posts', status: 'manual', fonte: 'Marketing', calculo: 'Manual', formato: 'numero', editavel: true },
           { key: 'o_alcance', label: 'Alcance Orgânico', status: 'manual', fonte: 'Marketing', calculo: 'Manual', formato: 'numero', editavel: true },
@@ -379,7 +379,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'pago',
         label: 'Marketing Pago',
-        agregacao: { tipo: 'soma', formato: 'moeda' },
+        // Sem agregação: métricas têm formatos diferentes (moeda, numero, %)
         metricas: [
           { key: 'm_valor_investido', label: 'Investido Ads', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda', editavel: true },
           { key: 'm_alcance', label: 'Alcance Pago', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
@@ -990,10 +990,16 @@ export default function DesempenhoPage() {
                                     </span>
                                   )
                                 ) : (
-                                  // Grupo plano: mostra valor agregado (média, soma, ou fixo)
-                                  <span className="text-xs font-medium text-gray-900 dark:text-white text-center">
-                                    {valorAgregadoFormatado}
-                                  </span>
+                                  // Grupo plano: mostra valor agregado ou "..." se não tem agregação
+                                  grupo.agregacao ? (
+                                    <span className="text-xs font-medium text-gray-900 dark:text-white text-center">
+                                      {valorAgregadoFormatado}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                                      ...
+                                    </span>
+                                  )
                                 )}
                                 {hierarquico && !isEditandoPrincipal && metricaPrincipal?.editavel && semana.id && (
                                   <Button
