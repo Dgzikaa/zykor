@@ -688,7 +688,7 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   // 12.2 TEMPO E ATRASOS (contahub_tempo)
   // NOTA: tempos estão em SEGUNDOS, precisamos converter para minutos
   // Bar usa t0_t3 (lançamento até entrega), Cozinha usa t0_t2
-  const tempoData = await fetchAllData(supabase, 'contahub_tempo', 'categoria, loc_desc, t0_t2, t0_t3, t1_t2, itm_qtd', {
+  const tempoData = await fetchAllData(supabase, 'contahub_tempo', 'categoria, loc_desc, t0_t2, t0_t3, t1_t2, itm_qtd, itm_desc, produto_nome, data', {
     'gte_data': startDate,
     'lte_data': endDate,
     'eq_bar_id': barId
@@ -721,12 +721,106 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   const tempoSaidaCozinha = tempoSaidaCozinhaSegundos / 60
 
   // Atrasos - Drinks com t0_t3 > 10min = 600s, Cozinha com t0_t2 > 20min = 1200s
-  const atrasosDrinks = tempoDrinks.filter(item => (parseFloat(item.t0_t3) || 0) > 600).length
-  const atrasosCozinha = tempoCozinha.filter(item => (parseFloat(item.t0_t2) || 0) > 1200).length
+  const atrasadosDrinks = tempoDrinks.filter(item => (parseFloat(item.t0_t3) || 0) > 600)
+  const atrasadosCozinha = tempoCozinha.filter(item => (parseFloat(item.t0_t2) || 0) > 1200)
+  
+  const atrasosDrinks = atrasadosDrinks.length
+  const atrasosCozinha = atrasadosCozinha.length
 
   // % Atrasos
   const percAtrasosDrinks = tempoDrinks.length > 0 ? (atrasosDrinks / tempoDrinks.length) * 100 : 0
   const percAtrasosCozinha = tempoCozinha.length > 0 ? (atrasosCozinha / tempoCozinha.length) * 100 : 0
+
+  // Agrupar atrasos por dia da semana com detalhes dos itens
+  const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+  
+  // Detalhes Drinks
+  const atrasosBarDetalhes: any[] = []
+  const atrasosDrinksPorDia = new Map<string, Map<string, { quantidade: number, atrasoTotal: number }>>()
+  
+  atrasadosDrinks.forEach(item => {
+    const data = new Date(item.data)
+    const diaSemana = diasSemana[data.getDay()]
+    const produtoNome = item.produto_nome || item.itm_desc || 'Item sem nome'
+    const atrasoMinutos = parseFloat(item.t0_t3) / 60
+    
+    if (!atrasosDrinksPorDia.has(diaSemana)) {
+      atrasosDrinksPorDia.set(diaSemana, new Map())
+    }
+    
+    const diaMap = atrasosDrinksPorDia.get(diaSemana)!
+    if (!diaMap.has(produtoNome)) {
+      diaMap.set(produtoNome, { quantidade: 0, atrasoTotal: 0 })
+    }
+    
+    const produto = diaMap.get(produtoNome)!
+    produto.quantidade += 1
+    produto.atrasoTotal += atrasoMinutos
+  })
+  
+  // Ordenar por dia da semana e converter para array
+  diasSemana.forEach(dia => {
+    if (atrasosDrinksPorDia.has(dia)) {
+      const produtos = Array.from(atrasosDrinksPorDia.get(dia)!.entries())
+        .map(([nome, dados]) => ({
+          nome,
+          quantidade: dados.quantidade,
+          atraso_minutos: dados.atrasoTotal / dados.quantidade // Média de atraso
+        }))
+        .sort((a, b) => b.atraso_minutos - a.atraso_minutos) // Maior atraso primeiro
+      
+      if (produtos.length > 0) {
+        atrasosBarDetalhes.push({
+          dia_semana: dia,
+          itens: produtos
+        })
+      }
+    }
+  })
+  
+  // Detalhes Cozinha
+  const atrasosCozinhaDetalhes: any[] = []
+  const atrasosCozinhaPorDia = new Map<string, Map<string, { quantidade: number, atrasoTotal: number }>>()
+  
+  atrasadosCozinha.forEach(item => {
+    const data = new Date(item.data)
+    const diaSemana = diasSemana[data.getDay()]
+    const produtoNome = item.produto_nome || item.itm_desc || 'Item sem nome'
+    const atrasoMinutos = parseFloat(item.t0_t2) / 60
+    
+    if (!atrasosCozinhaPorDia.has(diaSemana)) {
+      atrasosCozinhaPorDia.set(diaSemana, new Map())
+    }
+    
+    const diaMap = atrasosCozinhaPorDia.get(diaSemana)!
+    if (!diaMap.has(produtoNome)) {
+      diaMap.set(produtoNome, { quantidade: 0, atrasoTotal: 0 })
+    }
+    
+    const produto = diaMap.get(produtoNome)!
+    produto.quantidade += 1
+    produto.atrasoTotal += atrasoMinutos
+  })
+  
+  // Ordenar por dia da semana e converter para array
+  diasSemana.forEach(dia => {
+    if (atrasosCozinhaPorDia.has(dia)) {
+      const produtos = Array.from(atrasosCozinhaPorDia.get(dia)!.entries())
+        .map(([nome, dados]) => ({
+          nome,
+          quantidade: dados.quantidade,
+          atraso_minutos: dados.atrasoTotal / dados.quantidade // Média de atraso
+        }))
+        .sort((a, b) => b.atraso_minutos - a.atraso_minutos) // Maior atraso primeiro
+      
+      if (produtos.length > 0) {
+        atrasosCozinhaDetalhes.push({
+          dia_semana: dia,
+          itens: produtos
+        })
+      }
+    }
+  })
 
   console.log(`⏱️ Tempo Drinks (t0_t3): ${tempoSaidaDrinks.toFixed(1)}min (${atrasosDrinks} atrasos >10min, ${percAtrasosDrinks.toFixed(1)}%)`)
   console.log(`⏱️ Tempo Cozinha (t0_t2): ${tempoSaidaCozinha.toFixed(1)}min (${atrasosCozinha} atrasos >20min, ${percAtrasosCozinha.toFixed(1)}%)`)
@@ -1039,6 +1133,8 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     atrasos_cozinha: Math.round(atrasosCozinha), // Atrasos de comida > 20min
     atrasos_bar_perc: percAtrasosDrinks,
     atrasos_cozinha_perc: percAtrasosCozinha,
+    atrasos_bar_detalhes: atrasosBarDetalhes,
+    atrasos_cozinha_detalhes: atrasosCozinhaDetalhes,
     stockout_bar: stockoutBar,
     stockout_comidas: stockoutCozinha,
     stockout_drinks: stockoutDrinks,

@@ -87,10 +87,12 @@ interface DadosSemana {
   qtde_itens_bar: number;
   atrasos_bar: number;
   atrasos_bar_perc?: number;
+  atrasos_bar_detalhes?: { dia_semana: string; itens: { nome: string; atraso_minutos: number; quantidade: number }[] }[];
   tempo_saida_bar: number;
   qtde_itens_cozinha: number;
   atrasos_cozinha: number;
   atrasos_cozinha_perc?: number;
+  atrasos_cozinha_detalhes?: { dia_semana: string; itens: { nome: string; atraso_minutos: number; quantidade: number }[] }[];
   tempo_saida_cozinha: number;
   perc_faturamento_ate_19h: number;
   perc_faturamento_apos_22h?: number;
@@ -365,8 +367,8 @@ const SECOES: SecaoConfig[] = [
         label: 'Atrasos',
         agregacao: { tipo: 'soma', formato: 'numero' },
         metricas: [
-          { key: 'atrasos_bar', label: 'Atrasos Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 'Drinks preparados t0_t3 > 10min (Batidos, Montados, Mexido, Preshh, Drinks, Drinks Autorais, Shot e Dose)', formato: 'numero', inverso: true },
-          { key: 'atrasos_cozinha', label: 'Atrasos Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 'Comida t0_t2 > 20min (Cozinha 1, Cozinha 2)', formato: 'numero', inverso: true },
+          { key: 'atrasos_bar', label: 'Atrasos Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 'Drinks preparados t0_t3 > 10min (Batidos, Montados, Mexido, Preshh, Drinks, Drinks Autorais, Shot e Dose)', formato: 'numero', inverso: true, temTooltipDetalhes: true },
+          { key: 'atrasos_cozinha', label: 'Atrasos Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 'Comida t0_t2 > 20min (Cozinha 1, Cozinha 2)', formato: 'numero', inverso: true, temTooltipDetalhes: true },
         ]
       }
     ]
@@ -1151,9 +1153,11 @@ export default function DesempenhoPage() {
                                       : '-')
                                   : formatarValor(valor, metrica.formato, metrica.sufixo);
                                 
-                                // Tooltip de detalhes especial (ex: motivos de desconto)
-                                const temDetalhes = metrica.temTooltipDetalhes && metrica.key === 'descontos_valor';
-                                const detalhesDesconto = temDetalhes ? (semana as any).descontos_detalhes : null;
+                                // Tooltip de detalhes especial (ex: motivos de desconto, atrasos por dia)
+                                const temDetalhes = metrica.temTooltipDetalhes;
+                                const detalhesDesconto = temDetalhes && metrica.key === 'descontos_valor' ? (semana as any).descontos_detalhes : null;
+                                const detalhesAtrasosDrinks = temDetalhes && metrica.key === 'atrasos_bar' ? (semana as any).atrasos_bar_detalhes : null;
+                                const detalhesAtrasosCozinha = temDetalhes && metrica.key === 'atrasos_cozinha' ? (semana as any).atrasos_cozinha_detalhes : null;
                                 
                                 return (
                                   <div 
@@ -1219,6 +1223,52 @@ export default function DesempenhoPage() {
                                                           </span>
                                                           <span className="text-gray-700 dark:text-gray-300 font-medium">
                                                             {formatarValor(dia.valor, 'moeda')}
+                                                          </span>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    ) : temDetalhes && (detalhesAtrasosDrinks || detalhesAtrasosCozinha) && (detalhesAtrasosDrinks?.length > 0 || detalhesAtrasosCozinha?.length > 0) ? (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <span className="text-xs text-gray-600 dark:text-gray-400 text-center cursor-help underline decoration-dotted">
+                                              {valorFormatado}
+                                            </span>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" className="max-w-md p-3 bg-white dark:bg-gray-800 shadow-lg">
+                                            <div className="space-y-1">
+                                              <div className="font-semibold text-sm text-gray-900 dark:text-white mb-3 flex items-center justify-between">
+                                                <span>Atrasos por Dia da Semana</span>
+                                                <span className="text-xs font-normal text-gray-500">
+                                                  {(detalhesAtrasosDrinks || detalhesAtrasosCozinha)?.length || 0} dias
+                                                </span>
+                                              </div>
+                                              <div className="max-h-96 overflow-y-auto space-y-3 pr-2">
+                                                {(detalhesAtrasosDrinks || detalhesAtrasosCozinha)?.map((d: any, i: number) => (
+                                                  <div key={i} className="border-b border-gray-200 dark:border-gray-700 pb-2 last:border-b-0">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                      <span className="text-xs font-semibold text-gray-900 dark:text-white">
+                                                        {d.dia_semana}
+                                                      </span>
+                                                      <span className="text-xs font-bold text-red-600 dark:text-red-400">
+                                                        {d.itens.reduce((sum: number, item: any) => sum + item.quantidade, 0)} atrasos
+                                                      </span>
+                                                    </div>
+                                                    <div className="space-y-0.5 mt-1">
+                                                      {d.itens.map((item: any, j: number) => (
+                                                        <div key={j} className="flex justify-between text-xs pl-2">
+                                                          <span className="text-gray-600 dark:text-gray-400 truncate max-w-[200px]" title={item.nome}>
+                                                            {item.nome}
+                                                          </span>
+                                                          <span className="text-gray-700 dark:text-gray-300 font-medium ml-2 flex-shrink-0">
+                                                            {item.quantidade}x ({item.atraso_minutos.toFixed(1)}min)
                                                           </span>
                                                         </div>
                                                       ))}
