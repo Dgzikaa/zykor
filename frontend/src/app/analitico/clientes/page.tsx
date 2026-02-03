@@ -636,6 +636,7 @@ export default function ClientesPage() {
         tamanhoGrupoMax: segmento.criterios.tamanhoGrupoMax || '',
         temEmail: segmento.criterios.temEmail || '',
         temTelefone: segmento.criterios.temTelefone || '',
+        mesAniversario: segmento.criterios.mesAniversario || '',
       })
       toast({
         title: "Segmento carregado",
