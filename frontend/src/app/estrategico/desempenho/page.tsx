@@ -124,7 +124,7 @@ interface MetricaConfig {
 }
 
 // Tipo de agregação para grupos planos
-type TipoAgregacao = 'media' | 'soma' | 'fixa';
+type TipoAgregacao = 'media' | 'soma' | 'fixa' | 'campo';
 
 // Grupo de métricas relacionadas
 interface GrupoMetricas {
@@ -135,6 +135,7 @@ interface GrupoMetricas {
   agregacao?: {
     tipo: TipoAgregacao;
     valorFixo?: number;   // Para tipo 'fixa' (ex: 100%)
+    campo?: string;       // Para tipo 'campo' (ex: 'clientes_ativos')
     formato: string;      // Formato de exibição (percentual, numero, etc)
     sufixo?: string;
   };
@@ -174,6 +175,12 @@ const calcularValorAgregado = (grupo: GrupoMetricas, semana: any): number | null
   // Valor fixo (ex: Mix de Vendas = 100%)
   if (grupo.agregacao.tipo === 'fixa' && grupo.agregacao.valorFixo !== undefined) {
     return grupo.agregacao.valorFixo;
+  }
+  
+  // Campo específico (ex: Clientes Ativos usa o campo 'clientes_ativos' direto)
+  if (grupo.agregacao.tipo === 'campo' && grupo.agregacao.campo) {
+    const valor = semana[grupo.agregacao.campo];
+    return valor !== null && valor !== undefined ? Number(valor) : null;
   }
   
   // Coleta valores válidos das métricas
@@ -266,11 +273,11 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'clientes_ativos',
         label: 'Clientes Ativos',
-        agregacao: { tipo: 'soma', formato: 'numero' },
+        agregacao: { tipo: 'campo', campo: 'clientes_ativos', formato: 'numero' },
         metricas: [
-          { key: 'clientes_30d', label: 'Clientes 30 dias', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes que vieram 2+ vezes em 30 dias', formato: 'numero' },
-          { key: 'clientes_60d', label: 'Clientes 60 dias', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes que vieram 2+ vezes em 60 dias', formato: 'numero' },
-          { key: 'clientes_90d', label: 'Clientes 90 dias', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes que vieram 2+ vezes em 90 dias', formato: 'numero' },
+          { key: 'clientes_30d', label: 'Clientes 30 dias', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes com 2+ visitas nos últimos 30 dias', formato: 'numero' },
+          { key: 'clientes_60d', label: 'Clientes 60 dias', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes com 2+ visitas entre 31-60 dias', formato: 'numero' },
+          { key: 'clientes_90d', label: 'Clientes 90 dias', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes com 2+ visitas entre 61-90 dias', formato: 'numero' },
         ]
       },
       {
