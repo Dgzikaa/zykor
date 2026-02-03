@@ -157,8 +157,9 @@ export async function DELETE(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const barId = request.headers.get('x-user-data')
-      ? JSON.parse(request.headers.get('x-user-data') || '{}').bar_id
+    const userDataHeader = request.headers.get('x-user-data');
+    const barId = userDataHeader
+      ? JSON.parse(decodeURIComponent(userDataHeader)).bar_id
       : null;
 
     const { id, ...updateData } = body;
