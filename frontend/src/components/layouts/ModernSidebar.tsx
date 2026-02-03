@@ -236,6 +236,13 @@ const defaultSidebarItems: SidebarItem[] = [
           icon: MessageCircle,
           label: 'Voz do Cliente',
           href: '/ferramentas/voz-cliente',
+          description: 'Feedbacks e comentários dos clientes',
+          permission: 'gestao',
+        },
+        {
+          icon: MessageCircle,
+          label: 'Voz do Cliente',
+          href: '/ferramentas/voz-cliente',
           description: 'Feedbacks positivos, negativos e sugestões',
           permission: 'gestao',
         },
