@@ -295,8 +295,8 @@ const SECOES: SecaoConfig[] = [
         label: 'Qualidade',
         // Sem agregação: métricas têm formatos e escalas diferentes (quantidade, nota, NPS)
         metricas: [
-          { key: 'avaliacoes_5_google_trip', label: 'Avaliações 5★', status: 'nao_confiavel', fonte: 'Windsor', calculo: 'Verificar bar_id', formato: 'numero' },
-          { key: 'media_avaliacoes_google', label: 'Média Google', status: 'nao_confiavel', fonte: 'Windsor', calculo: 'Verificar sincronização', formato: 'decimal' },
+          { key: 'avaliacoes_5_google_trip', label: 'Avaliações 5★ Google', status: 'manual', fonte: 'SuperSal', calculo: 'Relatório semanal', formato: 'numero', editavel: true },
+          { key: 'media_avaliacoes_google', label: 'Média Google', status: 'manual', fonte: 'SuperSal', calculo: 'Relatório semanal', formato: 'decimal', editavel: true },
           { key: 'nps_reservas', label: 'NPS Reservas', status: 'auto', fonte: 'NPS', calculo: 'Média das notas', formato: 'numero' },
           { key: 'nota_felicidade_equipe', label: 'Felicidade Equipe', status: 'manual', fonte: 'Pesquisa', calculo: 'Manual', formato: 'numero', editavel: true },
         ]
