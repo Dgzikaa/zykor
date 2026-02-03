@@ -5,6 +5,70 @@
 
 ---
 
+## 2026-02
+
+### 2026-02-03 - Melhorias UX e Otimizações de Performance
+
+**O que foi feito:**
+
+1. **Otimização Performance Planejamento Comercial:**
+   - ✅ Corrigido "loop infinito" e lentidão na página `/estrategico/planejamento-comercial`
+   - ✅ Implementado `useCallback` e `useRef` para prevenir re-renders desnecessários
+   - ✅ Consolidados múltiplos `useEffect` em um único otimizado
+   - ✅ Adicionado cache para modal data (`modalDataCacheRef`)
+   - ✅ Refatorado `abrirModal` para usar `Promise.all` (chamadas paralelas)
+   - ✅ Extraído cálculos pesados para `useMemo` (`totaisAgregados`)
+   - ✅ Removidos IIFEs em JSX, substituídos por valores memoizados
+
+2. **Melhorias UX Desempenho:**
+   - ✅ Grupos específicos colapsados por padrão: "Faturamento Total", "CMV Teórico", "Ticket Médio"
+   - ✅ Todos os outros grupos expandidos por padrão (OVT, Produtos, Vendas)
+   - ✅ Scrollbar horizontal visível adicionada à página "Orçamentação"
+   - ✅ Navegação entre meses facilitada com scroll horizontal
+
+3. **Correção Quebra de Reservas:**
+   - ✅ Cálculo agora baseado em **número de pessoas** (não número de reservas)
+   - ✅ Fórmula: `(Pessoas Total - Pessoas Presentes) / Pessoas Total × 100`
+   - ✅ Frontend e backend atualizados
+
+4. **Refinamento Atrasos (Bar/Cozinha):**
+   - ✅ **Atrasos Drinks**: apenas delays > 10 minutos (`t0_t3 > 600s`)
+   - ✅ **Atrasos Comida**: apenas delays > 20 minutos (`t0_t2 > 1200s`)
+   - ✅ Filtros mais específicos:
+     - Drinks: `['Batidos', 'Montados', 'Mexido', 'Preshh', 'Drinks', 'Drinks Autorais', 'Shot e Dose']`
+     - Comida: `['Cozinha', 'Cozinha 1', 'Cozinha 2']` ou categoria `comida`
+   - ✅ Status atualizado de `nao_confiavel` para `auto`
+   - ✅ Descrições (`calculo`) atualizadas no frontend
+
+5. **Agrupamento Inteligente de Descontos:**
+   - ✅ Tooltip de descontos com agrupamento case-insensitive
+   - ✅ Separação por dia da semana (ex: "Domingo: descrição e valor")
+   - ✅ Todos os motivos exibidos com scrollbar (removido limite de 10 itens)
+   - ✅ Termos similares agrupados automaticamente (banda, BANDA, Banda)
+
+6. **Voz do Cliente no Menu:**
+   - ✅ Adicionado link "Voz do Cliente" no menu lateral
+   - ✅ Navegação facilitada para `/relatorios/voz-do-cliente`
+
+7. **Correções TypeScript:**
+   - ✅ Tipos adicionados para `motivo_exibicao` e `por_dia` nos descontos
+   - ✅ Eliminados warnings de tipos no build
+
+**Arquivos alterados:**
+- `frontend/src/app/estrategico/planejamento-comercial/page.tsx` (otimização performance)
+- `frontend/src/app/estrategico/desempenho/page.tsx` (UX grupos, quebra reservas, atrasos, descontos)
+- `frontend/src/app/estrategico/orcamentacao/page.tsx` (scrollbar visível)
+- `backend/supabase/functions/desempenho-semanal-auto/index.ts` (atrasos refinados)
+- `frontend/src/components/layouts/Sidebar.tsx` (Voz do Cliente)
+
+**Problema resolvido:**
+- Página Planejamento Comercial com loop e lentidão → agora rápida e estável
+- Quebra de Reservas com percentual errado → agora usa pessoas (correto)
+- Atrasos contando tudo → agora apenas delays significativos (>10min drinks, >20min comida)
+- Descontos difíceis de visualizar → agora agrupados por dia da semana com scroll
+
+---
+
 ## 2026-01
 
 ### 2026-01-30 - Correção de Tempos Bar/Cozinha e dt_gerencial
