@@ -117,7 +117,15 @@ export async function GET(request: NextRequest) {
     // Buscar todos os pagamentos de Conta Assinada no período
     let contaAssinadaMap = new Map<string, number>();
     // Buscar todos os descontos no período
-    let descontosMap = new Map<string, { valor: number; detalhes: Map<string, { valor: number; qtd: number }> }>();
+    let descontosMap = new Map<string, { 
+      valor: number; 
+      detalhes: Map<string, { 
+        motivo_exibicao: string;
+        valor: number; 
+        qtd: number;
+        por_dia: Map<string, { valor: number; qtd: number }>
+      }> 
+    }>();
     
     if (dataMin && dataMax) {
       // Conta Assinada - buscar com paginação
