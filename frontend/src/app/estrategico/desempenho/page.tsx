@@ -122,11 +122,21 @@ interface MetricaConfig {
   indentado?: boolean; // Indica se está indentado (sub-item de um grupo)
 }
 
+// Tipo de agregação para grupos planos
+type TipoAgregacao = 'media' | 'soma' | 'fixa';
+
 // Grupo de métricas relacionadas
 interface GrupoMetricas {
   id: string;
   label: string;        // Label do grupo (ex: "Faturamento Total")
   metricas: MetricaConfig[];
+  // Para grupos planos: como calcular o valor agregado no header
+  agregacao?: {
+    tipo: TipoAgregacao;
+    valorFixo?: number;   // Para tipo 'fixa' (ex: 100%)
+    formato: string;      // Formato de exibição (percentual, numero, etc)
+    sufixo?: string;
+  };
 }
 
 interface SecaoConfig {
@@ -154,6 +164,39 @@ const isGrupoHierarquico = (grupo: GrupoMetricas): boolean => {
   const labelGrupo = grupo.label.toLowerCase().replace(/[%]/g, '').trim();
   const labelMetrica = grupo.metricas[0].label.toLowerCase().replace(/[%]/g, '').trim();
   return labelGrupo === labelMetrica;
+};
+
+// Helper: calcula valor agregado para grupos planos
+const calcularValorAgregado = (grupo: GrupoMetricas, semana: any): number | null => {
+  if (!grupo.agregacao) return null;
+  
+  // Valor fixo (ex: Mix de Vendas = 100%)
+  if (grupo.agregacao.tipo === 'fixa' && grupo.agregacao.valorFixo !== undefined) {
+    return grupo.agregacao.valorFixo;
+  }
+  
+  // Coleta valores válidos das métricas
+  const valores: number[] = [];
+  for (const metrica of grupo.metricas) {
+    const valor = semana[metrica.key];
+    if (valor !== null && valor !== undefined && typeof valor === 'number') {
+      valores.push(valor);
+    }
+  }
+  
+  if (valores.length === 0) return null;
+  
+  // Média
+  if (grupo.agregacao.tipo === 'media') {
+    return valores.reduce((a, b) => a + b, 0) / valores.length;
+  }
+  
+  // Soma
+  if (grupo.agregacao.tipo === 'soma') {
+    return valores.reduce((a, b) => a + b, 0);
+  }
+  
+  return null;
 };
 
 // Configuração das seções e métricas COM AGRUPAMENTO
@@ -196,6 +239,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'custos',
         label: 'Custos Operacionais',
+        agregacao: { tipo: 'soma', formato: 'percentual' },
         metricas: [
           { key: 'cmo', label: 'CMO %', status: 'auto', fonte: 'NIBO', calculo: 'Custos MO / Faturamento', formato: 'percentual', inverso: true },
           { key: 'custo_atracao_faturamento', label: 'Atração/Fat.', status: 'auto', fonte: 'NIBO', calculo: 'Atrações / Faturamento', formato: 'percentual', inverso: true },
@@ -212,6 +256,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'retencao',
         label: 'Retenção',
+        agregacao: { tipo: 'media', formato: 'percentual' },
         metricas: [
           { key: 'retencao_1m', label: 'Retenção 1 mês', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram', formato: 'percentual' },
           { key: 'retencao_2m', label: 'Retenção 2 meses', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram', formato: 'percentual' },
@@ -221,6 +266,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'volume',
         label: 'Volume',
+        agregacao: { tipo: 'soma', formato: 'numero' },
         metricas: [
           { key: 'clientes_atendidos', label: 'Visitas', status: 'auto', fonte: 'ContaHub + Yuzer', calculo: 'Soma de pessoas', formato: 'numero' },
           { key: 'clientes_ativos', label: 'Clientes Ativos', status: 'auto', fonte: 'Stored Procedure', calculo: '2+ visitas em 90 dias', formato: 'numero' },
@@ -229,6 +275,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'reservas',
         label: 'Reservas',
+        agregacao: { tipo: 'soma', formato: 'numero' },
         metricas: [
           { key: 'reservas_totais', label: 'Reservas Realizadas', status: 'auto', fonte: 'GetIn', calculo: 'Total reservas/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_totais' },
           { key: 'reservas_presentes', label: 'Reservas Presentes', status: 'auto', fonte: 'GetIn', calculo: 'Reservas seated/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_presentes' },
@@ -237,6 +284,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'qualidade',
         label: 'Qualidade',
+        agregacao: { tipo: 'media', formato: 'decimal' },
         metricas: [
           { key: 'avaliacoes_5_google_trip', label: 'Avaliações 5★', status: 'nao_confiavel', fonte: 'Windsor', calculo: 'Verificar bar_id', formato: 'numero' },
           { key: 'media_avaliacoes_google', label: 'Média Google', status: 'nao_confiavel', fonte: 'Windsor', calculo: 'Verificar sincronização', formato: 'decimal' },
@@ -255,6 +303,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'stockout',
         label: 'Stockout',
+        agregacao: { tipo: 'media', formato: 'percentual' },
         metricas: [
           { key: 'stockout_comidas_perc', label: '% Stockout Comidas', status: 'auto', fonte: 'ContaHub Stockout', calculo: 'Média da semana: Cozinha 1 + Cozinha 2', formato: 'percentual', inverso: true },
           { key: 'stockout_drinks_perc', label: '% Stockout Drinks', status: 'auto', fonte: 'ContaHub Stockout', calculo: 'Média da semana: Batidos + Montados + Mexido + Preshh', formato: 'percentual', inverso: true },
@@ -264,6 +313,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'mix',
         label: 'Mix de Vendas',
+        agregacao: { tipo: 'fixa', valorFixo: 100, formato: 'percentual' },
         metricas: [
           { key: 'perc_bebidas', label: '% Bebidas', status: 'auto', fonte: 'eventos_base', calculo: 'Média percent_b', formato: 'percentual' },
           { key: 'perc_drinks', label: '% Drinks', status: 'auto', fonte: 'eventos_base', calculo: 'Média percent_d', formato: 'percentual' },
@@ -274,6 +324,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'producao',
         label: 'Produção',
+        agregacao: { tipo: 'soma', formato: 'numero' },
         metricas: [
           { key: 'qtde_itens_bar', label: 'Itens Bar', status: 'auto', fonte: 'contahub_analitico', calculo: 'Soma qtd bar', formato: 'numero' },
           { key: 'qtde_itens_cozinha', label: 'Itens Cozinha', status: 'auto', fonte: 'contahub_analitico', calculo: 'Soma qtd cozinha', formato: 'numero' },
@@ -281,10 +332,18 @@ const SECOES: SecaoConfig[] = [
       },
       {
         id: 'tempos',
-        label: 'Tempos & Atrasos',
+        label: 'Tempos',
+        agregacao: { tipo: 'media', formato: 'decimal', sufixo: ' min' },
         metricas: [
-          { key: 'tempo_saida_bar', label: 'Tempo Bar (min)', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 'Média t0_t3', formato: 'decimal', inverso: true, sufixo: ' min' },
-          { key: 'tempo_saida_cozinha', label: 'Tempo Cozinha (min)', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 'Média t0_t2', formato: 'decimal', inverso: true, sufixo: ' min' },
+          { key: 'tempo_saida_bar', label: 'Tempo Bar', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 'Média t0_t3', formato: 'decimal', inverso: true, sufixo: ' min' },
+          { key: 'tempo_saida_cozinha', label: 'Tempo Cozinha', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 'Média t0_t2', formato: 'decimal', inverso: true, sufixo: ' min' },
+        ]
+      },
+      {
+        id: 'atrasos',
+        label: 'Atrasos',
+        agregacao: { tipo: 'soma', formato: 'numero' },
+        metricas: [
           { key: 'atrasos_bar', label: 'Atrasos Bar', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 't0_t3 > 4min', formato: 'numero', inverso: true },
           { key: 'atrasos_cozinha', label: 'Atrasos Cozinha', status: 'nao_confiavel', fonte: 'contahub_tempo', calculo: 't0_t2 > 12min', formato: 'numero', inverso: true },
         ]
@@ -300,6 +359,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'horarios',
         label: 'Horários',
+        agregacao: { tipo: 'soma', formato: 'percentual' },
         metricas: [
           { key: 'perc_faturamento_ate_19h', label: '% Fat. até 19h', status: 'auto', fonte: 'eventos_base', calculo: 'Média fat_19h_percent', formato: 'percentual' },
           { key: 'perc_faturamento_apos_22h', label: '% Fat. após 22h', status: 'auto', fonte: 'contahub_fatporhora', calculo: 'Soma após 22h', formato: 'percentual' },
@@ -309,6 +369,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'organico',
         label: 'Marketing Orgânico',
+        agregacao: { tipo: 'soma', formato: 'numero' },
         metricas: [
           { key: 'o_num_posts', label: 'Nº Posts', status: 'manual', fonte: 'Marketing', calculo: 'Manual', formato: 'numero', editavel: true },
           { key: 'o_alcance', label: 'Alcance Orgânico', status: 'manual', fonte: 'Marketing', calculo: 'Manual', formato: 'numero', editavel: true },
@@ -318,6 +379,7 @@ const SECOES: SecaoConfig[] = [
       {
         id: 'pago',
         label: 'Marketing Pago',
+        agregacao: { tipo: 'soma', formato: 'moeda' },
         metricas: [
           { key: 'm_valor_investido', label: 'Investido Ads', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda', editavel: true },
           { key: 'm_alcance', label: 'Alcance Pago', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
@@ -878,6 +940,12 @@ export default function DesempenhoPage() {
                           const valorPessoasPrincipal = hierarquico && metricaPrincipal?.keyPessoas ? (semana as any)[metricaPrincipal.keyPessoas] : null;
                           const isEditandoPrincipal = hierarquico && editando?.semanaId === semana.id && editando?.campo === metricaPrincipal?.key;
                           
+                          // Para grupos planos, calcula o valor agregado
+                          const valorAgregado = !hierarquico ? calcularValorAgregado(grupo, semana) : null;
+                          const valorAgregadoFormatado = valorAgregado !== null && grupo.agregacao
+                            ? formatarValor(valorAgregado, grupo.agregacao.formato, grupo.agregacao.sufixo)
+                            : '-';
+                          
                           const valorPrincipalFormatado = hierarquico && metricaPrincipal?.formato === 'reservas' 
                             ? (valorPrincipal !== null && valorPrincipal !== undefined 
                                 ? `${Math.round(valorPrincipal)}/${valorPessoasPrincipal !== null && valorPessoasPrincipal !== undefined ? Math.round(valorPessoasPrincipal) : '-'}` 
@@ -886,7 +954,7 @@ export default function DesempenhoPage() {
                           
                           return (
                             <div key={grupo.id}>
-                              {/* Header do grupo - valor apenas para grupos hierárquicos */}
+                              {/* Header do grupo - valor para hierárquicos OU agregado para planos */}
                               <div 
                                 className={cn(
                                   "relative flex items-center justify-center px-2 border-b border-gray-200 dark:border-gray-600 group",
@@ -922,9 +990,9 @@ export default function DesempenhoPage() {
                                     </span>
                                   )
                                 ) : (
-                                  // Grupo plano: não mostra valor, apenas indicador de expandir
-                                  <span className="text-[10px] text-gray-400 dark:text-gray-500 italic">
-                                    {gruposAbertos[`${secao.id}-${grupo.id}`] ? '' : '▶'}
+                                  // Grupo plano: mostra valor agregado (média, soma, ou fixo)
+                                  <span className="text-xs font-medium text-gray-900 dark:text-white text-center">
+                                    {valorAgregadoFormatado}
                                   </span>
                                 )}
                                 {hierarquico && !isEditandoPrincipal && metricaPrincipal?.editavel && semana.id && (
