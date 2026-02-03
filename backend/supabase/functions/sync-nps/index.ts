@@ -44,6 +44,7 @@ interface NPSRow {
   nps_drink: number
   nps_preco: number
   nps_reservas: number
+  fez_reserva: boolean
   media_geral: number
   resultado_percentual: number
   funcionario_nome: string
@@ -357,10 +358,20 @@ serve(async (req) => {
         const nps_preco = parseValue(row[10])        // K - Preço
         const nps_geral = parseValue(row[11])        // L - O quanto você indicaria o Ordi
         const comentarios = row[12] ? String(row[12]).trim() : ''  // M - Comentários
-        const nps_reservas = parseValue(row[13])     // N - Reserva (Sim/Não convertido para nota)
+        
+        // N - Reserva (Sim/Não) - converter para boolean
+        // Debug: log das primeiras 10 linhas para verificar estrutura
+        if (i <= 10) {
+          console.log(`🔍 Debug linha ${i + 1}: row[13]="${row[13]}", row[14]="${row[14]}", total_cols=${row.length}`)
+        }
+        const reservaResposta = String(row[13] || '').trim().toLowerCase()
+        const fez_reserva = reservaResposta === 'sim' || reservaResposta === 'yes' || reservaResposta === 's'
+        
+        // nps_reservas não é uma nota - é calculado no desempenho-semanal-auto como média de nps_geral onde fez_reserva=true
+        const nps_reservas = 0
         
         // Calcular média apenas das perguntas respondidas (ignorar zeros)
-        const valores = [nps_ambiente, nps_atendimento, nps_limpeza, nps_musica, nps_comida, nps_drink, nps_preco, nps_reservas, nps_geral]
+        const valores = [nps_ambiente, nps_atendimento, nps_limpeza, nps_musica, nps_comida, nps_drink, nps_preco, nps_geral]
         const valoresRespondidos = valores.filter(v => v > 0)
         const mediaGeral = valoresRespondidos.length > 0 
           ? valoresRespondidos.reduce((a, b) => a + b, 0) / valoresRespondidos.length 
@@ -383,6 +394,7 @@ serve(async (req) => {
           nps_drink,
           nps_preco,
           nps_reservas,
+          fez_reserva,
           media_geral: parseFloat(mediaGeral.toFixed(2)),
           resultado_percentual: parseFloat(resultadoPercentual.toFixed(2)),
           funcionario_nome: timestampCompleto.substring(0, 40), // Timestamp sem prefixo "Cliente_"

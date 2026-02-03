@@ -189,13 +189,14 @@ export async function PUT(request: Request) {
     }
 
     // Extrair dados do usuário para auditoria
-    let userId = null;
-    let userName = null;
+    let userId: string | null = null;
+    let userName: string | null = null;
     if (userDataHeader) {
       try {
         const decoded = decodeURIComponent(userDataHeader);
         const parsed = JSON.parse(decoded);
-        userId = parsed.id || null;
+        // Converter ID para string (pode ser número ou UUID)
+        userId = parsed.id ? String(parsed.id) : null;
         userName = parsed.nome || parsed.email || null;
       } catch (e) {
         // Ignora erro de parse para auditoria

@@ -65,6 +65,7 @@ interface DadosSemana {
   pessoas_reservas_presentes?: number;
   avaliacoes_5_google_trip: number;
   media_avaliacoes_google: number;
+  nps_geral: number;
   nps_reservas: number;
   nota_felicidade_equipe: number;
   stockout_comidas: number;
@@ -297,7 +298,8 @@ const SECOES: SecaoConfig[] = [
         metricas: [
           { key: 'avaliacoes_5_google_trip', label: 'Avaliações 5★ Google', status: 'manual', fonte: 'SuperSal', calculo: 'Relatório semanal', formato: 'numero', editavel: true },
           { key: 'media_avaliacoes_google', label: 'Média Google', status: 'manual', fonte: 'SuperSal', calculo: 'Relatório semanal', formato: 'decimal', editavel: true },
-          { key: 'nps_reservas', label: 'NPS Reservas', status: 'auto', fonte: 'NPS', calculo: 'Média das notas', formato: 'numero' },
+          { key: 'nps_geral', label: 'NPS Geral', status: 'auto', fonte: 'NPS', calculo: 'Média de todas as respostas', formato: 'decimal' },
+          { key: 'nps_reservas', label: 'NPS Reservas', status: 'auto', fonte: 'NPS', calculo: 'Média das notas com reserva', formato: 'decimal' },
           { key: 'nota_felicidade_equipe', label: 'Felicidade Equipe', status: 'manual', fonte: 'Pesquisa', calculo: 'Manual', formato: 'numero', editavel: true },
         ]
       }
@@ -324,10 +326,9 @@ const SECOES: SecaoConfig[] = [
         label: 'Mix de Vendas',
         agregacao: { tipo: 'fixa', valorFixo: 100, formato: 'percentual' },
         metricas: [
-          { key: 'perc_bebidas', label: '% Bebidas', status: 'auto', fonte: 'eventos_base', calculo: 'Média percent_b', formato: 'percentual' },
-          { key: 'perc_drinks', label: '% Drinks', status: 'auto', fonte: 'eventos_base', calculo: 'Média percent_d', formato: 'percentual' },
-          { key: 'perc_comida', label: '% Comida', status: 'auto', fonte: 'eventos_base', calculo: 'Média percent_c', formato: 'percentual' },
-          { key: 'perc_happy_hour', label: '% Happy Hour', status: 'auto', fonte: 'contahub_analitico', calculo: 'Vendas HH / Total', formato: 'percentual' },
+          { key: 'perc_bebidas', label: '% Bebidas', status: 'auto', fonte: 'eventos_base', calculo: 'Bebidas / Total vendas', formato: 'percentual' },
+          { key: 'perc_drinks', label: '% Drinks', status: 'auto', fonte: 'eventos_base', calculo: 'Drinks / Total vendas', formato: 'percentual' },
+          { key: 'perc_comida', label: '% Comida', status: 'auto', fonte: 'eventos_base', calculo: 'Comida / Total vendas', formato: 'percentual' },
         ]
       },
       {

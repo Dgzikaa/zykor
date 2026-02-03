@@ -233,6 +233,13 @@ const defaultSidebarItems: SidebarItem[] = [
           permission: 'gestao',
         },
         {
+          icon: MessageCircle,
+          label: 'Voz do Cliente',
+          href: '/ferramentas/voz-cliente',
+          description: 'Feedbacks positivos, negativos e sugestões',
+          permission: 'gestao',
+        },
+        {
           icon: TrendingUp,
           label: 'CMV Semanal',
           href: '/ferramentas/cmv-semanal',
