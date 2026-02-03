@@ -1,7 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
+
+// Helper para buscar todos os registros com paginação
+async function fetchAllPaginated<T>(
+  supabase: SupabaseClient,
+  table: string,
+  select: string,
+  filters: { column: string; operator: string; value: any }[],
+  pageSize: number = 1000
+): Promise<T[]> {
+  let allData: T[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from(table)
+      .select(select)
+      .range(from, from + pageSize - 1);
+
+    // Aplicar filtros
+    for (const filter of filters) {
+      if (filter.operator === 'eq') query = query.eq(filter.column, filter.value);
+      else if (filter.operator === 'gt') query = query.gt(filter.column, filter.value);
+      else if (filter.operator === 'gte') query = query.gte(filter.column, filter.value);
+      else if (filter.operator === 'lte') query = query.lte(filter.column, filter.value);
+      else if (filter.operator === 'lt') query = query.lt(filter.column, filter.value);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error(`Erro ao buscar ${table}:`, error);
+      break;
+    }
+
+    if (data && data.length > 0) {
+      allData = allData.concat(data as T[]);
+      from += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -73,18 +120,21 @@ export async function GET(request: NextRequest) {
     let descontosMap = new Map<string, { valor: number; detalhes: Map<string, { valor: number; qtd: number }> }>();
     
     if (dataMin && dataMax) {
-      // Conta Assinada - usar limit para pegar todos os registros
-      const { data: pagamentos } = await supabase
-        .from('contahub_pagamentos')
-        .select('dt_gerencial, valor')
-        .eq('bar_id', barId)
-        .eq('meio', 'Conta Assinada')
-        .gte('dt_gerencial', dataMin)
-        .lte('dt_gerencial', dataMax)
-        .limit(5000);
+      // Conta Assinada - buscar com paginação
+      const pagamentos = await fetchAllPaginated<{ dt_gerencial: string; valor: number }>(
+        supabase,
+        'contahub_pagamentos',
+        'dt_gerencial, valor',
+        [
+          { column: 'bar_id', operator: 'eq', value: barId },
+          { column: 'meio', operator: 'eq', value: 'Conta Assinada' },
+          { column: 'dt_gerencial', operator: 'gte', value: dataMin },
+          { column: 'dt_gerencial', operator: 'lte', value: dataMax },
+        ]
+      );
 
       // Agrupar por semana
-      pagamentos?.forEach(p => {
+      pagamentos.forEach(p => {
         const semana = semanas?.find(s => 
           p.dt_gerencial >= s.data_inicio && p.dt_gerencial <= s.data_fim
         );
@@ -94,15 +144,18 @@ export async function GET(request: NextRequest) {
         }
       });
 
-      // Descontos de contahub_periodo - usar range para pegar todos os registros
-      const { data: descontos } = await supabase
-        .from('contahub_periodo')
-        .select('dt_gerencial, vr_desconto, motivo')
-        .eq('bar_id', barId)
-        .gt('vr_desconto', 0)
-        .gte('dt_gerencial', dataMin)
-        .lte('dt_gerencial', dataMax)
-        .limit(10000);
+      // Descontos de contahub_periodo - buscar com paginação
+      const descontos = await fetchAllPaginated<{ dt_gerencial: string; vr_desconto: number; motivo: string }>(
+        supabase,
+        'contahub_periodo',
+        'dt_gerencial, vr_desconto, motivo',
+        [
+          { column: 'bar_id', operator: 'eq', value: barId },
+          { column: 'vr_desconto', operator: 'gt', value: 0 },
+          { column: 'dt_gerencial', operator: 'gte', value: dataMin },
+          { column: 'dt_gerencial', operator: 'lte', value: dataMax },
+        ]
+      );
 
       // Agrupar por semana e por motivo
       descontos?.forEach(d => {
