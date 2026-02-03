@@ -65,6 +65,9 @@ interface CriteriosSegmentacao {
   // Contato
   temEmail?: boolean;
   temTelefone?: boolean;
+  
+  // Aniversário
+  mesAniversario?: number; // 1-12 para filtrar por mês de aniversário
 }
 
 // Função para buscar dados com paginação
@@ -135,6 +138,7 @@ interface ClienteProcessado {
   email: string;
   telefone: string;
   telefoneNorm: string;
+  dataAniversario: Date | null;
   visitas: { data: Date; entrada: number; consumo: number; total: number; pessoas: number }[];
   diasSemana: Record<string, number>;
   primeiraVisita: Date | null;
@@ -186,6 +190,7 @@ export async function GET(request: NextRequest) {
       percentualConsumoMin: searchParams.get('percentual_consumo_min') ? parseFloat(searchParams.get('percentual_consumo_min')!) : undefined,
       temEmail: searchParams.get('tem_email') === 'true' ? true : (searchParams.get('tem_email') === 'false' ? false : undefined),
       temTelefone: searchParams.get('tem_telefone') === 'true' ? true : (searchParams.get('tem_telefone') === 'false' ? false : undefined),
+      mesAniversario: searchParams.get('mes_aniversario') ? parseInt(searchParams.get('mes_aniversario')!) : undefined,
     };
     
     console.log(`🔥 Lista Quente - Bar: ${barId}`);
@@ -201,7 +206,7 @@ export async function GET(request: NextRequest) {
     const todosRegistros = await fetchAllData(
       supabase,
       'contahub_periodo',
-      'cli_nome, cli_email, cli_fone, cli_fone_norm, dt_gerencial, vr_couvert, vr_pagamentos, pessoas',
+      'cli_nome, cli_email, cli_fone, cli_fone_norm, cli_dtnasc, dt_gerencial, vr_couvert, vr_pagamentos, pessoas',
       {
         'eq_bar_id': barId,
         'gte_dt_gerencial': dataLimiteStr
@@ -244,12 +249,16 @@ export async function GET(request: NextRequest) {
       const pessoas = parseFloat(registro.pessoas || 1);
       const dataVisita = new Date(registro.dt_gerencial + 'T12:00:00Z');
       
+      // Processar data de nascimento
+      const dataNascimento = registro.cli_dtnasc ? new Date(registro.cli_dtnasc + 'T12:00:00Z') : null;
+      
       if (!clientesMap.has(chaveCliente)) {
         clientesMap.set(chaveCliente, {
           nome: nome || 'Cliente',
           email: email,
           telefone: telefone,
           telefoneNorm: telefoneNorm,
+          dataAniversario: dataNascimento,
           visitas: [],
           diasSemana: { 'domingo': 0, 'segunda': 0, 'terca': 0, 'quarta': 0, 'quinta': 0, 'sexta': 0, 'sabado': 0 },
           primeiraVisita: null,
@@ -273,6 +282,7 @@ export async function GET(request: NextRequest) {
       if (cliente.nome === 'Cliente' && nome) cliente.nome = nome;
       if (!cliente.email && email) cliente.email = email;
       if (!cliente.telefone && telefone) cliente.telefone = telefone;
+      if (!cliente.dataAniversario && dataNascimento) cliente.dataAniversario = dataNascimento;
       
       // Registrar visita
       cliente.visitas.push({ data: dataVisita, entrada, consumo, total: pagamentos, pessoas });
@@ -406,6 +416,16 @@ export async function GET(request: NextRequest) {
       clientesFiltrados = clientesFiltrados.filter(c => c.telefone && c.telefone.length >= 8);
     }
     
+    // Filtro: Mês de aniversário
+    if (criterios.mesAniversario !== undefined) {
+      clientesFiltrados = clientesFiltrados.filter(c => {
+        if (!c.dataAniversario) return false;
+        const mesAniversario = new Date(c.dataAniversario).getMonth() + 1; // getMonth() retorna 0-11
+        return mesAniversario === criterios.mesAniversario;
+      });
+      console.log(`🎂 Filtro aniversário mês ${criterios.mesAniversario}: ${clientesFiltrados.length} clientes`);
+    }
+    
     console.log(`✅ Clientes após filtros: ${clientesFiltrados.length}`);
     console.log(`   - Com telefone válido: ${clientesFiltrados.filter(c => c.telefone && c.telefone.length >= 8).length}`);
     console.log(`   - Com email válido: ${clientesFiltrados.filter(c => c.email && c.email.includes('@')).length}`);
@@ -427,6 +447,7 @@ export async function GET(request: NextRequest) {
         Nome: cliente.nome,
         Email: cliente.email,
         Telefone: cliente.telefone,
+        Aniversario: cliente.dataAniversario ? cliente.dataAniversario.toISOString().split('T')[0] : '',
         VisitasNoDia: cliente.diasSemana[diaNormalizado],
         TotalVisitas: cliente.visitas.length,
         TicketMedio: Math.round(cliente.ticketMedio * 100) / 100,
@@ -437,9 +458,9 @@ export async function GET(request: NextRequest) {
       
       // Retornar CSV se solicitado
       if (formatoParam === 'csv') {
-        const csvHeader = 'Nome,Email,Telefone\n';
+        const csvHeader = 'Nome,Email,Telefone,Aniversario\n';
         const csvRows = listaExportacao.map(c => 
-          `"${c.Nome}","${c.Email}","${c.Telefone}"`
+          `"${c.Nome}","${c.Email}","${c.Telefone}","${c.Aniversario}"`
         ).join('\n');
         
         return new NextResponse(csvHeader + csvRows, {
@@ -452,9 +473,9 @@ export async function GET(request: NextRequest) {
       
       // CSV Completo
       if (formatoParam === 'csv_completo') {
-        const csvHeader = 'Nome,Email,Telefone,VisitasNoDia,TotalVisitas,TicketMedio,GastoTotal,MediaPessoas,UltimaVisita\n';
+        const csvHeader = 'Nome,Email,Telefone,Aniversario,VisitasNoDia,TotalVisitas,TicketMedio,GastoTotal,MediaPessoas,UltimaVisita\n';
         const csvRows = listaExportacao.map(c => 
-          `"${c.Nome}","${c.Email}","${c.Telefone}",${c.VisitasNoDia},${c.TotalVisitas},${c.TicketMedio},${c.GastoTotal},${c.MediaPessoas},"${c.UltimaVisita}"`
+          `"${c.Nome}","${c.Email}","${c.Telefone}","${c.Aniversario}",${c.VisitasNoDia},${c.TotalVisitas},${c.TicketMedio},${c.GastoTotal},${c.MediaPessoas},"${c.UltimaVisita}"`
         ).join('\n');
         
         return new NextResponse(csvHeader + csvRows, {
@@ -486,6 +507,7 @@ export async function GET(request: NextRequest) {
         Nome: cliente.nome,
         Email: cliente.email,
         Telefone: cliente.telefone,
+        Aniversario: cliente.dataAniversario ? cliente.dataAniversario.toISOString().split('T')[0] : '',
         TotalVisitas: cliente.visitas.length,
         TicketMedio: Math.round(cliente.ticketMedio * 100) / 100,
         GastoTotal: Math.round(cliente.totalGasto * 100) / 100,
@@ -495,9 +517,9 @@ export async function GET(request: NextRequest) {
       }));
       
       if (formatoParam === 'csv') {
-        const csvHeader = 'Nome,Email,Telefone\n';
+        const csvHeader = 'Nome,Email,Telefone,Aniversario\n';
         const csvRows = listaExportacao.map(c => 
-          `"${c.Nome}","${c.Email}","${c.Telefone}"`
+          `"${c.Nome}","${c.Email}","${c.Telefone}","${c.Aniversario}"`
         ).join('\n');
         
         return new NextResponse(csvHeader + csvRows, {
@@ -510,9 +532,9 @@ export async function GET(request: NextRequest) {
       
       // CSV Completo
       if (formatoParam === 'csv_completo') {
-        const csvHeader = 'Nome,Email,Telefone,TotalVisitas,TicketMedio,GastoTotal,MediaPessoas,UltimaVisita,DiasFrequentados\n';
+        const csvHeader = 'Nome,Email,Telefone,Aniversario,TotalVisitas,TicketMedio,GastoTotal,MediaPessoas,UltimaVisita,DiasFrequentados\n';
         const csvRows = listaExportacao.map(c => 
-          `"${c.Nome}","${c.Email}","${c.Telefone}",${c.TotalVisitas},${c.TicketMedio},${c.GastoTotal},${c.MediaPessoas},"${c.UltimaVisita}",${c.DiasFrequentados}`
+          `"${c.Nome}","${c.Email}","${c.Telefone}","${c.Aniversario}",${c.TotalVisitas},${c.TicketMedio},${c.GastoTotal},${c.MediaPessoas},"${c.UltimaVisita}",${c.DiasFrequentados}`
         ).join('\n');
         
         return new NextResponse(csvHeader + csvRows, {

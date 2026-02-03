@@ -172,6 +172,9 @@ export default function ClientesPage() {
     // Contato
     temEmail: '',
     temTelefone: '',
+    
+    // Aniversário
+    mesAniversario: '',
   })
   
   const { toast } = useToast()
@@ -412,6 +415,9 @@ export default function ClientesPage() {
     // Contato
     if (criterios.temEmail) params.append('tem_email', criterios.temEmail)
     if (criterios.temTelefone) params.append('tem_telefone', criterios.temTelefone)
+    
+    // Aniversário
+    if (criterios.mesAniversario) params.append('mes_aniversario', criterios.mesAniversario)
     
     // Dia da semana
     if (diaSemana) params.append('dia_semana', diaSemana)
@@ -1912,6 +1918,38 @@ export default function ClientesPage() {
                       </div>
                     </div>
 
+                    {/* Linha 5: Aniversariantes */}
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                        🎂 Aniversariantes
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Mês de Aniversário</label>
+                          <Select value={criterios.mesAniversario || 'all'} onValueChange={(v) => setCriterios({...criterios, mesAniversario: v === 'all' ? '' : v})}>
+                            <SelectTrigger className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 h-9 text-sm">
+                              <SelectValue placeholder="Todos os meses" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white dark:bg-gray-800">
+                              <SelectItem value="all">Todos os meses</SelectItem>
+                              <SelectItem value="1">Janeiro</SelectItem>
+                              <SelectItem value="2">Fevereiro</SelectItem>
+                              <SelectItem value="3">Março</SelectItem>
+                              <SelectItem value="4">Abril</SelectItem>
+                              <SelectItem value="5">Maio</SelectItem>
+                              <SelectItem value="6">Junho</SelectItem>
+                              <SelectItem value="7">Julho</SelectItem>
+                              <SelectItem value="8">Agosto</SelectItem>
+                              <SelectItem value="9">Setembro</SelectItem>
+                              <SelectItem value="10">Outubro</SelectItem>
+                              <SelectItem value="11">Novembro</SelectItem>
+                              <SelectItem value="12">Dezembro</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Botões de Ação */}
                     <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-orange-200 dark:border-orange-800">
                       <Button
@@ -1980,6 +2018,7 @@ export default function ClientesPage() {
                           ticketConsumoMin: '', ticketConsumoMax: '', gastoTotalMin: '', gastoTotalMax: '',
                           ultimaVisitaMinDias: '', ultimaVisitaMaxDias: '', primeiraVisitaMaxDias: '',
                           tamanhoGrupoMin: '', tamanhoGrupoMax: '', temEmail: '', temTelefone: '',
+                          mesAniversario: '',
                         })}
                         className="text-gray-500 dark:text-gray-400"
                       >
