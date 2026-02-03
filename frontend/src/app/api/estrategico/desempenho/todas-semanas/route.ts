@@ -165,7 +165,41 @@ export async function GET(request: NextRequest) {
         ]
       );
 
-      // Agrupar por semana, por motivo (case-insensitive) e por dia da semana
+      // Função para agrupar motivos inteligentemente
+      const agruparMotivo = (motivo: string): { categoria: string; exibicao: string } => {
+        const m = motivo.toLowerCase().trim();
+        
+        // BANDA: banda, músico, doze, 12, STZ, 7 na roda, sete, Sambadona, DJ, Roadie, etc.
+        if (
+          m.includes('banda') || m.includes('musico') || m.includes('músico') ||
+          m.includes('doze') || m.includes('12') ||
+          m.includes('stz') ||
+          m.includes('7 na roda') || m.includes('sete na roda') || m === '7' || m === 'sete' ||
+          m.includes('sambadona') ||
+          m.includes('dj ') || m.startsWith('dj') || m.endsWith(' dj') ||
+          m.includes('roadie') || m.includes('roudier')
+        ) {
+          return { categoria: 'banda', exibicao: 'Banda/DJ/Músicos' };
+        }
+        
+        // SÓCIO: sócio, socio (case-insensitive)
+        if (m.includes('socio') || m.includes('sócio')) {
+          return { categoria: 'sócio', exibicao: 'Sócio' };
+        }
+        
+        // ANIVERSÁRIO: aniversário, aniversario, niver, etc.
+        if (
+          m.includes('aniversar') || m.includes('aniversár') ||
+          m.includes('niver')
+        ) {
+          return { categoria: 'aniversário', exibicao: 'Aniversário' };
+        }
+        
+        // Outros mantém o motivo original normalizado
+        return { categoria: m, exibicao: motivo.trim() };
+      };
+
+      // Agrupar por semana, por motivo (case-insensitive + agrupamento inteligente) e por dia da semana
       descontos?.forEach(d => {
         const semana = semanas?.find(s => 
           d.dt_gerencial >= s.data_inicio && d.dt_gerencial <= s.data_fim
@@ -174,8 +208,9 @@ export async function GET(request: NextRequest) {
           const key = `${semana.ano}-${semana.numero_semana}`;
           const valorDesconto = Number(d.vr_desconto || 0);
           const motivoOriginal = d.motivo || 'Sem motivo';
-          // Normalizar motivo para case-insensitive (trim + lowercase)
-          const motivoNormalizado = motivoOriginal.trim().toLowerCase();
+          
+          // Agrupar motivo inteligentemente
+          const { categoria: motivoNormalizado, exibicao: motivoExibicao } = agruparMotivo(motivoOriginal);
           
           // Dia da semana
           const data = new Date(d.dt_gerencial + 'T00:00:00');
@@ -191,7 +226,7 @@ export async function GET(request: NextRequest) {
           // Agrupar por motivo normalizado
           if (!semanaData.detalhes.has(motivoNormalizado)) {
             semanaData.detalhes.set(motivoNormalizado, { 
-              motivo_exibicao: motivoOriginal, // Manter primeiro motivo original para exibição
+              motivo_exibicao: motivoExibicao, // Usar nome agrupado (ex: "Banda/DJ/Músicos")
               valor: 0, 
               qtd: 0,
               por_dia: new Map()

@@ -510,12 +510,12 @@ export default function DesempenhoPage() {
     vendas: true
   });
   // Estado para grupos abertos/fechados (para as subcategorias)
-  // TODOS OS GRUPOS EXPANDIDOS POR PADRÃO
+  // GRUPOS SELECIONADOS EXPANDIDOS POR PADRÃO
   const [gruposAbertos, setGruposAbertos] = useState<Record<string, boolean>>({
-    // GUARDRAIL
-    'guardrail-faturamento': true,
-    'guardrail-cmv': true,
-    'guardrail-ticket': true,
+    // GUARDRAIL - Faturamento, CMV e Ticket COLAPSADOS
+    'guardrail-faturamento': false,  // ← COLAPSADO
+    'guardrail-cmv': false,          // ← COLAPSADO
+    'guardrail-ticket': false,       // ← COLAPSADO
     'guardrail-custos': true,
     // OVT
     'ovt-retencao': true,
