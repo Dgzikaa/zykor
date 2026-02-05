@@ -560,15 +560,27 @@ export default function StockoutPage() {
       }
     }
 
-    // Modo data única - filtrar por nome exato do local
+    // Mapeamento de categorias para locais originais (Ordinário bar_id=3)
+    const categoriasParaLocais: Record<string, string[]> = {
+      'Bebidas': ['Bar', 'Baldes', 'Chopp'],
+      'Drinks': ['Montados', 'Batidos', 'Shot e Dose', 'Mexido', 'Preshh'],
+      'Cozinha': ['Cozinha 1', 'Cozinha 2', 'Cozinha'],
+    };
+    
+    // Se o nomeLocal é uma categoria conhecida, usar os locais mapeados
+    const locaisParaFiltrar = categoriasParaLocais[nomeLocal] 
+      ? categoriasParaLocais[nomeLocal].map(l => l.toLowerCase().trim())
+      : [nomeLocal.toLowerCase().trim()];
+    
+    // Modo data única - filtrar por locais da categoria
     const disponiveis = (stockoutData.produtos?.ativos || []).filter(produto => {
       const localProduto = (produto.loc_desc || produto.local_producao || '').toLowerCase().trim();
-      return localProduto === nomeLocal.toLowerCase().trim();
+      return locaisParaFiltrar.includes(localProduto);
     });
 
     const indisponiveis = (stockoutData.produtos?.inativos || []).filter(produto => {
       const localProduto = (produto.loc_desc || produto.local_producao || '').toLowerCase().trim();
-      return localProduto === nomeLocal.toLowerCase().trim();
+      return locaisParaFiltrar.includes(localProduto);
     });
 
     return { disponiveis, indisponiveis };
