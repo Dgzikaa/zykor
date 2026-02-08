@@ -11,6 +11,10 @@
     {
       "path": "/api/contahub/sync-diario",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/configuracoes/desempenho/recalculo-diario",
+      "schedule": "0 15 * * *"
     }
   ],
   "functions": {
@@ -21,6 +25,9 @@
       "maxDuration": 300
     },
     "src/app/api/contahub/sync-diario/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/configuracoes/desempenho/recalculo-diario/route.ts": {
       "maxDuration": 300
     }
   },

@@ -184,9 +184,24 @@ export async function POST(request: Request) {
       
       console.log('👷 Calculando CMO (Custo de Mão de Obra)...');
       
-      const cmoData = await fetchAllData(supabase, 'nibo_agendamentos', 'valor, categoria_nome', {
-        'gte_data_competencia': startDate,
-        'lte_data_competencia': endDate,
+      // Calcular CMO proporcional ao mês
+      // Salários/VT/Provisões têm data_competencia no dia 15 do mês
+      // Freelancers têm data_competencia no dia do evento
+      
+      const dataInicioCMO = new Date(startDate + 'T00:00:00');
+      const dataFimCMO = new Date(endDate + 'T00:00:00');
+      const mesInicio = dataInicioCMO.getMonth() + 1;
+      const anoInicio = dataInicioCMO.getFullYear();
+      const mesFim = dataFimCMO.getMonth() + 1;
+      const anoFim = dataFimCMO.getFullYear();
+      
+      // Buscar dados de CMO do(s) mês(es) da semana
+      const mesInicioStr = `${anoInicio}-${mesInicio.toString().padStart(2, '0')}-01`;
+      const mesFimStr = `${anoFim}-${(mesFim + 1).toString().padStart(2, '0')}-01`; // Próximo mês
+      
+      const cmoData = await fetchAllData(supabase, 'nibo_agendamentos', 'valor, categoria_nome, data_competencia', {
+        'gte_data_competencia': mesInicioStr,
+        'lte_data_competencia': mesFimStr,
         'eq_bar_id': barId
       });
 
@@ -204,29 +219,88 @@ export async function POST(request: Request) {
         'PROVISÃO TRABALHISTA'
       ];
 
-      const custosCMODetalhados = categoriasCMO.map(categoria => {
+      // Separar custos fixos (proporcionais ao mês) e variáveis (por dia)
+      const categoriasFixas = ['SALARIO FUNCIONARIOS', 'VALE TRANSPORTE', 'ADICIONAIS', 'PRO LABORE', 'PROVISÃO TRABALHISTA'];
+      const categoriasVariaveis = ['ALIMENTAÇÃO', 'FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA', 'FREELA LIMPEZA', 'FREELA SEGURANÇA'];
+
+      let custoTotalCMO = 0;
+      const custosCMODetalhados: { categoria: string; quantidade: number; total: number }[] = [];
+
+      // Calcular custos fixos proporcionais ao mês
+      for (const categoria of categoriasFixas) {
         const itens = cmoData?.filter(item => 
           item.categoria_nome && item.categoria_nome.trim() === categoria
         ) || [];
         
+        // Agrupar por mês
+        const itensMesInicio = itens.filter(item => {
+          const d = new Date(item.data_competencia);
+          return d.getMonth() + 1 === mesInicio && d.getFullYear() === anoInicio;
+        });
+        const itensMesFim = itens.filter(item => {
+          const d = new Date(item.data_competencia);
+          return d.getMonth() + 1 === mesFim && d.getFullYear() === anoFim;
+        });
+        
+        // Calcular total por mês
+        const totalMesInicio = itensMesInicio.reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0);
+        const totalMesFim = mesInicio !== mesFim ? itensMesFim.reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0) : 0;
+        
+        // Calcular dias da semana em cada mês
+        const diasNoMesInicio = new Date(anoInicio, mesInicio, 0).getDate(); // Total de dias no mês
+        const diasNoMesFim = mesInicio !== mesFim ? new Date(anoFim, mesFim, 0).getDate() : 0;
+        
+        // Dias da semana no mês de início (de startDate até fim do mês ou endDate)
+        const ultimoDiaMesInicio = new Date(anoInicio, mesInicio, 0).getDate();
+        const diasSemanaNoMesInicio = Math.min(ultimoDiaMesInicio, dataFimCMO.getDate()) - dataInicioCMO.getDate() + 1;
+        
+        // Dias da semana no mês de fim (do dia 1 até endDate)
+        const diasSemanaNoMesFim = mesInicio !== mesFim ? dataFimCMO.getDate() : 0;
+        
+        // Proporção
+        const proporcaoMesInicio = diasSemanaNoMesInicio / diasNoMesInicio;
+        const proporcaoMesFim = mesInicio !== mesFim ? diasSemanaNoMesFim / diasNoMesFim : 0;
+        
+        const totalProporcional = (totalMesInicio * proporcaoMesInicio) + (totalMesFim * proporcaoMesFim);
+        
+        custosCMODetalhados.push({
+          categoria,
+          quantidade: itensMesInicio.length + itensMesFim.length,
+          total: totalProporcional
+        });
+        custoTotalCMO += totalProporcional;
+      }
+
+      // Calcular custos variáveis (freelancers, alimentação) - por dia exato dentro da semana
+      for (const categoria of categoriasVariaveis) {
+        const itens = cmoData?.filter(item => {
+          if (!item.categoria_nome || item.categoria_nome.trim() !== categoria) return false;
+          // Filtrar por data dentro da semana
+          const d = item.data_competencia;
+          return d >= startDate && d <= endDate;
+        }) || [];
+        
         const total = itens.reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0);
         
-        return {
+        custosCMODetalhados.push({
           categoria,
           quantidade: itens.length,
           total
-        };
-      });
-
-      const custoTotalCMO = custosCMODetalhados.reduce((sum, item) => sum + item.total, 0);
+        });
+        custoTotalCMO += total;
+      }
 
       console.log(`👷 CMO Calculado por categoria:`);
       custosCMODetalhados.forEach(item => {
-        if (item.quantidade > 0) {
+        if (item.quantidade > 0 || item.total > 0) {
           console.log(`  - ${item.categoria}: ${item.quantidade} itens = R$ ${item.total.toFixed(2)}`);
         }
       });
       console.log(`  - TOTAL CMO: R$ ${custoTotalCMO.toFixed(2)}`);
+      
+      // Calcular CMO percentual
+      const cmoPercentual = faturamentoTotal > 0 ? (custoTotalCMO / faturamentoTotal) * 100 : 0;
+      console.log(`  - CMO %: ${cmoPercentual.toFixed(1)}%`);
 
       // =============================================
       // 4. CLIENTES ATENDIDOS
@@ -378,7 +452,7 @@ export async function POST(request: Request) {
         clientes_atendidos: clientesAtendidos,
         ticket_medio: ticketMedio,
         custo_atracao_faturamento: atracaoFaturamentoPercent,
-        cmo: custoTotalCMO, // CMO AUTOMÁTICO
+        cmo: cmoPercentual, // CMO % AUTOMÁTICO (proporcional ao mês)
         perc_clientes_novos: parseFloat(percClientesNovos.toFixed(2)),
         clientes_ativos: clientesAtivosCalculado,
         clientes_30d: clientes30d,

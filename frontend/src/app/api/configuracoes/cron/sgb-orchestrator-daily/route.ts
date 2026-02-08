@@ -19,8 +19,14 @@ export async function GET(request: NextRequest) {
       throw new Error('URL do Supabase não configurada');
     }
 
-    // Disparar o orchestrator final que vai iniciar o ciclo de 15 minutos
-    const response = await fetch(
+    const resultados: any = {
+      orchestrator: null,
+      desempenho: null,
+    };
+
+    // 1. Disparar o orchestrator final que vai iniciar o ciclo de 15 minutos
+    console.log('📊 Etapa 1: Disparando orchestrator de sincronizações...');
+    const orchestratorResponse = await fetch(
       `${supabaseUrl}/functions/v1/sgb-orchestrator-final`,
       {
         method: 'POST',
@@ -35,29 +41,50 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    if (response.ok) {
-      const result = await response.json();
+    if (orchestratorResponse.ok) {
+      resultados.orchestrator = await orchestratorResponse.json();
       console.log('✅ Orchestrator diário disparado com sucesso');
-
-      return NextResponse.json({
-        success: true,
-        message: 'Orchestrator diário executado e ciclo de 15 minutos iniciado',
-        result,
-        timestamp: new Date().toISOString(),
-      });
     } else {
-      const errorText = await response.text();
-      console.log('❌ Erro no cron diário:', response.status, errorText);
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: `HTTP ${response.status}: ${errorText}`,
-          timestamp: new Date().toISOString(),
-        },
-        { status: response.status }
-      );
+      const errorText = await orchestratorResponse.text();
+      console.log('⚠️ Erro no orchestrator:', orchestratorResponse.status, errorText);
+      resultados.orchestrator = { error: errorText, status: orchestratorResponse.status };
     }
+
+    // 2. Disparar recálculo de desempenho (após sincronizações)
+    console.log('📊 Etapa 2: Disparando recálculo de desempenho...');
+    const desempenhoResponse = await fetch(
+      `${supabaseUrl}/functions/v1/desempenho-semanal-auto`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          trigger_source: 'daily_cron_recalculo',
+          timestamp: new Date().toISOString(),
+        }),
+      }
+    );
+
+    if (desempenhoResponse.ok) {
+      resultados.desempenho = await desempenhoResponse.json();
+      console.log('✅ Recálculo de desempenho concluído');
+    } else {
+      const errorText = await desempenhoResponse.text();
+      console.log('⚠️ Erro no recálculo de desempenho:', desempenhoResponse.status, errorText);
+      resultados.desempenho = { error: errorText, status: desempenhoResponse.status };
+    }
+
+    console.log('🎉 Cron diário SGB concluído');
+
+    return NextResponse.json({
+      success: true,
+      message: 'Cron diário executado: sincronizações + recálculo de desempenho',
+      resultados,
+      timestamp: new Date().toISOString(),
+    });
+
   } catch (error) {
     console.error('❌ Erro no cron diário:', error);
     return NextResponse.json(

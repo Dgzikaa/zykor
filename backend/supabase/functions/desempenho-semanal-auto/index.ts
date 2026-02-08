@@ -364,15 +364,38 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   console.log(`📊 CMV R$: ${cmvRs} | CMV Limpo: ${cmvLimpoPercent.toFixed(2)}% | CMV Global: ${cmvGlobalPercent.toFixed(2)}%`)
 
   // ============================================
-  // 5. BUSCAR TODOS OS DADOS DO NIBO
+  // 5. BUSCAR TODOS OS DADOS DO NIBO - CMO COM CUSTOS FIXOS PROPORCIONAIS
   // ============================================
+  
+  // Calcular mês/ano da semana para buscar custos fixos
+  const dataInicioSemana = new Date(startDate + 'T00:00:00')
+  const dataFimSemana = new Date(endDate + 'T00:00:00')
+  const mesInicio = dataInicioSemana.getMonth() + 1
+  const anoInicio = dataInicioSemana.getFullYear()
+  const mesFim = dataFimSemana.getMonth() + 1
+  const anoFim = dataFimSemana.getFullYear()
+  
+  // Buscar dados do mês inteiro para custos fixos
+  const mesInicioStr = `${anoInicio}-${mesInicio.toString().padStart(2, '0')}-01`
+  const proximoMes = mesFim === 12 ? 1 : mesFim + 1
+  const anoProximoMes = mesFim === 12 ? anoFim + 1 : anoFim
+  const mesFimStr = `${anoProximoMes}-${proximoMes.toString().padStart(2, '0')}-01`
+  
+  // Buscar dados do NIBO para o(s) mês(es) da semana
+  const niboDataMensal = await fetchAllData(supabase, 'nibo_agendamentos', 'valor, categoria_nome, data_competencia', {
+    'gte_data_competencia': mesInicioStr,
+    'lte_data_competencia': mesFimStr,
+    'eq_bar_id': barId
+  })
+  
+  // Buscar dados do NIBO apenas para a semana (para custos variáveis)
   const niboData = await fetchAllData(supabase, 'nibo_agendamentos', 'valor, categoria_nome', {
     'gte_data_competencia': startDate,
     'lte_data_competencia': endDate,
     'eq_bar_id': barId
   })
 
-  // Função auxiliar para somar categorias do NIBO
+  // Função auxiliar para somar categorias do NIBO (dados da semana)
   const somarCategoriasNibo = (categorias: string[]) => {
     return niboData?.filter(item => 
       item.categoria_nome && categorias.some(cat => 
@@ -381,15 +404,63 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     ).reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0) || 0
   }
 
-  // CMO% - Categorias de mão de obra
-  const categoriasCMO = [
-    'FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA', 'FREELA LIMPEZA',
-    'FREELA SEGURANÇA', 'ALIMENTAÇÃO', 'PRO LABORE', 'VALE TRANSPORTE', 
-    'PROVISÃO TRABALHISTA', 'SALARIO FUNCIONARIOS', 'RECURSOS HUMANOS'
-  ]
-  const custoTotalCMO = somarCategoriasNibo(categoriasCMO)
+  // CMO% - NOVA LÓGICA: Custos fixos proporcionais + Variáveis da semana
+  const categoriasFixas = ['SALARIO FUNCIONARIOS', 'VALE TRANSPORTE', 'ADICIONAIS', 'PRO LABORE', 'PROVISÃO TRABALHISTA']
+  const categoriasVariaveis = ['ALIMENTAÇÃO', 'FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA', 'FREELA LIMPEZA', 'FREELA SEGURANÇA', 'RECURSOS HUMANOS']
+
+  let custoTotalCMO = 0
+
+  // 1. Custos FIXOS: Proporcionais ao mês (salários, VT, pró-labore, provisões)
+  for (const categoria of categoriasFixas) {
+    // Buscar total do mês de início
+    const itensMesInicio = niboDataMensal?.filter(item => {
+      if (!item.categoria_nome || !item.categoria_nome.toUpperCase().includes(categoria.toUpperCase())) return false
+      const d = new Date(item.data_competencia)
+      return d.getMonth() + 1 === mesInicio && d.getFullYear() === anoInicio
+    }) || []
+    
+    // Buscar total do mês de fim (se diferente)
+    const itensMesFim = mesInicio !== mesFim ? niboDataMensal?.filter(item => {
+      if (!item.categoria_nome || !item.categoria_nome.toUpperCase().includes(categoria.toUpperCase())) return false
+      const d = new Date(item.data_competencia)
+      return d.getMonth() + 1 === mesFim && d.getFullYear() === anoFim
+    }) || [] : []
+    
+    const totalMesInicio = itensMesInicio.reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0)
+    const totalMesFim = itensMesFim.reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0)
+    
+    // Calcular proporção de dias da semana em cada mês
+    const diasNoMesInicio = new Date(anoInicio, mesInicio, 0).getDate()
+    const diasNoMesFim = mesInicio !== mesFim ? new Date(anoFim, mesFim, 0).getDate() : 0
+    
+    // Dias da semana no mês de início
+    const ultimoDiaMesInicio = new Date(anoInicio, mesInicio, 0).getDate()
+    const diasSemanaNoMesInicio = mesInicio === mesFim 
+      ? 7 // Semana toda no mesmo mês
+      : ultimoDiaMesInicio - dataInicioSemana.getDate() + 1
+    
+    // Dias da semana no mês de fim
+    const diasSemanaNoMesFim = mesInicio !== mesFim ? dataFimSemana.getDate() : 0
+    
+    // Proporção
+    const proporcaoMesInicio = diasSemanaNoMesInicio / diasNoMesInicio
+    const proporcaoMesFim = mesInicio !== mesFim ? diasSemanaNoMesFim / diasNoMesFim : 0
+    
+    const totalProporcional = (totalMesInicio * proporcaoMesInicio) + (totalMesFim * proporcaoMesFim)
+    custoTotalCMO += totalProporcional
+  }
+
+  // 2. Custos VARIÁVEIS: Buscar por data exata dentro da semana (freelancers, alimentação)
+  for (const categoria of categoriasVariaveis) {
+    const itens = niboData?.filter(item => 
+      item.categoria_nome && item.categoria_nome.toUpperCase().includes(categoria.toUpperCase())
+    ) || []
+    const total = itens.reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0)
+    custoTotalCMO += total
+  }
+
   const cmoPercent = faturamentoTotal > 0 ? (custoTotalCMO / faturamentoTotal) * 100 : 0
-  console.log(`👷 CMO: R$ ${custoTotalCMO.toFixed(2)} (${cmoPercent.toFixed(2)}%)`)
+  console.log(`👷 CMO: R$ ${custoTotalCMO.toFixed(2)} (${cmoPercent.toFixed(2)}%) [Fixos proporcionais + Variáveis da semana]`)
 
   // COCKPIT FINANCEIRO - Fórmulas atualizadas conforme planilha
   
@@ -688,7 +759,7 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   // 12.2 TEMPO E ATRASOS (contahub_tempo)
   // NOTA: tempos estão em SEGUNDOS, precisamos converter para minutos
   // Bar usa t0_t3 (lançamento até entrega), Cozinha usa t0_t2
-  const tempoData = await fetchAllData(supabase, 'contahub_tempo', 'categoria, loc_desc, t0_t2, t0_t3, t1_t2, itm_qtd, itm_desc, produto_nome, data', {
+  const tempoData = await fetchAllData(supabase, 'contahub_tempo', 'categoria, loc_desc, t0_t2, t0_t3, t1_t2, itm_qtd, prd_desc, data', {
     'gte_data': startDate,
     'lte_data': endDate,
     'eq_bar_id': barId
@@ -709,27 +780,44 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   ) || []
 
   // Tempo médio de saída - Drinks usa t0_t3, Cozinha usa t0_t2 (em segundos, convertendo para minutos)
-  const tempoSaidaDrinksSegundos = tempoDrinks.length > 0 
-    ? tempoDrinks.reduce((sum, item) => sum + (parseFloat(item.t0_t3) || 0), 0) / tempoDrinks.length 
+  // IMPORTANTE: Ignorar itens com tempo <= 0 ou NULL para não distorcer a média
+  // Itens válidos para qualquer cálculo (tempo > 0)
+  const tempoDrinksValidos = tempoDrinks.filter(item => {
+    const tempo = parseFloat(item.t0_t3)
+    return !isNaN(tempo) && tempo > 0
+  })
+  const tempoCozinhaValidos = tempoCozinha.filter(item => {
+    const tempo = parseFloat(item.t0_t2)
+    return !isNaN(tempo) && tempo > 0
+  })
+
+  // Tempo médio: SUM(tempo) / COUNT(tempo > 0) / 60 — igual fórmula da planilha
+  // SEM filtro de outliers para bater 100% com a planilha
+  const tempoSaidaDrinksSegundos = tempoDrinksValidos.length > 0 
+    ? tempoDrinksValidos.reduce((sum, item) => sum + parseFloat(item.t0_t3), 0) / tempoDrinksValidos.length 
     : 0
-  const tempoSaidaCozinhaSegundos = tempoCozinha.length > 0 
-    ? tempoCozinha.reduce((sum, item) => sum + (parseFloat(item.t0_t2) || 0), 0) / tempoCozinha.length 
+  const tempoSaidaCozinhaSegundos = tempoCozinhaValidos.length > 0 
+    ? tempoCozinhaValidos.reduce((sum, item) => sum + parseFloat(item.t0_t2), 0) / tempoCozinhaValidos.length 
     : 0
   
   // Converter para minutos
   const tempoSaidaDrinks = tempoSaidaDrinksSegundos / 60
   const tempoSaidaCozinha = tempoSaidaCozinhaSegundos / 60
+  
+  console.log(`📊 Itens válidos para média - Drinks: ${tempoDrinksValidos.length}/${tempoDrinks.length}, Cozinha: ${tempoCozinhaValidos.length}/${tempoCozinha.length}`)
 
   // Atrasos - Drinks com t0_t3 > 10min = 600s, Cozinha com t0_t2 > 20min = 1200s
-  const atrasadosDrinks = tempoDrinks.filter(item => (parseFloat(item.t0_t3) || 0) > 600)
-  const atrasadosCozinha = tempoCozinha.filter(item => (parseFloat(item.t0_t2) || 0) > 1200)
+  // NOTA: Para ATRASOS usamos TODOS os itens válidos (incluindo outliers extremos)
+  // Isso garante que itens com 13h de atraso sejam contados
+  const atrasadosDrinks = tempoDrinksValidos.filter(item => parseFloat(item.t0_t3) > 600)
+  const atrasadosCozinha = tempoCozinhaValidos.filter(item => parseFloat(item.t0_t2) > 1200)
   
   const atrasosDrinks = atrasadosDrinks.length
   const atrasosCozinha = atrasadosCozinha.length
 
-  // % Atrasos
-  const percAtrasosDrinks = tempoDrinks.length > 0 ? (atrasosDrinks / tempoDrinks.length) * 100 : 0
-  const percAtrasosCozinha = tempoCozinha.length > 0 ? (atrasosCozinha / tempoCozinha.length) * 100 : 0
+  // % Atrasos - baseado em TODOS os itens válidos (incluindo outliers)
+  const percAtrasosDrinks = tempoDrinksValidos.length > 0 ? (atrasosDrinks / tempoDrinksValidos.length) * 100 : 0
+  const percAtrasosCozinha = tempoCozinhaValidos.length > 0 ? (atrasosCozinha / tempoCozinhaValidos.length) * 100 : 0
 
   // Agrupar atrasos por dia da semana com detalhes dos itens
   const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
@@ -741,7 +829,7 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   atrasadosDrinks.forEach(item => {
     const data = new Date(item.data)
     const diaSemana = diasSemana[data.getDay()]
-    const produtoNome = item.produto_nome || item.itm_desc || 'Item sem nome'
+    const produtoNome = item.prd_desc || 'Item sem nome'
     const atrasoMinutos = parseFloat(item.t0_t3) / 60
     
     if (!atrasosDrinksPorDia.has(diaSemana)) {
@@ -785,7 +873,7 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   atrasadosCozinha.forEach(item => {
     const data = new Date(item.data)
     const diaSemana = diasSemana[data.getDay()]
-    const produtoNome = item.produto_nome || item.itm_desc || 'Item sem nome'
+    const produtoNome = item.prd_desc || 'Item sem nome'
     const atrasoMinutos = parseFloat(item.t0_t2) / 60
     
     if (!atrasosCozinhaPorDia.has(diaSemana)) {
@@ -833,10 +921,10 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     'eq_bar_id': barId
   })
 
-  // Locais por categoria (corrigidos)
-  const locaisComidas = ['Cozinha 1', 'Cozinha 2']
-  const locaisDrinks = ['Batidos', 'Montados', 'Mexido', 'Preshh']
-  const locaisBar = ['Bar', 'Baldes', 'Shot e Dose', 'Chopp']
+  // Locais por categoria (corrigidos) - usamos nomes diferentes para evitar conflito
+  const locaisComidasStockout = ['Cozinha 1', 'Cozinha 2']
+  const locaisDrinksStockout = ['Batidos', 'Montados', 'Mexido', 'Preshh']
+  const locaisBarStockout = ['Bar', 'Baldes', 'Shot e Dose', 'Chopp']
   
   // Locais a ignorar (igual página de stockout)
   const locaisIgnorar = ['Pegue e Pague', 'Venda Volante']
@@ -916,9 +1004,9 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     if (isStockout) locStats.stockout++
     
     // Categorizar
-    const isBar = locaisBar.some(l => loc.includes(l))
-    const isComidas = locaisComidas.some(l => loc.includes(l))
-    const isDrinks = locaisDrinks.some(l => loc.includes(l))
+    const isBar = locaisBarStockout.some(l => loc.includes(l))
+    const isComidas = locaisComidasStockout.some(l => loc.includes(l))
+    const isDrinks = locaisDrinksStockout.some(l => loc.includes(l))
     
     if (isBar) {
       stats.totalBar++
@@ -965,7 +1053,8 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   console.log(`   - Comidas (Cozinha 1+Cozinha 2): ${stockoutCozinhaPerc.toFixed(1)}%`)
   console.log(`   - Drinks (Batidos+Montados+Mexido+Preshh): ${stockoutDrinksPerc.toFixed(1)}%`)
 
-  // 12.4 PERCENTUAIS DE VENDA POR CATEGORIA (usando eventos_base consolidado)
+  // 12.4 PERCENTUAIS DE VENDA POR CATEGORIA (usando SOMA CONSOLIDADA da semana - igual planilha)
+  // Busca eventos_base para fat_19h_percent e outras métricas
   const eventosBase = await fetchAllData(supabase, 'eventos_base', 'percent_b, percent_d, percent_c, fat_19h_percent, dia_semana, real_r', {
     'gte_data_evento': startDate,
     'lte_data_evento': endDate,
@@ -973,26 +1062,53 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     'eq_ativo': true
   })
 
-  // CORREÇÃO: Filtrar apenas eventos que têm percentuais válidos (soma > 0)
-  // Dias sem dados do ContaHub Analítico terão soma = 0 e não devem entrar na média
-  // Para que %B + %D + %C sempre some 100%
-  const eventosComPercentuais = eventosBase?.filter(e => {
-    const somaPercent = (parseFloat(e.percent_b) || 0) + (parseFloat(e.percent_d) || 0) + (parseFloat(e.percent_c) || 0)
-    return somaPercent > 0  // Apenas dias com dados de percentual válidos
-  }) || []
+  // CORREÇÃO: Calcular Mix de Vendas pela SOMA TOTAL da semana (igual planilha)
+  // Em vez de média simples dos percentuais diários, usa soma consolidada do contahub_analitico
+  // Isso garante que dias com maior faturamento tenham mais peso no cálculo
   
-  // Médias apenas de dias com percentuais válidos (garantindo soma = 100%)
-  const percBebidas = eventosComPercentuais.length > 0 
-    ? eventosComPercentuais.reduce((sum, e) => sum + (parseFloat(e.percent_b) || 0), 0) / eventosComPercentuais.length 
-    : 0
-  const percDrinks = eventosComPercentuais.length > 0 
-    ? eventosComPercentuais.reduce((sum, e) => sum + (parseFloat(e.percent_d) || 0), 0) / eventosComPercentuais.length 
-    : 0
-  const percComida = eventosComPercentuais.length > 0 
-    ? eventosComPercentuais.reduce((sum, e) => sum + (parseFloat(e.percent_c) || 0), 0) / eventosComPercentuais.length 
-    : 0
+  // Buscar dados do contahub_analitico para calcular mix de vendas consolidado
+  const contahubMixData = await fetchAllData(supabase, 'contahub_analitico', 'loc_desc, valorfinal', {
+    'gte_trn_dtgerencial': startDate,
+    'lte_trn_dtgerencial': endDate,
+    'eq_bar_id': barId
+  })
+  
+  // Categorias conforme DE/PARA:
+  // BEBIDA: Chopp, Bar, Pegue e Pague, Venda Volante, Baldes
+  // COMIDA: Cozinha, Cozinha 1, Cozinha 2
+  // DRINK: Preshh, Montados, Mexido, Drinks, Drinks Autorais, Shot e Dose, Batidos
+  const locaisBebida = ['Chopp', 'Bar', 'Pegue e Pague', 'Venda Volante', 'Baldes']
+  const locaisComida = ['Cozinha', 'Cozinha 1', 'Cozinha 2']
+  const locaisDrink = ['Preshh', 'Montados', 'Mexido', 'Drinks', 'Drinks Autorais', 'Shot e Dose', 'Batidos']
+  
+  let valorBebidas = 0
+  let valorComidas = 0
+  let valorDrinks = 0
+  let valorTotal = 0
+  
+  contahubMixData?.forEach(item => {
+    const valor = parseFloat(item.valorfinal) || 0
+    const loc = item.loc_desc || ''
+    valorTotal += valor
+    
+    if (locaisBebida.includes(loc)) {
+      valorBebidas += valor
+    } else if (locaisComida.includes(loc)) {
+      valorComidas += valor
+    } else if (locaisDrink.includes(loc)) {
+      valorDrinks += valor
+    }
+    // Outros locais não são contabilizados no mix (são excluídos)
+  })
+  
+  // Calcular percentuais sobre o total das 3 categorias (para somar 100%)
+  const totalCategorizado = valorBebidas + valorComidas + valorDrinks
+  const percBebidas = totalCategorizado > 0 ? (valorBebidas / totalCategorizado) * 100 : 0
+  const percDrinks = totalCategorizado > 0 ? (valorDrinks / totalCategorizado) * 100 : 0
+  const percComida = totalCategorizado > 0 ? (valorComidas / totalCategorizado) * 100 : 0
 
-  console.log(`📊 % Bebidas: ${percBebidas.toFixed(1)}%, Drinks: ${percDrinks.toFixed(1)}%, Comida: ${percComida.toFixed(1)}% (${eventosComPercentuais.length}/${eventosBase?.length || 0} dias com percentuais válidos)`)
+  console.log(`📊 Mix de Vendas (soma consolidada): Bebidas: ${percBebidas.toFixed(1)}%, Drinks: ${percDrinks.toFixed(1)}%, Comida: ${percComida.toFixed(1)}%`)
+  console.log(`   Valores: Bebidas R$ ${valorBebidas.toFixed(2)}, Drinks R$ ${valorDrinks.toFixed(2)}, Comida R$ ${valorComidas.toFixed(2)}, Total R$ ${totalCategorizado.toFixed(2)}`)
 
   // ============================================
   // 13. COCKPIT VENDAS (faturamento por hora, venda balcão)

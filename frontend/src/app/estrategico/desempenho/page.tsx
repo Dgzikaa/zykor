@@ -130,6 +130,7 @@ interface MetricaConfig {
   keyPessoas?: string; // Campo secundário para formato 'reservas' (mostra "reservas/pessoas")
   indentado?: boolean; // Indica se está indentado (sub-item de um grupo)
   temTooltipDetalhes?: boolean; // Se true, mostra tooltip com detalhes especiais (ex: motivos de desconto)
+  keyPercentual?: string; // Campo para mostrar % ao lado do valor (ex: atrasos com % em relação aos itens)
 }
 
 // Tipo de agregação para grupos planos
@@ -255,10 +256,10 @@ const SECOES: SecaoConfig[] = [
       },
       {
         id: 'custos',
-        label: 'Custos Operacionais',
-        agregacao: { tipo: 'soma', formato: 'percentual' },
+        label: 'Custos',
+        // Sem agregação: métricas independentes
         metricas: [
-          { key: 'cmo', label: 'CMO %', status: 'auto', fonte: 'NIBO', calculo: 'Custos MO / Faturamento', formato: 'percentual', inverso: true },
+          { key: 'cmo', label: 'CMO %', status: 'nao_confiavel', fonte: 'NIBO', calculo: 'Custos MO / Faturamento', formato: 'percentual', inverso: true },
           { key: 'custo_atracao_faturamento', label: 'Atração/Fat.', status: 'auto', fonte: 'NIBO', calculo: 'Atrações / Faturamento', formato: 'percentual', inverso: true },
         ]
       }
@@ -266,30 +267,16 @@ const SECOES: SecaoConfig[] = [
   },
   {
     id: 'ovt',
-    titulo: 'OVT - Clientes & Qualidade',
+    titulo: 'OVT - Clientes',
     icone: <Users className="w-4 h-4" />,
     cor: 'bg-blue-600',
     grupos: [
       {
-        id: 'retencao',
-        label: 'Retenção',
-        agregacao: { tipo: 'soma', formato: 'percentual' },
-        metricas: [
-          { key: 'retencao_1m', label: 'Retenção 1 mês', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram em 30 dias', formato: 'percentual' },
-          { key: 'retencao_2m', label: 'Retenção 2 meses', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes que retornaram em 60 dias', formato: 'percentual' },
-        ]
-      },
-      {
-        id: 'clientes_ativos',
-        label: 'Clientes Ativos',
-        agregacao: { tipo: 'campo', campo: 'clientes_ativos', formato: 'numero' },
-        metricas: []
-      },
-      {
         id: 'volume',
         label: 'Volume',
-        // Sem agregação: Visitas e % Novos têm contextos diferentes
+        // Sem agregação: métricas têm contextos diferentes
         metricas: [
+          { key: 'clientes_ativos', label: 'Clientes Ativos', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes únicos ativos no período', formato: 'numero' },
           { key: 'clientes_atendidos', label: 'Visitas', status: 'auto', fonte: 'ContaHub + Yuzer', calculo: 'Soma de pessoas na semana', formato: 'numero' },
           { key: 'perc_clientes_novos', label: '% Novos Clientes', status: 'auto', fonte: 'Stored Procedure', calculo: 'Novos / Total', formato: 'percentual' },
         ]
@@ -303,16 +290,35 @@ const SECOES: SecaoConfig[] = [
           { key: 'reservas_presentes', label: 'Reservas Presentes', status: 'auto', fonte: 'GetIn', calculo: 'Reservas seated/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_presentes' },
           { key: 'quebra_reservas', label: 'Quebra de Reservas', status: 'auto', fonte: 'Calculado', calculo: '(Pessoas Total - Pessoas Presentes) / Pessoas Total', formato: 'percentual' },
         ]
-      },
+      }
+    ]
+  },
+  {
+    id: 'qualidade',
+    titulo: 'Qualidade',
+    icone: <Star className="w-4 h-4" />,
+    cor: 'bg-indigo-600',
+    grupos: [
       {
-        id: 'qualidade',
-        label: 'Qualidade',
-        // Sem agregação: métricas têm formatos e escalas diferentes (quantidade, nota, NPS)
+        id: 'avaliacoes',
+        label: 'Avaliações',
         metricas: [
           { key: 'avaliacoes_5_google_trip', label: 'Avaliações 5★ Google', status: 'manual', fonte: 'SuperSal', calculo: 'Relatório semanal', formato: 'numero', editavel: true },
           { key: 'media_avaliacoes_google', label: 'Média Google', status: 'manual', fonte: 'SuperSal', calculo: 'Relatório semanal', formato: 'decimal', editavel: true },
+        ]
+      },
+      {
+        id: 'nps',
+        label: 'NPS',
+        metricas: [
           { key: 'nps_geral', label: 'NPS Geral', status: 'auto', fonte: 'NPS', calculo: '% Promotores - % Detratores', formato: 'numero' },
           { key: 'nps_reservas', label: 'NPS Reservas', status: 'auto', fonte: 'NPS', calculo: '% Promotores - % Detratores (com reserva)', formato: 'numero' },
+        ]
+      },
+      {
+        id: 'equipe',
+        label: 'Equipe',
+        metricas: [
           { key: 'nota_felicidade_equipe', label: 'Felicidade Equipe', status: 'manual', fonte: 'Pesquisa', calculo: 'Manual', formato: 'numero', editavel: true },
         ]
       }
@@ -345,15 +351,6 @@ const SECOES: SecaoConfig[] = [
         ]
       },
       {
-        id: 'producao',
-        label: 'Produção',
-        agregacao: { tipo: 'soma', formato: 'numero' },
-        metricas: [
-          { key: 'qtde_itens_bar', label: 'Itens Bar', status: 'auto', fonte: 'contahub_analitico', calculo: 'Soma qtd bar', formato: 'numero' },
-          { key: 'qtde_itens_cozinha', label: 'Itens Cozinha', status: 'auto', fonte: 'contahub_analitico', calculo: 'Soma qtd cozinha', formato: 'numero' },
-        ]
-      },
-      {
         id: 'tempos',
         label: 'Tempos',
         agregacao: { tipo: 'media', formato: 'decimal', sufixo: ' min' },
@@ -367,17 +364,17 @@ const SECOES: SecaoConfig[] = [
         label: 'Atrasos',
         agregacao: { tipo: 'soma', formato: 'numero' },
         metricas: [
-          { key: 'atrasos_bar', label: 'Atrasos Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 'Drinks preparados t0_t3 > 10min (Batidos, Montados, Mexido, Preshh, Drinks, Drinks Autorais, Shot e Dose)', formato: 'numero', inverso: true, temTooltipDetalhes: true },
-          { key: 'atrasos_cozinha', label: 'Atrasos Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 'Comida t0_t2 > 20min (Cozinha 1, Cozinha 2)', formato: 'numero', inverso: true, temTooltipDetalhes: true },
+          { key: 'atrasos_bar', label: 'Atrasos Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 'Drinks preparados t0_t3 > 10min (Batidos, Montados, Mexido, Preshh, Drinks, Drinks Autorais, Shot e Dose)', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_bar_perc' },
+          { key: 'atrasos_cozinha', label: 'Atrasos Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 'Comida t0_t2 > 20min (Cozinha 1, Cozinha 2)', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_cozinha_perc' },
         ]
       }
     ]
   },
   {
     id: 'vendas',
-    titulo: 'Vendas & Marketing',
-    icone: <Megaphone className="w-4 h-4" />,
-    cor: 'bg-pink-500',
+    titulo: 'Vendas',
+    icone: <DollarSign className="w-4 h-4" />,
+    cor: 'bg-purple-500',
     grupos: [
       {
         id: 'horarios',
@@ -389,6 +386,32 @@ const SECOES: SecaoConfig[] = [
           { key: 'qui_sab_dom', label: 'QUI+SÁB+DOM', status: 'auto', fonte: 'eventos_base', calculo: 'Soma real_r', formato: 'moeda' },
         ]
       },
+      {
+        id: 'conta_assinada',
+        label: 'Conta Assinada',
+        // Sem agregação: métricas têm formatos diferentes (moeda e %)
+        metricas: [
+          { key: 'conta_assinada_valor', label: 'Valor R$', status: 'auto', fonte: 'contahub_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda' },
+          { key: 'conta_assinada_perc', label: '% do Faturamento', status: 'auto', fonte: 'Calculado', calculo: 'Valor / Faturamento Total', formato: 'percentual' },
+        ]
+      },
+      {
+        id: 'descontos',
+        label: 'Descontos',
+        // Sem agregação: métricas têm formatos diferentes (moeda e %)
+        metricas: [
+          { key: 'descontos_valor', label: 'Valor R$', status: 'auto', fonte: 'contahub_periodo', calculo: 'Soma vr_desconto', formato: 'moeda', temTooltipDetalhes: true },
+          { key: 'descontos_perc', label: '% do Faturamento', status: 'auto', fonte: 'Calculado', calculo: 'Valor / Faturamento Total', formato: 'percentual' },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'marketing',
+    titulo: 'Marketing',
+    icone: <Megaphone className="w-4 h-4" />,
+    cor: 'bg-pink-500',
+    grupos: [
       {
         id: 'organico',
         label: 'Marketing Orgânico',
@@ -408,24 +431,6 @@ const SECOES: SecaoConfig[] = [
           { key: 'm_alcance', label: 'Alcance Pago', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
           { key: 'm_cliques', label: 'Cliques Ads', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
           { key: 'm_ctr', label: 'CTR', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'percentual', editavel: true },
-        ]
-      },
-      {
-        id: 'conta_assinada',
-        label: 'Conta Assinada',
-        // Sem agregação: métricas têm formatos diferentes (moeda e %)
-        metricas: [
-          { key: 'conta_assinada_valor', label: 'Valor R$', status: 'auto', fonte: 'contahub_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda' },
-          { key: 'conta_assinada_perc', label: '% do Faturamento', status: 'auto', fonte: 'Calculado', calculo: 'Valor / Faturamento Total', formato: 'percentual' },
-        ]
-      },
-      {
-        id: 'descontos',
-        label: 'Descontos',
-        // Sem agregação: métricas têm formatos diferentes (moeda e %)
-        metricas: [
-          { key: 'descontos_valor', label: 'Valor R$', status: 'auto', fonte: 'contahub_periodo', calculo: 'Soma vr_desconto', formato: 'moeda', temTooltipDetalhes: true },
-          { key: 'descontos_perc', label: '% do Faturamento', status: 'auto', fonte: 'Calculado', calculo: 'Valor / Faturamento Total', formato: 'percentual' },
         ]
       }
     ]
@@ -508,8 +513,10 @@ export default function DesempenhoPage() {
   const [secoesAbertas, setSecoesAbertas] = useState<Record<string, boolean>>({
     guardrail: true,
     ovt: true,
+    qualidade: true,
     produtos: true,
-    vendas: true
+    vendas: true,
+    marketing: true
   });
   // Estado para grupos abertos/fechados (para as subcategorias)
   // GRUPOS SELECIONADOS EXPANDIDOS POR PADRÃO
@@ -519,25 +526,29 @@ export default function DesempenhoPage() {
     'guardrail-cmv': false,          // ← COLAPSADO
     'guardrail-ticket': false,       // ← COLAPSADO
     'guardrail-custos': true,
-    // OVT
-    'ovt-retencao': true,
-    'ovt-clientes_ativos': true,
+    // OVT - SEMPRE EXPANDIDO
     'ovt-volume': true,
     'ovt-reservas': true,
-    'ovt-qualidade': true,
+    // QUALIDADE - SEMPRE EXPANDIDO
+    'qualidade-avaliacoes': true,
+    'qualidade-nps': true,
+    'qualidade-equipe': true,
     // PRODUTOS
     'produtos-stockout': true,
     'produtos-mix': true,
-    'produtos-producao': true,
     'produtos-tempos': true,
     'produtos-atrasos': true,
     // VENDAS
     'vendas-horarios': true,
-    'vendas-organico': true,
-    'vendas-pago': true,
     'vendas-conta_assinada': true,
     'vendas-descontos': true,
+    // MARKETING
+    'marketing-organico': true,
+    'marketing-pago': true,
   });
+  
+  // Seções que não permitem collapse nos grupos (sempre expandidos)
+  const secoesNaoColapsaveis = useMemo(() => ['ovt', 'qualidade'], []);
   // Visão: 'semanal' ou 'mensal'
   const [visao, setVisao] = useState<'semanal' | 'mensal'>('semanal');
   const [editando, setEditando] = useState<{ semanaId: number; campo: string } | null>(null);
@@ -897,66 +908,75 @@ export default function DesempenhoPage() {
               {secoesAbertas[secao.id] && secao.grupos.map(grupo => {
                 const hierarquico = isGrupoHierarquico(grupo);
                 const metricasParaMostrar = hierarquico ? grupo.metricas.slice(1) : grupo.metricas;
+                // Só mostra header do grupo se for hierárquico OU tiver agregação
+                const mostrarHeaderGrupo = hierarquico || !!grupo.agregacao;
                 
                 return (
                   <div key={grupo.id}>
                     {/* Header do grupo com bolinha de status + expansão */}
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div 
-                            className="flex items-center gap-2 px-3 bg-gray-50 dark:bg-gray-800 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-600"
-                            style={{ height: '36px' }}
-                            onClick={() => toggleGrupo(`${secao.id}-${grupo.id}`)}
-                          >
-                            {gruposAbertos[`${secao.id}-${grupo.id}`] ? (
-                              <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                            ) : (
-                              <ChevronRight className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                            )}
-                            {/* Bolinha só aparece em grupos hierárquicos (onde a primeira métrica representa o grupo) */}
-                            {hierarquico && (
-                              <div className={cn("w-2 h-2 rounded-full flex-shrink-0", STATUS_COLORS[grupo.metricas[0]?.status || 'auto'].dot)} />
-                            )}
-                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{grupo.label}</span>
-                            {!hierarquico && (
-                              <span className="text-[10px] text-gray-400 dark:text-gray-500">({grupo.metricas.length})</span>
-                            )}
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs p-3 bg-gray-50 dark:bg-gray-800">
-                          <div className="space-y-1">
-                            {hierarquico ? (
-                              <>
-                                <div className={cn("font-semibold text-sm", STATUS_COLORS[grupo.metricas[0]?.status || 'auto'].text)}>
-                                  {grupo.metricas[0]?.status === 'auto' && 'Automático'}
-                                  {grupo.metricas[0]?.status === 'manual' && 'Manual'}
-                                  {grupo.metricas[0]?.status === 'nao_confiavel' && 'Não Confiável'}
-                                </div>
+                    {mostrarHeaderGrupo && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div 
+                              className={cn(
+                                "flex items-center gap-2 px-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600",
+                                !secoesNaoColapsaveis.includes(secao.id) && "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                              )}
+                              style={{ height: '36px' }}
+                              onClick={() => !secoesNaoColapsaveis.includes(secao.id) && toggleGrupo(`${secao.id}-${grupo.id}`)}
+                            >
+                              {!secoesNaoColapsaveis.includes(secao.id) && (
+                                gruposAbertos[`${secao.id}-${grupo.id}`] ? (
+                                  <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                                ) : (
+                                  <ChevronRight className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                                )
+                              )}
+                              {/* Bolinha só aparece em grupos hierárquicos (onde a primeira métrica representa o grupo) */}
+                              {hierarquico && (
+                                <div className={cn("w-2 h-2 rounded-full flex-shrink-0", STATUS_COLORS[grupo.metricas[0]?.status || 'auto'].dot)} />
+                              )}
+                              <span className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{grupo.label}</span>
+                              {!hierarquico && (
+                                <span className="text-[10px] text-gray-400 dark:text-gray-500">({grupo.metricas.length})</span>
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-xs p-3 bg-gray-50 dark:bg-gray-800">
+                            <div className="space-y-1">
+                              {hierarquico ? (
+                                <>
+                                  <div className={cn("font-semibold text-sm", STATUS_COLORS[grupo.metricas[0]?.status || 'auto'].text)}>
+                                    {grupo.metricas[0]?.status === 'auto' && 'Automático'}
+                                    {grupo.metricas[0]?.status === 'manual' && 'Manual'}
+                                    {grupo.metricas[0]?.status === 'nao_confiavel' && 'Não Confiável'}
+                                  </div>
+                                  <div className="text-xs text-gray-600 dark:text-gray-300">
+                                    <strong>Fonte:</strong> {grupo.metricas[0]?.fonte}
+                                  </div>
+                                  <div className="text-xs text-gray-600 dark:text-gray-300">
+                                    <strong>Cálculo:</strong> {grupo.metricas[0]?.calculo}
+                                  </div>
+                                </>
+                              ) : (
                                 <div className="text-xs text-gray-600 dark:text-gray-300">
-                                  <strong>Fonte:</strong> {grupo.metricas[0]?.fonte}
+                                  Clique para expandir {grupo.metricas.length} indicadores
                                 </div>
-                                <div className="text-xs text-gray-600 dark:text-gray-300">
-                                  <strong>Cálculo:</strong> {grupo.metricas[0]?.calculo}
+                              )}
+                              {metricasParaMostrar.length > 0 && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400 pt-1 border-t border-gray-200 dark:border-gray-600 mt-1">
+                                  Clique para ver {metricasParaMostrar.length} {hierarquico ? 'sub-indicador(es)' : 'indicador(es)'}
                                 </div>
-                              </>
-                            ) : (
-                              <div className="text-xs text-gray-600 dark:text-gray-300">
-                                Clique para expandir {grupo.metricas.length} indicadores
-                              </div>
-                            )}
-                            {metricasParaMostrar.length > 0 && (
-                              <div className="text-xs text-gray-500 dark:text-gray-400 pt-1 border-t border-gray-200 dark:border-gray-600 mt-1">
-                                Clique para ver {metricasParaMostrar.length} {hierarquico ? 'sub-indicador(es)' : 'indicador(es)'}
-                              </div>
-                            )}
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                     
-                    {/* Sub-métricas do grupo (apenas quando expandido) */}
-                    {gruposAbertos[`${secao.id}-${grupo.id}`] && metricasParaMostrar.map((metrica) => (
+                    {/* Sub-métricas do grupo (quando expandido OU seção não colapsável OU grupo sem header) */}
+                    {(!mostrarHeaderGrupo || secoesNaoColapsaveis.includes(secao.id) || gruposAbertos[`${secao.id}-${grupo.id}`]) && metricasParaMostrar.map((metrica) => (
                       <TooltipProvider key={metrica.key}>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -1059,6 +1079,8 @@ export default function DesempenhoPage() {
                           const hierarquico = isGrupoHierarquico(grupo);
                           const metricaPrincipal = grupo.metricas[0];
                           const metricasParaMostrar = hierarquico ? grupo.metricas.slice(1) : grupo.metricas;
+                          // Só mostra header do grupo se for hierárquico OU tiver agregação
+                          const mostrarHeaderGrupo = hierarquico || !!grupo.agregacao;
                           
                           // Para grupos hierárquicos, mostra o valor da primeira métrica no header
                           const valorPrincipal = hierarquico && metricaPrincipal ? (semana as any)[metricaPrincipal.key] : null;
@@ -1080,78 +1102,81 @@ export default function DesempenhoPage() {
                           return (
                             <div key={grupo.id}>
                               {/* Header do grupo - valor para hierárquicos OU agregado para planos */}
-                              <div 
-                                className={cn(
-                                  "relative flex items-center justify-center px-2 border-b border-gray-200 dark:border-gray-600 group",
-                                  isAtual ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-gray-50 dark:bg-gray-800"
-                                )}
-                                style={{ height: '36px' }}
-                              >
-                                {hierarquico ? (
-                                  // Grupo hierárquico: mostra valor editável
-                                  isEditandoPrincipal ? (
-                                    <div className="flex items-center gap-1">
-                                      <Input
-                                        type="text"
-                                        value={valorEdit}
-                                        onChange={(e) => setValorEdit(e.target.value)}
-                                        className="w-16 h-6 text-xs p-1"
-                                        autoFocus
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') salvarMetrica(semana.id!, metricaPrincipal.key);
-                                          if (e.key === 'Escape') setEditando(null);
-                                        }}
-                                      />
-                                      <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => salvarMetrica(semana.id!, metricaPrincipal.key)}>
-                                        <Check className="h-3 w-3 text-emerald-600" />
-                                      </Button>
-                                      <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditando(null)}>
-                                        <X className="h-3 w-3 text-red-600" />
-                                      </Button>
-                                    </div>
+                              {mostrarHeaderGrupo && (
+                                <div 
+                                  className={cn(
+                                    "relative flex items-center justify-center px-2 border-b border-gray-200 dark:border-gray-600 group",
+                                    isAtual ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-gray-50 dark:bg-gray-800"
+                                  )}
+                                  style={{ height: '36px' }}
+                                >
+                                  {hierarquico ? (
+                                    // Grupo hierárquico: mostra valor editável
+                                    isEditandoPrincipal ? (
+                                      <div className="flex items-center gap-1">
+                                        <Input
+                                          type="text"
+                                          value={valorEdit}
+                                          onChange={(e) => setValorEdit(e.target.value)}
+                                          className="w-16 h-6 text-xs p-1"
+                                          autoFocus
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') salvarMetrica(semana.id!, metricaPrincipal.key);
+                                            if (e.key === 'Escape') setEditando(null);
+                                          }}
+                                        />
+                                        <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => salvarMetrica(semana.id!, metricaPrincipal.key)}>
+                                          <Check className="h-3 w-3 text-emerald-600" />
+                                        </Button>
+                                        <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditando(null)}>
+                                          <X className="h-3 w-3 text-red-600" />
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs font-medium text-gray-900 dark:text-white text-center">
+                                        {valorPrincipalFormatado}
+                                      </span>
+                                    )
                                   ) : (
-                                    <span className="text-xs font-medium text-gray-900 dark:text-white text-center">
-                                      {valorPrincipalFormatado}
-                                    </span>
-                                  )
-                                ) : (
-                                  // Grupo plano: mostra valor agregado ou "..." se não tem agregação
-                                  grupo.agregacao ? (
+                                    // Grupo plano com agregação: mostra valor agregado
                                     <span className="text-xs font-medium text-gray-900 dark:text-white text-center">
                                       {valorAgregadoFormatado}
                                     </span>
-                                  ) : (
-                                    <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                                      ...
-                                    </span>
-                                  )
-                                )}
-                                {hierarquico && !isEditandoPrincipal && metricaPrincipal?.editavel && semana.id && (
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={() => {
-                                      setEditando({ semanaId: semana.id!, campo: metricaPrincipal.key });
-                                      setValorEdit(valorPrincipal?.toString().replace('.', ',') || '');
-                                    }}
-                                  >
-                                    <Pencil className="h-3 w-3 text-blue-600" />
-                                  </Button>
-                                )}
-                              </div>
+                                  )}
+                                  {hierarquico && !isEditandoPrincipal && metricaPrincipal?.editavel && semana.id && (
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      onClick={() => {
+                                        setEditando({ semanaId: semana.id!, campo: metricaPrincipal.key });
+                                        setValorEdit(valorPrincipal?.toString().replace('.', ',') || '');
+                                      }}
+                                    >
+                                      <Pencil className="h-3 w-3 text-blue-600" />
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
                               
-                              {/* Valores das métricas (quando expandido) */}
-                              {gruposAbertos[`${secao.id}-${grupo.id}`] && metricasParaMostrar.map((metrica) => {
+                              {/* Valores das métricas (quando expandido OU seção não colapsável OU grupo sem header) */}
+                              {(!mostrarHeaderGrupo || secoesNaoColapsaveis.includes(secao.id) || gruposAbertos[`${secao.id}-${grupo.id}`]) && metricasParaMostrar.map((metrica) => {
                                 const valor = (semana as any)[metrica.key];
                                 const valorPessoas = metrica.keyPessoas ? (semana as any)[metrica.keyPessoas] : null;
+                                const valorPercentual = metrica.keyPercentual ? (semana as any)[metrica.keyPercentual] : null;
                                 const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
                                 
-                                const valorFormatado = metrica.formato === 'reservas' 
+                                // Formatar valor base
+                                let valorFormatado = metrica.formato === 'reservas' 
                                   ? (valor !== null && valor !== undefined 
                                       ? `${Math.round(valor)}/${valorPessoas !== null && valorPessoas !== undefined ? Math.round(valorPessoas) : '-'}` 
                                       : '-')
                                   : formatarValor(valor, metrica.formato, metrica.sufixo);
+                                
+                                // Adicionar % ao lado se tiver keyPercentual
+                                if (metrica.keyPercentual && valorPercentual !== null && valorPercentual !== undefined && valor !== null && valor !== undefined) {
+                                  valorFormatado = `${formatarValor(valor, 'numero')} (${valorPercentual.toFixed(1)}%)`;
+                                }
                                 
                                 // Tooltip de detalhes especial (ex: motivos de desconto, atrasos por dia)
                                 const temDetalhes = metrica.temTooltipDetalhes;
