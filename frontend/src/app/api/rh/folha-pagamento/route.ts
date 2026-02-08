@@ -193,8 +193,19 @@ export async function GET(request: NextRequest) {
       if (!funcError && funcionarios && funcionarios.length > 0) {
         // Calcular folha para cada funcionário
         const folhasCalculadas = funcionarios.map(func => {
+          // O Supabase retorna area como array quando é join
+          const areaData = Array.isArray(func.area) ? func.area[0] : func.area;
+          const dadosFuncionario: DadosFuncionario = {
+            id: func.id,
+            nome: func.nome,
+            tipo_contratacao: func.tipo_contratacao,
+            salario_base: func.salario_base,
+            vale_transporte_diaria: func.vale_transporte_diaria,
+            area: areaData ? { adicional_noturno: areaData.adicional_noturno || 0 } : null
+          };
+          
           const calculo = calcularFolhaFuncionario(
-            func as DadosFuncionario,
+            dadosFuncionario,
             30, // dias trabalhados
             0,  // estimativa
             0,  // tempo casa
@@ -307,8 +318,19 @@ export async function POST(request: NextRequest) {
     const folhasCalculadas = funcionarios.map(func => {
       const ajuste = ajustes[func.id] || {};
       
+      // O Supabase retorna area como array quando é join
+      const areaData = Array.isArray(func.area) ? func.area[0] : func.area;
+      const dadosFuncionario: DadosFuncionario = {
+        id: func.id,
+        nome: func.nome,
+        tipo_contratacao: func.tipo_contratacao,
+        salario_base: func.salario_base,
+        vale_transporte_diaria: func.vale_transporte_diaria,
+        area: areaData ? { adicional_noturno: areaData.adicional_noturno || 0 } : null
+      };
+      
       const calculo = calcularFolhaFuncionario(
-        func as DadosFuncionario,
+        dadosFuncionario,
         ajuste.dias_trabalhados || 30,
         ajuste.estimativa || 0,
         ajuste.tempo_casa || 0,

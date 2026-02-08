@@ -244,7 +244,7 @@ export async function POST(request: NextRequest) {
           
           // Buscar pelo PIX formatado ou por nome similar
           const pixFormatado = pixInfo?.pixKey?.toLowerCase();
-          let existente = null;
+          let existente: any = null;
           
           // Primeiro tentar por PIX
           if (pixFormatado) {

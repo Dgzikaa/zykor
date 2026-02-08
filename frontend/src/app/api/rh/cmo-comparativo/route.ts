@@ -124,14 +124,12 @@ export async function GET(request: NextRequest) {
     valoresSimulados.set('FREELA SEGURANÇA', 0);
     valoresSimulados.set('FREELA LIMPEZA', 0);
 
-    folhaData?.forEach((folha: {
-      salario_liquido: number;
-      vale_transporte: number;
-      provisao_certa: number;
-      funcionario?: { tipo_contratacao: string; area?: { nome: string } };
-    }) => {
-      const tipoContrato = folha.funcionario?.tipo_contratacao;
-      const areaNome = folha.funcionario?.area?.nome?.toLowerCase() || '';
+    folhaData?.forEach((folha: any) => {
+      // O Supabase retorna funcionario como array quando é join
+      const funcionario = Array.isArray(folha.funcionario) ? folha.funcionario[0] : folha.funcionario;
+      const tipoContrato = funcionario?.tipo_contratacao;
+      const area = Array.isArray(funcionario?.area) ? funcionario?.area[0] : funcionario?.area;
+      const areaNome = (area?.nome || '').toLowerCase();
 
       if (tipoContrato === 'PJ') {
         // PJ vai para freelas

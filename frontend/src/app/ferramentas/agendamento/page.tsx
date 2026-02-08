@@ -576,7 +576,6 @@ export default function AgendamentoPage() {
       toast({
         title: '⚠️ NIBO não configurado',
         description: `Os agendamentos serão salvos localmente. Configure o NIBO para sincronizar depois.`,
-        variant: 'default',
       });
       // Continua mesmo sem NIBO - agendamentos serão salvos localmente
     }
@@ -1548,7 +1547,7 @@ export default function AgendamentoPage() {
       toast({
         title: 'Busca de stakeholders concluída',
         description: `${encontrados} encontrados, ${naoEncontrados} não encontrados`,
-        variant: naoEncontrados > 0 ? 'destructive' : 'default',
+        variant: naoEncontrados > 0 ? 'destructive' : undefined,
       });
 
     } catch (error) {
@@ -1659,7 +1658,7 @@ export default function AgendamentoPage() {
       toast({
         title: 'Agendamento NIBO concluído!',
         description: `${sucessos} agendamentos criados, ${erros} erros`,
-        variant: erros > 0 ? 'destructive' : 'default',
+        variant: erros > 0 ? 'destructive' : undefined,
       });
 
     } catch (error) {
