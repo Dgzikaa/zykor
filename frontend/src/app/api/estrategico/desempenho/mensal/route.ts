@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 
-export const dynamic = 'force-dynamic';
+// Cache por 2 minutos para dados mensais de desempenho
+export const revalidate = 120;
 
 export async function GET(request: NextRequest) {
   try {

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 
-export const dynamic = 'force-dynamic';
+// Cache por 2 minutos para dados mensais de CMV
+export const revalidate = 120;
 
 // Interface para dados CMV semanal
 interface CMVSemanal {

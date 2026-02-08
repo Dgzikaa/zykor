@@ -7,9 +7,9 @@ const nextConfig = {
   compress: true,
   reactStrictMode: false, // Desabilitar para evitar chamadas duplas da API
   
-  // ✅ Definir raiz do workspace como o próprio projeto Zykor (não a raiz do disco)
-  // Comentado pois F:\Zykor\.. = F:\ causa scan de todo o disco
-  // outputFileTracingRoot: path.join(__dirname, '../'),
+  // ✅ Definir raiz do workspace explicitamente para evitar warning de múltiplos lockfiles
+  // Aponta para o diretório frontend (onde está este next.config.js)
+  outputFileTracingRoot: __dirname,
   
   // ✅ TypeScript e ESLint
   typescript: {
@@ -30,7 +30,7 @@ const nextConfig = {
     unoptimized: process.env.NODE_ENV === 'development',
   },
   
-  // ✅ Headers de segurança e cache
+  // ✅ Headers de segurança e cache otimizados para performance
   async headers() {
     return [
       // Headers gerais de segurança
@@ -57,24 +57,44 @@ const nextConfig = {
           },
         ],
       },
-      // Páginas HTML - sempre revalidar
+      // 🚀 Assets estáticos - cache agressivo (1 ano)
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      // 🚀 Fontes - cache longo
+      {
+        source: '/fonts/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      // Páginas HTML - cache curto com revalidação
       {
         source: '/:path*',
         has: [{ type: 'header', key: 'accept', value: '(.*text/html.*)' }],
         headers: [
           {
             key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate',
+            value: 'public, s-maxage=60, stale-while-revalidate=300',
           },
         ],
       },
-      // APIs - nunca cachear
+      // 🚀 APIs com cache inteligente (ISR) - deixar a rota definir o cache
       {
         source: '/api/:path*',
         headers: [
           {
-            key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate',
+            key: 'X-Accel-Buffering',
+            value: 'no',
           },
         ],
       },

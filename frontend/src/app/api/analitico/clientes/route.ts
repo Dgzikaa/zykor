@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase-admin'
 import { authenticateUser, authErrorResponse } from '@/middleware/auth'
 
-export const dynamic = 'force-dynamic'
+// Cache por 3 minutos para dados de clientes
+export const revalidate = 180;
 
 export async function GET(request: NextRequest) {
   try {

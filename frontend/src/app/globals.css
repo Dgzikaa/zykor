@@ -1371,3 +1371,53 @@ button > * {
   content-visibility: auto;
   contain-intrinsic-size: 200px;
 }
+
+/* 🚀 Virtualização CSS para tabelas grandes */
+.virtualized-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 40px;
+}
+
+.virtualized-section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 300px;
+}
+
+/* 🚀 Otimização para scroll suave */
+.smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 🚀 Contain layout para evitar reflows */
+.layout-contained {
+  contain: layout style;
+}
+
+/* 🚀 Tabelas otimizadas */
+.table-optimized {
+  table-layout: fixed;
+  will-change: scroll-position;
+}
+
+.table-optimized tbody tr {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 44px;
+}
+
+/* 🚀 Skeletal loading shimmer otimizado */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--muted) / 0.5) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

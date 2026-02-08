@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import PageHeader from '@/components/layouts/PageHeader'
@@ -16,7 +16,6 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { useBar } from '@/contexts/BarContext'
 import { AnimatedCounter, AnimatedCurrency } from '@/components/ui/animated-counter'
-import { motion } from 'framer-motion'
 
 interface Cliente {
   identificador_principal: string
@@ -968,11 +967,7 @@ export default function ClientesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
 
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-          >
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
             <Card className="bg-white dark:bg-gray-800 border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden hover:scale-105">
               <CardHeader className="pb-3 bg-gradient-to-r from-purple-500 to-purple-600">
                 <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
@@ -997,13 +992,9 @@ export default function ClientesPage() {
                 </p>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-75">
             <Card className="bg-white dark:bg-gray-800 border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden hover:scale-105">
               <CardHeader className="pb-3 bg-gradient-to-r from-emerald-500 to-emerald-600">
                 <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
@@ -1028,15 +1019,11 @@ export default function ClientesPage() {
                 </p>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
 
 
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          >
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-100">
             <Card className="bg-white dark:bg-gray-800 border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden hover:scale-105">
               <CardHeader className="pb-3 bg-gradient-to-r from-amber-500 to-amber-600">
                 <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
@@ -1061,13 +1048,9 @@ export default function ClientesPage() {
                 </p>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-          >
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-150">
             <Card className="bg-white dark:bg-gray-800 border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden hover:scale-105">
               <CardHeader className="pb-3 bg-gradient-to-r from-orange-500 to-orange-600">
                 <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
@@ -1091,13 +1074,9 @@ export default function ClientesPage() {
                 </p>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
-          >
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-200">
             <Card className="bg-white dark:bg-gray-800 border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden hover:scale-105">
               <CardHeader className="pb-3 bg-gradient-to-r from-green-500 to-green-600">
                 <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
@@ -1121,15 +1100,11 @@ export default function ClientesPage() {
                 </p>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
         </div>
 
         {/* Tabelas com Abas */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-        >
+        <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 delay-300">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <Card className="card-dark shadow-lg overflow-hidden">
             <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-900 dark:from-slate-700 dark:to-slate-800">
@@ -1334,7 +1309,7 @@ export default function ClientesPage() {
               {clientesFiltrados.map((cliente, index) => (
                 <TableRow 
                   key={`${cliente.identificador_principal}-${index}`}
-                  className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors duration-200"
+                  className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors duration-200 virtualized-row"
                 >
                   <TableCell className="font-medium text-gray-900 dark:text-white">
                     <div className="flex items-center">
@@ -1545,7 +1520,7 @@ export default function ClientesPage() {
                   {reservantes.map((reservante, index) => (
                     <TableRow 
                       key={`${reservante.identificador_principal}-${index}`}
-                      className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors duration-200"
+                      className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors duration-200 virtualized-row"
                     >
                       <TableCell className="py-4">
                         <div className="flex items-center gap-3">
@@ -2234,7 +2209,7 @@ export default function ClientesPage() {
           </CardContent>
         </Card>
         </Tabs>
-        </motion.div>
+        </div>
 
         {((activeTab === 'clientes' && clientesFiltrados.length === 0) || (activeTab === 'reservantes' && reservantes.length === 0)) && !loading && (
           <Card className="card-dark shadow-lg mt-6">
@@ -2287,11 +2262,7 @@ export default function ClientesPage() {
             <div className="p-6 overflow-y-auto max-h-[calc(95vh-180px)]">
               {/* Resumo do Cliente */}
               <div className="grid grid-cols-5 gap-3 mb-6">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, delay: 0.1 }}
-                >
+                <div className="animate-in zoom-in-95 duration-200">
                   <Card className="bg-gradient-to-br from-purple-500 to-purple-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
                     <CardContent className="p-4 text-center">
                       <div className="text-2xl font-bold text-white mb-1">
@@ -2300,13 +2271,9 @@ export default function ClientesPage() {
                       <div className="text-purple-100 text-sm font-medium">Total de Visitas</div>
                     </CardContent>
                   </Card>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, delay: 0.2 }}
-                >
+                <div className="animate-in zoom-in-95 duration-200 delay-75">
                   <Card className="bg-gradient-to-br from-green-500 to-green-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
                     <CardContent className="p-4 text-center">
                       <div className="text-xl font-bold text-white mb-1">
@@ -2315,13 +2282,9 @@ export default function ClientesPage() {
                       <div className="text-green-100 text-sm font-medium">Total Gasto</div>
                     </CardContent>
                   </Card>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, delay: 0.3 }}
-                >
+                <div className="animate-in zoom-in-95 duration-200 delay-100">
                   <Card className="bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
                     <CardContent className="p-4 text-center">
                       <div className="text-xl font-bold text-white mb-1">
@@ -2330,13 +2293,9 @@ export default function ClientesPage() {
                       <div className="text-orange-100 text-sm font-medium">Ticket Médio</div>
                     </CardContent>
                   </Card>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, delay: 0.4 }}
-                >
+                <div className="animate-in zoom-in-95 duration-200 delay-150">
                   <Card className="bg-gradient-to-br from-purple-500 to-purple-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
                     <CardContent className="p-4 text-center">
                       <div className="text-xl font-bold text-white mb-1">
@@ -2352,13 +2311,9 @@ export default function ClientesPage() {
                       )}
                     </CardContent>
                   </Card>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, delay: 0.5 }}
-                >
+                <div className="animate-in zoom-in-95 duration-200 delay-200">
                   <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
                     <CardContent className="p-4 text-center">
                       <div className="text-xl font-bold text-white mb-1">
@@ -2367,13 +2322,9 @@ export default function ClientesPage() {
                       <div className="text-blue-100 text-sm font-medium">Última Visita</div>
                     </CardContent>
                   </Card>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, delay: 0.5 }}
-                >
+                <div className="animate-in zoom-in-95 duration-200 delay-200">
                   <Card className="bg-gradient-to-br from-indigo-500 to-indigo-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
                     <CardContent className="p-4 text-center">
                       <div className="text-xl font-bold text-white mb-1">
@@ -2382,7 +2333,7 @@ export default function ClientesPage() {
                       <div className="text-indigo-100 text-sm font-medium">Dia Destaque</div>
                     </CardContent>
                   </Card>
-                </motion.div>
+                </div>
               </div>
 
               {/* Perfil de Consumo - NOVO */}

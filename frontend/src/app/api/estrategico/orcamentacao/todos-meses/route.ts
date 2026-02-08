@@ -1,7 +1,103 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic'
+// Cache por 2 minutos, revalidar em background por até 10 minutos
+export const revalidate = 120;
+
+// ==================== HELPERS CMV MENSAL ====================
+
+// Obter número da semana ISO e o ano ISO
+function getWeekAndYear(date: Date): { semana: number; ano: number } {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const semana = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  const ano = d.getUTCFullYear();
+  return { semana, ano };
+}
+
+// Calcular semanas com proporção de dias no mês
+function calcularSemanasComProporcao(mes: number, ano: number): { semana: number; anoISO: number; proporcao: number; diasNoMes: number }[] {
+  const primeiroDia = new Date(ano, mes - 1, 1);
+  const ultimoDia = new Date(ano, mes, 0);
+  
+  const contagemDias = new Map<string, { semana: number; anoISO: number; diasNoMes: number }>();
+  
+  for (let d = new Date(primeiroDia); d <= ultimoDia; d.setDate(d.getDate() + 1)) {
+    const { semana, ano: anoISO } = getWeekAndYear(new Date(d));
+    const key = `${anoISO}-${semana}`;
+    
+    if (!contagemDias.has(key)) {
+      contagemDias.set(key, { semana, anoISO, diasNoMes: 0 });
+    }
+    contagemDias.get(key)!.diasNoMes++;
+  }
+  
+  return Array.from(contagemDias.values()).map(s => ({
+    ...s,
+    proporcao: s.diasNoMes / 7
+  }));
+}
+
+// Calcular CMV mensal a partir das semanas
+async function calcularCMVMensal(supabase: any, barId: number, mes: number, ano: number): Promise<{ cmvPercentual: number; cmvValor: number; faturamentoCmvivel: number }> {
+  const semanasComProporcao = calcularSemanasComProporcao(mes, ano);
+  
+  // Agrupar semanas por ano para consulta
+  const semanasPorAno: Record<number, number[]> = {};
+  for (const s of semanasComProporcao) {
+    if (!semanasPorAno[s.anoISO]) semanasPorAno[s.anoISO] = [];
+    if (!semanasPorAno[s.anoISO].includes(s.semana)) {
+      semanasPorAno[s.anoISO].push(s.semana);
+    }
+  }
+
+  // Buscar dados CMV de todas as semanas envolvidas
+  const cmvPromises = Object.entries(semanasPorAno).map(([anoISO, semanas]) =>
+    supabase
+      .from('cmv_semanal')
+      .select('semana, ano, cmv_limpo_percentual, cmv_real, faturamento_cmvivel')
+      .eq('bar_id', barId)
+      .eq('ano', parseInt(anoISO))
+      .in('semana', semanas)
+  );
+
+  const cmvResults = await Promise.all(cmvPromises);
+  const cmvData = cmvResults.flatMap(r => r.data || []);
+
+  // Criar mapa de dados por semana
+  const cmvMap = new Map<string, any>();
+  for (const c of cmvData) {
+    cmvMap.set(`${c.ano}-${c.semana}`, c);
+  }
+
+  // Calcular CMV percentual (média ponderada) e CMV valor (soma proporcional)
+  let somaCmvPercent = 0;
+  let somaCmvValor = 0;
+  let somaFaturamento = 0;
+  let pesoTotal = 0;
+
+  for (const s of semanasComProporcao) {
+    const dados = cmvMap.get(`${s.anoISO}-${s.semana}`);
+    if (dados) {
+      const cmvPercent = parseFloat(dados.cmv_limpo_percentual) || 0;
+      const cmvValor = parseFloat(dados.cmv_real) || 0;
+      const faturamento = parseFloat(dados.faturamento_cmvivel) || 0;
+      
+      somaCmvPercent += cmvPercent * s.proporcao;
+      somaCmvValor += cmvValor * s.proporcao;
+      somaFaturamento += faturamento * s.proporcao;
+      pesoTotal += s.proporcao;
+    }
+  }
+
+  return {
+    cmvPercentual: pesoTotal > 0 ? somaCmvPercent / pesoTotal : 0,
+    cmvValor: somaCmvValor,
+    faturamentoCmvivel: somaFaturamento
+  };
+}
 
 // Estrutura base das categorias
 const ESTRUTURA_CATEGORIAS = [
@@ -213,16 +309,6 @@ export async function GET(request: Request) {
     // Buscar dados planejados de todos os meses de uma vez
     const anosUnicos = [...new Set(mesesParaBuscar.map(m => m.ano))];
     
-    const { data: dadosPlanejados, error: errorPlanejado } = await supabase
-      .from('orcamentacao')
-      .select('*')
-      .eq('bar_id', parseInt(barId))
-      .in('ano', anosUnicos);
-
-    if (errorPlanejado) {
-      console.error('Erro ao buscar dados planejados:', errorPlanejado);
-    }
-
     // Calcular range de datas para buscar NIBO
     const mesMin = Math.min(...mesesParaBuscar.map(m => m.mes));
     const mesMax = Math.max(...mesesParaBuscar.map(m => m.mes));
@@ -235,49 +321,96 @@ export async function GET(request: Request) {
     const dataInicio = `${anoMin}-${String(mesMin).padStart(2, '0')}-01`;
     const dataFim = `${anoMax}-${String(mesMax).padStart(2, '0')}-${String(ultimoDiaMes).padStart(2, '0')}`;
 
-    // Buscar TODOS os lançamentos do NIBO (para projeção)
-    const { data: dadosNiboTodos, error: errorNiboTodos } = await supabase
-      .from('nibo_agendamentos')
-      .select('categoria_nome, status, valor, data_competencia')
-      .eq('bar_id', parseInt(barId))
-      .gte('data_competencia', dataInicio)
-      .lte('data_competencia', dataFim);
+    // 🚀 OTIMIZAÇÃO: Executar TODAS as queries em paralelo
+    const [
+      planejadosResult,
+      niboTodosResult,
+      niboPagosResult,
+      manuaisResult,
+      eventosResult
+    ] = await Promise.all([
+      // Query 1: Dados planejados
+      supabase
+        .from('orcamentacao')
+        .select('*')
+        .eq('bar_id', parseInt(barId))
+        .in('ano', anosUnicos),
+      
+      // Query 2: NIBO todos (projeção)
+      supabase
+        .from('nibo_agendamentos')
+        .select('categoria_nome, status, valor, data_competencia')
+        .eq('bar_id', parseInt(barId))
+        .gte('data_competencia', dataInicio)
+        .lte('data_competencia', dataFim),
+      
+      // Query 3: NIBO pagos (realizado)
+      supabase
+        .from('nibo_agendamentos')
+        .select('categoria_nome, status, valor, data_competencia')
+        .eq('bar_id', parseInt(barId))
+        .eq('status', 'Pago')
+        .gte('data_competencia', dataInicio)
+        .lte('data_competencia', dataFim),
+      
+      // Query 4: Lançamentos manuais DRE
+      supabase
+        .from('dre_manual')
+        .select('categoria, categoria_macro, valor, data_competencia, descricao')
+        .gte('data_competencia', dataInicio)
+        .lte('data_competencia', dataFim),
+      
+      // Query 5: Eventos base (faturamento real)
+      supabase
+        .from('eventos_base')
+        .select('real_r, sympla_liquido, yuzer_liquido, m1_r, data_evento')
+        .eq('bar_id', parseInt(barId))
+        .gte('data_evento', dataInicio)
+        .lte('data_evento', dataFim)
+        .eq('ativo', true)
+    ]);
 
-    if (errorNiboTodos) {
-      console.error('Erro ao buscar dados NIBO (todos):', errorNiboTodos);
-    }
+    const dadosPlanejados = planejadosResult.data;
+    const dadosNiboTodos = niboTodosResult.data;
+    const dadosNiboPagos = niboPagosResult.data;
+    const dadosManuais = manuaisResult.data;
+    const eventosBase = eventosResult.data;
 
-    // Buscar lançamentos PAGOS do NIBO (para realizado)
-    const { data: dadosNiboPagos, error: errorNiboPagos } = await supabase
-      .from('nibo_agendamentos')
-      .select('categoria_nome, status, valor, data_competencia')
-      .eq('bar_id', parseInt(barId))
-      .eq('status', 'Pago')
-      .gte('data_competencia', dataInicio)
-      .lte('data_competencia', dataFim);
+    // 🚀 OTIMIZAÇÃO: Calcular CMV de todos os meses em paralelo
+    const cmvMensalMap = new Map<string, { cmvPercentual: number; cmvValor: number; faturamentoCmvivel: number }>();
+    
+    const cmvResults = await Promise.all(
+      mesesParaBuscar.map(async ({ mes, ano }) => {
+        try {
+          const cmvMensal = await calcularCMVMensal(supabase, parseInt(barId), mes, ano);
+          return { key: `${ano}-${mes}`, data: cmvMensal };
+        } catch (e) {
+          return { key: `${ano}-${mes}`, data: { cmvPercentual: 0, cmvValor: 0, faturamentoCmvivel: 0 } };
+        }
+      })
+    );
+    
+    cmvResults.forEach(({ key, data }) => cmvMensalMap.set(key, data));
 
-    if (errorNiboPagos) {
-      console.error('Erro ao buscar dados NIBO (pagos):', errorNiboPagos);
-    }
+    // 🚀 OTIMIZAÇÃO: Processar faturamento real de eventos em memória (já buscamos tudo)
+    const faturamentoRealMap = new Map<string, { realizado: number; meta: number }>();
+    
+    mesesParaBuscar.forEach(({ mes, ano }) => {
+      const mesFormatado = String(mes).padStart(2, '0');
+      const dataInicioMes = `${ano}-${mesFormatado}-01`;
+      const ultimoDia = new Date(ano, mes, 0).getDate();
+      const dataFimMes = `${ano}-${mesFormatado}-${String(ultimoDia).padStart(2, '0')}`;
 
-    console.log('📊 NIBO Debug:', {
-      dataInicio,
-      dataFim,
-      totalNiboTodos: dadosNiboTodos?.length || 0,
-      totalNiboPagos: dadosNiboPagos?.length || 0,
-      amostraPagos: dadosNiboPagos?.slice(0, 5)
+      const eventosDoMes = eventosBase?.filter(e => 
+        e.data_evento >= dataInicioMes && e.data_evento <= dataFimMes
+      ) || [];
+
+      const totalRealizado = eventosDoMes.reduce((sum, e) => 
+        sum + (e.real_r || 0) + (e.sympla_liquido || 0) + (e.yuzer_liquido || 0), 0
+      );
+      const totalMeta = eventosDoMes.reduce((sum, e) => sum + (e.m1_r || 0), 0);
+      faturamentoRealMap.set(`${ano}-${mes}`, { realizado: totalRealizado, meta: totalMeta });
     });
-
-    // Buscar lançamentos manuais da DRE
-    const { data: dadosManuais, error: errorManuais } = await supabase
-      .from('dre_manual')
-      .select('categoria, categoria_macro, valor, data_competencia, descricao')
-      .gte('data_competencia', dataInicio)
-      .lte('data_competencia', dataFim);
-
-    if (errorManuais) {
-      console.error('Erro ao buscar lançamentos manuais:', errorManuais);
-    }
 
     // Processar dados para cada mês
     const mesesProcessados = mesesParaBuscar.map(({ mes, ano }) => {
@@ -285,6 +418,9 @@ export async function GET(request: Request) {
       const ultimoDia = new Date(ano, mes, 0).getDate();
       const dataInicioMes = `${ano}-${mesFormatado}-01`;
       const dataFimMes = `${ano}-${mesFormatado}-${String(ultimoDia).padStart(2, '0')}`;
+
+      // Buscar CMV calculado para este mês
+      const cmvMensal = cmvMensalMap.get(`${ano}-${mes}`) || { cmvPercentual: 0, cmvValor: 0, faturamentoCmvivel: 0 };
 
       // Filtrar dados do NIBO para este mês (TODOS - para projeção)
       const niboTodosMes = dadosNiboTodos?.filter(item => {
@@ -306,7 +442,7 @@ export async function GET(request: Request) {
 
       // Filtrar dados planejados para este mês
       const planejadosMes = dadosPlanejados?.filter(item => 
-        item.ano === ano && item.mes === mes
+        Number(item.ano) === Number(ano) && Number(item.mes) === Number(mes)
       ) || [];
 
       // Calcular receita total para percentuais (usando todos os lançamentos)
@@ -314,7 +450,7 @@ export async function GET(request: Request) {
       let receitaTotalRealizado = 0;
 
       niboTodosMes.forEach(item => {
-        if (!item.categoria_nome) return;
+        if (!item.categoria_nome || item.categoria_nome.trim() === '') return;
         const valor = Math.abs(parseFloat(item.valor) || 0);
         if (['Receita de Eventos', 'Stone Crédito', 'Stone Débito', 'Stone Pix', 'Dinheiro', 'Pix Direto na Conta', 'RECEITA BRUTA'].includes(item.categoria_nome)) {
           receitaTotalProjecao += valor;
@@ -322,7 +458,7 @@ export async function GET(request: Request) {
       });
 
       niboPagosMes.forEach(item => {
-        if (!item.categoria_nome) return;
+        if (!item.categoria_nome || item.categoria_nome.trim() === '') return;
         const valor = Math.abs(parseFloat(item.valor) || 0);
         if (['Receita de Eventos', 'Stone Crédito', 'Stone Débito', 'Stone Pix', 'Dinheiro', 'Pix Direto na Conta', 'RECEITA BRUTA'].includes(item.categoria_nome)) {
           receitaTotalRealizado += valor;
@@ -340,7 +476,7 @@ export async function GET(request: Request) {
       // Calcular valores por categoria - PROJEÇÃO (todos os lançamentos)
       const valoresProjecao = new Map<string, number>();
       niboTodosMes.forEach(item => {
-        if (!item.categoria_nome) return;
+        if (!item.categoria_nome || item.categoria_nome.trim() === '') return;
         const valor = Math.abs(parseFloat(item.valor) || 0);
         const categoriaNormalizada = CATEGORIAS_MAP.get(item.categoria_nome) || item.categoria_nome;
         
@@ -353,7 +489,7 @@ export async function GET(request: Request) {
       // Calcular valores por categoria - REALIZADO (apenas pagos)
       const valoresRealizado = new Map<string, number>();
       niboPagosMes.forEach(item => {
-        if (!item.categoria_nome) return;
+        if (!item.categoria_nome || item.categoria_nome.trim() === '') return;
         const valor = Math.abs(parseFloat(item.valor) || 0);
         const categoriaNormalizada = CATEGORIAS_MAP.get(item.categoria_nome) || item.categoria_nome;
         
@@ -384,19 +520,38 @@ export async function GET(request: Request) {
         valoresRealizado.set(categoriaNormalizada, valoresRealizado.get(categoriaNormalizada)! + valor);
       });
 
-      // Converter para percentuais onde necessário
+      // Buscar faturamento real do mês (eventos_base) ANTES de converter percentuais
+      const faturamentoReal = faturamentoRealMap.get(`${ano}-${mes}`) || { realizado: 0, meta: 0 };
+      
+      // Usar receita dos eventos para cálculo de percentuais (mais confiável que NIBO)
+      const receitaBaseParaPercentuais = faturamentoReal.realizado > 0 
+        ? faturamentoReal.realizado 
+        : receitaTotalRealizado;
+
+      // Converter para percentuais onde necessário (exceto CMV - usamos o valor calculado)
       CATEGORIAS_PERCENTUAIS.forEach(categoria => {
+        // Pular CMV - usamos o valor da tabela cmv_semanal
+        if (categoria === 'CMV') return;
+        
         if (valoresProjecao.has(categoria) && receitaTotalProjecao > 0) {
           const valorAbsoluto = valoresProjecao.get(categoria)!;
           const porcentagem = (valorAbsoluto / receitaTotalProjecao) * 100;
           valoresProjecao.set(categoria, porcentagem);
         }
-        if (valoresRealizado.has(categoria) && receitaTotalRealizado > 0) {
+        if (valoresRealizado.has(categoria) && receitaBaseParaPercentuais > 0) {
           const valorAbsoluto = valoresRealizado.get(categoria)!;
-          const porcentagem = (valorAbsoluto / receitaTotalRealizado) * 100;
+          const porcentagem = (valorAbsoluto / receitaBaseParaPercentuais) * 100;
           valoresRealizado.set(categoria, porcentagem);
         }
       });
+
+      // Usar CMV da tabela cmv_semanal (valor correto!)
+      valoresProjecao.set('CMV', cmvMensal.cmvPercentual);
+      valoresRealizado.set('CMV', cmvMensal.cmvPercentual);
+
+      // Atribuir receita total aos mapas para exibição na subcategoria RECEITA BRUTA
+      valoresProjecao.set('RECEITA BRUTA', receitaTotalProjecao);
+      valoresRealizado.set('RECEITA BRUTA', receitaTotalRealizado);
 
       // Montar estrutura de categorias com valores
       const categorias = ESTRUTURA_CATEGORIAS.map(cat => ({
@@ -405,13 +560,26 @@ export async function GET(request: Request) {
         tipo: cat.tipo,
         subcategorias: cat.subcategorias.map(subNome => {
           const planejado = planejadosMes.find(p => p.categoria_nome === subNome);
-          const projecao = valoresProjecao.get(subNome) || 0;
-          const realizado = valoresRealizado.get(subNome) || 0;
+          let projecao = valoresProjecao.get(subNome) || 0;
+          let realizado = valoresRealizado.get(subNome) || 0;
           const isPercentage = CATEGORIAS_PERCENTUAIS.includes(subNome);
+
+          // Para RECEITA BRUTA, usar dados dos eventos
+          let planejadoValor = Number(planejado?.valor_planejado) || 0;
+          
+          if (subNome === 'RECEITA BRUTA') {
+            // Realizado = soma de real_r + sympla + yuzer de todos os eventos do mês
+            realizado = faturamentoReal.realizado;
+            
+            // Planejado = se não houver na tabela orcamentacao, usar Meta M1 dos eventos
+            if (planejadoValor === 0 && faturamentoReal.meta > 0) {
+              planejadoValor = faturamentoReal.meta;
+            }
+          }
 
           return {
             nome: subNome,
-            planejado: Number(planejado?.valor_planejado) || 0,
+            planejado: planejadoValor,
             projecao: projecao,
             realizado: realizado,
             isPercentage: isPercentage

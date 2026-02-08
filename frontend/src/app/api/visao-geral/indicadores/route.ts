@@ -2,7 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { filtrarDiasAbertos } from '@/lib/helpers/calendario-helper';
 
-export const dynamic = 'force-dynamic'
+// Cache por 5 minutos para indicadores (já têm cache HTTP nos headers da resposta)
+export const revalidate = 300;
 
 // Função para calcular datas do trimestre
 function getTrimestreDates(trimestre: number, year?: number) {

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-export const dynamic = 'force-dynamic';
+// Cache por 2 minutos para detalhes de CMV
+export const revalidate = 120;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -53,6 +54,14 @@ export async function GET(request: NextRequest) {
       case 'compras_custo_drinks':
       case 'compras_custo_outros':
         detalhes = await buscarDetalhesCompras(barId, dataInicio, dataFim, campo);
+        break;
+
+      // ========== ESTOQUE INICIAL ==========
+      case 'estoque_inicial':
+      case 'estoque_inicial_cozinha':
+      case 'estoque_inicial_bebidas':
+      case 'estoque_inicial_drinks':
+        detalhes = await buscarDetalhesEstoqueInicial(barId, dataInicio, dataFim, campo);
         break;
 
       // ========== ESTOQUE FINAL ==========
@@ -200,6 +209,98 @@ async function buscarDetalhesCompras(barId: number, dataInicio: string, dataFim:
       status: agendamento.status || 'Pendente',
       valor: valor,
       detalhes: `${fornecedor} - ${categoria}`
+    });
+  });
+
+  // Ordenar por valor decrescente
+  detalhes.sort((a, b) => b.valor - a.valor);
+
+  return detalhes;
+}
+
+/**
+ * Buscar detalhes de estoque inicial
+ */
+async function buscarDetalhesEstoqueInicial(barId: number, dataInicio: string, dataFim: string, campo: string) {
+  // Buscar a contagem mais recente ANTES do período
+  const { data: ultimaContagem } = await supabase
+    .from('contagem_estoque_insumos')
+    .select('data_contagem')
+    .eq('bar_id', barId)
+    .lt('data_contagem', dataInicio)
+    .order('data_contagem', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (!ultimaContagem) {
+    return [{
+      tipo: 'aviso',
+      descricao: 'Nenhuma contagem de estoque encontrada antes deste período',
+      valor: 0
+    }];
+  }
+
+  const dataContagem = ultimaContagem.data_contagem;
+
+  // Buscar insumos
+  const { data: insumos } = await supabase
+    .from('insumos')
+    .select('id, nome, tipo_local, categoria, custo_unitario, unidade')
+    .eq('bar_id', barId);
+
+  if (!insumos) return [];
+
+  // Buscar contagens
+  const { data: contagens } = await supabase
+    .from('contagem_estoque_insumos')
+    .select('insumo_id, estoque_final')
+    .eq('bar_id', barId)
+    .eq('data_contagem', dataContagem);
+
+  if (!contagens) return [];
+
+  const insumosMap = new Map(insumos.map((i: any) => [i.id, i]));
+  const categoriasCozinha = ['ARMAZÉM (C)', 'HORTIFRUTI (C)', 'MERCADO (C)', 'PÃES', 'PEIXE', 'PROTEÍNA', 'Mercado (S)', 'tempero', 'hortifruti', 'líquido'];
+  const categoriasDrinks = ['ARMAZÉM B', 'DESTILADOS', 'DESTILADOS LOG', 'HORTIFRUTI B', 'IMPÉRIO', 'MERCADO B', 'POLPAS', 'Não-alcóolicos', 'OUTROS', 'polpa', 'fruta'];
+  const categoriasExcluir = ['Descartáveis', 'Limpeza', 'Material de Escritório', 'Uniformes'];
+
+  let detalhes: any[] = [];
+
+  contagens.forEach((contagem: any) => {
+    const insumo = insumosMap.get(contagem.insumo_id);
+    if (!insumo || categoriasExcluir.includes(insumo.categoria)) return;
+
+    const quantidade = parseFloat(contagem.estoque_final || 0);
+    const custoUnitario = parseFloat(insumo.custo_unitario || 0);
+    const valor = quantidade * custoUnitario;
+
+    if (valor === 0) return;
+
+    // Filtrar por campo específico
+    let incluir = false;
+    if (campo === 'estoque_inicial') {
+      incluir = true;
+    } else if (campo === 'estoque_inicial_cozinha' && insumo.tipo_local === 'cozinha' && categoriasCozinha.includes(insumo.categoria)) {
+      incluir = true;
+    } else if (campo === 'estoque_inicial_drinks' && insumo.tipo_local === 'cozinha' && categoriasDrinks.includes(insumo.categoria)) {
+      incluir = true;
+    } else if (campo === 'estoque_inicial_bebidas' && insumo.tipo_local === 'bar') {
+      incluir = true;
+    }
+
+    if (!incluir) return;
+
+    detalhes.push({
+      tipo: 'estoque',
+      descricao: insumo.nome,
+      data: dataContagem,
+      categoria: insumo.categoria,
+      local: insumo.tipo_local === 'cozinha' ? 'Cozinha' : 'Bar',
+      quantidade: quantidade,
+      unidade: insumo.unidade || 'un',
+      custo_unitario: custoUnitario,
+      valor: valor,
+      detalhes: `${quantidade.toFixed(2)} ${insumo.unidade || 'un'} × R$ ${custoUnitario.toFixed(2)}`
     });
   });
 

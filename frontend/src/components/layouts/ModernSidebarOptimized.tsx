@@ -2,10 +2,20 @@
 
 import { useState, useCallback, useEffect, useMemo, memo } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useMenuBadges } from '@/hooks/useMenuBadges';
 import { cn } from '@/lib/utils';
+
+// 🚀 Rotas principais para prefetch (melhora navegação)
+const ROTAS_PRIORITARIAS = [
+  '/estrategico/visao-geral',
+  '/estrategico/desempenho',
+  '/estrategico/orcamentacao',
+  '/estrategico/planejamento-comercial',
+  '/ferramentas/cmv-semanal/tabela',
+  '/analitico/clientes',
+];
 import {
   Home,
   CheckSquare,
@@ -135,6 +145,7 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: Users, label: 'NPS Funcionários', href: '/ferramentas/nps', permission: 'gestao' },
       { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
       { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', permission: 'gestao' },
+      { icon: Users, label: 'Gestão de CMO', href: '/ferramentas/simulacao-cmo', permission: 'gestao' },
       { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
       { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
       { icon: DollarSign, label: 'DRE', href: '/ferramentas/dre', permission: 'dashboard_financeiro_mensal' },
@@ -269,15 +280,25 @@ const NavItem = memo(function NavItem({
   );
 });
 
-// Componente memoizado para sub-item
+// Componente memoizado para sub-item com prefetch
 const SubNavItem = memo(function SubNavItem({ item }: { item: SubMenuItem }) {
   const pathname = usePathname();
+  const router = useRouter();
   const isActive = pathname?.startsWith(item.href) ?? false;
   const Icon = item.icon;
+  
+  // 🚀 Prefetch ao passar o mouse (carrega JS da página em background)
+  const handleMouseEnter = useCallback(() => {
+    if (ROTAS_PRIORITARIAS.includes(item.href)) {
+      router.prefetch(item.href);
+    }
+  }, [item.href, router]);
 
   return (
     <Link
       href={item.href}
+      prefetch={false} // Desabilita prefetch automático para controlar manualmente
+      onMouseEnter={handleMouseEnter}
       className={cn(
         'flex items-center px-3 py-2 rounded-lg text-sm transition-all duration-200',
         isActive
@@ -301,8 +322,21 @@ export function ModernSidebarOptimized() {
   const [isHovered, setIsHovered] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const pathname = usePathname();
+  const router = useRouter();
   const { hasPermission, user, loading: userLoading } = usePermissions();
   const { badges } = useMenuBadges();
+  
+  // 🚀 Prefetch das rotas prioritárias ao montar o sidebar
+  useEffect(() => {
+    // Aguardar um pequeno delay para não competir com o carregamento inicial
+    const timer = setTimeout(() => {
+      ROTAS_PRIORITARIAS.forEach(rota => {
+        router.prefetch(rota);
+      });
+    }, 2000); // 2 segundos após montar
+    
+    return () => clearTimeout(timer);
+  }, [router]);
 
   // Helper para verificar permissões
   const hasAnyMappedPermission = useCallback((permissionKey: string) => {

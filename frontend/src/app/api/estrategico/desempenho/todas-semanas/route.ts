@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { SupabaseClient } from '@supabase/supabase-js';
 
-export const dynamic = 'force-dynamic';
+// Cache por 2 minutos, revalidar em background por até 10 minutos
+export const revalidate = 120;
 
 // Helper para buscar todos os registros com paginação
 async function fetchAllPaginated<T>(

@@ -1,10 +1,16 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   Select,
   SelectContent,
@@ -12,11 +18,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ChevronLeft, ChevronRight, Edit, Calendar, CalendarDays, BarChart3, ChevronDown, ChevronUp, Eye } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  ChevronDown, 
+  ChevronRight, 
+  RefreshCcw, 
+  Calendar,
+  Eye,
+  Pencil,
+  Check,
+  X,
+  DollarSign,
+  Users,
+  Calculator,
+  BarChart3,
+  Table2
+} from 'lucide-react';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useBar } from '@/contexts/BarContext';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
+// Tipos
 interface CMVSemanal {
   id: string;
   bar_id: number;
@@ -28,6 +52,7 @@ interface CMVSemanal {
   // Vendas
   vendas_brutas: number;
   vendas_liquidas: number;
+  faturamento_cmvivel: number;
   
   // Estoque e Compras
   estoque_inicial: number;
@@ -42,19 +67,24 @@ interface CMVSemanal {
   consumo_artista: number;
   outros_ajustes: number;
   ajuste_bonificacoes: number;
+  bonificacao_contrato_anual: number;
+  bonificacao_cashback_mensal: number;
   
   // Cálculos CMV
   cmv_real: number;
-  faturamento_cmvivel: number;
   cmv_limpo_percentual: number;
   cmv_teorico_percentual: number;
   gap: number;
-  giro_estoque?: number; // Calculado dinamicamente
   
   // Estoque Final Detalhado
   estoque_final_cozinha: number;
   estoque_final_bebidas: number;
   estoque_final_drinks: number;
+  
+  // Estoque Inicial Detalhado
+  estoque_inicial_cozinha: number;
+  estoque_inicial_bebidas: number;
+  estoque_inicial_drinks: number;
   
   // Compras Detalhadas
   compras_custo_comida: number;
@@ -75,15 +105,219 @@ interface CMVSemanal {
   observacoes?: string;
 }
 
+// Status das métricas
+type MetricaStatus = 'auto' | 'manual' | 'calculado';
+
+interface MetricaConfig {
+  key: string;
+  label: string;
+  status: MetricaStatus;
+  fonte: string;
+  calculo: string;
+  formato: 'moeda' | 'percentual' | 'numero' | 'decimal' | 'gap';
+  drilldown?: boolean;
+  editavel?: boolean;
+  indentado?: boolean;
+  sufixo?: string;
+}
+
+interface GrupoMetricas {
+  id: string;
+  label: string;
+  metricas: MetricaConfig[];
+  semCollapse?: boolean; // Se true, mostra métricas diretamente sem header de grupo
+}
+
+interface SecaoConfig {
+  id: string;
+  titulo: string;
+  icone: React.ReactNode;
+  cor: string;
+  grupos: GrupoMetricas[];
+}
+
+// Cores por status
+// auto e calculado = laranja (precisa verificar)
+// manual = azul (bonificações)
+// Depois de verificar tudo, muda para verde
+const STATUS_COLORS = {
+  auto: { dot: 'bg-orange-500', text: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+  manual: { dot: 'bg-blue-500', text: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+  calculado: { dot: 'bg-orange-500', text: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' }
+};
+
+// Configuração das seções e métricas
+const SECOES: SecaoConfig[] = [
+  {
+    id: 'vendas',
+    titulo: 'VENDAS',
+    icone: <DollarSign className="w-4 h-4" />,
+    cor: 'bg-emerald-600',
+    grupos: [
+      {
+        id: 'faturamento',
+        label: 'Faturamento',
+        semCollapse: true,
+        metricas: [
+          { key: 'vendas_brutas', label: 'Faturamento Bruto', status: 'auto', fonte: 'ContaHub', calculo: 'SUM(vr_pagamentos)', formato: 'moeda', drilldown: true },
+          { key: 'vendas_liquidas', label: 'Faturamento Limpo', status: 'calculado', fonte: 'Calculado', calculo: 'Bruto - Couvert - Gorjeta', formato: 'moeda', drilldown: true },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'cmv',
+    titulo: 'CÁLCULO CMV',
+    icone: <Calculator className="w-4 h-4" />,
+    cor: 'bg-blue-600',
+    grupos: [
+      {
+        id: 'estoque_inicial',
+        label: 'Estoque Inicial',
+        metricas: [
+          { key: 'estoque_inicial', label: 'TOTAL', status: 'calculado', fonte: 'Manual (Excel)', calculo: 'Cozinha + Drinks + Bebidas', formato: 'moeda' },
+          { key: 'estoque_inicial_cozinha', label: 'Cozinha', status: 'manual', fonte: 'Manual (Excel)', calculo: 'Inserido manualmente', formato: 'moeda', editavel: true },
+          { key: 'estoque_inicial_drinks', label: 'Drinks', status: 'manual', fonte: 'Manual (Excel)', calculo: 'Inserido manualmente', formato: 'moeda', editavel: true },
+          { key: 'estoque_inicial_bebidas', label: 'Bebidas', status: 'manual', fonte: 'Manual (Excel)', calculo: 'Inserido manualmente', formato: 'moeda', editavel: true },
+        ]
+      },
+      {
+        id: 'compras',
+        label: '(+) Compras',
+        metricas: [
+          { key: 'compras_periodo', label: 'TOTAL', status: 'calculado', fonte: 'NIBO', calculo: 'Cozinha + Drinks + Bebidas + Outros', formato: 'moeda', drilldown: true },
+          { key: 'compras_custo_comida', label: 'Custo Cozinha', status: 'auto', fonte: 'NIBO', calculo: 'categoria_nome = CUSTO COMIDA', formato: 'moeda', drilldown: true },
+          { key: 'compras_custo_drinks', label: 'Custo Drinks', status: 'auto', fonte: 'NIBO', calculo: 'categoria_nome = CUSTO DRINKS', formato: 'moeda', drilldown: true },
+          { key: 'compras_custo_bebidas', label: 'Custo Bebidas', status: 'auto', fonte: 'NIBO', calculo: 'Custo Bebidas', formato: 'moeda', drilldown: true },
+          { key: 'compras_custo_outros', label: 'Custo Outros', status: 'auto', fonte: 'NIBO', calculo: 'Materiais de limpeza/operação', formato: 'moeda', drilldown: true },
+        ]
+      },
+      {
+        id: 'estoque_final',
+        label: '(-) Estoque Final',
+        metricas: [
+          { key: 'estoque_final', label: 'TOTAL', status: 'calculado', fonte: 'Manual (Excel)', calculo: 'Cozinha + Drinks + Bebidas', formato: 'moeda' },
+          { key: 'estoque_final_cozinha', label: 'Cozinha', status: 'manual', fonte: 'Manual (Excel)', calculo: 'Inserido manualmente', formato: 'moeda', editavel: true },
+          { key: 'estoque_final_drinks', label: 'Drinks', status: 'manual', fonte: 'Manual (Excel)', calculo: 'Inserido manualmente', formato: 'moeda', editavel: true },
+          { key: 'estoque_final_bebidas', label: 'Bebidas', status: 'manual', fonte: 'Manual (Excel)', calculo: 'Inserido manualmente', formato: 'moeda', editavel: true },
+        ]
+      },
+      {
+        id: 'consumos',
+        label: '(-) Consumações',
+        metricas: [
+          { key: 'total_consumos', label: 'TOTAL', status: 'calculado', fonte: 'Calculado', calculo: 'Soma de todas as consumações', formato: 'moeda' },
+          { key: 'total_consumo_socios', label: 'Sócios', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %sócio%', formato: 'moeda', drilldown: true },
+          { key: 'mesa_adm_casa', label: 'Funcionários', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %adm% ou %casa%', formato: 'moeda', drilldown: true },
+          { key: 'mesa_beneficios_cliente', label: 'Clientes', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %benefício%', formato: 'moeda', drilldown: true },
+          { key: 'mesa_banda_dj', label: 'Artistas', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %banda% ou %dj%', formato: 'moeda', drilldown: true },
+        ]
+      },
+      {
+        id: 'bonificacoes',
+        label: '(-) Bonificações',
+        metricas: [
+          { key: 'ajuste_bonificacoes', label: 'TOTAL', status: 'manual', fonte: 'Manual', calculo: 'Contrato Anual + Cashback Mensal', formato: 'moeda' },
+          { key: 'bonificacao_contrato_anual', label: 'Contrato Anual', status: 'manual', fonte: 'Manual', calculo: 'Valor inserido manualmente', formato: 'moeda', editavel: true },
+          { key: 'bonificacao_cashback_mensal', label: 'Cashback Mensal', status: 'manual', fonte: 'Manual', calculo: 'Valor inserido manualmente', formato: 'moeda', editavel: true },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'resultados',
+    titulo: 'RESULTADOS',
+    icone: <Users className="w-4 h-4" />,
+    cor: 'bg-pink-600',
+    grupos: [
+      {
+        id: 'cmv_resultado',
+        label: 'CMV',
+        semCollapse: true,
+        metricas: [
+          { key: 'cmv_real', label: 'CMV', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial + Compras - Est.Final - Consumos', formato: 'moeda' },
+          { key: 'cmv_limpo_percentual', label: 'CMV Limpo (%)', status: 'calculado', fonte: 'Calculado', calculo: '(CMV / Fat. CMVível) × 100', formato: 'percentual' },
+          { key: 'cmv_teorico_percentual', label: 'CMV Real (%)', status: 'calculado', fonte: 'Calculado', calculo: 'CMV Teórico/Meta', formato: 'percentual' },
+        ]
+      }
+    ]
+  }
+];
+
+// Formatadores
+const formatarValor = (valor: number | null | undefined, formato: string, sufixo?: string): string => {
+  if (valor === null || valor === undefined) return '-';
+  
+  switch (formato) {
+    case 'moeda':
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(valor);
+    case 'percentual':
+      return `${valor.toFixed(2)}%`;
+    case 'decimal':
+      return (Math.round(valor * 100) / 100).toFixed(2).replace('.', ',') + (sufixo || '');
+    case 'gap':
+      const prefix = valor > 0 ? '+' : '';
+      const color = valor < 0 ? 'text-yellow-600' : valor <= 5 ? 'text-green-600' : 'text-red-600';
+      return `${prefix}${valor.toFixed(2)}%`;
+    default:
+      return new Intl.NumberFormat('pt-BR').format(valor) + (sufixo || '');
+  }
+};
+
+const formatarDataCurta = (dataStr: string): string => {
+  if (!dataStr) return '';
+  const [ano, mes, dia] = dataStr.split('-');
+  return `${dia}/${mes}`;
+};
+
+// Calcular semana atual (ISO 8601 - mesmo cálculo do backend)
+const getSemanaAtual = (): number => {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+};
+
+// Calcular Giro de Estoque
+const calcularGiroEstoque = (semana: CMVSemanal): number => {
+  const mediaEstoque = ((semana.estoque_inicial || 0) + (semana.estoque_final || 0)) / 2;
+  if (mediaEstoque === 0) return 0;
+  return (semana.cmv_real || 0) / mediaEstoque;
+};
+
 export default function CMVSemanalTabelaPage() {
   const { selectedBar } = useBar();
+  const { toast } = useToast();
+  
   const [semanas, setSemanas] = useState<CMVSemanal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [semanaAtualIndex, setSemanaAtualIndex] = useState(0);
-  const [anoFiltro, setAnoFiltro] = useState(new Date().getFullYear());
-  const SEMANAS_POR_PAGINA = 3;
-
-  // Estados para drill-down
+  const [semanaAtualIdx, setSemanaAtualIdx] = useState<number>(-1);
+  const [anoFiltro, setAnoFiltro] = useState<string>('todos');
+  // Visão: 'semanal' ou 'mensal'
+  const [visao, setVisao] = useState<'semanal' | 'mensal'>('semanal');
+  const [secoesAbertas, setSecoesAbertas] = useState<Record<string, boolean>>({
+    vendas: true,
+    cmv: true,
+    resultados: true
+  });
+  const [gruposAbertos, setGruposAbertos] = useState<Record<string, boolean>>({
+    // Vendas - expandido
+    'vendas-faturamento': true,
+    // CMV - grupos colapsados por padrão
+    'cmv-estoque_inicial': false,
+    'cmv-compras': false,
+    'cmv-estoque_final': false,
+    'cmv-consumos': false,
+    'cmv-bonificacoes': false,
+    // Resultados - expandido (mostra os 3 itens)
+    'resultados-cmv_resultado': true,
+  });
+  const [editando, setEditando] = useState<{ semanaId: string; campo: string } | null>(null);
+  const [valorEdit, setValorEdit] = useState('');
+  
+  // Modal Drill-Down
   const [modalDrillDown, setModalDrillDown] = useState<{
     open: boolean;
     titulo: string;
@@ -100,101 +334,142 @@ export default function CMVSemanalTabelaPage() {
     dados: []
   });
 
-  // Calcular semana atual do ano
-  function getSemanaAtual(): number {
-    const now = new Date();
-    const startOfYear = new Date(now.getFullYear(), 0, 1);
-    const pastDaysOfYear = (now.getTime() - startOfYear.getTime()) / 86400000;
-    return Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
-  }
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const semanaAtualRef = useRef<HTMLDivElement>(null);
+
+  // Nomes dos meses
+  const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+  // Carregar dados
+  const carregarDados = useCallback(async () => {
+    if (!selectedBar?.id) return;
+    
+    try {
+      setLoading(true);
+      
+      if (visao === 'mensal') {
+        // Carregar dados mensais - desde janeiro/2025 até o mês atual
+        const anoAtual = new Date().getFullYear();
+        const mesAtual = new Date().getMonth() + 1;
+        
+        // Gerar lista de meses desde janeiro/2025 até o mês atual
+        const mesesParaCarregar: { mes: number; ano: number }[] = [];
+        const anoInicio = 2025;
+        const mesInicio = 1; // Janeiro
+        
+        for (let ano = anoInicio; ano <= anoAtual; ano++) {
+          // Aplicar filtro de ano se selecionado
+          if (anoFiltro !== 'todos' && ano !== parseInt(anoFiltro)) continue;
+          
+          const mesInicialDoAno = ano === anoInicio ? mesInicio : 1;
+          const mesFinalDoAno = ano === anoAtual ? mesAtual : 12;
+          
+          for (let mes = mesInicialDoAno; mes <= mesFinalDoAno; mes++) {
+            mesesParaCarregar.push({ mes, ano });
+          }
+        }
+        
+        // Carregar todos os meses em paralelo
+        const promises = mesesParaCarregar.map(({ mes, ano }) =>
+          fetch(`/api/cmv-semanal/mensal?mes=${mes}&ano=${ano}&bar_id=${selectedBar.id}`)
+            .then(r => r.json())
+            .then(data => ({ data, mes, ano }))
+        );
+        
+        const resultados = await Promise.all(promises);
+        
+        // Ordenar do mais antigo para o mais recente
+        const mesesData = resultados
+          .map(({ data, mes, ano }) => ({
+            id: `${ano}-${mes}`,
+            bar_id: selectedBar.id,
+            ano: ano,
+            semana: mes, // Usamos semana para armazenar o mês (reaproveitar a estrutura)
+            data_inicio: `${ano}-${String(mes).padStart(2, '0')}-01`,
+            data_fim: `${ano}-${String(mes).padStart(2, '0')}-${new Date(ano, mes, 0).getDate()}`,
+            ...(data.mes || {})
+          } as CMVSemanal))
+          .sort((a, b) => {
+            if (a.ano !== b.ano) return a.ano - b.ano;
+            return a.semana - b.semana;
+          });
+        
+        setSemanas(mesesData);
+        
+        // Encontrar o índice do mês atual
+        const idxMesAtual = mesesData.findIndex(m => m.ano === anoAtual && m.semana === mesAtual);
+        setSemanaAtualIdx(idxMesAtual >= 0 ? idxMesAtual : mesesData.length - 1);
+        
+      } else {
+        // Carregar dados semanais (lógica original)
+        const response = await fetch(`/api/cmv-semanal?bar_id=${selectedBar.id}`);
+        if (!response.ok) throw new Error('Erro ao carregar dados');
+        
+        const result = await response.json();
+        const data = result.data || [];
+        
+        // Filtrar por ano e ordenar por ano/semana (crescente)
+        const filtrado = data
+          .filter((item: CMVSemanal) => anoFiltro === 'todos' || item.ano === parseInt(anoFiltro))
+          .sort((a: CMVSemanal, b: CMVSemanal) => {
+            if (a.ano !== b.ano) return a.ano - b.ano;
+            return a.semana - b.semana;
+          });
+        
+        setSemanas(filtrado);
+        
+        // Encontrar índice da semana atual
+        const semanaAtual = getSemanaAtual();
+        const anoAtual = new Date().getFullYear();
+        const idx = filtrado.findIndex((s: CMVSemanal) => s.semana === semanaAtual && s.ano === anoAtual);
+        setSemanaAtualIdx(idx >= 0 ? idx : filtrado.length - 1);
+      }
+      
+    } catch (error) {
+      console.error('Erro ao carregar CMV:', error);
+      toast({ title: 'Erro', description: 'Falha ao carregar dados', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [anoFiltro, selectedBar?.id, visao]);
 
   useEffect(() => {
     if (selectedBar?.id) {
       carregarDados();
     }
-  }, [anoFiltro, selectedBar?.id]);
+  }, [carregarDados]);
 
-  async function carregarDados() {
-    if (!selectedBar?.id) return;
-    
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/cmv-semanal?bar_id=${selectedBar.id}`);
-      if (!response.ok) throw new Error('Erro ao carregar dados');
-      
-      const result = await response.json();
-      const data = result.data || [];
-      
-      // Filtrar por ano e ordenar por semana (crescente)
-      const filtrado = data
-        .filter((item: CMVSemanal) => item.ano === anoFiltro)
-        .sort((a: CMVSemanal, b: CMVSemanal) => a.semana - b.semana);
-      
-      setSemanas(filtrado);
-      
-      // Posicionar na última semana disponível (semana anterior ou atual)
-      if (filtrado.length > 0) {
-        const semanaAtual = getSemanaAtual();
-        // Buscar a última semana disponível antes ou igual à semana atual
-        let indexMelhor = filtrado.length - 1;
-        
-        for (let i = filtrado.length - 1; i >= 0; i--) {
-          if (filtrado[i].semana <= semanaAtual) {
-            indexMelhor = i;
-            break;
-          }
-        }
-        
-        setSemanaAtualIndex(indexMelhor);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar CMV Semanal:', error);
-    } finally {
-      setLoading(false);
+  // Recarregar quando visão mudar
+  useEffect(() => {
+    if (selectedBar?.id) {
+      carregarDados();
     }
-  }
+  }, [visao]);
 
-  // Pegar 3 semanas com a semana atual sendo a ÚLTIMA (3ª) das 3
-  const startIndex = Math.max(0, semanaAtualIndex - 2);
-  const currentSemanas = semanas.slice(startIndex, startIndex + SEMANAS_POR_PAGINA);
-  const semanaExibida = semanas[semanaAtualIndex];
+  // Scroll para semana atual
+  useEffect(() => {
+    if (!loading && scrollContainerRef.current && semanaAtualRef.current) {
+      const container = scrollContainerRef.current;
+      const element = semanaAtualRef.current;
+      const containerWidth = container.offsetWidth;
+      const elementLeft = element.offsetLeft;
+      const elementWidth = element.offsetWidth;
+      
+      container.scrollLeft = elementLeft - (containerWidth * 0.6) + (elementWidth / 2);
+    }
+  }, [loading, semanaAtualIdx]);
 
-  function formatarMoeda(valor: number): string {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(valor || 0);
-  }
+  // Toggle seção
+  const toggleSecao = (id: string) => {
+    setSecoesAbertas(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
-  function formatarData(data: string): string {
-    if (!data) return '-';
-    const [ano, mes, dia] = data.split('-');
-    return `${dia}/${mes}/${ano}`;
-  }
+  // Toggle grupo
+  const toggleGrupo = useCallback((grupoId: string) => {
+    setGruposAbertos(prev => ({ ...prev, [grupoId]: !prev[grupoId] }));
+  }, []);
 
-  function getStatusBadge(status: string) {
-    const variants: Record<string, string> = {
-      rascunho: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-      fechado: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      revisao: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-    };
-    return variants[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-  }
-
-  function getGapColor(gap: number) {
-    if (gap < 0) return 'text-yellow-600 dark:text-yellow-400 font-semibold';
-    if (gap >= 0 && gap <= 5) return 'text-green-600 dark:text-green-400 font-semibold';
-    return 'text-red-600 dark:text-red-400 font-semibold';
-  }
-
-  // Calcular Giro de Estoque para cada semana
-  function calcularGiroEstoque(semana: CMVSemanal): number {
-    const mediaEstoque = (semana.estoque_inicial + semana.estoque_final) / 2;
-    if (mediaEstoque === 0) return 0;
-    return semana.cmv_real / mediaEstoque;
-  }
-
-  // Função para abrir drill-down com dados reais da API
+  // Abrir drill-down
   const abrirDrillDown = async (titulo: string, campo: string, semana: CMVSemanal) => {
     setModalDrillDown({
       open: true,
@@ -215,13 +490,10 @@ export default function CMVSemanalTabelaPage() {
 
       const response = await fetch(`/api/cmv-semanal/detalhes?${params}`);
       
-      if (!response.ok) {
-        throw new Error('Erro ao buscar detalhes');
-      }
+      if (!response.ok) throw new Error('Erro ao buscar detalhes');
 
       const result = await response.json();
       
-      // Transformar detalhes da API para o formato do modal
       const detalhesFormatados = result.detalhes.map((item: any) => ({
         label: item.descricao,
         valor: item.valor,
@@ -232,503 +504,749 @@ export default function CMVSemanalTabelaPage() {
         sinal: item.sinal,
         quantidade: item.quantidade,
         unidade: item.unidade,
-        custo_unitario: item.custo_unitario
+        custo_unitario: item.custo_unitario,
+        fornecedor: item.fornecedor,
+        documento: item.documento,
+        status: item.status,
+        motivo: item.motivo,
+        local: item.local
       }));
 
-      setModalDrillDown({
-        open: true,
-        titulo,
-        campo,
-        semana,
+      setModalDrillDown(prev => ({
+        ...prev,
         loading: false,
         dados: detalhesFormatados
-      });
+      }));
     } catch (error) {
       console.error('Erro ao carregar detalhes:', error);
-      setModalDrillDown({
-        open: true,
-        titulo,
-        campo,
-        semana,
+      setModalDrillDown(prev => ({
+        ...prev,
         loading: false,
         dados: []
-      });
+      }));
     }
   };
 
-  const linhas = [
-    { titulo: 'IDENTIFICAÇÃO', items: [
-      { label: 'Semana', campo: 'semana' as keyof CMVSemanal, tipo: 'numero' },
-      { label: 'Data Início', campo: 'data_inicio' as keyof CMVSemanal, tipo: 'data' },
-      { label: 'Data Fim', campo: 'data_fim' as keyof CMVSemanal, tipo: 'data' },
-      { label: 'Status', campo: 'status' as keyof CMVSemanal, tipo: 'status' },
-    ]},
-    { titulo: 'VENDAS', items: [
-      { label: 'Vendas Brutas', campo: 'vendas_brutas' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Vendas Líquidas', campo: 'vendas_liquidas' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Faturamento CMVível', campo: 'faturamento_cmvivel' as keyof CMVSemanal, tipo: 'moeda', drilldown: true, manual: true },
-    ]},
-    { titulo: 'CMV PRINCIPAL', items: [
-      { label: 'Estoque Inicial', campo: 'estoque_inicial' as keyof CMVSemanal, tipo: 'moeda' },
-      { label: 'Compras', campo: 'compras_periodo' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Estoque Final', campo: 'estoque_final' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Consumo Sócios', campo: 'consumo_socios' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Consumo Benefícios', campo: 'consumo_beneficios' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Consumo ADM', campo: 'consumo_adm' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Consumo RH', campo: 'consumo_rh' as keyof CMVSemanal, tipo: 'moeda', drilldown: true, manual: true },
-      { label: 'Consumo Artista', campo: 'consumo_artista' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Outros Ajustes', campo: 'outros_ajustes' as keyof CMVSemanal, tipo: 'moeda', manual: true },
-      { label: 'Ajuste Bonificações', campo: 'ajuste_bonificacoes' as keyof CMVSemanal, tipo: 'moeda', manual: true },
-      { label: 'CMV Real (R$)', campo: 'cmv_real' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'CMV Limpo (%)', campo: 'cmv_limpo_percentual' as keyof CMVSemanal, tipo: 'percentual' },
-      { label: 'CMV Teórico (%)', campo: 'cmv_teorico_percentual' as keyof CMVSemanal, tipo: 'percentual', manual: true },
-      { label: 'Gap', campo: 'gap' as keyof CMVSemanal, tipo: 'gap' },
-      { label: 'Giro de Estoque', campo: 'giro_estoque' as keyof CMVSemanal, tipo: 'decimal' },
-    ]},
-    { titulo: 'ESTOQUE FINAL', items: [
-      { label: 'Cozinha', campo: 'estoque_final_cozinha' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Bebidas + Tabacaria', campo: 'estoque_final_bebidas' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Drinks', campo: 'estoque_final_drinks' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'TOTAL', campo: 'estoque_final' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-    ]},
-    { titulo: 'COMPRAS', items: [
-      { label: 'Cozinha', campo: 'compras_custo_comida' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Bebidas + Tabacaria', campo: 'compras_custo_bebidas' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Drinks', campo: 'compras_custo_drinks' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Outros', campo: 'compras_custo_outros' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'TOTAL', campo: 'compras_periodo' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-    ]},
-    { titulo: 'CONTAS ESPECIAIS', items: [
-      { label: 'Total Consumo Sócios', campo: 'total_consumo_socios' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Mesa de Benefícios Cliente', campo: 'mesa_beneficios_cliente' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Mesa da Banda/DJ', campo: 'mesa_banda_dj' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Chegadeira', campo: 'chegadeira' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Mesa ADM/Casa', campo: 'mesa_adm_casa' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-      { label: 'Mesa RH', campo: 'mesa_rh' as keyof CMVSemanal, tipo: 'moeda', drilldown: true },
-    ]},
-  ];
+  // Salvar métrica editada
+  const salvarMetrica = async (semanaId: string, campo: string) => {
+    const numValue = parseFloat(valorEdit.replace(',', '.'));
+    
+    if (isNaN(numValue)) {
+      setEditando(null);
+      toast({ title: 'Erro', description: 'Valor inválido', variant: 'destructive' });
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/cmv-semanal', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: semanaId, [campo]: numValue })
+      });
 
-  function renderCelula(semana: CMVSemanal, campo: keyof CMVSemanal, tipo: string, manual?: boolean) {
-    // Calcular Giro de Estoque dinamicamente
-    if (campo === 'giro_estoque') {
-      const giro = calcularGiroEstoque(semana);
-      return <span className="font-mono">{giro.toFixed(2)}x</span>;
+      if (!response.ok) throw new Error('Erro ao salvar');
+      
+      toast({ title: 'Salvo!', description: 'Valor atualizado' });
+      setEditando(null);
+      carregarDados();
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Falha ao salvar', variant: 'destructive' });
     }
+  };
 
-    const valor = semana[campo];
+  // Obter valor da métrica
+  const getValorMetrica = (semana: CMVSemanal, key: string): number | null => {
+    if (key === 'giro_estoque') {
+      return calcularGiroEstoque(semana);
+    }
+    // Estoque Inicial = soma dos sub-itens
+    if (key === 'estoque_inicial') {
+      return (semana.estoque_inicial_cozinha || 0) + 
+             (semana.estoque_inicial_drinks || 0) + 
+             (semana.estoque_inicial_bebidas || 0);
+    }
+    // Estoque Final = soma dos sub-itens
+    if (key === 'estoque_final') {
+      return (semana.estoque_final_cozinha || 0) + 
+             (semana.estoque_final_drinks || 0) + 
+             (semana.estoque_final_bebidas || 0);
+    }
+    // Compras = soma dos sub-itens
+    if (key === 'compras_periodo') {
+      return (semana.compras_custo_comida || 0) + 
+             (semana.compras_custo_drinks || 0) + 
+             (semana.compras_custo_bebidas || 0) + 
+             (semana.compras_custo_outros || 0);
+    }
+    // Consumações = soma dos sub-itens
+    if (key === 'total_consumos') {
+      return (semana.total_consumo_socios || 0) + 
+             (semana.mesa_adm_casa || 0) + 
+             (semana.mesa_beneficios_cliente || 0) + 
+             (semana.mesa_banda_dj || 0);
+    }
+    // Bonificações = soma dos sub-itens
+    if (key === 'ajuste_bonificacoes') {
+      return (semana.bonificacao_contrato_anual || 0) + 
+             (semana.bonificacao_cashback_mensal || 0);
+    }
+    return (semana as any)[key] ?? null;
+  };
 
-    if (tipo === 'moeda') {
-      return <span className="font-mono">{formatarMoeda(Number(valor))}</span>;
-    }
-    
-    if (tipo === 'percentual') {
-      return <span className="font-mono">{Number(valor).toFixed(2)}%</span>;
-    }
-    
-    if (tipo === 'decimal') {
-      return <span className="font-mono">{Number(valor).toFixed(2)}x</span>;
-    }
-    
-    if (tipo === 'gap') {
-      const numValor = Number(valor);
-      return (
-        <span className={`font-mono ${getGapColor(numValor)}`}>
-          {numValor > 0 ? '+' : ''}{numValor.toFixed(2)}%
-        </span>
-      );
-    }
-    
-    if (tipo === 'data') {
-      return <span>{formatarData(String(valor))}</span>;
-    }
-    
-    if (tipo === 'status') {
-      return (
-        <Badge className={getStatusBadge(String(valor))}>
-          {String(valor).toUpperCase()}
-        </Badge>
-      );
-    }
-    
-    if (tipo === 'numero') {
-      return <span className="font-semibold">{valor}</span>;
-    }
+  // Cor do gap
+  const getGapColor = (valor: number): string => {
+    if (valor < 0) return 'text-yellow-600 dark:text-yellow-400';
+    if (valor <= 5) return 'text-green-600 dark:text-green-400';
+    return 'text-red-600 dark:text-red-400';
+  };
 
-    return <span>{String(valor)}</span>;
-  }
+  // Gerar detalhes para tooltip do valor
+  const getDetalhesTooltip = (semana: CMVSemanal, key: string): { label: string; valor: number }[] | null => {
+    switch (key) {
+      case 'estoque_inicial':
+        return [
+          { label: 'Cozinha', valor: semana.estoque_inicial_cozinha || 0 },
+          { label: 'Drinks', valor: semana.estoque_inicial_drinks || 0 },
+          { label: 'Bebidas', valor: semana.estoque_inicial_bebidas || 0 },
+        ];
+      case 'estoque_final':
+        return [
+          { label: 'Cozinha', valor: semana.estoque_final_cozinha || 0 },
+          { label: 'Drinks', valor: semana.estoque_final_drinks || 0 },
+          { label: 'Bebidas', valor: semana.estoque_final_bebidas || 0 },
+        ];
+      case 'compras_periodo':
+        return [
+          { label: 'Cozinha', valor: semana.compras_custo_comida || 0 },
+          { label: 'Drinks', valor: semana.compras_custo_drinks || 0 },
+          { label: 'Bebidas', valor: semana.compras_custo_bebidas || 0 },
+          { label: 'Outros', valor: semana.compras_custo_outros || 0 },
+        ];
+      case 'total_consumos':
+        return [
+          { label: 'Sócios', valor: semana.total_consumo_socios || 0 },
+          { label: 'Funcionários', valor: semana.mesa_adm_casa || 0 },
+          { label: 'Clientes', valor: semana.mesa_beneficios_cliente || 0 },
+          { label: 'Artistas', valor: semana.mesa_banda_dj || 0 },
+        ];
+      case 'ajuste_bonificacoes':
+        return [
+          { label: 'Contrato Anual', valor: semana.bonificacao_contrato_anual || 0 },
+          { label: 'Cashback Mensal', valor: semana.bonificacao_cashback_mensal || 0 },
+        ];
+      default:
+        return null;
+    }
+  };
 
-  if (loading) {
+  if (!selectedBar) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Carregando dados...</p>
-        </div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <Card className="bg-white dark:bg-gray-800 p-8 text-center max-w-md">
+          <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            Selecione um Bar
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Escolha um bar no seletor acima para visualizar o CMV semanal.
+          </p>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
-        {/* Filtro de Ano e Navegação */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 mb-4">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4 flex-wrap">
+    <div className="h-[calc(100vh-80px)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      
+      {/* Header */}
+      <div className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="max-w-full mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {/* Toggle Semanal/Mensal */}
+              <Tabs value={visao} onValueChange={(v) => setVisao(v as 'semanal' | 'mensal')}>
+                <TabsList className="h-9">
+                  <TabsTrigger value="semanal" className="text-xs px-3">
+                    <Calendar className="w-3.5 h-3.5 mr-1.5" />
+                    Semanal
+                  </TabsTrigger>
+                  <TabsTrigger value="mensal" className="text-xs px-3">
+                    <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
+                    Mensal
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              
+              {/* Filtro de Ano */}
               <div className="flex items-center gap-2">
-                <CalendarDays className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                <Label className="text-gray-700 dark:text-gray-300 font-semibold">Ano:</Label>
+                <Select value={anoFiltro} onValueChange={(v) => setAnoFiltro(v)}>
+                  <SelectTrigger className="w-28 h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="2025">2025</SelectItem>
+                    <SelectItem value="2026">2026</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <Select value={anoFiltro.toString()} onValueChange={(value) => setAnoFiltro(parseInt(value))}>
-                <SelectTrigger className="w-32 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
-                  <SelectItem value="2025" className="hover:bg-gray-100 dark:hover:bg-gray-700">2025</SelectItem>
-                  <SelectItem value="2026" className="hover:bg-gray-100 dark:hover:bg-gray-700">2026</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-semibold">Semana Atual:</span> {getSemanaAtual()}
-              </div>
-              <div className="flex-1" />
-              <div className="flex gap-2">
-                <Link href="/ferramentas/cmv-semanal">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    leftIcon={<Calendar className="w-4 h-4" />}
-                  >
-                    Listagem
-                  </Button>
-                </Link>
-                <Link href="/ferramentas/cmv-semanal/visualizar">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    leftIcon={<BarChart3 className="w-4 h-4" />}
-                  >
-                    Dashboard
-                  </Button>
-                </Link>
+              
+              <div className="flex items-center gap-2">
+                <Table2 className="w-5 h-5 text-gray-500" />
+                <span className="font-semibold text-gray-900 dark:text-white">
+                  {semanas.length} {visao === 'semanal' ? 'semanas' : 'meses'}
+                </span>
+                {visao === 'semanal' && (
+                  <span className="text-sm text-gray-500">
+                    (Semana atual: {getSemanaAtual()})
+                  </span>
+                )}
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Navegação */}
-        <div className="flex items-center justify-between mb-4">
-          <Button
-            onClick={() => setSemanaAtualIndex(Math.max(0, semanaAtualIndex - 1))}
-            disabled={semanaAtualIndex === 0}
-            variant="outline"
-            className="min-w-[120px]"
-            leftIcon={<ChevronLeft className="w-4 h-4" />}
-          >
-            Anterior
-          </Button>
-          
-          <div className="text-center">
-            {semanaExibida ? (
-              <>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Semana {semanaExibida.semana}
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {formatarData(semanaExibida.data_inicio)} - {formatarData(semanaExibida.data_fim)}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Nenhuma semana selecionada
-              </p>
-            )}
-          </div>
-          
-          <Button
-            onClick={() => setSemanaAtualIndex(Math.min(semanas.length - 1, semanaAtualIndex + 1))}
-            disabled={semanaAtualIndex === semanas.length - 1}
-            variant="outline"
-            className="min-w-[120px]"
-            rightIcon={<ChevronRight className="w-4 h-4" />}
-          >
-            Próximo
-          </Button>
-        </div>
-
-        {/* Tabela Principal */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0 z-10">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-900 dark:text-white border-r border-gray-300 dark:border-gray-600 sticky left-0 bg-gray-100 dark:bg-gray-700 min-w-[250px]">
-                      Métrica
-                    </th>
-                    {currentSemanas.map((semana) => {
-                      const semanaAtual = getSemanaAtual();
-                      const isSemanaAtual = semana.semana === semanaAtual && semana.ano === new Date().getFullYear();
-                      
-                      return (
-                        <th
-                          key={semana.id}
-                          className={`px-4 py-3 text-center font-semibold border-r border-gray-300 dark:border-gray-600 min-w-[180px] ${
-                            isSemanaAtual 
-                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200' 
-                              : 'text-gray-900 dark:text-white'
-                          }`}
-                        >
-                          <div className="flex flex-col gap-1">
-                            <span className="text-lg font-bold">
-                              Semana {semana.semana}
-                              {isSemanaAtual && (
-                                <span className="ml-2 text-xs px-2 py-1 bg-blue-600 dark:bg-blue-500 text-white rounded-full">
-                                  ATUAL
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {linhas.map((secao, secaoIdx) => (
-                    <React.Fragment key={secaoIdx}>
-                      {/* Título da Seção */}
-                      <tr className="bg-blue-50 dark:bg-blue-900/20">
-                        <td
-                          colSpan={currentSemanas.length + 1}
-                          className="px-4 py-2 font-bold text-blue-900 dark:text-blue-200 border-y border-gray-300 dark:border-gray-600"
-                        >
-                          {secao.titulo}
-                        </td>
-                      </tr>
-                      
-                      {/* Linhas da Seção */}
-                      {secao.items.map((item, itemIdx) => (
-                        <tr
-                          key={itemIdx}
-                          className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                        >
-                          <td
-                            className="px-4 py-2 text-gray-900 dark:text-white border-r border-gray-300 dark:border-gray-600 sticky left-0 bg-white dark:bg-gray-800"
-                          >
-                            {item.label}
-                            {item.manual && (
-                              <Edit className="w-3 h-3 ml-2 inline text-gray-500 dark:text-gray-400" />
-                            )}
-                          </td>
-                          {currentSemanas.map((semana) => {
-                            const semanaAtual = getSemanaAtual();
-                            const isSemanaAtual = semana.semana === semanaAtual && semana.ano === new Date().getFullYear();
-                            
-                            return (
-                              <td
-                                key={semana.id}
-                                className={`
-                                  px-4 py-2 text-center text-gray-700 dark:text-gray-300 border-r border-gray-300 dark:border-gray-600
-                                  ${isSemanaAtual ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
-                                  ${item.drilldown ? 'cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/40' : ''}
-                                `}
-                                onClick={() => item.drilldown && abrirDrillDown(item.label, String(item.campo), semana)}
-                              >
-                                <div className="flex items-center justify-center gap-2">
-                                  {renderCelula(semana, item.campo, item.tipo, item.manual)}
-                                  {item.drilldown && (
-                                    <Eye className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                                  )}
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Modal de Drill-Down */}
-        <Dialog open={modalDrillDown.open} onOpenChange={(open) => setModalDrillDown({ ...modalDrillDown, open })}>
-          <DialogContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="text-gray-900 dark:text-white">
-                📊 Detalhamento: {modalDrillDown.titulo}
-              </DialogTitle>
-              {modalDrillDown.semana && (
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Semana {modalDrillDown.semana.semana} ({formatarData(modalDrillDown.semana.data_inicio)} - {formatarData(modalDrillDown.semana.data_fim)})
-                </p>
-              )}
-            </DialogHeader>
             
-            <div className="mt-4">
-              {modalDrillDown.loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <span className="ml-3 text-gray-600 dark:text-gray-400">Carregando detalhes...</span>
+            {/* Ações */}
+            <div className="flex items-center gap-3">
+              {/* Legenda */}
+              <div className="hidden md:flex items-center gap-3 text-xs">
+                <div className="flex items-center gap-1">
+                  <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                  <span className="text-gray-600 dark:text-gray-400">Verificar</span>
                 </div>
-              ) : modalDrillDown.dados.length > 0 ? (
-                <div className="space-y-2">
-                  {/* Resumo de quantidade */}
-                  <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <p className="text-sm text-blue-900 dark:text-blue-200">
-                      <strong>{modalDrillDown.dados.length}</strong> {modalDrillDown.dados.length === 1 ? 'registro encontrado' : 'registros encontrados'}
-                    </p>
-                  </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                  <span className="text-gray-600 dark:text-gray-400">Manual</span>
+                </div>
+              </div>
+              
+              <Link href="/ferramentas/cmv-semanal">
+                <Button variant="outline" size="sm">
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Listagem
+                </Button>
+              </Link>
+              
+              <Button variant="outline" size="sm" onClick={carregarDados} disabled={loading}>
+                <RefreshCcw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
+                Atualizar
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
 
-                  {/* Lista de itens detalhados */}
-                  <div className="max-h-[400px] overflow-y-auto space-y-2">
-                    {modalDrillDown.dados.map((item: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border border-gray-200 dark:border-gray-600"
+      {/* Conteúdo - Layout estilo Excel */}
+      <div 
+        ref={scrollContainerRef}
+        className="flex-1 overflow-auto smooth-scroll"
+      >
+        <div className="flex" style={{ minWidth: 'max-content' }}>
+          
+          {/* Coluna fixa - Labels */}
+          <div className="sticky left-0 z-20 flex-shrink-0 w-[220px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md">
+            {/* Header vazio */}
+            <div className="h-[60px] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center sticky top-0 z-30">
+              <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">INDICADOR</span>
+            </div>
+            
+            {/* Labels das métricas */}
+            {SECOES.map(secao => (
+              <div key={secao.id} className="virtualized-section">
+                {/* Header da seção */}
+                <div 
+                  className={cn("flex items-center gap-2 px-3 cursor-pointer", secao.cor)}
+                  style={{ height: '36px' }}
+                  onClick={() => toggleSecao(secao.id)}
+                >
+                  {secoesAbertas[secao.id] ? (
+                    <ChevronDown className="w-4 h-4 text-white" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-white" />
+                  )}
+                  {secao.icone}
+                  <span className="text-xs font-semibold text-white truncate">{secao.titulo}</span>
+                </div>
+                
+                {/* Grupos */}
+                {secoesAbertas[secao.id] && secao.grupos.map(grupo => {
+                  const isGrupoAberto = gruposAbertos[`${secao.id}-${grupo.id}`] !== false;
+                  const primeiraMetrica = grupo.metricas[0];
+                  const metricasParaMostrar = grupo.semCollapse ? grupo.metricas : (isGrupoAberto ? grupo.metricas.slice(1) : []);
+                  
+                  return (
+                  <div key={grupo.id}>
+                    {/* Header do grupo - não mostrar se semCollapse */}
+                    {!grupo.semCollapse && (
+                      <div 
+                        className="flex items-center gap-2 px-3 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                        style={{ height: '32px' }}
+                        onClick={() => toggleGrupo(`${secao.id}-${grupo.id}`)}
                       >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            {/* Título principal */}
-                            <div className="flex items-center gap-2 mb-2">
-                              {item.sinal && (
-                                <span className={`text-lg font-bold ${item.sinal === '+' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                  {item.sinal}
-                                </span>
-                              )}
-                              <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                {item.descricao || item.label}
-                              </span>
-                              
-                              {/* Badge de tipo para vendas agregadas */}
-                              {item.tipo === 'venda_dia' && item.quantidade_contas && (
-                                <Badge variant="outline" className="ml-2 text-xs">
-                                  {item.quantidade_contas} {item.quantidade_contas === 1 ? 'conta' : 'contas'}
-                                </Badge>
-                              )}
-
-                              {/* Badge de status para compras */}
-                              {item.tipo === 'compra' && item.status && (
-                                <Badge variant={item.status === 'Pago' ? 'default' : 'outline'} className="ml-2 text-xs">
-                                  {item.status}
-                                </Badge>
-                              )}
-                            </div>
-                            
-                            {/* Detalhes adicionais */}
-                            <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
-                              {/* Para compras: mostrar fornecedor e categoria */}
-                              {item.tipo === 'compra' && (
-                                <>
-                                  {item.fornecedor && (
-                                    <p>
-                                      <strong>Fornecedor:</strong> {item.fornecedor}
-                                    </p>
-                                  )}
-                                  {item.categoria && (
-                                    <p>
-                                      <strong>Categoria:</strong> {item.categoria}
-                                    </p>
-                                  )}
-                                  {item.documento && item.documento !== '-' && (
-                                    <p>
-                                      <strong>Doc:</strong> {item.documento}
-                                    </p>
-                                  )}
-                                </>
-                              )}
-
-                              {/* Data */}
-                              {item.data && (
-                                <p>
-                                  <strong>Data:</strong> {formatarData(item.data)}
-                                </p>
-                              )}
-
-                              {/* Categoria genérica (para outros tipos) */}
-                              {item.tipo !== 'compra' && item.categoria && (
-                                <p>
-                                  <strong>Categoria:</strong> {item.categoria}
-                                </p>
-                              )}
-
-                              {/* Detalhes complementares */}
-                              {item.detalhes && (
-                                <p className="text-gray-500 dark:text-gray-500 italic">
-                                  {item.detalhes}
-                                </p>
-                              )}
-
-                              {/* Quantidade (para estoque) */}
-                              {item.quantidade && item.tipo !== 'venda_dia' && (
-                                <p>
-                                  <strong>Quantidade:</strong> {item.quantidade.toFixed(2)} {item.unidade || 'un'}
-                                  {item.custo_unitario && (
-                                    <span className="ml-2">
-                                      × {formatarMoeda(item.custo_unitario)}
-                                    </span>
-                                  )}
-                                </p>
-                              )}
-
-                              {/* Motivo (para consumos) */}
-                              {item.motivo && (
-                                <p>
-                                  <strong>Motivo:</strong> {item.motivo}
-                                </p>
-                              )}
-
-                              {/* Local (para estoque) */}
-                              {item.local && (
-                                <p>
-                                  <strong>Local:</strong> {item.local}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Valor */}
-                          <div className="text-right">
-                            <span className={`text-base font-mono font-bold ${
-                              item.valor >= 0 
-                                ? 'text-gray-900 dark:text-white' 
-                                : 'text-red-600 dark:text-red-400'
-                            }`}>
-                              {formatarMoeda(Math.abs(item.valor))}
-                            </span>
-                          </div>
-                        </div>
+                        {isGrupoAberto ? (
+                          <ChevronDown className="w-3 h-3 text-gray-400" />
+                        ) : (
+                          <ChevronRight className="w-3 h-3 text-gray-400" />
+                        )}
+                        <div className={cn("w-2 h-2 rounded-full flex-shrink-0", STATUS_COLORS[primeiraMetrica?.status || 'auto'].dot)} />
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-300 truncate">{grupo.label}</span>
+                        {!isGrupoAberto && (
+                          <span className="text-[10px] text-gray-400">({grupo.metricas.length - 1} itens)</span>
+                        )}
                       </div>
+                    )}
+                    
+                    {/* Métricas */}
+                    {metricasParaMostrar.map(metrica => (
+                      <TooltipProvider key={metrica.key}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div 
+                              className="flex items-center gap-2 px-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-help"
+                              style={{ height: '30px' }}
+                            >
+                              <div className={cn("w-2 h-2 rounded-full flex-shrink-0", STATUS_COLORS[metrica.status].dot)} />
+                              <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                                {metrica.label}
+                              </span>
+                              {metrica.drilldown && (
+                                <Eye className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                              )}
+                              {metrica.editavel && (
+                                <Pencil className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className={cn("max-w-xs p-3", STATUS_COLORS[metrica.status].bg)}>
+                            <div className="space-y-1">
+                              <div className={cn("font-semibold text-sm", STATUS_COLORS[metrica.status].text)}>
+                                {metrica.status === 'auto' && 'Automático (Verificar)'}
+                                {metrica.status === 'manual' && 'Manual (Editável)'}
+                                {metrica.status === 'calculado' && 'Calculado (Verificar)'}
+                              </div>
+                              <div className="text-xs text-gray-600 dark:text-gray-300">
+                                <strong>Fonte:</strong> {metrica.fonte}
+                              </div>
+                              <div className="text-xs text-gray-600 dark:text-gray-300">
+                                <strong>Cálculo:</strong> {metrica.calculo}
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     ))}
                   </div>
+                )})}
+              </div>
+            ))}
+          </div>
+
+          {/* Área das Semanas */}
+          <div className="flex-1">
+            {loading ? (
+              <div className="flex gap-0">
+                {[...Array(12)].map((_, i) => (
+                  <div key={i} className="flex-shrink-0 w-[110px]">
+                    <Skeleton className="h-[60px] rounded-none" />
+                    {[...Array(25)].map((_, j) => (
+                      <Skeleton key={j} className="h-[30px] rounded-none" />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="inline-flex" style={{ minWidth: 'max-content' }}>
+                {semanas.map((semana, idx) => {
+                  const isAtual = idx === semanaAtualIdx;
+                  const semanaAtualNum = getSemanaAtual();
+                  const mesAtualNum = new Date().getMonth() + 1;
+                  const anoAtualNum = new Date().getFullYear();
+                  const isSemanaAtual = visao === 'mensal' 
+                    ? (semana.semana === mesAtualNum && semana.ano === anoAtualNum)
+                    : (semana.semana === semanaAtualNum && semana.ano === anoAtualNum);
                   
-                  {/* Total */}
-                  <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-900/20 rounded-lg border-2 border-blue-500 dark:border-blue-600 mt-4">
-                    <span className="text-lg font-bold text-blue-900 dark:text-blue-200">
-                      TOTAL
-                    </span>
-                    <span className="text-lg font-mono font-bold text-blue-900 dark:text-blue-200">
-                      {formatarMoeda(modalDrillDown.dados.reduce((sum, item) => sum + (item.valor || 0), 0))}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                  <div className="mb-4">
-                    <Eye className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600" />
-                  </div>
-                  <p className="mb-2 font-semibold">Nenhum registro encontrado</p>
-                  <p className="text-sm">Não há dados disponíveis para este item no período selecionado.</p>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+                  return (
+                    <div 
+                      key={semana.id}
+                      ref={isAtual ? semanaAtualRef : undefined}
+                      className={cn(
+                        "flex-shrink-0 w-[110px] border-r border-gray-200 dark:border-gray-700",
+                        isSemanaAtual && "bg-emerald-50 dark:bg-emerald-900/20"
+                      )}
+                    >
+                      {/* Header da semana/mês */}
+                      <div className={cn(
+                        "h-[60px] border-b border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center px-1 sticky top-0 z-10",
+                        isSemanaAtual ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-gray-50 dark:bg-gray-700"
+                      )}>
+                        {visao === 'mensal' ? (
+                          <>
+                            <span className={cn(
+                              "text-sm font-bold",
+                              isSemanaAtual ? "text-emerald-700 dark:text-emerald-400" : "text-gray-700 dark:text-gray-300"
+                            )}>
+                              {NOMES_MESES[semana.semana - 1]}/{semana.ano.toString().slice(-2)}
+                            </span>
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                              Mês {semana.semana}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className={cn(
+                              "text-sm font-bold",
+                              isSemanaAtual ? "text-emerald-700 dark:text-emerald-400" : "text-gray-700 dark:text-gray-300"
+                            )}>
+                              S{semana.semana.toString().padStart(2, '0')}/{semana.ano.toString().slice(-2)}
+                            </span>
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                              {formatarDataCurta(semana.data_inicio)} - {formatarDataCurta(semana.data_fim)}
+                            </span>
+                          </>
+                        )}
+                        {isSemanaAtual && (
+                          <span className="text-[9px] px-1.5 py-0.5 bg-emerald-600 text-white rounded-full mt-0.5">
+                            ATUAL
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Valores por seção */}
+                      {SECOES.map(secao => (
+                        <div key={secao.id}>
+                          {/* Espaço para header da seção */}
+                          <div className={cn(secao.cor, "opacity-80")} style={{ height: '36px' }} />
+                          
+                          {/* Valores dos grupos */}
+                          {secoesAbertas[secao.id] && secao.grupos.map(grupo => {
+                            const isGrupoAberto = gruposAbertos[`${secao.id}-${grupo.id}`] !== false;
+                            const primeiraMetrica = grupo.metricas[0];
+                            const valorTotal = primeiraMetrica ? getValorMetrica(semana, primeiraMetrica.key) : null;
+                            const metricasParaMostrar = grupo.semCollapse ? grupo.metricas : (isGrupoAberto ? grupo.metricas.slice(1) : []);
+                            
+                            return (
+                            <div key={grupo.id}>
+                              {/* Header do grupo com valor TOTAL - não mostrar se semCollapse */}
+                              {!grupo.semCollapse && (() => {
+                                const detalhesHeader = primeiraMetrica ? getDetalhesTooltip(semana, primeiraMetrica.key) : null;
+                                const valorFormatadoHeader = formatarValor(valorTotal, primeiraMetrica?.formato || 'moeda', primeiraMetrica?.sufixo);
+                                
+                                return (
+                                  <div 
+                                    className={cn(
+                                      "flex items-center justify-center border-b border-gray-200 dark:border-gray-600",
+                                      isSemanaAtual ? "bg-emerald-50/50 dark:bg-emerald-900/10" : "bg-gray-100 dark:bg-gray-700/50"
+                                    )}
+                                    style={{ height: '32px' }}
+                                  >
+                                    {detalhesHeader && detalhesHeader.some(d => d.valor !== 0) ? (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <span className={cn(
+                                              "text-xs font-medium font-mono cursor-help underline decoration-dotted decoration-gray-400",
+                                              primeiraMetrica?.formato === 'gap' && valorTotal !== null ? getGapColor(valorTotal) : "text-gray-700 dark:text-gray-300"
+                                            )}>
+                                              {valorFormatadoHeader}
+                                            </span>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" className="p-2 bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                                            <div className="space-y-1">
+                                              <div className="text-xs font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-600 pb-1 mb-1">
+                                                {grupo.label}
+                                              </div>
+                                              {detalhesHeader.filter(d => d.valor !== 0).map((d, i) => (
+                                                <div key={i} className="flex justify-between gap-4 text-xs">
+                                                  <span className="text-gray-600 dark:text-gray-400">{d.label}</span>
+                                                  <span className="font-mono text-gray-900 dark:text-white">
+                                                    {formatarValor(d.valor, 'moeda')}
+                                                  </span>
+                                                </div>
+                                              ))}
+                                              <div className="flex justify-between gap-4 text-xs font-semibold border-t border-gray-200 dark:border-gray-600 pt-1 mt-1">
+                                                <span className="text-gray-700 dark:text-gray-300">Total</span>
+                                                <span className="font-mono text-blue-600 dark:text-blue-400">
+                                                  {valorFormatadoHeader}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    ) : (
+                                      <span className={cn(
+                                        "text-xs font-medium font-mono",
+                                        primeiraMetrica?.formato === 'gap' && valorTotal !== null ? getGapColor(valorTotal) : "text-gray-700 dark:text-gray-300"
+                                      )}>
+                                        {valorFormatadoHeader}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                              
+                              {/* Valores das métricas */}
+                              {metricasParaMostrar.map(metrica => {
+                                const valor = getValorMetrica(semana, metrica.key);
+                                const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
+                                
+                                return (
+                                  <div 
+                                    key={metrica.key}
+                                    className={cn(
+                                      "relative flex items-center justify-center px-1 border-b border-gray-100 dark:border-gray-700 group",
+                                      isSemanaAtual ? "bg-emerald-50/30 dark:bg-emerald-900/10" : "",
+                                      metrica.drilldown && visao === 'semanal' && "cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                    )}
+                                    style={{ height: '30px' }}
+                                    onClick={() => metrica.drilldown && visao === 'semanal' && abrirDrillDown(metrica.label, metrica.key, semana)}
+                                  >
+                                    {isEditandoCell ? (
+                                      <div className="flex items-center gap-1">
+                                        <Input
+                                          type="text"
+                                          value={valorEdit}
+                                          onChange={(e) => setValorEdit(e.target.value)}
+                                          className="w-16 h-6 text-xs p-1"
+                                          autoFocus
+                                          onClick={(e) => e.stopPropagation()}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') salvarMetrica(semana.id, metrica.key);
+                                            if (e.key === 'Escape') setEditando(null);
+                                          }}
+                                        />
+                                        <Button 
+                                          size="icon" 
+                                          variant="ghost" 
+                                          className="h-5 w-5" 
+                                          onClick={(e) => { e.stopPropagation(); salvarMetrica(semana.id, metrica.key); }}
+                                        >
+                                          <Check className="h-3 w-3 text-emerald-600" />
+                                        </Button>
+                                        <Button 
+                                          size="icon" 
+                                          variant="ghost" 
+                                          className="h-5 w-5" 
+                                          onClick={(e) => { e.stopPropagation(); setEditando(null); }}
+                                        >
+                                          <X className="h-3 w-3 text-red-600" />
+                                        </Button>
+                                      </div>
+                                    ) : (() => {
+                                      const detalhes = getDetalhesTooltip(semana, metrica.key);
+                                      const valorFormatado = formatarValor(valor, metrica.formato, metrica.sufixo);
+                                      
+                                      // Tooltip com detalhes de composição (para totais)
+                                      if (detalhes && detalhes.some(d => d.valor !== 0)) {
+                                        return (
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <span className={cn(
+                                                  "text-xs text-center font-mono cursor-help underline decoration-dotted decoration-gray-400",
+                                                  metrica.formato === 'gap' && valor !== null ? getGapColor(valor) : "text-gray-700 dark:text-gray-300"
+                                                )}>
+                                                  {valorFormatado}
+                                                </span>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top" className="p-2 bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                                                <div className="space-y-1">
+                                                  <div className="text-xs font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-600 pb-1 mb-1">
+                                                    {metrica.label}
+                                                  </div>
+                                                  {detalhes.filter(d => d.valor !== 0).map((d, i) => (
+                                                    <div key={i} className="flex justify-between gap-4 text-xs">
+                                                      <span className="text-gray-600 dark:text-gray-400">{d.label}</span>
+                                                      <span className="font-mono text-gray-900 dark:text-white">
+                                                        {formatarValor(d.valor, 'moeda')}
+                                                      </span>
+                                                    </div>
+                                                  ))}
+                                                  <div className="flex justify-between gap-4 text-xs font-semibold border-t border-gray-200 dark:border-gray-600 pt-1 mt-1">
+                                                    <span className="text-gray-700 dark:text-gray-300">Total</span>
+                                                    <span className="font-mono text-blue-600 dark:text-blue-400">
+                                                      {valorFormatado}
+                                                    </span>
+                                                  </div>
+                                                  {metrica.drilldown && (
+                                                    <div className="text-[10px] text-blue-500 text-center pt-1">
+                                                      Clique para ver detalhes
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        );
+                                      }
+                                      
+                                      // Tooltip simples para métricas com drilldown
+                                      if (metrica.drilldown) {
+                                        return (
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <span className={cn(
+                                                  "text-xs text-center font-mono cursor-pointer underline decoration-dotted decoration-gray-400",
+                                                  metrica.formato === 'gap' && valor !== null ? getGapColor(valor) : "text-gray-700 dark:text-gray-300"
+                                                )}>
+                                                  {valorFormatado}
+                                                </span>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top" className="p-2 bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                                                <div className="space-y-1">
+                                                  <div className="text-xs font-semibold text-gray-900 dark:text-white">
+                                                    {metrica.label}
+                                                  </div>
+                                                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                                                    <strong>Fonte:</strong> {metrica.fonte}
+                                                  </div>
+                                                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                                                    <strong>Cálculo:</strong> {metrica.calculo}
+                                                  </div>
+                                                  <div className="text-[10px] text-blue-500 text-center pt-1">
+                                                    Clique para ver detalhes
+                                                  </div>
+                                                </div>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        );
+                                      }
+                                      
+                                      return (
+                                        <span className={cn(
+                                          "text-xs text-center font-mono",
+                                          metrica.formato === 'gap' && valor !== null ? getGapColor(valor) : "text-gray-700 dark:text-gray-300"
+                                        )}>
+                                          {valorFormatado}
+                                        </span>
+                                      );
+                                    })()}
+                                    
+                                    {/* Botão editar - apenas no modo semanal */}
+                                    {!isEditandoCell && metrica.editavel && visao === 'semanal' && (
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditando({ semanaId: semana.id, campo: metrica.key });
+                                          setValorEdit(valor?.toString().replace('.', ',') || '');
+                                        }}
+                                      >
+                                        <Pencil className="h-3 w-3 text-blue-600" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )})}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Modal de Drill-Down */}
+      <Dialog open={modalDrillDown.open} onOpenChange={(open) => setModalDrillDown({ ...modalDrillDown, open })}>
+        <DialogContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-white">
+              Detalhamento: {modalDrillDown.titulo}
+            </DialogTitle>
+            {modalDrillDown.semana && (
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Semana {modalDrillDown.semana.semana} ({formatarDataCurta(modalDrillDown.semana.data_inicio)} - {formatarDataCurta(modalDrillDown.semana.data_fim)})
+              </p>
+            )}
+          </DialogHeader>
+          
+          <div className="mt-4">
+            {modalDrillDown.loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-3 text-gray-600 dark:text-gray-400">Carregando detalhes...</span>
+              </div>
+            ) : modalDrillDown.dados.length > 0 ? (
+              <div className="space-y-2">
+                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm text-blue-900 dark:text-blue-200">
+                    <strong>{modalDrillDown.dados.length}</strong> {modalDrillDown.dados.length === 1 ? 'registro encontrado' : 'registros encontrados'}
+                  </p>
+                </div>
+
+                <div className="max-h-[400px] overflow-y-auto space-y-2">
+                  {modalDrillDown.dados.map((item: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                              {item.label}
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-0.5 text-xs text-gray-600 dark:text-gray-400">
+                            {item.data && (
+                              <p><strong>Data:</strong> {formatarDataCurta(item.data)}</p>
+                            )}
+                            {item.categoria && (
+                              <p><strong>Categoria:</strong> {item.categoria}</p>
+                            )}
+                            {item.fornecedor && (
+                              <p><strong>Fornecedor:</strong> {item.fornecedor}</p>
+                            )}
+                            {item.motivo && (
+                              <p><strong>Motivo:</strong> {item.motivo}</p>
+                            )}
+                            {item.quantidade && (
+                              <p>
+                                <strong>Qtd:</strong> {item.quantidade.toFixed(2)} {item.unidade || 'un'}
+                                {item.custo_unitario && ` × ${formatarValor(item.custo_unitario, 'moeda')}`}
+                              </p>
+                            )}
+                            {item.detalhes && (
+                              <p className="text-gray-500 italic">{item.detalhes}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-base font-mono font-bold text-gray-900 dark:text-white">
+                            {formatarValor(Math.abs(item.valor), 'moeda')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-900/20 rounded-lg border-2 border-blue-500 mt-4">
+                  <span className="text-lg font-bold text-blue-900 dark:text-blue-200">TOTAL</span>
+                  <span className="text-lg font-mono font-bold text-blue-900 dark:text-blue-200">
+                    {formatarValor(modalDrillDown.dados.reduce((sum, item) => sum + (item.valor || 0), 0), 'moeda')}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                <Eye className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+                <p className="font-semibold mb-2">Nenhum registro encontrado</p>
+                <p className="text-sm">Não há dados disponíveis para este item no período selecionado.</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-export const dynamic = 'force-dynamic';
+// Cache por 2 minutos para dados CMV
+export const revalidate = 120;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -140,11 +141,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Atualizar status de um registro
+// PUT - Atualizar campos de um registro (status, métricas manuais, etc.)
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, status, observacoes, responsavel } = body;
+    const { id, ...campos } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -153,13 +154,40 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Campos permitidos para atualização
+    const camposPermitidos = [
+      'status', 'observacoes', 'responsavel',
+      'bonificacao_contrato_anual', 'bonificacao_cashback_mensal',
+      'ajuste_bonificacoes', 'outros_ajustes',
+      'consumo_rh', 'cmv_teorico_percentual',
+      'estoque_inicial_cozinha', 'estoque_inicial_bebidas', 'estoque_inicial_drinks',
+      'estoque_final_cozinha', 'estoque_final_bebidas', 'estoque_final_drinks',
+    ];
+
     const updateData: any = {
       updated_at: new Date().toISOString()
     };
 
-    if (status) updateData.status = status;
-    if (observacoes !== undefined) updateData.observacoes = observacoes;
-    if (responsavel !== undefined) updateData.responsavel = responsavel;
+    // Copiar apenas campos permitidos
+    for (const campo of camposPermitidos) {
+      if (campos[campo] !== undefined) {
+        updateData[campo] = campos[campo];
+      }
+    }
+
+    // Se bonificações individuais foram alteradas, recalcular o total
+    if (campos.bonificacao_contrato_anual !== undefined || campos.bonificacao_cashback_mensal !== undefined) {
+      // Buscar registro atual para pegar valores existentes
+      const { data: atual } = await supabase
+        .from('cmv_semanal')
+        .select('bonificacao_contrato_anual, bonificacao_cashback_mensal')
+        .eq('id', id)
+        .single();
+
+      const contratoAnual = campos.bonificacao_contrato_anual ?? atual?.bonificacao_contrato_anual ?? 0;
+      const cashbackMensal = campos.bonificacao_cashback_mensal ?? atual?.bonificacao_cashback_mensal ?? 0;
+      updateData.ajuste_bonificacoes = parseFloat(contratoAnual) + parseFloat(cashbackMensal);
+    }
 
     const { data, error } = await supabase
       .from('cmv_semanal')

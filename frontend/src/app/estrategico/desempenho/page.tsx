@@ -875,8 +875,7 @@ export default function DesempenhoPage() {
       {/* Conteúdo - Layout Excel com scroll horizontal e vertical */}
       <div 
         ref={scrollContainerRef}
-        className="flex-1 overflow-auto"
-        style={{ scrollBehavior: 'smooth' }}
+        className="flex-1 overflow-auto smooth-scroll"
       >
         <div className="flex" style={{ minWidth: 'max-content' }}>
           {/* Coluna fixa - Labels dos indicadores */}
@@ -888,7 +887,7 @@ export default function DesempenhoPage() {
           
           {/* Labels das métricas por seção COM GRUPOS */}
           {SECOES.map(secao => (
-            <div key={secao.id}>
+            <div key={secao.id} className="virtualized-section">
               {/* Header da seção */}
               <div 
                 className={cn("flex items-center gap-2 px-3 cursor-pointer", secao.cor)}

@@ -5,7 +5,8 @@ import { parseISO, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { filtrarDiasAbertos } from '@/lib/helpers/calendario-helper';
 
-export const dynamic = 'force-dynamic'
+// Cache por 2 minutos para dados de desempenho
+export const revalidate = 120;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

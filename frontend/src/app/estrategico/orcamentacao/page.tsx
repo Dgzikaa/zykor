@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Card } from '@/components/ui/card';
 import PageHeader from '@/components/layouts/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useBar } from '@/contexts/BarContext';
 import { AnimatedCurrency } from '@/components/ui/animated-counter';
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import {
   DollarSign,
@@ -68,6 +67,17 @@ interface MesOrcamento {
 // Formatadores
 const formatarMoeda = (valor: number | null | undefined): string => {
   if (valor === null || valor === undefined) return 'R$ 0';
+  if (Math.abs(valor) >= 1000000) {
+    // Para valores em milhões, usar 1 casa decimal para não arredondar 1.5mi para 2mi
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 1,
+      notation: 'compact',
+      compactDisplay: 'short'
+    }).format(valor);
+  }
   if (Math.abs(valor) >= 1000) {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -108,8 +118,6 @@ export default function OrcamentacaoPage() {
   const [loading, setLoading] = useState(false);
   const [meses, setMeses] = useState<MesOrcamento[]>([]);
   const [mesAtualIdx, setMesAtualIdx] = useState<number>(-1);
-  const [semestreAtual, setSemestreAtual] = useState<1 | 2>(1);
-  const [anoSelecionado, setAnoSelecionado] = useState<number>(new Date().getFullYear());
   const [secoesAbertas, setSecoesAbertas] = useState<Record<string, boolean>>({});
   const [editando, setEditando] = useState<{ mes: number; ano: number; subcategoria: string } | null>(null);
   const [valorEdit, setValorEdit] = useState('');
@@ -117,20 +125,33 @@ export default function OrcamentacaoPage() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const mesAtualRef = useRef<HTMLDivElement>(null);
 
-  // Calcular mês de início baseado no semestre
-  const getMesInicio = () => {
-    return semestreAtual === 1 ? 1 : 7;
+  // Calcular intervalo de meses: 5 meses anteriores + mês atual + 1 mês posterior = 7 meses
+  const calcularIntervaloMeses = () => {
+    const hoje = new Date();
+    const mesAtual = hoje.getMonth() + 1; // 1-12
+    const anoAtual = hoje.getFullYear();
+    
+    // Mês inicial = 5 meses atrás
+    let mesInicio = mesAtual - 5;
+    let anoInicio = anoAtual;
+    
+    if (mesInicio <= 0) {
+      mesInicio += 12;
+      anoInicio -= 1;
+    }
+    
+    return { mesInicio, anoInicio, quantidade: 7 };
   };
 
-  // Carregar dados de 6 meses
+  // Carregar dados de 7 meses (5 anteriores + atual + 1 posterior)
   const carregarDados = useCallback(async () => {
     if (!selectedBar) return;
 
     setLoading(true);
     try {
-      const mesInicio = getMesInicio();
+      const { mesInicio, anoInicio, quantidade } = calcularIntervaloMeses();
       const response = await fetch(
-        `/api/estrategico/orcamentacao/todos-meses?bar_id=${selectedBar.id}&ano=${anoSelecionado}&mes_inicio=${mesInicio}&quantidade=6`
+        `/api/estrategico/orcamentacao/todos-meses?bar_id=${selectedBar.id}&ano=${anoInicio}&mes_inicio=${mesInicio}&quantidade=${quantidade}`
       );
 
       if (!response.ok) throw new Error('Erro ao carregar dados');
@@ -173,7 +194,7 @@ export default function OrcamentacaoPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedBar?.id, anoSelecionado, semestreAtual]);
+  }, [selectedBar?.id]);
 
   // Scroll para mês atual após carregar
   useEffect(() => {
@@ -191,25 +212,6 @@ export default function OrcamentacaoPage() {
   // Toggle seção
   const toggleSecao = (nome: string) => {
     setSecoesAbertas(prev => ({ ...prev, [nome]: !prev[nome] }));
-  };
-
-  // Navegar entre semestres
-  const irParaSemestreAnterior = () => {
-    if (semestreAtual === 1) {
-      setAnoSelecionado(prev => prev - 1);
-      setSemestreAtual(2);
-    } else {
-      setSemestreAtual(1);
-    }
-  };
-
-  const irParaProximoSemestre = () => {
-    if (semestreAtual === 2) {
-      setAnoSelecionado(prev => prev + 1);
-      setSemestreAtual(1);
-    } else {
-      setSemestreAtual(2);
-    }
   };
 
   // Salvar valor planejado
@@ -285,13 +287,6 @@ export default function OrcamentacaoPage() {
   };
 
   useEffect(() => {
-    // Definir semestre baseado no mês atual
-    const mesAtual = new Date().getMonth() + 1;
-    setSemestreAtual(mesAtual <= 6 ? 1 : 2);
-    setAnoSelecionado(new Date().getFullYear());
-  }, []);
-
-  useEffect(() => {
     if (selectedBar) {
       carregarDados();
     }
@@ -329,33 +324,15 @@ export default function OrcamentacaoPage() {
               />
             </div>
 
-            {/* Navegação por semestre */}
+            {/* Período atual */}
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={irParaSemestreAnterior}
-                className="gap-1"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Anterior
-              </Button>
-              
               <div className="px-4 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg">
                 <span className="font-semibold text-gray-900 dark:text-white">
-                  {semestreAtual === 1 ? 'Jan - Jun' : 'Jul - Dez'} / {anoSelecionado}
+                  {meses.length > 0 
+                    ? `${meses[0]?.label?.split('/')[0]} - ${meses[meses.length - 1]?.label?.split('/')[0]} / ${meses[0]?.ano}${meses[0]?.ano !== meses[meses.length - 1]?.ano ? ' - ' + meses[meses.length - 1]?.ano : ''}`
+                    : 'Carregando...'}
                 </span>
               </div>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={irParaProximoSemestre}
-                className="gap-1"
-              >
-                Próximo
-                <ChevronRight className="h-4 w-4" />
-              </Button>
 
               <Button
                 variant="outline"
@@ -371,9 +348,7 @@ export default function OrcamentacaoPage() {
           </div>
 
           {/* Linha 2: Cards de resumo do período */}
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="grid grid-cols-3 md:grid-cols-6 gap-2"
           >
             {/* Receita Planejada */}
@@ -426,7 +401,7 @@ export default function OrcamentacaoPage() {
               <div className={cn("text-[10px] font-medium mb-0.5", totaisPeriodo.lucro_realizado >= 0 ? "text-teal-700 dark:text-teal-300" : "text-red-700 dark:text-red-300")}>Lucro Real.</div>
               <AnimatedCurrency value={totaisPeriodo.lucro_realizado} className={cn("text-sm font-bold", totaisPeriodo.lucro_realizado >= 0 ? "text-teal-600 dark:text-teal-400" : "text-red-600 dark:text-red-400")} />
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
