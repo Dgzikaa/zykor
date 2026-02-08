@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -14,6 +16,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Calculator,
   Plus,
@@ -28,13 +38,33 @@ import {
   Edit,
   Info,
   History,
+  Download,
+  UserPlus,
+  BarChart3,
+  PieChart,
+  AlertTriangle,
+  CheckCircle,
+  AlertCircle,
+  ArrowUpRight,
+  ArrowDownRight,
+  FileSpreadsheet,
+  Gift,
+  Briefcase,
+  UserCheck,
+  UserX,
+  Search,
+  Phone,
+  Mail,
 } from 'lucide-react';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
+import { DataTablePro } from '@/components/ui/datatable-pro';
 
-interface Funcionario {
+// ==================== INTERFACES ====================
+
+interface FuncionarioSimulacao {
   id: string;
   nome: string;
   tipo_contratacao: 'CLT' | 'PJ';
@@ -55,15 +85,96 @@ interface SimulacaoCMO {
   bar_id: number;
   mes: number;
   ano: number;
-  funcionarios: Funcionario[];
+  funcionarios: FuncionarioSimulacao[];
   total_folha: number;
   total_encargos: number;
   total_geral: number;
   observacoes?: string;
   criado_por?: string;
   criado_em?: string;
-  atualizado_em?: string;
 }
+
+interface FuncionarioCadastrado {
+  id: number;
+  bar_id: number;
+  nome: string;
+  cpf?: string;
+  telefone?: string;
+  email?: string;
+  data_admissao?: string;
+  data_demissao?: string;
+  cargo_id?: number;
+  area_id?: number;
+  tipo_contratacao: 'CLT' | 'PJ';
+  salario_base: number;
+  vale_transporte_diaria: number;
+  dias_trabalho_semana: number;
+  observacoes?: string;
+  ativo: boolean;
+  area?: { id: number; nome: string; cor: string; adicional_noturno: number };
+  cargo?: { id: number; nome: string; nivel: number };
+}
+
+interface Area {
+  id: number;
+  nome: string;
+  cor: string;
+  adicional_noturno: number;
+}
+
+interface Cargo {
+  id: number;
+  nome: string;
+  nivel: number;
+}
+
+interface Provisao {
+  id: number;
+  funcionario_nome: string;
+  mes: number;
+  ano: number;
+  salario_bruto_produtividade: number;
+  decimo_terceiro: number;
+  ferias: number;
+  terco_ferias: number;
+  fgts_provisao: number;
+  provisao_certa: number;
+  provisao_eventual: number;
+  percentual_salario: number;
+  funcionario?: { id: number; nome: string };
+}
+
+interface ProvisaoAcumulada {
+  funcionario_nome: string;
+  total_decimo_terceiro: number;
+  total_ferias: number;
+  total_fgts: number;
+  total_provisao_certa: number;
+  total_provisao_eventual: number;
+  dias_ferias_vencidos: number;
+  meses_trabalhados: number;
+}
+
+interface ComparativoCMO {
+  categoria: string;
+  valor_nibo: number;
+  valor_simulado: number;
+  diferenca: number;
+  percentual_diferenca: number;
+}
+
+interface ResumoComparativo {
+  mes: number;
+  ano: number;
+  total_nibo: number;
+  total_simulado: number;
+  diferenca_total: number;
+  percentual_diferenca: number;
+  status: 'ok' | 'alerta' | 'critico';
+  detalhes: ComparativoCMO[];
+}
+
+// ==================== CONSTANTES ====================
 
 const MESES = [
   { value: 1, label: 'Janeiro' },
@@ -80,26 +191,77 @@ const MESES = [
   { value: 12, label: 'Dezembro' },
 ];
 
-const AREAS = ['Salão', 'Liderança', 'Bar', 'Cozinha'];
+const AREAS_SIMULACAO = ['Salão', 'Liderança', 'Bar', 'Cozinha'];
 
-export default function SimulacaoCMOPage() {
+const TIPOS_CONTRATACAO = [
+  { value: 'CLT', label: 'CLT' },
+  { value: 'PJ', label: 'PJ' },
+];
+
+// ==================== COMPONENTE PRINCIPAL ====================
+
+export default function CMOUnificadoPage() {
   const { setPageTitle } = usePageTitle();
   const { selectedBar } = useBar();
   const { user } = useUser();
   const { toast } = useToast();
 
+  // Estados gerais
   const [loading, setLoading] = useState(true);
-  const [salvando, setSalvando] = useState(false);
   const [mesAtual, setMesAtual] = useState(() => new Date().getMonth() + 1);
   const [anoAtual, setAnoAtual] = useState(() => new Date().getFullYear());
-  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
-  const [observacoes, setObservacoes] = useState('');
-  const [historico, setHistorico] = useState<SimulacaoCMO[]>([]);
-  const [mostrarHistorico, setMostrarHistorico] = useState(false);
-  const [simulacaoAtualId, setSimulacaoAtualId] = useState<number | undefined>();
-  const [mostrarGuiaCalculos, setMostrarGuiaCalculos] = useState(false);
+  const [abaAtiva, setAbaAtiva] = useState('dashboard');
 
-  // Lookup de adicional noturno por área
+  // Estados do Dashboard
+  const [comparativo, setComparativo] = useState<ResumoComparativo | null>(null);
+  const [provTotais, setProvTotais] = useState({
+    total_provisao_certa: 0,
+    total_provisao_eventual: 0,
+    total_decimo_terceiro: 0,
+    total_ferias: 0,
+    total_fgts: 0
+  });
+
+  // Estados de Funcionários
+  const [funcionariosCadastrados, setFuncionariosCadastrados] = useState<FuncionarioCadastrado[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [cargos, setCargos] = useState<Cargo[]>([]);
+  const [isDialogFuncOpen, setIsDialogFuncOpen] = useState(false);
+  const [editingFuncionario, setEditingFuncionario] = useState<FuncionarioCadastrado | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filtroAtivo, setFiltroAtivo] = useState('ativos');
+  const [formData, setFormData] = useState({
+    nome: '',
+    cpf: '',
+    telefone: '',
+    email: '',
+    data_admissao: '',
+    cargo_id: '',
+    area_id: '',
+    tipo_contratacao: 'CLT',
+    salario_base: '',
+    vale_transporte_diaria: '11',
+    dias_trabalho_semana: '6',
+    observacoes: '',
+  });
+
+  // Estados de Simulação
+  const [funcionariosSimulacao, setFuncionariosSimulacao] = useState<FuncionarioSimulacao[]>([]);
+  const [observacoesSimulacao, setObservacoesSimulacao] = useState('');
+  const [historicoSimulacoes, setHistoricoSimulacoes] = useState<SimulacaoCMO[]>([]);
+  const [salvandoSimulacao, setSalvandoSimulacao] = useState(false);
+  const [simulacaoAtualId, setSimulacaoAtualId] = useState<number | undefined>();
+
+  // Estados de Provisões
+  const [provisoes, setProvisoes] = useState<Provisao[]>([]);
+  const [provisoesAcumuladas, setProvisoesAcumuladas] = useState<ProvisaoAcumulada[]>([]);
+  const [calculandoProvisoes, setCalculandoProvisoes] = useState(false);
+
+  // Estados de Importação
+  const [importando, setImportando] = useState(false);
+
+  // ==================== FUNÇÕES DE CÁLCULO (SIMULAÇÃO) ====================
+
   const obterAdicionalNoturno = (area: string): number => {
     const adicionalPorArea: Record<string, number> = {
       'Salão': 125,
@@ -110,220 +272,291 @@ export default function SimulacaoCMOPage() {
     return adicionalPorArea[area] || 0;
   };
 
-  // Calcular todos os valores de um funcionário (seguindo fórmulas da planilha)
-  const calcularValoresFuncionario = (func: Funcionario) => {
-    const diasMes = 30;
-    
-    // 1. Salário Bruto + Estimativa
+  const calcularValoresFuncionario = (func: FuncionarioSimulacao) => {
     const salarioBrutoEstimativa = func.salario_bruto + func.estimativa;
-    
-    // 2. Adicional Noturno (lookup por área)
     const adicionalNoturno = obterAdicionalNoturno(func.area);
-    
-    // 3. DRS Sobre Ads Noturno = 0,2 * adicional noturno
-    const drsSobreAdsNoturno = adicionalNoturno * 0.2;
-    
-    // 4. Produtividade = salário bruto * 0,05
+    const drsNoturno = adicionalNoturno * 0.2;
     const produtividade = func.salario_bruto * 0.05;
-    
-    // 5. Desc Vale Transporte = salário bruto * -0,06
     const descValeTransporte = func.salario_bruto * -0.06;
-    
-    // 6. INSS = soma * -0,08
-    const baseINSS = salarioBrutoEstimativa + adicionalNoturno + drsSobreAdsNoturno + func.tempo_casa + produtividade;
+    const baseINSS = salarioBrutoEstimativa + adicionalNoturno + drsNoturno + func.tempo_casa + produtividade;
     const inss = baseINSS * -0.08;
     
-    // 7. IR = fórmula progressiva
     let ir = 0;
     const baseIR = (func.salario_bruto - 528) * 0.075 - 158.4;
-    if (baseIR > 0) {
-      ir = baseIR * -1; // Negativo porque é desconto
-    }
+    if (baseIR > 0) ir = baseIR * -1;
     
-    // 8. Salário Líquido
-    const salarioLiquido = func.salario_bruto + adicionalNoturno + drsSobreAdsNoturno + 
-                           func.tempo_casa + produtividade + descValeTransporte + inss + ir;
-    
-    // 9. Provisão Certa = soma * 0,27
-    const baseProvisao = func.salario_bruto + adicionalNoturno + drsSobreAdsNoturno + func.tempo_casa + produtividade;
-    const provisaoCerta = baseProvisao * 0.27;
-    
-    // 10. FGTS = mesmo valor absoluto do INSS
+    const salarioLiquido = func.salario_bruto + adicionalNoturno + drsNoturno + func.tempo_casa + produtividade + descValeTransporte + inss + ir;
+    const inssEmpresa = Math.abs(inss);
     const fgts = Math.abs(inss);
-    
-    // 11. CUSTO-EMPRESA
+    const provisaoCerta = (func.salario_bruto + adicionalNoturno + drsNoturno + func.tempo_casa + produtividade) * 0.27;
+
     let custoEmpresa = 0;
-    
     if (func.tipo_contratacao === 'CLT') {
-      // CLT: (soma dos encargos / 30 * dias trabalhados) + aviso prévio + adicionais
-      const somaEncargos = Math.abs(inss) + fgts + Math.abs(descValeTransporte) + provisaoCerta + func.mensalidade_sindical;
-      custoEmpresa = (somaEncargos / diasMes * func.dias_trabalhados) + func.aviso_previo + func.adicionais;
+      const somaEncargos = inssEmpresa + fgts + Math.abs(descValeTransporte) + provisaoCerta + func.mensalidade_sindical;
+      custoEmpresa = (somaEncargos / 30 * func.dias_trabalhados) + func.aviso_previo + func.adicionais;
     } else {
-      // PJ: soma / 30 * dias trabalhados
       const somaPJ = func.salario_bruto + func.tempo_casa + func.vale + func.adicionais + func.aviso_previo;
-      custoEmpresa = (somaPJ / diasMes) * func.dias_trabalhados;
+      custoEmpresa = (somaPJ / 30) * func.dias_trabalhados;
     }
-    
+
     return {
-      salarioBrutoEstimativa,
       adicionalNoturno,
-      drsSobreAdsNoturno,
+      drsNoturno,
       produtividade,
       descValeTransporte,
       inss,
       ir,
       salarioLiquido,
-      provisaoCerta,
+      inssEmpresa,
       fgts,
+      provisaoCerta,
       custoEmpresa
     };
   };
 
-  // Calcular totais gerais
   const calcularTotaisGerais = () => {
-    let totalSalarioLiquido = 0;
-    let totalCustoEmpresa = 0;
-    
-    funcionarios.forEach(func => {
+    let totalFolha = 0;
+    let totalEncargos = 0;
+    let totalGeral = 0;
+
+    funcionariosSimulacao.forEach(func => {
       const valores = calcularValoresFuncionario(func);
-      totalSalarioLiquido += valores.salarioLiquido;
-      totalCustoEmpresa += valores.custoEmpresa;
+      totalFolha += valores.salarioLiquido;
+      totalEncargos += valores.inssEmpresa + valores.fgts + valores.provisaoCerta;
+      totalGeral += valores.custoEmpresa;
     });
-    
-    return {
-      totalFolha: totalSalarioLiquido,
-      totalEncargos: totalCustoEmpresa - totalSalarioLiquido,
-      totalGeral: totalCustoEmpresa
-    };
+
+    return { totalFolha, totalEncargos, totalGeral };
   };
 
-  // Carregar simulação do mês/ano selecionado
-  const carregarSimulacao = useCallback(async () => {
+  // ==================== FUNÇÕES DE CARREGAMENTO ====================
+
+  const carregarDadosDashboard = useCallback(async () => {
     if (!selectedBar) return;
-
-    setLoading(true);
+    
     try {
-      const params = new URLSearchParams({
-        bar_id: selectedBar.id.toString(),
-        mes: mesAtual.toString(),
-        ano: anoAtual.toString()
-      });
+      // Primeiro, garantir que folha e provisões estejam calculadas (auto_calcular=true)
+      const [folhaRes, provCalcRes] = await Promise.all([
+        fetch(`/api/rh/folha-pagamento?bar_id=${selectedBar.id}&mes=${mesAtual}&ano=${anoAtual}&auto_calcular=true`),
+        fetch(`/api/rh/provisoes?bar_id=${selectedBar.id}&mes=${mesAtual}&ano=${anoAtual}&auto_calcular=true`)
+      ]);
 
-      const response = await fetch(`/api/operacional/cmo-simulacao?${params}`, {
-        headers: {
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
-        }
-      });
+      // Agora buscar comparativo e totais
+      const [compRes, provRes] = await Promise.all([
+        fetch(`/api/rh/cmo-comparativo?bar_id=${selectedBar.id}&mes=${mesAtual}&ano=${anoAtual}`),
+        fetch(`/api/rh/provisoes?bar_id=${selectedBar.id}&mes=${mesAtual}&ano=${anoAtual}`)
+      ]);
 
-      if (!response.ok) throw new Error('Erro ao carregar simulação');
+      const [compData, provData] = await Promise.all([
+        compRes.json(),
+        provRes.json()
+      ]);
 
-      const result = await response.json();
-      
-      if (result.success && result.data && result.data.length > 0) {
-        const simulacao = result.data[0];
-        setFuncionarios(simulacao.funcionarios || []);
-        setObservacoes(simulacao.observacoes || '');
-        setSimulacaoAtualId(simulacao.id);
-      } else {
-        setFuncionarios([]);
-        setObservacoes('');
-        setSimulacaoAtualId(undefined);
-      }
+      if (compData.success) setComparativo(compData.data);
+      if (provData.success) setProvTotais(provData.totais);
 
     } catch (error) {
-      console.error('Erro ao carregar simulação:', error);
-      toast({
-        title: "Erro ao carregar",
-        description: "Não foi possível carregar a simulação",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
+      console.error('Erro ao carregar dashboard:', error);
     }
-  }, [selectedBar, user, mesAtual, anoAtual, toast]);
+  }, [selectedBar, mesAtual, anoAtual]);
 
-  // Carregar histórico
-  const carregarHistorico = useCallback(async () => {
+  const carregarFuncionarios = useCallback(async () => {
     if (!selectedBar) return;
-
+    
     try {
-      const params = new URLSearchParams({
-        bar_id: selectedBar.id.toString()
-      });
+      const [funcRes, areasRes, cargosRes] = await Promise.all([
+        fetch(`/api/rh/funcionarios?bar_id=${selectedBar.id}`),
+        fetch(`/api/rh/areas?bar_id=${selectedBar.id}&ativo=true`),
+        fetch(`/api/rh/cargos?bar_id=${selectedBar.id}&ativo=true`)
+      ]);
 
-      const response = await fetch(`/api/operacional/cmo-simulacao?${params}`, {
-        headers: {
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
-        }
-      });
+      const [funcData, areasData, cargosData] = await Promise.all([
+        funcRes.json(),
+        areasRes.json(),
+        cargosRes.json()
+      ]);
 
-      if (!response.ok) throw new Error('Erro ao carregar histórico');
+      if (funcData.success) setFuncionariosCadastrados(funcData.data);
+      if (areasData.success) setAreas(areasData.data);
+      if (cargosData.success) setCargos(cargosData.data);
 
-      const result = await response.json();
-      setHistorico(result.data || []);
+    } catch (error) {
+      console.error('Erro ao carregar funcionários:', error);
+    }
+  }, [selectedBar]);
 
+  const carregarSimulacao = useCallback(async () => {
+    if (!selectedBar || !user) return;
+    
+    try {
+      const response = await fetch(`/api/operacional/cmo-simulacao?bar_id=${selectedBar.id}&mes=${mesAtual}&ano=${anoAtual}`);
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        setFuncionariosSimulacao(data.data.funcionarios || []);
+        setObservacoesSimulacao(data.data.observacoes || '');
+        setSimulacaoAtualId(data.data.id);
+      } else {
+        setFuncionariosSimulacao([]);
+        setObservacoesSimulacao('');
+        setSimulacaoAtualId(undefined);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar simulação:', error);
+    }
+  }, [selectedBar, user, mesAtual, anoAtual]);
+
+  const carregarHistoricoSimulacoes = useCallback(async () => {
+    if (!selectedBar) return;
+    
+    try {
+      const response = await fetch(`/api/operacional/cmo-simulacao?bar_id=${selectedBar.id}`);
+      const data = await response.json();
+      if (data.success) {
+        setHistoricoSimulacoes(data.data || []);
+      }
     } catch (error) {
       console.error('Erro ao carregar histórico:', error);
     }
-  }, [selectedBar, user]);
+  }, [selectedBar]);
 
-  // Salvar simulação
-  const salvarSimulacao = async () => {
-    if (!selectedBar || funcionarios.length === 0) {
-      toast({
-        title: "Dados insuficientes",
-        description: "Adicione pelo menos um funcionário",
-        variant: "destructive"
-      });
+  const carregarProvisoes = useCallback(async () => {
+    if (!selectedBar) return;
+    
+    try {
+      // auto_calcular=true para calcular automaticamente se não existir
+      const response = await fetch(`/api/rh/provisoes?bar_id=${selectedBar.id}&mes=${mesAtual}&ano=${anoAtual}&auto_calcular=true`);
+      const data = await response.json();
+      if (data.success) {
+        setProvisoes(data.data);
+        setProvTotais(data.totais);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar provisões:', error);
+    }
+  }, [selectedBar, mesAtual, anoAtual]);
+
+  const carregarProvisoesAcumuladas = useCallback(async () => {
+    if (!selectedBar) return;
+    
+    try {
+      const response = await fetch(`/api/rh/provisoes?bar_id=${selectedBar.id}&acumulado=true`);
+      const data = await response.json();
+      if (data.success) {
+        setProvisoesAcumuladas(data.data);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar provisões acumuladas:', error);
+    }
+  }, [selectedBar]);
+
+  // ==================== EFFECTS ====================
+
+  useEffect(() => {
+    setPageTitle('Simulação de CMO');
+  }, [setPageTitle]);
+
+  useEffect(() => {
+    const carregarDados = async () => {
+      if (!selectedBar) return;
+      setLoading(true);
+      
+      await Promise.all([
+        carregarDadosDashboard(),
+        carregarFuncionarios(),
+        carregarSimulacao(),
+        carregarHistoricoSimulacoes(),
+        carregarProvisoes()
+      ]);
+      
+      setLoading(false);
+    };
+    
+    carregarDados();
+  }, [selectedBar, mesAtual, anoAtual, carregarDadosDashboard, carregarFuncionarios, carregarSimulacao, carregarHistoricoSimulacoes, carregarProvisoes]);
+
+  useEffect(() => {
+    if (abaAtiva === 'provisoes-acumuladas') {
+      carregarProvisoesAcumuladas();
+    }
+  }, [abaAtiva, carregarProvisoesAcumuladas]);
+
+  // ==================== FUNÇÕES DE AÇÃO ====================
+
+  // Funcionários
+  const salvarFuncionario = async () => {
+    if (!selectedBar || !formData.nome) {
+      toast({ title: 'Erro', description: 'Nome é obrigatório', variant: 'destructive' });
       return;
     }
 
-    setSalvando(true);
-
     try {
-      const response = await fetch('/api/operacional/cmo-simulacao', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
-        },
-        body: JSON.stringify({
-          bar_id: selectedBar.id,
-          mes: mesAtual,
-          ano: anoAtual,
-          funcionarios,
-          observacoes,
-          criado_por: user?.nome || ''
-        })
+      const payload = {
+        ...formData,
+        bar_id: selectedBar.id,
+        cargo_id: formData.cargo_id ? parseInt(formData.cargo_id) : null,
+        area_id: formData.area_id ? parseInt(formData.area_id) : null,
+        salario_base: parseFloat(formData.salario_base) || 0,
+        vale_transporte_diaria: parseFloat(formData.vale_transporte_diaria) || 0,
+        dias_trabalho_semana: parseInt(formData.dias_trabalho_semana) || 6,
+        registrar_alteracao_contrato: !!editingFuncionario,
+        id: editingFuncionario?.id
+      };
+
+      const res = await fetch('/api/rh/funcionarios', {
+        method: editingFuncionario ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
-      if (!response.ok) throw new Error('Erro ao salvar');
+      const data = await res.json();
 
-      const result = await response.json();
-
-      toast({
-        title: "✅ Sucesso",
-        description: result.message || "Simulação salva com sucesso"
-      });
-
-      setSimulacaoAtualId(result.data.id);
-      carregarHistorico();
-
+      if (data.success) {
+        toast({ title: 'Sucesso', description: editingFuncionario ? 'Funcionário atualizado' : 'Funcionário cadastrado' });
+        setIsDialogFuncOpen(false);
+        carregarFuncionarios();
+      } else {
+        throw new Error(data.error);
+      }
     } catch (error) {
-      console.error('Erro ao salvar:', error);
-      toast({
-        title: "Erro ao salvar",
-        description: "Não foi possível salvar a simulação",
-        variant: "destructive"
-      });
-    } finally {
-      setSalvando(false);
+      toast({ title: 'Erro', description: 'Não foi possível salvar', variant: 'destructive' });
     }
   };
 
-  // Adicionar funcionário
-  const adicionarFuncionario = () => {
-    const novoFunc: Funcionario = {
+  const abrirNovoFuncionario = () => {
+    setEditingFuncionario(null);
+    setFormData({
+      nome: '', cpf: '', telefone: '', email: '',
+      data_admissao: new Date().toISOString().split('T')[0],
+      cargo_id: '', area_id: '', tipo_contratacao: 'CLT',
+      salario_base: '', vale_transporte_diaria: '11',
+      dias_trabalho_semana: '6', observacoes: '',
+    });
+    setIsDialogFuncOpen(true);
+  };
+
+  const abrirEdicaoFuncionario = (func: FuncionarioCadastrado) => {
+    setEditingFuncionario(func);
+    setFormData({
+      nome: func.nome,
+      cpf: func.cpf || '',
+      telefone: func.telefone || '',
+      email: func.email || '',
+      data_admissao: func.data_admissao || '',
+      cargo_id: func.cargo_id?.toString() || '',
+      area_id: func.area_id?.toString() || '',
+      tipo_contratacao: func.tipo_contratacao,
+      salario_base: func.salario_base.toString(),
+      vale_transporte_diaria: func.vale_transporte_diaria.toString(),
+      dias_trabalho_semana: func.dias_trabalho_semana.toString(),
+      observacoes: func.observacoes || '',
+    });
+    setIsDialogFuncOpen(true);
+  };
+
+  // Simulação
+  const adicionarFuncionarioSimulacao = () => {
+    const novoFunc: FuncionarioSimulacao = {
       id: `func-${Date.now()}`,
       nome: '',
       tipo_contratacao: 'CLT',
@@ -338,655 +571,915 @@ export default function SimulacaoCMOPage() {
       mensalidade_sindical: 0,
       dias_trabalhados: 30
     };
-    setFuncionarios([...funcionarios, novoFunc]);
+    setFuncionariosSimulacao([...funcionariosSimulacao, novoFunc]);
   };
 
-  // Remover funcionário
-  const removerFuncionario = (id: string) => {
-    setFuncionarios(funcionarios.filter(f => f.id !== id));
-  };
-
-  // Atualizar funcionário
-  const atualizarFuncionario = (id: string, campo: keyof Funcionario, valor: any) => {
-    setFuncionarios(funcionarios.map(f => 
-      f.id === id ? { ...f, [campo]: valor } : f
-    ));
-  };
-
-  // Carregar simulação do histórico
-  const carregarDoHistorico = (simulacao: SimulacaoCMO) => {
-    setMesAtual(simulacao.mes);
-    setAnoAtual(simulacao.ano);
-    setFuncionarios(simulacao.funcionarios);
-    setObservacoes(simulacao.observacoes || '');
-    setSimulacaoAtualId(simulacao.id);
-    setMostrarHistorico(false);
+  const importarFuncionariosCadastrados = async () => {
+    if (!selectedBar) return;
     
-    toast({
-      title: "Simulação carregada",
-      description: `${MESES[simulacao.mes - 1].label}/${simulacao.ano}`
-    });
+    try {
+      const response = await fetch(`/api/rh/funcionarios?bar_id=${selectedBar.id}&ativo=true`);
+      const result = await response.json();
+      
+      if (!result.success || !result.data || result.data.length === 0) {
+        toast({ title: 'Nenhum funcionário encontrado', description: 'Cadastre funcionários na aba "Funcionários"', variant: 'destructive' });
+        return;
+      }
+
+      const funcionariosImportados: FuncionarioSimulacao[] = result.data.map((func: FuncionarioCadastrado) => ({
+        id: `func-${func.id}-${Date.now()}`,
+        nome: func.nome,
+        tipo_contratacao: func.tipo_contratacao,
+        area: func.area?.nome || 'Salão',
+        diaria: func.vale_transporte_diaria,
+        vale: func.vale_transporte_diaria * 30,
+        salario_bruto: func.salario_base,
+        adicionais: 0,
+        aviso_previo: 0,
+        estimativa: 0,
+        tempo_casa: 0,
+        mensalidade_sindical: 0,
+        dias_trabalhados: 30
+      }));
+
+      const substituir = funcionariosSimulacao.length === 0 || 
+        confirm(`Substituir os ${funcionariosSimulacao.length} funcionário(s) atuais pelos ${funcionariosImportados.length} do cadastro?`);
+
+      if (substituir) {
+        setFuncionariosSimulacao(funcionariosImportados);
+      } else {
+        setFuncionariosSimulacao([...funcionariosSimulacao, ...funcionariosImportados]);
+      }
+
+      toast({ title: 'Sucesso', description: `${funcionariosImportados.length} funcionário(s) importado(s)` });
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível importar', variant: 'destructive' });
+    }
   };
 
-  useEffect(() => {
-    setPageTitle('💼 Simulação de CMO');
-  }, [setPageTitle]);
+  const salvarSimulacao = async () => {
+    if (!selectedBar || !user) return;
 
-  useEffect(() => {
-    if (selectedBar && user) {
-      carregarSimulacao();
-      carregarHistorico();
+    setSalvandoSimulacao(true);
+    try {
+      const totais = calcularTotaisGerais();
+      const simulacao: SimulacaoCMO = {
+        id: simulacaoAtualId,
+        bar_id: selectedBar.id,
+        mes: mesAtual,
+        ano: anoAtual,
+        funcionarios: funcionariosSimulacao,
+        total_folha: totais.totalFolha,
+        total_encargos: totais.totalEncargos,
+        total_geral: totais.totalGeral,
+        observacoes: observacoesSimulacao,
+        criado_por: user.email
+      };
+
+      const response = await fetch('/api/operacional/cmo-simulacao', {
+        method: simulacaoAtualId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(simulacao)
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast({ title: 'Sucesso', description: 'Simulação salva' });
+        setSimulacaoAtualId(data.data?.id);
+        carregarHistoricoSimulacoes();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível salvar', variant: 'destructive' });
+    } finally {
+      setSalvandoSimulacao(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBar, user, mesAtual, anoAtual]);
+  };
+
+  // Provisões
+  const calcularProvisoes = async () => {
+    if (!selectedBar) return;
+
+    setCalculandoProvisoes(true);
+    try {
+      const response = await fetch('/api/rh/provisoes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: selectedBar.id, mes: mesAtual, ano: anoAtual })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: 'Sucesso', description: result.message });
+        carregarProvisoes();
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível calcular', variant: 'destructive' });
+    } finally {
+      setCalculandoProvisoes(false);
+    }
+  };
+
+  // Importação
+  const importarDaPlanilha = async (tipo: 'funcionarios' | 'provisoes') => {
+    if (!selectedBar) return;
+    
+    setImportando(true);
+    try {
+      const endpoint = tipo === 'funcionarios' ? '/api/rh/importar-planilha' : '/api/rh/importar-provisoes';
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: selectedBar.id })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: 'Importação concluída', description: result.message });
+        if (tipo === 'funcionarios') carregarFuncionarios();
+        else carregarProvisoes();
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: error instanceof Error ? error.message : 'Erro desconhecido', variant: 'destructive' });
+    } finally {
+      setImportando(false);
+    }
+  };
+
+  // ==================== HELPERS ====================
+
+  const formatarMoeda = (valor: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+  };
+
+  const formatarData = (data?: string) => {
+    if (!data) return '-';
+    return new Date(data).toLocaleDateString('pt-BR');
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'ok': return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case 'alerta': return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
+      case 'critico': return <AlertCircle className="h-5 w-5 text-red-500" />;
+      default: return null;
+    }
+  };
+
+  // Filtrar funcionários
+  const funcionariosFiltrados = funcionariosCadastrados.filter(func => {
+    const matchSearch = func.nome.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchAtivo = filtroAtivo === 'todos' || 
+                      (filtroAtivo === 'ativos' && func.ativo) ||
+                      (filtroAtivo === 'inativos' && !func.ativo);
+    return matchSearch && matchAtivo;
+  });
+
+  // Estatísticas
+  const funcStats = {
+    total: funcionariosCadastrados.length,
+    ativos: funcionariosCadastrados.filter(f => f.ativo).length,
+    clt: funcionariosCadastrados.filter(f => f.ativo && f.tipo_contratacao === 'CLT').length,
+    pj: funcionariosCadastrados.filter(f => f.ativo && f.tipo_contratacao === 'PJ').length,
+    folhaTotal: funcionariosCadastrados.filter(f => f.ativo).reduce((acc, f) => acc + f.salario_base, 0)
+  };
+
+  const totaisSimulacao = calcularTotaisGerais();
+
+  // ==================== RENDER ====================
+
+  if (!selectedBar) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <Card className="p-8">
+          <CardContent>
+            <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-center text-muted-foreground">Selecione um bar para gerenciar o CMO</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <RefreshCcw className="h-8 w-8 animate-spin text-blue-600 dark:text-blue-400 mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400 font-medium">Carregando simulação...</p>
+          <RefreshCcw className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Carregando...</p>
         </div>
       </div>
     );
   }
 
-  const totais = calcularTotaisGerais();
-  const formatarMoeda = (valor: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(valor || 0);
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-6">
-
-        {/* Seleção de Mês/Ano */}
-        <Card className="card-dark mb-6">
+        
+        {/* Header com seleção de mês/ano */}
+        <Card className="mb-6">
           <CardContent className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <Label className="text-gray-700 dark:text-gray-300">Mês</Label>
-                <Select value={mesAtual.toString()} onValueChange={(value) => setMesAtual(parseInt(value))}>
-                  <SelectTrigger className="select-dark">
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                  <Users className="h-6 w-6" />
+                  Gestão de CMO
+                </h1>
+                <p className="text-muted-foreground">Custo de Mão de Obra - {selectedBar.nome}</p>
+              </div>
+              <div className="flex gap-2">
+                <Select value={mesAtual.toString()} onValueChange={(v) => setMesAtual(parseInt(v))}>
+                  <SelectTrigger className="w-[130px]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="modal-select-content">
-                    {MESES.map((mes) => (
-                      <SelectItem key={mes.value} value={mes.value.toString()} className="modal-select-item">
-                        {mes.label}
-                      </SelectItem>
+                  <SelectContent>
+                    {MESES.map(m => (
+                      <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div>
-                <Label className="text-gray-700 dark:text-gray-300">Ano</Label>
-                <Select value={anoAtual.toString()} onValueChange={(value) => setAnoAtual(parseInt(value))}>
-                  <SelectTrigger className="select-dark">
+                <Select value={anoAtual.toString()} onValueChange={(v) => setAnoAtual(parseInt(v))}>
+                  <SelectTrigger className="w-[100px]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="modal-select-content">
-                    {[2024, 2025, 2026].map((ano) => (
-                      <SelectItem key={ano} value={ano.toString()} className="modal-select-item">
-                        {ano}
-                      </SelectItem>
+                  <SelectContent>
+                    {[2022, 2023, 2024, 2025, 2026].map(a => (
+                      <SelectItem key={a} value={a.toString()}>{a}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="flex items-end gap-2">
-                <Button
-                  onClick={adicionarFuncionario}
-                  className="flex-1 bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white"
-                  leftIcon={<Plus className="h-4 w-4" />}
-                >
-                  Adicionar Funcionário
-                </Button>
-                <Button
-                  onClick={() => setMostrarGuiaCalculos(!mostrarGuiaCalculos)}
-                  variant="outline"
-                  className="bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border-gray-300 dark:border-gray-600"
-                  leftIcon={<Info className="h-4 w-4" />}
-                  title="Guia de Cálculos Detalhado"
-                >
-                  {mostrarGuiaCalculos ? 'Ocultar' : 'Guia'}
-                </Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Guia de Cálculos */}
-        {mostrarGuiaCalculos && (
-          <Card className="card-dark mb-6 border-2 border-blue-500 dark:border-blue-400">
-            <CardHeader className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-700">
-              <CardTitle className="text-blue-900 dark:text-blue-100 flex items-center gap-2">
-                <Calculator className="h-5 w-5" />
-                📊 Guia Completo de Cálculos - CMO
-              </CardTitle>
-              <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">
-                Todas as fórmulas utilizadas na simulação, conforme verificação de 29/11/2025
-              </p>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Coluna 1 - Proventos */}
-                <div className="space-y-4">
-                  <h3 className="font-bold text-green-600 dark:text-green-400 flex items-center gap-2 text-lg">
-                    💰 PROVENTOS (Adições)
-                  </h3>
+        {/* Abas principais */}
+        <Tabs value={abaAtiva} onValueChange={setAbaAtiva}>
+          <TabsList className="grid w-full grid-cols-5 mb-6">
+            <TabsTrigger value="dashboard">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="funcionarios">
+              <Users className="h-4 w-4 mr-2" />
+              Funcionários
+            </TabsTrigger>
+            <TabsTrigger value="simulacao">
+              <Calculator className="h-4 w-4 mr-2" />
+              Simulação
+            </TabsTrigger>
+            <TabsTrigger value="provisoes">
+              <Calendar className="h-4 w-4 mr-2" />
+              Provisões
+            </TabsTrigger>
+            <TabsTrigger value="importar">
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Importar
+            </TabsTrigger>
+          </TabsList>
 
-                  <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-700">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">1. Salário Bruto + Estimativa</h4>
-                    <code className="text-sm bg-white dark:bg-gray-800 px-2 py-1 rounded">salario_bruto + estimativa</code>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">Base salarial + variáveis previstas</p>
-                  </div>
-
-                  <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-700">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">2. Adicional Noturno</h4>
-                    <div className="space-y-1 text-sm">
-                      <p><strong>Salão:</strong> R$ 125,00</p>
-                      <p><strong>Bar:</strong> R$ 125,00</p>
-                      <p><strong>Cozinha:</strong> R$ 115,00</p>
-                      <p><strong>Liderança:</strong> R$ 0,00</p>
+          {/* ==================== ABA DASHBOARD ==================== */}
+          <TabsContent value="dashboard">
+            {/* Cards de resumo */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Funcionários Ativos</p>
+                      <p className="text-3xl font-bold">{funcStats.ativos}</p>
+                      <div className="flex gap-2 mt-2">
+                        <Badge variant="default">{funcStats.clt} CLT</Badge>
+                        <Badge variant="secondary">{funcStats.pj} PJ</Badge>
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">Conforme área de atuação</p>
+                    <Users className="h-10 w-10 text-blue-500" />
                   </div>
+                </CardContent>
+              </Card>
 
-                  <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-700">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">3. DRS sobre Ads Noturno</h4>
-                    <code className="text-sm bg-white dark:bg-gray-800 px-2 py-1 rounded">adicional_noturno * 0,2</code>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">20% de descanso remunerado</p>
-                  </div>
-
-                  <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-700">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">4. Produtividade</h4>
-                    <code className="text-sm bg-white dark:bg-gray-800 px-2 py-1 rounded">salario_bruto * 0,05</code>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">5% de bonificação</p>
-                  </div>
-
-                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">9. Provisão Certa (27%)</h4>
-                    <code className="text-sm bg-white dark:bg-gray-800 px-2 py-1 rounded block mb-2">
-                      (bruto + ads_noturno + drs + tempo_casa + prod) * 0,27
-                    </code>
-                    <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                      <p>• Férias: 11,11%</p>
-                      <p>• 13º Salário: 8,33%</p>
-                      <p>• Aviso Prévio: 2,78%</p>
-                      <p>• Multa FGTS: 4%</p>
-                      <p>• Outros: 0,78%</p>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Folha Base</p>
+                      <p className="text-2xl font-bold">{formatarMoeda(funcStats.folhaTotal)}</p>
                     </div>
+                    <DollarSign className="h-10 w-10 text-green-500" />
                   </div>
+                </CardContent>
+              </Card>
 
-                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">10. FGTS (8%)</h4>
-                    <code className="text-sm bg-white dark:bg-gray-800 px-2 py-1 rounded">|INSS|</code>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">Mesmo valor do INSS (pago pela empresa)</p>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Provisões</p>
+                      <p className="text-2xl font-bold">{formatarMoeda(provTotais.total_provisao_certa)}</p>
+                    </div>
+                    <TrendingUp className="h-10 w-10 text-orange-500" />
                   </div>
-                </div>
+                </CardContent>
+              </Card>
 
-                {/* Coluna 2 - Descontos e Cálculos */}
-                <div className="space-y-4">
-                  <h3 className="font-bold text-red-600 dark:text-red-400 flex items-center gap-2 text-lg">
-                    📉 DESCONTOS (Deduções)
-                  </h3>
-
-                  <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-700">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">5. Vale Transporte</h4>
-                    <code className="text-sm bg-white dark:bg-gray-800 px-2 py-1 rounded">salario_bruto * -0,06</code>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">6% de desconto (limite legal)</p>
+              <Card className={comparativo?.status === 'critico' ? 'border-red-500' : comparativo?.status === 'alerta' ? 'border-yellow-500' : ''}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Simulado vs NIBO</p>
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(comparativo?.status || 'ok')}
+                        <p className="text-2xl font-bold">{comparativo?.percentual_diferenca?.toFixed(0) || 0}%</p>
+                      </div>
+                    </div>
+                    <PieChart className={`h-10 w-10 ${
+                      comparativo?.status === 'ok' ? 'text-green-500' :
+                      comparativo?.status === 'alerta' ? 'text-yellow-500' : 'text-red-500'
+                    }`} />
                   </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                  <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-700">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">6. INSS (8%)</h4>
-                    <code className="text-sm bg-white dark:bg-gray-800 px-2 py-1 rounded block mb-2">
-                      (bruto_est + ads_not + drs + tempo_casa + prod) * -0,08
-                    </code>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Alíquota simplificada sobre base</p>
+            {/* Comparativo por categoria */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Comparativo por Categoria - {MESES[mesAtual - 1]?.label}/{anoAtual}</CardTitle>
+                <CardDescription>CMO Simulado vs Realizado no NIBO</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!comparativo?.detalhes?.length ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+                    <p>Nenhum dado disponível. Calcule a folha de pagamento primeiro.</p>
                   </div>
-
-                  <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-700">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">7. Imposto de Renda</h4>
-                    <code className="text-sm bg-white dark:bg-gray-800 px-2 py-1 rounded block mb-2">
-                      ((bruto - 528) * 0,075 - 158,4) * -1
-                    </code>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Se positivo, aplica desconto</p>
+                ) : (
+                  <div className="space-y-4">
+                    {comparativo.detalhes.map((item, index) => (
+                      <div key={index} className="border rounded-lg p-4">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-medium">{item.categoria}</span>
+                          <Badge variant={Math.abs(item.percentual_diferenca) > 20 ? 'destructive' : Math.abs(item.percentual_diferenca) > 10 ? 'secondary' : 'outline'}>
+                            {item.percentual_diferenca > 0 ? '+' : ''}{item.percentual_diferenca.toFixed(0)}%
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <p className="text-muted-foreground">NIBO (Real)</p>
+                            <p className="font-medium">{formatarMoeda(item.valor_nibo)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Simulado</p>
+                            <p className="font-medium">{formatarMoeda(item.valor_simulado)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Diferença</p>
+                            <p className={`font-medium flex items-center gap-1 ${item.diferenca > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                              {item.diferenca > 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                              {formatarMoeda(Math.abs(item.diferenca))}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-                  <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg border border-purple-200 dark:border-purple-700">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">8. Salário Líquido</h4>
-                    <code className="text-sm bg-white dark:bg-gray-800 px-2 py-1 rounded block">
-                      proventos - descontos
-                    </code>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">Valor que o funcionário recebe</p>
-                  </div>
-
-                  <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">11. Custo Empresa (CLT)</h4>
-                    <code className="text-sm bg-white dark:bg-gray-800 px-2 py-1 rounded block mb-2">
-                      ((INSS + FGTS + VT + Prov + Sindical) / 30 * dias) + aviso + adicionais
-                    </code>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Custo total para empresa (proporcional)</p>
-                  </div>
-
-                  <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">11. Custo Empresa (PJ)</h4>
-                    <code className="text-sm bg-white dark:bg-gray-800 px-2 py-1 rounded block mb-2">
-                      ((bruto + tempo_casa + vale + adic + aviso) / 30) * dias
-                    </code>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Sem encargos trabalhistas</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Rodapé com status */}
-              <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between">
+          {/* ==================== ABA FUNCIONÁRIOS ==================== */}
+          <TabsContent value="funcionarios">
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+              <Card>
+                <CardContent className="pt-4">
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                      ✅ Cálculos Verificados
-                    </Badge>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      Última verificação: 29/11/2025
-                    </span>
+                    <Users className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-2xl font-bold">{funcStats.total}</p>
+                      <p className="text-xs text-muted-foreground">Total</p>
+                    </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setMostrarGuiaCalculos(false)}
-                    className="text-gray-600 dark:text-gray-400"
-                  >
-                    Fechar Guia
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="h-5 w-5 text-green-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{funcStats.ativos}</p>
+                      <p className="text-xs text-muted-foreground">Ativos</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-5 w-5 text-blue-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{funcStats.clt}</p>
+                      <p className="text-xs text-muted-foreground">CLT</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-orange-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{funcStats.pj}</p>
+                      <p className="text-xs text-muted-foreground">PJ</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-green-500" />
+                    <div>
+                      <p className="text-lg font-bold">{formatarMoeda(funcStats.folhaTotal)}</p>
+                      <p className="text-xs text-muted-foreground">Folha Base</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Lista */}
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col md:flex-row justify-between gap-4">
+                  <CardTitle>Lista de Funcionários</CardTitle>
+                  <div className="flex gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-8 w-[200px]"
+                      />
+                    </div>
+                    <Select value={filtroAtivo} onValueChange={setFiltroAtivo}>
+                      <SelectTrigger className="w-[130px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos</SelectItem>
+                        <SelectItem value="ativos">Ativos</SelectItem>
+                        <SelectItem value="inativos">Inativos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={abrirNovoFuncionario}>
+                      <Plus className="h-4 w-4 mr-2" /> Novo
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {funcionariosFiltrados.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Users className="h-8 w-8 mx-auto mb-2" />
+                      <p>Nenhum funcionário encontrado</p>
+                    </div>
+                  ) : (
+                    funcionariosFiltrados.map(func => (
+                      <div key={func.id} className="border rounded-lg p-4 flex justify-between items-center hover:bg-muted/50">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Users className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <div className="font-medium flex items-center gap-2">
+                              {func.nome}
+                              {!func.ativo && <Badge variant="destructive" className="text-xs">Inativo</Badge>}
+                            </div>
+                            <div className="text-sm text-muted-foreground flex items-center gap-2">
+                              {func.cargo?.nome || '-'} • {func.area?.nome || '-'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <Badge variant={func.tipo_contratacao === 'CLT' ? 'default' : 'secondary'}>
+                              {func.tipo_contratacao}
+                            </Badge>
+                            <p className="font-medium mt-1">{formatarMoeda(func.salario_base)}</p>
+                          </div>
+                          <Button variant="ghost" size="icon" onClick={() => abrirEdicaoFuncionario(func)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ==================== ABA SIMULAÇÃO ==================== */}
+          <TabsContent value="simulacao">
+            {/* Ações */}
+            <Card className="mb-6">
+              <CardContent className="p-4">
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={importarFuncionariosCadastrados} variant="outline">
+                    <UserPlus className="h-4 w-4 mr-2" /> Importar do Cadastro
+                  </Button>
+                  <Button onClick={adicionarFuncionarioSimulacao} variant="outline">
+                    <Plus className="h-4 w-4 mr-2" /> Adicionar Manual
+                  </Button>
+                  <Button onClick={salvarSimulacao} disabled={salvandoSimulacao}>
+                    {salvandoSimulacao ? <RefreshCcw className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                    Salvar Simulação
                   </Button>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-                  📄 Documento completo: docs/SIMULACAO_CMO_CALCULOS_VERIFICADOS.md
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              </CardContent>
+            </Card>
 
-        {/* Histórico */}
-        {mostrarHistorico && (
-          <Card className="card-dark mb-6">
-            <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-              <CardTitle className="card-title-dark flex items-center gap-2">
-                <History className="h-5 w-5" />
-                Histórico de Simulações ({historico.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-                    <tr>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900 dark:text-white">Período</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900 dark:text-white">Funcionários</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900 dark:text-white">Total Folha</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900 dark:text-white">Total Encargos</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900 dark:text-white">Total Geral</th>
-                      <th className="text-center py-3 px-4 text-sm font-semibold text-gray-900 dark:text-white">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {historico.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="py-12 text-center">
-                          <Calendar className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
-                          <p className="text-gray-600 dark:text-gray-400 font-medium">
-                            Nenhuma simulação encontrada
-                          </p>
-                        </td>
-                      </tr>
-                    ) : (
-                      historico.map((sim) => (
-                        <tr
-                          key={sim.id}
-                          className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                        >
-                          <td className="py-3 px-4 text-sm font-semibold text-gray-900 dark:text-white">
-                            {MESES[sim.mes - 1].label}/{sim.ano}
-                          </td>
-                          <td className="py-3 px-4 text-right text-sm text-gray-600 dark:text-gray-400">
-                            {sim.funcionarios.length}
-                          </td>
-                          <td className="py-3 px-4 text-right text-sm font-semibold text-gray-900 dark:text-white">
-                            {formatarMoeda(sim.total_folha)}
-                          </td>
-                          <td className="py-3 px-4 text-right text-sm font-semibold text-blue-600 dark:text-blue-400">
-                            {formatarMoeda(sim.total_encargos)}
-                          </td>
-                          <td className="py-3 px-4 text-right text-sm font-bold text-green-600 dark:text-green-400">
-                            {formatarMoeda(sim.total_geral)}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => carregarDoHistorico(sim)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Edit className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Tabela de Funcionários */}
-        <Card className="card-dark mb-6">
-          <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <CardTitle className="card-title-dark flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Funcionários ({funcionarios.length})
-              </CardTitle>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  onClick={() => setMostrarHistorico(!mostrarHistorico)}
-                  variant="outline"
-                  size="sm"
-                  className="border-gray-300 dark:border-gray-600"
-                  leftIcon={<FileText className="h-4 w-4" />}
-                >
-                  {mostrarHistorico ? 'Ocultar' : 'Ver'} Histórico
-                </Button>
-                <Button
-                  onClick={salvarSimulacao}
-                  disabled={salvando || funcionarios.length === 0}
-                  loading={salvando}
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white"
-                  leftIcon={!salvando ? <Save className="h-4 w-4" /> : undefined}
-                >
-                  {salvando ? 'Salvando...' : 'Salvar'}
-                </Button>
-              </div>
+            {/* Totais */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-sm text-muted-foreground">Total Folha</p>
+                  <p className="text-2xl font-bold">{formatarMoeda(totaisSimulacao.totalFolha)}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-sm text-muted-foreground">Total Encargos</p>
+                  <p className="text-2xl font-bold">{formatarMoeda(totaisSimulacao.totalEncargos)}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-sm text-muted-foreground">Custo Total</p>
+                  <p className="text-2xl font-bold text-primary">{formatarMoeda(totaisSimulacao.totalGeral)}</p>
+                </CardContent>
+              </Card>
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            {funcionarios.length === 0 ? (
-              <div className="py-12 text-center">
-                <Users className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-600 dark:text-gray-400 font-medium mb-2">
-                  Nenhum funcionário adicionado
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-500">
-                  Clique em "Adicionar Funcionário" para começar
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-                    <tr>
-                      <th className="text-left py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white">Nome</th>
-                      <th className="text-center py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white bg-orange-50 dark:bg-orange-900/20">Tipo</th>
-                      <th className="text-center py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white bg-orange-50 dark:bg-orange-900/20">Área</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white bg-orange-50 dark:bg-orange-900/20">Diária</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white bg-orange-50 dark:bg-orange-900/20">Vale</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white bg-orange-50 dark:bg-orange-900/20">Salário Bruto</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white bg-orange-50 dark:bg-orange-900/20">Adicionais</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white bg-orange-50 dark:bg-orange-900/20">Aviso Prévio</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white bg-orange-50 dark:bg-orange-900/20">Estimativa</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white bg-orange-50 dark:bg-orange-900/20">Tempo Casa</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white bg-orange-50 dark:bg-orange-900/20">Mens. Sindical</th>
-                      <th className="text-center py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white bg-orange-50 dark:bg-orange-900/20">Dias Trab.</th>
-                      <th className="text-right py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white">Custo Empresa</th>
-                      <th className="text-center py-2 px-2 text-xs font-semibold text-gray-900 dark:text-white">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {funcionarios.map((func) => {
+
+            {/* Lista de funcionários da simulação */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Funcionários na Simulação ({funcionariosSimulacao.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {funcionariosSimulacao.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calculator className="h-8 w-8 mx-auto mb-2" />
+                    <p>Nenhum funcionário na simulação</p>
+                    <p className="text-sm">Importe do cadastro ou adicione manualmente</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {funcionariosSimulacao.map((func, index) => {
                       const valores = calcularValoresFuncionario(func);
                       return (
-                        <tr
-                          key={func.id}
-                          className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                        >
-                          <td className="py-1 px-2">
-                            <Input
-                              value={func.nome}
-                              onChange={(e) => atualizarFuncionario(func.id, 'nome', e.target.value)}
-                              placeholder="Nome"
-                              className="input-dark text-xs h-8"
-                            />
-                          </td>
-                          <td className="py-1 px-2 bg-orange-50 dark:bg-orange-900/10">
+                        <Card key={func.id} className="p-4">
+                          <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-center">
+                            <div className="md:col-span-2">
+                              <Input
+                                placeholder="Nome"
+                                value={func.nome}
+                                onChange={(e) => {
+                                  const updated = [...funcionariosSimulacao];
+                                  updated[index].nome = e.target.value;
+                                  setFuncionariosSimulacao(updated);
+                                }}
+                              />
+                            </div>
                             <Select
                               value={func.tipo_contratacao}
-                              onValueChange={(value) => atualizarFuncionario(func.id, 'tipo_contratacao', value)}
+                              onValueChange={(v) => {
+                                const updated = [...funcionariosSimulacao];
+                                updated[index].tipo_contratacao = v as 'CLT' | 'PJ';
+                                setFuncionariosSimulacao(updated);
+                              }}
                             >
-                              <SelectTrigger className="select-dark text-xs h-8">
+                              <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent className="modal-select-content">
-                                <SelectItem value="CLT" className="modal-select-item">CLT</SelectItem>
-                                <SelectItem value="PJ" className="modal-select-item">PJ</SelectItem>
+                              <SelectContent>
+                                <SelectItem value="CLT">CLT</SelectItem>
+                                <SelectItem value="PJ">PJ</SelectItem>
                               </SelectContent>
                             </Select>
-                          </td>
-                          <td className="py-1 px-2 bg-orange-50 dark:bg-orange-900/10">
                             <Select
                               value={func.area}
-                              onValueChange={(value) => atualizarFuncionario(func.id, 'area', value)}
+                              onValueChange={(v) => {
+                                const updated = [...funcionariosSimulacao];
+                                updated[index].area = v;
+                                setFuncionariosSimulacao(updated);
+                              }}
                             >
-                              <SelectTrigger className="select-dark text-xs h-8">
+                              <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent className="modal-select-content">
-                                {AREAS.map(area => (
-                                  <SelectItem key={area} value={area} className="modal-select-item text-xs">{area}</SelectItem>
+                              <SelectContent>
+                                {AREAS_SIMULACAO.map(a => (
+                                  <SelectItem key={a} value={a}>{a}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                          </td>
-                          <td className="py-1 px-2 bg-orange-50 dark:bg-orange-900/10">
                             <Input
                               type="number"
-                              step="0.01"
-                              value={func.diaria}
-                              onChange={(e) => atualizarFuncionario(func.id, 'diaria', parseFloat(e.target.value) || 0)}
-                              className="input-dark text-xs text-right h-8 w-20"
+                              placeholder="Salário"
+                              value={func.salario_bruto || ''}
+                              onChange={(e) => {
+                                const updated = [...funcionariosSimulacao];
+                                updated[index].salario_bruto = parseFloat(e.target.value) || 0;
+                                setFuncionariosSimulacao(updated);
+                              }}
                             />
-                          </td>
-                          <td className="py-1 px-2 bg-orange-50 dark:bg-orange-900/10">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={func.vale}
-                              onChange={(e) => atualizarFuncionario(func.id, 'vale', parseFloat(e.target.value) || 0)}
-                              className="input-dark text-xs text-right h-8 w-20"
-                            />
-                          </td>
-                          <td className="py-1 px-2 bg-orange-50 dark:bg-orange-900/10">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={func.salario_bruto}
-                              onChange={(e) => atualizarFuncionario(func.id, 'salario_bruto', parseFloat(e.target.value) || 0)}
-                              className="input-dark text-xs text-right h-8 w-24"
-                            />
-                          </td>
-                          <td className="py-1 px-2 bg-orange-50 dark:bg-orange-900/10">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={func.adicionais}
-                              onChange={(e) => atualizarFuncionario(func.id, 'adicionais', parseFloat(e.target.value) || 0)}
-                              className="input-dark text-xs text-right h-8 w-20"
-                            />
-                          </td>
-                          <td className="py-1 px-2 bg-orange-50 dark:bg-orange-900/10">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={func.aviso_previo}
-                              onChange={(e) => atualizarFuncionario(func.id, 'aviso_previo', parseFloat(e.target.value) || 0)}
-                              className="input-dark text-xs text-right h-8 w-20"
-                            />
-                          </td>
-                          <td className="py-1 px-2 bg-orange-50 dark:bg-orange-900/10">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={func.estimativa}
-                              onChange={(e) => atualizarFuncionario(func.id, 'estimativa', parseFloat(e.target.value) || 0)}
-                              className="input-dark text-xs text-right h-8 w-20"
-                            />
-                          </td>
-                          <td className="py-1 px-2 bg-orange-50 dark:bg-orange-900/10">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={func.tempo_casa}
-                              onChange={(e) => atualizarFuncionario(func.id, 'tempo_casa', parseFloat(e.target.value) || 0)}
-                              className="input-dark text-xs text-right h-8 w-20"
-                            />
-                          </td>
-                          <td className="py-1 px-2 bg-orange-50 dark:bg-orange-900/10">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={func.mensalidade_sindical}
-                              onChange={(e) => atualizarFuncionario(func.id, 'mensalidade_sindical', parseFloat(e.target.value) || 0)}
-                              className="input-dark text-xs text-right h-8 w-20"
-                            />
-                          </td>
-                          <td className="py-1 px-2 bg-orange-50 dark:bg-orange-900/10">
-                            <Input
-                              type="number"
-                              min="1"
-                              max="31"
-                              value={func.dias_trabalhados}
-                              onChange={(e) => atualizarFuncionario(func.id, 'dias_trabalhados', parseInt(e.target.value) || 30)}
-                              className="input-dark text-xs text-center h-8 w-16"
-                            />
-                          </td>
-                          <td className="py-1 px-2 text-right text-xs font-bold text-green-600 dark:text-green-400">
-                            {formatarMoeda(valores.custoEmpresa)}
-                          </td>
-                          <td className="py-1 px-2 text-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removerFuncionario(func.id)}
-                              className="h-7 w-7 p-0"
-                            >
-                              <Trash2 className="h-3 w-3 text-red-600 dark:text-red-400" />
-                            </Button>
-                          </td>
-                        </tr>
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-primary">{formatarMoeda(valores.custoEmpresa)}</span>
+                              <Button variant="ghost" size="icon" onClick={() => {
+                                setFuncionariosSimulacao(funcionariosSimulacao.filter(f => f.id !== func.id));
+                              }}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </div>
+                        </Card>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  </div>
+                )}
 
-        {/* Totais */}
-        <Card className="card-dark mb-6">
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border-2 border-blue-200 dark:border-blue-700">
-                <div className="flex items-center gap-3 mb-2">
-                  <DollarSign className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Folha</p>
+                {/* Observações */}
+                <div className="mt-6">
+                  <Label>Observações</Label>
+                  <Textarea
+                    value={observacoesSimulacao}
+                    onChange={(e) => setObservacoesSimulacao(e.target.value)}
+                    placeholder="Anotações sobre esta simulação..."
+                    className="mt-2"
+                  />
                 </div>
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {formatarMoeda(totais.totalFolha)}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                  Salário Líquido Total
-                </p>
-              </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-              <div className="p-6 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl border-2 border-purple-200 dark:border-purple-700">
-                <div className="flex items-center gap-3 mb-2">
-                  <Calculator className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Encargos</p>
-                </div>
-                <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                  {formatarMoeda(totais.totalEncargos)}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                  INSS + FGTS + Provisões
-                </p>
-              </div>
-
-              <div className="p-6 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-xl border-2 border-green-200 dark:border-green-700">
-                <div className="flex items-center gap-3 mb-2">
-                  <TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Geral</p>
-                </div>
-                <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-                  {formatarMoeda(totais.totalGeral)}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                  Custo total de mão de obra
-                </p>
-              </div>
+          {/* ==================== ABA PROVISÕES ==================== */}
+          <TabsContent value="provisoes">
+            {/* Cards de resumo */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-2">
+                    <Gift className="h-5 w-5 text-green-500" />
+                    <div>
+                      <p className="text-lg font-bold">{formatarMoeda(provTotais.total_decimo_terceiro)}</p>
+                      <p className="text-xs text-muted-foreground">13º Salário</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-blue-500" />
+                    <div>
+                      <p className="text-lg font-bold">{formatarMoeda(provTotais.total_ferias)}</p>
+                      <p className="text-xs text-muted-foreground">Férias</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-5 w-5 text-orange-500" />
+                    <div>
+                      <p className="text-lg font-bold">{formatarMoeda(provTotais.total_fgts)}</p>
+                      <p className="text-xs text-muted-foreground">FGTS</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    <div>
+                      <p className="text-lg font-bold">{formatarMoeda(provTotais.total_provisao_certa)}</p>
+                      <p className="text-xs text-muted-foreground">Provisão Certa</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                    <div>
+                      <p className="text-lg font-bold">{formatarMoeda(provTotais.total_provisao_eventual)}</p>
+                      <p className="text-xs text-muted-foreground">Eventual</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Observações */}
-        <Card className="card-dark mb-6">
-          <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-            <CardTitle className="card-title-dark flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Observações
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4">
-            <Textarea
-              value={observacoes}
-              onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="Observações sobre esta simulação..."
-              className="textarea-dark min-h-[100px]"
-              rows={4}
-            />
-          </CardContent>
-        </Card>
+            {/* Lista de provisões */}
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Provisões de {MESES[mesAtual - 1]?.label}/{anoAtual}</CardTitle>
+                  <Button onClick={calcularProvisoes} disabled={calculandoProvisoes}>
+                    {calculandoProvisoes ? <RefreshCcw className="h-4 w-4 mr-2 animate-spin" /> : <Calculator className="h-4 w-4 mr-2" />}
+                    Calcular
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {provisoes.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar className="h-8 w-8 mx-auto mb-2" />
+                    <p>Nenhuma provisão calculada</p>
+                    <p className="text-sm">Clique em &quot;Calcular&quot; para gerar as provisões do mês</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {provisoes.map(prov => (
+                      <div key={prov.id} className="border rounded-lg p-4">
+                        <div className="flex justify-between items-center">
+                          <div className="font-medium">{prov.funcionario?.nome || prov.funcionario_nome}</div>
+                          <Badge variant={prov.percentual_salario > 30 ? 'destructive' : 'secondary'}>
+                            {prov.percentual_salario.toFixed(0)}%
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-4 gap-4 mt-2 text-sm">
+                          <div>
+                            <p className="text-muted-foreground">13º</p>
+                            <p className="font-medium text-green-600">{formatarMoeda(prov.decimo_terceiro)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Férias</p>
+                            <p className="font-medium text-blue-600">{formatarMoeda(prov.ferias)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">FGTS</p>
+                            <p className="font-medium text-orange-600">{formatarMoeda(prov.fgts_provisao)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Total</p>
+                            <p className="font-bold text-primary">{formatarMoeda(prov.provisao_certa)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        {/* Legenda */}
-        <Card className="card-dark">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-2">
-              <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
-                <p><strong>Colunas Laranja:</strong> Campos editáveis que você deve preencher manualmente</p>
-                <p><strong>Adicional Noturno:</strong> Automático por área - Salão/Bar: R$125, Cozinha: R$115, Liderança: R$0</p>
-                <p><strong>Cálculos Automáticos:</strong></p>
-                <ul className="list-disc list-inside ml-4 space-y-1">
-                  <li>DRS Sobre Ads Noturno = Adicional Noturno × 20%</li>
-                  <li>Produtividade = Salário Bruto × 5%</li>
-                  <li>Desc Vale Transporte = Salário Bruto × 6% (negativo)</li>
-                  <li>INSS = Base × 8% (negativo)</li>
-                  <li>IR = Fórmula progressiva com dedução</li>
-                  <li>Provisão Certa = Base × 27%</li>
-                  <li>FGTS = Mesmo valor absoluto do INSS</li>
-                </ul>
-                <p><strong>Custo-Empresa CLT:</strong> (Encargos / 30 × Dias Trabalhados) + Aviso Prévio + Adicionais</p>
-                <p><strong>Custo-Empresa PJ:</strong> (Salário + Tempo Casa + Vale + Adicionais + Aviso) / 30 × Dias Trabalhados</p>
-              </div>
+          {/* ==================== ABA IMPORTAR ==================== */}
+          <TabsContent value="importar">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Importar Funcionários
+                  </CardTitle>
+                  <CardDescription>Importe funcionários da planilha Google Sheets</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Os funcionários serão importados das abas &quot;CMO Semana&quot; ou &quot;Simulação CMO Mês&quot;.
+                    Funcionários já existentes (mesmo nome) serão ignorados.
+                  </p>
+                  <Button onClick={() => importarDaPlanilha('funcionarios')} disabled={importando} className="w-full">
+                    {importando ? <RefreshCcw className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                    Importar Funcionários
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    Importar Provisões
+                  </CardTitle>
+                  <CardDescription>Importe o histórico de provisões desde 2022</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Serão importadas as 553 linhas de provisões históricas da aba &quot;PROVISÕES&quot;.
+                    Cada registro inclui 13º, férias, FGTS e rescisão.
+                  </p>
+                  <Button onClick={() => importarDaPlanilha('provisoes')} disabled={importando} variant="secondary" className="w-full">
+                    {importando ? <RefreshCcw className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                    Importar Provisões
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+          </TabsContent>
+        </Tabs>
       </div>
+
+      {/* ==================== DIALOG FUNCIONÁRIO ==================== */}
+      <Dialog open={isDialogFuncOpen} onOpenChange={setIsDialogFuncOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingFuncionario ? 'Editar Funcionário' : 'Novo Funcionário'}</DialogTitle>
+            <DialogDescription>Preencha os dados do funcionário</DialogDescription>
+          </DialogHeader>
+
+          <Tabs defaultValue="dados" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="dados">Dados Pessoais</TabsTrigger>
+              <TabsTrigger value="contrato">Contrato</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="dados" className="space-y-4 mt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <Label htmlFor="nome">Nome Completo *</Label>
+                  <Input id="nome" value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} />
+                </div>
+                <div>
+                  <Label htmlFor="cpf">CPF</Label>
+                  <Input id="cpf" value={formData.cpf} onChange={(e) => setFormData({ ...formData, cpf: e.target.value })} />
+                </div>
+                <div>
+                  <Label htmlFor="telefone">Telefone</Label>
+                  <Input id="telefone" value={formData.telefone} onChange={(e) => setFormData({ ...formData, telefone: e.target.value })} />
+                </div>
+                <div className="col-span-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="contrato" className="space-y-4 mt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Data de Admissão</Label>
+                  <Input type="date" value={formData.data_admissao} onChange={(e) => setFormData({ ...formData, data_admissao: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Tipo de Contratação</Label>
+                  <Select value={formData.tipo_contratacao} onValueChange={(v) => setFormData({ ...formData, tipo_contratacao: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {TIPOS_CONTRATACAO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Área</Label>
+                  <Select value={formData.area_id} onValueChange={(v) => setFormData({ ...formData, area_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectContent>
+                      {areas.map(a => <SelectItem key={a.id} value={a.id.toString()}>{a.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Cargo</Label>
+                  <Select value={formData.cargo_id} onValueChange={(v) => setFormData({ ...formData, cargo_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectContent>
+                      {cargos.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Salário Base</Label>
+                  <Input type="number" step="0.01" value={formData.salario_base} onChange={(e) => setFormData({ ...formData, salario_base: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Vale Transporte (Diária)</Label>
+                  <Input type="number" step="0.01" value={formData.vale_transporte_diaria} onChange={(e) => setFormData({ ...formData, vale_transporte_diaria: e.target.value })} />
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogFuncOpen(false)}>Cancelar</Button>
+            <Button onClick={salvarFuncionario}>{editingFuncionario ? 'Salvar Alterações' : 'Cadastrar'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

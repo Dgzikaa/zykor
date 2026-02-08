@@ -120,183 +120,234 @@ export async function POST(request: NextRequest) {
     console.log(`[NIBO-SCHEDULES-V4] Body recebido:`, JSON.stringify(body, null, 2));
     console.log(`[NIBO-SCHEDULES-V4] value raw:`, value, typeof value);
 
-    // Validações
-    if (!stakeholderId || !dueDate || !value) {
+    // Validações - stakeholderId agora é opcional (pode criar agendamento sem vinculo)
+    if (!dueDate || !value) {
       return NextResponse.json(
-        { success: false, error: 'stakeholderId, dueDate e value são obrigatórios' },
+        { success: false, error: 'dueDate e value são obrigatórios' },
         { status: 400 }
       );
     }
-
-    // IMPORTANTE: categoria_id é OBRIGATÓRIO no NIBO
-    // Se não foi passado, retornar erro claro
-    if (!categoria_id) {
-      return NextResponse.json(
-        { success: false, error: 'categoria_id é obrigatório. Selecione uma categoria antes de agendar.' },
-        { status: 400 }
-      );
+    
+    // Se não tiver stakeholderId, tentar buscar um stakeholder padrão "FUNCIONARIOS GERAIS"
+    // ou criar agendamento sem stakeholder (NIBO pode aceitar null)
+    let finalStakeholderId = stakeholderId;
+    
+    if (!finalStakeholderId) {
+      console.log('[NIBO-SCHEDULES] Sem stakeholderId, buscando supplier por nome...');
+      
+      // Buscar supplier pelo nome no NIBO (endpoint /suppliers)
+      try {
+        const niboCredencial = await getNiboCredentials(bar_id);
+        if (niboCredencial) {
+          const searchUrl = `${NIBO_BASE_URL}/suppliers?apitoken=${niboCredencial.api_token}&$top=1000`;
+          const searchResponse = await fetch(searchUrl, {
+            headers: { 'accept': 'application/json', 'apitoken': niboCredencial.api_token }
+          });
+          
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json();
+            const stakeholders = searchData.items || searchData || [];
+            
+            // Buscar por nome do beneficiário (stakeholder_nome) no NIBO
+            if (stakeholder_nome) {
+              const nomeNormalizado = stakeholder_nome.toUpperCase().trim();
+              const found = stakeholders.find((s: any) => 
+                s.name?.toUpperCase().trim() === nomeNormalizado ||
+                s.name?.toUpperCase().includes(nomeNormalizado) ||
+                nomeNormalizado.includes(s.name?.toUpperCase() || '')
+              );
+              
+              if (found) {
+                finalStakeholderId = found.id;
+                console.log(`[NIBO-SCHEDULES] Stakeholder encontrado por nome: ${found.name} (${found.id})`);
+              }
+            }
+            
+            // Se não encontrou por nome, buscar stakeholder genérico
+            if (!finalStakeholderId) {
+              const generico = stakeholders.find((s: any) => 
+                s.name?.toUpperCase().includes('FUNCIONARIO') ||
+                s.name?.toUpperCase().includes('COLABORADOR') ||
+                s.name?.toUpperCase().includes('GERAL')
+              );
+              
+              if (generico) {
+                finalStakeholderId = generico.id;
+                console.log(`[NIBO-SCHEDULES] Usando stakeholder genérico: ${generico.name} (${generico.id})`);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[NIBO-SCHEDULES] Erro ao buscar stakeholder padrão:', e);
+      }
+      
+      // Se ainda não encontrou stakeholder, apenas logar (não bloquear para agendamentos locais)
+      if (!finalStakeholderId) {
+        console.log('[NIBO-SCHEDULES] Stakeholder não encontrado, agendamento será salvo sem vinculo');
+      }
     }
 
+    // categoria_id é obrigatório apenas se for sincronizar com NIBO
+    // Para agendamentos locais, podemos permitir sem categoria
+    const temCredenciaisNibo = await getNiboCredentials(bar_id);
+    if (!categoria_id && temCredenciaisNibo) {
+      console.warn('[NIBO-SCHEDULES] categoria_id não fornecida, NIBO pode rejeitar');
+    }
+
+    // Preparar valor numérico
+    const valorNumerico = parseFloat((Math.abs(parseFloat(String(value)))).toFixed(2));
+    const valorNegativo = valorNumerico * -1; // DEVE ser negativo para NIBO
+
+    // Tentar buscar credenciais do NIBO (agora é opcional)
     const credencial = await getNiboCredentials(bar_id);
     
-    if (!credencial) {
-      return NextResponse.json(
-        { success: false, error: 'Credenciais NIBO não encontradas para este bar' },
-        { status: 400 }
-      );
-    }
-
-    // Preparar payload para NIBO - endpoint /schedules/debit para AGENDAMENTO de despesas
-    // CONFIRMADO: NIBO exige valor NEGATIVO para /schedules/debit
-    const valorNumerico = parseFloat((Math.abs(parseFloat(String(value)))).toFixed(2));
-    const valorNegativo = valorNumerico * -1; // DEVE ser negativo!
-    
-    console.log('[NIBO-SCHEDULES-V7] Valor calculado:', {
-      original: value,
-      numerico: valorNumerico,
-      negativo: valorNegativo,
-      eh_negativo: valorNegativo < 0
-    });
-    
-    // Montar objeto de categoria com valor NEGATIVO (obrigatório para /schedules/debit)
-    // V10: Testando se value precisa ser string (como costCenters.value)
-    const categoryItem: any = {
-      categoryId: categoria_id,
-      value: valorNegativo, // number negativo
-      description: description || 'Pagamento'
-    };
-    
-    // DEBUG V10: Logar o JSON exato que será enviado
-    console.log('[NIBO-SCHEDULES-V10] categoryItem.value:', categoryItem.value, 'tipo:', typeof categoryItem.value);
-    
-    // Payload para /schedules/debit
-    // V9: Removido 'value' do nível raiz (não existe na doc), adicionado costCenterValueType
-    const schedulePayload: any = {
-      stakeholderId: stakeholderId,
-      dueDate: dueDate,
-      scheduleDate: scheduleDate || dueDate,
-      accrualDate: accrualDate || dueDate, // string
-      description: description || 'Pagamento agendado',
-      categories: [categoryItem]
-    };
-
-    // Adicionar centro de custo se fornecido
-    // IMPORTANTE: costCenterValueType = 0 significa "valor" (não percentagem)
-    if (centro_custo_id) {
-      schedulePayload.costCenterValueType = 0; // 0 = valor, 1 = percentagem
-      schedulePayload.costCenters = [{
-        costCenterId: centro_custo_id,
-        value: String(valorNegativo) // Doc diz que é string!
-      }];
-    }
-
-    // Adicionar referência se fornecida
-    if (reference) {
-      schedulePayload.reference = reference;
-    }
-
-    console.log('[NIBO-SCHEDULES-V9] ========== PAYLOAD FINAL ==========');
-    console.log('[NIBO-SCHEDULES-V9] Payload para NIBO:', JSON.stringify(schedulePayload, null, 2));
-    console.log('[NIBO-SCHEDULES-V9] Valor na categoria:', schedulePayload.categories[0].value);
-    console.log('[NIBO-SCHEDULES-V9] Tipo do valor:', typeof schedulePayload.categories[0].value);
-    console.log('[NIBO-SCHEDULES-V9] É negativo?:', schedulePayload.categories[0].value < 0);
-    console.log('[NIBO-SCHEDULES-V9] costCenterValueType:', schedulePayload.costCenterValueType);
-
-    // Verificação de segurança - garantir que valor é negativo antes de enviar
-    if (schedulePayload.categories[0].value >= 0) {
-      console.error('[NIBO-SCHEDULES-V9] ERRO CRÍTICO: Valor não é negativo!', schedulePayload.categories[0].value);
-      return NextResponse.json({
-        success: false,
-        error: 'Erro interno: valor deve ser negativo para agendamento de débito',
-        debug: {
-          valor_recebido: value,
-          valor_calculado: schedulePayload.categories[0].value
-        }
-      }, { status: 400 });
-    }
-
-    // V10: Log do body exato antes de enviar
-    const bodyString = JSON.stringify(schedulePayload);
-    console.log('[NIBO-SCHEDULES-V10] Body string exato:', bodyString);
-    
-    // Endpoint /schedules/debit para AGENDAR despesas (não paga imediatamente)
-    const response = await fetch(`${NIBO_BASE_URL}/schedules/debit?apitoken=${credencial.api_token}`, {
-      method: 'POST',
-      headers: {
-        'accept': 'application/json',
-        'Content-Type': 'application/json',
-        'apitoken': credencial.api_token
-      },
-      body: bodyString
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[NIBO-SCHEDULES] Erro ao criar:', response.status, errorText);
-      return NextResponse.json(
-        { success: false, error: `Erro NIBO: ${response.status} - ${errorText}` },
-        { status: response.status }
-      );
-    }
-
-    // NIBO retorna o ID como texto puro (UUID), não como JSON
-    const responseText = await response.text();
-    console.log('[NIBO-SCHEDULES] Resposta do NIBO (raw):', responseText);
-    
-    // Tentar parsear como JSON primeiro, senão usar o texto como ID
-    let niboId: string;
+    let niboId: string | null = null;
     let niboData: any = {};
+    let origemAgendamento = 'local'; // Default: salvar localmente
+    let sincronizadoNibo = false;
+    let erroNibo: string | null = null;
     
-    try {
-      niboData = JSON.parse(responseText);
-      niboId = niboData.id || niboData.scheduleId || niboData.Id || niboData.ScheduleId || responseText.replace(/"/g, '');
-    } catch {
-      // Resposta é texto puro (UUID)
-      niboId = responseText.replace(/"/g, '').trim();
-      niboData = { id: niboId };
-    }
-    
-    console.log('[NIBO-SCHEDULES] Agendamento criado no NIBO, ID:', niboId);
+    // Se tiver credenciais do NIBO, tentar criar lá
+    if (credencial) {
+      try {
+        console.log('[NIBO-SCHEDULES-V7] Valor calculado:', {
+          original: value,
+          numerico: valorNumerico,
+          negativo: valorNegativo,
+          eh_negativo: valorNegativo < 0
+        });
+        
+        // Montar objeto de categoria com valor NEGATIVO (obrigatório para /schedules/debit)
+        const categoryItem: any = {
+          categoryId: categoria_id,
+          value: valorNegativo,
+          description: description || 'Pagamento'
+        };
+        
+        // Payload para /schedules/debit
+        const schedulePayload: any = {
+          stakeholderId: finalStakeholderId,
+          dueDate: dueDate,
+          scheduleDate: scheduleDate || dueDate,
+          accrualDate: accrualDate || dueDate,
+          description: description || 'Pagamento agendado',
+          categories: [categoryItem]
+        };
 
-    // Salvar no banco local para tracking (salva valor POSITIVO para exibição)
-    // Só salva se tiver um ID válido
-    if (!niboId) {
-      console.warn('[NIBO-SCHEDULES] NIBO não retornou ID do agendamento, pulando salvamento local');
+        // Adicionar centro de custo se fornecido
+        if (centro_custo_id) {
+          schedulePayload.costCenterValueType = 0;
+          schedulePayload.costCenters = [{
+            costCenterId: centro_custo_id,
+            value: String(valorNegativo)
+          }];
+        }
+
+        // Adicionar referência se fornecida
+        if (reference) {
+          schedulePayload.reference = reference;
+        }
+
+        console.log('[NIBO-SCHEDULES] Payload para NIBO:', JSON.stringify(schedulePayload, null, 2));
+
+        // Verificação de segurança - garantir que valor é negativo
+        if (schedulePayload.categories[0].value >= 0) {
+          console.error('[NIBO-SCHEDULES] ERRO: Valor não é negativo!', schedulePayload.categories[0].value);
+          erroNibo = 'Valor deve ser negativo para agendamento de débito';
+        } else {
+          // Endpoint /schedules/debit para AGENDAR despesas
+          const bodyString = JSON.stringify(schedulePayload);
+          const response = await fetch(`${NIBO_BASE_URL}/schedules/debit?apitoken=${credencial.api_token}`, {
+            method: 'POST',
+            headers: {
+              'accept': 'application/json',
+              'Content-Type': 'application/json',
+              'apitoken': credencial.api_token
+            },
+            body: bodyString
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[NIBO-SCHEDULES] Erro NIBO:', response.status, errorText);
+            erroNibo = `Erro NIBO: ${response.status} - ${errorText.substring(0, 200)}`;
+          } else {
+            // NIBO retorna o ID como texto puro (UUID)
+            const responseText = await response.text();
+            console.log('[NIBO-SCHEDULES] Resposta do NIBO (raw):', responseText);
+            
+            try {
+              niboData = JSON.parse(responseText);
+              niboId = niboData.id || niboData.scheduleId || niboData.Id || niboData.ScheduleId || responseText.replace(/"/g, '');
+            } catch {
+              niboId = responseText.replace(/"/g, '').trim();
+              niboData = { id: niboId };
+            }
+            
+            console.log('[NIBO-SCHEDULES] Agendamento criado no NIBO, ID:', niboId);
+            origemAgendamento = 'nibo';
+            sincronizadoNibo = true;
+          }
+        }
+      } catch (niboError) {
+        console.error('[NIBO-SCHEDULES] Erro ao comunicar com NIBO:', niboError);
+        erroNibo = `Erro de comunicação com NIBO: ${niboError instanceof Error ? niboError.message : 'Erro desconhecido'}`;
+      }
+    } else {
+      console.log('[NIBO-SCHEDULES] Sem credenciais NIBO, salvando apenas localmente');
+      erroNibo = 'Credenciais NIBO não configuradas';
     }
+
+    // SEMPRE salvar no banco local (com ou sem NIBO)
+    // Gerar ID local se não tiver ID do NIBO
+    const idParaSalvar = niboId || `local-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     
-    const { error: insertError } = await supabase.from('nibo_agendamentos').insert({
-      nibo_id: niboId || `temp-${Date.now()}`, // Fallback temporário se não tiver ID
+    const { data: insertedData, error: insertError } = await supabase.from('nibo_agendamentos').insert({
+      nibo_id: niboId, // null se não tiver NIBO
       bar_id,
       bar_nome: bar_nome || null,
       tipo: 'despesa',
       status: 'pendente',
-      valor: valorNumerico, // Salva positivo para exibição
+      valor: valorNumerico,
       data_vencimento: dueDate,
       data_pagamento: null,
       descricao: description,
       categoria_id,
       categoria_nome: categoria_nome || null,
-      stakeholder_id: stakeholderId,
+      stakeholder_id: stakeholderId || null,
       stakeholder_nome: stakeholder_nome || null,
       centro_custo_id,
       centro_custo_nome: centro_custo_nome || null,
       criado_por_id: criado_por_id || null,
       criado_por_nome: criado_por_nome || null,
+      origem: origemAgendamento,
+      sincronizado_nibo: sincronizadoNibo,
       criado_em: new Date().toISOString(),
       atualizado_em: new Date().toISOString()
-    });
+    }).select('id').single();
 
     if (insertError) {
       console.error('[NIBO-SCHEDULES] Erro ao salvar no banco local:', insertError);
-      // Não falhar por causa disso, o agendamento foi criado no NIBO
+      return NextResponse.json(
+        { success: false, error: `Erro ao salvar agendamento: ${insertError.message}` },
+        { status: 500 }
+      );
     }
+
+    console.log('[NIBO-SCHEDULES] Agendamento salvo localmente, ID:', insertedData?.id);
 
     return NextResponse.json({
       success: true,
       data: {
-        id: niboId,
+        id: niboId || insertedData?.id,
+        local_id: insertedData?.id,
+        nibo_id: niboId,
         ...niboData
-      }
+      },
+      origem: origemAgendamento,
+      sincronizado_nibo: sincronizadoNibo,
+      aviso_nibo: erroNibo ? `Agendamento salvo localmente. ${erroNibo}` : null
     });
 
   } catch (error) {

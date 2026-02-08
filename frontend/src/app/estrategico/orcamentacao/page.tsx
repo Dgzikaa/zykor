@@ -357,12 +357,6 @@ export default function OrcamentacaoPage() {
               <AnimatedCurrency value={totaisPeriodo.receita_planejado} className="text-sm font-bold text-blue-600 dark:text-blue-400" />
             </div>
 
-            {/* Receita Projeção */}
-            <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-2 border border-green-200 dark:border-green-700">
-              <div className="text-green-700 dark:text-green-300 text-[10px] font-medium mb-0.5">Receita Proj.</div>
-              <AnimatedCurrency value={totaisPeriodo.receita_projecao} className="text-sm font-bold text-green-600 dark:text-green-400" />
-            </div>
-
             {/* Receita Realizada */}
             <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-lg p-2 border border-emerald-200 dark:border-emerald-700">
               <div className="text-emerald-700 dark:text-emerald-300 text-[10px] font-medium mb-0.5">Receita Real.</div>

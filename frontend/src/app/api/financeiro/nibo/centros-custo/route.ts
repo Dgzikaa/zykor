@@ -108,22 +108,53 @@ export async function GET(request: NextRequest) {
 
       // Salvar/atualizar centros de custo na tabela local para cache
       for (const centro of centrosCusto) {
-        const { error: upsertError } = await supabase
-          .from('nibo_centros_custo')
-          .upsert({
-            nibo_id: centro.nibo_id,
-            bar_id: parseInt(barId),
-            nome: centro.nome,
-            codigo: centro.codigo,
-            ativo: centro.ativo,
-            atualizado_em: new Date().toISOString()
-          }, {
-            onConflict: 'nibo_id,bar_id',
-            ignoreDuplicates: false
-          });
+        const niboIdStr = String(centro.nibo_id || '').trim();
+        
+        if (!niboIdStr) {
+          console.warn(`[NIBO-CENTROS-CUSTO] Centro sem nibo_id: ${centro.nome}`);
+          continue;
+        }
 
-        if (upsertError) {
-          console.warn(`[NIBO-CENTROS-CUSTO] Erro ao salvar centro ${centro.nome}:`, upsertError);
+        // Verificar se já existe
+        const { data: existente } = await supabase
+          .from('nibo_centros_custo')
+          .select('id')
+          .eq('nibo_id', niboIdStr)
+          .eq('bar_id', parseInt(barId))
+          .single();
+
+        if (existente) {
+          // Atualizar existente
+          const { error: updateError } = await supabase
+            .from('nibo_centros_custo')
+            .update({
+              nome: centro.nome,
+              codigo: centro.codigo,
+              ativo: centro.ativo,
+              atualizado_em: new Date().toISOString()
+            })
+            .eq('id', existente.id);
+
+          if (updateError) {
+            console.warn(`[NIBO-CENTROS-CUSTO] Erro ao atualizar centro ${centro.nome}:`, updateError);
+          }
+        } else {
+          // Inserir novo
+          const { error: insertError } = await supabase
+            .from('nibo_centros_custo')
+            .insert({
+              nibo_id: niboIdStr,
+              bar_id: parseInt(barId),
+              nome: centro.nome,
+              codigo: centro.codigo,
+              ativo: centro.ativo,
+              criado_em: new Date().toISOString(),
+              atualizado_em: new Date().toISOString()
+            });
+
+          if (insertError) {
+            console.warn(`[NIBO-CENTROS-CUSTO] Erro ao inserir centro ${centro.nome}:`, insertError);
+          }
         }
       }
 

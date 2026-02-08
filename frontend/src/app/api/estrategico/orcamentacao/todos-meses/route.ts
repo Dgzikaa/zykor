@@ -1,8 +1,57 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 // Cache por 2 minutos, revalidar em background por até 10 minutos
 export const revalidate = 120;
+
+// ==================== HELPER PAGINAÇÃO ====================
+
+// Buscar todos os registros com paginação (limite padrão do Supabase é 1000)
+async function fetchAllPaginated<T>(
+  supabase: SupabaseClient,
+  table: string,
+  select: string,
+  filters: { column: string; operator: string; value: any }[],
+  pageSize: number = 1000
+): Promise<T[]> {
+  let allData: T[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase.from(table).select(select);
+    
+    // Aplicar filtros
+    for (const filter of filters) {
+      if (filter.operator === 'eq') {
+        query = query.eq(filter.column, filter.value);
+      } else if (filter.operator === 'gte') {
+        query = query.gte(filter.column, filter.value);
+      } else if (filter.operator === 'lte') {
+        query = query.lte(filter.column, filter.value);
+      } else if (filter.operator === 'in') {
+        query = query.in(filter.column, filter.value);
+      }
+    }
+
+    const { data, error } = await query.range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error(`Erro ao buscar ${table}:`, error);
+      break;
+    }
+
+    if (data && data.length > 0) {
+      allData = allData.concat(data as T[]);
+      offset += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
 
 // ==================== HELPERS CMV MENSAL ====================
 
@@ -309,23 +358,21 @@ export async function GET(request: Request) {
     // Buscar dados planejados de todos os meses de uma vez
     const anosUnicos = [...new Set(mesesParaBuscar.map(m => m.ano))];
     
-    // Calcular range de datas para buscar NIBO
-    const mesMin = Math.min(...mesesParaBuscar.map(m => m.mes));
-    const mesMax = Math.max(...mesesParaBuscar.map(m => m.mes));
-    const anoMin = Math.min(...anosUnicos);
-    const anoMax = Math.max(...anosUnicos);
-
-    // Calcular último dia do mês corretamente
-    const ultimoDiaMes = new Date(anoMax, mesMax, 0).getDate();
+    // Calcular range de datas para buscar NIBO (primeiro e último mês do período)
+    const primeiroMesPeriodo = mesesParaBuscar[0];
+    const ultimoMesPeriodo = mesesParaBuscar[mesesParaBuscar.length - 1];
     
-    const dataInicio = `${anoMin}-${String(mesMin).padStart(2, '0')}-01`;
-    const dataFim = `${anoMax}-${String(mesMax).padStart(2, '0')}-${String(ultimoDiaMes).padStart(2, '0')}`;
+    // Calcular último dia do último mês corretamente
+    const ultimoDiaMes = new Date(ultimoMesPeriodo.ano, ultimoMesPeriodo.mes, 0).getDate();
+    
+    const dataInicio = `${primeiroMesPeriodo.ano}-${String(primeiroMesPeriodo.mes).padStart(2, '0')}-01`;
+    const dataFim = `${ultimoMesPeriodo.ano}-${String(ultimoMesPeriodo.mes).padStart(2, '0')}-${String(ultimoDiaMes).padStart(2, '0')}`;
 
-    // 🚀 OTIMIZAÇÃO: Executar TODAS as queries em paralelo
+    // 🚀 OTIMIZAÇÃO: Executar TODAS as queries em paralelo (com paginação para NIBO)
     const [
       planejadosResult,
-      niboTodosResult,
-      niboPagosResult,
+      dadosNiboTodos,
+      dadosNiboPagos,
       manuaisResult,
       eventosResult
     ] = await Promise.all([
@@ -336,22 +383,30 @@ export async function GET(request: Request) {
         .eq('bar_id', parseInt(barId))
         .in('ano', anosUnicos),
       
-      // Query 2: NIBO todos (projeção)
-      supabase
-        .from('nibo_agendamentos')
-        .select('categoria_nome, status, valor, data_competencia')
-        .eq('bar_id', parseInt(barId))
-        .gte('data_competencia', dataInicio)
-        .lte('data_competencia', dataFim),
+      // Query 2: NIBO todos (projeção) - COM PAGINAÇÃO
+      fetchAllPaginated<{ categoria_nome: string; status: string; valor: string; data_competencia: string }>(
+        supabase,
+        'nibo_agendamentos',
+        'categoria_nome, status, valor, data_competencia',
+        [
+          { column: 'bar_id', operator: 'eq', value: parseInt(barId) },
+          { column: 'data_competencia', operator: 'gte', value: dataInicio },
+          { column: 'data_competencia', operator: 'lte', value: dataFim }
+        ]
+      ),
       
-      // Query 3: NIBO pagos (realizado)
-      supabase
-        .from('nibo_agendamentos')
-        .select('categoria_nome, status, valor, data_competencia')
-        .eq('bar_id', parseInt(barId))
-        .eq('status', 'Pago')
-        .gte('data_competencia', dataInicio)
-        .lte('data_competencia', dataFim),
+      // Query 3: NIBO pagos (realizado) - COM PAGINAÇÃO - usar data_pagamento
+      fetchAllPaginated<{ categoria_nome: string; status: string; valor: string; data_pagamento: string }>(
+        supabase,
+        'nibo_agendamentos',
+        'categoria_nome, status, valor, data_pagamento',
+        [
+          { column: 'bar_id', operator: 'eq', value: parseInt(barId) },
+          { column: 'status', operator: 'eq', value: 'Pago' },
+          { column: 'data_pagamento', operator: 'gte', value: dataInicio },
+          { column: 'data_pagamento', operator: 'lte', value: dataFim }
+        ]
+      ),
       
       // Query 4: Lançamentos manuais DRE
       supabase
@@ -371,10 +426,10 @@ export async function GET(request: Request) {
     ]);
 
     const dadosPlanejados = planejadosResult.data;
-    const dadosNiboTodos = niboTodosResult.data;
-    const dadosNiboPagos = niboPagosResult.data;
+    // dadosNiboTodos e dadosNiboPagos já são arrays (vieram da função paginada)
     const dadosManuais = manuaisResult.data;
     const eventosBase = eventosResult.data;
+    
 
     // 🚀 OTIMIZAÇÃO: Calcular CMV de todos os meses em paralelo
     const cmvMensalMap = new Map<string, { cmvPercentual: number; cmvValor: number; faturamentoCmvivel: number }>();
@@ -428,10 +483,10 @@ export async function GET(request: Request) {
         return item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes;
       }) || [];
 
-      // Filtrar dados do NIBO para este mês (PAGOS - para realizado)
+      // Filtrar dados do NIBO para este mês (PAGOS - para realizado) - usar data_pagamento
       const niboPagosMes = dadosNiboPagos?.filter(item => {
-        if (!item.data_competencia) return false;
-        return item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes;
+        if (!item.data_pagamento) return false;
+        return item.data_pagamento >= dataInicioMes && item.data_pagamento <= dataFimMes;
       }) || [];
 
       // Filtrar dados manuais para este mês
@@ -595,14 +650,19 @@ export async function GET(request: Request) {
       let despesas_projecao = 0;
       let despesas_realizado = 0;
 
-      // Buscar receita planejada
-      const receitaPlanejada = planejadosMes.find(p => p.categoria_nome === 'RECEITA BRUTA');
-      receita_planejado = Number(receitaPlanejada?.valor_planejado) || 0;
+      // Buscar receita planejada (tabela orcamentacao ou Meta M1 dos eventos)
+      const receitaPlanejadaDb = planejadosMes.find(p => p.categoria_nome === 'RECEITA BRUTA');
+      receita_planejado = Number(receitaPlanejadaDb?.valor_planejado) || 0;
+      
+      // Se não houver planejado na tabela, usar Meta M1 dos eventos
+      if (receita_planejado === 0 && faturamentoReal.meta > 0) {
+        receita_planejado = faturamentoReal.meta;
+      }
 
       categorias.forEach(cat => {
         cat.subcategorias.forEach(sub => {
           if (cat.tipo === 'receita') {
-            receita_planejado += sub.nome === 'RECEITA BRUTA' ? 0 : sub.planejado; // Evitar duplicar
+            receita_planejado += sub.nome === 'RECEITA BRUTA' ? 0 : sub.planejado; // Evitar duplicar (já contamos acima)
             receita_projecao += sub.projecao;
             receita_realizado += sub.realizado;
           } else {

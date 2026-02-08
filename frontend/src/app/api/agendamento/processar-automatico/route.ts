@@ -1,20 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { getInterAccessToken } from '@/lib/inter/getAccessToken';
 import { realizarPagamentoPixInter } from '@/lib/inter/pixPayment';
 
-// Configurações das contas (baseado no código Python)
-const CONFIGS = {
-  'Ordinário': {
-    CLIENT_ID: "82b467b4-1b13-4e7d-b9b9-1d4a189d8261",
-    CLIENT_SECRET: "a6332693-b9b6-443c-b75a-d1004b64e901",
-    CONTA_CORRENTE: "400516462",
-  },
-  'Deboche': {
-    CLIENT_ID: "de908775-6f1a-4358-91bf-2c881518f1b8",
-    CLIENT_SECRET: "1a12ef7d-59cc-45b7-927f-54954ed1e062",
-    CONTA_CORRENTE: "101196318",
-  },
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+// Mapeamento de bar_id por nome
+const BAR_IDS: Record<string, number> = {
+  'Ordinário': 3,
+  'Deboche': 4,
 };
+
+// Buscar credenciais do Banco Inter do banco de dados
+async function getInterCredentials(barId: number): Promise<{
+  client_id: string;
+  client_secret: string;
+  configuracoes?: any;
+} | null> {
+  const { data, error } = await supabase
+    .from('api_credentials')
+    .select('client_id, client_secret, configuracoes')
+    .eq('sistema', 'inter')
+    .eq('bar_id', barId)
+    .eq('ativo', true)
+    .single();
+
+  if (error || !data?.client_id || !data?.client_secret) {
+    console.error(`[INTER] Credenciais não encontradas para bar_id ${barId}:`, error);
+    return null;
+  }
+
+  return data;
+}
 
 // Funções de validação (convertidas do Python)
 function validarCpf(cpf: string): boolean {
@@ -208,21 +228,33 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (!CONFIGS[conta as keyof typeof CONFIGS]) {
+    // Mapear conta para bar_id
+    const bar_id = BAR_IDS[conta as keyof typeof BAR_IDS];
+    
+    if (!bar_id) {
       return NextResponse.json({
         success: false,
         error: 'Conta não configurada'
       }, { status: 400 });
     }
 
-    const config = CONFIGS[conta as keyof typeof CONFIGS];
+    // Buscar credenciais do Banco Inter do banco de dados
+    const interCredentials = await getInterCredentials(bar_id);
     
-    // Mapear conta para bar_id
-    const barIdMap = {
-      'Ordinário': 3,
-      'Deboche': 4
+    if (!interCredentials) {
+      console.error(`[INTER] Credenciais não encontradas para ${conta} (bar_id: ${bar_id})`);
+      return NextResponse.json({
+        success: false,
+        error: `Credenciais do Banco Inter não configuradas para ${conta}`
+      }, { status: 400 });
+    }
+    
+    // Criar objeto config compatível com funções existentes
+    const config = {
+      CLIENT_ID: interCredentials.client_id,
+      CLIENT_SECRET: interCredentials.client_secret,
+      CONTA_CORRENTE: interCredentials.configuracoes?.conta_corrente || ''
     };
-    const bar_id = barIdMap[conta as keyof typeof barIdMap];
 
     // Processar chave PIX
     const { tipo, chaveFormatada } = identificarTipoChave(chave_pix);
@@ -289,9 +321,15 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://zykor.com.br');
     
     try {
-      // Buscar stakeholder existente por CPF/CNPJ
-      const cpfCnpj = chaveFormatada;
-      const stakeholderResponse = await fetch(`${baseUrl}/api/financeiro/nibo/stakeholders?q=${cpfCnpj}`);
+      // Determinar CPF/CNPJ para buscar stakeholder
+      // Se a chave PIX é CPF/CNPJ, usar ela como documento
+      // Caso contrário, buscar pelo nome do beneficiário
+      const cpfCnpj = (tipo === 'CPF' || tipo === 'CNPJ') ? chaveFormatada : '';
+      const queryParam = cpfCnpj || encodeURIComponent(nome_beneficiario);
+      
+      console.log(`🔍 Buscando stakeholder por: ${cpfCnpj ? 'CPF/CNPJ' : 'nome'} = ${queryParam}`);
+      
+      const stakeholderResponse = await fetch(`${baseUrl}/api/financeiro/nibo/stakeholders?q=${queryParam}&bar_id=${bar_id}`);
       const stakeholderData = await stakeholderResponse.json();
 
       if (stakeholderData.success && stakeholderData.data.length > 0) {
@@ -320,40 +358,42 @@ export async function POST(request: NextRequest) {
           console.log('✅ Chave PIX já está correta');
         }
       } else {
-        // Criar novo stakeholder COM chave PIX
-        // TODO: Implementar suporte multi-bar para agendamento automático
-        console.log('📝 Criando novo stakeholder com chave PIX...');
-        const novoStakeholder = {
-          name: nome_beneficiario,
-          document: cpfCnpj,
-          type: 'fornecedor' as const,
-          bar_id: bar_id || 3, // Usar bar_id do contexto ou fallback
-          pixKey: chaveFormatada,
-          pixKeyType: getTipoPixNibo(tipo)
-        };
+        // Tentar criar novo stakeholder apenas se temos CPF/CNPJ
+        if (cpfCnpj) {
+          console.log('📝 Criando novo stakeholder com chave PIX...');
+          const novoStakeholder = {
+            name: nome_beneficiario,
+            document: cpfCnpj,
+            type: 'fornecedor' as const,
+            bar_id: bar_id,
+            pixKey: chaveFormatada,
+            pixKeyType: getTipoPixNibo(tipo)
+          };
 
-        console.log('📤 Payload do novo stakeholder:', novoStakeholder);
+          console.log('📤 Payload do novo stakeholder:', novoStakeholder);
 
-        const createResponse = await fetch(`${baseUrl}/api/financeiro/nibo/stakeholders`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(novoStakeholder),
-        });
+          const createResponse = await fetch(`${baseUrl}/api/financeiro/nibo/stakeholders`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(novoStakeholder),
+          });
 
-        const createData = await createResponse.json();
-        if (createData.success) {
-          stakeholderId = createData.data.id;
-          console.log('✅ Stakeholder criado com chave PIX:', stakeholderId);
+          const createData = await createResponse.json();
+          if (createData.success) {
+            stakeholderId = createData.data.id;
+            console.log('✅ Stakeholder criado com chave PIX:', stakeholderId);
+          } else {
+            // Não bloquear, apenas logar warning
+            console.warn('⚠️ Não foi possível criar stakeholder, continuando sem:', createData.error);
+          }
         } else {
-          throw new Error(`Erro ao criar stakeholder: ${createData.error}`);
+          // Chave PIX não é CPF/CNPJ, não temos documento para criar stakeholder
+          console.log('⚠️ Chave PIX é email/telefone/aleatória - continuando sem stakeholder vinculado');
         }
       }
     } catch (error) {
-      console.error('❌ Erro ao verificar/criar stakeholder:', error);
-      return NextResponse.json({
-        success: false,
-        error: `Erro ao verificar/criar stakeholder no NIBO: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
-      }, { status: 500 });
+      // Não bloquear pagamento por erro de stakeholder
+      console.warn('⚠️ Erro ao verificar/criar stakeholder (continuando):', error);
     }
 
     // 2. SEGUNDO: Criar agendamento no NIBO
@@ -370,6 +410,7 @@ export async function POST(request: NextRequest) {
       // IMPORTANTE: NÃO passar 'categories' - a API /schedules usa categoria_id diretamente
       const agendamento = {
         stakeholderId: stakeholderId,
+        stakeholder_nome: nome_beneficiario, // Para buscar por nome se stakeholderId for null
         dueDate: dataPagamentoFormatada,
         scheduleDate: dataPagamentoFormatada,
         categoria_id: categoria_id, // OBRIGATÓRIO - ID da categoria no NIBO

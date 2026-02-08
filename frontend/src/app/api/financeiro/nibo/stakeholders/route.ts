@@ -50,11 +50,11 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Buscar na API do NIBO - buscar todos e filtrar localmente
-    // A API NIBO não suporta bem filtro por documento
-    const niboUrl = `${NIBO_BASE_URL}/stakeholders?apitoken=${credencial.api_token}&$top=500&$orderby=id`;
+    // Buscar na API do NIBO - usando /suppliers que é onde estão os fornecedores/funcionários
+    // O endpoint /stakeholders existe mas /suppliers é o mais usado para pagamentos
+    const niboUrl = `${NIBO_BASE_URL}/suppliers?apitoken=${credencial.api_token}&$top=1000`;
 
-    console.log('[NIBO-STAKEHOLDERS] Buscando da API NIBO...');
+    console.log('[NIBO-STAKEHOLDERS] Buscando suppliers da API NIBO...');
 
     const response = await fetch(niboUrl, {
       method: 'GET',
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
     const niboData = await response.json();
     let stakeholders = niboData.items || niboData || [];
 
-    console.log(`[NIBO-STAKEHOLDERS] Encontrados ${stakeholders.length} stakeholders no NIBO`);
+    console.log(`[NIBO-STAKEHOLDERS] Encontrados ${stakeholders.length} suppliers no NIBO`);
 
     // Filtrar localmente se houver query
     if (cleanQuery) {

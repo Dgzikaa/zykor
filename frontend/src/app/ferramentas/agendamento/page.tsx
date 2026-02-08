@@ -181,6 +181,8 @@ export default function AgendamentoPage() {
     [index: number]: {
       categoria_id: string;
       centro_custo_id: string;
+      stakeholder_id?: string;
+      stakeholder_nome?: string;
     }
   }>({});
   
@@ -569,14 +571,14 @@ export default function AgendamentoPage() {
       return;
     }
 
-    // VALIDAÇÃO CRÍTICA: Verificar se tem credenciais do NIBO
+    // AVISO: Se não tiver NIBO, agendamentos serão salvos apenas localmente
     if (!credenciaisDisponiveis.nibo) {
       toast({
-        title: '❌ Credenciais NIBO não configuradas',
-        description: `O bar "${barNome}" não possui credenciais NIBO configuradas. Configure antes de continuar.`,
-        variant: 'destructive',
+        title: '⚠️ NIBO não configurado',
+        description: `Os agendamentos serão salvos localmente. Configure o NIBO para sincronizar depois.`,
+        variant: 'default',
       });
-      return;
+      // Continua mesmo sem NIBO - agendamentos serão salvos localmente
     }
 
     if (pagamentos.length === 0) {
@@ -600,7 +602,7 @@ export default function AgendamentoPage() {
             const stakeholder = await verificarStakeholder(pagamento);
 
             // 2. Agendar no NIBO
-            await agendarNoNibo(pagamento, stakeholder);
+            await agendarPagamentoNoNibo(pagamento, stakeholder);
 
             // 3. Enviar para o Inter
             await enviarParaInter(pagamento);
@@ -754,6 +756,17 @@ export default function AgendamentoPage() {
   const verificarStakeholder = async (
     pagamento: PagamentoAgendamento
   ): Promise<Stakeholder> => {
+    // Se não tiver NIBO configurado, retornar stakeholder local
+    if (!credenciaisDisponiveis.nibo) {
+      console.log('[STAKEHOLDER] NIBO não configurado, usando stakeholder local');
+      return {
+        id: `local-${Date.now()}`,
+        name: pagamento.nome_beneficiario,
+        document: pagamento.cpf_cnpj || pagamento.chave_pix || '',
+        type: 'fornecedor'
+      };
+    }
+
     try {
       // Buscar stakeholder existente por CPF/CNPJ
       const cpfCnpj =
@@ -781,14 +794,25 @@ export default function AgendamentoPage() {
       });
 
       const createData = await createResponse.json();
-      return createData.data;
+      return createData.data || {
+        id: `local-${Date.now()}`,
+        name: pagamento.nome_beneficiario,
+        document: cpfCnpj,
+        type: 'fornecedor'
+      };
     } catch (error) {
       console.error('Erro ao verificar stakeholder:', error);
-      throw error;
+      // Fallback: retornar stakeholder local em caso de erro
+      return {
+        id: `local-${Date.now()}`,
+        name: pagamento.nome_beneficiario,
+        document: pagamento.cpf_cnpj || pagamento.chave_pix || '',
+        type: 'fornecedor'
+      };
     }
   };
 
-  const agendarNoNibo = async (
+  const agendarPagamentoNoNibo = async (
     pagamento: PagamentoAgendamento,
     stakeholder: Stakeholder
   ) => {
@@ -799,9 +823,9 @@ export default function AgendamentoPage() {
         throw new Error('Bar não identificado. Certifique-se de que o pagamento tem um bar associado.');
       }
 
-      // Validar que a categoria foi selecionada (OBRIGATÓRIO no NIBO)
-      if (!pagamento.categoria_id) {
-        throw new Error('Categoria é obrigatória. Selecione uma categoria antes de agendar no NIBO.');
+      // Categoria é recomendada para NIBO, mas agora é opcional para agendamentos locais
+      if (!pagamento.categoria_id && credenciaisDisponiveis.nibo) {
+        console.warn('[AGENDAMENTO] Categoria não selecionada, NIBO pode rejeitar');
       }
 
       // Formatar valor corretamente
@@ -1082,6 +1106,176 @@ export default function AgendamentoPage() {
     });
   };
 
+  // Função para pagar PENDENTES direto no Inter (sem NIBO)
+  const pagarPendentesInterDireto = async () => {
+    // VALIDAÇÃO CRÍTICA: Verificar se o bar está selecionado
+    if (!barId) {
+      toast({
+        title: '❌ Nenhum bar selecionado',
+        description: 'Selecione um bar antes de processar pagamentos',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // VALIDAÇÃO CRÍTICA: Verificar se tem credenciais do Inter
+    if (!credenciaisDisponiveis.inter) {
+      toast({
+        title: '❌ Credenciais Inter não configuradas',
+        description: `O bar "${barNome}" não possui credenciais Inter (certificados PIX) configuradas.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const pendentes = pagamentos.filter(p => p.status === 'pendente');
+    
+    if (pendentes.length === 0) {
+      toast({
+        title: 'Nenhum pagamento pendente',
+        description: 'Não há pagamentos com status "pendente" para processar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Verificar se todos têm chave PIX
+    const semChavePix = pendentes.filter(p => !p.chave_pix);
+    if (semChavePix.length > 0) {
+      toast({
+        title: 'Chave PIX faltando',
+        description: `${semChavePix.length} pagamento(s) não possuem chave PIX cadastrada`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setPagandoPixId('direct'); // Indicador de que está processando direto
+    setIsProcessing(true);
+    let sucessos = 0;
+    let erros = 0;
+
+    toast({
+      title: '💸 Enviando PIX direto...',
+      description: `Processando ${pendentes.length} pagamento(s) diretamente no Inter (sem NIBO)`,
+    });
+
+    for (const pagamento of pendentes) {
+      try {
+        // Extrair valor numérico
+        const valorLimpo = pagamento.valor.replace(/[^\d,.-]/g, '').replace(',', '.');
+        const valorNumerico = parseFloat(valorLimpo);
+
+        if (isNaN(valorNumerico) || valorNumerico <= 0) {
+          throw new Error('Valor inválido para pagamento');
+        }
+
+        console.log(`[PIX-DIRETO] Enviando pagamento para ${pagamento.nome_beneficiario}: R$ ${valorNumerico}`);
+
+        const response = await fetch('/api/financeiro/inter/pix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            valor: valorNumerico.toString(),
+            destinatario: pagamento.nome_beneficiario,
+            chave: pagamento.chave_pix,
+            data_pagamento: pagamento.data_pagamento,
+            descricao: pagamento.descricao || `Pagamento para ${pagamento.nome_beneficiario}`,
+            bar_id: pagamento.bar_id || barId,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Salvar localmente no banco (sem NIBO)
+          try {
+            await fetch('/api/financeiro/nibo/schedules', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                stakeholderId: null,
+                stakeholder_nome: pagamento.nome_beneficiario,
+                dueDate: pagamento.data_pagamento,
+                scheduleDate: pagamento.data_pagamento,
+                categoria_id: pagamento.categoria_id || null,
+                categoria_nome: pagamento.categoria_nome || null,
+                centro_custo_id: pagamento.centro_custo_id || null,
+                centro_custo_nome: pagamento.centro_custo_nome || null,
+                accrualDate: pagamento.data_competencia || pagamento.data_pagamento,
+                value: valorNumerico,
+                description: pagamento.descricao || `Pagamento PIX para ${pagamento.nome_beneficiario}`,
+                bar_id: pagamento.bar_id || barId,
+                bar_nome: pagamento.bar_nome || barNome,
+                criado_por_id: user?.id,
+                criado_por_nome: user?.nome || user?.email,
+              }),
+            });
+          } catch (saveError) {
+            console.warn('[PIX-DIRETO] Erro ao salvar no banco (não crítico):', saveError);
+          }
+
+          // Atualizar status para aguardando_aprovacao
+          setPagamentos(prev =>
+            prev.map(p =>
+              p.id === pagamento.id
+                ? {
+                    ...p,
+                    status: 'aguardando_aprovacao',
+                    inter_aprovacao_id: data.data?.codigoSolicitacao || '',
+                    updated_at: new Date().toISOString(),
+                    atualizado_por_id: user?.id,
+                    atualizado_por_nome: user?.nome || user?.email || 'Usuário',
+                  }
+                : p
+            )
+          );
+          sucessos++;
+        } else {
+          throw new Error(data.error || 'Erro ao enviar PIX');
+        }
+      } catch (error) {
+        console.error(`[PIX-DIRETO] Erro no pagamento ${pagamento.nome_beneficiario}:`, error);
+        
+        // Marcar como erro
+        setPagamentos(prev =>
+          prev.map(p =>
+            p.id === pagamento.id
+              ? {
+                  ...p,
+                  status: 'erro_inter',
+                  updated_at: new Date().toISOString(),
+                }
+              : p
+          )
+        );
+        erros++;
+      }
+    }
+
+    setPagandoPixId(null);
+    setIsProcessing(false);
+
+    // Mostrar resultado final
+    if (sucessos > 0 && erros === 0) {
+      toast({
+        title: '✅ PIX enviados com sucesso!',
+        description: `${sucessos} pagamento(s) enviados para aprovação no Inter`,
+      });
+    } else if (sucessos > 0 && erros > 0) {
+      toast({
+        title: '⚠️ Processamento parcial',
+        description: `${sucessos} enviados, ${erros} com erro`,
+      });
+    } else if (erros > 0) {
+      toast({
+        title: '❌ Erro no processamento',
+        description: `${erros} pagamento(s) falharam`,
+        variant: 'destructive',
+      });
+    }
+  };
+
   // Função para pagar TODOS os agendados no Inter de uma vez
   const pagarAgendadosInter = async () => {
     // VALIDAÇÃO CRÍTICA: Verificar se o bar está selecionado
@@ -1248,6 +1442,234 @@ export default function AgendamentoPage() {
   };
 
   // Função para processar dados colados automaticamente
+  // ETAPA 2: Buscar stakeholders por nome no NIBO
+  const buscarStakeholdersNibo = async (conta: 'Ordinário' | 'Deboche') => {
+    if (dadosPlanilha.length === 0) {
+      toast({
+        title: 'Nenhum dado encontrado',
+        description: 'Cole os dados na área acima antes de buscar stakeholders',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const bar_id = conta === 'Ordinário' ? 3 : 4;
+    setIsProcessing(true);
+    setLogsProcessamento([]);
+    
+    const adicionarLog = (tipo: 'sucesso' | 'erro' | 'info', mensagem: string) => {
+      const timestamp = new Date().toLocaleTimeString();
+      setLogsProcessamento(prev => [...prev, { timestamp, tipo, mensagem }]);
+    };
+
+    let encontrados = 0;
+    let naoEncontrados = 0;
+    const novasConfigs = { ...configuracoesIndividuais };
+
+    adicionarLog('info', `Buscando stakeholders no NIBO para ${dadosPlanilha.length} beneficiários...`);
+
+    try {
+      for (let i = 0; i < dadosPlanilha.length; i++) {
+        const linha = dadosPlanilha[i];
+        const nome_beneficiario = linha[0]?.trim();
+        const chave_pix = linha[1]?.trim(); // Pegar chave PIX para busca por CPF/CNPJ
+
+        if (!nome_beneficiario) {
+          adicionarLog('erro', `Linha ${i + 1}: Nome vazio`);
+          naoEncontrados++;
+          continue;
+        }
+
+        try {
+          // Debug: mostrar o que está sendo enviado
+          console.log(`[DEBUG] Buscando: nome="${nome_beneficiario}", chave_pix="${chave_pix}"`);
+          
+          const response = await fetch('/api/agendamento/buscar-stakeholder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome: nome_beneficiario, chave_pix, bar_id }),
+          });
+
+          const data = await response.json();
+          
+          if (data.success && data.found) {
+            // Salvar stakeholder_id na configuração da linha
+            novasConfigs[i] = {
+              ...novasConfigs[i],
+              stakeholder_id: data.stakeholder.id,
+              stakeholder_nome: data.stakeholder.name,
+            };
+            const matchInfo = data.matchType ? ` (${data.matchType})` : '';
+            adicionarLog('sucesso', `${nome_beneficiario}: Encontrado como "${data.stakeholder.name}"${matchInfo}`);
+            encontrados++;
+          } else {
+            // Não encontrou - criar automaticamente
+            adicionarLog('info', `${nome_beneficiario}: Não encontrado, criando no NIBO...`);
+            
+            try {
+              const createResponse = await fetch('/api/agendamento/criar-supplier', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nome: nome_beneficiario, chave_pix, bar_id }),
+              });
+
+              const createData = await createResponse.json();
+              
+              if (createData.success) {
+                novasConfigs[i] = {
+                  ...novasConfigs[i],
+                  stakeholder_id: createData.supplier.id,
+                  stakeholder_nome: createData.supplier.name,
+                };
+                adicionarLog('sucesso', `${nome_beneficiario}: CRIADO no NIBO (ID: ${createData.supplier.id})`);
+                encontrados++;
+              } else {
+                adicionarLog('erro', `${nome_beneficiario}: Erro ao criar - ${createData.error}`);
+                naoEncontrados++;
+              }
+            } catch (createError) {
+              adicionarLog('erro', `${nome_beneficiario}: Erro ao criar supplier`);
+              naoEncontrados++;
+            }
+          }
+        } catch (error) {
+          adicionarLog('erro', `${nome_beneficiario}: Erro de comunicação`);
+          naoEncontrados++;
+        }
+
+        // Pequena pausa entre requests
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
+      setConfiguracoesIndividuais(novasConfigs);
+      
+      adicionarLog('info', `Busca concluída: ${encontrados} encontrados, ${naoEncontrados} não encontrados`);
+
+      toast({
+        title: 'Busca de stakeholders concluída',
+        description: `${encontrados} encontrados, ${naoEncontrados} não encontrados`,
+        variant: naoEncontrados > 0 ? 'destructive' : 'default',
+      });
+
+    } catch (error) {
+      adicionarLog('erro', `Erro geral: ${error}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // ETAPA 3: Agendar no NIBO (sem PIX)
+  const agendarNoNibo = async (conta: 'Ordinário' | 'Deboche') => {
+    if (dadosPlanilha.length === 0) {
+      toast({
+        title: 'Nenhum dado encontrado',
+        description: 'Cole os dados na área acima antes de agendar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Verificar se todas as linhas têm categoria E stakeholder
+    const linhasIncompletas = dadosPlanilha.filter((_, index) => {
+      const config = configuracoesIndividuais[index];
+      return !config?.categoria_id || !config?.stakeholder_id;
+    });
+
+    if (linhasIncompletas.length > 0) {
+      toast({
+        title: 'Configurações incompletas',
+        description: `${linhasIncompletas.length} linha(s) sem categoria ou stakeholder. Execute as etapas anteriores.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const bar_id = conta === 'Ordinário' ? 3 : 4;
+    setIsProcessing(true);
+    setLogsProcessamento([]);
+    
+    const adicionarLog = (tipo: 'sucesso' | 'erro' | 'info', mensagem: string) => {
+      const timestamp = new Date().toLocaleTimeString();
+      setLogsProcessamento(prev => [...prev, { timestamp, tipo, mensagem }]);
+    };
+
+    let sucessos = 0;
+    let erros = 0;
+
+    adicionarLog('info', `Agendando ${dadosPlanilha.length} pagamentos no NIBO para conta "${conta}"`);
+
+    try {
+      for (let i = 0; i < dadosPlanilha.length; i++) {
+        const linha = dadosPlanilha[i];
+        const [nome_beneficiario, chave_pix, valor, descricao, data_pagamento, data_competencia] = linha;
+        const config = configuracoesIndividuais[i];
+
+        // Validações básicas
+        if (!valor?.trim()) {
+          adicionarLog('erro', `Linha ${i + 1} (${nome_beneficiario}): Valor vazio`);
+          erros++;
+          continue;
+        }
+
+        try {
+          const response = await fetch('/api/agendamento/agendar-nibo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              stakeholder_id: config.stakeholder_id,
+              stakeholder_nome: config.stakeholder_nome || nome_beneficiario,
+              nome_beneficiario: nome_beneficiario?.trim(),
+              valor: valor?.trim(),
+              descricao: descricao?.trim() || '',
+              data_pagamento: data_pagamento?.trim() || '',
+              data_competencia: data_competencia?.trim() || '',
+              categoria_id: config.categoria_id,
+              centro_custo_id: config.centro_custo_id,
+              bar_id,
+            }),
+          });
+
+          const data = await response.json();
+          
+          if (data.success) {
+            adicionarLog('sucesso', `${nome_beneficiario}: Agendado no NIBO (${data.nibo_id})`);
+            sucessos++;
+          } else {
+            adicionarLog('erro', `${nome_beneficiario}: ${data.error}`);
+            erros++;
+          }
+        } catch (error) {
+          adicionarLog('erro', `${nome_beneficiario}: Erro de comunicação`);
+          erros++;
+        }
+
+        // Pequena pausa entre requests
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      setStatusProcessamento({
+        aba: conta,
+        totalLinhas: dadosPlanilha.length,
+        sucessos,
+        erros,
+      });
+
+      adicionarLog('info', `Agendamento NIBO concluído: ${sucessos} sucessos, ${erros} erros`);
+
+      toast({
+        title: 'Agendamento NIBO concluído!',
+        description: `${sucessos} agendamentos criados, ${erros} erros`,
+        variant: erros > 0 ? 'destructive' : 'default',
+      });
+
+    } catch (error) {
+      adicionarLog('erro', `Erro geral: ${error}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // ETAPA 4: Enviar PIX (opcional, separado) - usa a API antiga
   const processarDadosAutomatico = async (conta: 'Ordinário' | 'Deboche') => {
     if (dadosPlanilha.length === 0) {
       toast({
@@ -1258,16 +1680,15 @@ export default function AgendamentoPage() {
       return;
     }
 
-    // Verificar se todas as linhas têm categoria e centro de custo configurados
+    // Verificar se todas as linhas têm categoria configurada (centro de custo é opcional)
     const linhasSemConfiguracao = dadosPlanilha.filter((_, index) => 
-      !configuracoesIndividuais[index]?.categoria_id || 
-      !configuracoesIndividuais[index]?.centro_custo_id
+      !configuracoesIndividuais[index]?.categoria_id
     );
 
     if (linhasSemConfiguracao.length > 0) {
       toast({
         title: 'Configurações incompletas',
-        description: `${linhasSemConfiguracao.length} linha(s) sem categoria/centro de custo configurados`,
+        description: `${linhasSemConfiguracao.length} linha(s) sem categoria configurada`,
         variant: 'destructive',
       });
       return;
@@ -1322,8 +1743,9 @@ export default function AgendamentoPage() {
           // Obter configurações individuais desta linha
           const configLinha = configuracoesIndividuais[i];
           
-          if (!configLinha?.categoria_id || !configLinha?.centro_custo_id) {
-            adicionarLog('erro', `Linha ${i + 1}: Configurações de categoria/centro de custo não encontradas`);
+          // Apenas categoria_id é obrigatório, centro_custo_id é opcional
+          if (!configLinha?.categoria_id) {
+            adicionarLog('erro', `Linha ${i + 1}: Categoria não configurada`);
             erros++;
             continue;
           }
@@ -1527,14 +1949,44 @@ export default function AgendamentoPage() {
 
                   {/* Botões de Ação */}
                   <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                    {/* Botão principal: PIX Direto (sem NIBO) */}
+                    <Button
+                      onClick={pagarPendentesInterDireto}
+                      disabled={isProcessing || pagandoPixId !== null || metricas.pendentes === 0 || !credenciaisDisponiveis.inter || !barId}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:bg-gray-400"
+                      title={!credenciaisDisponiveis.inter ? 'Credenciais Inter não configuradas' : 'Enviar PIX direto sem passar pelo NIBO'}
+                    >
+                      {pagandoPixId === 'direct' ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Enviando PIX...
+                        </>
+                      ) : (
+                        <>
+                          <Banknote className="w-4 h-4 mr-2" />
+                          PIX Direto ({metricas.pendentes} pendentes)
+                        </>
+                      )}
+                    </Button>
+
+                    {/* Separador */}
+                    <div className="relative py-2">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+                      </div>
+                      <div className="relative flex justify-center">
+                        <span className="px-2 bg-white dark:bg-gray-800 text-xs text-gray-500">ou via NIBO</span>
+                      </div>
+                    </div>
+
                     <Button
                       onClick={agendarPagamentos}
-                      disabled={isProcessing || metricas.pendentes === 0 || !credenciaisDisponiveis.nibo || !barId}
+                      disabled={isProcessing || metricas.pendentes === 0 || !barId}
                       className="w-full btn-primary"
-                      title={!credenciaisDisponiveis.nibo ? 'Credenciais NIBO não configuradas para este bar' : ''}
+                      title={!credenciaisDisponiveis.nibo ? 'Agendamentos serão salvos localmente (NIBO não configurado)' : ''}
                     >
                       <Play className="w-4 h-4 mr-2" />
-                      Agendar no NIBO
+                      {credenciaisDisponiveis.nibo ? 'Agendar no NIBO' : 'Agendar (Local)'}
                     </Button>
                     <Button
                       onClick={pagarAgendadosInter}
@@ -1542,7 +1994,7 @@ export default function AgendamentoPage() {
                       className="w-full bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-400"
                       title={!credenciaisDisponiveis.inter ? 'Credenciais Inter não configuradas para este bar' : ''}
                     >
-                      {pagandoPixId ? (
+                      {pagandoPixId && pagandoPixId !== 'direct' ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                           Processando PIX...
@@ -1550,7 +2002,7 @@ export default function AgendamentoPage() {
                       ) : (
                         <>
                           <Banknote className="w-4 h-4 mr-2" />
-                          Pagar Agendados no Inter ({metricas.agendados})
+                          Pagar Agendados ({metricas.agendados})
                         </>
                       )}
                     </Button>
@@ -1577,7 +2029,7 @@ export default function AgendamentoPage() {
                     </div>
                   </CardContent>
                 </Card>
-              ) : (!barId || !credenciaisDisponiveis.nibo || !credenciaisDisponiveis.inter) ? (
+              ) : (!barId) ? (
                 <Card className="card-dark border-0 shadow-lg">
                   <CardContent className="py-16 text-center">
                     <div className="flex flex-col items-center gap-4">
@@ -1585,21 +2037,18 @@ export default function AgendamentoPage() {
                         <AlertCircle className="w-12 h-12 text-red-600 dark:text-red-400" />
                       </div>
                       <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                        {!barId ? 'Nenhum bar selecionado' : 'Credenciais incompletas'}
+                        Nenhum bar selecionado
                       </h2>
                       <p className="text-gray-600 dark:text-gray-400 max-w-md">
-                        {!barId 
-                          ? 'Selecione um bar no menu superior para começar a usar a ferramenta de agendamento.'
-                          : `O bar "${barNome}" não possui todas as credenciais configuradas.`
-                        }
+                        Selecione um bar no menu superior para começar a usar a ferramenta de agendamento.
                       </p>
                       {barId && (
                         <div className="flex flex-col gap-2 text-sm">
-                          <div className={`flex items-center gap-2 ${credenciaisDisponiveis.nibo ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          <div className={`flex items-center gap-2 ${credenciaisDisponiveis.nibo ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
                             {credenciaisDisponiveis.nibo ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                            <span>NIBO: {credenciaisDisponiveis.nibo ? 'Configurado' : 'Não configurado'}</span>
+                            <span>NIBO: {credenciaisDisponiveis.nibo ? 'Configurado' : 'Não configurado (agendamento local)'}</span>
                           </div>
-                          <div className={`flex items-center gap-2 ${credenciaisDisponiveis.inter ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          <div className={`flex items-center gap-2 ${credenciaisDisponiveis.inter ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
                             {credenciaisDisponiveis.inter ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
                             <span>Inter (PIX): {credenciaisDisponiveis.inter ? 'Configurado' : 'Não configurado'}</span>
                           </div>
@@ -1928,14 +2377,32 @@ export default function AgendamentoPage() {
                             value={dadosPlanilha.map(row => row.join('\t')).join('\n')}
                             onChange={(e) => {
                               const linhas = e.target.value.split('\n').filter(linha => linha.trim());
-                              const dados = linhas.map(linha => linha.split('\t'));
+                              // Limpar cada célula de espaços extras
+                              const dados = linhas.map(linha => 
+                                linha.split('\t').map(celula => celula.trim())
+                              );
                               setDadosPlanilha(dados);
                             }}
                             onPaste={(e) => {
                               e.preventDefault();
                               const texto = e.clipboardData.getData('text');
-                              const linhas = texto.split('\n').filter(linha => linha.trim());
-                              const dados = linhas.map(linha => linha.split('\t'));
+                              let linhas = texto.split('\n').filter(linha => linha.trim());
+                              
+                              // Verificar se a primeira linha é cabeçalho e pular
+                              if (linhas.length > 0) {
+                                const primeiraLinha = linhas[0].toLowerCase();
+                                if (primeiraLinha.includes('nome_beneficiario') || 
+                                    primeiraLinha.includes('chave_pix') ||
+                                    primeiraLinha.includes('beneficiario') ||
+                                    primeiraLinha.includes('nome') && primeiraLinha.includes('pix')) {
+                                  linhas = linhas.slice(1); // Pular cabeçalho
+                                }
+                              }
+                              
+                              // Limpar cada célula de espaços extras e caracteres invisíveis
+                              const dados = linhas.map(linha => 
+                                linha.split('\t').map(celula => celula.trim())
+                              );
                               setDadosPlanilha(dados);
                             }}
                           />
@@ -1949,14 +2416,65 @@ export default function AgendamentoPage() {
                                 Preview dos Dados ({dadosPlanilha.length} linhas)
                               </h4>
                               
-                              {/* Botão Configurar Categorias */}
-                              <button
-                                onClick={() => setModalConfiguracoes(true)}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
-                              >
-                                <Wrench className="w-4 h-4" />
-                                <span>Configurar Categorias</span>
-                              </button>
+                              {/* Botões de Configuração */}
+                              <div className="flex gap-2">
+                                {/* Botão Auto-configurar por Descrição */}
+                                <button
+                                  onClick={() => {
+                                    // Mapeamento de descrições para categorias do NIBO (Ordinário)
+                                    // IDs corretos baseados no histórico de agendamentos
+                                    const mapeamentoDescricaoCategoria: Record<string, string> = {
+                                      'SALARIO': 'a8172f9d-4e62-401e-87d0-4612e2bba698', // SALARIO FUNCIONARIOS (ID correto do histórico)
+                                      'SALÁRIO': 'a8172f9d-4e62-401e-87d0-4612e2bba698',
+                                      'COMISSAO': '1de3a811-276f-46c5-8897-c9e12c6d1798', // COMISSÃO 10%
+                                      'COMISSÃO': '1de3a811-276f-46c5-8897-c9e12c6d1798',
+                                    };
+                                    
+                                    const novasConfiguracoes: { [key: number]: { categoria_id: string; centro_custo_id: string } } = {};
+                                    let configurados = 0;
+                                    let naoEncontrados = 0;
+                                    
+                                    dadosPlanilha.forEach((linha, index) => {
+                                      const descricao = (linha[3] || '').toUpperCase().trim();
+                                      const categoriaId = mapeamentoDescricaoCategoria[descricao];
+                                      
+                                      if (categoriaId) {
+                                        novasConfiguracoes[index] = {
+                                          categoria_id: categoriaId,
+                                          centro_custo_id: configuracoesIndividuais[index]?.centro_custo_id || ''
+                                        };
+                                        configurados++;
+                                      } else {
+                                        novasConfiguracoes[index] = {
+                                          categoria_id: configuracoesIndividuais[index]?.categoria_id || '',
+                                          centro_custo_id: configuracoesIndividuais[index]?.centro_custo_id || ''
+                                        };
+                                        naoEncontrados++;
+                                      }
+                                    });
+                                    
+                                    setConfiguracoesIndividuais(novasConfiguracoes);
+                                    
+                                    toast({
+                                      title: '✅ Auto-configuração concluída',
+                                      description: `${configurados} linha(s) com SALARIO/COMISSAO configuradas automaticamente${naoEncontrados > 0 ? `. ${naoEncontrados} linha(s) com descrição diferente.` : ''}`,
+                                    });
+                                  }}
+                                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white rounded-lg text-sm font-medium transition-colors"
+                                >
+                                  <RefreshCw className="w-4 h-4" />
+                                  <span>Auto-configurar</span>
+                                </button>
+                                
+                                {/* Botão Configurar Manualmente */}
+                                <button
+                                  onClick={() => setModalConfiguracoes(true)}
+                                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
+                                >
+                                  <Wrench className="w-4 h-4" />
+                                  <span>Configurar Manual</span>
+                                </button>
+                              </div>
                             </div>
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
@@ -1994,63 +2512,140 @@ export default function AgendamentoPage() {
                       </div>
 
 
-                      {/* Botões de Ação */}
+                      {/* Etapas de Processamento */}
                       {dadosPlanilha.length > 0 && (
-                        <>
-                          {/* Mensagem de Aviso */}
-                          {(() => {
-                            const linhasSemConfiguracao = dadosPlanilha.filter((_, index) => 
-                              !configuracoesIndividuais[index]?.categoria_id || 
-                              !configuracoesIndividuais[index]?.centro_custo_id
-                            );
-                            return linhasSemConfiguracao.length > 0 && (
-                              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-5 h-5 text-yellow-600 dark:text-yellow-400">
-                                    ⚠️
-                                  </div>
-                                  <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
-                                    {linhasSemConfiguracao.length} linha(s) sem categoria/centro de custo configurados
-                                  </p>
-                                </div>
+                        <div className="space-y-4">
+                          {/* Status das Etapas */}
+                          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">
+                              Status das Etapas
+                            </h4>
+                            <div className="space-y-2 text-sm">
+                              <div className="flex items-center justify-between">
+                                <span className="text-gray-600 dark:text-gray-400">1. Categorias configuradas:</span>
+                                {(() => {
+                                  const configuradas = dadosPlanilha.filter((_, i) => configuracoesIndividuais[i]?.categoria_id).length;
+                                  return (
+                                    <span className={`font-medium ${configuradas === dadosPlanilha.length ? 'text-green-600' : 'text-yellow-600'}`}>
+                                      {configuradas}/{dadosPlanilha.length}
+                                    </span>
+                                  );
+                                })()}
                               </div>
-                            );
-                          })()}
-                          
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <button
-                            onClick={() => processarDadosAutomatico('Ordinário')}
-                            disabled={isProcessing || dadosPlanilha.some((_, index) => 
-                              !configuracoesIndividuais[index]?.categoria_id || 
-                              !configuracoesIndividuais[index]?.centro_custo_id
-                            )}
-                            className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white h-12 flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isProcessing ? (
-                              <RefreshCw className="w-5 h-5 animate-spin" />
-                            ) : (
-                              <Play className="w-5 h-5" />
-                            )}
-                            <span>Processar como "Ordinário"</span>
-                          </button>
+                              <div className="flex items-center justify-between">
+                                <span className="text-gray-600 dark:text-gray-400">2. Stakeholders encontrados:</span>
+                                {(() => {
+                                  const encontrados = dadosPlanilha.filter((_, i) => configuracoesIndividuais[i]?.stakeholder_id).length;
+                                  return (
+                                    <span className={`font-medium ${encontrados === dadosPlanilha.length ? 'text-green-600' : encontrados > 0 ? 'text-yellow-600' : 'text-gray-400'}`}>
+                                      {encontrados}/{dadosPlanilha.length}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </div>
 
-                          <button
-                            onClick={() => processarDadosAutomatico('Deboche')}
-                            disabled={isProcessing || dadosPlanilha.some((_, index) => 
-                              !configuracoesIndividuais[index]?.categoria_id || 
-                              !configuracoesIndividuais[index]?.centro_custo_id
-                            )}
-                            className="bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 h-12 flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isProcessing ? (
-                              <RefreshCw className="w-5 h-5 animate-spin" />
-                            ) : (
-                              <Play className="w-5 h-5" />
-                            )}
-                            <span>Processar como "Deboche"</span>
-                          </button>
+                          {/* ETAPA 2: Buscar Stakeholders */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <button
+                              onClick={() => buscarStakeholdersNibo('Ordinário')}
+                              disabled={isProcessing}
+                              className="bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 text-white h-12 flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isProcessing ? (
+                                <RefreshCw className="w-5 h-5 animate-spin" />
+                              ) : (
+                                <Search className="w-5 h-5" />
+                              )}
+                              <span>2. Buscar Stakeholders (Ordinário)</span>
+                            </button>
+
+                            <button
+                              onClick={() => buscarStakeholdersNibo('Deboche')}
+                              disabled={isProcessing}
+                              className="bg-purple-100 hover:bg-purple-200 dark:bg-purple-900 dark:hover:bg-purple-800 text-purple-900 dark:text-purple-100 border border-purple-300 dark:border-purple-700 h-12 flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isProcessing ? (
+                                <RefreshCw className="w-5 h-5 animate-spin" />
+                              ) : (
+                                <Search className="w-5 h-5" />
+                              )}
+                              <span>2. Buscar Stakeholders (Deboche)</span>
+                            </button>
+                          </div>
+
+                          {/* ETAPA 3: Agendar no NIBO */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <button
+                              onClick={() => agendarNoNibo('Ordinário')}
+                              disabled={isProcessing || dadosPlanilha.some((_, index) => 
+                                !configuracoesIndividuais[index]?.categoria_id || !configuracoesIndividuais[index]?.stakeholder_id
+                              )}
+                              className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white h-12 flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isProcessing ? (
+                                <RefreshCw className="w-5 h-5 animate-spin" />
+                              ) : (
+                                <Calendar className="w-5 h-5" />
+                              )}
+                              <span>3. Agendar no NIBO (Ordinário)</span>
+                            </button>
+
+                            <button
+                              onClick={() => agendarNoNibo('Deboche')}
+                              disabled={isProcessing || dadosPlanilha.some((_, index) => 
+                                !configuracoesIndividuais[index]?.categoria_id || !configuracoesIndividuais[index]?.stakeholder_id
+                              )}
+                              className="bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-900 dark:text-blue-100 border border-blue-300 dark:border-blue-700 h-12 flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isProcessing ? (
+                                <RefreshCw className="w-5 h-5 animate-spin" />
+                              ) : (
+                                <Calendar className="w-5 h-5" />
+                              )}
+                              <span>3. Agendar no NIBO (Deboche)</span>
+                            </button>
+                          </div>
+
+                          {/* ETAPA 4: Enviar PIX (Opcional) */}
+                          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                              Etapa opcional: Envia PIX pelo Banco Inter (NIBO + PIX de uma vez)
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <button
+                                onClick={() => processarDadosAutomatico('Ordinário')}
+                                disabled={isProcessing || dadosPlanilha.some((_, index) => 
+                                  !configuracoesIndividuais[index]?.categoria_id
+                                )}
+                                className="bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white h-12 flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isProcessing ? (
+                                  <RefreshCw className="w-5 h-5 animate-spin" />
+                                ) : (
+                                  <Banknote className="w-5 h-5" />
+                                )}
+                                <span>4. NIBO + PIX (Ordinário)</span>
+                              </button>
+
+                              <button
+                                onClick={() => processarDadosAutomatico('Deboche')}
+                                disabled={isProcessing || dadosPlanilha.some((_, index) => 
+                                  !configuracoesIndividuais[index]?.categoria_id
+                                )}
+                                className="bg-green-100 hover:bg-green-200 dark:bg-green-900 dark:hover:bg-green-800 text-green-900 dark:text-green-100 border border-green-300 dark:border-green-700 h-12 flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isProcessing ? (
+                                  <RefreshCw className="w-5 h-5 animate-spin" />
+                                ) : (
+                                  <Banknote className="w-5 h-5" />
+                                )}
+                                <span>4. NIBO + PIX (Deboche)</span>
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        </>
                       )}
 
                       {/* Status do Processamento */}
@@ -2521,6 +3116,63 @@ export default function AgendamentoPage() {
             </DialogHeader>
             
             <div className="space-y-6">
+              {/* Auto-configuração por Descrição */}
+              <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                <h4 className="text-sm font-semibold text-green-900 dark:text-green-100 mb-3">
+                  🪄 Auto-configurar por Descrição
+                </h4>
+                <p className="text-xs text-green-700 dark:text-green-300 mb-3">
+                  Mapeia automaticamente a categoria baseado na descrição (SALARIO → Salário Funcionários, COMISSAO → Comissão 10%)
+                </p>
+                <button
+                  onClick={() => {
+                    // Mapeamento de descrições para categorias do NIBO (Ordinário)
+                    // IDs corretos baseados no histórico de agendamentos
+                    const mapeamentoDescricaoCategoria: Record<string, string> = {
+                      'SALARIO': 'a8172f9d-4e62-401e-87d0-4612e2bba698', // SALARIO FUNCIONARIOS (ID correto do histórico)
+                      'SALÁRIO': 'a8172f9d-4e62-401e-87d0-4612e2bba698',
+                      'COMISSAO': '1de3a811-276f-46c5-8897-c9e12c6d1798', // COMISSÃO 10%
+                      'COMISSÃO': '1de3a811-276f-46c5-8897-c9e12c6d1798',
+                    };
+                    
+                    const novasConfiguracoes: any = {};
+                    let configurados = 0;
+                    let naoEncontrados = 0;
+                    
+                    dadosPlanilha.forEach((linha, index) => {
+                      const descricao = (linha[3] || '').toUpperCase().trim();
+                      const categoriaId = mapeamentoDescricaoCategoria[descricao];
+                      
+                      if (categoriaId) {
+                        novasConfiguracoes[index] = {
+                          categoria_id: categoriaId,
+                          centro_custo_id: configuracoesIndividuais[index]?.centro_custo_id || ''
+                        };
+                        configurados++;
+                      } else {
+                        // Manter configuração existente se houver
+                        novasConfiguracoes[index] = {
+                          categoria_id: configuracoesIndividuais[index]?.categoria_id || '',
+                          centro_custo_id: configuracoesIndividuais[index]?.centro_custo_id || ''
+                        };
+                        naoEncontrados++;
+                      }
+                    });
+                    
+                    setConfiguracoesIndividuais(novasConfiguracoes);
+                    
+                    toast({
+                      title: '✅ Auto-configuração concluída',
+                      description: `${configurados} linha(s) configurada(s)${naoEncontrados > 0 ? `, ${naoEncontrados} não encontrada(s)` : ''}`,
+                    });
+                  }}
+                  className="w-full py-2 px-4 bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Auto-configurar Categorias pela Descrição
+                </button>
+              </div>
+
               {/* Configuração Rápida */}
               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                 <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">
@@ -2605,7 +3257,7 @@ export default function AgendamentoPage() {
                         
                         {/* Status da Configuração */}
                         <div className="ml-4">
-                          {configuracoesIndividuais[index]?.categoria_id && configuracoesIndividuais[index]?.centro_custo_id ? (
+                          {configuracoesIndividuais[index]?.categoria_id ? (
                             <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 text-xs font-medium rounded-full">
                               <CheckCircle className="w-3 h-3" />
                               Configurado
@@ -2705,8 +3357,7 @@ export default function AgendamentoPage() {
               <div className="text-sm text-gray-500 dark:text-gray-400">
                 {(() => {
                   const configuradas = dadosPlanilha.filter((_, index) => 
-                    configuracoesIndividuais[index]?.categoria_id && 
-                    configuracoesIndividuais[index]?.centro_custo_id
+                    configuracoesIndividuais[index]?.categoria_id
                   ).length;
                   return `${configuradas}/${dadosPlanilha.length} linhas configuradas`;
                 })()}
