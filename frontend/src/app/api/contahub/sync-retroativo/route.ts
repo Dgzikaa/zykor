@@ -1,124 +1,93 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // 5 minutos
 
-export async function POST(request: Request) {
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { bar_id, start_date, end_date, data_types, delay_ms = 2000, process_after = true } = body
+    console.log('🔄 Iniciando sincronização retroativa do ContaHub...');
 
-    if (!bar_id || !start_date || !end_date) {
-      return NextResponse.json(
-        { error: 'bar_id, start_date e end_date são obrigatórios' },
-        { status: 400 }
-      )
+    const body = await request.json();
+    const { 
+      bar_id = 3,
+      start_date,
+      end_date,
+      data_types = ['analitico'],
+      delay_ms = 2000,
+      process_after = true
+    } = body;
+
+    if (!start_date || !end_date) {
+      return NextResponse.json({ 
+        error: 'start_date e end_date são obrigatórios (formato YYYY-MM-DD)' 
+      }, { status: 400 });
     }
 
-    console.log(`🎯 Iniciando sync retroativo: ${start_date} até ${end_date}`)
+    console.log(`📅 Período: ${start_date} até ${end_date}`);
+    console.log(`🏠 Bar ID: ${bar_id}`);
 
-    // Chamar a Edge Function com service role
-    const response = await fetch(
-      `${supabaseUrl}/functions/v1/contahub-sync-retroativo`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseServiceKey}`
-        },
-        body: JSON.stringify({
-          bar_id,
-          start_date,
-          end_date,
-          data_types: data_types || ['vendas'], // Por padrão, só sync de vendas
-          delay_ms,
-          process_after
-        })
-      }
-    )
+    // Chamar a Edge Function
+    const edgeFunctionUrl = `${supabaseUrl}/functions/v1/contahub-sync-retroativo`;
+    
+    const response = await fetch(edgeFunctionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`
+      },
+      body: JSON.stringify({
+        bar_id,
+        start_date,
+        end_date,
+        data_types,
+        delay_ms,
+        process_after
+      })
+    });
 
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error('❌ Erro na Edge Function:', errorText)
-      return NextResponse.json(
-        { error: `Erro na Edge Function: ${response.status}`, details: errorText },
-        { status: response.status }
-      )
+      const errorText = await response.text();
+      console.error('❌ Erro na Edge Function:', errorText);
+      return NextResponse.json({ 
+        error: `Erro na Edge Function: ${response.status}`,
+        details: errorText
+      }, { status: response.status });
     }
 
-    const result = await response.json()
-    console.log('✅ Sync retroativo concluído:', result.summary)
+    const result = await response.json();
+    console.log('✅ Sincronização concluída:', result);
 
-    return NextResponse.json(result)
+    return NextResponse.json(result);
+
   } catch (error) {
-    console.error('❌ Erro no sync retroativo:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Erro interno' },
-      { status: 500 }
-    )
+    console.error('❌ Erro geral:', error);
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : 'Erro desconhecido' 
+    }, { status: 500 });
   }
 }
 
-// GET para verificar status
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const bar_id = searchParams.get('bar_id') || '3'
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-    // Verificar dados existentes por tipo
-    const { data: rawDataStats, error: rawError } = await supabase
-      .from('contahub_raw_data')
-      .select('data_type, data_date, processed')
-      .eq('bar_id', parseInt(bar_id))
-      .order('data_date', { ascending: false })
-
-    if (rawError) {
-      throw rawError
+export async function GET() {
+  return NextResponse.json({
+    endpoint: 'Sincronização Retroativa do ContaHub',
+    metodo: 'POST',
+    descricao: 'Busca dados históricos do ContaHub e salva no Supabase',
+    parametros: {
+      bar_id: 'ID do bar (padrão: 3)',
+      start_date: 'Data inicial YYYY-MM-DD (obrigatório)',
+      end_date: 'Data final YYYY-MM-DD (obrigatório)',
+      data_types: 'Array de tipos: analitico, fatporhora, pagamentos, periodo, tempo (padrão: ["analitico"])',
+      delay_ms: 'Delay entre dias em ms (padrão: 2000)',
+      process_after: 'Processar após coleta (padrão: true)'
+    },
+    exemplo: {
+      start_date: '2025-09-01',
+      end_date: '2025-09-30',
+      data_types: ['analitico']
     }
-
-    // Agrupar por tipo
-    const statsByType: { [key: string]: { total: number; processed: number; dates_range: string } } = {}
-    
-    for (const record of rawDataStats || []) {
-      if (!statsByType[record.data_type]) {
-        statsByType[record.data_type] = { total: 0, processed: 0, dates_range: '' }
-      }
-      statsByType[record.data_type].total++
-      if (record.processed) {
-        statsByType[record.data_type].processed++
-      }
-    }
-
-    // Verificar vendas processadas
-    const { data: vendasStats, error: vendasError } = await supabase
-      .from('contahub_vendas')
-      .select('dt_gerencial')
-      .eq('bar_id', parseInt(bar_id))
-    
-    const vendasDates = vendasStats?.map(v => v.dt_gerencial) || []
-    const uniqueVendasDates = [...new Set(vendasDates)]
-
-    return NextResponse.json({
-      success: true,
-      stats: {
-        raw_data: statsByType,
-        vendas_processadas: {
-          total_dias: uniqueVendasDates.length,
-          total_registros: vendasStats?.length || 0,
-          data_mais_antiga: uniqueVendasDates.sort()[0] || null,
-          data_mais_recente: uniqueVendasDates.sort().reverse()[0] || null
-        }
-      }
-    })
-  } catch (error) {
-    console.error('❌ Erro ao verificar status:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Erro interno' },
-      { status: 500 }
-    )
-  }
+  });
 }
-
