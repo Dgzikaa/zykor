@@ -78,9 +78,29 @@ async function getDadosMensais(
       .in('semana', semanasComProporcao.filter(s => s.anoISO === anoISO).map(s => s.semana))
   );
 
-  const [desempenhoResults, marketingResults] = await Promise.all([
+  // 3. Buscar Conta Assinada (de contahub_pagamentos)
+  const contaAssinadaPromise = supabase
+    .from('contahub_pagamentos')
+    .select('dt_gerencial, valor')
+    .eq('bar_id', barId)
+    .eq('meio', 'Conta Assinada')
+    .gte('dt_gerencial', dataInicio)
+    .lte('dt_gerencial', dataFim);
+
+  // 4. Buscar Descontos (de contahub_periodo)
+  const descontosPromise = supabase
+    .from('contahub_periodo')
+    .select('dt_gerencial, vr_desconto, motivo')
+    .eq('bar_id', barId)
+    .gt('vr_desconto', 0)
+    .gte('dt_gerencial', dataInicio)
+    .lte('dt_gerencial', dataFim);
+
+  const [desempenhoResults, marketingResults, contaAssinadaResult, descontosResult] = await Promise.all([
     Promise.all(desempenhoPromises),
-    Promise.all(marketingPromises)
+    Promise.all(marketingPromises),
+    contaAssinadaPromise,
+    descontosPromise
   ]);
 
   const desempenhoData = desempenhoResults.flatMap(r => r.data || []);
@@ -92,7 +112,22 @@ async function getDadosMensais(
   const marketingMap = new Map<string, any>();
   marketingData.forEach(m => marketingMap.set(`${m.ano}-${m.semana}`, m));
 
+  // Calcular Conta Assinada total do mês
+  const contaAssinadaValor = (contaAssinadaResult.data || []).reduce(
+    (sum, p) => sum + (Number(p.valor) || 0), 0
+  );
+
+  // Calcular Descontos total do mês
+  const descontosValor = (descontosResult.data || []).reduce(
+    (sum, d) => sum + (Number(d.vr_desconto) || 0), 0
+  );
+
   const dadosSemanais = agregarDadosSemanaisProporcionais(semanasComProporcao, desempenhoMap, marketingMap);
+
+  // Calcular faturamento total para os percentuais
+  const faturamentoTotal = dadosDiarios.faturamento_total || 0;
+  const contaAssinadaPerc = faturamentoTotal > 0 ? (contaAssinadaValor / faturamentoTotal) * 100 : 0;
+  const descontosPerc = faturamentoTotal > 0 ? (descontosValor / faturamentoTotal) * 100 : 0;
 
   return {
     id: ano * 100 + mes,
@@ -102,6 +137,11 @@ async function getDadosMensais(
     data_fim: dataFim,
     ...dadosSemanais,
     ...dadosDiarios,
+    // Sobrescrever com valores calculados diretamente das tabelas de origem
+    conta_assinada_valor: contaAssinadaValor,
+    conta_assinada_perc: contaAssinadaPerc,
+    descontos_valor: descontosValor,
+    descontos_perc: descontosPerc,
   } as unknown as DadosSemana;
 }
 
@@ -259,10 +299,7 @@ function agregarDadosSemanaisProporcionais(
     perc_happy_hour: avgProp(desempenhoMap, 'perc_happy_hour'),
     perc_faturamento_apos_22h: avgProp(desempenhoMap, 'perc_faturamento_apos_22h'),
     qui_sab_dom: sumProp(desempenhoMap, 'qui_sab_dom'),
-    conta_assinada_valor: sumProp(desempenhoMap, 'conta_assinada_valor'),
-    conta_assinada_perc: avgProp(desempenhoMap, 'conta_assinada_perc'),
-    descontos_valor: sumProp(desempenhoMap, 'descontos_valor'),
-    descontos_perc: avgProp(desempenhoMap, 'descontos_perc'),
+    // Nota: conta_assinada e descontos são calculados diretamente de contahub_pagamentos e contahub_periodo
     
     // Stockout (quantidades arredondadas, percentuais com 1 casa decimal)
     stockout_comidas: Math.round(sumProp(desempenhoMap, 'stockout_comidas')),
