@@ -412,7 +412,7 @@ async function buscarDetalhesConsumoSocios(barId: number, dataInicio: string, da
     .eq('bar_id', barId)
     .gte('dt_gerencial', dataInicio)
     .lte('dt_gerencial', dataFim)
-    .or('motivo.ilike.%sócio%,motivo.ilike.%socio%')
+    .or('motivo.ilike.%sócio%,motivo.ilike.%socio%,motivo.ilike.%x-socio%,motivo.ilike.%x-sócio%,motivo.ilike.%gonza%,motivo.ilike.%corbal%,motivo.ilike.%diogo%,motivo.ilike.%cadu%,motivo.ilike.%augusto%,motivo.ilike.%rodrigo%,motivo.ilike.%digao%,motivo.ilike.%vinicius%,motivo.ilike.%vini%,motivo.ilike.%bueno%,motivo.ilike.%3v%,motivo.ilike.%cantucci%,motivo.ilike.%joão pedro%,motivo.ilike.%joao pedro%,motivo.ilike.%jp%')
     .order('dt_gerencial', { ascending: true });
 
   if (error || !data) return [];
@@ -439,7 +439,7 @@ async function buscarDetalhesConsumoBeneficios(barId: number, dataInicio: string
     .eq('bar_id', barId)
     .gte('dt_gerencial', dataInicio)
     .lte('dt_gerencial', dataFim)
-    .or('motivo.ilike.%benefício%,motivo.ilike.%beneficio%,motivo.ilike.%cortesia%,motivo.ilike.%cliente%')
+    .or('motivo.ilike.%aniver%,motivo.ilike.%anivers%,motivo.ilike.%aniversário%,motivo.ilike.%aniversario%,motivo.ilike.%aniversariante%,motivo.ilike.%voucher%,motivo.ilike.%benefício%,motivo.ilike.%beneficio%')
     .order('dt_gerencial', { ascending: true });
 
   if (error || !data) return [];

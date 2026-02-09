@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
     };
 
     // 1. BUSCAR CONSUMO DOS SÓCIOS
-    // 🔧 CORRIGIDO: Inclui padrões específicos de sócios (corbal, x-corbal, sócio, socio, etc.)
+    // 🔧 ATUALIZADO: Lista completa de padrões de sócios
+    // Sócios: sócio, socio, x-socio, x-sócio, gonza, corbal, diogo, cadu, augusto, rodrigo, digao, vinicius, vini, bueno, 3v, cantucci, joão pedro, joao pedro, jp
     try {
       const { data: consumoSociosBruto, error: errorSocios } = await supabase
         .from('contahub_periodo')
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
         .eq('bar_id', bar_id)
         .gte('dt_gerencial', data_inicio)
         .lte('dt_gerencial', data_fim)
-        .or('motivo.ilike.%sócio%,motivo.ilike.%socio%,motivo.ilike.%corbal%,motivo.ilike.%x-corbal%');
+        .or('motivo.ilike.%sócio%,motivo.ilike.%socio%,motivo.ilike.%x-socio%,motivo.ilike.%x-sócio%,motivo.ilike.%gonza%,motivo.ilike.%corbal%,motivo.ilike.%diogo%,motivo.ilike.%cadu%,motivo.ilike.%augusto%,motivo.ilike.%rodrigo%,motivo.ilike.%digao%,motivo.ilike.%vinicius%,motivo.ilike.%vini%,motivo.ilike.%bueno%,motivo.ilike.%3v%,motivo.ilike.%cantucci%,motivo.ilike.%joão pedro%,motivo.ilike.%joao pedro%,motivo.ilike.%jp%');
 
       if (!errorSocios && consumoSociosBruto) {
         // ⚡ FILTRAR DIAS FECHADOS
@@ -96,8 +97,8 @@ export async function POST(request: NextRequest) {
       const contasEspeciais = {
         // BANDA/DJ: Inclui banda, dj, técnico de som
         'mesa_banda_dj': ['banda', 'dj', 'técnico de som', 'tecnico de som'],
-        // BENEFÍCIOS: Inclui aniversariantes e vouchers
-        'mesa_beneficios_cliente': ['anivers', 'voucher', 'benefício', 'beneficio'],
+        // BENEFÍCIOS/CLIENTES: aniver, anivers, aniversário, aniversario, aniversariante, voucher, benefício, beneficio
+        'mesa_beneficios_cliente': ['aniver', 'anivers', 'aniversário', 'aniversario', 'aniversariante', 'voucher', 'benefício', 'beneficio'],
         // ADM: Inclui adm, marketing, casa
         'mesa_adm_casa': ['adm', 'administrativo', 'casa', 'marketing'],
         // CHEGADEIRA
