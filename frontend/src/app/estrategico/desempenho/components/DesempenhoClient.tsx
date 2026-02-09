@@ -631,7 +631,21 @@ export function DesempenhoClient({
                                     {!hierarquico && <span className="text-[10px] text-gray-400 dark:text-gray-500">({grupo.metricas.length})</span>}
                                   </div>
                                 </TooltipTrigger>
-                                <TooltipContent side="right">...</TooltipContent>
+                                <TooltipContent side="right" className="max-w-xs p-3">
+                                  {hierarquico && grupo.metricas[0] ? (
+                                    <div className="space-y-1">
+                                      <p className="font-semibold text-sm">{grupo.metricas[0].label}</p>
+                                      <p className="text-xs"><strong>Fonte:</strong> {grupo.metricas[0].fonte}</p>
+                                      <p className="text-xs"><strong>Cálculo:</strong> {grupo.metricas[0].calculo}</p>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      <p className="font-semibold text-sm">{grupo.label}</p>
+                                      <p className="text-xs text-gray-500">Grupo com {grupo.metricas.length} métricas</p>
+                                      {grupo.agregacao && <p className="text-xs"><strong>Agregação:</strong> {grupo.agregacao.tipo}</p>}
+                                    </div>
+                                  )}
+                                </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                          )}
@@ -645,7 +659,19 @@ export function DesempenhoClient({
                                        <span className="text-xs text-gray-500 dark:text-gray-400 truncate leading-none">{hierarquico ? '└ ' : ''}{metrica.label}</span>
                                     </div>
                                  </TooltipTrigger>
-                                 <TooltipContent side="right" className={cn("max-w-xs p-3", STATUS_COLORS[metrica.status].bg)}>...</TooltipContent>
+                                 <TooltipContent side="right" className={cn("max-w-xs p-3", STATUS_COLORS[metrica.status].bg)}>
+                                   <div className="space-y-1">
+                                     <p className="font-semibold text-sm">{metrica.label}</p>
+                                     <p className="text-xs"><strong>Fonte:</strong> {metrica.fonte}</p>
+                                     <p className="text-xs"><strong>Cálculo:</strong> {metrica.calculo}</p>
+                                     <div className="flex items-center gap-1 mt-1">
+                                       <div className={cn("w-2 h-2 rounded-full", STATUS_COLORS[metrica.status].dot)} />
+                                       <span className={cn("text-xs", STATUS_COLORS[metrica.status].text)}>
+                                         {metrica.status === 'auto' ? 'Automático' : metrica.status === 'manual' ? 'Manual' : 'Não confiável'}
+                                       </span>
+                                     </div>
+                                   </div>
+                                 </TooltipContent>
                               </Tooltip>
                            </TooltipProvider>
                          ))}
@@ -726,11 +752,30 @@ export function DesempenhoClient({
                                                   <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => salvarMetrica(semana.id!, metrica.key)}><Check className="h-3 w-3 text-emerald-600" /></Button>
                                                   <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditando(null)}><X className="h-3 w-3 text-red-600" /></Button>
                                                 </div>
+                                              ) : temDetalhes ? (
+                                                <TooltipProvider>
+                                                  <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                      <span className="text-xs text-gray-600 dark:text-gray-400 text-center cursor-help underline decoration-dotted">
+                                                        {valorFormatado}
+                                                      </span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="top" className="max-w-sm p-3">
+                                                      <div className="space-y-1">
+                                                        <p className="font-semibold text-sm">{metrica.label}</p>
+                                                        <p className="text-xs"><strong>Fonte:</strong> {metrica.fonte}</p>
+                                                        <p className="text-xs"><strong>Cálculo:</strong> {metrica.calculo}</p>
+                                                        {metrica.keyPercentual && valorPercentual !== null && (
+                                                          <p className="text-xs"><strong>Percentual:</strong> {valorPercentual.toFixed(1)}%</p>
+                                                        )}
+                                                      </div>
+                                                    </TooltipContent>
+                                                  </Tooltip>
+                                                </TooltipProvider>
                                               ) : (
-                                                  <span className={cn("text-xs text-gray-600 dark:text-gray-400 text-center", temDetalhes && "cursor-help underline decoration-dotted")} title={temDetalhes ? "Ver detalhes" : ""}>
-                                                     {valorFormatado}
-                                                  </span>
-                                                  // Nota: Tooltips simplificadas para reduzir código, mas funcionalidade de renderização de tooltips complexas (atrasos, descontos) deve ser mantida se possível.
+                                                <span className="text-xs text-gray-600 dark:text-gray-400 text-center">
+                                                  {valorFormatado}
+                                                </span>
                                               )}
                                               {!isEditandoCell && metrica.editavel && semana.id && (
                                                  <Button size="icon" variant="ghost" className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setEditando({ semanaId: semana.id!, campo: metrica.key }); setValorEdit(valor?.toString().replace('.', ',') || ''); }}><Pencil className="h-3 w-3 text-blue-600" /></Button>

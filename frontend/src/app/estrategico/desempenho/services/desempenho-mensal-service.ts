@@ -213,36 +213,75 @@ function agregarDadosSemanaisProporcionais(
   };
 
   return {
+    // CMV
     cmv_rs: sumProp(desempenhoMap, 'cmv_rs'),
     cmv_limpo: avgProp(desempenhoMap, 'cmv_limpo'),
     cmv_global_real: avgProp(desempenhoMap, 'cmv_global_real'),
     cmv_teorico: avgProp(desempenhoMap, 'cmv_teorico'),
+    
+    // Custos
     cmo: avgProp(desempenhoMap, 'cmo'),
     cmo_custo: sumProp(desempenhoMap, 'cmo_custo'),
     custo_atracao_faturamento: avgProp(desempenhoMap, 'custo_atracao_faturamento'),
+    
+    // Clientes
     clientes_ativos: avgProp(desempenhoMap, 'clientes_ativos'),
-    // ... outros campos (simplificado para não estourar tokens, mas deve incluir todos importantes)
     retencao_1m: avgProp(desempenhoMap, 'retencao_1m'),
     retencao_2m: avgProp(desempenhoMap, 'retencao_2m'),
     perc_clientes_novos: avgProp(desempenhoMap, 'perc_clientes_novos'),
+    
+    // Reservas
+    pessoas_reservas_totais: sumProp(desempenhoMap, 'pessoas_reservas_totais'),
+    pessoas_reservas_presentes: sumProp(desempenhoMap, 'pessoas_reservas_presentes'),
+    quebra_reservas: avgProp(desempenhoMap, 'quebra_reservas'),
+    
+    // Qualidade
     avaliacoes_5_google_trip: sumProp(desempenhoMap, 'avaliacoes_5_google_trip'),
     media_avaliacoes_google: avgProp(desempenhoMap, 'media_avaliacoes_google'),
     nps_geral: avgProp(desempenhoMap, 'nps_geral'),
     nps_reservas: avgProp(desempenhoMap, 'nps_reservas'),
     nota_felicidade_equipe: avgProp(desempenhoMap, 'nota_felicidade_equipe'),
+    
+    // Vendas
     perc_happy_hour: avgProp(desempenhoMap, 'perc_happy_hour'),
+    perc_faturamento_apos_22h: avgProp(desempenhoMap, 'perc_faturamento_apos_22h'),
+    qui_sab_dom: sumProp(desempenhoMap, 'qui_sab_dom'),
+    conta_assinada_valor: sumProp(desempenhoMap, 'conta_assinada_valor'),
+    conta_assinada_perc: avgProp(desempenhoMap, 'conta_assinada_perc'),
+    descontos_valor: sumProp(desempenhoMap, 'descontos_valor'),
+    descontos_perc: avgProp(desempenhoMap, 'descontos_perc'),
+    
+    // Stockout (percentuais - médias ponderadas)
     stockout_comidas: sumProp(desempenhoMap, 'stockout_comidas'),
+    stockout_comidas_perc: avgProp(desempenhoMap, 'stockout_comidas_perc'),
     stockout_drinks: sumProp(desempenhoMap, 'stockout_drinks'),
+    stockout_drinks_perc: avgProp(desempenhoMap, 'stockout_drinks_perc'),
     stockout_bar: sumProp(desempenhoMap, 'stockout_bar'),
+    stockout_bar_perc: avgProp(desempenhoMap, 'stockout_bar_perc'),
+    
+    // Atrasos
     qtde_itens_bar: sumProp(desempenhoMap, 'qtde_itens_bar'),
     atrasos_bar: sumProp(desempenhoMap, 'atrasos_bar'),
+    atrasos_bar_perc: avgProp(desempenhoMap, 'atrasos_bar_perc'),
     qtde_itens_cozinha: sumProp(desempenhoMap, 'qtde_itens_cozinha'),
     atrasos_cozinha: sumProp(desempenhoMap, 'atrasos_cozinha'),
+    atrasos_cozinha_perc: avgProp(desempenhoMap, 'atrasos_cozinha_perc'),
+    
+    // Ticket Médio (calculado a partir dos dados semanais)
+    tm_entrada: avgProp(desempenhoMap, 'tm_entrada'),
+    tm_bar: avgProp(desempenhoMap, 'tm_bar'),
+    
+    // Faturamento CMVível
+    faturamento_cmovivel: sumProp(desempenhoMap, 'faturamento_cmovivel'),
+    
+    // Marketing Orgânico
     o_num_posts: sumProp(marketingMap, 'o_num_posts'),
     o_alcance: sumProp(marketingMap, 'o_alcance'),
     o_interacao: sumProp(marketingMap, 'o_interacao'),
     o_compartilhamento: sumProp(marketingMap, 'o_compartilhamento'),
     o_engajamento: avgProp(marketingMap, 'o_engajamento'),
+    
+    // Marketing Pago
     m_valor_investido: sumProp(marketingMap, 'm_valor_investido'),
     m_alcance: sumProp(marketingMap, 'm_alcance'),
     m_cliques: sumProp(marketingMap, 'm_cliques'),
