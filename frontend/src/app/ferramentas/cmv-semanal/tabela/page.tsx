@@ -208,10 +208,10 @@ const SECOES: SecaoConfig[] = [
         label: '(-) Consumações × 0.35',
         metricas: [
           { key: 'total_consumos', label: 'TOTAL (×0.35)', status: 'calculado', fonte: 'Calculado', calculo: 'Soma de todas as consumações × 0.35 (CMV)', formato: 'moeda' },
-          { key: 'total_consumo_socios', label: 'Sócios', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %sócio% (valor bruto)', formato: 'moeda', drilldown: true },
-          { key: 'mesa_adm_casa', label: 'Funcionários', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %adm% ou %casa% (valor bruto)', formato: 'moeda', drilldown: true },
-          { key: 'mesa_beneficios_cliente', label: 'Clientes', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %benefício% (valor bruto)', formato: 'moeda', drilldown: true },
-          { key: 'mesa_banda_dj', label: 'Artistas', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %banda% ou %dj% (valor bruto)', formato: 'moeda', drilldown: true },
+          { key: 'total_consumo_socios', label: 'Sócios (×0.35)', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %sócio% × 0.35', formato: 'moeda', drilldown: true },
+          { key: 'mesa_adm_casa', label: 'Funcionários (×0.35)', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %adm% ou %casa% × 0.35', formato: 'moeda', drilldown: true },
+          { key: 'mesa_beneficios_cliente', label: 'Clientes (×0.35)', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %benefício% × 0.35', formato: 'moeda', drilldown: true },
+          { key: 'mesa_banda_dj', label: 'Artistas (×0.35)', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %banda% ou %dj% × 0.35', formato: 'moeda', drilldown: true },
         ]
       },
       {
@@ -634,6 +634,19 @@ export default function CMVSemanalTabelaPage() {
              ((semana.mesa_adm_casa || 0) * 0.35) + 
              ((semana.mesa_beneficios_cliente || 0) * 0.35) + 
              ((semana.mesa_banda_dj || 0) * 0.35);
+    }
+    // Consumações individuais também × 0.35
+    if (key === 'total_consumo_socios') {
+      return (semana.total_consumo_socios || 0) * 0.35;
+    }
+    if (key === 'mesa_adm_casa') {
+      return (semana.mesa_adm_casa || 0) * 0.35;
+    }
+    if (key === 'mesa_beneficios_cliente') {
+      return (semana.mesa_beneficios_cliente || 0) * 0.35;
+    }
+    if (key === 'mesa_banda_dj') {
+      return (semana.mesa_banda_dj || 0) * 0.35;
     }
     // Bonificações = soma dos sub-itens
     if (key === 'ajuste_bonificacoes') {
