@@ -85,7 +85,8 @@ export interface MetricaConfig {
   status: MetricaStatus;
   fonte: string;
   calculo: string;
-  formato: 'moeda' | 'moeda_decimal' | 'percentual' | 'numero' | 'decimal' | 'reservas';
+  formato: 'moeda' | 'moeda_decimal' | 'moeda_com_percentual' | 'percentual' | 'numero' | 'decimal' | 'reservas';
+  percentualKey?: string;
   inverso?: boolean;
   sufixo?: string;
   editavel?: boolean;

@@ -737,7 +737,7 @@ export function DesempenhoClient({
                                         const valor = (semana as any)[metrica.key];
                                         const valorPessoas = metrica.keyPessoas ? (semana as any)[metrica.keyPessoas] : null;
                                         const valorPercentual = metrica.keyPercentual ? (semana as any)[metrica.keyPercentual] : null;
-                                        const valorPercentualKey = (metrica as any).percentualKey ? (semana as any)[(metrica as any).percentualKey] : null;
+                                        const valorPercentualKey = metrica.percentualKey ? (semana as any)[metrica.percentualKey] : null;
                                         const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
                                         let valorFormatado = metrica.formato === 'reservas' ? (valor !== null && valor !== undefined ? `${Math.round(valor)}/${valorPessoas !== null && valorPessoas !== undefined ? Math.round(valorPessoas) : '-'}` : '-') : formatarValor(valor, metrica.formato, metrica.sufixo);
                                         if (metrica.keyPercentual && valorPercentual !== null && valorPercentual !== undefined && valor !== null && valor !== undefined) valorFormatado = `${formatarValor(valor, 'numero')} (${valorPercentual.toFixed(1)}%)`;
