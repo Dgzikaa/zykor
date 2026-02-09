@@ -38,7 +38,8 @@ import {
   Info,
   Sparkles,
   BarChart3,
-  Table
+  Table,
+  CloudDownload
 } from 'lucide-react';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
@@ -118,6 +119,7 @@ export default function CMVSemanalPage() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [calculando, setCalculando] = useState(false);
+  const [sincronizandoNibo, setSincronizandoNibo] = useState(false);
   const [cmvs, setCmvs] = useState<CMVSemanal[]>([]);
   const [anoFiltro, setAnoFiltro] = useState(() => new Date().getFullYear());
   const [statusFiltro, setStatusFiltro] = useState('TODOS');
@@ -229,6 +231,58 @@ export default function CMVSemanalPage() {
     
     setFormData(dados);
   }, [formData]);
+
+  // Sincronizar dados do NIBO
+  const sincronizarNibo = async () => {
+    if (!selectedBar) {
+      toast({
+        title: "Bar não selecionado",
+        description: "Selecione um bar para sincronizar o NIBO",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSincronizandoNibo(true);
+
+    try {
+      console.log('🔄 Sincronizando NIBO...');
+
+      const response = await fetch('/api/nibo/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          bar_id: selectedBar.id,
+          sync_mode: 'daily_complete'
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erro ao sincronizar com NIBO');
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: "✅ NIBO Sincronizado",
+        description: result.message || "Dados do NIBO foram atualizados com sucesso"
+      });
+
+      // Recarregar CMVs após sincronização
+      carregarCMVs();
+
+    } catch (error) {
+      console.error('Erro ao sincronizar NIBO:', error);
+      toast({
+        title: "Erro ao sincronizar NIBO",
+        description: error instanceof Error ? error.message : "Falha na sincronização",
+        variant: "destructive"
+      });
+    } finally {
+      setSincronizandoNibo(false);
+    }
+  };
 
   // Processar semana atual automaticamente
   const processarSemanaAtual = async () => {
@@ -675,6 +729,14 @@ export default function CMVSemanalPage() {
                   Dashboard
                 </Button>
               </Link>
+              <Button
+                onClick={sincronizarNibo}
+                disabled={sincronizandoNibo}
+                className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white"
+                leftIcon={sincronizandoNibo ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
+              >
+                {sincronizandoNibo ? 'Sincronizando...' : 'Atualizar NIBO'}
+              </Button>
               <Button
                 onClick={processarSemanaAtual}
                 disabled={calculando}

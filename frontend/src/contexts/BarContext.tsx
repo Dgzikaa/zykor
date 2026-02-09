@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { getSupabaseClient } from '@/lib/supabase';
 import { useUser } from '@/contexts/UserContext';
+import { setBarCookie } from '@/lib/cookies';
 
 interface Bar {
   id: number;
@@ -120,6 +121,8 @@ export function BarProvider({ children }: { children: ReactNode }) {
                   setSelectedBar(barToSelect);
                   // Sincronizar permissões do bar selecionado
                   syncBarPermissions(barToSelect);
+                  // Garantir que cookie está atualizado
+                  setBarCookie(barToSelect.id);
 
                   setIsLoading(false);
                   return;
@@ -169,6 +172,8 @@ export function BarProvider({ children }: { children: ReactNode }) {
                 setSelectedBar(barToSelect);
                 // Sincronizar permissões do bar selecionado
                 syncBarPermissions(barToSelect);
+                // Garantir que cookie está atualizado
+                setBarCookie(barToSelect.id);
 
                 setIsLoading(false);
                 return;
@@ -237,6 +242,8 @@ export function BarProvider({ children }: { children: ReactNode }) {
                 updateFavicon(barToSelect.nome);
                 // Sincronizar permissões do bar selecionado
                 syncBarPermissions(barToSelect);
+                // Garantir que cookie está atualizado
+                setBarCookie(barToSelect.id);
 
                 setIsLoading(false);
                 return;
@@ -349,6 +356,9 @@ export function BarProvider({ children }: { children: ReactNode }) {
     // Salvar no localStorage apenas se estamos no cliente
     if (typeof window !== 'undefined') {
       localStorage.setItem('sgb_selected_bar_id', bar.id.toString());
+      // Salvar no cookie para acesso server-side
+      setBarCookie(bar.id);
+      
       // Atualizar favicon baseado no bar selecionado
       updateFavicon(bar.nome);
       

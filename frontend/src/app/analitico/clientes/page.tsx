@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Phone, Users, TrendingUp, MessageCircle, DollarSign, Target, Download, CalendarDays, Calendar, User, Eye, X, Activity, Search, Flame, Settings2, FileSpreadsheet, Loader2 } from 'lucide-react'
+import { Phone, Users, TrendingUp, MessageCircle, DollarSign, Target, Download, CalendarDays, Calendar, User, Eye, X, Activity, Search, Flame, Settings2, FileSpreadsheet, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { useBar } from '@/contexts/BarContext'
@@ -140,6 +140,12 @@ export default function ClientesPage() {
   const [nomeSegmento, setNomeSegmento] = useState<string>('')
   const [salvandoSegmento, setSalvandoSegmento] = useState(false)
   
+  // Paginação
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const ITEMS_PER_PAGE = 50
+  
   // Critérios de segmentação
   const [criterios, setCriterios] = useState({
     // Janela e frequência
@@ -212,7 +218,6 @@ export default function ClientesPage() {
       // Delay mínimo para mostrar loading
       const minLoadingTime = new Promise(resolve => setTimeout(resolve, 800))
       
-      // Construir URL com parâmetros
       const params = new URLSearchParams()
       if (diaSemanaFiltro !== 'todos') {
         params.append('dia_semana', diaSemanaFiltro)
@@ -220,6 +225,10 @@ export default function ClientesPage() {
       if (buscaAplicada) {
         params.append('busca', buscaAplicada)
       }
+      
+      // Adicionar paginação
+      params.append('page', page.toString())
+      params.append('limit', ITEMS_PER_PAGE.toString())
       
       const url = `/api/analitico/clientes${params.toString() ? `?${params.toString()}` : ''}`
       console.log('🔍 Frontend: Buscando clientes com URL:', url)
@@ -270,13 +279,29 @@ export default function ClientesPage() {
       setClientes(data.clientes)
       setClientesFiltrados(data.clientes) // Agora já vem filtrado da API
       setEstatisticas(data.estatisticas)
+      
+      // Atualizar paginação se houver meta
+      if ((data as any).meta) {
+        setTotalPages((data as any).meta.totalPages)
+        setTotalItems((data as any).meta.total)
+      } else {
+        // Fallback se API antiga
+        setTotalPages(1)
+        setTotalItems(data.clientes.length)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
     } finally {
       setLoading(false)
       isApiCallingRef.current = false
     }
-  }, [selectedBar, diaSemanaFiltro, buscaAplicada])
+
+  }, [selectedBar, diaSemanaFiltro, buscaAplicada, page])
+  
+  // Resetar página quando trocar filtros
+  useEffect(() => {
+    setPage(1)
+  }, [diaSemanaFiltro, buscaAplicada])
 
   const fetchReservantes = useCallback(async () => {
     try {
@@ -1439,8 +1464,54 @@ export default function ClientesPage() {
                 </TableRow>
               ))}
             </TableBody>
-              </Table>
-            </TabsContent>
+            </Table>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-end space-x-2 py-4">
+                <div className="flex-1 text-sm text-muted-foreground text-slate-500 dark:text-slate-400">
+                  {totalItems > 0 ? (
+                    <>
+                      Mostrando <span className="font-medium text-slate-900 dark:text-white">{(page - 1) * ITEMS_PER_PAGE + 1}</span> a <span className="font-medium text-slate-900 dark:text-white">{Math.min(page * ITEMS_PER_PAGE, totalItems)}</span> de <span className="font-medium text-slate-900 dark:text-white">{totalItems}</span> clientes
+                    </>
+                  ) : (
+                    "Nenhum cliente encontrado"
+                  )}
+                </div>
+                <div className="space-x-2 flex items-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                        setPage(p => Math.max(1, p - 1))
+                    }}
+                    disabled={page === 1}
+                    className="h-8 w-8 p-0"
+                  >
+                    <span className="sr-only">Página anterior</span>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="flex w-[100px] items-center justify-center text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Página {page} de {totalPages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                        setPage(p => Math.min(totalPages, p + 1))
+                    }}
+                    disabled={page === totalPages}
+                    className="h-8 w-8 p-0"
+                  >
+                    <span className="sr-only">Próxima página</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </TabsContent>
 
             <TabsContent value="reservantes" className="mt-0">
               <Table>

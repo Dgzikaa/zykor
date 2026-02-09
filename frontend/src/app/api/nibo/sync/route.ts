@@ -11,7 +11,10 @@ export async function POST(request: NextRequest) {
     console.log('🔄 Iniciando sincronização NIBO...')
 
     const body = await request.json()
+    const barId = body.bar_id || 3 // Usar bar_id do body ou default 3
     const syncMode = body.sync_mode || 'daily_complete'
+
+    console.log(`📊 Sincronizando bar_id=${barId} com modo=${syncMode}`)
 
     const response = await fetch(`${SUPABASE_URL}/functions/v1/nibo-sync`, {
       method: 'POST',
@@ -20,7 +23,7 @@ export async function POST(request: NextRequest) {
         'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
       },
       body: JSON.stringify({
-        barId: 3,
+        barId: barId,
         sync_mode: syncMode,
         cronSecret: 'manual_test'
       }),

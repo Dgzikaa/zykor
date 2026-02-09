@@ -99,6 +99,23 @@ export function middleware(request: NextRequest) {
     console.log(
       `✅ MIDDLEWARE: Usuário ${user.nome} autorizado para marketing`
     );
+    console.log(
+      `✅ MIDDLEWARE: Usuário ${user.nome} autorizado para marketing`
+    );
+  }
+
+  // Verificar acesso a /estrategico (Apenas Admin)
+  if (pathname.startsWith('/estrategico')) {
+    const user = getStoredUser(request);
+
+    if (!user) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+
+    if (user.role !== 'admin') {
+      console.log(`🚫 MIDDLEWARE: Usuário ${user.nome} sem permissão para estratégico`);
+      return NextResponse.redirect(new URL('/home?error=sem_permissao_estrategico', request.url));
+    }
   }
 
   return NextResponse.next();

@@ -134,46 +134,63 @@ export async function POST(request: NextRequest) {
       console.error('Erro ao buscar contas especiais:', err);
     }
 
-    // 3. BUSCAR FATURAMENTO CMVível (Vendas Brutas - Couvert - Comissão)
-    // 🔧 CORRIGIDO: vr_repique é COMISSÃO, não faturamento!
-    // Fórmula correta: faturamento_cmvivel = vendas_brutas - couvert - comissão
+    // 3. BUSCAR FATURAMENTO CMVível (mesmo cálculo do Desempenho - exclui Conta Assinada)
+    // 🔧 CORRIGIDO: Usar contahub_pagamentos excluindo Conta Assinada (consumo sócios)
+    // Fórmula: faturamento_cmvivel = SUM(liquido) WHERE meio != 'Conta Assinada'
     try {
-      const { data: faturamentoBruto, error: errorFaturamento } = await supabase
+      // 3.1 Buscar faturamento do ContaHub (excluindo Conta Assinada - igual ao Desempenho)
+      const { data: pagamentosBrutos, error: errorPagamentos } = await supabase
+        .from('contahub_pagamentos')
+        .select('liquido, valor, dt_gerencial, meio')
+        .eq('bar_id', bar_id)
+        .gte('dt_gerencial', data_inicio)
+        .lte('dt_gerencial', data_fim)
+        .neq('meio', 'Conta Assinada');
+
+      if (!errorPagamentos && pagamentosBrutos) {
+        // ⚡ FILTRAR DIAS FECHADOS
+        const pagamentos = await filtrarDiasAbertos(pagamentosBrutos, 'dt_gerencial', bar_id);
+        
+        // Faturamento Bruto = SUM(valor) - igual à tabela Desempenho (sem Conta Assinada)
+        resultado.vendas_brutas = pagamentos.reduce((sum, item: any) => 
+          sum + (parseFloat(item.valor) || 0), 0
+        );
+
+        // Faturamento Líquido = SUM(liquido) - igual à tabela Desempenho
+        resultado.vendas_liquidas = pagamentos.reduce((sum, item: any) => 
+          sum + (parseFloat(item.liquido) || 0), 0
+        );
+
+        console.log(`✅ Faturamento Bruto (sem Conta Assinada): R$ ${resultado.vendas_brutas.toFixed(2)}`);
+        console.log(`✅ Faturamento Líquido: R$ ${resultado.vendas_liquidas.toFixed(2)}`);
+      }
+
+      // 3.2 Buscar dados adicionais do contahub_periodo para couvert e repique
+      const { data: periodoData, error: errorPeriodo } = await supabase
         .from('contahub_periodo')
-        .select('vr_repique, vr_pagamentos, vr_couvert, dt_gerencial')
+        .select('vr_repique, vr_couvert, dt_gerencial')
         .eq('bar_id', bar_id)
         .gte('dt_gerencial', data_inicio)
         .lte('dt_gerencial', data_fim);
 
-      if (!errorFaturamento && faturamentoBruto) {
-        // ⚡ FILTRAR DIAS FECHADOS
-        const faturamento = await filtrarDiasAbertos(faturamentoBruto, 'dt_gerencial', bar_id);
-        
-        // Calcular vendas brutas
-        resultado.vendas_brutas = faturamento.reduce((sum, item: any) => 
-          sum + (parseFloat(item.vr_pagamentos) || 0), 0
-        );
+      if (!errorPeriodo && periodoData) {
+        const periodo = await filtrarDiasAbertos(periodoData, 'dt_gerencial', bar_id);
 
-        // Calcular total de couvert
-        const totalCouvert = faturamento.reduce((sum, item: any) => 
+        // Total de couvert
+        const totalCouvert = periodo.reduce((sum, item: any) => 
           sum + (parseFloat(item.vr_couvert) || 0), 0
         );
 
-        // Calcular total de comissão (vr_repique)
-        const totalComissao = faturamento.reduce((sum, item: any) => 
+        // Total de comissão (vr_repique)
+        const totalComissao = periodo.reduce((sum, item: any) => 
           sum + (parseFloat(item.vr_repique) || 0), 0
         );
-
-        // Vendas líquidas = Vendas Brutas - Couvert
-        resultado.vendas_liquidas = resultado.vendas_brutas - totalCouvert;
 
         // 🔧 FATURAMENTO CMVível = Vendas Líquidas - Comissão (vr_repique)
         resultado.faturamento_cmvivel = resultado.vendas_liquidas - totalComissao;
 
-        console.log(`✅ Vendas Brutas: R$ ${resultado.vendas_brutas.toFixed(2)}`);
         console.log(`✅ Total Couvert: R$ ${totalCouvert.toFixed(2)}`);
         console.log(`✅ Total Comissão (vr_repique): R$ ${totalComissao.toFixed(2)}`);
-        console.log(`✅ Vendas Líquidas: R$ ${resultado.vendas_liquidas.toFixed(2)}`);
         console.log(`✅ Faturamento CMVível: R$ ${resultado.faturamento_cmvivel.toFixed(2)}`);
       }
     } catch (err) {
@@ -503,14 +520,36 @@ export async function POST(request: NextRequest) {
     console.log(`📊 COMPRAS TOTAL: R$ ${compras_periodo.toFixed(2)}`);
     console.log('✅ Dados automáticos buscados com sucesso');
 
+    // 8. CALCULAR CONSUMOS COM MULTIPLICADOR 0.35
+    // 🔧 IMPORTANTE: Consumação deve ser multiplicada por 0.35 (CMV do consumo)
+    // - Sócios: total_consumo_socios × 0.35
+    // - ADM/Casa: mesa_adm_casa × 0.35
+    // - Artistas: mesa_banda_dj × 0.35
+    // - Benefícios: (mesa_beneficios_cliente + chegadeira) × 0.35
+    // - RH: valor integral (sem multiplicador)
+    const consumo_socios_calculado = resultado.total_consumo_socios * 0.35;
+    const consumo_adm_calculado = resultado.mesa_adm_casa * 0.35;
+    const consumo_artista_calculado = resultado.mesa_banda_dj * 0.35;
+    const consumo_beneficios_calculado = (resultado.mesa_beneficios_cliente + resultado.chegadeira) * 0.35;
+    const consumo_rh_calculado = resultado.mesa_rh; // Sem multiplicador
+
+    console.log(`📊 CONSUMOS COM MULTIPLICADOR 0.35:`);
+    console.log(`  - Sócios: R$ ${resultado.total_consumo_socios.toFixed(2)} × 0.35 = R$ ${consumo_socios_calculado.toFixed(2)}`);
+    console.log(`  - ADM: R$ ${resultado.mesa_adm_casa.toFixed(2)} × 0.35 = R$ ${consumo_adm_calculado.toFixed(2)}`);
+    console.log(`  - Artistas: R$ ${resultado.mesa_banda_dj.toFixed(2)} × 0.35 = R$ ${consumo_artista_calculado.toFixed(2)}`);
+    console.log(`  - Benefícios: R$ ${(resultado.mesa_beneficios_cliente + resultado.chegadeira).toFixed(2)} × 0.35 = R$ ${consumo_beneficios_calculado.toFixed(2)}`);
+    console.log(`  - RH: R$ ${consumo_rh_calculado.toFixed(2)} (sem multiplicador)`);
+
     // Retornar com campos mapeados para o frontend
     const dadosParaFrontend = {
       ...resultado,
       compras_periodo,
-      consumo_socios,
-      consumo_beneficios,
-      consumo_adm,
-      consumo_artista,
+      // Valores calculados com multiplicador 0.35
+      consumo_socios: consumo_socios_calculado,
+      consumo_beneficios: consumo_beneficios_calculado,
+      consumo_adm: consumo_adm_calculado,
+      consumo_artista: consumo_artista_calculado,
+      consumo_rh: consumo_rh_calculado,
     };
 
     return NextResponse.json({

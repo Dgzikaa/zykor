@@ -32,7 +32,8 @@ import {
   Users,
   Calculator,
   BarChart3,
-  Table2
+  Table2,
+  CloudDownload
 } from 'lucide-react';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -159,8 +160,8 @@ const SECOES: SecaoConfig[] = [
         label: 'Faturamento',
         semCollapse: true,
         metricas: [
-          { key: 'vendas_brutas', label: 'Faturamento Bruto', status: 'auto', fonte: 'ContaHub', calculo: 'SUM(vr_pagamentos)', formato: 'moeda', drilldown: true },
-          { key: 'vendas_liquidas', label: 'Faturamento Limpo', status: 'calculado', fonte: 'Calculado', calculo: 'Bruto - Couvert - Gorjeta', formato: 'moeda', drilldown: true },
+          { key: 'vendas_brutas', label: 'Faturamento Bruto', status: 'auto', fonte: 'ContaHub', calculo: 'SUM(valor) excluindo Conta Assinada', formato: 'moeda', drilldown: true },
+          { key: 'vendas_liquidas', label: 'Faturamento Limpo', status: 'calculado', fonte: 'ContaHub', calculo: 'SUM(liquido) excluindo Conta Assinada', formato: 'moeda', drilldown: true },
         ]
       }
     ]
@@ -204,13 +205,13 @@ const SECOES: SecaoConfig[] = [
       },
       {
         id: 'consumos',
-        label: '(-) Consumações',
+        label: '(-) Consumações × 0.35',
         metricas: [
-          { key: 'total_consumos', label: 'TOTAL', status: 'calculado', fonte: 'Calculado', calculo: 'Soma de todas as consumações', formato: 'moeda' },
-          { key: 'total_consumo_socios', label: 'Sócios', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %sócio%', formato: 'moeda', drilldown: true },
-          { key: 'mesa_adm_casa', label: 'Funcionários', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %adm% ou %casa%', formato: 'moeda', drilldown: true },
-          { key: 'mesa_beneficios_cliente', label: 'Clientes', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %benefício%', formato: 'moeda', drilldown: true },
-          { key: 'mesa_banda_dj', label: 'Artistas', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %banda% ou %dj%', formato: 'moeda', drilldown: true },
+          { key: 'total_consumos', label: 'TOTAL (×0.35)', status: 'calculado', fonte: 'Calculado', calculo: 'Soma de todas as consumações × 0.35 (CMV)', formato: 'moeda' },
+          { key: 'total_consumo_socios', label: 'Sócios', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %sócio% (valor bruto)', formato: 'moeda', drilldown: true },
+          { key: 'mesa_adm_casa', label: 'Funcionários', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %adm% ou %casa% (valor bruto)', formato: 'moeda', drilldown: true },
+          { key: 'mesa_beneficios_cliente', label: 'Clientes', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %benefício% (valor bruto)', formato: 'moeda', drilldown: true },
+          { key: 'mesa_banda_dj', label: 'Artistas', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %banda% ou %dj% (valor bruto)', formato: 'moeda', drilldown: true },
         ]
       },
       {
@@ -316,6 +317,7 @@ export default function CMVSemanalTabelaPage() {
   });
   const [editando, setEditando] = useState<{ semanaId: string; campo: string } | null>(null);
   const [valorEdit, setValorEdit] = useState('');
+  const [sincronizandoNibo, setSincronizandoNibo] = useState(false);
   
   // Modal Drill-Down
   const [modalDrillDown, setModalDrillDown] = useState<{
@@ -339,6 +341,53 @@ export default function CMVSemanalTabelaPage() {
 
   // Nomes dos meses
   const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+  // Sincronizar dados do NIBO
+  const sincronizarNibo = async () => {
+    if (!selectedBar?.id) {
+      toast({ title: 'Erro', description: 'Selecione um bar primeiro', variant: 'destructive' });
+      return;
+    }
+
+    setSincronizandoNibo(true);
+
+    try {
+      // Chamar API de sincronização do NIBO
+      const response = await fetch('/api/nibo/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          bar_id: selectedBar.id,
+          sync_mode: 'daily_complete' // Sincronização completa dos últimos 3 meses
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erro ao sincronizar com NIBO');
+      }
+
+      const result = await response.json();
+
+      toast({ 
+        title: '✅ NIBO Sincronizado', 
+        description: result.message || 'Dados do NIBO foram atualizados com sucesso'
+      });
+
+      // Recarregar dados após sincronização
+      await carregarDados();
+
+    } catch (error) {
+      console.error('Erro ao sincronizar NIBO:', error);
+      toast({ 
+        title: 'Erro ao sincronizar NIBO', 
+        description: error instanceof Error ? error.message : 'Falha na sincronização',
+        variant: 'destructive' 
+      });
+    } finally {
+      setSincronizandoNibo(false);
+    }
+  };
 
   // Carregar dados
   const carregarDados = useCallback(async () => {
@@ -578,12 +627,12 @@ export default function CMVSemanalTabelaPage() {
              (semana.compras_custo_bebidas || 0) + 
              (semana.compras_custo_outros || 0);
     }
-    // Consumações = soma dos sub-itens
+    // Consumações = soma dos sub-itens × 0.35 (CMV do consumo)
     if (key === 'total_consumos') {
-      return (semana.total_consumo_socios || 0) + 
-             (semana.mesa_adm_casa || 0) + 
-             (semana.mesa_beneficios_cliente || 0) + 
-             (semana.mesa_banda_dj || 0);
+      return ((semana.total_consumo_socios || 0) * 0.35) + 
+             ((semana.mesa_adm_casa || 0) * 0.35) + 
+             (((semana.mesa_beneficios_cliente || 0) + (semana.chegadeira || 0)) * 0.35) + 
+             ((semana.mesa_banda_dj || 0) * 0.35);
     }
     // Bonificações = soma dos sub-itens
     if (key === 'ajuste_bonificacoes') {
@@ -601,7 +650,7 @@ export default function CMVSemanalTabelaPage() {
   };
 
   // Gerar detalhes para tooltip do valor
-  const getDetalhesTooltip = (semana: CMVSemanal, key: string): { label: string; valor: number }[] | null => {
+  const getDetalhesTooltip = (semana: CMVSemanal, key: string): { label: string; valor: number; formula?: string }[] | null => {
     switch (key) {
       case 'estoque_inicial':
         return [
@@ -624,15 +673,41 @@ export default function CMVSemanalTabelaPage() {
         ];
       case 'total_consumos':
         return [
-          { label: 'Sócios', valor: semana.total_consumo_socios || 0 },
-          { label: 'Funcionários', valor: semana.mesa_adm_casa || 0 },
-          { label: 'Clientes', valor: semana.mesa_beneficios_cliente || 0 },
-          { label: 'Artistas', valor: semana.mesa_banda_dj || 0 },
+          { label: 'Sócios × 0.35', valor: (semana.total_consumo_socios || 0) * 0.35 },
+          { label: 'Funcionários × 0.35', valor: (semana.mesa_adm_casa || 0) * 0.35 },
+          { label: 'Clientes × 0.35', valor: ((semana.mesa_beneficios_cliente || 0) + (semana.chegadeira || 0)) * 0.35 },
+          { label: 'Artistas × 0.35', valor: (semana.mesa_banda_dj || 0) * 0.35 },
         ];
       case 'ajuste_bonificacoes':
         return [
           { label: 'Contrato Anual', valor: semana.bonificacao_contrato_anual || 0 },
           { label: 'Cashback Mensal', valor: semana.bonificacao_cashback_mensal || 0 },
+        ];
+      // RESULTADOS - Tooltips com cálculos detalhados
+      case 'cmv_real':
+        const estoqueInicial = (semana.estoque_inicial_cozinha || 0) + (semana.estoque_inicial_drinks || 0) + (semana.estoque_inicial_bebidas || 0);
+        const compras = (semana.compras_custo_comida || 0) + (semana.compras_custo_drinks || 0) + (semana.compras_custo_bebidas || 0) + (semana.compras_custo_outros || 0);
+        const estoqueFinal = (semana.estoque_final_cozinha || 0) + (semana.estoque_final_drinks || 0) + (semana.estoque_final_bebidas || 0);
+        const consumosTotal = ((semana.total_consumo_socios || 0) * 0.35) + ((semana.mesa_adm_casa || 0) * 0.35) + (((semana.mesa_beneficios_cliente || 0) + (semana.chegadeira || 0)) * 0.35) + ((semana.mesa_banda_dj || 0) * 0.35);
+        const bonificacoes = (semana.bonificacao_contrato_anual || 0) + (semana.bonificacao_cashback_mensal || 0);
+        return [
+          { label: 'Estoque Inicial', valor: estoqueInicial },
+          { label: '(+) Compras', valor: compras },
+          { label: '(-) Estoque Final', valor: -estoqueFinal },
+          { label: '(-) Consumações × 0.35', valor: -consumosTotal },
+          { label: '(-) Bonificações', valor: -bonificacoes },
+        ];
+      case 'cmv_limpo_percentual':
+        const cmvReal = semana.cmv_real || 0;
+        const fatCmvivel = semana.faturamento_cmvivel || 1;
+        return [
+          { label: 'CMV Real', valor: cmvReal },
+          { label: '÷ Fat. CMVível', valor: fatCmvivel },
+          { label: '× 100', valor: (cmvReal / fatCmvivel) * 100, formula: `(${formatarValor(cmvReal, 'moeda')} ÷ ${formatarValor(fatCmvivel, 'moeda')}) × 100` },
+        ];
+      case 'cmv_teorico_percentual':
+        return [
+          { label: 'Meta CMV', valor: semana.cmv_teorico_percentual || 0, formula: 'Valor teórico/meta definido' },
         ];
       default:
         return null;
@@ -724,6 +799,17 @@ export default function CMVSemanalTabelaPage() {
                   Listagem
                 </Button>
               </Link>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={sincronizarNibo} 
+                disabled={sincronizandoNibo || loading}
+                className="border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+              >
+                <CloudDownload className={cn("h-4 w-4 mr-2", sincronizandoNibo && "animate-pulse")} />
+                {sincronizandoNibo ? 'Sincronizando...' : 'Atualizar NIBO'}
+              </Button>
               
               <Button variant="outline" size="sm" onClick={carregarDados} disabled={loading}>
                 <RefreshCcw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
@@ -1104,6 +1190,61 @@ export default function CMVSemanalTabelaPage() {
                                                   </div>
                                                   <div className="text-[10px] text-blue-500 text-center pt-1">
                                                     Clique para ver detalhes
+                                                  </div>
+                                                </div>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        );
+                                      }
+                                      
+                                      // Tooltip para resultados (CMV, CMV Limpo %, CMV Teórico %)
+                                      const detalhesResultado = getDetalhesTooltip(semana, metrica.key);
+                                      if (detalhesResultado && ['cmv_real', 'cmv_limpo_percentual', 'cmv_teorico_percentual'].includes(metrica.key)) {
+                                        return (
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <span className={cn(
+                                                  "text-xs text-center font-mono cursor-help underline decoration-dotted decoration-gray-400",
+                                                  metrica.formato === 'percentual' && valor !== null && valor > 40 ? "text-red-600 dark:text-red-400" :
+                                                  metrica.formato === 'percentual' && valor !== null && valor <= 33 ? "text-green-600 dark:text-green-400" :
+                                                  "text-gray-700 dark:text-gray-300"
+                                                )}>
+                                                  {valorFormatado}
+                                                </span>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top" className="p-3 bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 z-50 max-w-xs">
+                                                <div className="space-y-2">
+                                                  <div className="text-xs font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-600 pb-1 mb-2">
+                                                    📊 {metrica.label}
+                                                  </div>
+                                                  <div className="text-[10px] text-gray-500 dark:text-gray-400 mb-2">
+                                                    <strong>Fórmula:</strong> {metrica.calculo}
+                                                  </div>
+                                                  {detalhesResultado.map((d, i) => (
+                                                    <div key={i} className="flex justify-between gap-4 text-xs">
+                                                      <span className={cn(
+                                                        "text-gray-600 dark:text-gray-400",
+                                                        d.valor < 0 && "text-red-500"
+                                                      )}>{d.label}</span>
+                                                      <span className="font-mono text-gray-900 dark:text-white">
+                                                        {metrica.key === 'cmv_limpo_percentual' && d.label.includes('×') 
+                                                          ? `${d.valor.toFixed(2)}%`
+                                                          : formatarValor(Math.abs(d.valor), metrica.key === 'cmv_teorico_percentual' ? 'percentual' : 'moeda')}
+                                                      </span>
+                                                    </div>
+                                                  ))}
+                                                  <div className="flex justify-between gap-4 text-xs font-bold border-t border-gray-200 dark:border-gray-600 pt-2 mt-2">
+                                                    <span className="text-gray-700 dark:text-gray-300">= Resultado</span>
+                                                    <span className={cn(
+                                                      "font-mono",
+                                                      metrica.formato === 'percentual' && valor !== null && valor > 40 ? "text-red-600" :
+                                                      metrica.formato === 'percentual' && valor !== null && valor <= 33 ? "text-green-600" :
+                                                      "text-blue-600 dark:text-blue-400"
+                                                    )}>
+                                                      {valorFormatado}
+                                                    </span>
                                                   </div>
                                                 </div>
                                               </TooltipContent>

@@ -60,16 +60,27 @@ interface DadosComparativos {
   ultimaAtualizacao: string;
 }
 
-export function ComparativoMensalNovo() {
+interface ComparativoMensalNovoProps {
+  initialData?: DadosComparativos;
+  barId?: number;
+}
+
+export function ComparativoMensalNovo({ initialData, barId }: ComparativoMensalNovoProps) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   
-  const [dados, setDados] = useState<DadosComparativos | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [mesReferencia, setMesReferencia] = useState<string>('2025-10');
+  const [dados, setDados] = useState<DadosComparativos | null>(initialData || null);
+  const [loading, setLoading] = useState(!initialData);
+  const [mesReferencia, setMesReferencia] = useState<string>(() => {
+    if (initialData?.meses?.length) {
+      return initialData.meses[initialData.meses.length - 1].mes;
+    }
+    return '2025-10'; // Fallback
+  });
 
   const carregarDados = async () => {
-    if (!selectedBar?.id) return;
+    const finalBarId = barId || selectedBar?.id;
+    if (!finalBarId) return;
     
     setLoading(true);
     

@@ -31,6 +31,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const diaSemanaFiltro = searchParams.get('dia_semana')
     const buscaCliente = searchParams.get('busca')?.trim() || ''
+
+    // Paginação
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const from = (page - 1) * limit
+    const to = from + limit - 1
     
     // bar_id é OBRIGATÓRIO
     if (!barIdFilter) {
@@ -42,15 +48,12 @@ export async function GET(request: NextRequest) {
 
     const startTime = Date.now()
     console.log(`🚀 API Clientes: bar_id=${barIdFilter}, filtro_dia=${diaSemanaFiltro || 'todos'}`)
-
-    // ========== USAR TABELA DE CACHE (para "todos os dias") ==========
-    if (!diaSemanaFiltro || diaSemanaFiltro === 'todos') {
-      console.log('⚡ Usando tabela de cache cliente_estatisticas...')
+      console.log(`⚡ Usando tabela de cache cliente_estatisticas... (Página ${page}, Limit ${limit})`)
       console.log(`🔍 Busca: "${buscaCliente}"`)
       
       let query = supabase
         .from('cliente_estatisticas')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('bar_id', barIdFilter)
       
       // Se tiver busca, filtrar por nome ou telefone
@@ -59,9 +62,9 @@ export async function GET(request: NextRequest) {
       }
       
       // Ordenar e limitar
-      const { data: clientesCache, error: cacheError } = await query
+      const { data: clientesCache, count: totalCount, error: cacheError } = await query
         .order('total_visitas', { ascending: false })
-        .limit(buscaCliente ? 500 : 100) // Mais resultados quando busca
+        .range(from, to)
 
       if (cacheError) {
         console.error('❌ Erro ao buscar cache:', cacheError)
@@ -162,7 +165,13 @@ export async function GET(request: NextRequest) {
             valor_total_consumo: totalConsumo,
           },
           fonte: 'cache',
-          tempo_ms: tempoMs
+          tempo_ms: tempoMs,
+          meta: {
+            page,
+            limit,
+            total: totalCount || 0,
+            totalPages: Math.ceil((totalCount || 0) / limit)
+          }
         })
       } else {
         console.log('⚠️ Cache vazio - executando sync automático...')

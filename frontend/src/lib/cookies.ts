@@ -1,5 +1,8 @@
 ﻿// Utilitários para gerenciamento de cookies de autenticação
 
+export const AUTH_COOKIE_NAME = 'sgb_user';
+export const BAR_COOKIE_NAME = 'sgb_bar_id';
+
 export interface UserCookie {
   id: number;
   email: string;
@@ -18,11 +21,40 @@ interface UserData {
   ativo?: boolean;
 }
 
-export const AUTH_COOKIE_NAME = 'sgb_user';
-
-export function setAuthCookie(userData: UserCookie) {
+// Cookie do Bar
+export const setBarCookie = (barId: number) => {
   try {
-    // Garantir que todos os campos obrigatórios estão presentes
+    const expires = new Date();
+    expires.setDate(expires.getDate() + 30); // 30 dias
+    document.cookie = `${BAR_COOKIE_NAME}=${barId}; expires=${expires.toUTCString()}; path=/; secure=${window.location.protocol === 'https:'}; samesite=strict`;
+  } catch (error) {
+    console.error('❌ Erro ao salvar cookie do bar:', error);
+  }
+};
+
+export const getBarCookie = (): number | null => {
+  try {
+    if (typeof document === 'undefined') return null;
+    const cookies = document.cookie.split(';');
+    const barCookie = cookies.find(cookie =>
+      cookie.trim().startsWith(`${BAR_COOKIE_NAME}=`)
+    );
+
+    if (!barCookie) return null;
+
+    const value = barCookie.split('=')[1];
+    if (!value) return null;
+
+    return parseInt(value);
+  } catch (error) {
+    console.error('❌ Erro ao ler cookie do bar:', error);
+    return null;
+  }
+};
+
+// Autenticação
+export const setAuthCookie = (userData: UserCookie) => {
+  try {
     const cookieData: UserCookie = {
       id: userData.id,
       email: userData.email,
@@ -40,10 +72,11 @@ export function setAuthCookie(userData: UserCookie) {
   } catch (error) {
     console.error('❌ Erro ao salvar cookie de autenticação:', error);
   }
-}
+};
 
-export function getAuthCookie(): UserCookie | null {
+export const getAuthCookie = (): UserCookie | null => {
   try {
+    if (typeof document === 'undefined') return null;
     const cookies = document.cookie.split(';');
     const authCookie = cookies.find(cookie =>
       cookie.trim().startsWith(`${AUTH_COOKIE_NAME}=`)
@@ -60,42 +93,29 @@ export function getAuthCookie(): UserCookie | null {
     console.error('❌ Erro ao ler cookie de autenticação:', error);
     return null;
   }
-}
+};
 
-export function clearAuthCookie() {
+export const clearAuthCookie = () => {
   try {
-    // Limpar cookie definindo data de expiração no passado
     const pastDate = 'Thu, 01 Jan 1970 00:00:00 UTC';
-
-    // Múltiplas tentativas de limpeza para garantir que o cookie seja removido
     document.cookie = `${AUTH_COOKIE_NAME}=; expires=${pastDate}; path=/; domain=${window.location.hostname}`;
     document.cookie = `${AUTH_COOKIE_NAME}=; expires=${pastDate}; path=/`;
     document.cookie = `${AUTH_COOKIE_NAME}=; expires=${pastDate}; path=/; domain=.${window.location.hostname}`;
     document.cookie = `${AUTH_COOKIE_NAME}=; max-age=0; path=/`;
     document.cookie = `${AUTH_COOKIE_NAME}=; max-age=0; path=/; domain=${window.location.hostname}`;
-    
-    // Limpar também a sessão do Supabase
     localStorage.removeItem('sgb_session');
-
     console.log('✅ Cookie de autenticação removido');
   } catch (error) {
     console.error('❌ Erro ao limpar cookie de autenticação:', error);
   }
-}
+};
 
-// Função para sincronizar localStorage com cookie
-export function syncAuthData(userData: UserData, session?: any) {
+export const syncAuthData = (userData: UserData, session?: any) => {
   try {
-    // Salvar no localStorage (dados completos)
     localStorage.setItem('sgb_user', JSON.stringify(userData));
-    
-    // Salvar sessão do Supabase se fornecida
     if (session) {
       localStorage.setItem('sgb_session', JSON.stringify(session));
-      console.log('✅ Sessão Supabase salva no localStorage');
     }
-
-    // Salvar no cookie (dados necessários para middleware)
     const cookieData: UserCookie = {
       id: userData.id,
       email: userData.email,
@@ -104,9 +124,8 @@ export function syncAuthData(userData: UserData, session?: any) {
       modulos_permitidos: userData.modulos_permitidos || [],
       ativo: userData.ativo !== false,
     };
-
     setAuthCookie(cookieData);
   } catch (error) {
     console.error('❌ Erro ao sincronizar dados de autenticação:', error);
   }
-}
+};
