@@ -215,16 +215,14 @@ const SECOES: SecaoConfig[] = [
         id: 'conta_assinada',
         label: 'Conta Assinada',
         metricas: [
-          { key: 'conta_assinada_valor', label: 'Valor R$', status: 'auto', fonte: 'contahub_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda' },
-          { key: 'conta_assinada_perc', label: '% do Faturamento', status: 'auto', fonte: 'Calculado', calculo: 'Valor / Faturamento Total', formato: 'percentual' },
+          { key: 'conta_assinada_valor', label: 'Conta Assinada', status: 'auto', fonte: 'contahub_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda_com_percentual', percentualKey: 'conta_assinada_perc' },
         ]
       },
       {
         id: 'descontos',
         label: 'Descontos',
         metricas: [
-          { key: 'descontos_valor', label: 'Valor R$', status: 'auto', fonte: 'contahub_periodo', calculo: 'Soma vr_desconto', formato: 'moeda', temTooltipDetalhes: true },
-          { key: 'descontos_perc', label: '% do Faturamento', status: 'auto', fonte: 'Calculado', calculo: 'Valor / Faturamento Total', formato: 'percentual' },
+          { key: 'descontos_valor', label: 'Descontos', status: 'auto', fonte: 'contahub_periodo', calculo: 'Soma vr_desconto', formato: 'moeda_com_percentual', percentualKey: 'descontos_perc', temTooltipDetalhes: true },
         ]
       }
     ]
@@ -739,9 +737,19 @@ export function DesempenhoClient({
                                         const valor = (semana as any)[metrica.key];
                                         const valorPessoas = metrica.keyPessoas ? (semana as any)[metrica.keyPessoas] : null;
                                         const valorPercentual = metrica.keyPercentual ? (semana as any)[metrica.keyPercentual] : null;
+                                        const valorPercentualKey = (metrica as any).percentualKey ? (semana as any)[(metrica as any).percentualKey] : null;
                                         const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
                                         let valorFormatado = metrica.formato === 'reservas' ? (valor !== null && valor !== undefined ? `${Math.round(valor)}/${valorPessoas !== null && valorPessoas !== undefined ? Math.round(valorPessoas) : '-'}` : '-') : formatarValor(valor, metrica.formato, metrica.sufixo);
                                         if (metrica.keyPercentual && valorPercentual !== null && valorPercentual !== undefined && valor !== null && valor !== undefined) valorFormatado = `${formatarValor(valor, 'numero')} (${valorPercentual.toFixed(1)}%)`;
+                                        // Formato moeda_com_percentual: R$ 27.520 (3,5%)
+                                        if (metrica.formato === 'moeda_com_percentual' && valor !== null && valor !== undefined) {
+                                          const moedaFormatada = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(valor);
+                                          if (valorPercentualKey !== null && valorPercentualKey !== undefined) {
+                                            valorFormatado = `${moedaFormatada} (${valorPercentualKey.toFixed(1)}%)`;
+                                          } else {
+                                            valorFormatado = moedaFormatada;
+                                          }
+                                        }
                                         const temDetalhes = metrica.temTooltipDetalhes;
                                         
                                         return (
