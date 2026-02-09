@@ -102,7 +102,7 @@ async function getDadosMensais(
     data_fim: dataFim,
     ...dadosSemanais,
     ...dadosDiarios,
-  } as DadosSemana;
+  } as unknown as DadosSemana;
 }
 
 // Helpers copiados de route.ts

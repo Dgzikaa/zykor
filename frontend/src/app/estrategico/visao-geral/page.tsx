@@ -136,7 +136,12 @@ export default async function VisaoGeralEstrategica({
   ]);
 
   // Processar Resultados Anuais
-  let indicadoresAnuais = null;
+  let indicadoresAnuais: {
+    faturamento: { valor: number; meta: number; detalhes?: Record<string, number> };
+    pessoas: { valor: number; meta: number; detalhes?: Record<string, number> };
+    reputacao: { valor: number; meta: number };
+    ebitda: { valor: number; meta: number };
+  } | null = null;
   if (!anualResult.error && anualResult.data && anualResult.data.length > 0) {
     const dados = anualResult.data[0];
     indicadoresAnuais = {
@@ -170,7 +175,15 @@ export default async function VisaoGeralEstrategica({
   }
 
   // Processar Resultados Trimestrais
-  let indicadoresTrimestrais = null;
+  let indicadoresTrimestrais: {
+    clientesAtivos: { valor: number; meta: number; variacao?: number };
+    clientesTotais: { valor: number; meta: number; variacao?: number };
+    retencao: { valor: number; meta: number; variacao?: number };
+    retencaoReal: { valor: number; meta: number; variacao?: number };
+    cmvLimpo: { valor: number; meta: number; variacao?: number };
+    cmo: { valor: number; meta: number; variacao?: number };
+    artistica: { valor: number; meta: number; variacao?: number };
+  } | null = null;
   if (!trimestralResult.error && trimestralResult.data && trimestralResult.data.length > 0) {
     const dados = trimestralResult.data[0];
     const metas = getMetasTrimestre(trimestreAtual);

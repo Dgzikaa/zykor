@@ -86,7 +86,7 @@ export function ComparativoMensalNovo({ initialData, barId }: ComparativoMensalN
     
     try {
       const response = await fetch(
-        `/api/visao-geral/indicadores-mensais?barId=${selectedBar.id}&mes=${mesReferencia}`
+        `/api/visao-geral/indicadores-mensais?barId=${selectedBar?.id}&mes=${mesReferencia}`
       );
       
       if (!response.ok) {

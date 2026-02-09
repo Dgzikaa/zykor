@@ -185,7 +185,6 @@ export async function GET(request: NextRequest) {
           body: JSON.stringify({ bar_id: barIdFilter })
         }).catch(err => console.warn('Erro ao disparar sync:', err))
       }
-    }
 
     // ========== FALLBACK: MÉTODO ANTIGO (para filtros por dia da semana) ==========
     console.log('🔄 Usando método tradicional (filtro por dia)...')

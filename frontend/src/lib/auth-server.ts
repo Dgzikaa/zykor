@@ -71,3 +71,21 @@ export async function getBarIdServer(): Promise<number | null> {
   const barId = parseInt(barIdCookie.value);
   return isNaN(barId) ? null : barId;
 }
+
+/**
+ * Retrieves the selected bar name from cookies in Server Components
+ */
+export async function getBarNomeServer(): Promise<string | null> {
+  const cookieStore = await cookies();
+  const barNomeCookie = cookieStore.get('sgb_bar_nome');
+
+  if (!barNomeCookie) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(barNomeCookie.value);
+  } catch {
+    return barNomeCookie.value;
+  }
+}
