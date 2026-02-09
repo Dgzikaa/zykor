@@ -258,10 +258,16 @@ const SECOES: SecaoConfig[] = [
 
 // Helpers UI
 const isGrupoHierarquico = (grupo: GrupoMetricas): boolean => {
-  if (!grupo.metricas.length) return false;
+  // Grupo hierárquico: label do grupo = label da primeira métrica E tem mais de 1 métrica
+  if (!grupo.metricas.length || grupo.metricas.length === 1) return false;
   const labelGrupo = grupo.label.toLowerCase().replace(/[%]/g, '').trim();
   const labelMetrica = grupo.metricas[0].label.toLowerCase().replace(/[%]/g, '').trim();
   return labelGrupo === labelMetrica;
+};
+
+// Verifica se grupo tem apenas 1 métrica (exibir diretamente sem header de grupo)
+const isGrupoSimples = (grupo: GrupoMetricas): boolean => {
+  return grupo.metricas.length === 1;
 };
 
 const calcularValorAgregado = (grupo: GrupoMetricas, semana: any): number | null => {
@@ -613,8 +619,10 @@ export function DesempenhoClient({
                 {secoesAbertas[secao.id] && secao.grupos.map(grupo => {
                    // ... Renderizar labels dos grupos ...
                    const hierarquico = isGrupoHierarquico(grupo);
+                   const grupoSimples = isGrupoSimples(grupo);
                    const metricasParaMostrar = hierarquico ? grupo.metricas.slice(1) : grupo.metricas;
-                   const mostrarHeaderGrupo = hierarquico || !!grupo.agregacao;
+                   // Grupos simples (1 métrica) não mostram header de grupo, apenas a métrica diretamente
+                   const mostrarHeaderGrupo = !grupoSimples && (hierarquico || !!grupo.agregacao);
                    return (
                       <div key={grupo.id}>
                          {mostrarHeaderGrupo && (
@@ -702,9 +710,11 @@ export function DesempenhoClient({
                             {secoesAbertas[secao.id] && secao.grupos.map(grupo => {
                                // ... Lógica de renderização de células (igual page.tsx) ...
                                const hierarquico = isGrupoHierarquico(grupo);
+                               const grupoSimples = isGrupoSimples(grupo);
                                const metricaPrincipal = grupo.metricas[0];
                                const metricasParaMostrar = hierarquico ? grupo.metricas.slice(1) : grupo.metricas;
-                               const mostrarHeaderGrupo = hierarquico || !!grupo.agregacao;
+                               // Grupos simples (1 métrica) não mostram header de grupo
+                               const mostrarHeaderGrupo = !grupoSimples && (hierarquico || !!grupo.agregacao);
                                
                                const valorPrincipal = hierarquico && metricaPrincipal ? (semana as any)[metricaPrincipal.key] : null;
                                const valorPessoasPrincipal = hierarquico && metricaPrincipal?.keyPessoas ? (semana as any)[metricaPrincipal.keyPessoas] : null;
