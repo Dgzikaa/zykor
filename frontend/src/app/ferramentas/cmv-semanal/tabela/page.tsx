@@ -138,13 +138,12 @@ interface SecaoConfig {
 }
 
 // Cores por status
-// auto e calculado = laranja (precisa verificar)
-// manual = azul (bonificações)
-// Depois de verificar tudo, muda para verde
+// auto e calculado = verde (dados verificados e confiáveis)
+// manual = azul (bonificações inseridas manualmente)
 const STATUS_COLORS = {
-  auto: { dot: 'bg-orange-500', text: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+  auto: { dot: 'bg-green-500', text: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
   manual: { dot: 'bg-blue-500', text: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-  calculado: { dot: 'bg-orange-500', text: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' }
+  calculado: { dot: 'bg-green-500', text: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' }
 };
 
 // Configuração das seções e métricas

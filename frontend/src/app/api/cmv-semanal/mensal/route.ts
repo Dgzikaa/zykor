@@ -247,18 +247,23 @@ function agregarCMVProportional(
     return pesoTotal > 0 ? soma / pesoTotal : 0;
   };
 
-  // Para estoque inicial: usar o primeiro valor do mês (semana mais antiga com dados)
-  // Se o valor for 0 ou null, usar estoque final do mês anterior como fallback
+  // CORRIGIDO: Para visão mensal igual à planilha Digão
+  // Estoque Inicial do Mês = Estoque Inicial da PRIMEIRA semana que tem dias no mês
+  // Estoque Final do Mês = Estoque Final da ÚLTIMA semana que tem dias no mês
+  
+  // Ordenar semanas uma vez (para reutilizar)
+  const semanasOrdenadas = [...semanasComProporcao].sort((a, b) => {
+    if (a.anoISO !== b.anoISO) return a.anoISO - b.anoISO;
+    return a.semana - b.semana;
+  });
+  const primeiraSemana = semanasOrdenadas[0];
+  const ultimaSemana = semanasOrdenadas[semanasOrdenadas.length - 1];
+
+  // Estoque Inicial: da primeira semana do mês
   const primeiroEstoque = (campoInicial: keyof CMVSemanal, campoFinalAnterior: keyof CMVSemanal): number | null => {
-    // Ordenar semanas por ano e semana (crescente)
-    const semanasOrdenadas = [...semanasComProporcao].sort((a, b) => {
-      if (a.anoISO !== b.anoISO) return a.anoISO - b.anoISO;
-      return a.semana - b.semana;
-    });
-    
-    // Tentar encontrar um valor > 0 nas semanas do mês
-    for (const s of semanasOrdenadas) {
-      const dados = cmvMap.get(`${s.anoISO}-${s.semana}`);
+    // Buscar estoque inicial da primeira semana do mês
+    if (primeiraSemana) {
+      const dados = cmvMap.get(`${primeiraSemana.anoISO}-${primeiraSemana.semana}`);
       if (dados && dados[campoInicial] !== null && dados[campoInicial] !== undefined) {
         const valor = parseFloat(String(dados[campoInicial])) || 0;
         if (valor > 0) {
@@ -267,7 +272,7 @@ function agregarCMVProportional(
       }
     }
     
-    // Fallback: usar estoque final do mês anterior
+    // Fallback: usar estoque final do mês anterior se o estoque inicial da primeira semana for 0
     if (estoqueFinalMesAnterior && estoqueFinalMesAnterior[campoFinalAnterior] !== null) {
       const valorFallback = parseFloat(String(estoqueFinalMesAnterior[campoFinalAnterior])) || 0;
       if (valorFallback > 0) {
@@ -275,41 +280,31 @@ function agregarCMVProportional(
       }
     }
     
-    return null;
+    // Retornar 0 se não encontrar nada
+    return 0;
   };
 
-  // Para estoque final: usar o último valor do mês (semana mais recente com dados > 0)
-  // Se não encontrar, usa o estoque inicial do mesmo mês como fallback (estoque não mudou)
+  // Estoque Final: da última semana do mês
   const ultimoEstoque = (campoFinal: keyof CMVSemanal, campoInicialCorrespondente: keyof CMVSemanal): number | null => {
-    // Ordenar semanas por ano e semana (decrescente)
-    const semanasOrdenadas = [...semanasComProporcao].sort((a, b) => {
-      if (b.anoISO !== a.anoISO) return b.anoISO - a.anoISO;
-      return b.semana - a.semana;
-    });
-    
-    // Tentar encontrar um valor > 0 nas semanas do mês (estoque final)
-    for (const s of semanasOrdenadas) {
-      const dados = cmvMap.get(`${s.anoISO}-${s.semana}`);
+    // Buscar estoque final da última semana do mês
+    if (ultimaSemana) {
+      const dados = cmvMap.get(`${ultimaSemana.anoISO}-${ultimaSemana.semana}`);
       if (dados && dados[campoFinal] !== null && dados[campoFinal] !== undefined) {
         const valor = parseFloat(String(dados[campoFinal])) || 0;
         if (valor > 0) {
           return valor;
         }
-      }
-    }
-    
-    // Fallback 1: Se não encontrou estoque_final > 0, tentar estoque_inicial da última semana
-    for (const s of semanasOrdenadas) {
-      const dados = cmvMap.get(`${s.anoISO}-${s.semana}`);
-      if (dados && dados[campoInicialCorrespondente] !== null && dados[campoInicialCorrespondente] !== undefined) {
-        const valor = parseFloat(String(dados[campoInicialCorrespondente])) || 0;
-        if (valor > 0) {
-          return valor;
+        // Se estoque_final é 0, tentar estoque_inicial da mesma semana como fallback
+        if (dados[campoInicialCorrespondente] !== null && dados[campoInicialCorrespondente] !== undefined) {
+          const valorInicial = parseFloat(String(dados[campoInicialCorrespondente])) || 0;
+          if (valorInicial > 0) {
+            return valorInicial;
+          }
         }
       }
     }
     
-    // Fallback 2: usar estoque final do mês anterior se disponível
+    // Fallback: usar estoque final do mês anterior se disponível
     if (estoqueFinalMesAnterior) {
       const valorFallback = parseFloat(String(estoqueFinalMesAnterior[campoFinal])) || 0;
       if (valorFallback > 0) {
@@ -317,15 +312,8 @@ function agregarCMVProportional(
       }
     }
     
-    // Se nenhum valor > 0 foi encontrado, retornar o primeiro valor encontrado (mesmo que 0)
-    for (const s of semanasOrdenadas) {
-      const dados = cmvMap.get(`${s.anoISO}-${s.semana}`);
-      if (dados && dados[campoFinal] !== null && dados[campoFinal] !== undefined) {
-        return parseFloat(String(dados[campoFinal])) || 0;
-      }
-    }
-    
-    return null;
+    // Retornar 0 se não encontrar nada
+    return 0;
   };
 
   return {

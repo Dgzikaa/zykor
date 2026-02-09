@@ -63,71 +63,70 @@ export async function POST(request: NextRequest) {
       estoque_final_drinks: 0,
     };
 
-    // 1. BUSCAR CONSUMO DOS SÓCIOS
-    // 🔧 ATUALIZADO: Lista completa de padrões de sócios
-    // Sócios: sócio, socio, x-socio, x-sócio, gonza, corbal, diogo, cadu, augusto, rodrigo, digao, vinicius, vini, bueno, kaizen, caisen, joão pedro, joao pedro, jp, 3v, cantucci
+    // 1-2. BUSCAR TODAS AS CONSUMAÇÕES E CLASSIFICAR COM PRIORIDADE
+    // 🔧 IMPORTANTE: Cada registro só pode entrar em UMA categoria (evita duplicidade)
+    // ORDEM DE PRIORIDADE: Sócios > Artistas > Funcionários > Clientes
     try {
-      const { data: consumoSociosBruto, error: errorSocios } = await supabase
+      // Padrões por categoria (ordem de prioridade)
+      const PADROES_SOCIOS = ['sócio', 'socio', 'x-socio', 'x-sócio', 'gonza', 'corbal', 'diogo', 'cadu', 'augusto', 'rodrigo', 'digao', 'vinicius', 'vini', 'bueno', 'kaizen', 'caisen', 'joão pedro', 'joao pedro', 'jp', '3v', 'cantucci'];
+      const PADROES_ARTISTAS = ['musico', 'músicos', 'dj', 'banda', 'artista', 'breno', 'benza', 'stz', 'zelia', 'tia', 'samba', 'sambadona', 'doze', 'boca', 'boka', 'pé', 'chão', 'segunda', 'resenha', 'pagode', 'roda', 'reconvexa', 'rodie', 'roudier', 'roudi', 'som', 'técnico', 'tecnico', 'pv', 'paulo victor', 'prod'];
+      const PADROES_FUNCIONARIOS = ['funcionários', 'funcionario', 'financeiro', 'fin', 'mkt', 'marketing', 'slu', 'adm', 'administrativo', 'prêmio', 'confra', 'rh', 'recursos humanos'];
+      const PADROES_CLIENTES = ['aniver', 'anivers', 'aniversário', 'aniversario', 'aniversariante', 'niver', 'voucher', 'benefício', 'beneficio', 'mesa mágica', 'mágica', 'influencer', 'influ', 'influencia', 'influência', 'club', 'clube', 'midia', 'mídia', 'social', 'insta', 'digital', 'cliente', 'ambev', 'chegadeira', 'chegador'];
+
+      // Função para verificar se motivo contém algum padrão
+      const matchPattern = (motivo: string, patterns: string[]): boolean => {
+        const m = motivo.toLowerCase();
+        return patterns.some(p => m.includes(p.toLowerCase()));
+      };
+
+      // Classificar registro com prioridade (só entra em 1 categoria)
+      const classificarRegistro = (motivo: string): 'socios' | 'artistas' | 'funcionarios' | 'clientes' | null => {
+        if (!motivo) return null;
+        if (matchPattern(motivo, PADROES_SOCIOS)) return 'socios';
+        if (matchPattern(motivo, PADROES_ARTISTAS)) return 'artistas';
+        if (matchPattern(motivo, PADROES_FUNCIONARIOS)) return 'funcionarios';
+        if (matchPattern(motivo, PADROES_CLIENTES)) return 'clientes';
+        return null;
+      };
+
+      // Buscar TODOS os registros com motivo preenchido
+      const { data: todosBrutos, error: errorTodos } = await supabase
         .from('contahub_periodo')
         .select('vr_desconto, vr_produtos, dt_gerencial, motivo')
         .eq('bar_id', bar_id)
         .gte('dt_gerencial', data_inicio)
         .lte('dt_gerencial', data_fim)
-        .or('motivo.ilike.%sócio%,motivo.ilike.%socio%,motivo.ilike.%x-socio%,motivo.ilike.%x-sócio%,motivo.ilike.%gonza%,motivo.ilike.%corbal%,motivo.ilike.%diogo%,motivo.ilike.%cadu%,motivo.ilike.%augusto%,motivo.ilike.%rodrigo%,motivo.ilike.%digao%,motivo.ilike.%vinicius%,motivo.ilike.%vini%,motivo.ilike.%bueno%,motivo.ilike.%kaizen%,motivo.ilike.%caisen%,motivo.ilike.%joão pedro%,motivo.ilike.%joao pedro%,motivo.ilike.%jp%,motivo.ilike.%3v%,motivo.ilike.%cantucci%');
+        .not('motivo', 'is', null);
 
-      if (!errorSocios && consumoSociosBruto) {
+      if (!errorTodos && todosBrutos) {
         // ⚡ FILTRAR DIAS FECHADOS
-        const consumoSocios = await filtrarDiasAbertos(consumoSociosBruto, 'dt_gerencial', bar_id);
+        const todosRegistros = await filtrarDiasAbertos(todosBrutos, 'dt_gerencial', bar_id);
         
-        // 🔧 CORRIGIDO: Somar vr_desconto + vr_produtos (alguns sócios podem ter desconto parcial)
-        resultado.total_consumo_socios = consumoSocios.reduce((sum, item: any) => 
-          sum + (parseFloat(item.vr_desconto) || 0) + (parseFloat(item.vr_produtos) || 0), 0
-        );
-        console.log(`✅ Consumo sócios: R$ ${resultado.total_consumo_socios.toFixed(2)} (${consumoSocios.length} registros)`);
-      }
-    } catch (err) {
-      console.error('Erro ao buscar consumo dos sócios:', err);
-    }
+        // Classificar e somar cada registro (cada um só entra em 1 categoria)
+        const totais = { socios: 0, artistas: 0, funcionarios: 0, clientes: 0 };
+        const contagens = { socios: 0, artistas: 0, funcionarios: 0, clientes: 0 };
 
-    // 2. BUSCAR CONTAS ESPECIAIS
-    // 🔧 CORRIGIDO: Regras alinhadas - ATUALIZADO 09/02/2026
-    // 4 CATEGORIAS: Sócios (acima), Funcionários, Clientes, Artistas
-    try {
-      const contasEspeciais = {
-        // ARTISTAS: musico, músicos, dj, banda, artista, breno, benza, stz, zelia, tia, samba, sambadona, doze, boca, boka, pé, chão, segunda, resenha, pagode, roda, reconvexa, rodie, roudier, roudi, som, técnico, tecnico, pv, paulo victor, prod
-        'mesa_banda_dj': ['musico', 'músicos', 'dj', 'banda', 'artista', 'breno', 'benza', 'stz', 'zelia', 'tia', 'samba', 'sambadona', 'doze', 'boca', 'boka', 'pé', 'chão', 'segunda', 'resenha', 'pagode', 'roda', 'reconvexa', 'rodie', 'roudier', 'roudi', 'som', 'técnico', 'tecnico', 'pv', 'paulo victor', 'prod'],
-        // CLIENTES: aniver, anivers, aniversário, aniversario, aniversariante, niver, voucher, benefício, beneficio, mesa mágica, mágica, influencer, influ, influencia, influência, club, clube, midia, mídia, social, insta, digital, cliente, ambev, chegadeira, chegador
-        'mesa_beneficios_cliente': ['aniver', 'anivers', 'aniversário', 'aniversario', 'aniversariante', 'niver', 'voucher', 'benefício', 'beneficio', 'mesa mágica', 'mágica', 'influencer', 'influ', 'influencia', 'influência', 'club', 'clube', 'midia', 'mídia', 'social', 'insta', 'digital', 'cliente', 'ambev', 'chegadeira', 'chegador'],
-        // FUNCIONÁRIOS: funcionários, funcionario, rh, financeiro, fin, mkt, marketing, slu, adm, administrativo, prêmio, confra
-        'mesa_adm_casa': ['funcionários', 'funcionario', 'financeiro', 'fin', 'mkt', 'marketing', 'slu', 'adm', 'administrativo', 'prêmio', 'confra', 'rh', 'recursos humanos'],
-      };
-
-      for (const [campo, patterns] of Object.entries(contasEspeciais)) {
-        if (patterns.length === 0) continue; // Pular se não houver padrões
-
-        const conditions = patterns.map(p => `motivo.ilike.%${p}%`);
-
-        const { data: dataBruto, error } = await supabase
-          .from('contahub_periodo')
-          .select('vr_desconto, vr_produtos, dt_gerencial')
-          .eq('bar_id', bar_id)
-          .gte('dt_gerencial', data_inicio)
-          .lte('dt_gerencial', data_fim)
-          .or(conditions.join(','));
-
-        if (!error && dataBruto) {
-          // ⚡ FILTRAR DIAS FECHADOS
-          const data = await filtrarDiasAbertos(dataBruto, 'dt_gerencial', bar_id);
-          
-          // 🔧 CORRIGIDO: Somar vr_desconto + vr_produtos (podem ter desconto parcial)
-          resultado[campo as keyof typeof resultado] = data.reduce((sum: number, item: any) => 
-            sum + (parseFloat(item.vr_desconto) || 0) + (parseFloat(item.vr_produtos) || 0), 0
-          );
-          console.log(`✅ ${campo}: R$ ${(resultado[campo as keyof typeof resultado] as number).toFixed(2)} (${data.length} registros)`);
+        for (const item of todosRegistros as any[]) {
+          const categoria = classificarRegistro(item.motivo || '');
+          if (categoria) {
+            const valor = (parseFloat(item.vr_desconto) || 0) + (parseFloat(item.vr_produtos) || 0);
+            totais[categoria] += valor;
+            contagens[categoria]++;
+          }
         }
+
+        resultado.total_consumo_socios = totais.socios;
+        resultado.mesa_banda_dj = totais.artistas;
+        resultado.mesa_adm_casa = totais.funcionarios;
+        resultado.mesa_beneficios_cliente = totais.clientes;
+
+        console.log(`✅ Consumo sócios: R$ ${totais.socios.toFixed(2)} (${contagens.socios} registros)`);
+        console.log(`✅ Consumo artistas: R$ ${totais.artistas.toFixed(2)} (${contagens.artistas} registros)`);
+        console.log(`✅ Consumo funcionários: R$ ${totais.funcionarios.toFixed(2)} (${contagens.funcionarios} registros)`);
+        console.log(`✅ Consumo clientes: R$ ${totais.clientes.toFixed(2)} (${contagens.clientes} registros)`);
       }
     } catch (err) {
-      console.error('Erro ao buscar contas especiais:', err);
+      console.error('Erro ao buscar consumações:', err);
     }
 
     // 3. BUSCAR FATURAMENTO CMVível (mesmo cálculo do Desempenho - exclui Conta Assinada)
