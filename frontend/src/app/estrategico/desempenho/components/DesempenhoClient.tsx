@@ -739,17 +739,17 @@ export function DesempenhoClient({
                                         const valorPercentual = metrica.keyPercentual ? (semana as any)[metrica.keyPercentual] : null;
                                         const valorPercentualKey = metrica.percentualKey ? (semana as any)[metrica.percentualKey] : null;
                                         const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
-                                        let valorFormatado = metrica.formato === 'reservas' ? (valor !== null && valor !== undefined ? `${Math.round(valor)}/${valorPessoas !== null && valorPessoas !== undefined ? Math.round(valorPessoas) : '-'}` : '-') : formatarValor(valor, metrica.formato, metrica.sufixo);
-                                        if (metrica.keyPercentual && valorPercentual !== null && valorPercentual !== undefined && valor !== null && valor !== undefined) valorFormatado = `${formatarValor(valor, 'numero')} (${valorPercentual.toFixed(1)}%)`;
-                                        // Formato moeda_com_percentual: R$ 27.520 (3,5%)
-                                        if (metrica.formato === 'moeda_com_percentual' && valor !== null && valor !== undefined) {
-                                          const moedaFormatada = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(valor);
-                                          if (valorPercentualKey !== null && valorPercentualKey !== undefined) {
-                                            valorFormatado = `${moedaFormatada} (${valorPercentualKey.toFixed(1)}%)`;
-                                          } else {
-                                            valorFormatado = moedaFormatada;
-                                          }
-                                        }
+                                       let valorFormatado = metrica.formato === 'reservas' ? (valor !== null && valor !== undefined ? `${Math.round(valor)}/${valorPessoas !== null && valorPessoas !== undefined ? Math.round(valorPessoas) : '-'}` : '-') : formatarValor(valor, metrica.formato, metrica.sufixo);
+                                       if (metrica.keyPercentual && valorPercentual !== null && valorPercentual !== undefined && typeof valorPercentual === 'number' && valor !== null && valor !== undefined) valorFormatado = `${formatarValor(valor, 'numero')} (${valorPercentual.toFixed(1)}%)`;
+                                       // Formato moeda_com_percentual: R$ 27.520 (3,5%)
+                                       if (metrica.formato === 'moeda_com_percentual' && valor !== null && valor !== undefined) {
+                                         const moedaFormatada = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(valor);
+                                         if (valorPercentualKey !== null && valorPercentualKey !== undefined && typeof valorPercentualKey === 'number') {
+                                           valorFormatado = `${moedaFormatada} (${valorPercentualKey.toFixed(1)}%)`;
+                                         } else {
+                                           valorFormatado = moedaFormatada;
+                                         }
+                                       }
                                         const temDetalhes = metrica.temTooltipDetalhes;
                                         
                                         return (
@@ -773,7 +773,7 @@ export function DesempenhoClient({
                                                         <p className="font-semibold text-sm">{metrica.label}</p>
                                                         <p className="text-xs"><strong>Fonte:</strong> {metrica.fonte}</p>
                                                         <p className="text-xs"><strong>Cálculo:</strong> {metrica.calculo}</p>
-                                                        {metrica.keyPercentual && valorPercentual !== null && (
+                                                        {metrica.keyPercentual && valorPercentual !== null && typeof valorPercentual === 'number' && (
                                                           <p className="text-xs"><strong>Percentual:</strong> {valorPercentual.toFixed(1)}%</p>
                                                         )}
                                                       </div>
