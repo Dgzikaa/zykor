@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     // ========== PARTE 1: Dados diários de eventos_base ==========
     const { data: eventosDiarios, error: eventosError } = await supabase
       .from('eventos_base')
-      .select('data_evento, real_r, cl_real, t_medio, percent_b, percent_d, percent_c, res_tot, res_p, t_coz, t_bar, fat_19h_percent, faturamento_couvert, faturamento_bar')
+      .select('data_evento, real_r, cl_real, t_medio, percent_b, percent_d, percent_c, res_tot, res_p, t_coz, t_bar, fat_19h_percent, faturamento_couvert, faturamento_bar, percent_stockout')
       .eq('bar_id', barId)
       .gte('data_evento', dataInicio)
       .lte('data_evento', dataFim);
@@ -251,6 +251,13 @@ function agregarDadosDiarios(eventos: any[]): any {
     
     // Faturamento até 19h
     perc_faturamento_ate_19h: percFat19h,
+    
+    // Stockout (média dos dias que tem dado)
+    percent_stockout: (() => {
+      const diasComStockout = diasComFaturamento.filter(e => parseFloat(e.percent_stockout) >= 0 && e.percent_stockout !== null);
+      if (diasComStockout.length === 0) return null;
+      return Math.round(diasComStockout.reduce((acc, e) => acc + (parseFloat(e.percent_stockout) || 0), 0) / diasComStockout.length * 10) / 10;
+    })(),
   };
 }
 
@@ -323,11 +330,17 @@ function agregarDadosSemanaisProporcionais(
     cmo_custo: somaProportional('cmo_custo'),
     custo_atracao_faturamento: mediaProportional('custo_atracao_faturamento'),
     
-    // Clientes ativos (média)
-    clientes_ativos: mediaProportional('clientes_ativos'),
-    clientes_30d: mediaProportional('clientes_30d'),
-    clientes_60d: mediaProportional('clientes_60d'),
-    clientes_90d: mediaProportional('clientes_90d'),
+    // Clientes ativos (soma, não média - é contagem única de clientes)
+    clientes_ativos: Math.round(somaProportional('clientes_ativos')),
+    clientes_30d: Math.round(somaProportional('clientes_30d')),
+    clientes_60d: Math.round(somaProportional('clientes_60d')),
+    clientes_90d: Math.round(somaProportional('clientes_90d')),
+    
+    // Reservas (soma das semanas proporcionais)
+    reservas_totais_semanal: Math.round(somaProportional('reservas_totais')),
+    reservas_presentes_semanal: Math.round(somaProportional('reservas_presentes')),
+    pessoas_reservas_totais: Math.round(somaProportional('pessoas_reservas_totais')),
+    pessoas_reservas_presentes: Math.round(somaProportional('pessoas_reservas_presentes')),
     
     // Retenção (média)
     retencao_1m: mediaProportional('retencao_1m'),
@@ -335,11 +348,11 @@ function agregarDadosSemanaisProporcionais(
     perc_clientes_novos: mediaProportional('perc_clientes_novos'),
     
     // Qualidade
-    avaliacoes_5_google_trip: somaProportional('avaliacoes_5_google_trip'),
-    media_avaliacoes_google: mediaProportional('media_avaliacoes_google'),
-    nps_geral: mediaProportional('nps_geral'),
-    nps_reservas: mediaProportional('nps_reservas'),
-    nota_felicidade_equipe: mediaProportional('nota_felicidade_equipe'),
+    avaliacoes_5_google_trip: Math.round(somaProportional('avaliacoes_5_google_trip')),
+    media_avaliacoes_google: Math.round(mediaProportional('media_avaliacoes_google') * 100) / 100, // 2 casas decimais
+    nps_geral: Math.round(mediaProportional('nps_geral')),
+    nps_reservas: Math.round(mediaProportional('nps_reservas')),
+    nota_felicidade_equipe: Math.round(mediaProportional('nota_felicidade_equipe') * 100) / 100,
     
     // Happy Hour
     perc_happy_hour: mediaProportional('perc_happy_hour'),
@@ -358,10 +371,13 @@ function agregarDadosSemanaisProporcionais(
     atracoes_eventos: somaProportional('atracoes_eventos'),
     utensilios: somaProportional('utensilios'),
     
-    // Stockout e produção
-    stockout_comidas: somaProportional('stockout_comidas'),
-    stockout_drinks: somaProportional('stockout_drinks'),
-    stockout_bar: somaProportional('stockout_bar'),
+    // Stockout e produção (percentuais são média, quantidades são soma)
+    stockout_comidas: Math.round(somaProportional('stockout_comidas')),
+    stockout_drinks: Math.round(somaProportional('stockout_drinks')),
+    stockout_bar: Math.round(somaProportional('stockout_bar')),
+    stockout_bar_perc: Math.round(mediaProportional('stockout_bar_perc') * 10) / 10,
+    stockout_comidas_perc: Math.round(mediaProportional('stockout_comidas_perc') * 10) / 10,
+    stockout_drinks_perc: Math.round(mediaProportional('stockout_drinks_perc') * 10) / 10,
     qtde_itens_bar: somaProportional('qtde_itens_bar'),
     atrasos_bar: somaProportional('atrasos_bar'),
     qtde_itens_cozinha: somaProportional('qtde_itens_cozinha'),
