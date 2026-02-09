@@ -212,6 +212,13 @@ function agregarDadosSemanaisProporcionais(
     return peso > 0 ? soma / peso : 0;
   };
 
+  // Calcular quebra de reservas corretamente (igual à API route)
+  const pessoasReservasTotal = Math.round(sumProp(desempenhoMap, 'pessoas_reservas_totais'));
+  const pessoasReservasPresentes = Math.round(sumProp(desempenhoMap, 'pessoas_reservas_presentes'));
+  const quebraReservasCalc = pessoasReservasTotal > 0 
+    ? ((pessoasReservasTotal - pessoasReservasPresentes) / pessoasReservasTotal) * 100 
+    : 0;
+
   return {
     // CMV
     cmv_rs: sumProp(desempenhoMap, 'cmv_rs'),
@@ -226,16 +233,22 @@ function agregarDadosSemanaisProporcionais(
     
     // Clientes (números absolutos - soma arredondada, não média)
     clientes_ativos: Math.round(sumProp(desempenhoMap, 'clientes_ativos')),
+    clientes_30d: Math.round(sumProp(desempenhoMap, 'clientes_30d')),
+    clientes_60d: Math.round(sumProp(desempenhoMap, 'clientes_60d')),
+    clientes_90d: Math.round(sumProp(desempenhoMap, 'clientes_90d')),
     retencao_1m: avgProp(desempenhoMap, 'retencao_1m'),
     retencao_2m: avgProp(desempenhoMap, 'retencao_2m'),
     perc_clientes_novos: avgProp(desempenhoMap, 'perc_clientes_novos'),
     
     // Reservas (números absolutos - soma arredondada)
-    pessoas_reservas_totais: Math.round(sumProp(desempenhoMap, 'pessoas_reservas_totais')),
-    pessoas_reservas_presentes: Math.round(sumProp(desempenhoMap, 'pessoas_reservas_presentes')),
-    quebra_reservas: avgProp(desempenhoMap, 'quebra_reservas'),
+    reservas_totais_semanal: Math.round(sumProp(desempenhoMap, 'reservas_totais')),
+    reservas_presentes_semanal: Math.round(sumProp(desempenhoMap, 'reservas_presentes')),
+    pessoas_reservas_totais: pessoasReservasTotal,
+    pessoas_reservas_presentes: pessoasReservasPresentes,
+    // Quebra de reservas = (Pessoas Total - Pessoas Presentes) / Pessoas Total × 100
+    quebra_reservas: quebraReservasCalc,
     
-    // Qualidade (avaliações são números absolutos - soma arredondada, NPS são médias)
+    // Qualidade (avaliações são números absolutos - soma arredondada, NPS são médias arredondadas)
     avaliacoes_5_google_trip: Math.round(sumProp(desempenhoMap, 'avaliacoes_5_google_trip')),
     media_avaliacoes_google: Math.round(avgProp(desempenhoMap, 'media_avaliacoes_google') * 100) / 100,
     nps_geral: Math.round(avgProp(desempenhoMap, 'nps_geral')),
@@ -251,15 +264,15 @@ function agregarDadosSemanaisProporcionais(
     descontos_valor: sumProp(desempenhoMap, 'descontos_valor'),
     descontos_perc: avgProp(desempenhoMap, 'descontos_perc'),
     
-    // Stockout (percentuais - médias ponderadas)
-    stockout_comidas: sumProp(desempenhoMap, 'stockout_comidas'),
-    stockout_comidas_perc: avgProp(desempenhoMap, 'stockout_comidas_perc'),
-    stockout_drinks: sumProp(desempenhoMap, 'stockout_drinks'),
-    stockout_drinks_perc: avgProp(desempenhoMap, 'stockout_drinks_perc'),
-    stockout_bar: sumProp(desempenhoMap, 'stockout_bar'),
-    stockout_bar_perc: avgProp(desempenhoMap, 'stockout_bar_perc'),
+    // Stockout (quantidades arredondadas, percentuais com 1 casa decimal)
+    stockout_comidas: Math.round(sumProp(desempenhoMap, 'stockout_comidas')),
+    stockout_comidas_perc: Math.round(avgProp(desempenhoMap, 'stockout_comidas_perc') * 10) / 10,
+    stockout_drinks: Math.round(sumProp(desempenhoMap, 'stockout_drinks')),
+    stockout_drinks_perc: Math.round(avgProp(desempenhoMap, 'stockout_drinks_perc') * 10) / 10,
+    stockout_bar: Math.round(sumProp(desempenhoMap, 'stockout_bar')),
+    stockout_bar_perc: Math.round(avgProp(desempenhoMap, 'stockout_bar_perc') * 10) / 10,
     
-    // Atrasos
+    // Atrasos (quantidades são soma, percentuais são média)
     qtde_itens_bar: sumProp(desempenhoMap, 'qtde_itens_bar'),
     atrasos_bar: sumProp(desempenhoMap, 'atrasos_bar'),
     atrasos_bar_perc: avgProp(desempenhoMap, 'atrasos_bar_perc'),
@@ -267,12 +280,16 @@ function agregarDadosSemanaisProporcionais(
     atrasos_cozinha: sumProp(desempenhoMap, 'atrasos_cozinha'),
     atrasos_cozinha_perc: avgProp(desempenhoMap, 'atrasos_cozinha_perc'),
     
-    // Ticket Médio (calculado a partir dos dados semanais)
+    // Ticket Médio (médias)
     tm_entrada: avgProp(desempenhoMap, 'tm_entrada'),
     tm_bar: avgProp(desempenhoMap, 'tm_bar'),
     
     // Faturamento CMVível
     faturamento_cmovivel: sumProp(desempenhoMap, 'faturamento_cmovivel'),
+    
+    // Vendas extras
+    venda_balcao: sumProp(desempenhoMap, 'venda_balcao'),
+    couvert_atracoes: sumProp(desempenhoMap, 'couvert_atracoes'),
     
     // Marketing Orgânico
     o_num_posts: sumProp(marketingMap, 'o_num_posts'),
@@ -280,13 +297,29 @@ function agregarDadosSemanaisProporcionais(
     o_interacao: sumProp(marketingMap, 'o_interacao'),
     o_compartilhamento: sumProp(marketingMap, 'o_compartilhamento'),
     o_engajamento: avgProp(marketingMap, 'o_engajamento'),
+    o_num_stories: sumProp(marketingMap, 'o_num_stories'),
+    o_visu_stories: sumProp(marketingMap, 'o_visu_stories'),
     
-    // Marketing Pago
+    // Marketing Pago - Meta
     m_valor_investido: sumProp(marketingMap, 'm_valor_investido'),
     m_alcance: sumProp(marketingMap, 'm_alcance'),
+    m_frequencia: avgProp(marketingMap, 'm_frequencia'),
+    m_cpm: avgProp(marketingMap, 'm_cpm'),
     m_cliques: sumProp(marketingMap, 'm_cliques'),
     m_ctr: avgProp(marketingMap, 'm_ctr'),
     m_custo_por_clique: avgProp(marketingMap, 'm_cpc'),
     m_conversas_iniciadas: sumProp(marketingMap, 'm_conversas_iniciadas'),
+    
+    // Google Ads
+    g_valor_investido: sumProp(marketingMap, 'g_valor_investido'),
+    g_impressoes: sumProp(marketingMap, 'g_impressoes'),
+    g_cliques: sumProp(marketingMap, 'g_cliques'),
+    g_ctr: avgProp(marketingMap, 'g_ctr'),
+    g_solicitacoes_rotas: sumProp(marketingMap, 'g_solicitacoes_rotas'),
+    
+    // GMN
+    gmn_total_acoes: sumProp(marketingMap, 'gmn_total_acoes'),
+    gmn_total_visualizacoes: sumProp(marketingMap, 'gmn_total_visualizacoes'),
+    gmn_solicitacoes_rotas: sumProp(marketingMap, 'gmn_solicitacoes_rotas'),
   };
 }
