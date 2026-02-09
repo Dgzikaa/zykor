@@ -341,6 +341,12 @@ function agregarDadosSemanaisProporcionais(
     reservas_presentes_semanal: Math.round(somaProportional('reservas_presentes')),
     pessoas_reservas_totais: Math.round(somaProportional('pessoas_reservas_totais')),
     pessoas_reservas_presentes: Math.round(somaProportional('pessoas_reservas_presentes')),
+    // Quebra de reservas = (Pessoas Total - Pessoas Presentes) / Pessoas Total × 100
+    quebra_reservas: (() => {
+      const pessoasTotal = Math.round(somaProportional('pessoas_reservas_totais'));
+      const pessoasPresentes = Math.round(somaProportional('pessoas_reservas_presentes'));
+      return pessoasTotal > 0 ? ((pessoasTotal - pessoasPresentes) / pessoasTotal) * 100 : 0;
+    })(),
     
     // Retenção (média)
     retencao_1m: mediaProportional('retencao_1m'),

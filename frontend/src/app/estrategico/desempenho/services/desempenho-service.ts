@@ -235,8 +235,16 @@ export async function getSemanas(
       ? (cmvRsCalculado / s.faturamento_total) * 100
       : null;
 
+    // Calcular Quebra de Reservas = (Pessoas Total - Pessoas Presentes) / Pessoas Total × 100
+    const pessoasTotal = s.pessoas_reservas_totais || 0;
+    const pessoasPresentes = s.pessoas_reservas_presentes || 0;
+    const quebraReservas = pessoasTotal > 0 
+      ? ((pessoasTotal - pessoasPresentes) / pessoasTotal) * 100 
+      : 0;
+
     return {
       ...s,
+      quebra_reservas: quebraReservas,
       conta_assinada_valor: contaAssinadaValor,
       conta_assinada_perc: contaAssinadaPerc,
       descontos_valor: descontosValor,
