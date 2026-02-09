@@ -192,10 +192,23 @@ function agregarDadosDiarios(eventos: any[]): any {
   const faturamentoCouvert = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.faturamento_couvert) || 0), 0);
   const faturamentoBar = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.faturamento_bar) || 0), 0);
 
-  // Médias ponderadas por faturamento para percentuais
-  const somaPercentB = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.percent_b) || 0), 0);
-  const somaPercentD = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.percent_d) || 0), 0);
-  const somaPercentC = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.percent_c) || 0), 0);
+  // Médias ponderadas por faturamento para percentuais (% Mix de Vendas)
+  // Fórmula: Σ(percent * faturamento) / Σ(faturamento)
+  const somaPercentBPonderado = diasComFaturamento.reduce((acc, e) => {
+    const fat = parseFloat(e.real_r) || 0;
+    const perc = parseFloat(e.percent_b) || 0;
+    return acc + (perc * fat);
+  }, 0);
+  const somaPercentDPonderado = diasComFaturamento.reduce((acc, e) => {
+    const fat = parseFloat(e.real_r) || 0;
+    const perc = parseFloat(e.percent_d) || 0;
+    return acc + (perc * fat);
+  }, 0);
+  const somaPercentCPonderado = diasComFaturamento.reduce((acc, e) => {
+    const fat = parseFloat(e.real_r) || 0;
+    const perc = parseFloat(e.percent_c) || 0;
+    return acc + (perc * fat);
+  }, 0);
 
   // Médias simples para tempos e percentuais
   const diasComTempo = diasComFaturamento.filter(e => parseFloat(e.t_coz) > 0 || parseFloat(e.t_bar) > 0);
@@ -223,10 +236,10 @@ function agregarDadosDiarios(eventos: any[]): any {
     // Ticket médio (faturamento / clientes)
     ticket_medio: clientesTotal > 0 ? faturamentoTotal / clientesTotal : 0,
     
-    // Mix de vendas (média dos dias)
-    perc_bebidas: somaPercentB / n,
-    perc_drinks: somaPercentD / n,
-    perc_comida: somaPercentC / n,
+    // Mix de vendas (média ponderada pelo faturamento)
+    perc_bebidas: faturamentoTotal > 0 ? somaPercentBPonderado / faturamentoTotal : 0,
+    perc_drinks: faturamentoTotal > 0 ? somaPercentDPonderado / faturamentoTotal : 0,
+    perc_comida: faturamentoTotal > 0 ? somaPercentCPonderado / faturamentoTotal : 0,
     
     // Reservas
     reservas_totais: reservasTotal,

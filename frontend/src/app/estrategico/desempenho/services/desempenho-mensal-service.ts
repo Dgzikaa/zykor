@@ -152,15 +152,32 @@ function agregarDadosDiarios(eventos: any[]) {
   const diasFat19 = diasComFaturamento.filter(e => parseFloat(e.fat_19h_percent) > 0);
   const percFat19 = diasFat19.length > 0 ? sum(diasFat19, 'fat_19h_percent') / diasFat19.length : 0;
 
+  // Mix de vendas: média ponderada pelo faturamento
+  const somaPercentBPonderado = diasComFaturamento.reduce((acc, e) => {
+    const fat = parseFloat(e.real_r) || 0;
+    const perc = parseFloat(e.percent_b) || 0;
+    return acc + (perc * fat);
+  }, 0);
+  const somaPercentDPonderado = diasComFaturamento.reduce((acc, e) => {
+    const fat = parseFloat(e.real_r) || 0;
+    const perc = parseFloat(e.percent_d) || 0;
+    return acc + (perc * fat);
+  }, 0);
+  const somaPercentCPonderado = diasComFaturamento.reduce((acc, e) => {
+    const fat = parseFloat(e.real_r) || 0;
+    const perc = parseFloat(e.percent_c) || 0;
+    return acc + (perc * fat);
+  }, 0);
+
   return {
     faturamento_total: faturamentoTotal,
     faturamento_entrada: sum(diasComFaturamento, 'faturamento_couvert'),
     faturamento_bar: sum(diasComFaturamento, 'faturamento_bar'),
     clientes_atendidos: clientesTotal,
     ticket_medio: clientesTotal > 0 ? faturamentoTotal / clientesTotal : 0,
-    perc_bebidas: sum(diasComFaturamento, 'percent_b') / n,
-    perc_drinks: sum(diasComFaturamento, 'percent_d') / n,
-    perc_comida: sum(diasComFaturamento, 'percent_c') / n,
+    perc_bebidas: faturamentoTotal > 0 ? somaPercentBPonderado / faturamentoTotal : 0,
+    perc_drinks: faturamentoTotal > 0 ? somaPercentDPonderado / faturamentoTotal : 0,
+    perc_comida: faturamentoTotal > 0 ? somaPercentCPonderado / faturamentoTotal : 0,
     reservas_totais: sumInt(eventos, 'res_tot'),
     reservas_presentes: sumInt(eventos, 'res_p'),
     tempo_saida_cozinha: tmCoz,
