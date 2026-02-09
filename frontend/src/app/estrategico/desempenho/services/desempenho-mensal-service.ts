@@ -224,23 +224,23 @@ function agregarDadosSemanaisProporcionais(
     cmo_custo: sumProp(desempenhoMap, 'cmo_custo'),
     custo_atracao_faturamento: avgProp(desempenhoMap, 'custo_atracao_faturamento'),
     
-    // Clientes
-    clientes_ativos: avgProp(desempenhoMap, 'clientes_ativos'),
+    // Clientes (números absolutos - soma arredondada, não média)
+    clientes_ativos: Math.round(sumProp(desempenhoMap, 'clientes_ativos')),
     retencao_1m: avgProp(desempenhoMap, 'retencao_1m'),
     retencao_2m: avgProp(desempenhoMap, 'retencao_2m'),
     perc_clientes_novos: avgProp(desempenhoMap, 'perc_clientes_novos'),
     
-    // Reservas
-    pessoas_reservas_totais: sumProp(desempenhoMap, 'pessoas_reservas_totais'),
-    pessoas_reservas_presentes: sumProp(desempenhoMap, 'pessoas_reservas_presentes'),
+    // Reservas (números absolutos - soma arredondada)
+    pessoas_reservas_totais: Math.round(sumProp(desempenhoMap, 'pessoas_reservas_totais')),
+    pessoas_reservas_presentes: Math.round(sumProp(desempenhoMap, 'pessoas_reservas_presentes')),
     quebra_reservas: avgProp(desempenhoMap, 'quebra_reservas'),
     
-    // Qualidade
-    avaliacoes_5_google_trip: sumProp(desempenhoMap, 'avaliacoes_5_google_trip'),
-    media_avaliacoes_google: avgProp(desempenhoMap, 'media_avaliacoes_google'),
-    nps_geral: avgProp(desempenhoMap, 'nps_geral'),
-    nps_reservas: avgProp(desempenhoMap, 'nps_reservas'),
-    nota_felicidade_equipe: avgProp(desempenhoMap, 'nota_felicidade_equipe'),
+    // Qualidade (avaliações são números absolutos - soma arredondada, NPS são médias)
+    avaliacoes_5_google_trip: Math.round(sumProp(desempenhoMap, 'avaliacoes_5_google_trip')),
+    media_avaliacoes_google: Math.round(avgProp(desempenhoMap, 'media_avaliacoes_google') * 100) / 100,
+    nps_geral: Math.round(avgProp(desempenhoMap, 'nps_geral')),
+    nps_reservas: Math.round(avgProp(desempenhoMap, 'nps_reservas')),
+    nota_felicidade_equipe: Math.round(avgProp(desempenhoMap, 'nota_felicidade_equipe') * 100) / 100,
     
     // Vendas
     perc_happy_hour: avgProp(desempenhoMap, 'perc_happy_hour'),
