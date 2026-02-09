@@ -33,13 +33,11 @@ export async function POST(request: NextRequest) {
     console.log(`🔍 Buscando dados automáticos para CMV Semanal - Bar ${bar_id} de ${data_inicio} até ${data_fim}`);
 
     const resultado = {
-      // Contas Especiais para consumos
-      total_consumo_socios: 0,
-      mesa_beneficios_cliente: 0,
-      mesa_banda_dj: 0,
-      chegadeira: 0,
-      mesa_adm_casa: 0,
-      mesa_rh: 0,
+      // 4 Categorias de consumos: Sócios, Funcionários, Clientes, Artistas
+      total_consumo_socios: 0,      // Sócios
+      mesa_adm_casa: 0,             // Funcionários (inclui RH)
+      mesa_beneficios_cliente: 0,   // Clientes (inclui chegadeira)
+      mesa_banda_dj: 0,             // Artistas
 
       // Compras do NIBO
       compras_custo_comida: 0,
@@ -92,19 +90,16 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. BUSCAR CONTAS ESPECIAIS
-    // 🔧 CORRIGIDO: Regras alinhadas com a planilha Excel - ATUALIZADO 09/02/2026
+    // 🔧 CORRIGIDO: Regras alinhadas - ATUALIZADO 09/02/2026
+    // 4 CATEGORIAS: Sócios (acima), Funcionários, Clientes, Artistas
     try {
       const contasEspeciais = {
         // ARTISTAS: musico, músicos, dj, banda, artista, breno, benza, stz, zelia, tia, samba, sambadona, doze, boca, boka, pé, chão, segunda, resenha, pagode, roda, reconvexa, rodie, roudier, roudi, som, técnico, tecnico, pv, paulo victor, prod
         'mesa_banda_dj': ['musico', 'músicos', 'dj', 'banda', 'artista', 'breno', 'benza', 'stz', 'zelia', 'tia', 'samba', 'sambadona', 'doze', 'boca', 'boka', 'pé', 'chão', 'segunda', 'resenha', 'pagode', 'roda', 'reconvexa', 'rodie', 'roudier', 'roudi', 'som', 'técnico', 'tecnico', 'pv', 'paulo victor', 'prod'],
-        // CLIENTES/BENEFÍCIOS: aniver, anivers, aniversário, aniversario, aniversariante, niver, voucher, benefício, beneficio, mesa mágica, mágica, influencer, influ, influencia, influência, club, clube, midia, mídia, social, insta, digital, cliente, ambev
-        'mesa_beneficios_cliente': ['aniver', 'anivers', 'aniversário', 'aniversario', 'aniversariante', 'niver', 'voucher', 'benefício', 'beneficio', 'mesa mágica', 'mágica', 'influencer', 'influ', 'influencia', 'influência', 'club', 'clube', 'midia', 'mídia', 'social', 'insta', 'digital', 'cliente', 'ambev'],
-        // FUNCIONÁRIOS/ADM: funcionários, funcionario, rh, financeiro, fin, mkt, marketing, slu, adm, administrativo, prêmio, confra
-        'mesa_adm_casa': ['funcionários', 'funcionario', 'financeiro', 'fin', 'mkt', 'marketing', 'slu', 'adm', 'administrativo', 'prêmio', 'confra'],
-        // CHEGADEIRA
-        'chegadeira': ['chegadeira', 'chegador'],
-        // RH (mesclado com funcionários acima, mantendo separado para compatibilidade)
-        'mesa_rh': ['rh', 'recursos humanos']
+        // CLIENTES: aniver, anivers, aniversário, aniversario, aniversariante, niver, voucher, benefício, beneficio, mesa mágica, mágica, influencer, influ, influencia, influência, club, clube, midia, mídia, social, insta, digital, cliente, ambev, chegadeira, chegador
+        'mesa_beneficios_cliente': ['aniver', 'anivers', 'aniversário', 'aniversario', 'aniversariante', 'niver', 'voucher', 'benefício', 'beneficio', 'mesa mágica', 'mágica', 'influencer', 'influ', 'influencia', 'influência', 'club', 'clube', 'midia', 'mídia', 'social', 'insta', 'digital', 'cliente', 'ambev', 'chegadeira', 'chegador'],
+        // FUNCIONÁRIOS: funcionários, funcionario, rh, financeiro, fin, mkt, marketing, slu, adm, administrativo, prêmio, confra
+        'mesa_adm_casa': ['funcionários', 'funcionario', 'financeiro', 'fin', 'mkt', 'marketing', 'slu', 'adm', 'administrativo', 'prêmio', 'confra', 'rh', 'recursos humanos'],
       };
 
       for (const [campo, patterns] of Object.entries(contasEspeciais)) {
@@ -522,26 +517,24 @@ export async function POST(request: NextRequest) {
     console.log('✅ Dados automáticos buscados com sucesso');
 
     // 8. CALCULAR CONSUMOS COM MULTIPLICADOR 0.35
-    // 🔧 IMPORTANTE: Consumação deve ser multiplicada por 0.35 (CMV do consumo)
+    // 🔧 4 CATEGORIAS de consumação (todas × 0.35):
     // - Sócios: total_consumo_socios × 0.35
-    // - ADM/Casa: mesa_adm_casa × 0.35
+    // - Funcionários: mesa_adm_casa × 0.35 (inclui RH)
+    // - Clientes: mesa_beneficios_cliente × 0.35 (inclui chegadeira)
     // - Artistas: mesa_banda_dj × 0.35
-    // - Benefícios: (mesa_beneficios_cliente + chegadeira) × 0.35
-    // - RH: valor integral (sem multiplicador)
     const consumo_socios_calculado = resultado.total_consumo_socios * 0.35;
     const consumo_adm_calculado = resultado.mesa_adm_casa * 0.35;
     const consumo_artista_calculado = resultado.mesa_banda_dj * 0.35;
-    const consumo_beneficios_calculado = (resultado.mesa_beneficios_cliente + resultado.chegadeira) * 0.35;
-    const consumo_rh_calculado = resultado.mesa_rh; // Sem multiplicador
+    const consumo_beneficios_calculado = resultado.mesa_beneficios_cliente * 0.35;
 
-    console.log(`📊 CONSUMOS COM MULTIPLICADOR 0.35:`);
+    console.log(`📊 CONSUMOS COM MULTIPLICADOR 0.35 (4 categorias):`);
     console.log(`  - Sócios: R$ ${resultado.total_consumo_socios.toFixed(2)} × 0.35 = R$ ${consumo_socios_calculado.toFixed(2)}`);
-    console.log(`  - ADM: R$ ${resultado.mesa_adm_casa.toFixed(2)} × 0.35 = R$ ${consumo_adm_calculado.toFixed(2)}`);
+    console.log(`  - Funcionários: R$ ${resultado.mesa_adm_casa.toFixed(2)} × 0.35 = R$ ${consumo_adm_calculado.toFixed(2)}`);
+    console.log(`  - Clientes: R$ ${resultado.mesa_beneficios_cliente.toFixed(2)} × 0.35 = R$ ${consumo_beneficios_calculado.toFixed(2)}`);
     console.log(`  - Artistas: R$ ${resultado.mesa_banda_dj.toFixed(2)} × 0.35 = R$ ${consumo_artista_calculado.toFixed(2)}`);
-    console.log(`  - Benefícios: R$ ${(resultado.mesa_beneficios_cliente + resultado.chegadeira).toFixed(2)} × 0.35 = R$ ${consumo_beneficios_calculado.toFixed(2)}`);
-    console.log(`  - RH: R$ ${consumo_rh_calculado.toFixed(2)} (sem multiplicador)`);
 
     // Retornar com campos mapeados para o frontend
+    // 4 categorias: Sócios, Funcionários, Clientes, Artistas
     const dadosParaFrontend = {
       ...resultado,
       compras_periodo,
@@ -550,7 +543,6 @@ export async function POST(request: NextRequest) {
       consumo_beneficios: consumo_beneficios_calculado,
       consumo_adm: consumo_adm_calculado,
       consumo_artista: consumo_artista_calculado,
-      consumo_rh: consumo_rh_calculado,
     };
 
     return NextResponse.json({

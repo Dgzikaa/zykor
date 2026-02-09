@@ -628,10 +628,11 @@ export default function CMVSemanalTabelaPage() {
              (semana.compras_custo_outros || 0);
     }
     // Consumações = soma dos sub-itens × 0.35 (CMV do consumo)
+    // 4 categorias: Sócios, Funcionários, Clientes, Artistas
     if (key === 'total_consumos') {
       return ((semana.total_consumo_socios || 0) * 0.35) + 
              ((semana.mesa_adm_casa || 0) * 0.35) + 
-             (((semana.mesa_beneficios_cliente || 0) + (semana.chegadeira || 0)) * 0.35) + 
+             ((semana.mesa_beneficios_cliente || 0) * 0.35) + 
              ((semana.mesa_banda_dj || 0) * 0.35);
     }
     // Bonificações = soma dos sub-itens
@@ -672,10 +673,11 @@ export default function CMVSemanalTabelaPage() {
           { label: 'Outros', valor: semana.compras_custo_outros || 0 },
         ];
       case 'total_consumos':
+        // 4 categorias: Sócios, Funcionários, Clientes, Artistas
         return [
           { label: 'Sócios × 0.35', valor: (semana.total_consumo_socios || 0) * 0.35 },
           { label: 'Funcionários × 0.35', valor: (semana.mesa_adm_casa || 0) * 0.35 },
-          { label: 'Clientes × 0.35', valor: ((semana.mesa_beneficios_cliente || 0) + (semana.chegadeira || 0)) * 0.35 },
+          { label: 'Clientes × 0.35', valor: (semana.mesa_beneficios_cliente || 0) * 0.35 },
           { label: 'Artistas × 0.35', valor: (semana.mesa_banda_dj || 0) * 0.35 },
         ];
       case 'ajuste_bonificacoes':
@@ -688,7 +690,8 @@ export default function CMVSemanalTabelaPage() {
         const estoqueInicial = (semana.estoque_inicial_cozinha || 0) + (semana.estoque_inicial_drinks || 0) + (semana.estoque_inicial_bebidas || 0);
         const compras = (semana.compras_custo_comida || 0) + (semana.compras_custo_drinks || 0) + (semana.compras_custo_bebidas || 0) + (semana.compras_custo_outros || 0);
         const estoqueFinal = (semana.estoque_final_cozinha || 0) + (semana.estoque_final_drinks || 0) + (semana.estoque_final_bebidas || 0);
-        const consumosTotal = ((semana.total_consumo_socios || 0) * 0.35) + ((semana.mesa_adm_casa || 0) * 0.35) + (((semana.mesa_beneficios_cliente || 0) + (semana.chegadeira || 0)) * 0.35) + ((semana.mesa_banda_dj || 0) * 0.35);
+        // 4 categorias: Sócios, Funcionários, Clientes, Artistas
+        const consumosTotal = ((semana.total_consumo_socios || 0) * 0.35) + ((semana.mesa_adm_casa || 0) * 0.35) + ((semana.mesa_beneficios_cliente || 0) * 0.35) + ((semana.mesa_banda_dj || 0) * 0.35);
         const bonificacoes = (semana.bonificacao_contrato_anual || 0) + (semana.bonificacao_cashback_mensal || 0);
         return [
           { label: 'Estoque Inicial', valor: estoqueInicial },
