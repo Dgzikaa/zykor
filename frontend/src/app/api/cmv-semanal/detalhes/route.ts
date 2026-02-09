@@ -406,13 +406,14 @@ async function buscarDetalhesEstoque(barId: number, dataInicio: string, dataFim:
  * Buscar detalhes de consumo dos sócios
  */
 async function buscarDetalhesConsumoSocios(barId: number, dataInicio: string, dataFim: string) {
+  // Sócios: sócio, socio, x-socio, x-sócio, gonza, corbal, diogo, cadu, augusto, rodrigo, digao, vinicius, vini, bueno, kaizen, caisen, joão pedro, joao pedro, jp, 3v, cantucci
   const { data, error } = await supabase
     .from('contahub_periodo')
     .select('*')
     .eq('bar_id', barId)
     .gte('dt_gerencial', dataInicio)
     .lte('dt_gerencial', dataFim)
-    .or('motivo.ilike.%sócio%,motivo.ilike.%socio%,motivo.ilike.%x-socio%,motivo.ilike.%x-sócio%,motivo.ilike.%gonza%,motivo.ilike.%corbal%,motivo.ilike.%diogo%,motivo.ilike.%cadu%,motivo.ilike.%augusto%,motivo.ilike.%rodrigo%,motivo.ilike.%digao%,motivo.ilike.%vinicius%,motivo.ilike.%vini%,motivo.ilike.%bueno%,motivo.ilike.%3v%,motivo.ilike.%cantucci%,motivo.ilike.%joão pedro%,motivo.ilike.%joao pedro%,motivo.ilike.%jp%')
+    .or('motivo.ilike.%sócio%,motivo.ilike.%socio%,motivo.ilike.%x-socio%,motivo.ilike.%x-sócio%,motivo.ilike.%gonza%,motivo.ilike.%corbal%,motivo.ilike.%diogo%,motivo.ilike.%cadu%,motivo.ilike.%augusto%,motivo.ilike.%rodrigo%,motivo.ilike.%digao%,motivo.ilike.%vinicius%,motivo.ilike.%vini%,motivo.ilike.%bueno%,motivo.ilike.%kaizen%,motivo.ilike.%caisen%,motivo.ilike.%joão pedro%,motivo.ilike.%joao pedro%,motivo.ilike.%jp%,motivo.ilike.%3v%,motivo.ilike.%cantucci%')
     .order('dt_gerencial', { ascending: true });
 
   if (error || !data) return [];
@@ -433,13 +434,14 @@ async function buscarDetalhesConsumoSocios(barId: number, dataInicio: string, da
  * Buscar detalhes de consumo de benefícios
  */
 async function buscarDetalhesConsumoBeneficios(barId: number, dataInicio: string, dataFim: string) {
+  // Clientes/Benefícios: aniver, anivers, aniversário, aniversario, aniversariante, niver, voucher, benefício, beneficio, mesa mágica, mágica, influencer, influ, influencia, influência, club, clube, midia, mídia, social, insta, digital, cliente, ambev
   const { data, error } = await supabase
     .from('contahub_periodo')
     .select('*')
     .eq('bar_id', barId)
     .gte('dt_gerencial', dataInicio)
     .lte('dt_gerencial', dataFim)
-    .or('motivo.ilike.%aniver%,motivo.ilike.%anivers%,motivo.ilike.%aniversário%,motivo.ilike.%aniversario%,motivo.ilike.%aniversariante%,motivo.ilike.%voucher%,motivo.ilike.%benefício%,motivo.ilike.%beneficio%')
+    .or('motivo.ilike.%aniver%,motivo.ilike.%anivers%,motivo.ilike.%aniversário%,motivo.ilike.%aniversario%,motivo.ilike.%aniversariante%,motivo.ilike.%niver%,motivo.ilike.%voucher%,motivo.ilike.%benefício%,motivo.ilike.%beneficio%,motivo.ilike.%mesa mágica%,motivo.ilike.%mágica%,motivo.ilike.%influencer%,motivo.ilike.%influ%,motivo.ilike.%influencia%,motivo.ilike.%influência%,motivo.ilike.%club%,motivo.ilike.%clube%,motivo.ilike.%midia%,motivo.ilike.%mídia%,motivo.ilike.%social%,motivo.ilike.%insta%,motivo.ilike.%digital%,motivo.ilike.%cliente%,motivo.ilike.%ambev%')
     .order('dt_gerencial', { ascending: true });
 
   if (error || !data) return [];
@@ -460,13 +462,14 @@ async function buscarDetalhesConsumoBeneficios(barId: number, dataInicio: string
  * Buscar detalhes de consumo ADM
  */
 async function buscarDetalhesConsumoAdm(barId: number, dataInicio: string, dataFim: string) {
+  // Funcionários/ADM: funcionários, funcionario, rh, financeiro, fin, mkt, marketing, slu, adm, administrativo, prêmio, confra
   const { data, error } = await supabase
     .from('contahub_periodo')
     .select('*')
     .eq('bar_id', barId)
     .gte('dt_gerencial', dataInicio)
     .lte('dt_gerencial', dataFim)
-    .or('motivo.ilike.%adm%,motivo.ilike.%administrativo%,motivo.ilike.%casa%')
+    .or('motivo.ilike.%funcionários%,motivo.ilike.%funcionario%,motivo.ilike.%financeiro%,motivo.ilike.%fin%,motivo.ilike.%mkt%,motivo.ilike.%marketing%,motivo.ilike.%slu%,motivo.ilike.%adm%,motivo.ilike.%administrativo%,motivo.ilike.%prêmio%,motivo.ilike.%confra%')
     .order('dt_gerencial', { ascending: true });
 
   if (error || !data) return [];
@@ -487,13 +490,14 @@ async function buscarDetalhesConsumoAdm(barId: number, dataInicio: string, dataF
  * Buscar detalhes de consumo de artista/banda
  */
 async function buscarDetalhesConsumoArtista(barId: number, dataInicio: string, dataFim: string) {
+  // Artistas: musico, músicos, dj, banda, artista, breno, benza, stz, zelia, tia, samba, sambadona, doze, boca, boka, pé, chão, segunda, resenha, pagode, roda, reconvexa, rodie, roudier, roudi, som, técnico, tecnico, pv, paulo victor, prod
   const { data, error } = await supabase
     .from('contahub_periodo')
     .select('*')
     .eq('bar_id', barId)
     .gte('dt_gerencial', dataInicio)
     .lte('dt_gerencial', dataFim)
-    .or('motivo.ilike.%banda%,motivo.ilike.%dj%,motivo.ilike.%artista%,motivo.ilike.%músic%,motivo.ilike.%music%')
+    .or('motivo.ilike.%musico%,motivo.ilike.%músicos%,motivo.ilike.%dj%,motivo.ilike.%banda%,motivo.ilike.%artista%,motivo.ilike.%breno%,motivo.ilike.%benza%,motivo.ilike.%stz%,motivo.ilike.%zelia%,motivo.ilike.%tia%,motivo.ilike.%samba%,motivo.ilike.%sambadona%,motivo.ilike.%doze%,motivo.ilike.%boca%,motivo.ilike.%boka%,motivo.ilike.%pé%,motivo.ilike.%chão%,motivo.ilike.%segunda%,motivo.ilike.%resenha%,motivo.ilike.%pagode%,motivo.ilike.%roda%,motivo.ilike.%reconvexa%,motivo.ilike.%rodie%,motivo.ilike.%roudier%,motivo.ilike.%roudi%,motivo.ilike.%som%,motivo.ilike.%técnico%,motivo.ilike.%tecnico%,motivo.ilike.%pv%,motivo.ilike.%paulo victor%,motivo.ilike.%prod%')
     .order('dt_gerencial', { ascending: true });
 
   if (error || !data) return [];
@@ -540,13 +544,14 @@ async function buscarDetalhesChegadeira(barId: number, dataInicio: string, dataF
  * Buscar detalhes de consumo RH
  */
 async function buscarDetalhesConsumoRH(barId: number, dataInicio: string, dataFim: string) {
+  // RH: rh, recursos humanos (os demais funcionários estão em ADM)
   const { data, error } = await supabase
     .from('contahub_periodo')
     .select('*')
     .eq('bar_id', barId)
     .gte('dt_gerencial', dataInicio)
     .lte('dt_gerencial', dataFim)
-    .or('motivo.ilike.%rh%,motivo.ilike.%recursos humanos%,motivo.ilike.%funcionário%,motivo.ilike.%funcionario%')
+    .or('motivo.ilike.%rh%,motivo.ilike.%recursos humanos%')
     .order('dt_gerencial', { ascending: true });
 
   if (error || !data) return [];

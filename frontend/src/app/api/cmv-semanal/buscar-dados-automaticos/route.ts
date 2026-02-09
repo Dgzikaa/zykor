@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     // 1. BUSCAR CONSUMO DOS SÓCIOS
     // 🔧 ATUALIZADO: Lista completa de padrões de sócios
-    // Sócios: sócio, socio, x-socio, x-sócio, gonza, corbal, diogo, cadu, augusto, rodrigo, digao, vinicius, vini, bueno, 3v, cantucci, joão pedro, joao pedro, jp
+    // Sócios: sócio, socio, x-socio, x-sócio, gonza, corbal, diogo, cadu, augusto, rodrigo, digao, vinicius, vini, bueno, kaizen, caisen, joão pedro, joao pedro, jp, 3v, cantucci
     try {
       const { data: consumoSociosBruto, error: errorSocios } = await supabase
         .from('contahub_periodo')
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         .eq('bar_id', bar_id)
         .gte('dt_gerencial', data_inicio)
         .lte('dt_gerencial', data_fim)
-        .or('motivo.ilike.%sócio%,motivo.ilike.%socio%,motivo.ilike.%x-socio%,motivo.ilike.%x-sócio%,motivo.ilike.%gonza%,motivo.ilike.%corbal%,motivo.ilike.%diogo%,motivo.ilike.%cadu%,motivo.ilike.%augusto%,motivo.ilike.%rodrigo%,motivo.ilike.%digao%,motivo.ilike.%vinicius%,motivo.ilike.%vini%,motivo.ilike.%bueno%,motivo.ilike.%3v%,motivo.ilike.%cantucci%,motivo.ilike.%joão pedro%,motivo.ilike.%joao pedro%,motivo.ilike.%jp%');
+        .or('motivo.ilike.%sócio%,motivo.ilike.%socio%,motivo.ilike.%x-socio%,motivo.ilike.%x-sócio%,motivo.ilike.%gonza%,motivo.ilike.%corbal%,motivo.ilike.%diogo%,motivo.ilike.%cadu%,motivo.ilike.%augusto%,motivo.ilike.%rodrigo%,motivo.ilike.%digao%,motivo.ilike.%vinicius%,motivo.ilike.%vini%,motivo.ilike.%bueno%,motivo.ilike.%kaizen%,motivo.ilike.%caisen%,motivo.ilike.%joão pedro%,motivo.ilike.%joao pedro%,motivo.ilike.%jp%,motivo.ilike.%3v%,motivo.ilike.%cantucci%');
 
       if (!errorSocios && consumoSociosBruto) {
         // ⚡ FILTRAR DIAS FECHADOS
@@ -92,18 +92,18 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. BUSCAR CONTAS ESPECIAIS
-    // 🔧 CORRIGIDO: Regras alinhadas com a planilha Excel
+    // 🔧 CORRIGIDO: Regras alinhadas com a planilha Excel - ATUALIZADO 09/02/2026
     try {
       const contasEspeciais = {
-        // BANDA/DJ: Inclui banda, dj, técnico de som
-        'mesa_banda_dj': ['banda', 'dj', 'técnico de som', 'tecnico de som'],
-        // BENEFÍCIOS/CLIENTES: aniver, anivers, aniversário, aniversario, aniversariante, voucher, benefício, beneficio
-        'mesa_beneficios_cliente': ['aniver', 'anivers', 'aniversário', 'aniversario', 'aniversariante', 'voucher', 'benefício', 'beneficio'],
-        // ADM: Inclui adm, marketing, casa
-        'mesa_adm_casa': ['adm', 'administrativo', 'casa', 'marketing'],
+        // ARTISTAS: musico, músicos, dj, banda, artista, breno, benza, stz, zelia, tia, samba, sambadona, doze, boca, boka, pé, chão, segunda, resenha, pagode, roda, reconvexa, rodie, roudier, roudi, som, técnico, tecnico, pv, paulo victor, prod
+        'mesa_banda_dj': ['musico', 'músicos', 'dj', 'banda', 'artista', 'breno', 'benza', 'stz', 'zelia', 'tia', 'samba', 'sambadona', 'doze', 'boca', 'boka', 'pé', 'chão', 'segunda', 'resenha', 'pagode', 'roda', 'reconvexa', 'rodie', 'roudier', 'roudi', 'som', 'técnico', 'tecnico', 'pv', 'paulo victor', 'prod'],
+        // CLIENTES/BENEFÍCIOS: aniver, anivers, aniversário, aniversario, aniversariante, niver, voucher, benefício, beneficio, mesa mágica, mágica, influencer, influ, influencia, influência, club, clube, midia, mídia, social, insta, digital, cliente, ambev
+        'mesa_beneficios_cliente': ['aniver', 'anivers', 'aniversário', 'aniversario', 'aniversariante', 'niver', 'voucher', 'benefício', 'beneficio', 'mesa mágica', 'mágica', 'influencer', 'influ', 'influencia', 'influência', 'club', 'clube', 'midia', 'mídia', 'social', 'insta', 'digital', 'cliente', 'ambev'],
+        // FUNCIONÁRIOS/ADM: funcionários, funcionario, rh, financeiro, fin, mkt, marketing, slu, adm, administrativo, prêmio, confra
+        'mesa_adm_casa': ['funcionários', 'funcionario', 'financeiro', 'fin', 'mkt', 'marketing', 'slu', 'adm', 'administrativo', 'prêmio', 'confra'],
         // CHEGADEIRA
         'chegadeira': ['chegadeira', 'chegador'],
-        // RH
+        // RH (mesclado com funcionários acima, mantendo separado para compatibilidade)
         'mesa_rh': ['rh', 'recursos humanos']
       };
 
