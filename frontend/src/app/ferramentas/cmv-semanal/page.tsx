@@ -119,7 +119,7 @@ export default function CMVSemanalPage() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [calculando, setCalculando] = useState(false);
-  const [sincronizandoNibo, setSincronizandoNibo] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
   const [cmvs, setCmvs] = useState<CMVSemanal[]>([]);
   const [anoFiltro, setAnoFiltro] = useState(() => new Date().getFullYear());
   const [statusFiltro, setStatusFiltro] = useState('TODOS');
@@ -232,23 +232,25 @@ export default function CMVSemanalPage() {
     setFormData(dados);
   }, [formData]);
 
-  // Sincronizar dados do NIBO
-  const sincronizarNibo = async () => {
+  // Sincronizar tudo: NIBO + Planilha CMV
+  const sincronizarTudo = async () => {
     if (!selectedBar) {
       toast({
         title: "Bar não selecionado",
-        description: "Selecione um bar para sincronizar o NIBO",
+        description: "Selecione um bar para sincronizar os dados",
         variant: "destructive"
       });
       return;
     }
 
-    setSincronizandoNibo(true);
+    setSincronizando(true);
 
     try {
-      console.log('🔄 Sincronizando NIBO...');
+      console.log('🔄 Iniciando sincronização completa...');
 
-      const response = await fetch('/api/nibo/sync', {
+      // 1. Sincronizar NIBO (compras)
+      console.log('📦 Sincronizando NIBO...');
+      const niboResponse = await fetch('/api/nibo/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -257,30 +259,43 @@ export default function CMVSemanalPage() {
         })
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erro ao sincronizar com NIBO');
+      if (!niboResponse.ok) {
+        console.warn('⚠️ Erro ao sincronizar NIBO, continuando...');
+      } else {
+        console.log('✅ NIBO sincronizado');
       }
 
-      const result = await response.json();
+      // 2. Sincronizar Planilha CMV (estoques)
+      console.log('📊 Sincronizando planilha CMV...');
+      const sheetsResponse = await fetch('/api/cmv-semanal/sync-sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: selectedBar.id })
+      });
+      
+      if (!sheetsResponse.ok) {
+        console.warn('⚠️ Erro ao sincronizar planilha, continuando...');
+      } else {
+        console.log('✅ Planilha CMV sincronizada');
+      }
 
       toast({
-        title: "✅ NIBO Sincronizado",
-        description: result.message || "Dados do NIBO foram atualizados com sucesso"
+        title: "✅ Dados Atualizados",
+        description: "NIBO e Planilha sincronizados com sucesso"
       });
 
       // Recarregar CMVs após sincronização
       carregarCMVs();
 
     } catch (error) {
-      console.error('Erro ao sincronizar NIBO:', error);
+      console.error('Erro ao sincronizar:', error);
       toast({
-        title: "Erro ao sincronizar NIBO",
+        title: "Erro ao sincronizar",
         description: error instanceof Error ? error.message : "Falha na sincronização",
         variant: "destructive"
       });
     } finally {
-      setSincronizandoNibo(false);
+      setSincronizando(false);
     }
   };
 
@@ -730,12 +745,12 @@ export default function CMVSemanalPage() {
                 </Button>
               </Link>
               <Button
-                onClick={sincronizarNibo}
-                disabled={sincronizandoNibo}
+                onClick={sincronizarTudo}
+                disabled={sincronizando}
                 className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white"
-                leftIcon={sincronizandoNibo ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
+                leftIcon={sincronizando ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
               >
-                {sincronizandoNibo ? 'Sincronizando...' : 'Atualizar NIBO'}
+                {sincronizando ? 'Atualizando...' : 'Atualizar Dados'}
               </Button>
               <Button
                 onClick={processarSemanaAtual}

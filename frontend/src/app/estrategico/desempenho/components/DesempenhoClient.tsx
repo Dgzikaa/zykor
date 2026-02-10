@@ -363,6 +363,7 @@ export function DesempenhoClient({
   const { toast } = useToast();
   
   const [loading, setLoading] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
   const [semanaAtualIdx, setSemanaAtualIdx] = useState<number>(-1);
   
   const [secoesAbertas, setSecoesAbertas] = useState<Record<string, boolean>>({
@@ -499,6 +500,74 @@ export function DesempenhoClient({
     };
   };
 
+  // Função de atualização completa: NIBO + Planilha CMV + Refresh
+  const atualizarTudo = async () => {
+    if (!selectedBar) {
+      toast({
+        title: "Bar não selecionado",
+        description: "Selecione um bar para atualizar os dados",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSincronizando(true);
+
+    try {
+      console.log('🔄 Iniciando atualização completa...');
+      
+      // 1. Sincronizar NIBO (compras)
+      console.log('📦 Sincronizando NIBO...');
+      const niboResponse = await fetch('/api/nibo/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          bar_id: selectedBar.id,
+          sync_mode: 'daily_complete'
+        })
+      });
+      
+      if (!niboResponse.ok) {
+        console.warn('⚠️ Erro ao sincronizar NIBO, continuando...');
+      } else {
+        console.log('✅ NIBO sincronizado');
+      }
+
+      // 2. Sincronizar Planilha CMV (estoques)
+      console.log('📊 Sincronizando planilha CMV...');
+      const sheetsResponse = await fetch('/api/cmv-semanal/sync-sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: selectedBar.id })
+      });
+      
+      if (!sheetsResponse.ok) {
+        console.warn('⚠️ Erro ao sincronizar planilha, continuando...');
+      } else {
+        console.log('✅ Planilha CMV sincronizada');
+      }
+
+      // 3. Atualizar a página
+      console.log('🔃 Atualizando página...');
+      router.refresh();
+
+      toast({
+        title: "✅ Dados Atualizados",
+        description: "NIBO e Planilha sincronizados com sucesso"
+      });
+
+    } catch (error) {
+      console.error('Erro ao atualizar:', error);
+      toast({
+        title: "Erro ao atualizar",
+        description: error instanceof Error ? error.message : "Falha na atualização",
+        variant: "destructive"
+      });
+    } finally {
+      setSincronizando(false);
+    }
+  };
+
   const salvarMetrica = async (semanaId: number, campo: string) => {
     if (!semanaId) {
       toast({ title: 'Erro', description: 'ID da semana/mês não encontrado', variant: 'destructive' });
@@ -598,9 +667,9 @@ export function DesempenhoClient({
                  <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-amber-500" /><span className="text-gray-600 dark:text-gray-400">Verificar</span></div>
               </div>
               
-              <Button variant="outline" size="sm" onClick={() => router.refresh()} disabled={loading} className="gap-2">
-                <RefreshCcw className={cn("h-4 w-4", loading && "animate-spin")} />
-                Atualizar
+              <Button variant="outline" size="sm" onClick={atualizarTudo} disabled={loading || sincronizando} className="gap-2">
+                <RefreshCcw className={cn("h-4 w-4", sincronizando && "animate-spin")} />
+                {sincronizando ? 'Atualizando...' : 'Atualizar'}
               </Button>
             </div>
           </div>

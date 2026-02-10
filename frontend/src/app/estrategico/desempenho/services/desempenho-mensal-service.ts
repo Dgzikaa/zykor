@@ -354,13 +354,13 @@ function agregarDadosSemanaisProporcionais(
     stockout_bar: Math.round(sumProp(desempenhoMap, 'stockout_bar')),
     stockout_bar_perc: Math.round(avgProp(desempenhoMap, 'stockout_bar_perc') * 10) / 10,
     
-    // Atrasos (quantidades são soma, percentuais são média)
-    qtde_itens_bar: sumProp(desempenhoMap, 'qtde_itens_bar'),
-    atrasos_bar: sumProp(desempenhoMap, 'atrasos_bar'),
-    atrasos_bar_perc: avgProp(desempenhoMap, 'atrasos_bar_perc'),
-    qtde_itens_cozinha: sumProp(desempenhoMap, 'qtde_itens_cozinha'),
-    atrasos_cozinha: sumProp(desempenhoMap, 'atrasos_cozinha'),
-    atrasos_cozinha_perc: avgProp(desempenhoMap, 'atrasos_cozinha_perc'),
+    // Atrasos (quantidades são soma arredondada, percentuais são média)
+    qtde_itens_bar: Math.round(sumProp(desempenhoMap, 'qtde_itens_bar')),
+    atrasos_bar: Math.round(sumProp(desempenhoMap, 'atrasos_bar')),
+    atrasos_bar_perc: Math.round(avgProp(desempenhoMap, 'atrasos_bar_perc') * 10) / 10,
+    qtde_itens_cozinha: Math.round(sumProp(desempenhoMap, 'qtde_itens_cozinha')),
+    atrasos_cozinha: Math.round(sumProp(desempenhoMap, 'atrasos_cozinha')),
+    atrasos_cozinha_perc: Math.round(avgProp(desempenhoMap, 'atrasos_cozinha_perc') * 10) / 10,
     
     // Ticket Médio (médias)
     tm_entrada: avgProp(desempenhoMap, 'tm_entrada'),
