@@ -20,6 +20,9 @@ interface ReviewSummary {
 export async function GET(request: NextRequest) {
   try {
     const supabase = await getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Erro ao conectar com banco' }, { status: 500 });
+    }
     
     const { searchParams } = new URL(request.url);
     const barId = parseInt(searchParams.get('bar_id') || '3');
@@ -35,7 +38,7 @@ export async function GET(request: NextRequest) {
     // Buscar reviews do período
     const { data: reviews, error } = await supabase
       .from('google_reviews')
-      .select('name, stars, text, published_at_date')
+      .select('reviewer_name, stars, text, published_at_date')
       .eq('bar_id', barId)
       .gte('published_at_date', dataInicio)
       .lte('published_at_date', dataFim + 'T23:59:59')
@@ -46,25 +49,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao buscar dados' }, { status: 500 });
     }
 
-    const total = reviews?.length || 0;
+    const reviewsData = (reviews || []) as any[];
+    const total = reviewsData.length;
     
     // Calcular média de estrelas
-    const reviewsComStars = reviews?.filter(r => r.stars !== null) || [];
-    const somaEstrelas = reviewsComStars.reduce((acc, r) => acc + (r.stars || 0), 0);
+    const reviewsComStars = reviewsData.filter(r => r.stars !== null);
+    const somaEstrelas = reviewsComStars.reduce((acc: number, r: any) => acc + (r.stars || 0), 0);
     const media = reviewsComStars.length > 0 
       ? Math.round((somaEstrelas / reviewsComStars.length) * 100) / 100 
       : 0;
 
     // Distribuição por estrelas
     const distribuicao: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-    reviewsComStars.forEach(r => {
+    reviewsComStars.forEach((r: any) => {
       if (r.stars >= 1 && r.stars <= 5) {
         distribuicao[r.stars]++;
       }
     });
 
     // Filtrar reviews com texto
-    const reviewsComTexto = reviews?.filter(r => r.text && r.text.trim().length > 10) || [];
+    const reviewsComTexto = reviewsData.filter(r => r.text && r.text.trim().length > 10);
     
     // Extrair palavras-chave de elogios e críticas
     const elogios: string[] = [];
@@ -93,7 +97,7 @@ export async function GET(request: NextRequest) {
     const mapElogios = new Map<string, number>();
     const mapCriticas = new Map<string, number>();
     
-    reviewsComTexto.forEach(review => {
+    reviewsComTexto.forEach((review: any) => {
       const texto = review.text.toLowerCase();
       const isPositivo = review.stars >= 4;
       const isNegativo = review.stars <= 2;
@@ -129,8 +133,8 @@ export async function GET(request: NextRequest) {
       .map(([palavra]) => palavra);
 
     // Preparar lista de reviews com texto para exibição
-    const reviewsParaExibir = reviewsComTexto.slice(0, 5).map(r => ({
-      nome: r.name || 'Anônimo',
+    const reviewsParaExibir = reviewsComTexto.slice(0, 5).map((r: any) => ({
+      nome: r.reviewer_name || 'Anônimo',
       stars: r.stars,
       texto: r.text.substring(0, 150) + (r.text.length > 150 ? '...' : ''),
       data: new Date(r.published_at_date).toLocaleDateString('pt-BR')

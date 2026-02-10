@@ -6,6 +6,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     const supabase = await getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Erro ao conectar com banco' }, { status: 500 });
+    }
     
     const { searchParams } = new URL(request.url);
     const barId = parseInt(searchParams.get('bar_id') || '3');
