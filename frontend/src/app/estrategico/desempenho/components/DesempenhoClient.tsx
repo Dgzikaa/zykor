@@ -500,7 +500,7 @@ export function DesempenhoClient({
     };
   };
 
-  // Função de atualização completa: NIBO + Planilha CMV + Refresh
+  // Função de atualização completa: NIBO + Planilha CMV + Refresh (FUNÇÃO UNIFICADA)
   const atualizarTudo = async () => {
     if (!selectedBar) {
       toast({
@@ -516,7 +516,7 @@ export function DesempenhoClient({
     try {
       console.log('🔄 Iniciando atualização completa...');
       
-      // 1. Sincronizar NIBO (compras)
+      // 1. Sincronizar NIBO (compras) - busca dados do NIBO para o banco
       console.log('📦 Sincronizando NIBO...');
       const niboResponse = await fetch('/api/nibo/sync', {
         method: 'POST',
@@ -533,18 +533,29 @@ export function DesempenhoClient({
         console.log('✅ NIBO sincronizado');
       }
 
-      // 2. Sincronizar Planilha CMV (estoques)
-      console.log('📊 Sincronizando planilha CMV...');
-      const sheetsResponse = await fetch('/api/cmv-semanal/sync-sheets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bar_id: selectedBar.id })
-      });
+      // 2. Processar CMV de TODAS as semanas (Planilha + NIBO + ContaHub → Banco)
+      console.log('📊 Processando CMV de todas as semanas...');
+      const cmvResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/cmv-semanal-auto`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({ 
+            bar_id: selectedBar.id,
+            todas_semanas: true // Processa TODAS as semanas da planilha
+          })
+        }
+      );
       
-      if (!sheetsResponse.ok) {
-        console.warn('⚠️ Erro ao sincronizar planilha, continuando...');
+      if (!cmvResponse.ok) {
+        const errorData = await cmvResponse.json().catch(() => ({}));
+        console.warn('⚠️ Erro ao processar CMV:', errorData);
       } else {
-        console.log('✅ Planilha CMV sincronizada');
+        const resultado = await cmvResponse.json();
+        console.log('✅ CMV processado:', resultado.message);
       }
 
       // 3. Atualizar a página
@@ -553,7 +564,7 @@ export function DesempenhoClient({
 
       toast({
         title: "✅ Dados Atualizados",
-        description: "NIBO e Planilha sincronizados com sucesso"
+        description: "Planilha + NIBO sincronizados com sucesso"
       });
 
     } catch (error) {

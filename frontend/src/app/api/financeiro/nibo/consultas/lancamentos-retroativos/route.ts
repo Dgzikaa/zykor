@@ -36,10 +36,11 @@ export async function GET(request: NextRequest) {
     const competenciaAntes = searchParams.get('competencia_antes'); // Data máxima de competência (accrualDate)
     let competenciaApos = searchParams.get('competencia_apos'); // Data mínima de competência (opcional)
     const criadoAntes = searchParams.get('criado_antes'); // Data máxima de criação (opcional)
-    const mesesRetroativos = parseInt(searchParams.get('meses_retroativos') || '3'); // Limite de meses (padrão: 3 para maior velocidade)
+    const mesesRetroativos = parseFloat(searchParams.get('meses_retroativos') || '3'); // Limite de meses (0.25 = 1 semana, 0.5 = 2 semanas, 1 = 1 mês)
+    const categorias = searchParams.get('categorias'); // Filtro de categorias (separadas por vírgula)
 
     console.log(`[NIBO-CONSULTAS] Buscando lançamentos retroativos, bar_id=${barId}`);
-    console.log(`[NIBO-CONSULTAS] Filtros: criado_apos=${criadoApos}, competencia_antes=${competenciaAntes}`);
+    console.log(`[NIBO-CONSULTAS] Filtros: criado_apos=${criadoApos}, competencia_antes=${competenciaAntes}, categorias=${categorias}`);
 
     if (!criadoApos || !competenciaAntes) {
       return NextResponse.json(
@@ -60,16 +61,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // OTIMIZAÇÃO: Se competencia_apos não foi informado, limitar automaticamente aos últimos X meses
+    // OTIMIZAÇÃO: Se competencia_apos não foi informado, limitar automaticamente aos últimos X meses/semanas
     // Isso evita buscar TODO o histórico da empresa e torna a consulta muito mais rápida
     let limiteAplicado = false;
     if (!competenciaApos) {
       const competenciaAntesDate = new Date(competenciaAntes);
       const limiteInferior = new Date(competenciaAntesDate);
-      limiteInferior.setMonth(limiteInferior.getMonth() - mesesRetroativos);
+      
+      // Suportar frações de mês (0.25 = 1 semana, 0.5 = 2 semanas, 1 = 1 mês)
+      const diasParaSubtrair = Math.round(mesesRetroativos * 30);
+      limiteInferior.setDate(limiteInferior.getDate() - diasParaSubtrair);
+      
       competenciaApos = limiteInferior.toISOString().split('T')[0];
       limiteAplicado = true;
-      console.log(`[NIBO-CONSULTAS] OTIMIZAÇÃO: Aplicado limite automático de ${mesesRetroativos} meses. competencia_apos=${competenciaApos}`);
+      
+      const periodoLabel = mesesRetroativos < 1 
+        ? `${Math.round(mesesRetroativos * 4)} semana(s)` 
+        : `${mesesRetroativos} mês(es)`;
+      console.log(`[NIBO-CONSULTAS] OTIMIZAÇÃO: Aplicado limite de ${periodoLabel} (${diasParaSubtrair} dias). competencia_apos=${competenciaApos}`);
     }
 
     // Buscar schedules da API NIBO com paginação PARALELA para máxima velocidade
@@ -149,10 +158,15 @@ export async function GET(request: NextRequest) {
 
     console.log(`[NIBO-CONSULTAS] Total de registros da API: ${allSchedules.length} (${pageCount} páginas)`);
 
-    // Filtrar por createDate (data de criação) no código
+    // Filtrar por createDate (data de criação) e categorias no código
     // A API NIBO pode não suportar filtro por createDate no OData
     const criadoAposDate = new Date(criadoApos + 'T00:00:00Z');
     const criadoAntesDate = criadoAntes ? new Date(criadoAntes + 'T23:59:59Z') : null;
+    
+    // Preparar lista de categorias para filtro (case-insensitive)
+    const categoriasLista = categorias 
+      ? categorias.split(',').map(c => c.trim().toLowerCase())
+      : null;
 
     const lancamentosRetroativos = allSchedules.filter(schedule => {
       if (!schedule.createDate) return false;
@@ -169,8 +183,18 @@ export async function GET(request: NextRequest) {
         return false;
       }
 
+      // Filtrar por categoria (se especificado)
+      if (categoriasLista && categoriasLista.length > 0) {
+        const categoriaNome = (schedule.category?.name || '').toLowerCase();
+        if (!categoriasLista.some(cat => categoriaNome === cat || categoriaNome.includes(cat))) {
+          return false;
+        }
+      }
+
       return true;
     });
+    
+    console.log(`[NIBO-CONSULTAS] Filtro categorias: ${categoriasLista?.length || 0} categorias`);
 
     console.log(`[NIBO-CONSULTAS] Lançamentos retroativos encontrados: ${lancamentosRetroativos.length}`);
 
@@ -265,7 +289,9 @@ export async function GET(request: NextRequest) {
         competenciaApos: competenciaApos || null,
         barId,
         mesesRetroativos,
-        limiteAutoAplicado: limiteAplicado
+        limiteAutoAplicado: limiteAplicado,
+        categorias: categoriasLista || null,
+        filtroCategoriasAplicado: categoriasLista !== null && categoriasLista.length > 0
       },
       estatisticas,
       data: resultado,

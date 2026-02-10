@@ -107,6 +107,31 @@ export default function ConsultasPage() {
   const [competenciaAntes, setCompetenciaAntes] = useState('');
   const [competenciaApos, setCompetenciaApos] = useState('');
   const [mesesRetroativos, setMesesRetroativos] = useState('3'); // Limite de meses para buscar (3 = mais rápido)
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState(''); // Filtro de categoria
+  
+  // Categorias CMV (preset útil)
+  const CATEGORIAS_CMV = [
+    'Custo Bebidas',
+    'CUSTO BEBIDAS',
+    'Custo Comida',
+    'CUSTO COMIDA',
+    'CUSTO COMIDAS',
+    'Custo Drinks',
+    'CUSTO DRINKS',
+    'Custo Outros',
+    'CUSTO OUTROS'
+  ];
+  
+  // Todas as categorias disponíveis (organizadas)
+  const CATEGORIAS_DISPONIVEIS = [
+    { group: 'CMV - Custos', items: ['Custo Bebidas', 'CUSTO BEBIDAS', 'Custo Comida', 'CUSTO COMIDA', 'CUSTO COMIDAS', 'Custo Drinks', 'CUSTO DRINKS', 'Custo Outros', 'CUSTO OUTROS'] },
+    { group: 'Pessoal', items: ['FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA', 'FREELA LIMPEZA', 'FREELA SEGURANÇA', 'SALARIO FUNCIONARIOS', 'SALÁRIO FUNCIONÁRIOS', 'PRO LABORE', 'COMISSÃO 10%', 'VALE TRANSPORTE', 'PROVISÃO TRABALHISTA'] },
+    { group: 'Operação', items: ['Materiais de Limpeza e Descartáveis', 'Materiais Operação', 'Utensílios', 'UTENSILIOS', 'Outros Operação', 'OUTROS OPERAÇÃO', 'MANUTENÇÃO', 'Manutenção'] },
+    { group: 'Infraestrutura', items: ['ÁGUA', 'LUZ', 'GÁS', 'INTERNET', 'ALUGUEL/CONDOMÍNIO/IPTU'] },
+    { group: 'Atrações/Eventos', items: ['Atrações Programação', 'Atrações/Eventos', 'Produção Eventos'] },
+    { group: 'Administrativo', items: ['Administrativo Deboche', 'Administrativo Ordinário', 'Escritório Central', 'Marketing', 'IMPOSTO'] },
+    { group: 'Investimentos', items: ['[Investimento] Equipamentos', '[Investimento] Obras', '[Investimento] Outros Investimentos'] },
+  ];
   
   // Estados de resultado
   const [resultado, setResultado] = useState<ConsultaResult | null>(null);
@@ -145,6 +170,14 @@ export default function ConsultasPage() {
       }
       if (competenciaApos) {
         params.set('competencia_apos', competenciaApos);
+      }
+      if (categoriaSelecionada) {
+        // Se for "CMV", enviar a lista de categorias CMV
+        if (categoriaSelecionada === 'CMV') {
+          params.set('categorias', CATEGORIAS_CMV.join(','));
+        } else {
+          params.set('categorias', categoriaSelecionada);
+        }
       }
 
       const response = await fetch(`/api/financeiro/nibo/consultas/lancamentos-retroativos?${params}`);
@@ -358,6 +391,49 @@ export default function ConsultasPage() {
               </div>
             </div>
 
+            {/* Filtro de Categoria */}
+            <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                <Filter className="w-4 h-4 text-orange-500" />
+                Filtrar por Categoria
+              </h4>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <select
+                    value={categoriaSelecionada}
+                    onChange={(e) => setCategoriaSelecionada(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Todas as categorias</option>
+                    <option value="CMV">📦 Apenas CMV (Custos)</option>
+                    {CATEGORIAS_DISPONIVEIS.map((grupo) => (
+                      <optgroup key={grupo.group} label={grupo.group}>
+                        {grupo.items.map((cat) => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+                {categoriaSelecionada && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCategoriaSelecionada('')}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    <XCircle className="w-4 h-4 mr-1" />
+                    Limpar
+                  </Button>
+                )}
+              </div>
+              {categoriaSelecionada === 'CMV' && (
+                <p className="text-xs text-orange-600 dark:text-orange-400">
+                  Filtrando por: Custo Bebidas, Custo Comida, Custo Drinks, Custo Outros
+                </p>
+              )}
+            </div>
+
             {/* Limite de meses - para otimização */}
             <div className="flex flex-col sm:flex-row sm:items-end gap-4 pt-2 border-t border-gray-200 dark:border-gray-700">
               <div className="flex-1">
@@ -370,11 +446,13 @@ export default function ConsultasPage() {
                   disabled={!!competenciaApos}
                   className="w-full sm:w-48 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
+                  <option value="0.25">⚡ Última semana</option>
+                  <option value="0.5">⚡ Últimas 2 semanas</option>
+                  <option value="1">🚀 Último mês</option>
+                  <option value="2">Últimos 2 meses</option>
                   <option value="3">Últimos 3 meses</option>
                   <option value="6">Últimos 6 meses</option>
-                  <option value="9">Últimos 9 meses</option>
                   <option value="12">Últimos 12 meses</option>
-                  <option value="18">Últimos 18 meses</option>
                   <option value="24">Últimos 24 meses</option>
                 </select>
                 {competenciaApos ? (
@@ -383,7 +461,9 @@ export default function ConsultasPage() {
                   </p>
                 ) : (
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Busca automática limitada a {mesesRetroativos} meses antes da data de competência
+                    Busca automática limitada a {parseFloat(mesesRetroativos) < 1 
+                      ? `${Math.round(parseFloat(mesesRetroativos) * 4)} semana(s)` 
+                      : `${mesesRetroativos} mês(es)`} antes da data de competência
                   </p>
                 )}
               </div>
@@ -443,7 +523,11 @@ export default function ConsultasPage() {
                   <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-blue-800 dark:text-blue-200">
                     <p className="font-medium">Otimização aplicada</p>
-                    <p>A busca foi limitada aos últimos <strong>{resultado.filtros.mesesRetroativos} meses</strong> (a partir de {formatDate(resultado.filtros.competenciaApos)}) para maior velocidade. 
+                    <p>A busca foi limitada a <strong>{
+                      resultado.filtros.mesesRetroativos < 1 
+                        ? `${Math.round(resultado.filtros.mesesRetroativos * 4)} semana(s)` 
+                        : `${resultado.filtros.mesesRetroativos} mês(es)`
+                    }</strong> (a partir de {formatDate(resultado.filtros.competenciaApos)}) para maior velocidade. 
                     Consultadas <strong>{resultado.paginasConsultadas}</strong> páginas ({resultado.registrosApiOriginal} registros da API). 
                     Se precisar buscar mais histórico, aumente o limite ou preencha o campo "Competência após".</p>
                   </div>
