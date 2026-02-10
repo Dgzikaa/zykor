@@ -37,6 +37,7 @@ import {
   Activity,
   Wallet,
   Megaphone,
+  Star,
 } from 'lucide-react';
 
 interface SubMenuItem {
@@ -230,6 +231,13 @@ const defaultSidebarItems: SidebarItem[] = [
           label: 'NPS Clientes',
           href: '/ferramentas/nps/categorizado',
           description: 'Pesquisa de satisfação de clientes por categoria',
+          permission: 'gestao',
+        },
+        {
+          icon: Star,
+          label: 'Google Reviews',
+          href: '/ferramentas/google-reviews',
+          description: 'Avaliações do Google Maps',
           permission: 'gestao',
         },
         {

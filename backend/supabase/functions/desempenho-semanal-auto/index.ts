@@ -581,30 +581,34 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   console.log(`⭐ NPS Geral: ${npsGeral ?? 'N/A'} (${npsData?.length || 0} respostas) | NPS Reservas: ${npsReservas ?? 'N/A'}`)
 
   // ============================================
-  // 9. AVALIAÇÕES GOOGLE (windsor_google)
-  // Nota: windsor_google não tem bar_id, dados são apenas do Ordinário (bar_id=3)
+  // 9. AVALIAÇÕES GOOGLE (google_reviews - Apify)
+  // Tabela google_reviews com bar_id, stars, published_at_date
   // ============================================
   let googleData: any[] = []
   let avaliacoes5Estrelas = 0
   let mediaGoogle: number | null = null
   
-  // Só busca dados do Google se for Ordinário (bar_id = 3)
-  if (barId === 3) {
-    const googleDataRaw = await fetchAllData(supabase, 'windsor_google', 'review_star_rating, review_average_rating', {
-      'gte_date': startDate,
-      'lte_date': endDate
-    }) || []
+  // Buscar reviews do Google da tabela google_reviews (Apify)
+  const { data: googleReviewsData, error: googleError } = await supabase
+    .from('google_reviews')
+    .select('stars, published_at_date')
+    .eq('bar_id', barId)
+    .gte('published_at_date', startDate)
+    .lte('published_at_date', endDate + 'T23:59:59')
 
-    // Filtrar apenas registros válidos (com review_star_rating definido)
-    googleData = googleDataRaw.filter(item => item.review_star_rating !== null)
-
-    avaliacoes5Estrelas = googleData.filter(item => item.review_star_rating === 'FIVE').length
+  if (!googleError && googleReviewsData) {
+    googleData = googleReviewsData.filter(item => item.stars !== null)
     
-    // Média: usar apenas registros com review_average_rating válido
-    const googleComMedia = googleData.filter(item => item.review_average_rating !== null)
-    mediaGoogle = googleComMedia.length > 0 
-      ? googleComMedia.reduce((sum, item) => sum + (parseFloat(item.review_average_rating) || 0), 0) / googleComMedia.length 
-      : null
+    // Contar avaliações 5 estrelas
+    avaliacoes5Estrelas = googleData.filter(item => item.stars === 5).length
+    
+    // Calcular média de estrelas
+    if (googleData.length > 0) {
+      const somaEstrelas = googleData.reduce((sum, item) => sum + (item.stars || 0), 0)
+      mediaGoogle = somaEstrelas / googleData.length
+    }
+  } else if (googleError) {
+    console.error('Erro ao buscar google_reviews:', googleError)
   }
 
   console.log(`⭐ Avaliações Google (bar_id=${barId}): ${avaliacoes5Estrelas} com 5★, Média: ${mediaGoogle?.toFixed(2) || 'N/A'} (${googleData.length} reviews)`)

@@ -35,6 +35,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { DadosSemana, SecaoConfig, GrupoMetricas, MetricaConfig, TipoAgregacao } from '../types';
+import { GoogleReviewsTooltip } from './GoogleReviewsTooltip';
 
 // ============================================================================
 // CONFIGURAÇÃO UI (SECOES, ETC)
@@ -129,8 +130,8 @@ const SECOES: SecaoConfig[] = [
         id: 'avaliacoes',
         label: 'Avaliações',
         metricas: [
-          { key: 'avaliacoes_5_google_trip', label: 'Avaliações 5★ Google', status: 'manual', fonte: 'SuperSal', calculo: 'Relatório semanal', formato: 'numero', editavel: true },
-          { key: 'media_avaliacoes_google', label: 'Média Google', status: 'manual', fonte: 'SuperSal', calculo: 'Relatório semanal', formato: 'decimal', editavel: true },
+          { key: 'avaliacoes_5_google_trip', label: 'Avaliações 5★ Google', status: 'auto', fonte: 'Google Reviews (Apify)', calculo: 'Contagem de avaliações 5 estrelas no período', formato: 'numero', temTooltipGoogle: true },
+          { key: 'media_avaliacoes_google', label: 'Média Google', status: 'auto', fonte: 'Google Reviews (Apify)', calculo: 'Média das estrelas no período', formato: 'decimal', temTooltipGoogle: true },
         ]
       },
       {
@@ -769,6 +770,7 @@ export function DesempenhoClient({
                                          }
                                        }
                                         const temDetalhes = metrica.temTooltipDetalhes;
+                                        const temTooltipGoogle = metrica.temTooltipGoogle;
                                         
                                         return (
                                            <div key={metrica.key} className={cn("relative flex items-center justify-center px-2 border-b border-gray-100 dark:border-gray-700 group", isAtual ? "bg-emerald-50/30 dark:bg-emerald-900/10" : "bg-gray-50/50 dark:bg-gray-800/50")} style={{ height: '32px' }}>
@@ -780,6 +782,16 @@ export function DesempenhoClient({
                                                     <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => setEditando(null)}><X className="h-3 w-3 text-red-600" /></Button>
                                                   </div>
                                                 </div>
+                                              ) : temTooltipGoogle && semana.data_inicio && semana.data_fim ? (
+                                                <GoogleReviewsTooltip
+                                                  barId={barId}
+                                                  dataInicio={semana.data_inicio}
+                                                  dataFim={semana.data_fim}
+                                                >
+                                                  <span className="text-xs text-gray-600 dark:text-gray-400 text-center">
+                                                    {valorFormatado}
+                                                  </span>
+                                                </GoogleReviewsTooltip>
                                               ) : temDetalhes ? (
                                                 <TooltipProvider>
                                                   <Tooltip>

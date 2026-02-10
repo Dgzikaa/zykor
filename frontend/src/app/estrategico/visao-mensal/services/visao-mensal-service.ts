@@ -144,10 +144,10 @@ export async function getIndicadoresMensais(
     const cArt = niboBatch?.filter(i => ['ATRAÇÕES', 'PRODUÇÃO', 'MARKETING'].includes(i.categoria_nome))
       .reduce((s, i) => s + (parseFloat(i.valor) || 0), 0) || 0;
 
-    // Reputação
-    const { data: repBatch } = await supabase.from('windsor_google').select('review_average_rating_total')
-      .eq('bar_id', barId).gte('created_at', inicioMes).lte('created_at', fimMes + 'T23:59:59');
-    const reputacao = repBatch && repBatch.length > 0 ? repBatch.reduce((s, i) => s + (i.review_average_rating_total || 0), 0) / repBatch.length : 0;
+    // Reputação (Google Reviews - Apify)
+    const { data: repBatch } = await supabase.from('google_reviews').select('stars')
+      .eq('bar_id', barId).gte('published_at_date', inicioMes).lte('published_at_date', fimMes + 'T23:59:59');
+    const reputacao = repBatch && repBatch.length > 0 ? repBatch.reduce((s, i) => s + (i.stars || 0), 0) / repBatch.length : 0;
 
     indicadoresPorMes.push({
       mes: mesInfo.mes, mesNome: mesInfo.mesNome, mesAbrev: mesInfo.mesAbrev,

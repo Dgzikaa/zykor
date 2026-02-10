@@ -1086,19 +1086,18 @@ class AlertasInteligentesService {
       }
     }
 
-    // Buscar avaliações do Google (windsor_google)
+    // Buscar avaliações do Google (google_reviews - Apify)
     const { data: googleReviews } = await this.supabase
-      .from('windsor_google')
+      .from('google_reviews')
       .select('*')
-      .gte('date', seteDiasAtrasStr)
-      .order('date', { ascending: false })
+      .gte('published_at_date', seteDiasAtrasStr)
+      .order('published_at_date', { ascending: false })
       .limit(20)
 
     if (googleReviews && googleReviews.length > 0) {
       // Contar avaliações negativas (1-2 estrelas)
       const avaliacoesNegativas = googleReviews.filter(r => {
-        const rating = parseFloat(r.review_star_rating) || r.review_average_rating
-        return rating && rating <= 2
+        return r.stars && r.stars <= 2
       })
 
       if (avaliacoesNegativas.length > 0) {
@@ -1110,8 +1109,8 @@ class AlertasInteligentesService {
           dados: { 
             quantidade: avaliacoesNegativas.length,
             avaliacoes: avaliacoesNegativas.slice(0, 3).map(r => ({
-              autor: r.review_reviewer,
-              comentario: r.review_comment?.substring(0, 100)
+              autor: r.name,
+              comentario: r.text?.substring(0, 100)
             }))
           },
           acoes_sugeridas: [
@@ -1119,7 +1118,7 @@ class AlertasInteligentesService {
             'Identificar problemas mencionados',
             'Contatar cliente para resolver (se possível)'
           ],
-          url: '/ferramentas/nps'
+          url: '/ferramentas/google-reviews'
         })
       }
     }

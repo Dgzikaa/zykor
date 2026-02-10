@@ -363,17 +363,17 @@ export async function GET(request: NextRequest) {
       const percentualRecorrentes = clientesTotaisUnicos > 0 ? (clientesRecorrentes / clientesTotaisUnicos) * 100 : 0;
       const percentualAtivos = clientesTotaisUnicos > 0 ? (clientesAtivos / clientesTotaisUnicos) * 100 : 0;
 
-      // 7. REPUTAÇÃO (média do mês)
+      // 7. REPUTAÇÃO (média do mês - Google Reviews via Apify)
       const { data: reputacaoData, error: reputacaoError } = await supabase
-        .from('windsor_google')
-        .select('review_average_rating_total')
+        .from('google_reviews')
+        .select('stars')
         .eq('bar_id', barIdNum)
-        .gte('created_at', inicioMes)
-        .lte('created_at', fimMes + 'T23:59:59');
+        .gte('published_at_date', inicioMes)
+        .lte('published_at_date', fimMes + 'T23:59:59');
 
       let reputacao = 0;
       if (!reputacaoError && reputacaoData && reputacaoData.length > 0) {
-        const somaRatings = reputacaoData.reduce((sum, row) => sum + (row.review_average_rating_total || 0), 0);
+        const somaRatings = reputacaoData.reduce((sum, row) => sum + (row.stars || 0), 0);
         reputacao = somaRatings / reputacaoData.length;
       }
 

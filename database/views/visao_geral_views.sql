@@ -1,11 +1,11 @@
--- Views de agregação para Visão Geral (anual e trimestral)
--- Observação:
+﻿-- Views de agregaÃ§Ã£o para VisÃ£o Geral (anual e trimestral)
+-- ObservaÃ§Ã£o:
 -- - Usamos somente data_competencia para NIBO (conforme regra interna)
--- - Para Sympla faturamento (sympla_pedidos) não há mapeamento claro por bar_id; mantido fora dos cálculos agregados por bar
+-- - Para Sympla faturamento (sympla_pedidos) nÃ£o hÃ¡ mapeamento claro por bar_id; mantido fora dos cÃ¡lculos agregados por bar
 -- - Pessoas Sympla usam sympla_participantes (possui bar_id)
--- - As views são MATERIALIZED para performance e devem ser atualizadas via pg_cron
+-- - As views sÃ£o MATERIALIZED para performance e devem ser atualizadas via pg_cron
 
--- Extensão de agendamento (Supabase já oferece, mas garantimos)
+-- ExtensÃ£o de agendamento (Supabase jÃ¡ oferece, mas garantimos)
 create extension if not exists pg_cron;
 
 -- =============================================================
@@ -64,10 +64,10 @@ pessoas_sympla as (
 ),
 reputacao as (
   select extract(year from date)::int as ano,
-         avg(review_average_rating_total) filter (
-           where review_average_rating_total is not null and review_average_rating_total > 0
+         avg(stars) filter (
+           where stars is not null and stars > 0
          )::numeric as reputacao_media
-  from public.windsor_google
+  from public.google_reviews
   group by 1
 )
 select
@@ -90,7 +90,7 @@ left join pessoas_yuzer    py on py.bar_id = k.bar_id and py.ano = k.ano
 left join pessoas_sympla   ps on ps.bar_id = k.bar_id and ps.ano = k.ano
 left join reputacao        r  on r.ano = k.ano;
 
--- Índice para refresh concurrently e performance de lookup
+-- Ãndice para refresh concurrently e performance de lookup
 create unique index if not exists idx_view_visao_geral_anual
   on public.view_visao_geral_anual (bar_id, ano);
 
@@ -187,9 +187,9 @@ cmo as (
          sum(coalesce(valor, 0))::numeric as cmo_total
   from public.nibo_agendamentos
   where categoria_nome in (
-    'SALARIO FUNCIONARIOS','ALIMENTAÇÃO','PROVISÃO TRABALHISTA','VALE TRANSPORTE',
-    'FREELA ATENDIMENTO','FREELA BAR','FREELA COZINHA','FREELA LIMPEZA','FREELA SEGURANÇA',
-    'Marketing','MANUTENÇÃO','Materiais Operação','Outros Operação'
+    'SALARIO FUNCIONARIOS','ALIMENTAÃ‡ÃƒO','PROVISÃƒO TRABALHISTA','VALE TRANSPORTE',
+    'FREELA ATENDIMENTO','FREELA BAR','FREELA COZINHA','FREELA LIMPEZA','FREELA SEGURANÃ‡A',
+    'Marketing','MANUTENÃ‡ÃƒO','Materiais OperaÃ§Ã£o','Outros OperaÃ§Ã£o'
   )
   group by 1,2,3
 ),
@@ -235,5 +235,6 @@ grant select on table public.view_visao_geral_trimestral to anon, authenticated;
 --   $$refresh materialized view concurrently public.view_visao_geral_trimestral$$);
 -- Para evitar jobs duplicados, cheque antes:
 -- SELECT * FROM cron.job;
+
 
 

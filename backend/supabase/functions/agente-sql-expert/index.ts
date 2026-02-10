@@ -639,17 +639,22 @@ serve(async (req) => {
 | taps_back | INTEGER | Voltou |
 | exits | INTEGER | Saiu |
 
-### windsor_google (Google Business Profile)
+### google_reviews (Avaliações do Google Maps - Apify)
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
-| id | INTEGER PK | ID único |
+| id | SERIAL PK | ID único |
 | bar_id | INTEGER FK | Referência ao bar |
-| date | DATE | Data |
-| views | INTEGER | Visualizações do perfil |
-| searches | INTEGER | Buscas |
-| actions_website | INTEGER | Cliques no site |
-| actions_phone | INTEGER | Cliques no telefone |
-| actions_directions | INTEGER | Cliques em rotas |
+| review_id | TEXT UNIQUE | ID único da avaliação no Google |
+| name | TEXT | Nome do avaliador |
+| text | TEXT | Texto da avaliação |
+| stars | INTEGER | Nota de 1 a 5 estrelas |
+| published_at_date | TIMESTAMPTZ | Data de publicação |
+| likes_count | INTEGER | Curtidas na avaliação |
+| review_url | TEXT | URL da avaliação |
+| response_from_owner_text | TEXT | Resposta do proprietário |
+| categories_food | NUMERIC | Nota para comida (1-5) |
+| categories_service | NUMERIC | Nota para serviço (1-5) |
+| categories_atmosphere | NUMERIC | Nota para atmosfera (1-5) |
 
 ---
 
@@ -802,7 +807,7 @@ Para detalhes por categoria (bilheteria, cerveja, drinks, comida):
 | Rupturas de estoque | \`contahub_stockout\` |
 | Seguidores Instagram | \`windsor_instagram_followers\` |
 | Stories Instagram | \`windsor_instagram_stories\` |
-| Google Business | \`windsor_google\` |
+| Google Reviews | \`google_reviews\` |
 | Calendário planejado | \`calendario_operacional\` |
 | OKRs e metas | \`organizador_okrs\` |
 | Visão do negócio | \`organizador_visao\` |
@@ -906,7 +911,7 @@ Para perguntas sobre Instagram, seguidores, stories, alcance:
 - \`windsor_instagram_followers\`: total de seguidores ao longo do tempo
 - \`windsor_instagram_followers_daily\`: variação diária de seguidores
 - \`windsor_instagram_stories\`: métricas de stories (impressões, alcance, respostas)
-- \`windsor_google\`: dados do Google Business Profile
+- \`google_reviews\`: avaliações do Google Maps coletadas via Apify
 
 # IMPORTANTE PARA ESTOQUE E CMV
 - \`contahub_stockout\`: produtos que ficaram em falta durante o dia

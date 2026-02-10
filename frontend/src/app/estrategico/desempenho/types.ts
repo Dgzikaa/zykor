@@ -96,6 +96,7 @@ export interface MetricaConfig {
   keyPessoas?: string;
   indentado?: boolean;
   temTooltipDetalhes?: boolean;
+  temTooltipGoogle?: boolean;
   keyPercentual?: string;
 }
 

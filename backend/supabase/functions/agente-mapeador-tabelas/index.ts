@@ -79,7 +79,7 @@ serve(async (req) => {
       'getin_units', 'getin_reservations', 'getin_sync_logs',
       
       // Windsor específico
-      'windsor_datav2', 'windsor_google', 'windsor_instagram_stories',
+      'windsor_datav2', 'google_reviews', 'windsor_instagram_stories',
       'windsor_instagram_followers', 'windsor_instagram_followers_daily',
       
       // NPS e Pesquisas
