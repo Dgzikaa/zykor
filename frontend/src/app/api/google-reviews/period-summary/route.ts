@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminClient } from '@/lib/supabase-admin';
+import { getSupabaseClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +19,7 @@ interface ReviewSummary {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await getAdminClient();
+    const supabase = await getSupabaseClient();
     
     const { searchParams } = new URL(request.url);
     const barId = parseInt(searchParams.get('bar_id') || '3');
