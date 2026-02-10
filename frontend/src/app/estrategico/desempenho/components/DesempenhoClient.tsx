@@ -137,6 +137,7 @@ const SECOES: SecaoConfig[] = [
         id: 'nps',
         label: 'NPS',
         metricas: [
+          { key: 'falae_nps_score', label: 'NPS Falaê', status: 'auto', fonte: 'Falaê', calculo: '% Promotores - % Detratores (pesquisa pós-visita)', formato: 'numero' },
           { key: 'nps_geral', label: 'NPS Geral', status: 'auto', fonte: 'NPS', calculo: '% Promotores - % Detratores', formato: 'numero' },
           { key: 'nps_reservas', label: 'NPS Reservas', status: 'auto', fonte: 'NPS', calculo: '% Promotores - % Detratores (com reserva)', formato: 'numero' },
         ]

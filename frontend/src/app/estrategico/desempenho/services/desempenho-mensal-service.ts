@@ -108,12 +108,21 @@ async function getDadosMensais(
     p_data_fim: dataFim
   });
 
-  const [desempenhoResults, marketingResults, contaAssinadaResult, descontosResult, clientesAtivosResult] = await Promise.all([
+  // 6. NPS Falaê: buscar respostas do mês
+  const falaeNpsPromise = supabase
+    .from('falae_respostas')
+    .select('nps')
+    .eq('bar_id', barId)
+    .gte('created_at', dataInicio)
+    .lte('created_at', dataFim + 'T23:59:59');
+
+  const [desempenhoResults, marketingResults, contaAssinadaResult, descontosResult, clientesAtivosResult, falaeNpsResult] = await Promise.all([
     Promise.all(desempenhoPromises),
     Promise.all(marketingPromises),
     contaAssinadaPromise,
     descontosPromise,
-    clientesAtivosPromise
+    clientesAtivosPromise,
+    falaeNpsPromise
   ]);
 
   const desempenhoData = desempenhoResults.flatMap(r => r.data || []);
@@ -138,6 +147,18 @@ async function getDadosMensais(
   // Clientes Ativos: número calculado pela RPC (clientes com 2+ visitas nos últimos 90 dias até o último dia do mês)
   const clientesAtivos = clientesAtivosResult.error ? 0 : Number(clientesAtivosResult.data) || 0;
 
+  // NPS Falaê: calcular score do mês
+  const falaeRespostas = falaeNpsResult.data || [];
+  let falaeNpsScore: number | null = null;
+  let falaeNpsMedia: number | null = null;
+  if (falaeRespostas.length > 0) {
+    const promotores = falaeRespostas.filter(r => r.nps >= 9).length;
+    const detratores = falaeRespostas.filter(r => r.nps <= 6).length;
+    const total = falaeRespostas.length;
+    falaeNpsScore = Math.round(((promotores - detratores) / total) * 100);
+    falaeNpsMedia = Math.round((falaeRespostas.reduce((acc, r) => acc + r.nps, 0) / total) * 10) / 10;
+  }
+
   const dadosSemanais = agregarDadosSemanaisProporcionais(semanasComProporcao, desempenhoMap, marketingMap);
 
   // Calcular faturamento total para os percentuais
@@ -160,6 +181,12 @@ async function getDadosMensais(
     descontos_perc: descontosPerc,
     // Clientes Ativos: calculado pela RPC get_count_base_ativa (90 dias até último dia do mês)
     clientes_ativos: clientesAtivos,
+    // NPS Falaê: se houver dados do Falaê, sobrescrever nps_geral
+    ...(falaeNpsScore !== null && { nps_geral: falaeNpsScore }),
+    // Adicionar campo específico para NPS Falaê
+    falae_nps_score: falaeNpsScore,
+    falae_nps_media: falaeNpsMedia,
+    falae_respostas_total: falaeRespostas.length,
   } as unknown as DadosSemana;
 }
 

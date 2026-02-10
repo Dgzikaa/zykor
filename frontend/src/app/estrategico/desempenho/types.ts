@@ -36,6 +36,9 @@ export interface DadosSemana {
   media_avaliacoes_google: number;
   nps_geral: number;
   nps_reservas: number;
+  falae_nps_score?: number | null;
+  falae_nps_media?: number | null;
+  falae_respostas_total?: number;
   nota_felicidade_equipe: number;
   stockout_comidas: number;
   stockout_drinks: number;
