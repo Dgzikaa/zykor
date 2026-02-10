@@ -1,0 +1,58 @@
+---
+description: Padrões para APIs que usam Supabase
+globs: frontend/src/app/api/**/*.ts
+alwaysApply: false
+---
+
+# Padrões para APIs Supabase
+
+## Cliente Correto
+
+- **getSupabaseClient()**: Para operações públicas (anon key)
+- **getAdminClient()**: Apenas quando precisa de service role (bypass RLS)
+
+A maioria das APIs deve usar `getSupabaseClient()`.
+
+## Estrutura Padrão
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseClient } from '@/lib/supabase';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Erro ao conectar com banco' }, { status: 500 });
+    }
+
+    const { data, error } = await supabase
+      .from('tabela')
+      .select('coluna1, coluna2');
+
+    if (error) {
+      console.error('Erro:', error);
+      return NextResponse.json({ error: 'Erro ao buscar dados' }, { status: 500 });
+    }
+
+    // Tipar como any[] para evitar problemas de inferência
+    const dados = (data || []) as any[];
+
+    return NextResponse.json({ success: true, data: dados });
+
+  } catch (error) {
+    console.error('Erro interno:', error);
+    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+  }
+}
+```
+
+## Nomes de Colunas Comuns (google_reviews)
+
+- `reviewer_name` (NÃO `name`)
+- `stars`
+- `text`
+- `published_at_date`
+- `rating_food`, `rating_service`, `rating_atmosphere`

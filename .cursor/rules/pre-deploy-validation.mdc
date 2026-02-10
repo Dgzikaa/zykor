@@ -1,0 +1,53 @@
+---
+description: Validação obrigatória antes de fazer deploy/push
+alwaysApply: true
+---
+
+# Validação Pré-Deploy
+
+Antes de fazer commit/push de novas features ou alterações significativas, SEMPRE executar:
+
+## Checklist Obrigatório
+
+1. **Type-check local**: `npm run type-check` no diretório frontend
+2. **Verificar colunas do banco**: Confirmar nomes de colunas com `execute_sql` antes de usar em queries
+3. **Testar API localmente**: Usar `Invoke-RestMethod` ou testar endpoint antes de deploy
+
+## Padrões para APIs Supabase
+
+```typescript
+// ✅ CORRETO - Sempre verificar null e usar tipagem segura
+const supabase = await getSupabaseClient();
+if (!supabase) {
+  return NextResponse.json({ error: 'Erro ao conectar' }, { status: 500 });
+}
+
+// Usar any[] para evitar erros de inferência do TypeScript
+const { data, error } = await supabase.from('tabela').select('*');
+const dados = (data || []) as any[];
+```
+
+```typescript
+// ❌ ERRADO - Assumir que supabase não é null
+const supabase = await getSupabaseClient();
+const { data } = await supabase.from('tabela').select('*');
+```
+
+## Verificar Colunas do Banco
+
+Antes de criar queries, verificar colunas existentes:
+
+```sql
+SELECT column_name FROM information_schema.columns 
+WHERE table_name = 'nome_tabela';
+```
+
+## Comandos de Validação
+
+```powershell
+# No diretório frontend
+cd frontend
+npm run type-check
+```
+
+Se houver erros, corrigir ANTES de fazer push.
