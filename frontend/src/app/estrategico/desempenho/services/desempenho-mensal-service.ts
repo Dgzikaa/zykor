@@ -96,11 +96,24 @@ async function getDadosMensais(
     .gte('dt_gerencial', dataInicio)
     .lte('dt_gerencial', dataFim);
 
-  const [desempenhoResults, marketingResults, contaAssinadaResult, descontosResult] = await Promise.all([
+  // 5. Clientes Ativos: usar RPC get_count_base_ativa com os 90 dias anteriores ao último dia do mês
+  const dataFimDate = new Date(ano, mes, 0); // Último dia do mês
+  const data90DiasAtras = new Date(dataFimDate);
+  data90DiasAtras.setDate(data90DiasAtras.getDate() - 90);
+  const data90DiasAtrasStr = data90DiasAtras.toISOString().split('T')[0];
+
+  const clientesAtivosPromise = supabase.rpc('get_count_base_ativa', {
+    p_bar_id: barId,
+    p_data_inicio: data90DiasAtrasStr,
+    p_data_fim: dataFim
+  });
+
+  const [desempenhoResults, marketingResults, contaAssinadaResult, descontosResult, clientesAtivosResult] = await Promise.all([
     Promise.all(desempenhoPromises),
     Promise.all(marketingPromises),
     contaAssinadaPromise,
-    descontosPromise
+    descontosPromise,
+    clientesAtivosPromise
   ]);
 
   const desempenhoData = desempenhoResults.flatMap(r => r.data || []);
@@ -122,6 +135,9 @@ async function getDadosMensais(
     (sum, d) => sum + (Number(d.vr_desconto) || 0), 0
   );
 
+  // Clientes Ativos: número calculado pela RPC (clientes com 2+ visitas nos últimos 90 dias até o último dia do mês)
+  const clientesAtivos = clientesAtivosResult.error ? 0 : Number(clientesAtivosResult.data) || 0;
+
   const dadosSemanais = agregarDadosSemanaisProporcionais(semanasComProporcao, desempenhoMap, marketingMap);
 
   // Calcular faturamento total para os percentuais
@@ -142,6 +158,8 @@ async function getDadosMensais(
     conta_assinada_perc: contaAssinadaPerc,
     descontos_valor: descontosValor,
     descontos_perc: descontosPerc,
+    // Clientes Ativos: calculado pela RPC get_count_base_ativa (90 dias até último dia do mês)
+    clientes_ativos: clientesAtivos,
   } as unknown as DadosSemana;
 }
 
@@ -271,8 +289,8 @@ function agregarDadosSemanaisProporcionais(
     cmo_custo: sumProp(desempenhoMap, 'cmo_custo'),
     custo_atracao_faturamento: avgProp(desempenhoMap, 'custo_atracao_faturamento'),
     
-    // Clientes (números absolutos - soma arredondada, não média)
-    clientes_ativos: Math.round(sumProp(desempenhoMap, 'clientes_ativos')),
+    // Clientes (clientes_ativos é calculado via RPC, os demais são soma proporcional)
+    // Nota: clientes_ativos é sobrescrito no retorno da função com valor da RPC get_count_base_ativa
     clientes_30d: Math.round(sumProp(desempenhoMap, 'clientes_30d')),
     clientes_60d: Math.round(sumProp(desempenhoMap, 'clientes_60d')),
     clientes_90d: Math.round(sumProp(desempenhoMap, 'clientes_90d')),
