@@ -395,6 +395,7 @@ export function DesempenhoClient({
   const secoesNaoColapsaveis = useMemo(() => ['ovt', 'qualidade'], []);
   const [editando, setEditando] = useState<{ semanaId: number; campo: string } | null>(null);
   const [valorEdit, setValorEdit] = useState('');
+  const [valoresLocais, setValoresLocais] = useState<Record<string, Record<string, number>>>({});
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const semanaAtualRef = useRef<HTMLDivElement>(null);
@@ -525,6 +526,15 @@ export function DesempenhoClient({
 
       if (!response.ok) throw new Error('Erro ao salvar');
       
+      // Atualizar estado local para refletir imediatamente
+      setValoresLocais(prev => ({
+        ...prev,
+        [semanaId]: {
+          ...(prev[semanaId] || {}),
+          [campo]: numValue
+        }
+      }));
+      
       toast({ title: 'Salvo!', description: 'Valor atualizado' });
       setEditando(null);
       router.refresh(); // Refresh RSC data
@@ -534,6 +544,15 @@ export function DesempenhoClient({
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper para obter valor considerando override local
+  const getValorComOverride = (semana: DadosSemana, key: string): any => {
+    const semanaId = semana.id?.toString() || '';
+    if (valoresLocais[semanaId]?.[key] !== undefined) {
+      return valoresLocais[semanaId][key];
+    }
+    return (semana as any)[key];
   };
 
   // Se não houver dados e não estiver carregando (mas loading é false inicialmente)
@@ -703,8 +722,8 @@ export function DesempenhoClient({
                                // Grupos simples (1 métrica) não mostram header de grupo
                                const mostrarHeaderGrupo = !grupoSimples && (hierarquico || !!grupo.agregacao);
                                
-                               const valorPrincipal = hierarquico && metricaPrincipal ? (semana as any)[metricaPrincipal.key] : null;
-                               const valorPessoasPrincipal = hierarquico && metricaPrincipal?.keyPessoas ? (semana as any)[metricaPrincipal.keyPessoas] : null;
+                               const valorPrincipal = hierarquico && metricaPrincipal ? getValorComOverride(semana, metricaPrincipal.key) : null;
+                               const valorPessoasPrincipal = hierarquico && metricaPrincipal?.keyPessoas ? getValorComOverride(semana, metricaPrincipal.keyPessoas) : null;
                                const isEditandoPrincipal = hierarquico && editando?.semanaId === semana.id && editando?.campo === metricaPrincipal?.key;
                                const valorAgregado = !hierarquico ? calcularValorAgregado(grupo, semana) : null;
                                const valorAgregadoFormatado = valorAgregado !== null && grupo.agregacao ? formatarValor(valorAgregado, grupo.agregacao.formato, grupo.agregacao.sufixo) : '-';
@@ -718,10 +737,12 @@ export function DesempenhoClient({
                                         <div className={cn("relative flex items-center justify-center px-2 border-b border-gray-200 dark:border-gray-600 group", isAtual ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-gray-50 dark:bg-gray-800")} style={{ height: '36px' }}>
                                            {hierarquico ? (
                                               isEditandoPrincipal ? (
-                                                <div className="flex items-center gap-1">
-                                                  <Input type="text" value={valorEdit} onChange={(e) => setValorEdit(e.target.value)} className="w-16 h-6 text-xs p-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') salvarMetrica(semana.id!, metricaPrincipal.key); if (e.key === 'Escape') setEditando(null); }} />
-                                                  <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => salvarMetrica(semana.id!, metricaPrincipal.key)}><Check className="h-3 w-3 text-emerald-600" /></Button>
-                                                  <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditando(null)}><X className="h-3 w-3 text-red-600" /></Button>
+                                                <div className="absolute inset-0 z-50 flex items-center justify-center bg-white dark:bg-gray-800 shadow-lg border border-blue-300 rounded">
+                                                  <div className="flex items-center gap-1 px-1">
+                                                    <Input type="text" value={valorEdit} onChange={(e) => setValorEdit(e.target.value)} className="w-14 h-6 text-xs p-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') salvarMetrica(semana.id!, metricaPrincipal.key); if (e.key === 'Escape') setEditando(null); }} />
+                                                    <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => salvarMetrica(semana.id!, metricaPrincipal.key)}><Check className="h-3 w-3 text-emerald-600" /></Button>
+                                                    <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => setEditando(null)}><X className="h-3 w-3 text-red-600" /></Button>
+                                                  </div>
                                                 </div>
                                               ) : <span className="text-xs font-medium text-gray-900 dark:text-white text-center">{valorPrincipalFormatado}</span>
                                            ) : <span className="text-xs font-medium text-gray-900 dark:text-white text-center">{valorAgregadoFormatado}</span>}
@@ -731,10 +752,10 @@ export function DesempenhoClient({
                                         </div>
                                      )}
                                      {(!mostrarHeaderGrupo || secoesNaoColapsaveis.includes(secao.id) || gruposAbertos[`${secao.id}-${grupo.id}`]) && metricasParaMostrar.map((metrica) => {
-                                        const valor = (semana as any)[metrica.key];
-                                        const valorPessoas = metrica.keyPessoas ? (semana as any)[metrica.keyPessoas] : null;
-                                        const valorPercentual = metrica.keyPercentual ? (semana as any)[metrica.keyPercentual] : null;
-                                        const valorPercentualKey = metrica.percentualKey ? (semana as any)[metrica.percentualKey] : null;
+                                        const valor = getValorComOverride(semana, metrica.key);
+                                        const valorPessoas = metrica.keyPessoas ? getValorComOverride(semana, metrica.keyPessoas) : null;
+                                        const valorPercentual = metrica.keyPercentual ? getValorComOverride(semana, metrica.keyPercentual) : null;
+                                        const valorPercentualKey = metrica.percentualKey ? getValorComOverride(semana, metrica.percentualKey) : null;
                                         const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
                                        let valorFormatado = metrica.formato === 'reservas' ? (valor !== null && valor !== undefined ? `${Math.round(valor)}/${valorPessoas !== null && valorPessoas !== undefined ? Math.round(valorPessoas) : '-'}` : '-') : formatarValor(valor, metrica.formato, metrica.sufixo);
                                        if (metrica.keyPercentual && valorPercentual !== null && valorPercentual !== undefined && typeof valorPercentual === 'number' && valor !== null && valor !== undefined) valorFormatado = `${formatarValor(valor, 'numero')} (${valorPercentual.toFixed(1)}%)`;
@@ -752,10 +773,12 @@ export function DesempenhoClient({
                                         return (
                                            <div key={metrica.key} className={cn("relative flex items-center justify-center px-2 border-b border-gray-100 dark:border-gray-700 group", isAtual ? "bg-emerald-50/30 dark:bg-emerald-900/10" : "bg-gray-50/50 dark:bg-gray-800/50")} style={{ height: '32px' }}>
                                               {isEditandoCell ? (
-                                                <div className="flex items-center gap-1">
-                                                  <Input type="text" value={valorEdit} onChange={(e) => setValorEdit(e.target.value)} className="w-16 h-6 text-xs p-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') salvarMetrica(semana.id!, metrica.key); if (e.key === 'Escape') setEditando(null); }} />
-                                                  <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => salvarMetrica(semana.id!, metrica.key)}><Check className="h-3 w-3 text-emerald-600" /></Button>
-                                                  <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditando(null)}><X className="h-3 w-3 text-red-600" /></Button>
+                                                <div className="absolute inset-0 z-50 flex items-center justify-center bg-white dark:bg-gray-800 shadow-lg border border-blue-300 rounded">
+                                                  <div className="flex items-center gap-1 px-1">
+                                                    <Input type="text" value={valorEdit} onChange={(e) => setValorEdit(e.target.value)} className="w-14 h-6 text-xs p-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') salvarMetrica(semana.id!, metrica.key); if (e.key === 'Escape') setEditando(null); }} />
+                                                    <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => salvarMetrica(semana.id!, metrica.key)}><Check className="h-3 w-3 text-emerald-600" /></Button>
+                                                    <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => setEditando(null)}><X className="h-3 w-3 text-red-600" /></Button>
+                                                  </div>
                                                 </div>
                                               ) : temDetalhes ? (
                                                 <TooltipProvider>
