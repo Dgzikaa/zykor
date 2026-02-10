@@ -3,51 +3,33 @@ description: Validação obrigatória antes de fazer deploy/push
 alwaysApply: true
 ---
 
-# Validação Pré-Deploy
+# Validação Pré-Deploy (OBRIGATÓRIO)
 
-Antes de fazer commit/push de novas features ou alterações significativas, SEMPRE executar:
+## ANTES de qualquer git push, EXECUTE AUTOMATICAMENTE:
 
-## Checklist Obrigatório
+1. **Verificar colunas do banco** - Rodar `execute_sql` com:
+   ```sql
+   SELECT column_name FROM information_schema.columns WHERE table_name = 'tabela';
+   ```
 
-1. **Type-check local**: `npm run type-check` no diretório frontend
-2. **Verificar colunas do banco**: Confirmar nomes de colunas com `execute_sql` antes de usar em queries
-3. **Testar API localmente**: Usar `Invoke-RestMethod` ou testar endpoint antes de deploy
+2. **Rodar type-check** - Executar no Shell:
+   ```powershell
+   npm run type-check
+   ```
+   Working directory: `f:\Zykor\frontend`
 
-## Padrões para APIs Supabase
+3. **Corrigir erros** - Se houver erros de TypeScript, corrigir ANTES do push.
+
+## Padrões Obrigatórios para APIs
 
 ```typescript
-// ✅ CORRETO - Sempre verificar null e usar tipagem segura
+// SEMPRE verificar null e usar any[]
 const supabase = await getSupabaseClient();
 if (!supabase) {
   return NextResponse.json({ error: 'Erro ao conectar' }, { status: 500 });
 }
-
-// Usar any[] para evitar erros de inferência do TypeScript
-const { data, error } = await supabase.from('tabela').select('*');
+const { data } = await supabase.from('tabela').select('*');
 const dados = (data || []) as any[];
 ```
 
-```typescript
-// ❌ ERRADO - Assumir que supabase não é null
-const supabase = await getSupabaseClient();
-const { data } = await supabase.from('tabela').select('*');
-```
-
-## Verificar Colunas do Banco
-
-Antes de criar queries, verificar colunas existentes:
-
-```sql
-SELECT column_name FROM information_schema.columns 
-WHERE table_name = 'nome_tabela';
-```
-
-## Comandos de Validação
-
-```powershell
-# No diretório frontend
-cd frontend
-npm run type-check
-```
-
-Se houver erros, corrigir ANTES de fazer push.
+## NUNCA fazer push sem rodar type-check primeiro.
