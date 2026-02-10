@@ -37,8 +37,7 @@ export async function POST(request: NextRequest) {
         id,
         codigo,
         nome,
-        grupo,
-        quantidade_base,
+        categoria,
         receitas (
           id,
           quantidade_necessaria,
@@ -69,7 +68,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!produto.receitas || produto.receitas.length === 0) {
+    const produtoData = produto as any;
+    if (!produtoData.receitas || produtoData.receitas.length === 0) {
       return NextResponse.json(
         {
           success: false,
@@ -81,10 +81,10 @@ export async function POST(request: NextRequest) {
 
     // 2. Calcular insumos proporcionalmente
     const pesoLimpo = parseFloat(peso_limpo_g);
-    const pesoReferencia = produto.quantidade_base || 1000; // Base padrão 1kg
+    const pesoReferencia = 1000; // Base padrão 1kg
     const fatorProporcional = pesoLimpo / pesoReferencia;
 
-    const insumosCalculados = ((produto as any).receitas || []).map((receita: any) => {
+    const insumosCalculados = (produtoData.receitas || []).map((receita: any) => {
       const quantidadePlanejada =
         receita.quantidade_necessaria * fatorProporcional;
 
@@ -110,11 +110,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       produto: {
-        id: produto.id,
-        codigo: produto.codigo,
-        nome: produto.nome,
-        grupo: produto.grupo,
-        quantidade_base: produto.quantidade_base,
+        id: produtoData.id,
+        codigo: produtoData.codigo,
+        nome: produtoData.nome,
+        categoria: produtoData.categoria,
+        quantidade_base: pesoReferencia,
       },
       calculo: {
         peso_limpo_g: pesoLimpo,

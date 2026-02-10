@@ -72,7 +72,7 @@ export function GoogleReviewsTooltip({
   };
 
   const renderStars = (count: number, total: number) => {
-    const stars = [];
+    const stars: React.ReactNode[] = [];
     for (let i = 0; i < count; i++) {
       stars.push(<Star key={i} className="w-3 h-3 fill-yellow-400 text-yellow-400" />);
     }
@@ -95,7 +95,6 @@ export function GoogleReviewsTooltip({
         side="top" 
         align="center" 
         className="w-80 p-0 shadow-xl"
-        sideOffset={5}
       >
         {loading ? (
           <div className="flex items-center justify-center p-6">

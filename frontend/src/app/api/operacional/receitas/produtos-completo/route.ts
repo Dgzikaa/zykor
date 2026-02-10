@@ -8,13 +8,11 @@ interface Produto {
   id: number;
   codigo: string;
   nome: string;
-  rendimento_percentual: number;
-  quantidade_base: number;
-  unidade_final: string;
   observacoes?: string;
-  ativo: boolean;
-  created_at: string;
-  updated_at: string;
+  ativo: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+  [key: string]: any;
 }
 
 interface Receita {
@@ -134,7 +132,7 @@ export async function GET(request: NextRequest) {
     const produtosComReceitas = produtos || [];
 
     if (comReceitas && produtos && produtos.length > 0) {
-      for (const produto of produtos as Produto[]) {
+      for (const produto of produtos as any[]) {
         // Buscar receitas do produto com dados dos insumos
         const { data: receitas } = await supabase
           .from('receitas')
@@ -286,11 +284,10 @@ export async function POST(request: NextRequest) {
         {
           codigo,
           nome,
-          rendimento_percentual: parseFloat(rendimento_percentual),
-          quantidade_base: parseFloat(quantidade_base),
-          unidade_final,
+          empresa_id: 1, // Valor padrão
+          preco_venda: 0,
           observacoes,
-        },
+        } as any,
       ])
       .select();
 

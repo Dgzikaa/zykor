@@ -8,7 +8,6 @@ interface Produto {
   id: number;
   codigo: string;
   nome: string;
-  tipo: string;
   [key: string]: any;
 }
 
@@ -81,7 +80,7 @@ export async function GET(request: NextRequest) {
     console.log(`📦 ${produtos.length} produtos encontrados`);
 
     // Se não encontrou produtos para este bar_id, buscar de todos os bars
-    let produtosFinal = produtos as Produto[];
+    let produtosFinal = produtos as any[];
     if (produtos.length === 0) {
       console.log(
         '⚠️ Nenhum produto encontrado para este bar_id, buscando todos...'
@@ -103,7 +102,7 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      produtosFinal = todosProdutos as Produto[];
+      produtosFinal = todosProdutos as any[];
       console.log(
         `📦 ${produtosFinal.length} produtos encontrados (todos os bars)`
       );
@@ -111,7 +110,7 @@ export async function GET(request: NextRequest) {
 
     // 2. Para cada produto, buscar receitas com insumos
     const produtosComReceitas = await Promise.all(
-      produtosFinal.map(async (produto: Produto) => {
+      produtosFinal.map(async (produto: any) => {
         try {
           // Buscar receitas do produto com insumos usando relacionamento específico
           const { data: receitasData, error: receitasError } = await supabase
@@ -140,7 +139,7 @@ export async function GET(request: NextRequest) {
             );
             return {
               ...produto,
-              tipo_local: produto.tipo === 'bebida' ? 'bar' : 'cozinha',
+              tipo_local: produto.categoria === 'bebida' ? 'bar' : 'cozinha',
               receitas: [],
             } as ProdutoComReceitas;
           }
@@ -165,14 +164,14 @@ export async function GET(request: NextRequest) {
 
           return {
             ...produto,
-            tipo_local: produto.tipo === 'bebida' ? 'bar' : 'cozinha',
+            tipo_local: produto.categoria === 'bebida' ? 'bar' : 'cozinha',
             receitas: receitasFormatadas,
           } as ProdutoComReceitas;
         } catch (err) {
           console.warn(`⚠️ Erro na receita do produto ${produto.codigo}:`, err);
           return {
             ...produto,
-            tipo_local: produto.tipo === 'bebida' ? 'bar' : 'cozinha',
+            tipo_local: produto.categoria === 'bebida' ? 'bar' : 'cozinha',
             receitas: [],
           } as ProdutoComReceitas;
         }
