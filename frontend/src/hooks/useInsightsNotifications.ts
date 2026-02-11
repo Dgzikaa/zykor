@@ -48,6 +48,17 @@ interface UseInsightsNotificationsResult {
   marcarTodosComoLidos: () => void;
 }
 
+// Gerar ID estável para o alerta (mesmo alerta = mesmo ID entre fetches/sessões)
+function gerarIdEstavel(barId: number, alerta: { categoria?: string; titulo?: string; mensagem?: string }, index: number): string {
+  const base = `${alerta.categoria || ''}|${alerta.titulo || ''}|${(alerta.mensagem || '').slice(0, 80)}`;
+  let hash = 0;
+  for (let i = 0; i < base.length; i++) {
+    hash = ((hash << 5) - hash) + base.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return `insight-${barId}-${Math.abs(hash).toString(36)}-${index}`;
+}
+
 // =====================================================
 // HOOK PRINCIPAL
 // =====================================================
@@ -142,18 +153,21 @@ export function useInsightsNotifications(): UseInsightsNotificationsResult {
       const result = await response.json();
       
       if (result.success && result.resultado?.alertas) {
-        const alertasComId: InsightAlerta[] = result.resultado.alertas.map((alerta: any, index: number) => ({
-          id: `insight-${selectedBar.id}-${index}-${Date.now()}`,
-          tipo: alerta.tipo || 'info',
-          categoria: alerta.categoria || 'geral',
-          titulo: alerta.titulo || 'Alerta',
-          mensagem: alerta.mensagem || '',
-          dados: alerta.dados,
-          acoes_sugeridas: alerta.acoes_sugeridas || [],
-          created_at: new Date().toISOString(),
-          lido: alertasLidosRef.current.has(`insight-${selectedBar.id}-${index}`),
-          url: getUrlPorCategoria(alerta.categoria || 'geral'),
-        }));
+        const alertasComId: InsightAlerta[] = result.resultado.alertas.map((alerta: any, index: number) => {
+          const id = gerarIdEstavel(selectedBar.id, alerta, index);
+          return {
+            id,
+            tipo: alerta.tipo || 'info',
+            categoria: alerta.categoria || 'geral',
+            titulo: alerta.titulo || 'Alerta',
+            mensagem: alerta.mensagem || '',
+            dados: alerta.dados,
+            acoes_sugeridas: alerta.acoes_sugeridas || [],
+            created_at: new Date().toISOString(),
+            lido: alertasLidosRef.current.has(id),
+            url: getUrlPorCategoria(alerta.categoria || 'geral'),
+          };
+        });
         
         setAlertas(alertasComId);
         setLastUpdate(new Date());
