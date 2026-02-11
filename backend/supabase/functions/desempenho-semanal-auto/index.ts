@@ -589,12 +589,13 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   let mediaGoogle: number | null = null
   
   // Buscar reviews do Google da tabela google_reviews (Apify)
+  // IMPORTANTE: Usar timezone de Brasília (-03:00) para evitar problemas de dia
   const { data: googleReviewsData, error: googleError } = await supabase
     .from('google_reviews')
     .select('stars, published_at_date')
     .eq('bar_id', barId)
-    .gte('published_at_date', startDate)
-    .lte('published_at_date', endDate + 'T23:59:59')
+    .gte('published_at_date', startDate + 'T00:00:00-03:00')
+    .lte('published_at_date', endDate + 'T23:59:59-03:00')
 
   if (!googleError && googleReviewsData) {
     googleData = googleReviewsData.filter(item => item.stars !== null)

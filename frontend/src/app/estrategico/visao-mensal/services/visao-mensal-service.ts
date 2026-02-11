@@ -144,9 +144,9 @@ export async function getIndicadoresMensais(
     const cArt = niboBatch?.filter(i => ['ATRAÇÕES', 'PRODUÇÃO', 'MARKETING'].includes(i.categoria_nome))
       .reduce((s, i) => s + (parseFloat(i.valor) || 0), 0) || 0;
 
-    // Reputação (Google Reviews - Apify)
+    // Reputação (Google Reviews - Apify) - usando timezone de Brasília (-03:00)
     const { data: repBatch } = await supabase.from('google_reviews').select('stars')
-      .eq('bar_id', barId).gte('published_at_date', inicioMes).lte('published_at_date', fimMes + 'T23:59:59');
+      .eq('bar_id', barId).gte('published_at_date', inicioMes + 'T00:00:00-03:00').lte('published_at_date', fimMes + 'T23:59:59-03:00');
     const reputacao = repBatch && repBatch.length > 0 ? repBatch.reduce((s, i) => s + (i.stars || 0), 0) / repBatch.length : 0;
 
     indicadoresPorMes.push({

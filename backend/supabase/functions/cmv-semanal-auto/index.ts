@@ -232,22 +232,25 @@ async function buscarDadosAutomaticos(supabase: any, barId: number, dataInicio: 
     );
 
     if (comprasNibo) {
+      // Usar filtro case-insensitive para pegar todas as variações
       resultado.compras_custo_comida = comprasNibo
-        .filter((item: any) => item.categoria_nome === 'CUSTO COMIDA')
+        .filter((item: any) => (item.categoria_nome || '').toUpperCase().includes('CUSTO COMIDA'))
         .reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.valor) || 0), 0);
 
       resultado.compras_custo_bebidas = comprasNibo
-        .filter((item: any) => item.categoria_nome === 'Custo Bebidas')
+        .filter((item: any) => (item.categoria_nome || '').toUpperCase().includes('CUSTO BEBIDA'))
         .reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.valor) || 0), 0);
 
       resultado.compras_custo_drinks = comprasNibo
-        .filter((item: any) => item.categoria_nome === 'Custo Drinks')
+        .filter((item: any) => (item.categoria_nome || '').toUpperCase().includes('CUSTO DRINK'))
         .reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.valor) || 0), 0);
 
-      resultado.compras_custo_outros = 0;
+      resultado.compras_custo_outros = comprasNibo
+        .filter((item: any) => (item.categoria_nome || '').toUpperCase().includes('CUSTO OUTRO'))
+        .reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.valor) || 0), 0);
 
-      const totalCompras = resultado.compras_custo_comida + resultado.compras_custo_bebidas + resultado.compras_custo_drinks;
-      console.log(`✅ Compras: Cozinha R$ ${resultado.compras_custo_comida.toFixed(2)} | Bebidas R$ ${resultado.compras_custo_bebidas.toFixed(2)} | Drinks R$ ${resultado.compras_custo_drinks.toFixed(2)} | TOTAL R$ ${totalCompras.toFixed(2)}`);
+      const totalCompras = resultado.compras_custo_comida + resultado.compras_custo_bebidas + resultado.compras_custo_drinks + resultado.compras_custo_outros;
+      console.log(`✅ Compras: Cozinha R$ ${resultado.compras_custo_comida.toFixed(2)} | Bebidas R$ ${resultado.compras_custo_bebidas.toFixed(2)} | Drinks R$ ${resultado.compras_custo_drinks.toFixed(2)} | Outros R$ ${resultado.compras_custo_outros.toFixed(2)} | TOTAL R$ ${totalCompras.toFixed(2)}`);
     }
   } catch (err) {
     console.error('Erro ao buscar compras NIBO:', err);

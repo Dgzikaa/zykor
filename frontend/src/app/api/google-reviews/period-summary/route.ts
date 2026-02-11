@@ -35,13 +35,13 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Buscar reviews do período
+    // Buscar reviews do período (usando timezone de Brasília -03:00)
     const { data: reviews, error } = await supabase
       .from('google_reviews')
       .select('reviewer_name, stars, text, published_at_date')
       .eq('bar_id', barId)
-      .gte('published_at_date', dataInicio)
-      .lte('published_at_date', dataFim + 'T23:59:59')
+      .gte('published_at_date', dataInicio + 'T00:00:00-03:00')
+      .lte('published_at_date', dataFim + 'T23:59:59-03:00')
       .order('published_at_date', { ascending: false });
 
     if (error) {

@@ -26,12 +26,12 @@ export async function GET(request: NextRequest) {
       .select('*', { count: 'exact' })
       .eq('bar_id', barId);
 
-    // Filtros opcionais
+    // Filtros opcionais (usando timezone de Brasília -03:00)
     if (dataInicio) {
-      query = query.gte('published_at_date', dataInicio);
+      query = query.gte('published_at_date', dataInicio + 'T00:00:00-03:00');
     }
     if (dataFim) {
-      query = query.lte('published_at_date', dataFim + 'T23:59:59');
+      query = query.lte('published_at_date', dataFim + 'T23:59:59-03:00');
     }
     if (estrelas) {
       query = query.eq('stars', parseInt(estrelas));
