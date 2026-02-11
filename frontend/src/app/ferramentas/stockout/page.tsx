@@ -560,12 +560,11 @@ export default function StockoutPage() {
       }
     }
 
-    // Mapeamento de categorias para locais originais (Ordinário bar_id=3)
-    // Alinhado com Desempenho: Bar = Bar+Baldes+Shot e Dose+Chopp
+    // IDÊNTICO ao Desempenho (stockout_bar, stockout_comidas, stockout_drinks)
     const categoriasParaLocais: Record<string, string[]> = {
-      'Bebidas': ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'],
+      'Bar': ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'],
+      'Comidas': ['Cozinha 1', 'Cozinha 2', 'Cozinha'],
       'Drinks': ['Montados', 'Batidos', 'Mexido', 'Preshh'],
-      'Cozinha': ['Cozinha 1', 'Cozinha 2', 'Cozinha'],
     };
     
     // Se o nomeLocal é uma categoria conhecida, usar os locais mapeados

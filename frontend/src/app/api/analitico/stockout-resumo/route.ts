@@ -8,9 +8,9 @@ const supabase = createClient(
 );
 
 // Função auxiliar para aplicar filtros base (locais e prefixos a ignorar)
-// IMPORTANTE: Idêntica à stockout/route.ts e stockout-historico - NÃO excluir Shot e Dose (vai em Drinks)
+// IMPORTANTE: Idêntica ao Desempenho e stockout - Shot e Dose está em Bar, não ignorar
 const aplicarFiltrosBase = (query: any) => {
-  // LOCAIS A IGNORAR PERMANENTEMENTE (Shot e Dose incluído em Drinks, não ignorado)
+  // LOCAIS A IGNORAR PERMANENTEMENTE
   query = query
     .neq('loc_desc', 'Pegue e Pague')
     .neq('loc_desc', 'Venda Volante')

@@ -1092,11 +1092,10 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     }
   })
 
-  // Calcular percentuais médios da semana (média dos dias)
+  // Calcular percentuais - MÉDIA DOS DIÁRIOS (referência correta)
   const dias = Array.from(diasMap.values())
   const numDias = dias.length || 1
   
-  // Calcular % de cada dia e fazer média
   let somaPercBar = 0, somaPercComidas = 0, somaPercDrinks = 0
   let somaStockoutBar = 0, somaStockoutComidas = 0, somaStockoutDrinks = 0
   
@@ -1110,7 +1109,7 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   })
   
   const stockoutBarPerc = somaPercBar / numDias
-  const stockoutCozinhaPerc = somaPercComidas / numDias // Mantendo nome da variável para compatibilidade
+  const stockoutCozinhaPerc = somaPercComidas / numDias
   const stockoutDrinksPerc = somaPercDrinks / numDias
   
   // Números absolutos (soma da semana)

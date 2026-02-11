@@ -201,37 +201,23 @@ function getInicioFimSemana(data: string): { inicio: string; fim: string } {
   };
 }
 
-// Locais são agrupados por categoria - cada bar tem suas próprias regras
-// Deboche (bar_id=4): Bar, Cozinha (agrupa Cozinha + Cozinha 2), Salao
-// Ordinário (bar_id=3): Cozinha (agrupa Cozinha 1 + Cozinha 2), Drinks (Montados, Batidos, Shot e Dose, Mexido, Preshh), Bebidas (Bar, Baldes, Chopp)
+// Locais - IDÊNTICO ao Desempenho (desempenho-semanal-auto locaisComidasStockout, locaisDrinksStockout, locaisBarStockout)
+// Bar = Bar+Baldes+Shot e Dose+Chopp | Comidas = Cozinha 1+Cozinha 2 | Drinks = Batidos+Montados+Mexido+Preshh
 
-// Função para normalizar locais - agrupa locais por categoria
 function normalizarLocal(locDesc: string | null, barId: number): string {
   if (!locDesc) return 'Sem local definido';
   
   const loc = locDesc.trim();
   
-  // Ordinário (bar_id = 3) - ALINHADO com Desempenho (referência correta)
+  // Ordinário (bar_id = 3) - IDÊNTICO ao Desempenho
   if (barId === 3) {
-    // Cozinha agrupa: Cozinha 1, Cozinha 2
-    if (loc === 'Cozinha 1' || loc === 'Cozinha 2') {
-      return 'Cozinha';
-    }
-    // Drinks agrupa: Montados, Batidos, Mexido, Preshh (sem Shot e Dose)
-    if (['Montados', 'Batidos', 'Mexido', 'Preshh'].includes(loc)) {
-      return 'Drinks';
-    }
-    // Bar/Bebidas agrupa: Bar, Baldes, Shot e Dose, Chopp
-    if (['Bar', 'Baldes', 'Shot e Dose', 'Chopp'].includes(loc)) {
-      return 'Bebidas';
-    }
+    if (loc === 'Cozinha 1' || loc === 'Cozinha 2') return 'Comidas';
+    if (['Montados', 'Batidos', 'Mexido', 'Preshh'].includes(loc)) return 'Drinks';
+    if (['Bar', 'Baldes', 'Shot e Dose', 'Chopp'].includes(loc)) return 'Bar';
   }
   
-  // Deboche (bar_id = 4): agrupar "Cozinha" e "Cozinha 2" como "Cozinha"
   if (barId === 4) {
-    if (loc === 'Cozinha' || loc === 'Cozinha 2') {
-      return 'Cozinha';
-    }
+    if (loc === 'Cozinha' || loc === 'Cozinha 2') return 'Comidas';
   }
   
   return loc;
@@ -513,7 +499,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Calcular médias por local (dividir pelo número de dias)
+    // Calcular por local - MÉDIA DOS PERCENTUAIS DIÁRIOS (igual Desempenho, que é a referência)
     const analisePorLocal = Array.from(dadosPorCategoria.entries())
       .filter(([local]) => local !== 'Sem local definido') // Remover locais sem definição
       .map(([local, stats]) => {
@@ -522,8 +508,18 @@ export async function POST(request: NextRequest) {
         const mediaDisponiveis = Math.round(stats.disponiveis / totalDiasAnalise);
         const mediaIndisponiveis = Math.round(stats.indisponiveis / totalDiasAnalise);
         
-        const percentualStockout = mediaTotalProdutos > 0 ? 
-          ((mediaIndisponiveis / mediaTotalProdutos) * 100).toFixed(2) : '0.00';
+        let somaPercDiarial = 0;
+        let diasComDados = 0;
+        stats.produtos_por_dia.forEach((dia) => {
+          const totalDia = dia.disponiveis.size + dia.indisponiveis.size;
+          if (totalDia > 0) {
+            somaPercDiarial += (dia.indisponiveis.size / totalDia) * 100;
+            diasComDados++;
+          }
+        });
+        const percentualStockout = diasComDados > 0 ? 
+          (somaPercDiarial / diasComDados).toFixed(2) : 
+          (mediaTotalProdutos > 0 ? ((mediaIndisponiveis / mediaTotalProdutos) * 100).toFixed(2) : '0.00');
         
         return {
           local: local, // Usar o nome do local diretamente
