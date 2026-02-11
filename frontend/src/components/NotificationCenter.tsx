@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -410,7 +410,7 @@ export function NotificationCenter() {
                               <h4 className="font-medium text-sm text-gray-900 dark:text-white">
                                 {alerta.titulo}
                               </h4>
-                              <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
+                              <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3 break-words">
                                 {alerta.mensagem}
                               </p>
                               <div className="flex items-center justify-between pt-1">
@@ -490,7 +490,7 @@ export function NotificationCenter() {
                                 </div>
                                 <div className="space-y-1">
                                   <h4 className="font-medium text-sm text-gray-900 dark:text-white">{alerta.titulo}</h4>
-                                  <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">{alerta.mensagem}</p>
+                                  <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3 break-words">{alerta.mensagem}</p>
                                   <div className="flex items-center justify-between pt-1">
                                     <p className="text-xs text-gray-500">{formatarTempoRelativo(alerta.created_at)}</p>
                                     {alerta.url && (
@@ -598,7 +598,7 @@ export function NotificationCenter() {
                                 </div>
                                 <div className="space-y-1">
                                   <h4 className="font-medium text-sm text-gray-900 dark:text-white">{alerta.titulo}</h4>
-                                  <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">{alerta.mensagem}</p>
+                                  <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3 break-words">{alerta.mensagem}</p>
                                   <div className="flex items-center justify-between pt-1">
                                     <p className="text-xs text-gray-500">{formatarTempoRelativo(alerta.created_at)}</p>
                                     {alerta.url && (

@@ -1153,7 +1153,7 @@ class AlertasInteligentesService {
           data: amanhaStr, 
           atracao, 
           meta,
-          diaSemana: amanhaDate.toLocaleDateString('pt-BR', { weekday: 'long' })
+          diaSemana: amanhaDate.toLocaleDateString('pt-BR', { weekday: 'long', timeZone: 'America/Sao_Paulo' })
         },
         referencia_tipo: 'evento',
         referencia_id: eventoAmanha.id,
@@ -1168,7 +1168,7 @@ class AlertasInteligentesService {
           tipo: 'aviso',
           categoria: 'eventos',
           titulo: '⚠️ Sem evento cadastrado',
-          mensagem: `Não há evento cadastrado para amanhã (${amanhaDate.toLocaleDateString('pt-BR', { weekday: 'long' })})`,
+          mensagem: `Não há evento cadastrado para amanhã (${amanhaDate.toLocaleDateString('pt-BR', { weekday: 'long', timeZone: 'America/Sao_Paulo' })})`,
           dados: { data: amanhaStr },
           acoes_sugeridas: [
             'Verificar calendário de eventos',
