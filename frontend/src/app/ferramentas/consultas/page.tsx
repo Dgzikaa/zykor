@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -107,7 +107,7 @@ export default function ConsultasPage() {
   const [competenciaAntes, setCompetenciaAntes] = useState('');
   const [competenciaApos, setCompetenciaApos] = useState('');
   const [mesesRetroativos, setMesesRetroativos] = useState('3'); // Limite de meses para buscar (3 = mais rápido)
-  const [categoriaSelecionada, setCategoriaSelecionada] = useState(''); // Filtro de categoria
+  const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>([]); // Filtro de categorias (múltiplas)
   
   // Categorias CMV (preset útil)
   const CATEGORIAS_CMV = [
@@ -143,6 +143,8 @@ export default function ConsultasPage() {
   const [showUsuarios, setShowUsuarios] = useState(true);
   const [showCategorias, setShowCategorias] = useState(false);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const handleBuscar = useCallback(async () => {
     if (!criadoApos || !competenciaAntes) {
       toast.error('Preencha os campos obrigatórios: "Criado após" e "Competência antes de"');
@@ -154,8 +156,15 @@ export default function ConsultasPage() {
       return;
     }
 
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     setLoading(true);
     setError(null);
+    setResultado(null);
 
     try {
       const params = new URLSearchParams({
@@ -171,33 +180,42 @@ export default function ConsultasPage() {
       if (competenciaApos) {
         params.set('competencia_apos', competenciaApos);
       }
-      if (categoriaSelecionada) {
-        // Se for "CMV", enviar a lista de categorias CMV
-        if (categoriaSelecionada === 'CMV') {
-          params.set('categorias', CATEGORIAS_CMV.join(','));
-        } else {
-          params.set('categorias', categoriaSelecionada);
-        }
+      if (categoriasSelecionadas.length > 0) {
+        params.set('categorias', categoriasSelecionadas.join(','));
       }
 
-      const response = await fetch(`/api/financeiro/nibo/consultas/lancamentos-retroativos?${params}`);
+      const response = await fetch(
+        `/api/financeiro/nibo/consultas/lancamentos-retroativos?${params}`,
+        { signal }
+      );
       const data = await response.json();
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'Erro ao buscar dados');
       }
 
+      if (!Array.isArray(data.data)) {
+        throw new Error('Resposta inválida: dados não são uma lista');
+      }
+      if (data.data.length !== data.total) {
+        console.warn('[Consultas] Inconsistência API: data.length=%d, total=%d', data.data.length, data.total);
+      }
+
       setResultado(data);
       toast.success(`Encontrados ${data.total} lançamentos retroativos`);
 
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
-  }, [criadoApos, criadoAntes, competenciaAntes, competenciaApos, mesesRetroativos, selectedBar?.id, barLoading]);
+  }, [criadoApos, criadoAntes, competenciaAntes, competenciaApos, mesesRetroativos, categoriasSelecionadas, selectedBar?.id, barLoading]);
 
   const toggleExpand = (id: string) => {
     setExpandedItems(prev => {
@@ -391,47 +409,58 @@ export default function ConsultasPage() {
               </div>
             </div>
 
-            {/* Filtro de Categoria */}
+            {/* Filtro de Categoria (múltiplas) */}
             <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
               <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                 <Filter className="w-4 h-4 text-orange-500" />
-                Filtrar por Categoria
+                Filtrar por Categoria (múltiplas)
               </h4>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1">
-                  <select
-                    value={categoriaSelecionada}
-                    onChange={(e) => setCategoriaSelecionada(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <div className="flex flex-col gap-2">
+                <select
+                  multiple
+                  value={categoriasSelecionadas}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions, opt => opt.value);
+                    setCategoriasSelecionadas(selected);
+                  }}
+                  className="w-full min-h-[100px] px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {CATEGORIAS_DISPONIVEIS.map((grupo) => (
+                    <optgroup key={grupo.group} label={grupo.group}>
+                      {grupo.items.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Segure Ctrl (Windows) ou Cmd (Mac) para selecionar várias categorias
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCategoriasSelecionadas(CATEGORIAS_CMV)}
+                    className="text-xs"
                   >
-                    <option value="">Todas as categorias</option>
-                    <option value="CMV">📦 Apenas CMV (Custos)</option>
-                    {CATEGORIAS_DISPONIVEIS.map((grupo) => (
-                      <optgroup key={grupo.group} label={grupo.group}>
-                        {grupo.items.map((cat) => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </div>
-                {categoriaSelecionada && (
+                    📦 Apenas CMV
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setCategoriaSelecionada('')}
+                    onClick={() => setCategoriasSelecionadas([])}
                     className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                   >
                     <XCircle className="w-4 h-4 mr-1" />
                     Limpar
                   </Button>
+                </div>
+                {categoriasSelecionadas.length > 0 && (
+                  <p className="text-xs text-orange-600 dark:text-orange-400">
+                    Filtrando por: {categoriasSelecionadas.join(', ')}
+                  </p>
                 )}
               </div>
-              {categoriaSelecionada === 'CMV' && (
-                <p className="text-xs text-orange-600 dark:text-orange-400">
-                  Filtrando por: Custo Bebidas, Custo Comida, Custo Drinks, Custo Outros
-                </p>
-              )}
             </div>
 
             {/* Limite de meses - para otimização */}
@@ -688,7 +717,9 @@ export default function ConsultasPage() {
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                    {resultado.data.map((lancamento) => {
+                    {resultado.data
+                      .slice(0, resultado.total)
+                      .map((lancamento) => {
                       const isExpanded = expandedItems.has(lancamento.id);
                       
                       return (
