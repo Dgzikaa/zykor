@@ -561,9 +561,10 @@ export default function StockoutPage() {
     }
 
     // Mapeamento de categorias para locais originais (Ordinário bar_id=3)
+    // Alinhado com Desempenho: Bar = Bar+Baldes+Shot e Dose+Chopp
     const categoriasParaLocais: Record<string, string[]> = {
-      'Bebidas': ['Bar', 'Baldes', 'Chopp'],
-      'Drinks': ['Montados', 'Batidos', 'Shot e Dose', 'Mexido', 'Preshh'],
+      'Bebidas': ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'],
+      'Drinks': ['Montados', 'Batidos', 'Mexido', 'Preshh'],
       'Cozinha': ['Cozinha 1', 'Cozinha 2', 'Cozinha'],
     };
     

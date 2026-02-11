@@ -211,18 +211,18 @@ function normalizarLocal(locDesc: string | null, barId: number): string {
   
   const loc = locDesc.trim();
   
-  // Ordinário (bar_id = 3): agrupamentos específicos
+  // Ordinário (bar_id = 3) - ALINHADO com Desempenho (referência correta)
   if (barId === 3) {
     // Cozinha agrupa: Cozinha 1, Cozinha 2
     if (loc === 'Cozinha 1' || loc === 'Cozinha 2') {
       return 'Cozinha';
     }
-    // Drinks agrupa: Montados, Batidos, Shot e Dose, Mexido, Preshh
-    if (['Montados', 'Batidos', 'Shot e Dose', 'Mexido', 'Preshh'].includes(loc)) {
+    // Drinks agrupa: Montados, Batidos, Mexido, Preshh (sem Shot e Dose)
+    if (['Montados', 'Batidos', 'Mexido', 'Preshh'].includes(loc)) {
       return 'Drinks';
     }
-    // Bebidas agrupa: Bar, Baldes, Chopp
-    if (['Bar', 'Baldes', 'Chopp'].includes(loc)) {
+    // Bar/Bebidas agrupa: Bar, Baldes, Shot e Dose, Chopp
+    if (['Bar', 'Baldes', 'Shot e Dose', 'Chopp'].includes(loc)) {
       return 'Bebidas';
     }
   }

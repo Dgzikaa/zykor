@@ -25,8 +25,72 @@ serve(async (req) => {
     const semanaParam = body.semana
     const anoParam = body.ano
     const barIdParam = body.bar_id
+    const recalcularTodas = body.recalcular_todas === true
     
-    // Obter data atual e calcular semana (usar parâmetros se fornecidos)
+    // ============================================
+    // MODO: RECALCULAR TODAS AS SEMANAS (para aplicar nova lógica de stockout etc)
+    // ============================================
+    if (recalcularTodas) {
+      const limitSemanas = body.limit_semanas || 0 // 0 = todas
+      console.log(`🔄 MODO RECALCULAR TODAS (limit=${limitSemanas || 'todas'}): Buscando semanas...`)
+      
+      let query = supabase
+        .from('desempenho_semanal')
+        .select('bar_id, ano, numero_semana')
+        .order('ano', { ascending: false })
+        .order('numero_semana', { ascending: false })
+      if (limitSemanas > 0) query = query.limit(limitSemanas * 10) // aprox por bar
+      const { data: semanas, error: semanasError } = await query
+
+      if (semanasError || !semanas?.length) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Nenhuma semana encontrada' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Deduplicar (bar, ano, semana) - manter ordem mais recente primeiro
+      const chavesUnicas = [...new Set(semanas.map(s => `${s.bar_id}-${s.ano}-${s.numero_semana}`))]
+      if (limitSemanas > 0) chavesUnicas.splice(limitSemanas)
+      console.log(`📊 Recalculando ${chavesUnicas.length} semana(s)...`)
+
+      const resultados: any[] = []
+      const BATCH_SIZE = 3
+      const DELAY_MS = 2000
+      const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+      
+      for (let i = 0; i < chavesUnicas.length; i++) {
+        const chave = chavesUnicas[i]
+        const [barId, ano, numeroSemana] = chave.split('-').map(Number)
+        try {
+          await recalcularDesempenhoSemana(supabase, barId, ano, numeroSemana)
+          resultados.push({ bar_id: barId, ano, numero_semana: numeroSemana, sucesso: true })
+          console.log(`✅ ${barId} S${numeroSemana}/${ano} (${i + 1}/${chavesUnicas.length})`)
+        } catch (err) {
+          resultados.push({ bar_id: barId, ano, numero_semana: numeroSemana, sucesso: false, erro: String(err) })
+          console.error(`❌ ${barId} S${numeroSemana}/${ano}:`, err)
+        }
+        if ((i + 1) % BATCH_SIZE === 0 && i < chavesUnicas.length - 1) {
+          await sleep(DELAY_MS)
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Recalculadas ${resultados.length} semanas`,
+          recalculadas: resultados.filter(r => r.sucesso).length,
+          erros: resultados.filter(r => !r.sucesso).length,
+          resultados,
+          timestamp: new Date().toISOString()
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    // ============================================
+    // MODO NORMAL: Semana atual + anterior
+    // ============================================
     const hoje = new Date()
     const anoAtual = anoParam || hoje.getFullYear()
     const semanaAtual = semanaParam || getWeekNumber(hoje)
@@ -926,7 +990,8 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     'eq_bar_id': barId
   })
 
-  // Locais por categoria (corrigidos) - usamos nomes diferentes para evitar conflito
+  // Locais por categoria - DESEMPENHO (referência correta)
+  // Bar = bebidas + doses | Drinks = preparados (batidos, montados)
   const locaisComidasStockout = ['Cozinha 1', 'Cozinha 2']
   const locaisDrinksStockout = ['Batidos', 'Montados', 'Mexido', 'Preshh']
   const locaisBarStockout = ['Bar', 'Baldes', 'Shot e Dose', 'Chopp']
