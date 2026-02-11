@@ -781,7 +781,22 @@ export function DesempenhoClient({
                {semanasProcessadas.map((semana, idx) => {
                  const isAtual = idx === semanaAtualIdx;
                  return (
-                   <div key={`${semana.ano}-${semana.numero_semana}`} ref={isAtual ? semanaAtualRef : undefined} className={cn("flex-shrink-0 w-[120px] border-r border-gray-200 dark:border-gray-700", isAtual && "bg-emerald-50 dark:bg-emerald-900/20")}>
+                   <div
+                     key={`${semana.ano}-${semana.numero_semana}`}
+                     ref={isAtual ? semanaAtualRef : undefined}
+                     role="button"
+                     tabIndex={0}
+                     onClick={(e) => {
+                       if ((e.target as HTMLElement).closest('button, input')) return;
+                       setSemanaAtualIdx(idx);
+                     }}
+                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSemanaAtualIdx(idx); } }}
+                     className={cn(
+                       "flex-shrink-0 w-[120px] border-r border-gray-200 dark:border-gray-700 cursor-pointer transition-colors",
+                       isAtual && "bg-emerald-50 dark:bg-emerald-900/20",
+                       !isAtual && "hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                     )}
+                   >
                       {/* Header Semana */}
                       <div className={cn("h-[72px] border-b border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center px-1 sticky top-0 z-10", isAtual ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-gray-50 dark:bg-gray-700")}>
                          {(() => {
