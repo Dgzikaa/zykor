@@ -88,26 +88,9 @@ export async function GET(request: NextRequest) {
     const eventosFiltrados = await filtrarDiasAbertos(eventos || [], 'data_evento', user.bar_id);
     console.log(`📅 Eventos filtrados: ${eventos?.length || 0} → ${eventosFiltrados.length} (removidos ${(eventos?.length || 0) - eventosFiltrados.length} dias fechados)`);
 
-    // Função otimizada para buscar dados agregados por data
-    const fetchAggregatedData = async (table: string, dateColumn: string, aggregateColumn: string, aggregateFunction = 'sum') => {
-      const { data, error } = await supabase
-        .rpc('aggregate_by_date', {
-          table_name: table,
-          date_column: dateColumn,
-          aggregate_column: aggregateColumn,
-          aggregate_function: aggregateFunction,
-          start_date: `${ano}-01-01`,
-          end_date: `${ano + 1}-01-01`,
-          bar_id_filter: user.bar_id
-        });
-
-      if (error) {
-        console.error(`❌ Erro ao buscar dados agregados de ${table}:`, error);
-        // Fallback para método original se RPC falhar
-        return await fetchAllDataFallback(table, `${dateColumn}, ${aggregateColumn}`, dateColumn);
-      }
-
-      return data || [];
+    // Função para buscar dados agregados (RPC aggregate_by_date não existe - usar fallback direto)
+    const fetchAggregatedData = async (table: string, dateColumn: string, aggregateColumn: string, _aggregateFunction = 'sum') => {
+      return await fetchAllDataFallback(table, `${dateColumn}, ${aggregateColumn}`, dateColumn);
     };
 
     // Função de fallback (método original) caso RPC não esteja disponível

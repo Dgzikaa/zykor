@@ -1,26 +1,27 @@
 import type { Metadata, Viewport } from 'next';
+import dynamic from 'next/dynamic';
 import './globals.css';
 
 import { ToastProvider, GlobalToastListener } from '@/components/ui/toast';
 import { Toaster } from 'sonner';
-// import {
-//   ConfirmDialogProvider,
-//   GlobalConfirmListener,
-// } from '@/components/ui/confirm-dialog';
-import { CommandPaletteWrapper } from '@/components/CommandPaletteWrapper';
 import ErrorBoundary from '@/components/ui/error-boundary';
-import AuthSync from '@/components/AuthSync';
-import { VersionChecker } from '@/components/VersionChecker';
-// import RetrospectiveButton from '@/components/retrospectiva/RetrospectiveButton';
-// import AssistantWrapper from '@/components/AssistantWrapper';
-// import ZykorPWABanner from '@/components/ZykorPWABanner';
-// import { UniversalDesignSystemWrapper } from '@/components/layouts/UniversalDesignSystemWrapper';
 import { BarProvider } from '@/contexts/BarContext';
 import { UserProvider } from '@/contexts/UserContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { LGPDProvider } from '@/hooks/useLGPD';
 import { CommandPaletteProvider } from '@/contexts/CommandPaletteContext';
 import { PageTitleProvider } from '@/contexts/PageTitleContext';
+
+// Otimização: carregar componentes não-críticos após hydration (reduz bundle inicial)
+const CommandPaletteWrapper = dynamic(
+  () => import('@/components/CommandPaletteWrapper').then((m) => ({ default: m.CommandPaletteWrapper })),
+  { ssr: false }
+);
+const AuthSync = dynamic(() => import('@/components/AuthSync'), { ssr: false });
+const VersionChecker = dynamic(
+  () => import('@/components/VersionChecker').then((m) => ({ default: m.VersionChecker })),
+  { ssr: false }
+);
 
 export const metadata: Metadata = {
   title: 'Zykor - O núcleo da gestão de bares',

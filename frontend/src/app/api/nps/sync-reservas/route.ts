@@ -6,7 +6,8 @@ export async function POST() {
   try {
     console.log('🔄 Iniciando sincronização NPS Reservas...');
 
-    const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/sync-nps-reservas`;
+    // Usar nova função consolidada google-sheets-sync com action=nps-reservas
+    const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/google-sheets-sync`;
     
     const response = await fetch(functionUrl, {
       method: 'POST',
@@ -14,6 +15,7 @@ export async function POST() {
         'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ action: 'nps-reservas' }),
     });
 
     if (!response.ok) {

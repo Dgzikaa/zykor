@@ -44,70 +44,12 @@ export async function GET(request: NextRequest) {
       p_mes_anterior: mesAnteriorStr
     });
 
-    // Se a função RPC não existir, usar query SQL direta
+    // Se a função RPC não existir (calcular_novos_clientes_por_mes), usar fallback direto
+    // Nota: execute_sql não existe no banco - usar exec_sql/execute_raw_sql ou query direta
     if (novosClientesError && novosClientesError.code === '42883') {
-      console.log('⚠️ Função RPC não encontrada, usando query SQL direta');
+      console.log('⚠️ Função RPC calcular_novos_clientes_por_mes não encontrada, usando query direta');
       
-      // Query SQL para calcular novos clientes
-      const querySQL = `
-        WITH primeira_visita_cliente AS (
-          SELECT 
-            cli_fone,
-            MIN(dt_gerencial) as primeira_visita
-          FROM contahub_periodo 
-          WHERE cli_fone IS NOT NULL 
-            AND cli_fone != ''
-            AND bar_id = $1
-          GROUP BY cli_fone
-        ),
-        novos_clientes_mes_atual AS (
-          SELECT COUNT(*) as novos_clientes
-          FROM primeira_visita_cliente
-          WHERE primeira_visita >= $2 || '-01'
-            AND primeira_visita <= $2 || '-31'
-        ),
-        novos_clientes_mes_anterior AS (
-          SELECT COUNT(*) as novos_clientes
-          FROM primeira_visita_cliente
-          WHERE primeira_visita >= $3 || '-01'
-            AND primeira_visita <= $3 || '-31'
-        ),
-        clientes_mes_atual AS (
-          SELECT 
-            COUNT(DISTINCT cp.cli_fone) as total_clientes,
-            COUNT(CASE WHEN pv.primeira_visita >= $2 || '-01' AND pv.primeira_visita <= $2 || '-31' THEN 1 END) as novos,
-            COUNT(CASE WHEN pv.primeira_visita < $2 || '-01' THEN 1 END) as recorrentes
-          FROM contahub_periodo cp
-          JOIN primeira_visita_cliente pv ON cp.cli_fone = pv.cli_fone
-          WHERE cp.dt_gerencial >= $2 || '-01' 
-            AND cp.dt_gerencial <= $2 || '-31'
-            AND cp.bar_id = $1
-        )
-        SELECT 
-          nma.novos_clientes as novos_mes_atual,
-          nman.novos_clientes as novos_mes_anterior,
-          cma.total_clientes,
-          cma.novos,
-          cma.recorrentes,
-          CASE 
-            WHEN nman.novos_clientes > 0 
-            THEN ROUND(((nma.novos_clientes - nman.novos_clientes)::numeric / nman.novos_clientes::numeric) * 100, 2)
-            ELSE 0 
-          END as variacao_percentual
-        FROM novos_clientes_mes_atual nma,
-             novos_clientes_mes_anterior nman,
-             clientes_mes_atual cma
-      `;
-
-      const { data: resultadoSQL, error: erroSQL } = await supabase.rpc('execute_sql', {
-        query: querySQL,
-        params: [barIdNum, mesAtualStr, mesAnteriorStr]
-      });
-
-      if (erroSQL) {
-        console.error('❌ Erro na query SQL:', erroSQL);
-        
-        // Fallback: query mais simples
+      // Fallback: query direta via Supabase
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('contahub_periodo')
           .select('cli_fone, dt_gerencial')
@@ -171,37 +113,6 @@ export async function GET(request: NextRequest) {
             }
           }
         });
-      }
-
-      // Processar resultado da query SQL
-      const resultado = resultadoSQL?.[0];
-      
-      return NextResponse.json({
-        success: true,
-        data: {
-          mesAtual: {
-            mes: mesAtualStr,
-            novosClientes: resultado?.novos_mes_atual || 0,
-            nome: new Date(parseInt(ano), parseInt(mesNum) - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-          },
-          mesAnterior: {
-            mes: mesAnteriorStr,
-            novosClientes: resultado?.novos_mes_anterior || 0,
-            nome: mesAnterior.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-          },
-          variacao: {
-            absoluta: (resultado?.novos_mes_atual || 0) - (resultado?.novos_mes_anterior || 0),
-            percentual: resultado?.variacao_percentual || 0
-          },
-          meta: 3000, // Meta padrão
-          detalhes: {
-            totalClientesUnicos: resultado?.total_clientes || 0,
-            novos: resultado?.novos || 0,
-            recorrentes: resultado?.recorrentes || 0,
-            metodo: 'sql_direto'
-          }
-        }
-      });
     }
 
     // Se chegou aqui, a função RPC funcionou

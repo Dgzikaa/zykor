@@ -363,32 +363,27 @@ class AlertasInteligentesService {
     const ontem = new Date(hoje)
     ontem.setDate(ontem.getDate() - 1)
     const ontemStr = ontem.toISOString().split('T')[0]
+    const hojeStr = hoje.toISOString().split('T')[0]
 
-    // Buscar checklists não concluídos de ontem
-    const { data: checklistsNaoConcluidos, error } = await this.supabase
-      .from('checklist_execucoes')
-      .select(`
-        id,
-        status,
-        template:template_id (nome),
-        usuario:usuario_id (nome)
-      `)
+    // Usar checklist_agendamentos (tabelas checklist_execucoes/itens foram removidas; checklists também)
+    const { data: agendamentosPendentes, error } = await this.supabase
+      .from('checklist_agendamentos')
+      .select('id, status, prioridade, checklist_id, responsavel_id')
       .eq('bar_id', barId)
-      .gte('data_execucao', ontemStr)
-      .lt('data_execucao', hoje.toISOString().split('T')[0])
+      .eq('data_agendada', ontemStr)
       .neq('status', 'concluido')
 
-    if (!error && checklistsNaoConcluidos && checklistsNaoConcluidos.length > 0) {
-      const primeiroChecklist = checklistsNaoConcluidos[0] as any
+    if (!error && agendamentosPendentes && agendamentosPendentes.length > 0) {
+      const primeiro = agendamentosPendentes[0] as any
       alertas.push({
         tipo: 'aviso',
         categoria: 'checklists',
         titulo: '📋 Checklists não concluídos',
-        mensagem: `${checklistsNaoConcluidos.length} checklist(s) de ontem não foi(ram) concluído(s)`,
-        dados: { 
-          quantidade: checklistsNaoConcluidos.length,
-          checklists: checklistsNaoConcluidos.slice(0, 5).map((c: any) => c.template?.nome || 'Sem nome'),
-          responsaveis: checklistsNaoConcluidos.slice(0, 5).map((c: any) => c.usuario?.nome || 'Não definido')
+        mensagem: `${agendamentosPendentes.length} checklist(s) agendado(s) para ontem não foi(ram) concluído(s)`,
+        dados: {
+          quantidade: agendamentosPendentes.length,
+          checklists: agendamentosPendentes.slice(0, 5).map((c: any) => c.checklist_id || 'Agendamento'),
+          responsaveis: agendamentosPendentes.slice(0, 5).map((c: any) => c.responsavel_id || 'Não definido')
         },
         acoes_sugeridas: [
           'Verificar com os responsáveis',
@@ -396,48 +391,36 @@ class AlertasInteligentesService {
           'Considerar ajustar templates'
         ],
         referencia_tipo: 'checklist',
-        referencia_id: primeiroChecklist?.id,
-        referencia_nome: primeiroChecklist?.template?.nome || 'Checklist pendente',
+        referencia_id: primeiro?.id,
+        referencia_nome: 'Checklist pendente',
         url: '/configuracoes/checklists'
       })
     }
 
-    // Buscar checklists com itens críticos não conformes
-    const { data: itensNaoConformes } = await this.supabase
-      .from('checklist_execucao_itens')
-      .select(`
-        id,
-        conformidade,
-        item:item_id (nome, prioridade),
-        execucao:execucao_id (data_execucao, template:template_id (nome))
-      `)
-      .eq('bar_id', barId)
+    // Alertas de execuções automáticas com falha (substituto para itens não conformes)
+    const { data: logsErro } = await this.supabase
+      .from('checklist_automation_logs')
+      .select('id, mensagem, nivel, checklist_auto_execution_id')
+      .eq('nivel', 'error')
       .gte('criado_em', ontemStr)
-      .eq('conformidade', 'nao_conforme')
+      .lt('criado_em', hojeStr)
+      .limit(10)
 
-    const itensCriticos = (itensNaoConformes || []).filter((i: any) => 
-      i.item?.prioridade === 'alta' || i.item?.prioridade === 'critica'
-    )
-
-    if (itensCriticos.length > 0) {
-      const primeiroItem = itensCriticos[0] as any
+    if (logsErro && logsErro.length > 0) {
       alertas.push({
         tipo: 'erro',
         categoria: 'checklists',
-        titulo: '⚠️ Itens críticos não conformes',
-        mensagem: `${itensCriticos.length} item(ns) de alta prioridade marcado(s) como não conforme(s)`,
+        titulo: '⚠️ Erros em automação de checklists',
+        mensagem: `${logsErro.length} erro(s) registrado(s) nas execuções automáticas de ontem`,
         dados: {
-          quantidade: itensCriticos.length,
-          itens: itensCriticos.slice(0, 5).map((i: any) => i.item?.nome || 'Item')
+          quantidade: logsErro.length,
+          itens: logsErro.slice(0, 5).map((l: any) => l.mensagem || 'Erro')
         },
         acoes_sugeridas: [
-          'Tomar ação corretiva imediata',
-          'Documentar o problema',
-          'Notificar responsável'
+          'Verificar logs de automação',
+          'Confirmar conectividade das integrações',
+          'Revisar configurações dos checklists'
         ],
-        referencia_tipo: 'checklist',
-        referencia_id: primeiroItem?.execucao?.id,
-        referencia_nome: primeiroItem?.execucao?.template?.nome || 'Checklist',
         url: '/configuracoes/checklists'
       })
     }

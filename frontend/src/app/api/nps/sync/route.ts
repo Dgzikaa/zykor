@@ -7,15 +7,16 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🔄 Iniciando sincronização NPS...');
     
+    // Usar nova função consolidada google-sheets-sync com action=nps
     const response = await fetch(
-      'https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/sync-nps',
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/google-sheets-sync`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
         },
-        body: JSON.stringify({ cronSecret: 'manual_sync' })
+        body: JSON.stringify({ action: 'nps' })
       }
     );
 

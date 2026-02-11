@@ -15,14 +15,18 @@ const classificarNPS = (nps: number | null) => {
   return 'vermelho';
 };
 
-// Buscar comentários das respostas brutas
+// Buscar comentários das respostas brutas (função auxiliar - RPC buscar_comentarios_nps pode não existir)
 async function buscarComentarios(barId: number, campo: string, condicao: string) {
-  const { data } = await supabase.rpc('buscar_comentarios_nps', {
+  const { data, error } = await supabase.rpc('buscar_comentarios_nps', {
     p_bar_id: barId,
     p_campo: campo,
     p_condicao: condicao
   });
-  return data || [];
+  if (error) {
+    console.warn('buscar_comentarios_nps RPC não disponível:', error.message);
+    return [];
+  }
+  return (data || []) as string[];
 }
 
 export async function GET(request: NextRequest) {

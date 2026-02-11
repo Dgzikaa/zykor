@@ -12,23 +12,25 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🔄 Iniciando sincronização manual...');
 
-    // Chamar ambas as Edge Functions
+    // Chamar função consolidada google-sheets-sync para ambas as actions
     const [npsResponse, felicidadeResponse] = await Promise.all([
-      // Sincronizar NPS
-      fetch(`${SUPABASE_URL}/functions/v1/sync-nps`, {
+      // Sincronizar NPS via google-sheets-sync
+      fetch(`${SUPABASE_URL}/functions/v1/google-sheets-sync`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ action: 'nps' }),
       }),
-      // Sincronizar Pesquisa da Felicidade
-      fetch(`${SUPABASE_URL}/functions/v1/sync-pesquisa-felicidade`, {
+      // Sincronizar Pesquisa da Felicidade via google-sheets-sync
+      fetch(`${SUPABASE_URL}/functions/v1/google-sheets-sync`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ action: 'pesquisa-felicidade' }),
       }),
     ]);
 

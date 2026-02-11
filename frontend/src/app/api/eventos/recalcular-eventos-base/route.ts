@@ -44,8 +44,8 @@ export async function POST(request: NextRequest) {
       
       for (const eventoId of evento_ids) {
         try {
-          const { error } = await supabase.rpc('calculate_evento_metrics_complete', { 
-            p_evento_id: eventoId 
+          const { error } = await supabase.rpc('calculate_evento_metrics', { 
+            evento_id: eventoId 
           });
           
           if (!error) {
@@ -148,8 +148,8 @@ export async function POST(request: NextRequest) {
       if (eventosPendentes && eventosPendentes.length > 0) {
         for (const evento of eventosPendentes) {
           try {
-            const { error } = await supabase.rpc('calculate_evento_metrics_complete', { 
-              p_evento_id: evento.id 
+            const { error } = await supabase.rpc('calculate_evento_metrics', { 
+              evento_id: evento.id 
             });
             
             if (!error) {

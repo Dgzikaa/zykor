@@ -6,29 +6,38 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// GET - Obter configuração atual do WhatsApp
+// GET - Obter configuração atual do WhatsApp (usa Umbler - whatsapp_configuracoes foi removido na limpeza)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const barId = searchParams.get('bar_id');
 
-    let query = supabase.from('whatsapp_configuracoes').select('*');
+    // Tabela whatsapp_configuracoes foi removida - sistema usa Umbler para WhatsApp
+    // Buscar config do Umbler como fallback
+    let query = supabase.from('umbler_config').select('*');
     
     if (barId) {
       query = query.eq('bar_id', parseInt(barId));
     }
     
-    const { data, error } = await query.single();
+    const { data, error } = await query.maybeSingle();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows
-      throw error;
+    if (error) {
+      // Tabela pode não existir ou erro de permissão
+      console.warn('Erro ao buscar config Umbler:', error.message);
+      return NextResponse.json({
+        success: true,
+        data: null,
+        configurado: false,
+        mensagem: 'Configuração WhatsApp (Umbler) não encontrada'
+      });
     }
 
-    // Mascarar token para segurança
+    // Mascarar token para segurança (umbler_config usa api_token)
     const configMascarada = data ? {
       ...data,
-      access_token: data.access_token ? '***' + data.access_token.slice(-10) : null,
-      configurado: !!data.access_token && !!data.phone_number_id
+      access_token: data.api_token ? '***' + (String(data.api_token).slice(-10)) : null,
+      configurado: !!data.api_token && !!data.channel_id
     } : null;
 
     return NextResponse.json({
@@ -46,7 +55,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Salvar/Atualizar configuração do WhatsApp
+// POST - Salvar/Atualizar configuração do WhatsApp (usa Umbler - umbler_config)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -54,56 +63,51 @@ export async function POST(request: NextRequest) {
       bar_id,
       phone_number_id,
       access_token,
-      api_version,
-      rate_limit_per_minute,
-      template_prefix,
-      idioma,
-      max_retry_attempts,
-      retry_delay_seconds
+      channel_id,
+      organization_id,
+      api_token,
+      rate_limit_per_minute
     } = body;
 
-    // Validações
-    if (!phone_number_id) {
-      throw new Error('Phone Number ID é obrigatório');
+    // Validações - Umbler usa api_token, channel_id
+    const token = api_token || access_token;
+    const channel = channel_id || phone_number_id;
+    
+    if (!channel) {
+      throw new Error('Channel ID / Phone Number ID é obrigatório');
     }
-    if (!access_token) {
-      throw new Error('Access Token é obrigatório');
+    if (!token) {
+      throw new Error('API Token / Access Token é obrigatório');
     }
 
     // Verificar se já existe configuração para este bar
     const { data: existente } = await supabase
-      .from('whatsapp_configuracoes')
+      .from('umbler_config')
       .select('id')
       .eq('bar_id', bar_id || null)
       .maybeSingle();
 
     const configData = {
       bar_id: bar_id || null,
-      phone_number_id,
-      access_token,
-      api_version: api_version || 'v18.0',
+      channel_id: channel,
+      organization_id: organization_id || null,
+      api_token: token,
       rate_limit_per_minute: rate_limit_per_minute || 80,
-      template_prefix: template_prefix || 'DBO',
-      idioma: idioma || 'pt_BR',
-      max_retry_attempts: max_retry_attempts || 3,
-      retry_delay_seconds: retry_delay_seconds || 60,
       ativo: true,
       updated_at: new Date().toISOString()
     };
 
     let result;
     if (existente) {
-      // Atualizar
       result = await supabase
-        .from('whatsapp_configuracoes')
+        .from('umbler_config')
         .update(configData)
         .eq('id', existente.id)
         .select()
         .single();
     } else {
-      // Inserir
       result = await supabase
-        .from('whatsapp_configuracoes')
+        .from('umbler_config')
         .insert({
           ...configData,
           created_at: new Date().toISOString()
@@ -120,7 +124,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         ...result.data,
-        access_token: '***' + access_token.slice(-10)
+        api_token: '***' + String(token).slice(-10)
       },
       mensagem: existente ? 'Configuração atualizada!' : 'Configuração salva!'
     });
@@ -197,7 +201,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { data, error } = await supabase
-      .from('whatsapp_configuracoes')
+      .from('umbler_config')
       .update({ ativo: false })
       .eq('id', id)
       .select()

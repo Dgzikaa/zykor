@@ -22,13 +22,15 @@ export async function GET(request: NextRequest) {
       console.log(`\n🍺 Sincronizando bar_id=${barId}...`);
       
       try {
-        const response = await fetch('https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/contahub-sync-automatico', {
+        // Usar nova função consolidada contahub-sync com action=sync
+        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/contahub-sync`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
           },
           body: JSON.stringify({
+            action: 'sync',
             data_date: targetDate,
             bar_id: barId
           })
@@ -93,13 +95,15 @@ export async function POST(request: NextRequest) {
 
     for (const barIdItem of baresParaSincronizar) {
       try {
-        const response = await fetch('https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/contahub-sync-automatico', {
+        // Usar nova função consolidada contahub-sync com action=sync
+        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/contahub-sync`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
           },
           body: JSON.stringify({
+            action: 'sync',
             data_date: targetDate,
             bar_id: barIdItem
           })

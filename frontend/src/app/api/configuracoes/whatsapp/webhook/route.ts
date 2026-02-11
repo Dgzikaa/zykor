@@ -372,17 +372,21 @@ async function processMessageStatuses(
       .select('contato_id')
       .single();
 
-    // Atualizar estatísticas do contato se necessário
+    // Atualizar estatísticas do contato se necessário (função/tabelas podem não existir - sistema usa Umbler)
     if (updatedMessage && ['delivered', 'read'].includes(newStatus)) {
-      const incrementField =
-        newStatus === 'delivered'
-          ? 'total_mensagens_entregues'
-          : 'total_mensagens_lidas';
+      try {
+        const incrementField =
+          newStatus === 'delivered'
+            ? 'total_mensagens_entregues'
+            : 'total_mensagens_lidas';
 
-      await supabase.rpc('increment_contact_stat', {
-        contact_id: updatedMessage.contato_id,
-        field_name: incrementField,
-      });
+        await supabase.rpc('increment_contact_stat', {
+          contact_id: updatedMessage.contato_id,
+          field_name: incrementField,
+        });
+      } catch (_e) {
+        // increment_contact_stat/whatsapp_contatos podem não existir - sistema migrado para Umbler
+      }
     }
   }
 }
@@ -394,39 +398,41 @@ async function processReceivedMessages(
   messages: WhatsAppMessage[],
   barId: number
 ): Promise<void> {
-  for (const message of messages) {
-    const fromNumber = message.from;
-    const messageText = message.text?.body || message.type;
-    const timestamp = message.timestamp;
+  // Sistema usa Umbler (umbler-webhook Edge Function) - este webhook é legado Meta API
+  // Mensagens recebidas são processadas pelo Umbler; ignorar silenciosamente se tabelas não existirem
+  try {
+    for (const message of messages) {
+      const fromNumber = message.from?.replace(/\D/g, '') || '';
+      const messageText = message.text?.body || message.type || '';
+      const timestamp = message.timestamp ? parseInt(message.timestamp) * 1000 : Date.now();
 
-    // Buscar contato
-    const { data: contato } = await supabase
-      .from('whatsapp_contatos')
-      .select('id')
-      .eq('bar_id', barId)
-      .eq('numero_whatsapp', fromNumber)
-      .single();
+      // Buscar conversa Umbler existente (channel_id obrigatório em umbler_mensagens)
+      const { data: conversa } = await supabase
+        .from('umbler_conversas')
+        .select('id, channel_id')
+        .eq('bar_id', barId)
+        .eq('contato_telefone', fromNumber)
+        .order('iniciada_em', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (contato) {
-      // Atualizar última interação do contato
-      await supabase
-        .from('whatsapp_contatos')
-        .update({
-          ultima_interacao: new Date(parseInt(timestamp) * 1000).toISOString(),
-        })
-        .eq('id', contato.id);
-
-      // Log da mensagem recebida (opcional)
-      await supabase.from('whatsapp_mensagens').insert({
-        bar_id: barId,
-        contato_id: contato.id,
-        tipo_mensagem: 'received',
-        conteudo: messageText,
-        status: 'read',
-        whatsapp_message_id: message.id,
-        recebido_em: new Date(parseInt(timestamp) * 1000).toISOString(),
-      });
+      if (conversa?.id && conversa?.channel_id) {
+        await supabase.from('umbler_mensagens').insert({
+          bar_id: barId,
+          conversa_id: conversa.id,
+          channel_id: conversa.channel_id,
+          direcao: 'inbound',
+          tipo_remetente: 'contact',
+          contato_telefone: fromNumber,
+          tipo_mensagem: 'text',
+          conteudo: messageText,
+          status: 'delivered',
+          enviada_em: new Date(timestamp).toISOString(),
+        });
+      }
     }
+  } catch (_e) {
+    // Tabelas/formato podem diferir - Umbler Edge Function é o processador principal
   }
 }
 

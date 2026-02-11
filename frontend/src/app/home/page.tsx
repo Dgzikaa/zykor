@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
@@ -19,7 +20,12 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import AgenteDashboard from '@/components/dashboard/AgenteDashboard';
+
+// Otimização: AgenteDashboard carregado sob demanda (contém lógica pesada)
+const AgenteDashboard = dynamic(
+  () => import('@/components/dashboard/AgenteDashboard'),
+  { ssr: false, loading: () => <div className="h-32 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700" /> }
+);
 
 
 

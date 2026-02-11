@@ -25,8 +25,9 @@ export async function GET() {
     try {
       // Usar cliente Supabase para executar SQL
       const supabase = await getAdminClient();
-      const { data, error } = await supabase.rpc('execute_sql', {
-        sql_query: supabaseQuery,
+      // exec_sql executa SQL mas retorna void; execute_raw_sql retorna jsonb para SELECT
+      const { data, error } = await supabase.rpc('execute_raw_sql', {
+        query_text: supabaseQuery,
       });
 
       if (!error && data) {

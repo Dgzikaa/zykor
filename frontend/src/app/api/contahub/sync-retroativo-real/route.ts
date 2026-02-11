@@ -77,14 +77,15 @@ export async function POST(request: NextRequest) {
       console.log(`\n[${progress}%] 🗓️ Sincronizando ${date} (bar_id=${barId})...`);
 
       try {
-        // Chamar a Edge Function contahub-sync-automatico
-        const response = await fetch('https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/contahub-sync-automatico', {
+        // Usar nova função consolidada contahub-sync com action=sync
+        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/contahub-sync`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
           },
           body: JSON.stringify({
+            action: 'sync',
             data_date: date,
             bar_id: barId
           })
