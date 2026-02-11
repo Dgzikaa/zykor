@@ -26,14 +26,18 @@ export async function POST(request: NextRequest) {
     let pendenciasGerais = 0;
 
     // Somar várias pendências para um resumo geral
-    // 1. Checklists pendentes
-    const { data: checklists } = await supabase
-      .from('checklist_execucoes')
-      .select('id')
-      .eq('bar_id', bar_id)
-      .is('concluido_em', null);
-
-    pendenciasGerais += checklists?.length || 0;
+    // 1. Checklists - checklist_agendamentos (checklist_execucoes removida)
+    let checklistsCount = 0;
+    try {
+      const { data } = await supabase
+        .from('checklist_agendamentos')
+        .select('id')
+        .eq('bar_id', bar_id);
+      checklistsCount = (data || []).length;
+    } catch (_e) {
+      /* tabela pode não existir */
+    }
+    pendenciasGerais += checklistsCount;
 
     // 2. Alertas ativos
     const { data: alertas } = await supabase
@@ -57,7 +61,7 @@ export async function POST(request: NextRequest) {
       success: true,
       pendencias_gerais: pendenciasGerais,
       detalhes: {
-        checklists: checklists?.length || 0,
+        checklists: checklistsCount,
         alertas: alertas?.length || 0,
         notificacoes: notificacoes?.length || 0,
         total: pendenciasGerais,

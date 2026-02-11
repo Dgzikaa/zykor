@@ -42,9 +42,19 @@ export async function POST(request: NextRequest) {
     const semanaPassada = new Date(dataAtual);
     semanaPassada.setDate(semanaPassada.getDate() - 7);
     
-    // ⚠️ VERIFICAR SE DATA ATUAL ESTÁ ABERTA
+    // 1. Buscar faturamento por hora PRIMEIRO (para não bloquear quando contahub_analitico está atrasado)
+    const { data: faturamentoDiaAtualPre, error: errorFaturamentoDiaPre } = await supabase
+      .from('contahub_fatporhora')
+      .select('hora, valor, qtd')
+      .eq('vd_dtgerencial', data_selecionada)
+      .eq('bar_id', bar_id)
+      .gte('hora', 17)
+      .lte('hora', 26);
+    const temDadosFatPorHora = (faturamentoDiaAtualPre?.length || 0) > 0;
+
+    // ⚠️ Só bloquear se bar fechado E não temos dados em fatporhora (sync atrasado)
     const statusDiaAtual = await verificarBarAberto(data_selecionada, bar_id);
-    if (!statusDiaAtual.aberto) {
+    if (!statusDiaAtual.aberto && !temDadosFatPorHora) {
       return NextResponse.json({
         success: true,
         bar_fechado: true,

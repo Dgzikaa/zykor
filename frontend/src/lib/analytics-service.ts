@@ -1,4 +1,4 @@
-﻿import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 // Interfaces para tipagem adequada
 interface FuncionarioStats {
@@ -62,36 +62,41 @@ export async function getStatusChecklists(
   fim?: string
 ) {
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-  
   const dataInicio =
-    inicio ||
-    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    inicio || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const dataFim = fim || new Date().toISOString().split('T')[0];
 
-  const { data: execucoes } = await supabase
-    .from('checklist_execucoes')
-    .select('status, created_at')
-    .eq('bar_id', bar_id)
-    .gte('created_at', `${dataInicio}T00:00:00Z`)
-    .lte('created_at', `${dataFim}T23:59:59Z`);
+  try {
+    const { data: execucoes } = await supabase
+      .from('checklist_execucoes')
+      .select('status, created_at')
+      .eq('bar_id', bar_id)
+      .gte('created_at', `${dataInicio}T00:00:00Z`)
+      .lte('created_at', `${dataFim}T23:59:59Z`);
 
-  if (!execucoes) return { erro: 'Erro ao buscar dados' };
+    const arr = (execucoes || []) as any[];
+    const total = arr.length;
+    const completadas = arr.filter(e => e.status === 'completo').length;
+    const pendentes = arr.filter(e => e.status === 'pendente').length;
+    const atrasadas = arr.filter(e => e.status === 'atrasada').length;
 
-  const total = execucoes.length;
-  const completadas = execucoes.filter(e => e.status === 'completo').length;
-  const pendentes = execucoes.filter(e => e.status === 'pendente').length;
-  const atrasadas = execucoes.filter(e => e.status === 'atrasada').length;
-
-  return {
-    periodo: { inicio: dataInicio, fim: dataFim },
-    estatisticas: {
-      total_checklists: total,
-      taxa_completude: total > 0 ? (completadas / total) * 100 : 0,
-      pendentes: pendentes,
-      atrasadas: atrasadas,
-    },
-    mensagem: `${completadas}/${total} checklists completados (${((completadas / total) * 100).toFixed(1)}%)`,
-  };
+    return {
+      periodo: { inicio: dataInicio, fim: dataFim },
+      estatisticas: {
+        total_checklists: total,
+        taxa_completude: total > 0 ? (completadas / total) * 100 : 0,
+        pendentes,
+        atrasadas,
+      },
+      mensagem: `${completadas}/${total} checklists completados (${total > 0 ? ((completadas / total) * 100).toFixed(1) : 0}%)`,
+    };
+  } catch (_e) {
+    return {
+      periodo: { inicio: dataInicio, fim: dataFim },
+      estatisticas: { total_checklists: 0, taxa_completude: 0, pendentes: 0, atrasadas: 0 },
+      mensagem: 'Checklists não disponíveis (sistema migrado)',
+    };
+  }
 }
 
 // ========================================
@@ -111,26 +116,27 @@ export async function getPerformanceFuncionarios(
     new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const dataFim = fim || new Date().toISOString().split('T')[0];
 
-  const { data: execucoes } = await supabase
-    .from('checklist_execucoes')
-    .select('funcionario_id, funcionario_nome, pontuacao_final, tempo_execucao_minutos')
-    .eq('bar_id', bar_id)
-    .gte('created_at', `${dataInicio}T00:00:00Z`)
-    .lte('created_at', `${dataFim}T23:59:59Z`);
+  let execucoes: any[] = [];
+  try {
+    const res = await supabase
+      .from('checklist_execucoes')
+      .select('funcionario_id, funcionario_nome, pontuacao_final, tempo_execucao_minutos')
+      .eq('bar_id', bar_id)
+      .gte('created_at', `${dataInicio}T00:00:00Z`)
+      .lte('created_at', `${dataFim}T23:59:59Z`);
+    execucoes = (res.data || []) as any[];
+  } catch (_e) {
+    /* checklist_execucoes removida - sistema migrado */
+  }
 
-  if (!execucoes) {
+  if (execucoes.length === 0) {
     return {
       ranking_funcionarios: [],
-      estatisticas: {
-        total_funcionarios: 0,
-        melhor_score: 0,
-        melhor_funcionario: 'N/A',
-      },
-      mensagem: 'Nenhum dado encontrado',
+      estatisticas: { total_funcionarios: 0, melhor_score: 0, melhor_funcionario: 'N/A' },
+      mensagem: 'Nenhum dado de checklists encontrado',
     };
   }
 
-  // Agrupar por funcionário
   const funcionarios: Record<string, FuncionarioStats> = {};
 
   execucoes.forEach((exec: any) => {
@@ -320,20 +326,22 @@ export async function getScoreSaudeGeral(bar_id: number) {
   const hoje = new Date().toISOString().split('T')[0];
   const ontem = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  const [vendas, checklists] = await Promise.all([
+  const [vendasRes, checklistsRes] = await Promise.all([
     supabase
       .from('contahub_pagamentos')
       .select('valor_liquido')
       .eq('bar_id', bar_id)
       .gte('dt_gerencial', ontem)
       .lte('dt_gerencial', hoje),
-
     supabase
       .from('checklist_execucoes')
       .select('status, pontuacao_final')
       .eq('bar_id', bar_id)
       .gte('created_at', `${ontem}T00:00:00Z`),
   ]);
+
+  const vendas = vendasRes;
+  const checklists = { data: checklistsRes.error ? [] : checklistsRes.data };
 
   let score = 85; // Score base
 

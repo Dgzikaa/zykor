@@ -27,25 +27,11 @@ export default function EventosAnaliticoPage() {
 
   // Função para lidar com mudança de data - só atualiza se for uma data válida e completa
   const handleDataChange = (novaData: string) => {
-    console.log('🔄 handleDataChange chamado:', {
-      novaData,
-      dataSelecionada,
-      comprimento: novaData?.length,
-      diferente: novaData !== dataSelecionada
-    });
-    
-    // Verifica se é uma data válida e completa (formato YYYY-MM-DD)
     if (novaData && novaData.length === 10 && novaData !== dataSelecionada) {
       const dataObj = new Date(novaData + 'T00:00:00');
-      // Verifica se a data é válida
       if (!isNaN(dataObj.getTime())) {
-        console.log('✅ Atualizando dataSelecionada para:', novaData);
         setDataSelecionada(novaData);
-      } else {
-        console.log('❌ Data inválida:', novaData);
       }
-    } else {
-      console.log('❌ Não passou na validação inicial');
     }
   };
 

@@ -64,11 +64,12 @@ export async function GET() {
       .order('criado_em', { ascending: false });
 
     if (checklistsError) {
+      // Tabela checklists pode ter sido removida - sistema usa checklist_agendamentos
+      if (checklistsError.code === '42P01' || checklistsError.message?.includes('does not exist')) {
+        return NextResponse.json([]);
+      }
       console.error('❌ Erro ao buscar checklists:', checklistsError);
-      return NextResponse.json(
-        { error: 'Erro ao buscar checklists' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Erro ao buscar checklists' }, { status: 500 });
     }
 
     // Transformar dados para o formato esperado pela interface

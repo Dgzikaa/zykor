@@ -75,12 +75,11 @@ export async function POST(request: NextRequest) {
     try {
       // Executar queries em paralelo com tratamento de erro individual
       const queries = [
-        // 1. CHECKLISTS PENDENTES
+        // 1. CHECKLISTS - checklist_agendamentos (checklist_execucoes removida)
         supabase
-          .from('checklist_execucoes')
+          .from('checklist_agendamentos')
           .select('id')
-          .eq('bar_id', bar_id)
-          .is('concluido_em', null),
+          .eq('bar_id', bar_id),
 
         // 2. PRODUÇÕES PENDENTES
         supabase
@@ -125,9 +124,8 @@ export async function POST(request: NextRequest) {
 
       const results = await Promise.allSettled(queries);
 
-      // Processar resultados
       if (results[0].status === 'fulfilled' && results[0].value?.data) {
-        badges.checklist = results[0].value.data.length || 0;
+        badges.checklist = (results[0].value.data as any[])?.length ?? 0;
       }
 
       if (results[1].status === 'fulfilled' && results[1].value?.data) {

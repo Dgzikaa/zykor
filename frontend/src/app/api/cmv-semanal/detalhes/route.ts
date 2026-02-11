@@ -111,6 +111,7 @@ export async function GET(request: NextRequest) {
 
       // ========== CMV ==========
       case 'cmv_real':
+      case 'cmv_percentual':
         detalhes = await buscarDetalhesCMVReal(barId, dataInicio, dataFim);
         break;
 

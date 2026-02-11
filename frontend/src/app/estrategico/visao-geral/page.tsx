@@ -7,18 +7,6 @@ import { BarSyncCheck } from '@/components/BarSyncCheck';
 // Cache por 5 minutos
 export const revalidate = 300;
 
-// Helper para datas do trimestre
-function getTrimestreDates(trimestre: number, year?: number) {
-  const anoAtual = year || new Date().getFullYear();
-  const quarters = {
-    1: { start: `${anoAtual}-01-01`, end: `${anoAtual}-03-31` }, 
-    2: { start: `${anoAtual}-04-01`, end: `${anoAtual}-06-30` }, 
-    3: { start: `${anoAtual}-07-01`, end: `${anoAtual}-09-30` }, 
-    4: { start: `${anoAtual}-10-01`, end: `${anoAtual}-12-31` }  
-  };
-  return quarters[trimestre as keyof typeof quarters] || quarters[1];
-}
-
 // Helper para mês de retenção
 const getMesRetencao = (trimestre: number) => {
   const now = new Date();

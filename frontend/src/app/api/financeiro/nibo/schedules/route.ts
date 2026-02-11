@@ -35,13 +35,16 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const dataInicio = searchParams.get('data_inicio');
     const dataFim = searchParams.get('data_fim');
+    const semCompetencia = searchParams.get('sem_competencia') === 'true';
+    const offset = parseInt(searchParams.get('offset') || '0');
+    const limit = Math.min(parseInt(searchParams.get('limit') || (semCompetencia ? '500' : '100')), 1000);
 
-    console.log(`[NIBO-SCHEDULES] Listando agendamentos, bar_id=${barId}`);
+    console.log(`[NIBO-SCHEDULES] Listando agendamentos, bar_id=${barId}${semCompetencia ? ' (sem data_competencia)' : ''}`);
 
     // Buscar do banco de dados local (nibo_agendamentos)
     let query = supabase
       .from('nibo_agendamentos')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('bar_id', barId)
       .eq('deletado', false)
       .order('data_vencimento', { ascending: false });
@@ -58,7 +61,11 @@ export async function GET(request: NextRequest) {
       query = query.lte('data_vencimento', dataFim);
     }
 
-    const { data, error } = await query.limit(100);
+    if (semCompetencia) {
+      query = query.is('data_competencia', null);
+    }
+
+    const { data, error, count } = await query.range(offset, offset + limit - 1);
 
     if (error) {
       console.error('[NIBO-SCHEDULES] Erro ao buscar:', error);
@@ -71,7 +78,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: data || [],
-      total: data?.length || 0
+      total: count ?? (data?.length ?? 0),
+      offset,
+      limit,
+      hasMore: (data?.length ?? 0) >= limit
     });
 
   } catch (error) {

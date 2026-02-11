@@ -1,4 +1,4 @@
-﻿// Sistema de backup automático para dados críticos
+// Sistema de backup automático para dados críticos
 import { createClient } from '@supabase/supabase-js';
 import { getAdminClient } from '@/lib/supabase-admin';
 
@@ -45,8 +45,8 @@ interface BackupRecord {
 const DEFAULT_BACKUP_CONFIG: BackupConfig = {
   tables: [
     'usuarios_bar',
-    'checklists',
-    'checklist_execucoes',
+    'checklist_agendamentos',
+    'checklist_auto_executions',
     'bars',
     'receitas',
     'producoes',

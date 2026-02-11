@@ -1114,23 +1114,35 @@ class AlertasInteligentesService {
   // ========================================
   async analisarEventosProximos(barId: number): Promise<Alerta[]> {
     const alertas: Alerta[] = []
-    const hoje = new Date()
-    const amanha = new Date(hoje)
-    amanha.setDate(amanha.getDate() + 1)
-    const amanhaStr = amanha.toISOString().split('T')[0]
+    
+    // 🇧🇷 Usar timezone de Brasília (Edge roda em UTC)
+    const agora = new Date()
+    const spFormatter = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    })
+    const partes = spFormatter.formatToParts(agora)
+    const getPart = (t: string) => partes.find(p => p.type === t)?.value || ''
+    const hojeStr = `${getPart('year')}-${getPart('month')}-${getPart('day')}`
+    const hojeDate = new Date(`${hojeStr}T12:00:00-03:00`)
+    const amanhaDate = new Date(hojeDate)
+    amanhaDate.setDate(amanhaDate.getDate() + 1)
+    const amanhaStr = amanhaDate.toISOString().split('T')[0]
 
     // Buscar evento de amanhã
     const { data: eventoAmanha } = await this.supabase
       .from('eventos_base')
-      .select('*, atracao')
+      .select('*')
       .eq('bar_id', barId)
       .eq('data_evento', amanhaStr)
       .eq('ativo', true)
-      .single()
+      .maybeSingle()
 
     if (eventoAmanha) {
       const meta = eventoAmanha.m1_r || 0
-      const atracao = eventoAmanha.atracao || 'Sem atração definida'
+      const atracao = eventoAmanha.artista || eventoAmanha.nome || 'Sem atração definida'
 
       alertas.push({
         tipo: 'info',
@@ -1141,7 +1153,7 @@ class AlertasInteligentesService {
           data: amanhaStr, 
           atracao, 
           meta,
-          diaSemana: amanha.toLocaleDateString('pt-BR', { weekday: 'long' })
+          diaSemana: amanhaDate.toLocaleDateString('pt-BR', { weekday: 'long' })
         },
         referencia_tipo: 'evento',
         referencia_id: eventoAmanha.id,
@@ -1149,14 +1161,14 @@ class AlertasInteligentesService {
         url: '/analitico/eventos'
       })
     } else {
-      // Verificar se é dia que deveria ter evento
-      const diaSemana = amanha.getDay()
+      // Verificar se é dia que deveria ter evento (4=qui, 5=sex, 6=sáb)
+      const diaSemana = amanhaDate.getDay()
       if (diaSemana >= 4 && diaSemana <= 6) { // Qui, Sex, Sab
         alertas.push({
           tipo: 'aviso',
           categoria: 'eventos',
           titulo: '⚠️ Sem evento cadastrado',
-          mensagem: `Não há evento cadastrado para amanhã (${amanha.toLocaleDateString('pt-BR', { weekday: 'long' })})`,
+          mensagem: `Não há evento cadastrado para amanhã (${amanhaDate.toLocaleDateString('pt-BR', { weekday: 'long' })})`,
           dados: { data: amanhaStr },
           acoes_sugeridas: [
             'Verificar calendário de eventos',

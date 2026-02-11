@@ -101,8 +101,8 @@ export async function GET(request: NextRequest) {
 
     exportData.data.associatedBars = userBars || [];
 
-    // 7. Execuções de checklist
-    const { data: checklistExecutions } = await supabase
+    // 7. Execuções de checklist (tabela legada - pode não existir nos tipos)
+    const { data: checklistExecutions } = await (supabase as any)
       .from('checklist_executions')
       .select('*')
       .eq('user_id', userId)

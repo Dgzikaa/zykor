@@ -73,6 +73,7 @@ interface CMVSemanal {
   
   // Cálculos CMV
   cmv_real: number;
+  cmv_percentual?: number;
   cmv_limpo_percentual: number;
   cmv_teorico_percentual: number;
   gap: number;
@@ -235,9 +236,10 @@ const SECOES: SecaoConfig[] = [
         label: 'CMV',
         semCollapse: true,
         metricas: [
-          { key: 'cmv_real', label: 'CMV', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial + Compras - Est.Final - Consumos', formato: 'moeda' },
-          { key: 'cmv_limpo_percentual', label: 'CMV Limpo (%)', status: 'calculado', fonte: 'Calculado', calculo: '(CMV / Fat. CMVível) × 100', formato: 'percentual' },
-          { key: 'cmv_teorico_percentual', label: 'CMV Real (%)', status: 'calculado', fonte: 'Calculado', calculo: 'CMV Teórico/Meta', formato: 'percentual' },
+          { key: 'cmv_real', label: 'CMV R$', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial + Compras - Est.Final - Consumos', formato: 'moeda' },
+          { key: 'cmv_percentual', label: 'CMV Real (%)', status: 'calculado', fonte: 'Calculado', calculo: 'CMV R$ / Faturamento Bruto × 100', formato: 'percentual' },
+          { key: 'cmv_limpo_percentual', label: 'CMV Limpo (%)', status: 'calculado', fonte: 'Calculado', calculo: '(CMV R$ / Fat. CMVível) × 100', formato: 'percentual' },
+          { key: 'cmv_teorico_percentual', label: 'CMV Teórico/Meta (%)', status: 'manual', fonte: 'Planilha', calculo: 'Valor meta definido', formato: 'percentual' },
         ]
       }
     ]
@@ -712,6 +714,12 @@ export default function CMVSemanalTabelaPage() {
           { label: '(-) Consumações × 0.35', valor: -consumosTotal },
           { label: '(-) Bonificações', valor: -bonificacoes },
         ];
+      case 'cmv_percentual':
+        return [{
+          label: 'CMV R$ / Fat. Bruto',
+          valor: semana.cmv_percentual ?? (semana.vendas_brutas ? (semana.cmv_real || 0) / semana.vendas_brutas * 100 : 0),
+          formula: 'CMV R$ ÷ Faturamento Bruto × 100'
+        }];
       case 'cmv_limpo_percentual':
         const cmvReal = semana.cmv_real || 0;
         const fatCmvivel = semana.faturamento_cmvivel || 1;
@@ -1215,7 +1223,7 @@ export default function CMVSemanalTabelaPage() {
                                       
                                       // Tooltip para resultados (CMV, CMV Limpo %, CMV Teórico %)
                                       const detalhesResultado = getDetalhesTooltip(semana, metrica.key);
-                                      if (detalhesResultado && ['cmv_real', 'cmv_limpo_percentual', 'cmv_teorico_percentual'].includes(metrica.key)) {
+                                      if (detalhesResultado && ['cmv_real', 'cmv_percentual', 'cmv_limpo_percentual', 'cmv_teorico_percentual'].includes(metrica.key)) {
                                         return (
                                           <TooltipProvider>
                                             <Tooltip>

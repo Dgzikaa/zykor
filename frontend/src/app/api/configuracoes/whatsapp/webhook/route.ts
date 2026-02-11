@@ -77,7 +77,7 @@ const supabase = createClient(
 // ========================================
 // 📱 GET /api/configuracoes/whatsapp/webhook
 // ========================================
-// Verificação de webhook do WhatsApp
+// Verificação de webhook do WhatsApp (Meta API) - fallback para Umbler quando tabelas legado não existem
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
@@ -85,32 +85,42 @@ export async function GET(request: NextRequest) {
     const token = url.searchParams.get('hub.verify_token');
     const challenge = url.searchParams.get('hub.challenge');
 
-    // Verificar se é uma requisição de verificação válida
-    if (mode === 'subscribe') {
-      // Buscar configuração para validar token
+    if (mode !== 'subscribe' || !challenge) {
+      return new Response('Verificação inválida', { status: 400 });
+    }
+
+    // 1. Tentar whatsapp_configuracoes (tabela pode ter sido removida)
+    try {
       const { data: configs } = await supabase
         .from('whatsapp_configuracoes')
         .select('webhook_verify_token, bar_id')
         .eq('ativo', true);
 
-      // Verificar se o token coincide com alguma configuração
-      const validConfig = configs?.find(
-        config => config.webhook_verify_token === token
-      );
-
+      const validConfig = configs?.find((c: any) => c.webhook_verify_token === token);
       if (validConfig) {
-        console.log(
-          'Webhook verificado com sucesso para bar_id:',
-          validConfig.bar_id
-        );
         return new Response(challenge, { status: 200 });
-      } else {
-        console.error('Token de verificação inválido:', token);
-        return new Response('Token inválido', { status: 403 });
       }
+    } catch (_e) {
+      /* tabela não existe - continuar para fallback */
     }
 
-    return new Response('Verificação inválida', { status: 400 });
+    // 2. Fallback: umbler_config (webhook_secret como token)
+    const { data: umblerConfigs } = await supabase
+      .from('umbler_config')
+      .select('bar_id, webhook_secret')
+      .eq('ativo', true);
+
+    const validUmbler = (umblerConfigs || []).find((c: any) => c.webhook_secret === token);
+    if (validUmbler) {
+      return new Response(challenge, { status: 200 });
+    }
+
+    // 3. Fallback: variável de ambiente (dev/legado)
+    if (process.env.WEBHOOK_VERIFY_TOKEN && process.env.WEBHOOK_VERIFY_TOKEN === token) {
+      return new Response(challenge, { status: 200 });
+    }
+
+    return new Response('Token inválido', { status: 403 });
   } catch (error) {
     console.error('Erro na verificação do webhook:', error);
     return new Response('Erro interno', { status: 500 });
@@ -139,42 +149,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
     }
 
-    // Identificar bar_id pela estrutura do webhook
-    const barId = await identifyBarFromWebhook(payload);
+    // Identificar bar_id (fallback para umbler_config se whatsapp_configuracoes não existir)
+    let barId = await identifyBarFromWebhook(payload);
     if (!barId) {
-      console.error('Não foi possível identificar o bar do webhook');
-      return NextResponse.json(
-        { error: 'Bar não identificado' },
-        { status: 400 }
-      );
+      // Fallback: primeiro bar com Umbler ativo
+      const { data: umbler } = await supabase
+        .from('umbler_config')
+        .select('bar_id')
+        .eq('ativo', true)
+        .limit(1)
+        .maybeSingle();
+      barId = (umbler as any)?.bar_id || null;
     }
 
-    // Verificar assinatura do webhook (opcional em desenvolvimento)
-    const isSignatureValid = await verifyWebhookSignature(
-      body,
-      signature,
-      barId
-    );
+    if (!barId) {
+      console.warn('Webhook: bar não identificado - sistema usa Umbler');
+      return NextResponse.json({ success: true, processed: false }); // 200 para evitar retries do Meta
+    }
 
-    // Log do webhook recebido
-    const webhookLog: WebhookLog = {
-      bar_id: barId,
-      webhook_type: payload.object || 'unknown',
-      payload: payload,
-      processado: false,
-      ip_origem: ipOrigem,
-      user_agent: userAgent,
-      signature_verified: isSignatureValid,
-      received_at: new Date().toISOString(),
-    };
+    const isSignatureValid = await verifyWebhookSignature(body, signature, barId);
 
-    const { data: logEntry } = await supabase
-      .from('whatsapp_webhooks')
-      .insert(webhookLog)
-      .select()
-      .single();
+    let logEntry: { id?: number } | null = null;
+    try {
+      const { data } = await supabase
+        .from('whatsapp_webhooks')
+        .insert({
+          bar_id: barId,
+          webhook_type: payload.object || 'unknown',
+          payload: payload,
+          processado: false,
+          ip_origem: ipOrigem,
+          user_agent: userAgent,
+          signature_verified: isSignatureValid,
+          received_at: new Date().toISOString(),
+        } as any)
+        .select()
+        .single();
+      logEntry = data;
+    } catch (_e) {
+      /* whatsapp_webhooks pode não existir - continuar */
+    }
 
-    // Processar webhook se for válido
     if (payload.object === 'whatsapp_business_account') {
       await processWhatsAppWebhook(payload, barId, logEntry?.id);
     }
@@ -191,32 +206,28 @@ export async function POST(request: NextRequest) {
 // ========================================
 
 /**
- * Identifica o bar_id através do payload do webhook
+ * Identifica o bar_id através do payload do webhook (Meta API)
+ * Fallback: umbler_config quando whatsapp_configuracoes não existe
  */
 async function identifyBarFromWebhook(
   payload: WhatsAppWebhookPayload
 ): Promise<number | null> {
   try {
-    // Extrair phone_number_id do webhook
     const phoneNumberId =
       payload?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
+    if (!phoneNumberId) return null;
 
-    if (!phoneNumberId) {
-      return null;
-    }
-
-    // Buscar configuração correspondente
     const { data: config } = await supabase
       .from('whatsapp_configuracoes')
       .select('bar_id')
       .eq('phone_number_id', phoneNumberId)
       .single();
 
-    return config?.bar_id || null;
-  } catch (error) {
-    console.error('Erro ao identificar bar do webhook:', error);
-    return null;
+    return (config as any)?.bar_id || null;
+  } catch (_e) {
+    /* tabela não existe - caller usa fallback umbler_config */
   }
+  return null;
 }
 
 /**
@@ -228,35 +239,34 @@ async function verifyWebhookSignature(
   barId: number
 ): Promise<boolean> {
   try {
-    if (!signature) {
-      return false; // Em produção, deve ser obrigatório
+    if (!signature) return false;
+
+    let secret: string | null = null;
+    try {
+      const { data } = await supabase
+        .from('whatsapp_configuracoes')
+        .select('webhook_verify_token')
+        .eq('bar_id', barId)
+        .single();
+      secret = (data as any)?.webhook_verify_token || null;
+    } catch (_e) {
+      /* fallback umbler_config */
     }
-
-    // Buscar app secret da configuração
-    const { data: config } = await supabase
-      .from('whatsapp_configuracoes')
-      .select('webhook_verify_token') // Em produção, usar app_secret
-      .eq('bar_id', barId)
-      .single();
-
-    if (!config) {
-      return false;
+    if (!secret) {
+      const { data: uc } = await supabase
+        .from('umbler_config')
+        .select('webhook_secret')
+        .eq('bar_id', barId)
+        .eq('ativo', true)
+        .single();
+      secret = (uc as any)?.webhook_secret || null;
     }
+    if (!secret) return false;
 
-    // Calcular hash esperado
     const expectedSignature =
-      'sha256=' +
-      crypto
-        .createHmac('sha256', config.webhook_verify_token) // Em produção, usar app_secret
-        .update(body, 'utf8')
-        .digest('hex');
-
-    return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expectedSignature)
-    );
-  } catch (error) {
-    console.error('Erro ao verificar assinatura do webhook:', error);
+      'sha256=' + crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex');
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
+  } catch (_e) {
     return false;
   }
 }
@@ -298,41 +308,43 @@ async function processWhatsAppWebhook(
       }
     }
 
-    // Marcar webhook como processado
     if (webhookLogId) {
-      await supabase
-        .from('whatsapp_webhooks')
-        .update({
-          processado: true,
-          processado_em: new Date().toISOString(),
-        })
-        .eq('id', webhookLogId);
+      try {
+        await supabase
+          .from('whatsapp_webhooks')
+          .update({ processado: true, processado_em: new Date().toISOString() })
+          .eq('id', webhookLogId);
+      } catch (_e) {
+        /* tabela pode não existir */
+      }
     }
   } catch (error: unknown) {
-    console.error('Erro ao processar webhook WhatsApp:', error);
-
-    // Marcar webhook com erro
+    console.warn('Erro ao processar webhook WhatsApp:', error);
     if (webhookLogId) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      await supabase
-        .from('whatsapp_webhooks')
-        .update({
-          processado: false,
-          erro_processamento: errorMessage,
-        })
-        .eq('id', webhookLogId);
+      try {
+        await supabase
+          .from('whatsapp_webhooks')
+          .update({
+            processado: false,
+            erro_processamento: error instanceof Error ? error.message : String(error),
+          })
+          .eq('id', webhookLogId);
+      } catch (_e) {
+        /* tabela pode não existir */
+      }
     }
   }
 }
 
 /**
  * Processa atualizações de status de mensagens
+ * Tabelas whatsapp_mensagens/whatsapp_contatos podem não existir - sistema usa Umbler
  */
 async function processMessageStatuses(
   statuses: WhatsAppStatus[],
   barId: number
 ): Promise<void> {
+  try {
   for (const status of statuses) {
     const messageId = status.id;
     const newStatus = status.status; // sent, delivered, read, failed
@@ -385,9 +397,12 @@ async function processMessageStatuses(
           field_name: incrementField,
         });
       } catch (_e) {
-        // increment_contact_stat/whatsapp_contatos podem não existir - sistema migrado para Umbler
+        /* increment_contact_stat/whatsapp_contatos não existem - Umbler */
       }
     }
+  }
+  } catch (_e) {
+    /* whatsapp_mensagens não existe - sistema usa Umbler */
   }
 }
 

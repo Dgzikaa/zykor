@@ -47,9 +47,7 @@ export async function GET(request: NextRequest) {
     }
 
     const startTime = Date.now()
-    console.log(`🚀 API Clientes: bar_id=${barIdFilter}, filtro_dia=${diaSemanaFiltro || 'todos'}`)
-      console.log(`⚡ Usando tabela de cache cliente_estatisticas... (Página ${page}, Limit ${limit})`)
-      console.log(`🔍 Busca: "${buscaCliente}"`)
+    console.log(`🚀 API Clientes: bar_id=${barIdFilter}, filtro_dia=${diaSemanaFiltro || 'todos'}, busca="${buscaCliente}" (página ${page}, limit ${limit})`)
       
       let query = supabase
         .from('cliente_estatisticas')

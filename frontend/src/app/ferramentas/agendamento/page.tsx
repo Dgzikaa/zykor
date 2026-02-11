@@ -189,6 +189,44 @@ export default function AgendamentoPage() {
   // Modal de configuração de categorias
   const [modalConfiguracoes, setModalConfiguracoes] = useState(false);
 
+  // Revisão NIBO - agendamentos sem data_competencia
+  const [agendamentosSemCompetencia, setAgendamentosSemCompetencia] = useState<any[]>([]);
+  const [loadingRevisao, setLoadingRevisao] = useState(false);
+  const [revisaoTotal, setRevisaoTotal] = useState(0);
+  const [revisaoHasMore, setRevisaoHasMore] = useState(false);
+  const [revisaoOffset, setRevisaoOffset] = useState(0);
+  const LIMIT_REVISAO = 500;
+
+  const carregarRevisaoNIBO = useCallback(async (offsetParam: number = 0) => {
+    if (!barId) return;
+    setLoadingRevisao(true);
+    try {
+      const res = await fetch(
+        `/api/financeiro/nibo/schedules?bar_id=${barId}&sem_competencia=true&offset=${offsetParam}&limit=${LIMIT_REVISAO}`
+      );
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      const novos = json.data || [];
+      setAgendamentosSemCompetencia(prev => offsetParam > 0 ? [...prev, ...novos] : novos);
+      setRevisaoTotal(json.total ?? 0);
+      setRevisaoHasMore(json.hasMore ?? false);
+      setRevisaoOffset(offsetParam + novos.length);
+    } catch (e) {
+      toast({
+        title: 'Erro ao carregar revisão',
+        description: e instanceof Error ? e.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingRevisao(false);
+    }
+  }, [barId, toast]);
+
+  const [tabAtivo, setTabAtivo] = useState('manual');
+  useEffect(() => {
+    if (tabAtivo === 'revisao' && barId) carregarRevisaoNIBO(0);
+  }, [tabAtivo, barId, carregarRevisaoNIBO]);
+
   // Input manual
   const [novoPagamento, setNovoPagamento] = useState({
     cpf_cnpj: '',
@@ -2061,8 +2099,8 @@ export default function AgendamentoPage() {
                 </Card>
               ) : (
               /* Tabs de Funcionalidades */
-              <Tabs defaultValue="manual" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-3 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+              <Tabs value={tabAtivo} onValueChange={setTabAtivo} className="space-y-6">
+                <TabsList className="grid w-full grid-cols-4 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
                   <TabsTrigger
                     value="manual"
                     className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white dark:text-gray-300 rounded-md"
@@ -2080,6 +2118,12 @@ export default function AgendamentoPage() {
                     className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white dark:text-gray-300 rounded-md"
                   >
                     Lista de Pagamentos
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="revisao"
+                    className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white dark:text-gray-300 rounded-md"
+                  >
+                    Revisão NIBO
                   </TabsTrigger>
                 </TabsList>
 
@@ -2834,6 +2878,86 @@ export default function AgendamentoPage() {
                               </div>
                             </div>
                           ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Tab: Revisão NIBO - sem data_competencia */}
+                <TabsContent value="revisao">
+                  <Card className="card-dark border-0 shadow-lg">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-gray-900 dark:text-white">
+                            Agendamentos sem data de competência
+                          </CardTitle>
+                          <CardDescription className="text-gray-600 dark:text-gray-400">
+                            {revisaoTotal > 0 ? `${agendamentosSemCompetencia.length} de ${revisaoTotal} carregado(s)` : 'Lista para o financeiro revisar e preencher data de competência no NIBO'}
+                          </CardDescription>
+                        </div>
+                        <Button
+                          onClick={() => carregarRevisaoNIBO(0)}
+                          disabled={loadingRevisao}
+                          variant="outline"
+                          size="sm"
+                        >
+                          {loadingRevisao ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                          Recarregar
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {loadingRevisao && agendamentosSemCompetencia.length === 0 ? (
+                        <div className="text-center py-12">
+                          <Loader2 className="w-10 h-10 animate-spin mx-auto text-gray-400" />
+                          <p className="mt-2 text-gray-500">Carregando...</p>
+                        </div>
+                      ) : agendamentosSemCompetencia.length === 0 ? (
+                        <div className="text-center py-12">
+                          <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                          <p className="text-gray-600 dark:text-gray-400 font-medium">Nenhum agendamento sem data de competência</p>
+                          <p className="text-sm text-gray-500 mt-1">Todos os registros estão com data de competência preenchida.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-600">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50 dark:bg-gray-800">
+                                <tr>
+                                  <th className="px-4 py-2 text-left font-medium">Data Venc.</th>
+                                  <th className="px-4 py-2 text-left font-medium">Valor</th>
+                                  <th className="px-4 py-2 text-left font-medium">Fornecedor</th>
+                                  <th className="px-4 py-2 text-left font-medium">Categoria</th>
+                                  <th className="px-4 py-2 text-left font-medium">Descrição</th>
+                                  <th className="px-4 py-2 text-left font-medium">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {agendamentosSemCompetencia.map((a: any) => (
+                                  <tr key={a.id} className="border-t border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                    <td className="px-4 py-2">{a.data_vencimento ? new Date(a.data_vencimento).toLocaleDateString('pt-BR') : '-'}</td>
+                                    <td className="px-4 py-2 font-medium">{typeof a.valor === 'number' ? a.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : a.valor}</td>
+                                    <td className="px-4 py-2">{a.stakeholder_nome || '-'}</td>
+                                    <td className="px-4 py-2">{a.categoria_nome || '-'}</td>
+                                    <td className="px-4 py-2 max-w-[200px] truncate">{a.descricao || '-'}</td>
+                                    <td className="px-4 py-2">{a.status || '-'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          {revisaoHasMore && (
+                            <Button
+                              onClick={() => carregarRevisaoNIBO(revisaoOffset)}
+                              disabled={loadingRevisao}
+                              variant="outline"
+                              className="w-full"
+                            >
+                              {loadingRevisao ? 'Carregando...' : `Carregar mais (${agendamentosSemCompetencia.length} de ${revisaoTotal})`}
+                            </Button>
+                          )}
                         </div>
                       )}
                     </CardContent>

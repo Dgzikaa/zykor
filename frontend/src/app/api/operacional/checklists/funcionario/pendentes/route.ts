@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 
 // Interfaces TypeScript
@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Buscar checklists atribuídos ao funcionário atual
-    const { data: checklists, error } = await supabase
+    // Buscar checklists atribuídos ao funcionário atual (tabela pode não estar nos tipos)
+    const { data: checklists, error } = await (supabase as any)
       .from('checklist_funcionario')
       .select('id, titulo, status, prazo, created_at')
       .eq('bar_id', bar_id)

@@ -42,10 +42,11 @@ export async function GET(request: NextRequest) {
 
     const barIdNum = parseInt(barId);
     
-    // Definir os 4 meses para análise
+    // Definir os 4 meses para análise (mês atual quando mesReferencia não informado)
+    const now = new Date();
     const dataRef = mesReferencia ? 
       new Date(parseInt(mesReferencia.split('-')[0]), parseInt(mesReferencia.split('-')[1]) - 1, 1) : 
-      new Date(2025, 8, 1); // Setembro = mês 8 (base 0)
+      new Date(now.getFullYear(), now.getMonth(), 1);
     const meses: { mes: string; mesNome: string; mesAbrev: string }[] = [];
     
     // Criar os 4 meses: 3 meses atrás, 2 meses atrás, 1 mês atrás, mês atual

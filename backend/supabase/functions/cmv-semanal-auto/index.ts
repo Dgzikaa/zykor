@@ -300,12 +300,16 @@ function calcularCMV(dados: any) {
                         (dados.outros_ajustes || 0);
   dados.cmv_real = cmvBruto - totalConsumos + (dados.ajuste_bonificacoes || 0);
   
-  // CMV Limpo %
+  // CMV Limpo % = CMV R$ / Faturamento CMVível (líquido, usado para meta)
   if ((dados.faturamento_cmvivel || 0) > 0) {
     dados.cmv_limpo_percentual = ((dados.cmv_real || 0) / (dados.faturamento_cmvivel || 1)) * 100;
   } else {
     dados.cmv_limpo_percentual = 0;
   }
+
+  // CMV Real % = CMV R$ / Faturamento Bruto (conforme planilha)
+  const fatBruto = dados.vendas_brutas || dados.faturamento_bruto || 0;
+  dados.cmv_percentual = fatBruto > 0 ? ((dados.cmv_real || 0) / fatBruto) * 100 : 0;
   
   // Gap
   dados.gap = (dados.cmv_limpo_percentual || 0) - (dados.cmv_teorico_percentual || 0);

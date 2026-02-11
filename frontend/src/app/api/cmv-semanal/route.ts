@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
     // Calcular estatísticas
     const totalRegistros = data?.length || 0;
     const cmvMedio = totalRegistros > 0
-      ? data!.reduce((sum, item) => sum + (item.cmv_percentual || 0), 0) / totalRegistros
+      ? data!.reduce((sum, item) => sum + ((item as any).cmv_limpo_percentual ?? (item as any).cmv_percentual ?? 0), 0) / totalRegistros
       : 0;
     const vendasTotais = totalRegistros > 0
       ? data!.reduce((sum, item) => sum + (item.vendas_liquidas || 0), 0)

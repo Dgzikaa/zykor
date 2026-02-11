@@ -125,8 +125,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Buscar configuração existente
-    const { data: config, error } = await supabase
+    // Buscar configuração existente (tabela legada - sistema migrado para Umbler)
+    const { data: config, error } = await (supabase as any)
       .from('whatsapp_configuracoes')
       .select('*')
       .eq('bar_id', bar_id)
@@ -217,7 +217,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: existing } = await supabase
+    const { data: existing } = await (supabase as any)
       .from('whatsapp_configuracoes')
       .select('id')
       .eq('bar_id', bar_id)
@@ -248,7 +248,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Criar configuração
-    const { data: config, error } = await supabase
+    const { data: config, error } = await (supabase as any)
       .from('whatsapp_configuracoes')
       .insert({
         bar_id,
@@ -331,7 +331,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { data: existing, error: fetchError } = await supabase
+    const { data: existing, error: fetchError } = await (supabase as any)
       .from('whatsapp_configuracoes')
       .select('*')
       .eq('bar_id', bar_id)
@@ -373,7 +373,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Atualizar configuração
-    const { data: config, error } = await supabase
+    const { data: config, error } = await (supabase as any)
       .from('whatsapp_configuracoes')
       .update(updateData)
       .eq('bar_id', bar_id)
@@ -447,7 +447,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { data: pendingMessages } = await supabase
+    const { data: pendingMessages } = await (supabase as any)
       .from('whatsapp_mensagens')
       .select('id')
       .eq('bar_id', bar_id)
@@ -464,7 +464,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Deletar configuração
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('whatsapp_configuracoes')
       .delete()
       .eq('bar_id', bar_id);

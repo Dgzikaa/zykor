@@ -20,10 +20,12 @@ interface Template {
 }
 
 interface WhatsAppConfig {
-  phone_number_id: string;
-  access_token: string;
-  api_version: string;
-  rate_limit_per_minute: number;
+  provider: 'meta' | 'umbler';
+  phone_number_id?: string;
+  access_token?: string;
+  api_version?: string;
+  rate_limit_per_minute?: number;
+  bar_id?: number; // para Umbler
 }
 
 // ============================================
@@ -171,25 +173,32 @@ function delay(ms: number): Promise<void> {
 // ============================================
 
 async function getWhatsAppConfig(barId?: number): Promise<WhatsAppConfig | null> {
-  let query = supabase.from('whatsapp_configuracoes').select('*').eq('ativo', true);
-  
-  if (barId) {
-    query = query.eq('bar_id', barId);
+  try {
+    let query = supabase.from('whatsapp_configuracoes').select('*').eq('ativo', true);
+    if (barId) query = query.eq('bar_id', barId);
+    const { data, error } = await query.single();
+    if (!error && data) {
+      return {
+        provider: 'meta',
+        phone_number_id: data.phone_number_id,
+        access_token: data.access_token,
+        api_version: data.api_version || 'v18.0',
+        rate_limit_per_minute: data.rate_limit_per_minute || 80,
+      };
+    }
+  } catch (_e) {
+    /* tabela pode não existir - fallback Umbler */
   }
-  
-  const { data, error } = await query.single();
-  
-  if (error || !data) {
-    console.log('Config WhatsApp não encontrada');
-    return null;
+
+  const umblerQuery = barId
+    ? supabase.from('umbler_config').select('bar_id').eq('bar_id', barId).eq('ativo', true)
+    : supabase.from('umbler_config').select('bar_id').eq('ativo', true).limit(1);
+  const { data: uc } = await umblerQuery.single();
+  const uid = (uc as any)?.bar_id;
+  if (uid) {
+    return { provider: 'umbler', bar_id: uid, rate_limit_per_minute: 60 };
   }
-  
-  return {
-    phone_number_id: data.phone_number_id,
-    access_token: data.access_token,
-    api_version: data.api_version || 'v18.0',
-    rate_limit_per_minute: data.rate_limit_per_minute || 80
-  };
+  return null;
 }
 
 async function enviarWhatsAppMessage(
@@ -199,6 +208,51 @@ async function enviarWhatsAppMessage(
   campanhaId: string,
   clienteNome: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  if (config.provider === 'umbler' && config.bar_id) {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+      'http://localhost:3000';
+    const res = await fetch(`${baseUrl}/api/umbler/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bar_id: config.bar_id,
+        mode: 'single',
+        to_phone: telefone,
+        message: mensagem,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      await supabase.from('crm_envios').insert({
+        campanha_id: campanhaId,
+        cliente_telefone: telefone,
+        cliente_nome: clienteNome,
+        tipo: 'whatsapp',
+        mensagem,
+        status: 'erro',
+        erro_detalhes: data.error || String(data),
+        criado_em: new Date().toISOString(),
+      });
+      return { success: false, error: data.error || 'Erro Umbler' };
+    }
+    const ok = data.success ?? !!data.messageId;
+    if (ok) {
+      await supabase.from('crm_envios').insert({
+        campanha_id: campanhaId,
+        cliente_telefone: telefone,
+        cliente_nome: clienteNome,
+        tipo: 'whatsapp',
+        mensagem,
+        status: 'enviado',
+        whatsapp_message_id: data.messageId,
+        enviado_em: new Date().toISOString(),
+      });
+    }
+    return { success: ok, messageId: data.messageId };
+  }
+
   try {
     const url = `https://graph.facebook.com/${config.api_version}/${config.phone_number_id}/messages`;
     
@@ -254,16 +308,19 @@ async function enviarWhatsAppMessage(
       enviado_em: new Date().toISOString()
     });
     
-    // Log na tabela de mensagens do WhatsApp também
-    await supabase.from('whatsapp_messages').insert({
-      to_number: telefone,
-      message: mensagem,
-      type: 'campanha',
-      provider: 'meta',
-      status: 'sent',
-      provider_response: result,
-      sent_at: new Date().toISOString()
-    });
+    try {
+      await supabase.from('whatsapp_messages').insert({
+        to_number: telefone,
+        message: mensagem,
+        type: 'campanha',
+        provider: 'meta',
+        status: 'sent',
+        provider_response: result,
+        sent_at: new Date().toISOString(),
+      });
+    } catch (_e) {
+      /* tabela pode não existir - legado */
+    }
     
     return { success: true, messageId };
     
@@ -479,9 +536,7 @@ export async function POST(request: NextRequest) {
 
     // 6. Se executar agora, enviar mensagens
     if (executar_agora && tipo === 'whatsapp') {
-      // Buscar config do WhatsApp
       const whatsappConfig = await getWhatsAppConfig(bar_id);
-      
       if (!whatsappConfig) {
         // Atualizar status da campanha para rascunho
         await supabase
@@ -500,8 +555,7 @@ export async function POST(request: NextRequest) {
         ? clientes.slice(0, limite_envios) 
         : clientes;
       
-      // Calcular delay entre mensagens baseado no rate limit
-      const delayMs = Math.ceil(60000 / whatsappConfig.rate_limit_per_minute);
+      const delayMs = Math.ceil(60000 / (whatsappConfig.rate_limit_per_minute || 60));
       
       console.log(`Iniciando envio para ${clientesParaEnviar.length} clientes...`);
       console.log(`Rate limit: ${whatsappConfig.rate_limit_per_minute}/min (delay: ${delayMs}ms)`);

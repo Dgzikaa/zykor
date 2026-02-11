@@ -120,8 +120,8 @@ export async function GET(request: NextRequest) {
 
     const params = FilterSchema.parse(processedParams);
 
-    // Construir query base
-    let query = supabase
+    // Construir query base (tabelas legadas - sistema migrado para Umbler)
+    let query = (supabase as any)
       .from('whatsapp_mensagens')
       .select(
         `
@@ -188,7 +188,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar estatísticas
-    const { data: stats } = await supabase
+    const { data: stats } = await (supabase as any)
       .from('whatsapp_mensagens')
       .select('status')
       .eq('bar_id', parseInt(bar_id));
@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
     const validatedData = SendMessageSchema.parse(body);
 
     // Verificar se WhatsApp está configurado
-    const { data: config, error: configError } = await supabase
+    const { data: config, error: configError } = await (supabase as any)
       .from('whatsapp_configuracoes')
       .select('*')
       .eq('bar_id', parseInt(bar_id))
@@ -337,7 +337,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Salvar mensagem no banco
-    const { data: mensagem, error: saveError } = await supabase
+    const { data: mensagem, error: saveError } = await (supabase as any)
       .from('whatsapp_mensagens')
       .insert(messageData)
       .select()
@@ -364,14 +364,14 @@ export async function POST(request: NextRequest) {
       error_message: sendResult.errorMessage,
     };
 
-    await supabase
+    await (supabase as any)
       .from('whatsapp_mensagens')
       .update(updateData)
       .eq('id', mensagem.id);
 
     // Atualizar estatísticas do contato
     if (sendResult.success) {
-      await supabase
+      await (supabase as any)
         .from('whatsapp_contatos')
         .update({
           total_mensagens_enviadas: (contato.total_mensagens_enviadas || 0) + 1,
@@ -428,8 +428,8 @@ async function getOrCreateContact(
     return null;
   }
 
-  // Primeiro, tentar buscar contato existente
-  const { data: contato } = await supabase
+  // Primeiro, tentar buscar contato existente (tabela legada)
+  const { data: contato } = await (supabase as any)
     .from('whatsapp_contatos')
     .select('*')
     .eq('bar_id', parseInt(barId))
@@ -450,7 +450,7 @@ async function getOrCreateContact(
       .single();
 
     if (usuario) {
-      const { data: novoContato } = await supabase
+      const { data: novoContato } = await (supabase as any)
         .from('whatsapp_contatos')
         .insert({
           bar_id: parseInt(barId),

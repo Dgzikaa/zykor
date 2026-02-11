@@ -2,7 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/lib/supabase';
 
 // ========================================
-// 📱 WHATSAPP NOTIFICATION SERVICE
+// 📱 WHATSAPP NOTIFICATION SERVICE (LEGADO)
+// ========================================
+// DEPRECATED: Usa tabelas whatsapp_configuracoes, whatsapp_contatos, whatsapp_mensagens que foram removidas.
+// Sistema atual: Umbler (umbler_config, umbler_conversas, umbler_mensagens).
+// Prefira /api/umbler/send para envio de mensagens.
 // ========================================
 
 export interface WhatsAppConfig {
@@ -149,7 +153,7 @@ export class WhatsAppNotificationService {
         return false;
       }
 
-      const { data: config } = await supabase
+      const { data: config } = await (supabase as any)
         .from('whatsapp_configuracoes')
         .select('*')
         .eq('bar_id', this.barId)
@@ -189,7 +193,7 @@ export class WhatsAppNotificationService {
         return null;
       }
 
-      const { data: contato } = await supabase
+      const { data: contato } = await (supabase as any)
         .from('whatsapp_contatos')
         .select('*')
         .eq('bar_id', this.barId)
@@ -215,7 +219,7 @@ export class WhatsAppNotificationService {
         return null;
       }
 
-      const { data: contato } = await supabase
+      const { data: contato } = await (supabase as any)
         .from('whatsapp_contatos')
         .select('*')
         .eq('bar_id', this.barId)
@@ -243,7 +247,7 @@ export class WhatsAppNotificationService {
         return null;
       }
 
-      const { data: contato } = await supabase
+      const { data: contato } = await (supabase as any)
         .from('whatsapp_contatos')
         .insert({
           bar_id: this.barId,
@@ -281,7 +285,7 @@ export class WhatsAppNotificationService {
         return null;
       }
 
-      const { data: template } = await supabase
+      const { data: template } = await (supabase as any)
         .from('whatsapp_templates')
         .select('*')
         .eq('bar_id', this.barId)
@@ -306,7 +310,7 @@ export class WhatsAppNotificationService {
         return [];
       }
 
-      const { data: templates } = await supabase
+      const { data: templates } = await (supabase as any)
         .from('whatsapp_templates')
         .select('*')
         .eq('bar_id', this.barId)
@@ -373,7 +377,7 @@ export class WhatsAppNotificationService {
         return { success: false, error: 'Erro de conexão' };
       }
 
-      const { data: mensagemSalva, error: saveError } = await supabase
+      const { data: mensagemSalva, error: saveError } = await (supabase as any)
         .from('whatsapp_mensagens')
         .insert({
           ...(mensagem as any),
@@ -391,7 +395,7 @@ export class WhatsAppNotificationService {
       const result = await this.sendToWhatsAppAPI(contato, mensagem);
 
       // Atualizar status
-      await supabase
+      await (supabase as any)
         .from('whatsapp_mensagens')
         .update({
           status: result.success ? 'enviado' : 'erro',
