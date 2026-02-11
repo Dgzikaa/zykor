@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import dynamic from 'next/dynamic';
 import './globals.css';
 
 import { ToastProvider, GlobalToastListener } from '@/components/ui/toast';
@@ -11,17 +10,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { LGPDProvider } from '@/hooks/useLGPD';
 import { CommandPaletteProvider } from '@/contexts/CommandPaletteContext';
 import { PageTitleProvider } from '@/contexts/PageTitleContext';
-
-// Otimização: carregar componentes não-críticos após hydration (reduz bundle inicial)
-const CommandPaletteWrapper = dynamic(
-  () => import('@/components/CommandPaletteWrapper').then((m) => ({ default: m.CommandPaletteWrapper })),
-  { ssr: false }
-);
-const AuthSync = dynamic(() => import('@/components/AuthSync'), { ssr: false });
-const VersionChecker = dynamic(
-  () => import('@/components/VersionChecker').then((m) => ({ default: m.VersionChecker })),
-  { ssr: false }
-);
+import { ClientOnlyLayoutParts } from '@/components/ClientOnlyLayoutParts';
 
 export const metadata: Metadata = {
   title: 'Zykor - O núcleo da gestão de bares',
@@ -59,9 +48,7 @@ export default function RootLayout({
                           {children}
                         </div>
                       </ErrorBoundary>
-                      <CommandPaletteWrapper />
-                      <AuthSync />
-                      <VersionChecker />
+                      <ClientOnlyLayoutParts />
                       <GlobalToastListener />
                       <Toaster position="top-right" richColors />
                       {/* <RetrospectiveButton /> */}
