@@ -189,6 +189,9 @@ function processarSemana(linhas: any[][], colunaIdx: number, semana: number, ano
   const cmvTeoricoPercent = parsePercentual(getValor(16));
   const faturamentoTotal = parseMonetario(getValor(18));
 
+  // CMV Real % = CMV R$ / Faturamento Bruto × 100 (nunca copiar do teórico)
+  const cmvPercentual = faturamentoTotal > 0 ? (cmvReal / faturamentoTotal) * 100 : 0;
+
   return {
     bar_id: barId, ano, semana,
     data_inicio: dataInicio, data_fim: dataFim,
@@ -198,6 +201,7 @@ function processarSemana(linhas: any[][], colunaIdx: number, semana: number, ano
     outros_ajustes: outrosAjustes, ajuste_bonificacoes: ajusteBonificacoes,
     cmv_real: cmvReal, faturamento_cmvivel: faturamentoCmvivel,
     cmv_limpo_percentual: cmvLimpoPercent, cmv_teorico_percentual: cmvTeoricoPercent,
+    cmv_percentual: cmvPercentual, // CMV Real % = CMV R$ / Fat. Bruto
     gap: cmvLimpoPercent - cmvTeoricoPercent,
     faturamento_bruto: faturamentoTotal, vendas_brutas: faturamentoTotal,
     updated_at: new Date().toISOString()

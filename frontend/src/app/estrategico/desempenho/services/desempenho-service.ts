@@ -242,8 +242,21 @@ export async function getSemanas(
       ? ((pessoasTotal - pessoasPresentes) / pessoasTotal) * 100 
       : 0;
 
+    // Garantir que valores numéricos vindos como string do Postgres sejam convertidos
+    const toNum = (v: unknown): number | null => {
+      if (v === null || v === undefined) return null;
+      if (typeof v === 'number' && !isNaN(v)) return v;
+      if (typeof v === 'string') { const n = parseFloat(v); return isNaN(n) ? null : n; }
+      return null;
+    };
+
     return {
       ...s,
+      cancelamentos: toNum(s.cancelamentos) ?? s.cancelamentos,
+      atrasinhos_bar: toNum(s.atrasinhos_bar) ?? s.atrasinhos_bar,
+      atrasinhos_cozinha: toNum(s.atrasinhos_cozinha) ?? s.atrasinhos_cozinha,
+      atraso_bar: toNum(s.atraso_bar) ?? s.atraso_bar,
+      atraso_cozinha: toNum(s.atraso_cozinha) ?? s.atraso_cozinha,
       quebra_reservas: quebraReservas,
       conta_assinada_valor: contaAssinadaValor,
       conta_assinada_perc: contaAssinadaPerc,

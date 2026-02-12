@@ -21,7 +21,9 @@ const supabase = createClient(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { bar_id, data_inicio, data_fim } = body;
+    const { bar_id, data_inicio, data_fim, criterio_data } = body;
+    // criterio_data: 'competencia' (default) ou 'criacao' - alinha com planilha
+    const usarDataCriacao = criterio_data === 'criacao';
 
     if (!bar_id || !data_inicio || !data_fim) {
       return NextResponse.json(
@@ -193,16 +195,19 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. BUSCAR COMPRAS DO NIBO (exatamente como na planilha - alinhado com Edge Function)
-    // 🔧 CORRIGIDO: Usar match exato de categorias, não includes()
+    // criterio_data: 'competencia' = data_competencia (padrão) | 'criacao' = criado_em
     try {
-      // Buscar todas as despesas no período (usa data_competencia)
-      const { data: comprasNibo, error: errorCompras } = await supabase
+      const dataInicioFull = data_inicio + (usarDataCriacao ? 'T00:00:00' : '');
+      const dataFimFull = data_fim + (usarDataCriacao ? 'T23:59:59' : '');
+      console.log(`📅 NIBO Compras: critério=${usarDataCriacao ? 'criação (criado_em)' : 'competência (data_competencia)'}`);
+      const queryBuilder = supabase
         .from('nibo_agendamentos')
         .select('categoria_nome, valor')
         .eq('bar_id', bar_id)
-        .eq('tipo', 'Debit')
-        .gte('data_competencia', data_inicio)
-        .lte('data_competencia', data_fim);
+        .eq('tipo', 'Debit');
+      const { data: comprasNibo, error: errorCompras } = usarDataCriacao
+        ? await queryBuilder.gte('criado_em', dataInicioFull).lte('criado_em', dataFimFull)
+        : await queryBuilder.gte('data_competencia', data_inicio).lte('data_competencia', data_fim);
 
       if (!errorCompras && comprasNibo) {
         // 🔧 CORRIGIDO: Usar comparação case-insensitive para categorias

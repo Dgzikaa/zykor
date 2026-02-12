@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -49,7 +50,8 @@ import {
   Trash2,
   AlertCircle,
   Zap,
-  Eye
+  Eye,
+  Star
 } from 'lucide-react';
 
 interface Metricas {
@@ -211,6 +213,14 @@ export default function UmblerPage() {
   const [cupomDesconto, setCupomDesconto] = useState(20);
   const [executarAgora, setExecutarAgora] = useState(true);
   const [limiteEnvios, setLimiteEnvios] = useState<number | undefined>(undefined);
+
+  // Disparo NPS
+  const [npsFonte, setNpsFonte] = useState<'conversas' | 'reservas'>('conversas');
+  const [npsDias, setNpsDias] = useState(7);
+  const [npsLimite, setNpsLimite] = useState(50);
+  const [npsLink, setNpsLink] = useState('');
+  const [npsPreview, setNpsPreview] = useState<{ total: number } | null>(null);
+  const [npsEnviando, setNpsEnviando] = useState(false);
 
   const fetchMetricas = useCallback(async () => {
     setLoading(true);
@@ -566,6 +576,10 @@ export default function UmblerPage() {
               <Send className="w-4 h-4 mr-2" />
               Campanhas
             </TabsTrigger>
+            <TabsTrigger value="nps" className="data-[state=active]:bg-amber-100 dark:data-[state=active]:bg-amber-900/30">
+              <Star className="w-4 h-4 mr-2" />
+              Disparo NPS
+            </TabsTrigger>
           </TabsList>
 
           {/* Tab: Cruzamento com Reservas */}
@@ -883,6 +897,108 @@ export default function UmblerPage() {
                     })}
                   </div>
                 ) : null}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab: Disparo NPS */}
+          <TabsContent value="nps">
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+                  <Star className="w-5 h-5 text-amber-500" />
+                  Disparo de NPS via WhatsApp
+                </CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">
+                  Envie pesquisa de satisfação (NPS) para clientes via Umbler Talk
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!umblerConfig?.configurado ? (
+                  <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg flex items-center gap-3">
+                    <AlertCircle className="w-5 h-5 text-yellow-600" />
+                    <span className="text-yellow-800 dark:text-yellow-200">Configure a Umbler Talk primeiro para disparar NPS.</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label className="text-sm">Fonte de destinatários</Label>
+                        <Select value={npsFonte} onValueChange={(v: 'conversas' | 'reservas') => setNpsFonte(v)}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="conversas">Contatos Umbler (últimos X dias)</SelectItem>
+                            <SelectItem value="reservas">Clientes com reserva (seated/confirmed)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-sm">Últimos (dias)</Label>
+                        <Input type="number" min={1} max={90} value={npsDias} onChange={(e) => setNpsDias(parseInt(e.target.value) || 7)} className="mt-1" />
+                      </div>
+                      <div>
+                        <Label className="text-sm">Limite de envios</Label>
+                        <Input type="number" min={1} max={500} value={npsLimite} onChange={(e) => setNpsLimite(parseInt(e.target.value) || 50)} className="mt-1" />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm">Link da pesquisa NPS (opcional)</Label>
+                      <Input placeholder="https://forms.gle/..." value={npsLink} onChange={(e) => setNpsLink(e.target.value)} className="mt-1" />
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          const res = await fetch(`/api/umbler/nps-disparo?bar_id=3&fonte=${npsFonte}&dias=${npsDias}&limite=${npsLimite}`);
+                          const data = await res.json();
+                          if (data.success) setNpsPreview({ total: data.total });
+                        }}
+                      >
+                        Pré-visualizar
+                      </Button>
+                      {npsPreview && (
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          {npsPreview.total} destinatário(s) encontrado(s)
+                        </span>
+                      )}
+                      <Button
+                        className="bg-amber-600 hover:bg-amber-700"
+                        disabled={npsEnviando}
+                        onClick={async () => {
+                          setNpsEnviando(true);
+                          try {
+                            const res = await fetch('/api/umbler/nps-disparo', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                bar_id: 3,
+                                fonte: npsFonte,
+                                dias: npsDias,
+                                limite: npsLimite,
+                                link_nps: npsLink || undefined,
+                                executar_agora: true
+                              })
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              setNpsPreview({ total: data.total_destinatarios });
+                              fetchCampanhas();
+                              alert(`NPS disparado! ${data.total_destinatarios} mensagens em envio.`);
+                            } else {
+                              alert('Erro: ' + (data.error || 'Erro desconhecido'));
+                            }
+                          } finally {
+                            setNpsEnviando(false);
+                          }
+                        }}
+                      >
+                        {npsEnviando ? 'Enviando...' : 'Disparar NPS'}
+                      </Button>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

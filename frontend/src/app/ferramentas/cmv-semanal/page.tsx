@@ -57,6 +57,7 @@ interface CMVSemanal {
   // Vendas
   vendas_brutas: number;
   vendas_liquidas: number;
+  faturamento_bruto?: number; // alias/variante de vendas_brutas (usado no cálculo CMV Real %)
   
   // Estoque e Compras
   estoque_inicial: number;
@@ -74,6 +75,7 @@ interface CMVSemanal {
   
   // Cálculos
   cmv_real: number;
+  cmv_percentual?: number; // CMV Real % = CMV R$ / Faturamento Bruto × 100
   faturamento_cmvivel: number;
   cmv_limpo_percentual: number;
   cmv_teorico_percentual: number;
@@ -119,6 +121,7 @@ export default function CMVSemanalPage() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [calculando, setCalculando] = useState(false);
+  const [criterioDataCompras, setCriterioDataCompras] = useState<'competencia' | 'criacao'>('competencia');
   const [sincronizando, setSincronizando] = useState(false);
   const [cmvs, setCmvs] = useState<CMVSemanal[]>([]);
   const [anoFiltro, setAnoFiltro] = useState(() => new Date().getFullYear());
@@ -219,11 +222,14 @@ export default function CMVSemanalPage() {
     
     dados.cmv_real = cmvBruto - totalConsumos + (dados.ajuste_bonificacoes || 0);
     
-    // 5. Calcular CMV Limpo (%)
+    // 5. Calcular CMV Limpo (%) e CMV Real (%)
     // CMV Limpo = (CMV Real / Faturamento CMVível) * 100
     if ((dados.faturamento_cmvivel || 0) > 0) {
       dados.cmv_limpo_percentual = ((dados.cmv_real || 0) / (dados.faturamento_cmvivel || 1)) * 100;
     }
+    // CMV Real % = CMV R$ / Faturamento Bruto × 100 (nunca copiar teórico)
+    const fatBruto = dados.vendas_brutas || dados.faturamento_bruto || 0;
+    dados.cmv_percentual = fatBruto > 0 ? ((dados.cmv_real || 0) / fatBruto) * 100 : 0;
     
     // 6. Calcular GAP
     // GAP = CMV Limpo - CMV Teórico
@@ -394,7 +400,8 @@ export default function CMVSemanalPage() {
         body: JSON.stringify({
           bar_id: selectedBar.id,
           data_inicio: formData.data_inicio,
-          data_fim: formData.data_fim
+          data_fim: formData.data_fim,
+          criterio_data: criterioDataCompras
         })
       });
 
@@ -984,6 +991,18 @@ export default function CMVSemanalPage() {
                 <p className="text-sm text-blue-700 dark:text-blue-300">
                   Buscar dados de consumo dos sócios, compras do NIBO, faturamento do ContaHub e estoques automaticamente.
                 </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <Label className="text-xs text-blue-600 dark:text-blue-400">Compras NIBO por:</Label>
+                  <Select value={criterioDataCompras} onValueChange={(v: 'competencia' | 'criacao') => setCriterioDataCompras(v)}>
+                    <SelectTrigger className="w-[200px] h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="competencia">Competência (data_competencia)</SelectItem>
+                      <SelectItem value="criacao">Data de Criação (criado_em)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <Button
                 onClick={buscarDadosAutomaticos}

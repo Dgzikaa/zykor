@@ -163,30 +163,42 @@ export async function GET(request: NextRequest) {
     const criadoAposDate = new Date(criadoApos + 'T00:00:00Z');
     const criadoAntesDate = criadoAntes ? new Date(criadoAntes + 'T23:59:59Z') : null;
     
-    // Preparar lista de categorias para filtro (case-insensitive)
+    // Preparar lista de categorias para filtro (case-insensitive, normalizado)
+    const normalizar = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ');
     const categoriasLista = categorias 
-      ? categorias.split(',').map(c => c.trim().toLowerCase())
+      ? categorias.split(',').map(c => normalizar(c)).filter(Boolean)
       : null;
+
+    const matchCategoria = (categoriaNome: string, cat: string) => {
+      const n = normalizar(categoriaNome);
+      if (!n || !cat) return false;
+      if (n === cat) return true;
+      if (n.includes(cat)) return true;  // "Custo Bebidas" inclui "custo bebidas"
+      if (cat.includes(n)) return true;  // "bebidas" é parte de "custo bebidas" - match parcial
+      return false;
+    };
+
+    // CMV = apenas despesas (type=Debit). Receitas (type=Credit) devem ser excluídas.
+    const isFiltroCusto = categoriasLista?.some(c => normalizar(c).includes('custo')) ?? false;
 
     const lancamentosRetroativos = allSchedules.filter(schedule => {
       if (!schedule.createDate) return false;
       
       const createDate = new Date(schedule.createDate);
       
-      // Verificar se foi criado após a data especificada
-      if (createDate < criadoAposDate) {
-        return false;
+      if (createDate < criadoAposDate) return false;
+      if (criadoAntesDate && createDate > criadoAntesDate) return false;
+
+      // Ao filtrar CMV/custos: excluir receitas - só despesas (Debit)
+      const tipoSchedule = String(schedule.type || '').toLowerCase();
+      const tipoCategoria = String((schedule.category as any)?.type || '').toLowerCase();
+      if (isFiltroCusto) {
+        if (tipoSchedule === 'credit' || tipoCategoria === 'income' || tipoCategoria === 'receita') return false;
       }
 
-      // Verificar se foi criado antes da data máxima (se especificada)
-      if (criadoAntesDate && createDate > criadoAntesDate) {
-        return false;
-      }
-
-      // Filtrar por categoria (se especificado)
       if (categoriasLista && categoriasLista.length > 0) {
-        const categoriaNome = (schedule.category?.name || '').toLowerCase();
-        if (!categoriasLista.some(cat => categoriaNome === cat || categoriaNome.includes(cat))) {
+        const categoriaNome = schedule.category?.name || '';
+        if (!categoriasLista.some(cat => matchCategoria(categoriaNome, cat))) {
           return false;
         }
       }

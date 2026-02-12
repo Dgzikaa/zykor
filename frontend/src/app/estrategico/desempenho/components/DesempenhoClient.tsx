@@ -192,12 +192,12 @@ const SECOES: SecaoConfig[] = [
         label: 'Atrasos',
         agregacao: { tipo: 'soma', formato: 'numero' },
         metricas: [
-          { key: 'atrasinhos_bar', label: 'Atrasinhos Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 >= 4min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes' },
-          { key: 'atrasinhos_cozinha', label: 'Atrasinhos Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 >= 15min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes' },
+          { key: 'atrasinhos_bar', label: 'Atrasinho Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 >= 4min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes' },
+          { key: 'atrasinhos_cozinha', label: 'Atrasinho Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 >= 15min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes' },
           { key: 'atraso_bar', label: 'Atraso Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 >= 8min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atraso_detalhes' },
           { key: 'atraso_cozinha', label: 'Atraso Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 >= 20min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atraso_detalhes' },
-          { key: 'atrasos_bar', label: 'Atrasos Drinks (10min)', status: 'auto', fonte: 'contahub_tempo', calculo: 'Drinks t0_t3 > 10min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_bar_perc' },
-          { key: 'atrasos_cozinha', label: 'Atrasos Comida (20min)', status: 'auto', fonte: 'contahub_tempo', calculo: 'Comida t0_t2 > 20min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_cozinha_perc' },
+          { key: 'atrasos_bar', label: 'Atrasão Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 'Drinks t0_t3 > 10min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_bar_perc' },
+          { key: 'atrasos_cozinha', label: 'Atrasão Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 'Comida t0_t2 > 20min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_cozinha_perc' },
         ]
       }
     ]
@@ -293,20 +293,21 @@ const calcularValorAgregado = (grupo: GrupoMetricas, semana: any): number | null
   return null;
 };
 
-const formatarValor = (valor: number | null | undefined, formato: string, sufixo?: string): string => {
-  if (valor === null || valor === undefined) return '-';
+const formatarValor = (valor: number | string | null | undefined, formato: string, sufixo?: string): string => {
+  const num = typeof valor === 'string' ? parseFloat(valor) : valor;
+  if (num === null || num === undefined || (typeof num === 'number' && isNaN(num))) return '-';
   
   switch (formato) {
     case 'moeda':
-      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(valor);
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(num);
     case 'moeda_decimal':
-      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(valor);
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
     case 'percentual':
-      return `${valor.toFixed(1)}%`;
+      return `${num.toFixed(1)}%`;
     case 'decimal':
-      return (Math.round(valor * 100) / 100).toFixed(2).replace('.', ',') + (sufixo || '');
+      return (Math.round(num * 100) / 100).toFixed(2).replace('.', ',') + (sufixo || '');
     default:
-      const valorArredondado = Math.round(valor * 100) / 100;
+      const valorArredondado = Math.round(num * 100) / 100;
       const isInteiro = valorArredondado === Math.floor(valorArredondado);
       return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: isInteiro ? 0 : 2 }).format(valorArredondado) + (sufixo || '');
   }
@@ -399,7 +400,7 @@ export function DesempenhoClient({
     'marketing-pago': true,
   });
   
-  const secoesNaoColapsaveis = useMemo(() => ['ovt', 'qualidade'], []);
+  const secoesNaoColapsaveis = useMemo(() => ['ovt', 'qualidade', 'vendas'], []);
   const [editando, setEditando] = useState<{ semanaId: number; campo: string } | null>(null);
   const [valorEdit, setValorEdit] = useState('');
   const [valoresLocais, setValoresLocais] = useState<Record<string, Record<string, number>>>({});

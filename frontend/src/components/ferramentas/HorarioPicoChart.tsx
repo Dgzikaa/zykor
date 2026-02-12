@@ -102,6 +102,7 @@ export function HorarioPicoChart({ dataSelecionada, onDataChange }: HorarioPicoC
   const [diaSemana, setDiaSemana] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [barFechado, setBarFechado] = useState<{ motivo: string } | null>(null);
   const [dataInput, setDataInput] = useState(dataSelecionada);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [linhasVisiveis, setLinhasVisiveis] = useState<LinhaVisibilidade>({
@@ -163,6 +164,7 @@ export function HorarioPicoChart({ dataSelecionada, onDataChange }: HorarioPicoC
   const buscarDados = async () => {
     setLoading(true);
     setError(null);
+    setBarFechado(null);
     
     try {
       // Buscar dados do horário de pico
@@ -184,15 +186,17 @@ export function HorarioPicoChart({ dataSelecionada, onDataChange }: HorarioPicoC
       const result = await response.json();
 
       if (result.success && result.data) {
-        // Processar dados para o gráfico
-        const dadosProcessados = result.data.horario_pico.map((item: any) => ({
+        // Processar dados para o gráfico (horario_pico pode vir vazio quando bar_fechado)
+        const horarioPico = result.data.horario_pico ?? [];
+        const dadosProcessados = horarioPico.map((item: any) => ({
           ...item,
           hora_formatada: `${item.hora.toString().padStart(2, '0')}:00`
         }));
 
         setDados(dadosProcessados);
-        setEstatisticas(result.data.estatisticas);
-        setDiaSemana(result.data.dia_semana);
+        setEstatisticas(result.data.estatisticas ?? null);
+        setDiaSemana(result.data.dia_semana ?? '');
+        setBarFechado(result.bar_fechado ? { motivo: result.motivo || 'Bar fechado' } : null);
       } else {
         setError(result.error || 'Erro desconhecido');
       }
@@ -334,6 +338,11 @@ export function HorarioPicoChart({ dataSelecionada, onDataChange }: HorarioPicoC
               </CardTitle>
               <CardDescription className="text-gray-600 dark:text-gray-400">
                 Análise de faturamento e presença por hora • {dataSelecionada}
+                {barFechado && (
+                  <span className="ml-2 inline-flex items-center rounded-md bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200">
+                    ⚠️ {barFechado.motivo}
+                  </span>
+                )}
               </CardDescription>
             </div>
             {/* Seletor de Data integrado */}

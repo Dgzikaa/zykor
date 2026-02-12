@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    console.log('🔄 Iniciando sincronização NPS Reservas...');
+    const body = await request.json().catch(() => ({}));
+    const { data_inicio, data_fim, bar_id } = body;
+    console.log('🔄 Iniciando sincronização NPS Reservas...', data_inicio || data_fim ? `(retroativo: ${data_inicio || '-'} a ${data_fim || '-'})` : '');
 
-    // Usar nova função consolidada google-sheets-sync com action=nps-reservas
     const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/google-sheets-sync`;
     
     const response = await fetch(functionUrl, {
@@ -15,7 +16,7 @@ export async function POST() {
         'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ action: 'nps-reservas' }),
+      body: JSON.stringify({ action: 'nps-reservas', bar_id, data_inicio, data_fim }),
     });
 
     if (!response.ok) {

@@ -209,15 +209,20 @@ function normalizarLocal(locDesc: string | null, barId: number): string {
   
   const loc = locDesc.trim();
   
-  // Ordinário (bar_id = 3) - IDÊNTICO ao Desempenho
+  // Ordinário (bar_id = 3) - IDÊNTICO ao Desempenho (usa loc.includes(l) como no desempenho-semanal-auto)
   if (barId === 3) {
-    if (loc === 'Cozinha 1' || loc === 'Cozinha 2') return 'Comidas';
-    if (['Montados', 'Batidos', 'Mexido', 'Preshh'].includes(loc)) return 'Drinks';
-    if (['Bar', 'Baldes', 'Shot e Dose', 'Chopp'].includes(loc)) return 'Bar';
+    const locaisComidas = ['Cozinha 1', 'Cozinha 2'];
+    const locaisDrinks = ['Batidos', 'Montados', 'Mexido', 'Preshh'];
+    const locaisBar = ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'];
+    if (locaisComidas.some(l => loc.includes(l))) return 'Comidas';
+    if (locaisDrinks.some(l => loc.includes(l))) return 'Drinks';
+    if (locaisBar.some(l => loc.includes(l))) return 'Bar';
   }
   
   if (barId === 4) {
-    if (loc === 'Cozinha' || loc === 'Cozinha 2') return 'Comidas';
+    if (['Cozinha', 'Cozinha 2'].some(l => loc.includes(l))) return 'Comidas';
+    if (['Bar', 'Baldes', 'Shot e Dose', 'Chopp'].some(l => loc.includes(l))) return 'Bar';
+    if (['Batidos', 'Montados', 'Mexido', 'Preshh'].some(l => loc.includes(l))) return 'Drinks';
   }
   
   return loc;

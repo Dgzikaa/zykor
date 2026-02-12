@@ -1161,22 +1161,38 @@ class AlertasInteligentesService {
         url: '/analitico/eventos'
       })
     } else {
-      // Verificar se é dia que deveria ter evento (4=qui, 5=sex, 6=sáb)
-      const diaSemana = amanhaDate.getDay()
-      if (diaSemana >= 4 && diaSemana <= 6) { // Qui, Sex, Sab
-        alertas.push({
-          tipo: 'aviso',
-          categoria: 'eventos',
-          titulo: '⚠️ Sem evento cadastrado',
-          mensagem: `Não há evento cadastrado para amanhã (${amanhaDate.toLocaleDateString('pt-BR', { weekday: 'long', timeZone: 'America/Sao_Paulo' })})`,
-          dados: { data: amanhaStr },
-          acoes_sugeridas: [
-            'Verificar calendário de eventos',
-            'Cadastrar evento se houver',
-            'Confirmar se é dia de operação'
-          ],
-          url: '/analitico/eventos'
-        })
+      // Só alertar se realmente não há evento - verificar se bar tem eventos nos próximos 7 dias
+      const proximos7Dias = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(hojeDate)
+        d.setDate(d.getDate() + 1 + i)
+        return d.toISOString().split('T')[0]
+      })
+      const { data: eventosProximos } = await this.supabase
+        .from('eventos_base')
+        .select('id')
+        .eq('bar_id', barId)
+        .in('data_evento', proximos7Dias)
+        .eq('ativo', true)
+        .limit(1)
+
+      // Se o bar tem eventos na semana, não alertar (evita falso positivo)
+      if (!eventosProximos || eventosProximos.length === 0) {
+        const diaSemana = amanhaDate.getDay()
+        if (diaSemana >= 4 && diaSemana <= 6) { // Qui, Sex, Sab
+          alertas.push({
+            tipo: 'aviso',
+            categoria: 'eventos',
+            titulo: '⚠️ Sem evento cadastrado',
+            mensagem: `Não há evento cadastrado para amanhã (${amanhaDate.toLocaleDateString('pt-BR', { weekday: 'long', timeZone: 'America/Sao_Paulo' })})`,
+            dados: { data: amanhaStr },
+            acoes_sugeridas: [
+              'Verificar calendário de eventos',
+              'Cadastrar evento se houver',
+              'Confirmar se é dia de operação'
+            ],
+            url: '/analitico/eventos'
+          })
+        }
       }
     }
 

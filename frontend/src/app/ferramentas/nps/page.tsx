@@ -441,6 +441,9 @@ export default function NPSPage() {
   const [tipoPesquisa, setTipoPesquisa] = useState<'nps' | 'felicidade'>('felicidade');
   const [salvando, setSalvando] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
+  const [syncRetroativo, setSyncRetroativo] = useState(false);
+  const [retroativoInicio, setRetroativoInicio] = useState('');
+  const [retroativoFim, setRetroativoFim] = useState('');
   
   // Estados do formulário
   const [formData, setFormData] = useState({
@@ -659,6 +662,33 @@ export default function NPSPage() {
     }
   };
 
+  const sincronizarRetroativo = async (tipo: 'nps' | 'nps-reservas') => {
+    if (!retroativoInicio || !retroativoFim) {
+      toast({ title: 'Datas obrigatórias', description: 'Informe data início e fim', variant: 'destructive' });
+      return;
+    }
+    setSyncRetroativo(true);
+    try {
+      const url = tipo === 'nps' ? '/api/nps/sync' : '/api/nps/sync-reservas';
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data_inicio: retroativoInicio, data_fim: retroativoFim }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast({ title: `✅ ${tipo === 'nps' ? 'NPS' : 'NPS Reservas'}`, description: data.message || 'Sync retroativo concluído' });
+        await carregarDados();
+      } else {
+        throw new Error(data.error || 'Erro');
+      }
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally {
+      setSyncRetroativo(false);
+    }
+  };
+
   const calcularMediaPorSetor = (dados: any[], campo?: string) => {
     const setores = new Map<string, { total: number; count: number }>();
     
@@ -723,6 +753,27 @@ export default function NPSPage() {
               >
                 {loading ? 'Carregando...' : 'Atualizar'}
               </Button>
+            </div>
+
+            <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2">Sync Retroativo</h4>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">Sincronizar apenas registros dentro do período (para corrigir ou preencher dados antigos)</p>
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <Label className="text-xs">Data Início</Label>
+                  <Input type="date" value={retroativoInicio} onChange={(e) => setRetroativoInicio(e.target.value)} className="h-8 w-40 mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs">Data Fim</Label>
+                  <Input type="date" value={retroativoFim} onChange={(e) => setRetroativoFim(e.target.value)} className="h-8 w-40 mt-1" />
+                </div>
+                <Button size="sm" variant="outline" disabled={syncRetroativo} onClick={() => sincronizarRetroativo('nps')} className="border-amber-600 text-amber-700">
+                  Sync NPS
+                </Button>
+                <Button size="sm" variant="outline" disabled={syncRetroativo} onClick={() => sincronizarRetroativo('nps-reservas')} className="border-amber-600 text-amber-700">
+                  Sync NPS Reservas
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

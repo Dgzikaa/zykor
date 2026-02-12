@@ -37,7 +37,11 @@ const DEFAULT_VOZ_CLIENTE_FILE_ID = '10YoLlCX1K5bPI6qeZ56wagFSY8q7oOMCOJVgObNEKd
 const DEFAULT_PESQUISA_FELICIDADE_FILE_ID = '1sYIKzphim9bku0jl_J6gSDEqrIhYMxAn'
 
 // ========== SYNC NPS ==========
-async function syncNPS(barId?: number): Promise<{ message: string; resultados: SyncResult[] }> {
+interface SyncOpts {
+  data_inicio?: string
+  data_fim?: string
+}
+async function syncNPS(barId?: number, opts?: SyncOpts): Promise<{ message: string; resultados: SyncResult[] }> {
   console.log('🔄 Iniciando sincronização do NPS...')
   
   const supabase = getSupabaseServiceClient()
@@ -82,6 +86,12 @@ async function syncNPS(barId?: number): Promise<{ message: string; resultados: S
       
       const registros: any[] = []
       
+      const dataInicioFiltro = opts?.data_inicio || null
+      const dataFimFiltro = opts?.data_fim || null
+      if (dataInicioFiltro || dataFimFiltro) {
+        console.log(`📅 Filtro retroativo: ${dataInicioFiltro || 'início'} até ${dataFimFiltro || 'fim'}`)
+      }
+
       for (let i = 1; i < jsonData.length; i++) {
         const row = jsonData[i]
         if (!row[0] || String(row[0]).trim() === '') continue
@@ -92,6 +102,8 @@ async function syncNPS(barId?: number): Promise<{ message: string; resultados: S
           const dataFormatada = parseDataBR(String(dataAjustada || ''))
           
           if (!dataFormatada) continue
+          if (dataInicioFiltro && dataFormatada < dataInicioFiltro) continue
+          if (dataFimFiltro && dataFormatada > dataFimFiltro) continue
           
           const nps_ambiente = parseNPSValue(row[4])
           const nps_atendimento = parseNPSValue(row[5])
@@ -189,7 +201,7 @@ async function syncNPS(barId?: number): Promise<{ message: string; resultados: S
 }
 
 // ========== SYNC NPS RESERVAS ==========
-async function syncNPSReservas(barId?: number): Promise<{ message: string; resultados: SyncResult[] }> {
+async function syncNPSReservas(barId?: number, opts?: SyncOpts): Promise<{ message: string; resultados: SyncResult[] }> {
   console.log('🔄 Iniciando sincronização do NPS Reservas...')
   
   const supabase = getSupabaseServiceClient()
@@ -216,6 +228,12 @@ async function syncNPSReservas(barId?: number): Promise<{ message: string; resul
       
       let atualizados = 0
       
+      const dataInicioFiltro = opts?.data_inicio || null
+      const dataFimFiltro = opts?.data_fim || null
+      if (dataInicioFiltro || dataFimFiltro) {
+        console.log(`📅 NPS Reservas - Filtro retroativo: ${dataInicioFiltro || 'início'} até ${dataFimFiltro || 'fim'}`)
+      }
+
       for (let i = 1; i < data.length; i++) {
         const row = data[i]
         if (!row || row.length === 0) continue
@@ -223,6 +241,8 @@ async function syncNPSReservas(barId?: number): Promise<{ message: string; resul
         // Formato americano MM/DD/YYYY
         const dataFormatada = parseDataUS(String(row[0] || '').trim())
         if (!dataFormatada) continue
+        if (dataInicioFiltro && dataFormatada < dataInicioFiltro) continue
+        if (dataFimFiltro && dataFormatada > dataFimFiltro) continue
         
         const nota = parseNPSValue(row[2])
         const dia_semana = row[1] ? String(row[1]).trim() : null
@@ -503,19 +523,21 @@ serve(async (req) => {
   
   try {
     const body = await req.json().catch(() => ({}))
-    const { action, bar_id } = body
+    const { action, bar_id, data_inicio, data_fim } = body
+    const opts = (data_inicio || data_fim) ? { data_inicio, data_fim } : undefined
     
     console.log(`📊 Google Sheets Sync - Action: ${action || 'não especificada'}`)
+    if (opts) console.log(`📅 Retroativo: ${data_inicio || '-'} até ${data_fim || '-'}`)
     
     let result: { message: string; resultados: SyncResult[] }
     
     switch (action) {
       case 'nps':
-        result = await syncNPS(bar_id)
+        result = await syncNPS(bar_id, opts)
         break
       
       case 'nps-reservas':
-        result = await syncNPSReservas(bar_id)
+        result = await syncNPSReservas(bar_id, opts)
         break
       
       case 'voz-cliente':

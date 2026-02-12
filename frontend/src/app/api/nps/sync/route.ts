@@ -5,9 +5,10 @@ export const maxDuration = 300; // 5 minutos
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔄 Iniciando sincronização NPS...');
+    const body = await request.json().catch(() => ({}));
+    const { data_inicio, data_fim, bar_id } = body;
+    console.log('🔄 Iniciando sincronização NPS...', data_inicio || data_fim ? `(retroativo: ${data_inicio || '-'} a ${data_fim || '-'})` : '');
     
-    // Usar nova função consolidada google-sheets-sync com action=nps
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/google-sheets-sync`,
       {
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
         },
-        body: JSON.stringify({ action: 'nps' })
+        body: JSON.stringify({ action: 'nps', bar_id, data_inicio, data_fim })
       }
     );
 

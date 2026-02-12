@@ -560,27 +560,29 @@ export default function StockoutPage() {
       }
     }
 
-    // IDÊNTICO ao Desempenho (stockout_bar, stockout_comidas, stockout_drinks)
+    // IDÊNTICO ao Desempenho (usa loc.includes(l) - mesmo critério desempenho-semanal-auto)
     const categoriasParaLocais: Record<string, string[]> = {
       'Bar': ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'],
       'Comidas': ['Cozinha 1', 'Cozinha 2', 'Cozinha'],
       'Drinks': ['Montados', 'Batidos', 'Mexido', 'Preshh'],
     };
     
-    // Se o nomeLocal é uma categoria conhecida, usar os locais mapeados
-    const locaisParaFiltrar = categoriasParaLocais[nomeLocal] 
-      ? categoriasParaLocais[nomeLocal].map(l => l.toLowerCase().trim())
-      : [nomeLocal.toLowerCase().trim()];
+    const termosDaCategoria = categoriasParaLocais[nomeLocal];
+    const pertenceCategoria = (localProduto: string) => {
+      if (!termosDaCategoria) return localProduto.toLowerCase() === nomeLocal.toLowerCase();
+      const loc = localProduto.toLowerCase().trim();
+      return termosDaCategoria.some(t => loc.includes(t.toLowerCase()));
+    };
     
     // Modo data única - filtrar por locais da categoria
     const disponiveis = (stockoutData.produtos?.ativos || []).filter(produto => {
-      const localProduto = (produto.loc_desc || produto.local_producao || '').toLowerCase().trim();
-      return locaisParaFiltrar.includes(localProduto);
+      const localProduto = produto.loc_desc || produto.local_producao || '';
+      return pertenceCategoria(localProduto);
     });
 
     const indisponiveis = (stockoutData.produtos?.inativos || []).filter(produto => {
-      const localProduto = (produto.loc_desc || produto.local_producao || '').toLowerCase().trim();
-      return locaisParaFiltrar.includes(localProduto);
+      const localProduto = produto.loc_desc || produto.local_producao || '';
+      return pertenceCategoria(localProduto);
     });
 
     return { disponiveis, indisponiveis };

@@ -53,16 +53,32 @@ export async function POST(request: NextRequest) {
     const temDadosFatPorHora = (faturamentoDiaAtualPre?.length || 0) > 0;
 
     // ⚠️ Só bloquear se bar fechado E não temos dados em fatporhora (sync atrasado)
+    // Quando temos dados, sempre retornar - permite ver faturamento mesmo se calendário marcar fechado
     const statusDiaAtual = await verificarBarAberto(data_selecionada, bar_id);
     if (!statusDiaAtual.aberto && !temDadosFatPorHora) {
+      // Estrutura vazia para o gráfico não quebrar (horario_pico obrigatório)
+      const horariosVazios = [17,18,19,20,21,22,23,0,1,2,3].map(h => ({
+        hora: h, faturamento: 0, transacoes: 0,
+        faturamento_semana_passada: 0, media_ultimas_4: 0, recorde_faturamento: 0
+      }));
       return NextResponse.json({
         success: true,
         bar_fechado: true,
         motivo: statusDiaAtual.motivo,
         data: {
           data_selecionada,
-          faturamento_por_hora: [],
-          total_dia: 0,
+          data_analisada: data_selecionada,
+          dia_semana: '',
+          horario_pico: horariosVazios,
+          estatisticas: {
+            total_faturamento: 0, total_faturamento_semana_passada: 0, total_media_ultimas_4: 0,
+            total_recorde: 0, total_recorde_real: 0, hora_pico_faturamento: null, max_faturamento: 0,
+            total_pessoas_dia: 0, total_couvert: 0, total_pagamentos: 0, total_repique: 0,
+            faturamento_total_calculado: 0, faturamento_bar: 0, total_produtos_vendidos: 0,
+            produto_mais_vendido: null, produto_mais_vendido_qtd: 0, produto_mais_faturou: null, produto_mais_faturou_valor: 0,
+            produtos_ranking: [], data_recorde: null,
+            comparacao_semana_passada: 0, comparacao_media_ultimas_4: 0, comparacao_recorde: 0
+          },
           mensagem: `Bar fechado em ${data_selecionada}: ${statusDiaAtual.motivo}`
         }
       });

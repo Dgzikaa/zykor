@@ -3,34 +3,34 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 // ========================================
 // 🔄 SINCRONIZAÇÃO MANUAL NPS E FELICIDADE
 // ========================================
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔄 Iniciando sincronização manual...');
+    const body = await request.json().catch(() => ({}));
+    const { data_inicio, data_fim } = body;
+    const opts = (data_inicio && data_fim) ? { data_inicio, data_fim } : {};
+    console.log('🔄 Iniciando sincronização manual...', Object.keys(opts).length ? `(retroativo: ${data_inicio} a ${data_fim})` : '');
 
-    // Chamar função consolidada google-sheets-sync para ambas as actions
     const [npsResponse, felicidadeResponse] = await Promise.all([
-      // Sincronizar NPS via google-sheets-sync
       fetch(`${SUPABASE_URL}/functions/v1/google-sheets-sync`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ action: 'nps' }),
+        body: JSON.stringify({ action: 'nps', ...opts }),
       }),
-      // Sincronizar Pesquisa da Felicidade via google-sheets-sync
       fetch(`${SUPABASE_URL}/functions/v1/google-sheets-sync`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ action: 'pesquisa-felicidade' }),
+        body: JSON.stringify({ action: 'pesquisa-felicidade', ...opts }),
       }),
     ]);
 
