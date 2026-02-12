@@ -344,6 +344,7 @@ function agregarDadosSemanaisProporcionais(
     perc_happy_hour: avgProp(desempenhoMap, 'perc_happy_hour'),
     perc_faturamento_apos_22h: avgProp(desempenhoMap, 'perc_faturamento_apos_22h'),
     qui_sab_dom: sumProp(desempenhoMap, 'qui_sab_dom'),
+    cancelamentos: sumProp(desempenhoMap, 'cancelamentos'),
     // Nota: conta_assinada e descontos são calculados diretamente de contahub_pagamentos e contahub_periodo
     
     // Stockout (quantidades arredondadas, percentuais com 1 casa decimal)
@@ -356,6 +357,10 @@ function agregarDadosSemanaisProporcionais(
     
     // Atrasos (quantidades são soma arredondada, percentuais são média)
     qtde_itens_bar: Math.round(sumProp(desempenhoMap, 'qtde_itens_bar')),
+    atrasinhos_bar: Math.round(sumProp(desempenhoMap, 'atrasinhos_bar')),
+    atrasinhos_cozinha: Math.round(sumProp(desempenhoMap, 'atrasinhos_cozinha')),
+    atraso_bar: Math.round(sumProp(desempenhoMap, 'atraso_bar')),
+    atraso_cozinha: Math.round(sumProp(desempenhoMap, 'atraso_cozinha')),
     atrasos_bar: Math.round(sumProp(desempenhoMap, 'atrasos_bar')),
     atrasos_bar_perc: Math.round(avgProp(desempenhoMap, 'atrasos_bar_perc') * 10) / 10,
     qtde_itens_cozinha: Math.round(sumProp(desempenhoMap, 'qtde_itens_cozinha')),

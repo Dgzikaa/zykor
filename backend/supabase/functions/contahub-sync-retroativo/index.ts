@@ -150,6 +150,14 @@ async function fetchPeriodoComDivisao(baseUrl: string, dataDate: string, empId: 
   return fetchComDivisaoPorLocal(baseUrl, dataDate, empId, sessionToken, generateTimestamp, 5, 'periodo', '');
 }
 
+async function fetchCancelamentos(baseUrl: string, dataDate: string, empId: string, sessionToken: string, generateTimestamp: () => string): Promise<any> {
+  const contahubDate = `${dataDate}T00:00:00-0300`;
+  const timestamp = generateTimestamp();
+  const url = `${baseUrl}/rest/contahub.cmds.QueryCmd/execQuery/${timestamp}?qry=57&d0=${contahubDate}&d1=${contahubDate}&comanda=&emp=${empId}&nfe=1`;
+  const data = await fetchContaHubData(url, sessionToken);
+  return data;
+}
+
 // Função para salvar JSON bruto
 async function saveRawDataOnly(supabase: any, dataType: string, rawData: any, dataDate: string, barId: number) {
   try {
@@ -222,7 +230,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       bar_id, 
       start_date, 
       end_date, 
-      data_types = ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'vendas'],
+      data_types = ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'vendas', 'cancelamentos'],
       delay_ms = 2000, // Delay entre dias para não sobrecarregar
       process_after = true // Processar dados após coleta
     } = JSON.parse(requestBody || '{}');
@@ -389,6 +397,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
               } catch (periodoError) {
                 console.error(`❌ Erro ao buscar periodo:`, periodoError);
                 dayResult.errors.push({ data_type: 'periodo', error: periodoError instanceof Error ? periodoError.message : String(periodoError) });
+              }
+              continue;
+            case 'cancelamentos':
+              try {
+                const cancelData = await fetchCancelamentos(contahubBaseUrl, data_date, emp_id, sessionToken, generateDynamicTimestamp);
+                const saveResultCancel = await saveRawDataOnly(supabase, 'cancelamentos', cancelData, data_date, bar_id);
+                dayResult.collected.push(saveResultCancel);
+                console.log(`✅ cancelamentos: ${saveResultCancel.record_count} registros`);
+              } catch (cancelError) {
+                console.error(`❌ Erro ao buscar cancelamentos:`, cancelError);
+                dayResult.errors.push({ data_type: 'cancelamentos', error: cancelError instanceof Error ? cancelError.message : String(cancelError) });
               }
               continue;
             case 'vendas':

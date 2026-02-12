@@ -63,6 +63,14 @@ export interface DadosSemana {
   perc_faturamento_ate_19h: number;
   perc_faturamento_apos_22h?: number;
   qui_sab_dom: number;
+  cancelamentos?: number;
+  cancelamentos_detalhes?: { dia_semana: string; data?: string; valor: number }[];
+  atrasinhos_bar?: number;
+  atrasinhos_cozinha?: number;
+  atrasinhos_detalhes?: { dia_semana: string; atrasinhos_bar: number; atrasinhos_cozinha: number; atraso_bar: number; atraso_cozinha: number }[];
+  atraso_bar?: number;
+  atraso_cozinha?: number;
+  atraso_detalhes?: { dia_semana: string; atrasinhos_bar: number; atrasinhos_cozinha: number; atraso_bar: number; atraso_cozinha: number }[];
   o_num_posts: number;
   o_alcance: number;
   o_interacao: number;
@@ -98,6 +106,7 @@ export interface MetricaConfig {
   temTooltipDetalhes?: boolean;
   temTooltipGoogle?: boolean;
   keyPercentual?: string;
+  detalhesKey?: string;
 }
 
 export type TipoAgregacao = 'media' | 'soma' | 'fixa' | 'campo';

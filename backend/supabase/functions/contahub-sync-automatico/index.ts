@@ -262,6 +262,23 @@ async function fetchPeriodoComDivisao(
   );
 }
 
+// Função para buscar CANCELAMENTOS (qry=57 - relatório de cancelamentos)
+async function fetchCancelamentos(
+  baseUrl: string, 
+  dataDate: string, 
+  empId: string, 
+  sessionToken: string,
+  generateTimestamp: () => string
+): Promise<any> {
+  const contahubDate = `${dataDate}T00:00:00-0300`;
+  const timestamp = generateTimestamp();
+  const url = `${baseUrl}/rest/contahub.cmds.QueryCmd/execQuery/${timestamp}?qry=57&d0=${contahubDate}&d1=${contahubDate}&comanda=&emp=${empId}&nfe=1`;
+  console.log(`🔍 Buscando cancelamentos...`);
+  const data = await fetchContaHubData(url, sessionToken);
+  console.log(`✅ cancelamentos: ${data?.list?.length || 0} registros`);
+  return data;
+}
+
 // Função para salvar JSON bruto (SEM PROCESSAMENTO)
 async function saveRawDataOnly(supabase: any, dataType: string, rawData: any, dataDate: string, barId: number = 3) {
   console.log(`💾 Salvando JSON bruto para ${dataType}...`);
@@ -389,7 +406,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // 1. COLETA E ARMAZENAMENTO DE JSON BRUTO
     console.log('\n📥 FASE 1: Coletando e salvando JSONs brutos...');
     
-    const dataTypes = ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'prodporhora', 'vendas'];
+    const dataTypes = ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'prodporhora', 'vendas', 'cancelamentos'];
     
     // Converter data para formato ContaHub (DD.MM.YYYY)
     const contahubDate = toContaHubDateFormat(data_date);
@@ -571,6 +588,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
             }
             continue;
             
+          case 'cancelamentos':
+            try {
+              const cancelamentosData = await fetchCancelamentos(
+                contahubBaseUrl, data_date, emp_id, sessionToken, generateDynamicTimestamp
+              );
+              const saveResultCancel = await saveRawDataOnly(supabase, 'cancelamentos', cancelamentosData, data_date, bar_id);
+              results.collected.push(saveResultCancel);
+              console.log(`✅ cancelamentos: JSON bruto salvo (${saveResultCancel.record_count} registros)`);
+            } catch (cancelError) {
+              console.error(`❌ Erro ao buscar cancelamentos:`, cancelError);
+              results.errors.push({
+                phase: 'collection',
+                data_type: 'cancelamentos',
+                error: cancelError instanceof Error ? cancelError.message : String(cancelError)
+              });
+            }
+            continue;
+
           case 'vendas':
             // 🆕 getTurnoVendas - Dados com vd_hrabertura e vd_hrsaida
             // Precisamos buscar para cada turno disponível
@@ -699,7 +734,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         body: JSON.stringify({
           data_date: data_date,
           bar_id: bar_id,
-          data_types: ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'prodporhora', 'vendas'] // inclui vendas com horários
+          data_types: ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'prodporhora', 'vendas', 'cancelamentos'] // inclui vendas e cancelamentos
         })
       });
       

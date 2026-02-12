@@ -574,6 +574,40 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         }
         break;
 
+      case 'cancelamentos':
+        console.log(`🗑️ Deletando registros cancelamentos existentes para ${dataDate}...`);
+        await supabase
+          .from('contahub_cancelamentos')
+          .delete()
+          .eq('bar_id', barId)
+          .eq('data', dataDate);
+        
+        const cancelamentosRecords = records.map((item: any) => {
+          const custototal = parseFloat(item.custototal || item.custo_total || item.custo || 0) || 0;
+          const itemData = item.data || item.dt_gerencial || item.data_gerencial || dataDate;
+          const dataFinal = typeof itemData === 'string' ? itemData.split('T')[0].split(' ')[0] : dataDate;
+          return {
+            bar_id: barId,
+            data: dataFinal,
+            custototal,
+            raw_data: item,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        }).filter((r: any) => r.data);
+        
+        if (cancelamentosRecords.length > 0) {
+          const cancelBatchResult = await insertInBatches(supabase, 'contahub_cancelamentos', cancelamentosRecords);
+          if (cancelBatchResult.errors > 0) {
+            console.error(`⚠️ Cancelamentos processado com ${cancelBatchResult.errors} erros`);
+            errors = cancelBatchResult.errors;
+          } else {
+            processedCount = cancelBatchResult.count;
+            console.log(`✅ Cancelamentos: ${processedCount} registros inseridos`);
+          }
+        }
+        break;
+
       default:
         console.log(`⚠️ Tipo de dados não suportado: ${dataType}`);
         return { success: false, count: 0, error: `Tipo não suportado: ${dataType}` };
@@ -667,7 +701,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         throw new Error('data_date é obrigatório quando process_all = false');
       }
       
-      const typesToProcess = data_types || ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo'];
+      const typesToProcess = data_types || ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'cancelamentos'];
       
       for (const dataType of typesToProcess) {
         try {

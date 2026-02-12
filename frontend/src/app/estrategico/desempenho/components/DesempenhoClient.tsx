@@ -192,8 +192,12 @@ const SECOES: SecaoConfig[] = [
         label: 'Atrasos',
         agregacao: { tipo: 'soma', formato: 'numero' },
         metricas: [
-          { key: 'atrasos_bar', label: 'Atrasos Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 'Drinks preparados t0_t3 > 10min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_bar_perc' },
-          { key: 'atrasos_cozinha', label: 'Atrasos Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 'Comida t0_t2 > 20min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_cozinha_perc' },
+          { key: 'atrasinhos_bar', label: 'Atrasinhos Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 >= 4min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes' },
+          { key: 'atrasinhos_cozinha', label: 'Atrasinhos Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 >= 15min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes' },
+          { key: 'atraso_bar', label: 'Atraso Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 >= 8min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atraso_detalhes' },
+          { key: 'atraso_cozinha', label: 'Atraso Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 >= 20min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atraso_detalhes' },
+          { key: 'atrasos_bar', label: 'Atrasos Drinks (10min)', status: 'auto', fonte: 'contahub_tempo', calculo: 'Drinks t0_t3 > 10min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_bar_perc' },
+          { key: 'atrasos_cozinha', label: 'Atrasos Comida (20min)', status: 'auto', fonte: 'contahub_tempo', calculo: 'Comida t0_t2 > 20min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_cozinha_perc' },
         ]
       }
     ]
@@ -213,6 +217,7 @@ const SECOES: SecaoConfig[] = [
           { key: 'qui_sab_dom', label: 'QUI+SÁB+DOM', status: 'auto', fonte: 'eventos_base', calculo: 'Soma real_r', formato: 'moeda' },
           { key: 'conta_assinada_valor', label: 'Conta Assinada', status: 'auto', fonte: 'contahub_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda_com_percentual', percentualKey: 'conta_assinada_perc' },
           { key: 'descontos_valor', label: 'Descontos', status: 'auto', fonte: 'contahub_periodo', calculo: 'Soma vr_desconto', formato: 'moeda_com_percentual', percentualKey: 'descontos_perc', temTooltipDetalhes: true },
+          { key: 'cancelamentos', label: 'Cancelamentos', status: 'auto', fonte: 'contahub_cancelamentos', calculo: 'Soma custototal', formato: 'moeda', temTooltipDetalhes: true, detalhesKey: 'cancelamentos_detalhes' },
         ]
       }
     ]
@@ -895,7 +900,7 @@ export function DesempenhoClient({
                                                         {valorFormatado}
                                                       </span>
                                                     </TooltipTrigger>
-                                                    <TooltipContent side="top" className="max-w-sm p-3">
+                                                    <TooltipContent side="top" className="max-w-sm p-3 max-h-[320px] overflow-y-auto">
                                                       <div className="space-y-1">
                                                         <p className="font-semibold text-sm">{metrica.label}</p>
                                                         <p className="text-xs"><strong>Fonte:</strong> {metrica.fonte}</p>
@@ -903,6 +908,58 @@ export function DesempenhoClient({
                                                         {metrica.keyPercentual && valorPercentual !== null && typeof valorPercentual === 'number' && (
                                                           <p className="text-xs"><strong>Percentual:</strong> {valorPercentual.toFixed(1)}%</p>
                                                         )}
+                                                        {(() => {
+                                                          const detalhesKey = (metrica as any).detalhesKey || metrica.key + '_detalhes';
+                                                          const detalhes = (semana as unknown as Record<string, unknown>)[detalhesKey];
+                                                          if (!detalhes || !Array.isArray(detalhes) || detalhes.length === 0) return null;
+                                                          const primeiro = detalhes[0] as Record<string, unknown>;
+                                                          if (primeiro?.dia_semana && typeof primeiro?.valor === 'number') {
+                                                            return (
+                                                              <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                                                <p className="text-xs font-medium mb-1">Por dia (ordem: maior valor):</p>
+                                                                {detalhes.map((d: unknown, i: number) => {
+                                                                  const item = d as { dia_semana: string; data?: string; valor: number };
+                                                                  return <p key={i} className="text-xs">{item.dia_semana} ({item.data ?? ''}): {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor)}</p>;
+                                                                })}
+                                                              </div>
+                                                            );
+                                                          }
+                                                          if (typeof primeiro?.atrasinhos_bar === 'number' || typeof primeiro?.atraso_bar === 'number') {
+                                                            return (
+                                                              <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                                                <p className="text-xs font-medium mb-1">Por dia:</p>
+                                                                {detalhes.map((d: unknown, i: number) => {
+                                                                  const item = d as { dia_semana: string; atrasinhos_bar?: number; atrasinhos_cozinha?: number; atraso_bar?: number; atraso_cozinha?: number };
+                                                                  return (
+                                                                    <p key={i} className="text-xs">
+                                                                      {item.dia_semana}: {item.atrasinhos_bar ?? 0} atrasinhos drinks, {item.atrasinhos_cozinha ?? 0} atrasinhos comida | {item.atraso_bar ?? 0} atraso drinks, {item.atraso_cozinha ?? 0} atraso comida
+                                                                    </p>
+                                                                  );
+                                                                })}
+                                                              </div>
+                                                            );
+                                                          }
+                                                          if (Array.isArray(primeiro?.itens)) {
+                                                            return (
+                                                              <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                                                {detalhes.map((d: unknown, i: number) => {
+                                                                  const item = d as { dia_semana: string; itens?: { nome: string; quantidade: number; atraso_minutos?: number }[] };
+                                                                  const itens = item.itens || [];
+                                                                  return (
+                                                                    <div key={i} className="mb-1">
+                                                                      <p className="text-xs font-medium">{item.dia_semana}:</p>
+                                                                      {itens.slice(0, 5).map((it, j) => (
+                                                                        <p key={j} className="text-xs pl-2">• {it.nome}: {it.quantidade} ({it.atraso_minutos?.toFixed(1) ?? '-'} min)</p>
+                                                                      ))}
+                                                                      {itens.length > 5 && <p className="text-xs pl-2 text-gray-500">+{itens.length - 5} itens...</p>}
+                                                                    </div>
+                                                                  );
+                                                                })}
+                                                              </div>
+                                                            );
+                                                          }
+                                                          return null;
+                                                        })()}
                                                       </div>
                                                     </TooltipContent>
                                                   </Tooltip>

@@ -631,7 +631,24 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
 
   // NPS Geral e Reservas usam cálculo tradicional (% Promotores - % Detratores)
   const npsGeral = calcularNpsTradicional('nps_geral')
-  const npsReservas = calcularNpsTradicional('nps_geral', item => item.fez_reserva === true)
+  let npsReservas = calcularNpsTradicional('nps_geral', item => item.fez_reserva === true)
+  
+  // Se nps_reservas vier vazio da tabela nps, usar tabela nps_reservas (planilha reservas)
+  if (npsReservas === null) {
+    const { data: npsReservasData } = await supabase
+      .from('nps_reservas')
+      .select('nota')
+      .eq('bar_id', barId)
+      .gte('data_pesquisa', startDate)
+      .lte('data_pesquisa', endDate)
+    const notas = (npsReservasData || []).filter(r => r.nota != null && parseFloat(String(r.nota)) > 0).map(r => parseFloat(String(r.nota)) || 0)
+    if (notas.length > 0) {
+      const promotores = notas.filter(v => v >= 9).length
+      const detratores = notas.filter(v => v <= 6).length
+      npsReservas = Math.round((promotores / notas.length) * 100 - (detratores / notas.length) * 100)
+      console.log(`⭐ NPS Reservas (tabela nps_reservas): ${npsReservas} (${notas.length} respostas)`)
+    }
+  }
   
   // Categorias específicas continuam com média
   const npsAmbiente = calcularMediaNps('nps_ambiente')
@@ -982,6 +999,76 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   console.log(`⏱️ Tempo Drinks (t0_t3): ${tempoSaidaDrinks.toFixed(1)}min (${atrasosDrinks} atrasos >10min, ${percAtrasosDrinks.toFixed(1)}%)`)
   console.log(`⏱️ Tempo Cozinha (t0_t2): ${tempoSaidaCozinha.toFixed(1)}min (${atrasosCozinha} atrasos >20min, ${percAtrasosCozinha.toFixed(1)}%)`)
 
+  // ATRASINHOS: drinks 4+ min (240s), cozinha 15+ min (900s)
+  const atrasinhosDrinks = tempoDrinksValidos.filter(item => parseFloat(item.t0_t3) >= 240).length
+  const atrasinhosCozinha = tempoCozinhaValidos.filter(item => parseFloat(item.t0_t2) >= 900).length
+  // ATRASO: drinks 8+ min (480s), cozinha 20+ min (1200s) - já são os mesmos de atrasos_bar/atrasos_cozinha
+  const atrasoDrinks = atrasadosDrinks.length
+  const atrasoCozinha = atrasadosCozinha.length
+
+  // Detalhes atrasinhos/atraso por dia (dia_semana, atrasinhos_bar, atrasinhos_cozinha, atraso_bar, atraso_cozinha)
+  const atrasinhosAtrasoPorDia = new Map<string, { atrasinhos_bar: number, atrasinhos_cozinha: number, atraso_bar: number, atraso_cozinha: number }>()
+  const agregarAtraso = (item: any, isDrink: boolean, t0_t3val: number, t0_t2val: number) => {
+    const data = new Date(item.data)
+    const diaSemana = diasSemana[data.getDay()]
+    if (!atrasinhosAtrasoPorDia.has(diaSemana)) {
+      atrasinhosAtrasoPorDia.set(diaSemana, { atrasinhos_bar: 0, atrasinhos_cozinha: 0, atraso_bar: 0, atraso_cozinha: 0 })
+    }
+    const d = atrasinhosAtrasoPorDia.get(diaSemana)!
+    if (isDrink) {
+      if (t0_t3val >= 240) d.atrasinhos_bar++
+      if (t0_t3val >= 480) d.atraso_bar++
+    } else {
+      if (t0_t2val >= 900) d.atrasinhos_cozinha++
+      if (t0_t2val >= 1200) d.atraso_cozinha++
+    }
+  }
+  tempoDrinksValidos.forEach(item => {
+    const t0 = parseFloat(item.t0_t3)
+    if (t0 > 0) agregarAtraso(item, true, t0, 0)
+  })
+  tempoCozinhaValidos.forEach(item => {
+    const t0 = parseFloat(item.t0_t2)
+    if (t0 > 0) agregarAtraso(item, false, 0, t0)
+  })
+  const atrasinhosDetalhes = Array.from(atrasinhosAtrasoPorDia.entries()).map(([dia, v]) => ({
+    dia_semana: dia,
+    atrasinhos_bar: v.atrasinhos_bar,
+    atrasinhos_cozinha: v.atrasinhos_cozinha,
+    atraso_bar: v.atraso_bar,
+    atraso_cozinha: v.atraso_cozinha
+  }))
+
+  // 12.2b CANCELAMENTOS (contahub_cancelamentos - soma custototal por semana)
+  let cancelamentosTotal = 0
+  const cancelamentosPorDia: { dia_semana: string; data: string; valor: number }[] = []
+  try {
+    const cancelamentosData = await fetchAllData(supabase, 'contahub_cancelamentos', 'data, custototal', {
+      'gte_data': startDate,
+      'lte_data': endDate,
+      'eq_bar_id': barId
+    })
+    if (cancelamentosData?.length) {
+      const porDia = new Map<string, number>()
+      cancelamentosData.forEach((item: any) => {
+        const d = item.data || ''
+        const v = parseFloat(item.custototal) || 0
+        cancelamentosTotal += v
+        porDia.set(d, (porDia.get(d) || 0) + v)
+      })
+      cancelamentosPorDia.push(...Array.from(porDia.entries())
+        .map(([data, valor]) => ({
+          dia_semana: diasSemana[new Date(data).getDay()],
+          data,
+          valor
+        }))
+        .sort((a, b) => b.valor - a.valor))
+      console.log(`📊 Cancelamentos: R$ ${cancelamentosTotal.toFixed(2)} (${cancelamentosData.length} registros)`)
+    }
+  } catch (e) {
+    console.warn(`⚠️ Erro ao buscar cancelamentos:`, e)
+  }
+
   // 12.3 STOCKOUT (contahub_stockout) - NOVA LÓGICA: igual página de stockout
   // Buscar dados com prd_ativo e raw_data para filtrar corretamente por grupo
   const stockoutData = await fetchAllData(supabase, 'contahub_stockout', 'prd, loc_desc, prd_venda, prd_ativo, prd_desc, data_consulta, raw_data', {
@@ -1320,6 +1407,14 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     atrasos_cozinha_perc: percAtrasosCozinha,
     atrasos_bar_detalhes: atrasosBarDetalhes,
     atrasos_cozinha_detalhes: atrasosCozinhaDetalhes,
+    atrasinhos_bar: atrasinhosDrinks,
+    atrasinhos_cozinha: atrasinhosCozinha,
+    atrasinhos_detalhes: atrasinhosDetalhes,
+    atraso_bar: atrasoDrinks,
+    atraso_cozinha: atrasoCozinha,
+    atraso_detalhes: atrasinhosDetalhes,
+    cancelamentos: cancelamentosTotal,
+    cancelamentos_detalhes: cancelamentosPorDia,
     stockout_bar: stockoutBar,
     stockout_comidas: stockoutCozinha,
     stockout_drinks: stockoutDrinks,
