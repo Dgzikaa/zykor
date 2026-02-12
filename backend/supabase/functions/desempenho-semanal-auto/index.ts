@@ -892,16 +892,15 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   
   console.log(`📊 Itens válidos para média - Drinks: ${tempoDrinksValidos.length}/${tempoDrinks.length}, Cozinha: ${tempoCozinhaValidos.length}/${tempoCozinha.length}`)
 
-  // Atrasos - Drinks com t0_t3 > 10min = 600s, Cozinha com t0_t2 > 20min = 1200s
-  // NOTA: Para ATRASOS usamos TODOS os itens válidos (incluindo outliers extremos)
-  // Isso garante que itens com 13h de atraso sejam contados
-  const atrasadosDrinks = tempoDrinksValidos.filter(item => parseFloat(item.t0_t3) > 600)
-  const atrasadosCozinha = tempoCozinhaValidos.filter(item => parseFloat(item.t0_t2) > 1200)
+  // ATRASÃO (atrasos severos):
+  // Drinks: t0_t3 > 20min (1200s) | Comida: t0_t2 > 30min (1800s)
+  const atrasadosDrinks = tempoDrinksValidos.filter(item => parseFloat(item.t0_t3) > 1200)
+  const atrasadosCozinha = tempoCozinhaValidos.filter(item => parseFloat(item.t0_t2) > 1800)
   
   const atrasosDrinks = atrasadosDrinks.length
   const atrasosCozinha = atrasadosCozinha.length
 
-  // % Atrasos - baseado em TODOS os itens válidos (incluindo outliers)
+  // % Atrasão - baseado em TODOS os itens válidos
   const percAtrasosDrinks = tempoDrinksValidos.length > 0 ? (atrasosDrinks / tempoDrinksValidos.length) * 100 : 0
   const percAtrasosCozinha = tempoCozinhaValidos.length > 0 ? (atrasosCozinha / tempoCozinhaValidos.length) * 100 : 0
 
@@ -996,17 +995,29 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     }
   })
 
-  console.log(`⏱️ Tempo Drinks (t0_t3): ${tempoSaidaDrinks.toFixed(1)}min (${atrasosDrinks} atrasos >10min, ${percAtrasosDrinks.toFixed(1)}%)`)
-  console.log(`⏱️ Tempo Cozinha (t0_t2): ${tempoSaidaCozinha.toFixed(1)}min (${atrasosCozinha} atrasos >20min, ${percAtrasosCozinha.toFixed(1)}%)`)
+  console.log(`⏱️ Tempo Drinks (t0_t3): ${tempoSaidaDrinks.toFixed(1)}min (${atrasosDrinks} atrasão >20min, ${percAtrasosDrinks.toFixed(1)}%)`)
+  console.log(`⏱️ Tempo Cozinha (t0_t2): ${tempoSaidaCozinha.toFixed(1)}min (${atrasosCozinha} atrasão >30min, ${percAtrasosCozinha.toFixed(1)}%)`)
 
-  // ATRASINHOS: drinks 4+ min (240s), cozinha 15+ min (900s)
-  const atrasinhosDrinks = tempoDrinksValidos.filter(item => parseFloat(item.t0_t3) >= 240).length
-  const atrasinhosCozinha = tempoCozinhaValidos.filter(item => parseFloat(item.t0_t2) >= 900).length
-  // ATRASO: drinks 8+ min (480s), cozinha 20+ min (1200s) - já são os mesmos de atrasos_bar/atrasos_cozinha
-  const atrasoDrinks = atrasadosDrinks.length
-  const atrasoCozinha = atrasadosCozinha.length
+  // ATRASINHO: drinks >4 & <8 min (240s-479s), cozinha >15 & <20 min (900s-1199s)
+  const atrasinhosDrinks = tempoDrinksValidos.filter(item => {
+    const t = parseFloat(item.t0_t3)
+    return t > 240 && t < 480
+  }).length
+  const atrasinhosCozinha = tempoCozinhaValidos.filter(item => {
+    const t = parseFloat(item.t0_t2)
+    return t > 900 && t < 1200
+  }).length
+  // ATRASO: drinks >8 & <10 min (480s-599s), cozinha >20 & <30 min (1200s-1799s)
+  const atrasoDrinks = tempoDrinksValidos.filter(item => {
+    const t = parseFloat(item.t0_t3)
+    return t > 480 && t < 600
+  }).length
+  const atrasoCozinha = tempoCozinhaValidos.filter(item => {
+    const t = parseFloat(item.t0_t2)
+    return t > 1200 && t < 1800
+  }).length
 
-  // Detalhes atrasinhos/atraso por dia (dia_semana, atrasinhos_bar, atrasinhos_cozinha, atraso_bar, atraso_cozinha)
+  // Detalhes atrasinhos/atraso por dia
   const atrasinhosAtrasoPorDia = new Map<string, { atrasinhos_bar: number, atrasinhos_cozinha: number, atraso_bar: number, atraso_cozinha: number }>()
   const agregarAtraso = (item: any, isDrink: boolean, t0_t3val: number, t0_t2val: number) => {
     const data = new Date(item.data)
@@ -1016,11 +1027,11 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     }
     const d = atrasinhosAtrasoPorDia.get(diaSemana)!
     if (isDrink) {
-      if (t0_t3val >= 240) d.atrasinhos_bar++
-      if (t0_t3val >= 480) d.atraso_bar++
+      if (t0_t3val > 240 && t0_t3val < 480) d.atrasinhos_bar++
+      if (t0_t3val > 480 && t0_t3val < 600) d.atraso_bar++
     } else {
-      if (t0_t2val >= 900) d.atrasinhos_cozinha++
-      if (t0_t2val >= 1200) d.atraso_cozinha++
+      if (t0_t2val > 900 && t0_t2val < 1200) d.atrasinhos_cozinha++
+      if (t0_t2val > 1200 && t0_t2val < 1800) d.atraso_cozinha++
     }
   }
   tempoDrinksValidos.forEach(item => {
