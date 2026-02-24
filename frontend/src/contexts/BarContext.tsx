@@ -89,111 +89,31 @@ export function BarProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // Se há usuário no contexto, buscar os bares do localStorage
-        if (user && user.email) {
-          // Buscar dados completos do localStorage que podem conter availableBars
-          const storedUserData = localStorage.getItem('sgb_user');
-          if (storedUserData) {
-            try {
-              const userData = JSON.parse(storedUserData);
-              if (
-                userData.availableBars &&
-                Array.isArray(userData.availableBars) &&
-                userData.availableBars.length > 0
-              ) {
-                if (mounted) {
-                  setAvailableBars(userData.availableBars);
-
-                  // Verificar se há um bar selecionado no localStorage
-                  const selectedBarId = localStorage.getItem(
-                    'sgb_selected_bar_id'
-                  );
-                  let barToSelect: Bar;
-                  if (selectedBarId) {
-                    const foundBar = userData.availableBars.find(
-                      (bar: Bar) => bar.id === parseInt(selectedBarId)
-                    );
-                    barToSelect = foundBar || userData.availableBars[0];
-                  } else {
-                    barToSelect = userData.availableBars[0];
-                  }
-                  
-                  setSelectedBar(barToSelect);
-                  // Sincronizar permissões do bar selecionado
-                  syncBarPermissions(barToSelect);
-                  // Garantir que cookie está atualizado
-                  setBarCookie(barToSelect.id);
-
-                  setIsLoading(false);
-                  return;
-                }
-              }
-            } catch (e) {
-              console.error(
-                '❌ BarContext: Erro ao parsear dados do localStorage:',
-                e
-              );
-            }
-          }
-        }
-
-        // Se não há usuário, verificar localStorage como fallback
-        const storedUser = localStorage.getItem('sgb_user');
+        // Determinar email do usuário
         let userEmail: string | null = null;
 
-        if (storedUser) {
-          try {
-            const userData = JSON.parse(storedUser);
-            userEmail = userData.email;
+        if (user && user.email) {
+          userEmail = user.email;
+        } else {
+          // Tentar buscar da sessão do Supabase
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
 
-            // Verificar se já temos os bares no localStorage
-            if (
-              userData.availableBars &&
-              Array.isArray(userData.availableBars) &&
-              userData.availableBars.length > 0
-            ) {
-              if (mounted) {
-                setAvailableBars(userData.availableBars);
-
-                // Verificar se há um bar selecionado no localStorage
-                const selectedBarId = localStorage.getItem(
-                  'sgb_selected_bar_id'
-                );
-                let barToSelect: Bar;
-                if (selectedBarId) {
-                  const foundBar = userData.availableBars.find(
-                    (bar: Bar) => bar.id === parseInt(selectedBarId)
-                  );
-                  barToSelect = foundBar || userData.availableBars[0];
-                } else {
-                  barToSelect = userData.availableBars[0];
-                }
-                
-                setSelectedBar(barToSelect);
-                // Sincronizar permissões do bar selecionado
-                syncBarPermissions(barToSelect);
-                // Garantir que cookie está atualizado
-                setBarCookie(barToSelect.id);
-
-                setIsLoading(false);
-                return;
+          if (session?.user?.email) {
+            userEmail = session.user.email;
+          } else {
+            // Fallback: tentar localStorage
+            const storedUser = localStorage.getItem('sgb_user');
+            if (storedUser) {
+              try {
+                const userData = JSON.parse(storedUser);
+                userEmail = userData.email;
+              } catch (e) {
+                console.error('❌ BarContext: Erro ao parsear localStorage:', e);
               }
             }
-          } catch (e) {
-            console.error(
-              '❌ BarContext: Erro ao parsear dados do usuário:',
-              e
-            );
           }
-        }
-
-        // Se não conseguiu do localStorage, tentar buscar da sessão do Supabase
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (session?.user?.email) {
-          userEmail = session.user.email;
         }
 
         if (!userEmail) {
@@ -201,10 +121,8 @@ export function BarProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // Debug verbose apenas quando necessário
-        if (process.env.NEXT_PUBLIC_VERBOSE_LOGS === 'true') {
-          console.log('🔍 BarContext: Usando API para buscar bares...');
-        }
+        // SEMPRE buscar da API para garantir dados atualizados
+        console.log('🔍 BarContext: Buscando bares atualizados da API...');
 
         try {
           const response = await fetch('/api/configuracoes/bars/user-bars', {
@@ -215,25 +133,39 @@ export function BarProvider({ children }: { children: ReactNode }) {
 
           if (response.ok) {
             const data = await response.json();
-            // Debug detalhado apenas verbose
-            if (process.env.NEXT_PUBLIC_VERBOSE_LOGS === 'true') {
-              console.log('✅ BarContext: Dados recebidos da API:', data);
-            }
+            console.log('✅ BarContext: Dados recebidos da API:', data.bars?.length || 0, 'bares');
 
             if (data.bars && data.bars.length > 0) {
               if (mounted) {
                 setAvailableBars(data.bars);
 
+                // Atualizar localStorage com os bares mais recentes
+                const storedUserData = localStorage.getItem('sgb_user');
+                if (storedUserData) {
+                  try {
+                    const userData = JSON.parse(storedUserData);
+                    userData.availableBars = data.bars;
+                    localStorage.setItem('sgb_user', JSON.stringify(userData));
+                    console.log('✅ BarContext: localStorage atualizado com novos bares');
+                  } catch (e) {
+                    console.error('❌ BarContext: Erro ao atualizar localStorage:', e);
+                  }
+                }
+
                 // Verificar se há um bar selecionado no localStorage
-                const selectedBarId = localStorage.getItem(
-                  'sgb_selected_bar_id'
-                );
+                const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
                 let barToSelect: Bar;
+                
                 if (selectedBarId) {
                   const foundBar = data.bars.find(
                     (bar: Bar) => bar.id === parseInt(selectedBarId)
                   );
+                  // Se o bar selecionado não existe mais nos bares disponíveis, usar o primeiro
                   barToSelect = foundBar || data.bars[0];
+                  
+                  if (!foundBar) {
+                    console.log('⚠️ BarContext: Bar selecionado não está mais disponível, usando primeiro bar');
+                  }
                 } else {
                   barToSelect = data.bars[0];
                 }
@@ -249,10 +181,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
                 return;
               }
             } else {
-              // Log apenas em modo verbose
-              if (process.env.NEXT_PUBLIC_VERBOSE_LOGS === 'true') {
-                console.log('❌ BarContext: Nenhum bar encontrado na API');
-              }
+              console.log('❌ BarContext: Nenhum bar encontrado na API');
             }
           } else {
             console.error('❌ BarContext: Erro na API:', response.status);
