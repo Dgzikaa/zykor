@@ -288,10 +288,55 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
     const gapPercent = metaM1 > 0 ? (gap / metaM1) * 100 : 0;
     const isPositive = gap >= 0;
     
+    // Eventos realizados (com receita real > 0)
+    const eventosRealizados = dados.filter(e => e.real_receita && e.real_receita > 0);
+    const totalEventosRealizados = eventosRealizados.length;
+    const totalEventos = dados.length;
+    
+    // Total de clientes
+    const totalClientes = eventosRealizados.reduce((sum, e) => sum + (e.clientes_real || 0), 0);
+    
+    // Ticket médio geral
+    const ticketMedioGeral = totalClientes > 0 ? empilhamento / totalClientes : 0;
+    
+    // Custos totais
+    const custoArtistico = eventosRealizados.reduce((sum, e) => sum + (e.c_art || 0), 0);
+    const custoProducao = eventosRealizados.reduce((sum, e) => sum + (e.c_prod || 0), 0);
+    const custoTotal = custoArtistico + custoProducao;
+    
+    // % Custo sobre faturamento
+    const percentCustoFat = empilhamento > 0 ? (custoTotal / empilhamento) * 100 : 0;
+    
+    // Médias de tickets
     const eventosComTE = dados.filter(e => e.te_plan > 0);
     const mediaTEPlan = eventosComTE.length > 0 ? eventosComTE.reduce((sum, e) => sum + e.te_plan, 0) / eventosComTE.length : 0;
+    const mediaTEReal = eventosRealizados.length > 0 ? eventosRealizados.reduce((sum, e) => sum + (e.te_real || 0), 0) / eventosRealizados.length : 0;
+    const mediaTBReal = eventosRealizados.length > 0 ? eventosRealizados.reduce((sum, e) => sum + (e.tb_real || 0), 0) / eventosRealizados.length : 0;
     
-    return { empilhamento, metaM1, gap, gapPercent, isPositive, mediaTEPlan };
+    // Mix de vendas médio
+    const mediaPercentB = eventosRealizados.length > 0 ? eventosRealizados.reduce((sum, e) => sum + (e.percent_b || 0), 0) / eventosRealizados.length : 0;
+    const mediaPercentD = eventosRealizados.length > 0 ? eventosRealizados.reduce((sum, e) => sum + (e.percent_d || 0), 0) / eventosRealizados.length : 0;
+    const mediaPercentC = eventosRealizados.length > 0 ? eventosRealizados.reduce((sum, e) => sum + (e.percent_c || 0), 0) / eventosRealizados.length : 0;
+    
+    return { 
+      empilhamento, 
+      metaM1, 
+      gap, 
+      gapPercent, 
+      isPositive, 
+      mediaTEPlan,
+      totalEventos,
+      totalEventosRealizados,
+      totalClientes,
+      ticketMedioGeral,
+      custoTotal,
+      percentCustoFat,
+      mediaTEReal,
+      mediaTBReal,
+      mediaPercentB,
+      mediaPercentD,
+      mediaPercentC
+    };
   }, [dados]);
 
   return (
@@ -420,11 +465,47 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                          <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
                             <div className="flex justify-between mb-1"><span>Meta M1:</span> <span className="font-medium text-gray-900 dark:text-white">{formatarMoeda(totaisAgregados.metaM1)}</span></div>
                             <div className="flex justify-between mb-1"><span>Realizado:</span><span className={`font-medium ${totaisAgregados.empilhamento >= totaisAgregados.metaM1 ? 'text-green-600' : 'text-red-600'}`}>{formatarMoeda(totaisAgregados.empilhamento)}</span></div>
-                            <div className="flex justify-between"><span>Falta:</span><span className="font-medium text-orange-600">{formatarMoeda(Math.max(0, totaisAgregados.metaM1 - totaisAgregados.empilhamento))}</span></div>
+                            <div className="flex justify-between mb-1"><span>Atingido:</span><span className="font-medium text-blue-600 dark:text-blue-400">{totaisAgregados.metaM1 > 0 ? ((totaisAgregados.empilhamento / totaisAgregados.metaM1) * 100).toFixed(1) : '0.0'}%</span></div>
+                            <div className="flex justify-between"><span>Falta faturar:</span><span className="font-medium text-orange-600">{formatarMoeda(Math.max(0, totaisAgregados.metaM1 - totaisAgregados.empilhamento))}</span></div>
                          </div>
                          <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded border border-blue-200 dark:border-blue-800">
                             <div className="flex justify-between items-center mb-1"><span className="text-blue-700 dark:text-blue-300 font-medium">Empilhamento M1:</span><span className="font-bold text-blue-800 dark:text-blue-200">{formatarMoeda(totaisAgregados.empilhamento)}</span></div>
                             <div className="flex justify-between items-center mt-1 pt-1 border-t border-blue-200 dark:border-blue-700"><span className="text-xs text-blue-600 dark:text-blue-400 font-medium">GAP:</span><span className={totaisAgregados.isPositive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>{totaisAgregados.isPositive ? "+" : ""}{formatarMoeda(totaisAgregados.gap)} ({totaisAgregados.isPositive ? "+" : ""}{totaisAgregados.gapPercent.toFixed(1)}%)</span></div>
+                         </div>
+                         
+                         <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
+                            <div className="flex justify-between mb-1"><span>Período:</span><span className="font-medium text-gray-900 dark:text-white">{meses.find(m => m.value === filtroMes)?.label} {filtroAno}</span></div>
+                            <div className="flex justify-between"><span>Eventos:</span><span className="font-medium text-gray-900 dark:text-white">{totaisAgregados.totalEventosRealizados} / {totaisAgregados.totalEventos}</span></div>
+                         </div>
+                         
+                         <div className="bg-purple-50 dark:bg-purple-900/20 p-2 rounded border border-purple-200 dark:border-purple-800">
+                            <div className="flex justify-between mb-1"><span className="text-purple-700 dark:text-purple-300">T.M Entrada:</span><span className="font-medium text-purple-800 dark:text-purple-200">{formatarMoeda(totaisAgregados.mediaTEReal)}</span></div>
+                            <div className="flex justify-between mb-1"><span className="text-purple-700 dark:text-purple-300">T.M Entrada Real:</span><span className="font-medium text-green-600 dark:text-green-400">{formatarMoeda(totaisAgregados.mediaTEReal)}</span></div>
+                         </div>
+                         
+                         <div className="bg-purple-50 dark:bg-purple-900/20 p-2 rounded border border-purple-200 dark:border-purple-800">
+                            <div className="flex justify-between mb-1"><span className="text-purple-700 dark:text-purple-300">T.M Bar:</span><span className="font-medium text-purple-800 dark:text-purple-200">{formatarMoeda(totaisAgregados.mediaTBReal)}</span></div>
+                            <div className="flex justify-between mb-1"><span className="text-purple-700 dark:text-purple-300">T.M Bar Real:</span><span className="font-medium text-green-600 dark:text-green-400">{formatarMoeda(totaisAgregados.mediaTBReal)}</span></div>
+                         </div>
+                         
+                         <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
+                            <div className="flex justify-between mb-1"><span>Meta T.Coz:</span><span className="font-medium text-gray-900 dark:text-white">12.0min</span></div>
+                            <div className="flex justify-between mb-1"><span>T.Coz Real:</span><span className="font-medium text-green-600 dark:text-green-400">{(dados.filter(e => e.t_coz > 0).reduce((sum, e) => sum + e.t_coz, 0) / Math.max(1, dados.filter(e => e.t_coz > 0).length)).toFixed(1)}min</span></div>
+                         </div>
+                         
+                         <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
+                            <div className="flex justify-between mb-1"><span>Meta T.Bar:</span><span className="font-medium text-gray-900 dark:text-white">4.0min</span></div>
+                            <div className="flex justify-between mb-1"><span>T.Bar Real:</span><span className="font-medium text-red-600 dark:text-red-400">{(dados.filter(e => e.t_bar > 0).reduce((sum, e) => sum + e.t_bar, 0) / Math.max(1, dados.filter(e => e.t_bar > 0).length)).toFixed(1)}min</span></div>
+                         </div>
+                         
+                         <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
+                            <div className="flex justify-between mb-1"><span>Meta Clientes:</span><span className="font-medium text-gray-900 dark:text-white">{dados.reduce((sum, e) => sum + (e.clientes_plan || 0), 0).toLocaleString()}</span></div>
+                            <div className="flex justify-between"><span>Clientes Real:</span><span className="font-medium text-green-600 dark:text-green-400">{totaisAgregados.totalClientes.toLocaleString()}</span></div>
+                         </div>
+                         
+                         <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
+                            <div className="flex justify-between mb-1"><span>Meta Reservas Presentes:</span><span className="font-medium text-gray-900 dark:text-white">{dados.reduce((sum, e) => sum + (e.res_tot || 0), 0).toLocaleString()}</span></div>
+                            <div className="flex justify-between"><span>Reservas Presentes Real:</span><span className="font-medium text-green-600 dark:text-green-400">{dados.reduce((sum, e) => sum + (e.res_p || 0), 0).toLocaleString()}</span></div>
                          </div>
                       </div>
                     </div>
