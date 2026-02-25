@@ -439,10 +439,40 @@ Deno.serve(async (req: Request) => {
           try {
             await registrarLogSync(supabase, evento.id, 'evento', 'processando', { nome_evento: evento.name });
             
+            // 🗑️ DELETAR participantes e pedidos antigos para garantir dados atualizados
+            console.log(`🗑️ Deletando dados antigos do evento ${evento.id}...`);
+            
+            const { error: deletePartError } = await supabase
+              .from('sympla_participantes')
+              .delete()
+              .eq('evento_sympla_id', evento.id)
+              .eq('bar_id', bar.id);
+            
+            if (deletePartError) {
+              console.warn(`⚠️ Erro ao deletar participantes: ${deletePartError.message}`);
+            } else {
+              console.log(`✅ Participantes deletados`);
+            }
+            
+            const { error: deletePedError } = await supabase
+              .from('sympla_pedidos')
+              .delete()
+              .eq('evento_sympla_id', evento.id)
+              .eq('bar_id', bar.id);
+            
+            if (deletePedError) {
+              console.warn(`⚠️ Erro ao deletar pedidos: ${deletePedError.message}`);
+            } else {
+              console.log(`✅ Pedidos deletados`);
+            }
+            
+            // Buscar dados atualizados da API
             const participantesEvento = await buscarTodosParticipantes(evento.id, symplaToken);
             totalParticipantes += participantesEvento.length;
             const checkinsEvento = participantesEvento.filter((p: any) => p.checkin?.check_in === true).length;
             totalCheckins += checkinsEvento;
+            
+            console.log(`📊 Evento ${evento.name}: ${participantesEvento.length} participantes, ${checkinsEvento} checkins`);
             
             if (participantesEvento.length > 0) {
               await inserirParticipantes(supabase, evento.id, participantesEvento, bar.id);
