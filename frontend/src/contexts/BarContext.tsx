@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
   ReactNode,
 } from 'react';
 import { getSupabaseClient } from '@/lib/supabase';
@@ -42,12 +43,16 @@ export function BarProvider({ children }: { children: ReactNode }) {
     updateFavicon();
   };
 
+  // Flag para evitar loops de sincronização
+  const isSyncingRef = useRef(false);
+
   // Função auxiliar para sincronizar as permissões do bar selecionado no localStorage
   const syncBarPermissions = (bar: Bar) => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || isSyncingRef.current) return;
     
     if (bar.modulos_permitidos) {
       try {
+        isSyncingRef.current = true;
         const storedUserData = localStorage.getItem('sgb_user');
         if (storedUserData) {
           const userData = JSON.parse(storedUserData);
@@ -56,13 +61,13 @@ export function BarProvider({ children }: { children: ReactNode }) {
           userData.role = bar.role || userData.role;
           userData.bar_id = bar.id;
           localStorage.setItem('sgb_user', JSON.stringify(userData));
-          
-          // Disparar evento para notificar o usePermissions e outros hooks
-          window.dispatchEvent(new CustomEvent('userDataUpdated'));
-          console.log('✅ Permissões sincronizadas para o bar:', bar.nome);
         }
       } catch (e) {
         console.error('❌ Erro ao sincronizar permissões do bar:', e);
+      } finally {
+        setTimeout(() => {
+          isSyncingRef.current = false;
+        }, 100);
       }
     }
   };
@@ -122,7 +127,6 @@ export function BarProvider({ children }: { children: ReactNode }) {
         }
 
         // SEMPRE buscar da API para garantir dados atualizados
-        console.log('🔍 BarContext: Buscando bares atualizados da API...');
 
         try {
           const response = await fetch('/api/configuracoes/bars/user-bars', {
@@ -133,24 +137,10 @@ export function BarProvider({ children }: { children: ReactNode }) {
 
           if (response.ok) {
             const data = await response.json();
-            console.log('✅ BarContext: Dados recebidos da API:', data.bars?.length || 0, 'bares');
 
             if (data.bars && data.bars.length > 0) {
               if (mounted) {
                 setAvailableBars(data.bars);
-
-                // Atualizar localStorage com os bares mais recentes
-                const storedUserData = localStorage.getItem('sgb_user');
-                if (storedUserData) {
-                  try {
-                    const userData = JSON.parse(storedUserData);
-                    userData.availableBars = data.bars;
-                    localStorage.setItem('sgb_user', JSON.stringify(userData));
-                    console.log('✅ BarContext: localStorage atualizado com novos bares');
-                  } catch (e) {
-                    console.error('❌ BarContext: Erro ao atualizar localStorage:', e);
-                  }
-                }
 
                 // Verificar se há um bar selecionado no localStorage
                 const selectedBarId = localStorage.getItem('sgb_selected_bar_id');

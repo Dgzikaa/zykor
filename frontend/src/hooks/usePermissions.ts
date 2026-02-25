@@ -33,10 +33,7 @@ export function usePermissions(): PermissionsHook {
   useEffect(() => {
     // Carregar dados do usuário do localStorage
     const loadUserData = () => {
-      console.log('🔍 usePermissions loadUserData - isClient:', isClient);
-      
       if (!isClient) {
-        console.log('🔍 usePermissions - não é client, finalizando loading');
         setLoading(false);
         setIsInitialized(true);
         return;
@@ -44,20 +41,11 @@ export function usePermissions(): PermissionsHook {
 
       try {
         const userData = safeLocalStorage.getItem('sgb_user');
-        console.log('🔍 usePermissions - userData do localStorage:', userData ? 'existe' : 'null');
         
         if (userData) {
           const parsedUser = JSON.parse(userData);
-          console.log('🔍 usePermissions - parsedUser:', {
-            hasId: !!parsedUser.id,
-            hasEmail: !!parsedUser.email,
-            hasModulos: !!parsedUser.modulos_permitidos,
-            role: parsedUser.role,
-            ativo: parsedUser.ativo
-          });
           
           if (parsedUser && parsedUser.id && parsedUser.email && parsedUser.modulos_permitidos) {
-            console.log('🔍 usePermissions - usuário válido, definindo user e finalizando loading');
             setUser(parsedUser);
             setLoading(false);
             setIsInitialized(true);
@@ -89,48 +77,8 @@ export function usePermissions(): PermissionsHook {
       }
     };
 
-    // Carregar dados iniciais
+    // Carregar dados iniciais apenas uma vez
     loadUserData();
-
-    // Listener para detectar mudanças no localStorage
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'sgb_user' && e.newValue) {
-        loadUserData();
-      }
-    };
-
-    // Listener customizado para mudanças internas
-    const handleCustomStorageChange = () => {
-      loadUserData();
-    };
-
-    // Listener para mudanças de permissões de outros usuários
-    const handlePermissionsChanged = (e: CustomEvent) => {
-      const currentUserData = safeLocalStorage.getItem('sgb_user');
-      if (currentUserData) {
-        const parsedUser = JSON.parse(currentUserData);
-        // Se é o usuário atual que teve permissões alteradas, recarregar do servidor
-        if (parsedUser.id === e.detail?.userId || parsedUser.email === e.detail?.email) {
-          // Aqui poderia fazer uma chamada para o servidor para buscar dados atualizados
-          // Por enquanto, apenas recarregar do localStorage
-          loadUserData();
-        }
-      }
-    };
-
-    if (isClient) {
-      window.addEventListener('storage', handleStorageChange);
-      window.addEventListener('userDataUpdated', handleCustomStorageChange);
-      window.addEventListener('userPermissionsChanged', handlePermissionsChanged as EventListener);
-    }
-
-    return () => {
-      if (isClient) {
-        window.removeEventListener('storage', handleStorageChange);
-        window.removeEventListener('userDataUpdated', handleCustomStorageChange);
-        window.removeEventListener('userPermissionsChanged', handlePermissionsChanged as EventListener);
-      }
-    };
   }, []);
 
   // Memoizar as permissões do usuário para evitar recálculos desnecessários

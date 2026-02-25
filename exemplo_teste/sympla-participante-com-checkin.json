@@ -1,0 +1,19 @@
+{
+  "id": "301852634",
+  "event_id": "s322f32",
+  "order_id": "34BPYAD4S2C",
+  "order_status": "APPROVED",
+  "order_date": "2026-02-13 04:12:15",
+  "order_updated_date": "2026-02-13 01:13:54",
+  "order_approved_date": "2026-02-13 04:13:54",
+  "ticket_number": "UJTC-6R-CJTK",
+  "ticket_created_at": "2026-02-13 04:12:15",
+  "ticket_updated_at": "2026-02-13 04:12:15",
+  "ticket_num_qr_code": "UJTC6RCJTK",
+  "ticket_name": "Ingresso Caramelo - Válido a noite toda",
+  "ticket_sale_price": 31,
+  "checkin": {
+    "check_in": true,
+    "check_in_date": "2026-02-13T23:36:29"
+  }
+}
