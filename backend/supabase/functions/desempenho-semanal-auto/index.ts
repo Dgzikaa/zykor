@@ -344,79 +344,131 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   console.log(`📅 Período: ${startDate} até ${endDate}`)
 
   // ============================================
-  // 1. FATURAMENTO TOTAL (ContaHub + Yuzer + Sympla)
-  // ContaHub: SUM(liquido) - SUM(liquido WHERE meio='Conta Assinada')
+  // 1. BUSCAR DADOS DE TODAS AS FONTES (ContaHub + Yuzer + Sympla)
   // ============================================
-  const [contahubPagamentos, yuzerData, symplaData] = await Promise.all([
+  const [contahubPagamentos, contahubPeriodo, yuzerProdutos, symplaPedidos, symplaParticipantes] = await Promise.all([
+    // ContaHub Pagamentos
     fetchAllData(supabase, 'contahub_pagamentos', 'liquido, meio', {
       'gte_dt_gerencial': startDate,
       'lte_dt_gerencial': endDate,
       'eq_bar_id': barId
     }),
-    fetchAllData(supabase, 'yuzer_pagamento', 'valor_liquido', {
+    // ContaHub Período
+    fetchAllData(supabase, 'contahub_periodo', 'vr_couvert, vr_repique, vr_pagamentos, pessoas, cli_fone_norm', {
+      'gte_dt_gerencial': startDate,
+      'lte_dt_gerencial': endDate,
+      'eq_bar_id': barId
+    }),
+    // Yuzer Produtos
+    fetchAllData(supabase, 'yuzer_produtos', 'produto_nome, valor_total, quantidade', {
       'gte_data_evento': startDate,
       'lte_data_evento': endDate,
       'eq_bar_id': barId
     }),
+    // Sympla Pedidos
     fetchAllData(supabase, 'sympla_pedidos', 'valor_liquido', {
       'gte_data_pedido': startDate,
-      'lte_data_pedido': endDate
+      'lte_data_pedido': endDate,
+      'eq_bar_id': barId
+    }),
+    // Sympla Participantes (para checkins)
+    fetchAllData(supabase, 'sympla_participantes', 'fez_checkin', {
+      'gte_data_evento': startDate,
+      'lte_data_evento': endDate,
+      'eq_bar_id': barId
     })
   ])
 
-  // ContaHub: liquido total - conta assinada
+  // ============================================
+  // 2. PROCESSAR YUZER (separar ingressos de bar)
+  // ============================================
+  const yuzerIngressos = yuzerProdutos?.filter(item => 
+    item.produto_nome && (
+      item.produto_nome.toLowerCase().includes('ingresso') || 
+      item.produto_nome.toLowerCase().includes('entrada')
+    )
+  ) || []
+  
+  const yuzerBar = yuzerProdutos?.filter(item => 
+    item.produto_nome && !(
+      item.produto_nome.toLowerCase().includes('ingresso') || 
+      item.produto_nome.toLowerCase().includes('entrada')
+    )
+  ) || []
+
+  const yuzerIngressosValor = yuzerIngressos.reduce((sum, item) => sum + (parseFloat(item.valor_total) || 0), 0)
+  const yuzerIngressosQtd = yuzerIngressos.reduce((sum, item) => sum + (parseInt(item.quantidade) || 0), 0)
+  const yuzerBarValor = yuzerBar.reduce((sum, item) => sum + (parseFloat(item.valor_total) || 0), 0)
+
+  console.log(`🎟️ Yuzer Ingressos: ${yuzerIngressosQtd} ingressos, R$ ${yuzerIngressosValor.toFixed(2)}`)
+  console.log(`🍺 Yuzer Bar: R$ ${yuzerBarValor.toFixed(2)}`)
+
+  // ============================================
+  // 3. PROCESSAR SYMPLA (checkins e pedidos)
+  // ============================================
+  const symplaCheckins = symplaParticipantes?.filter(item => item.fez_checkin === true).length || 0
+  const symplaPedidosValor = symplaPedidos?.reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0) || 0
+
+  console.log(`🎟️ Sympla: ${symplaCheckins} checkins, R$ ${symplaPedidosValor.toFixed(2)} em pedidos`)
+
+  // ============================================
+  // 4. PROCESSAR CONTAHUB
+  // ============================================
   const liquidoTotal = contahubPagamentos?.reduce((sum, item) => sum + (parseFloat(item.liquido) || 0), 0) || 0
   const contaAssinada = contahubPagamentos?.filter(item => item.meio === 'Conta Assinada')
     .reduce((sum, item) => sum + (parseFloat(item.liquido) || 0), 0) || 0
-  const faturamentoContahub = liquidoTotal - contaAssinada
-
-  const faturamentoYuzer = yuzerData?.reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0) || 0
-  const faturamenteSympla = symplaData?.reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0) || 0
-  const faturamentoTotal = faturamentoContahub + faturamentoYuzer + faturamenteSympla
-
-  console.log(`💰 Faturamento Total: R$ ${faturamentoTotal.toFixed(2)} (ContaHub: ${faturamentoContahub.toFixed(2)}, Yuzer: ${faturamentoYuzer.toFixed(2)}, Sympla: ${faturamenteSympla.toFixed(2)})`)
-
-  // ============================================
-  // 2. FATURAMENTO COUVERT e REPIQUE (contahub_periodo)
-  // ============================================
-  const contahubPeriodo = await fetchAllData(supabase, 'contahub_periodo', 'vr_couvert, vr_repique, vr_pagamentos, pessoas, cli_fone_norm', {
-    'gte_dt_gerencial': startDate,
-    'lte_dt_gerencial': endDate,
-    'eq_bar_id': barId
-  })
+  const faturamentoContahubBar = liquidoTotal - contaAssinada
 
   const faturamentoCouvert = contahubPeriodo?.reduce((sum, item) => sum + (parseFloat(item.vr_couvert) || 0), 0) || 0
   const repiqueTotal = contahubPeriodo?.reduce((sum, item) => sum + (parseFloat(item.vr_repique) || 0), 0) || 0
   
-  // Faturamento Bar = Total - Couvert
-  const faturamentoBar = faturamentoTotal - faturamentoCouvert
+  const periodoComPagamentos = contahubPeriodo?.filter(item => parseFloat(item.vr_pagamentos) > 0) || []
+  const contahubPessoas = periodoComPagamentos.reduce((sum, item) => sum + (parseInt(item.pessoas) || 0), 0)
+
+  console.log(`🍺 ContaHub Bar: R$ ${faturamentoContahubBar.toFixed(2)}`)
+  console.log(`🎟️ ContaHub Couvert: R$ ${faturamentoCouvert.toFixed(2)}`)
+  console.log(`👥 ContaHub Pessoas: ${contahubPessoas}`)
+
+  // ============================================
+  // 5. CONSOLIDAR DADOS (LÓGICA NOVA - V5)
+  // Público Total = Sympla Checkins + Yuzer Ingressos + ContaHub Pessoas
+  // Faturamento Bar = Yuzer Bar + ContaHub Bar
+  // Faturamento Porta = Yuzer Ingressos + Sympla Pedidos + ContaHub Couvert
+  // ============================================
   
-  // Faturamento CMvível = Bar - Repique
+  // PÚBLICO TOTAL
+  const clientesAtendidos = symplaCheckins + yuzerIngressosQtd + contahubPessoas
+  
+  // FATURAMENTO BAR
+  const faturamentoBar = yuzerBarValor + faturamentoContahubBar
+  
+  // FATURAMENTO PORTA (ENTRADA)
+  const faturamentoEntrada = yuzerIngressosValor + symplaPedidosValor + faturamentoCouvert
+  
+  // FATURAMENTO TOTAL
+  const faturamentoTotal = faturamentoBar + faturamentoEntrada
+  
+  // FATURAMENTO CMVÍVEL
   const faturamentoCmvivel = faturamentoBar - repiqueTotal
 
-  console.log(`💰 Faturamento Couvert: R$ ${faturamentoCouvert.toFixed(2)}`)
-  console.log(`💰 Faturamento Bar: R$ ${faturamentoBar.toFixed(2)}`)
-  console.log(`💰 Faturamento CMvível: R$ ${faturamentoCmvivel.toFixed(2)}`)
+  console.log(`\n📊 ===== CONSOLIDADO (V5) =====`)
+  console.log(`👥 Público Total: ${clientesAtendidos} (Sympla: ${symplaCheckins} + Yuzer: ${yuzerIngressosQtd} + ContaHub: ${contahubPessoas})`)
+  console.log(`🍺 Faturamento Bar: R$ ${faturamentoBar.toFixed(2)} (Yuzer: ${yuzerBarValor.toFixed(2)} + ContaHub: ${faturamentoContahubBar.toFixed(2)})`)
+  console.log(`🎟️ Faturamento Porta: R$ ${faturamentoEntrada.toFixed(2)} (Yuzer: ${yuzerIngressosValor.toFixed(2)} + Sympla: ${symplaPedidosValor.toFixed(2)} + ContaHub: ${faturamentoCouvert.toFixed(2)})`)
+  console.log(`💰 Faturamento Total: R$ ${faturamentoTotal.toFixed(2)}`)
+  console.log(`📊 Faturamento CMvível: R$ ${faturamentoCmvivel.toFixed(2)}`)
 
   // ============================================
-  // 3. TICKET MÉDIO CONTAHUB (vr_pagamentos/pessoas WHERE vr_pagamentos > 0)
+  // 6. TICKETS MÉDIOS
   // ============================================
-  const periodoComPagamentos = contahubPeriodo?.filter(item => parseFloat(item.vr_pagamentos) > 0) || []
-  const somaVrPagamentos = periodoComPagamentos.reduce((sum, item) => sum + (parseFloat(item.vr_pagamentos) || 0), 0)
-  const somaPessoas = periodoComPagamentos.reduce((sum, item) => sum + (parseInt(item.pessoas) || 0), 0)
-  const ticketMedioContahub = somaPessoas > 0 ? somaVrPagamentos / somaPessoas : 0
-
-  // TM Entrada = Couvert / Clientes
-  const clientesAtendidos = somaPessoas
-  const tmEntrada = clientesAtendidos > 0 ? faturamentoCouvert / clientesAtendidos : 0
-  
-  // TM Bar = Fat Bar / Clientes
+  const tmEntrada = clientesAtendidos > 0 ? faturamentoEntrada / clientesAtendidos : 0
   const tmBar = clientesAtendidos > 0 ? faturamentoBar / clientesAtendidos : 0
+  const ticketMedio = clientesAtendidos > 0 ? faturamentoTotal / clientesAtendidos : 0
 
-  console.log(`🎫 Ticket Médio ContaHub: R$ ${ticketMedioContahub.toFixed(2)}`)
   console.log(`🎫 TM Entrada: R$ ${tmEntrada.toFixed(2)}`)
   console.log(`🎫 TM Bar: R$ ${tmBar.toFixed(2)}`)
-  console.log(`👥 Clientes Atendidos: ${clientesAtendidos}`)
+  console.log(`🎫 Ticket Médio: R$ ${ticketMedio.toFixed(2)}`)
+  console.log(`================================\n`)
 
   // ============================================
   // 4. CMV PERCENTUAIS (usando CMV manual da tabela)
@@ -1347,7 +1399,7 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   const dadosAtualizados: any = {
     // Faturamentos
     faturamento_total: faturamentoTotal,
-    faturamento_entrada: faturamentoCouvert,
+    faturamento_entrada: faturamentoEntrada,
     faturamento_bar: faturamentoBar,
     faturamento_cmovivel: faturamentoCmvivel,
     
@@ -1359,7 +1411,7 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
     retencao_2m: retencao2m,
     
     // Tickets
-    ticket_medio: ticketMedioContahub,
+    ticket_medio: ticketMedio,
     tm_entrada: tmEntrada,
     tm_bar: tmBar,
     
@@ -1459,8 +1511,8 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   }
 
   console.log(`✅ Semana ${numeroSemana} atualizada com sucesso!`)
-  console.log(`   💰 Fat Total: R$ ${faturamentoTotal.toFixed(2)} | Couvert: R$ ${faturamentoCouvert.toFixed(2)} | Bar: R$ ${faturamentoBar.toFixed(2)}`)
-  console.log(`   🎫 TM: R$ ${ticketMedioContahub.toFixed(2)} | Clientes: ${clientesAtendidos}`)
+  console.log(`   💰 Fat Total: R$ ${faturamentoTotal.toFixed(2)} | Entrada: R$ ${faturamentoEntrada.toFixed(2)} | Bar: R$ ${faturamentoBar.toFixed(2)}`)
+  console.log(`   🎫 TM: R$ ${ticketMedio.toFixed(2)} | Clientes: ${clientesAtendidos}`)
   console.log(`   📊 CMO: ${cmoPercent.toFixed(2)}% | Atração: ${atracaoFaturamentoPercent.toFixed(2)}%`)
   
   return atualizada
