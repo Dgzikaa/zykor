@@ -13,6 +13,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { 
   Calendar, 
   Edit, 
@@ -400,7 +406,18 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                         {dados.map((evento) => (
                           <tr key={evento.evento_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                            <td className="px-1 py-0.5 text-xs font-medium text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700">{evento.data_curta}</td>
+                            <td className="px-1 py-0.5 text-xs font-medium text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="cursor-help">{evento.data_curta}</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="max-w-xs">
+                                    <p className="font-semibold">{evento.evento_nome || 'Sem atração'}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </td>
                             <td className="px-1 py-0.5 text-xs text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700">{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
                             <td className="px-1 py-0.5 text-right text-xs border-r border-gray-200 dark:border-gray-700"><span className={`font-medium ${evento.real_vs_m1_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.real_receita > 0 ? formatarMoeda(evento.real_receita) : '-'}</span></td>
                             <td className="px-1 py-0.5 text-right text-xs text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700">{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
