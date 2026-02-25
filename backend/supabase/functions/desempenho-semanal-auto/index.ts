@@ -430,20 +430,23 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   console.log(`👥 ContaHub Pessoas: ${contahubPessoas}`)
 
   // ============================================
-  // 5. CONSOLIDAR DADOS (LÓGICA NOVA - V5)
-  // Público Total = Sympla Checkins + Yuzer Ingressos + ContaHub Pessoas
-  // Faturamento Bar = Yuzer Bar + ContaHub Bar
-  // Faturamento Porta = Yuzer Ingressos + Sympla Pedidos + ContaHub Couvert
+  // 5. BUSCAR DADOS CONSOLIDADOS DE EVENTOS_BASE (V6)
   // ============================================
+  const { data: eventosBaseConsolidados } = await supabase
+    .from('eventos_base')
+    .select('cl_real, real_r, te_real')
+    .eq('bar_id', barId)
+    .gte('data_evento', startDate)
+    .lte('data_evento', endDate)
   
-  // PÚBLICO TOTAL
-  const clientesAtendidos = symplaCheckins + yuzerIngressosQtd + contahubPessoas
+  // PÚBLICO TOTAL (de eventos_base consolidado)
+  const clientesAtendidos = eventosBaseConsolidados?.reduce((sum, evt) => sum + (parseInt(evt.cl_real) || 0), 0) || (symplaCheckins + yuzerIngressosQtd + contahubPessoas)
   
-  // FATURAMENTO BAR
-  const faturamentoBar = yuzerBarValor + faturamentoContahubBar
+  // FATURAMENTO BAR (de eventos_base consolidado)
+  const faturamentoBar = eventosBaseConsolidados?.reduce((sum, evt) => sum + (parseFloat(evt.real_r) || 0), 0) || (yuzerBarValor + faturamentoContahubBar)
   
-  // FATURAMENTO PORTA (ENTRADA)
-  const faturamentoEntrada = yuzerIngressosValor + symplaPedidosValor + faturamentoCouvert
+  // FATURAMENTO PORTA (de eventos_base consolidado)
+  const faturamentoEntrada = eventosBaseConsolidados?.reduce((sum, evt) => sum + ((parseFloat(evt.te_real) || 0) * (parseInt(evt.cl_real) || 0)), 0) || (yuzerIngressosValor + symplaPedidosValor + faturamentoCouvert)
   
   // FATURAMENTO TOTAL
   const faturamentoTotal = faturamentoBar + faturamentoEntrada
@@ -451,10 +454,12 @@ async function recalcularDesempenhoSemana(supabase: any, barId: number, ano: num
   // FATURAMENTO CMVÍVEL
   const faturamentoCmvivel = faturamentoBar - repiqueTotal
 
-  console.log(`\n📊 ===== CONSOLIDADO (V5) =====`)
-  console.log(`👥 Público Total: ${clientesAtendidos} (Sympla: ${symplaCheckins} + Yuzer: ${yuzerIngressosQtd} + ContaHub: ${contahubPessoas})`)
-  console.log(`🍺 Faturamento Bar: R$ ${faturamentoBar.toFixed(2)} (Yuzer: ${yuzerBarValor.toFixed(2)} + ContaHub: ${faturamentoContahubBar.toFixed(2)})`)
-  console.log(`🎟️ Faturamento Porta: R$ ${faturamentoEntrada.toFixed(2)} (Yuzer: ${yuzerIngressosValor.toFixed(2)} + Sympla: ${symplaPedidosValor.toFixed(2)} + ContaHub: ${faturamentoCouvert.toFixed(2)})`)
+  console.log(`\n📊 ===== CONSOLIDADO (V6 - EVENTOS_BASE) =====`)
+  console.log(`📅 Eventos consolidados: ${eventosBaseConsolidados?.length || 0}`)
+  console.log(`👥 Público Total: ${clientesAtendidos} pessoas`)
+  console.log(`🍺 Faturamento Bar: R$ ${faturamentoBar.toFixed(2)}`)
+  console.log(`🎟️ Faturamento Porta: R$ ${faturamentoEntrada.toFixed(2)}`)
+  console.log(`⚠️ Fallback V5: Sympla: ${symplaCheckins} + Yuzer: ${yuzerIngressosQtd} + ContaHub: ${contahubPessoas} = ${symplaCheckins + yuzerIngressosQtd + contahubPessoas}`)
   console.log(`💰 Faturamento Total: R$ ${faturamentoTotal.toFixed(2)}`)
   console.log(`📊 Faturamento CMvível: R$ ${faturamentoCmvivel.toFixed(2)}`)
 

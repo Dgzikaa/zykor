@@ -59,9 +59,9 @@ const SECOES: SecaoConfig[] = [
         id: 'faturamento',
         label: 'Faturamento Total',
         metricas: [
-          { key: 'faturamento_total', label: 'Faturamento Total', status: 'auto', fonte: 'ContaHub + Yuzer + Sympla', calculo: 'Soma de todos os pagamentos', formato: 'moeda' },
-          { key: 'faturamento_entrada', label: 'Fat. Couvert', status: 'auto', fonte: 'ContaHub', calculo: 'Soma do vr_couvert', formato: 'moeda', indentado: true },
-          { key: 'faturamento_bar', label: 'Fat. Bar', status: 'auto', fonte: 'Calculado', calculo: 'Total - Couvert', formato: 'moeda', indentado: true },
+          { key: 'faturamento_total', label: 'Faturamento Total', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Soma de real_r + (te_real × cl_real) de todos os eventos da semana', formato: 'moeda' },
+          { key: 'faturamento_entrada', label: 'Fat. Couvert', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Soma de (te_real × cl_real) de todos os eventos', formato: 'moeda', indentado: true },
+          { key: 'faturamento_bar', label: 'Fat. Bar', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Soma de real_r de todos os eventos', formato: 'moeda', indentado: true },
           { key: 'faturamento_cmovivel', label: 'Fat. CMvível', status: 'auto', fonte: 'Calculado', calculo: 'Bar - Repique', formato: 'moeda', indentado: true },
         ]
       },
@@ -79,9 +79,9 @@ const SECOES: SecaoConfig[] = [
         id: 'ticket',
         label: 'Ticket Médio',
         metricas: [
-          { key: 'ticket_medio', label: 'Ticket Médio', status: 'auto', fonte: 'ContaHub', calculo: 'vr_pagamentos / pessoas', formato: 'moeda_decimal' },
-          { key: 'tm_entrada', label: 'TM Entrada', status: 'auto', fonte: 'ContaHub', calculo: 'Couvert / Clientes', formato: 'moeda_decimal', indentado: true },
-          { key: 'tm_bar', label: 'TM Bar', status: 'auto', fonte: 'ContaHub', calculo: 'Fat Bar / Clientes', formato: 'moeda_decimal', indentado: true },
+          { key: 'ticket_medio', label: 'Ticket Médio', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Faturamento Total / Público Total', formato: 'moeda_decimal' },
+          { key: 'tm_entrada', label: 'TM Entrada', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Fat. Entrada / Público Total', formato: 'moeda_decimal', indentado: true },
+          { key: 'tm_bar', label: 'TM Bar', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Fat. Bar / Público Total', formato: 'moeda_decimal', indentado: true },
         ]
       },
       {
@@ -105,7 +105,7 @@ const SECOES: SecaoConfig[] = [
         label: 'Volume',
         metricas: [
           { key: 'clientes_ativos', label: 'Clientes Ativos', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes únicos ativos no período', formato: 'numero' },
-          { key: 'clientes_atendidos', label: 'Visitas', status: 'auto', fonte: 'ContaHub + Yuzer', calculo: 'Soma de pessoas na semana', formato: 'numero' },
+          { key: 'clientes_atendidos', label: 'Visitas', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Soma de cl_real de todos os eventos (Sympla + Yuzer + ContaHub)', formato: 'numero' },
           { key: 'perc_clientes_novos', label: '% Novos Clientes', status: 'auto', fonte: 'Stored Procedure', calculo: 'Novos / Total', formato: 'percentual' },
         ]
       },
@@ -846,8 +846,44 @@ export function DesempenhoClient({
                                                     <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => setEditando(null)}><X className="h-3 w-3 text-red-600" /></Button>
                                                   </div>
                                                 </div>
-                                              ) : <span className="text-xs font-medium text-gray-900 dark:text-white text-center">{valorPrincipalFormatado}</span>
-                                           ) : <span className="text-xs font-medium text-gray-900 dark:text-white text-center">{valorAgregadoFormatado}</span>}
+                                             ) : (
+                                               <TooltipProvider>
+                                                 <Tooltip>
+                                                   <TooltipTrigger asChild>
+                                                     <span className="text-xs font-medium text-gray-900 dark:text-white text-center cursor-help">{valorPrincipalFormatado}</span>
+                                                   </TooltipTrigger>
+                                                   <TooltipContent side="top" className={cn("max-w-xs p-3", STATUS_COLORS[metricaPrincipal.status].bg)}>
+                                                     <div className="space-y-1">
+                                                       <p className="font-semibold text-sm">{metricaPrincipal.label}</p>
+                                                       <p className="text-xs"><strong>Fonte:</strong> {metricaPrincipal.fonte}</p>
+                                                       <p className="text-xs"><strong>Cálculo:</strong> {metricaPrincipal.calculo}</p>
+                                                       <div className="flex items-center gap-1 mt-1">
+                                                         <div className={cn("w-2 h-2 rounded-full", STATUS_COLORS[metricaPrincipal.status].dot)} />
+                                                         <span className={cn("text-xs", STATUS_COLORS[metricaPrincipal.status].text)}>
+                                                           {metricaPrincipal.status === 'auto' ? 'Automático' : metricaPrincipal.status === 'manual' ? 'Manual' : 'Não confiável'}
+                                                         </span>
+                                                       </div>
+                                                     </div>
+                                                   </TooltipContent>
+                                                 </Tooltip>
+                                               </TooltipProvider>
+                                             )
+                                          ) : (
+                                            <TooltipProvider>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <span className="text-xs font-medium text-gray-900 dark:text-white text-center cursor-help">{valorAgregadoFormatado}</span>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="top" className="max-w-xs p-3">
+                                                  <div className="space-y-1">
+                                                    <p className="font-semibold text-sm">{grupo.label}</p>
+                                                    <p className="text-xs"><strong>Agregação:</strong> {grupo.agregacao?.tipo === 'soma' ? 'Soma' : grupo.agregacao?.tipo === 'media' ? 'Média' : 'Fixo'}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">Valor calculado a partir das métricas abaixo</p>
+                                                  </div>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            </TooltipProvider>
+                                          )}
                                            {hierarquico && !isEditandoPrincipal && metricaPrincipal?.editavel && semana.id && (
                                                <Button size="icon" variant="ghost" className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setEditando({ semanaId: semana.id!, campo: metricaPrincipal.key }); setValorEdit(valorPrincipal?.toString().replace('.', ',') || ''); }}><Pencil className="h-3 w-3 text-blue-600" /></Button>
                                            )}
@@ -965,11 +1001,30 @@ export function DesempenhoClient({
                                                     </TooltipContent>
                                                   </Tooltip>
                                                 </TooltipProvider>
-                                              ) : (
-                                                <span className="text-xs text-gray-600 dark:text-gray-400 text-center">
-                                                  {valorFormatado}
-                                                </span>
-                                              )}
+                                             ) : (
+                                               <TooltipProvider>
+                                                 <Tooltip>
+                                                   <TooltipTrigger asChild>
+                                                     <span className="text-xs text-gray-600 dark:text-gray-400 text-center cursor-help">
+                                                       {valorFormatado}
+                                                     </span>
+                                                   </TooltipTrigger>
+                                                   <TooltipContent side="top" className={cn("max-w-xs p-3", STATUS_COLORS[metrica.status].bg)}>
+                                                     <div className="space-y-1">
+                                                       <p className="font-semibold text-sm">{metrica.label}</p>
+                                                       <p className="text-xs"><strong>Fonte:</strong> {metrica.fonte}</p>
+                                                       <p className="text-xs"><strong>Cálculo:</strong> {metrica.calculo}</p>
+                                                       <div className="flex items-center gap-1 mt-1">
+                                                         <div className={cn("w-2 h-2 rounded-full", STATUS_COLORS[metrica.status].dot)} />
+                                                         <span className={cn("text-xs", STATUS_COLORS[metrica.status].text)}>
+                                                           {metrica.status === 'auto' ? 'Automático' : metrica.status === 'manual' ? 'Manual' : 'Não confiável'}
+                                                         </span>
+                                                       </div>
+                                                     </div>
+                                                   </TooltipContent>
+                                                 </Tooltip>
+                                               </TooltipProvider>
+                                             )}
                                               {!isEditandoCell && metrica.editavel && semana.id && (
                                                  <Button size="icon" variant="ghost" className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setEditando({ semanaId: semana.id!, campo: metrica.key }); setValorEdit(valor?.toString().replace('.', ',') || ''); }}><Pencil className="h-3 w-3 text-blue-600" /></Button>
                                               )}
