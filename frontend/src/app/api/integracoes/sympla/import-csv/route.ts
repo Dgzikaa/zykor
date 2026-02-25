@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
       else semCheckin++;
 
       // Formatar data de checkin
-      let dataCheckinFormatada = null;
+      let dataCheckinFormatada: string | null = null;
       if (fezCheckin && dataCheckin) {
         try {
           const [datePart, timePart] = dataCheckin.split(' ');
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
           source: 'csv_import',
           imported_at: new Date().toISOString()
         }
-      });
+      } as any);
     }
 
     // Inserir em lotes

@@ -42,7 +42,7 @@ export async function GET() {
 
         return {
           ...evento,
-          total_participantes: count || 0
+          total_participantes: count ?? 0
         };
       })
     );
