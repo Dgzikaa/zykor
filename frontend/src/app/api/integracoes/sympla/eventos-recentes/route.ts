@@ -38,7 +38,7 @@ export async function GET() {
           .from('sympla_participantes')
           .select('*', { count: 'exact', head: true })
           .eq('evento_sympla_id', evento.evento_sympla_id)
-          .eq('bar_id', evento.bar_id);
+          .eq('bar_id', evento.bar_id ?? 3);
 
         return {
           ...evento,

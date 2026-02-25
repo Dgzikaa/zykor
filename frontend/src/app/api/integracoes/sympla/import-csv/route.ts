@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`📊 Processando ${rows.length} linhas do CSV...`);
 
-    const participantesParaInserir = [];
+    const participantesParaInserir: any[] = [];
     let comCheckin = 0;
     let semCheckin = 0;
 
