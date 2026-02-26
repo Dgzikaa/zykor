@@ -1,7 +1,7 @@
 # ZYKOR - CONTEXTO COMPLETO DO SISTEMA
 
 > **LEIA ESTE ARQUIVO EM CADA NOVO CHAT!**  
-> Última atualização: **26/02/2026 - 14:30 BRT**
+> Última atualização: **26/02/2026 - 19:45 BRT**
 
 ---
 
@@ -11,9 +11,10 @@
 2. [Arquitetura do Sistema](#arquitetura-do-sistema)
 3. [Dados do Negócio](#dados-do-negócio)
 4. [Otimizações Recentes](#otimizações-recentes-26022026)
-5. [Integrações](#integrações)
-6. [Sistema de Agentes IA](#sistema-de-agentes-ia)
-7. [Decisões Arquiteturais](#decisões-arquiteturais)
+5. [Sistema CMO e CMA](#sistema-cmo-e-cma-26022026)
+6. [Integrações](#integrações)
+7. [Sistema de Agentes IA](#sistema-de-agentes-ia)
+8. [Decisões Arquiteturais](#decisões-arquiteturais)
 
 ---
 
@@ -277,6 +278,321 @@
 - Banco de dados limpo (sem produtos irrelevantes)
 - Confiabilidade do pipeline aumentada
 
+---
+
+## SISTEMA CMO E CMA (26/02/2026)
+
+### CMA - Custo de Alimentação de Funcionários ✅
+
+**Fórmula**: `CMA = Estoque Inicial + Compras - Estoque Final`
+
+**Implementação**:
+- ✅ Página dedicada: `/ferramentas/cma-semanal`
+- ✅ Seção na tabela CMV: "CMA - ALIMENTAÇÃO FUNCIONÁRIOS"
+- ✅ API: `GET /api/cmv-semanal/buscar-cma`
+- ✅ Campos no banco: `estoque_inicial_funcionarios`, `compras_alimentacao`, `estoque_final_funcionarios`, `cma_total`
+
+**Categorias de Estoque (Funcionários)**:
+- HORTIFRUTI (F)
+- MERCADO (F)
+- PROTEÍNA (F)
+
+**Compras**:
+- Categoria NIBO: "Alimentação"
+
+**Cálculo Automático**:
+- Estoque Inicial: Busca na `data_inicio` da semana
+- Compras: Soma da categoria "Alimentação" do NIBO no período
+- Estoque Final: Busca na segunda-feira seguinte à `data_fim`
+
+---
+
+### CMO - Custo de Mão de Obra Semanal ✅
+
+**Fórmula**: `CMO = Freelas + Fixos + Alimentação + Pro Labore`
+
+**Componentes**:
+
+**1. Freelas** (Automático via NIBO)
+- Soma de todas as categorias contendo "FREELA" (case-insensitive)
+- Busca automática via `GET /api/cmo-semanal/buscar-automatico`
+
+**2. Fixos** (Simulação Dinâmica)
+- Simulador de funcionários CLT/PJ
+- Campos por funcionário:
+  - Nome, Tipo (CLT/PJ), Área
+  - Salário Bruto, Vale Transporte
+  - Adicional, Aviso Prévio
+  - Dias Trabalhados (1-7)
+- Cálculos automáticos:
+  - **CLT**: FGTS (8%), INSS (20%), Produtividade (8.33%)
+  - **PJ**: Sem encargos
+  - Custo semanal proporcional aos dias trabalhados
+- Biblioteca: `lib/calculos-folha.ts`
+
+**3. Alimentação** (CMA)
+- Puxado automaticamente da tabela `cmv_semanal`
+- Campo: `cma_total`
+
+**4. Pro Labore** (Manual)
+- Input mensal (ex: R$ 30.000)
+- Cálculo semanal: `(Valor / 30) * 7`
+
+---
+
+### Funcionalidades Implementadas
+
+**1. Página Principal** (`/ferramentas/cmo-semanal`)
+- ✅ Seletor de semana/ano
+- ✅ Busca automática de Freelas e CMA
+- ✅ Simulador dinâmico de funcionários (adicionar/remover/editar)
+- ✅ Campo de Meta CMO
+- ✅ Cálculo automático do CMO Total
+- ✅ Salvar/Travar simulação
+- ✅ Alerta visual quando CMO > Meta
+- ✅ Auditoria completa (created_by, updated_by, travado_por)
+
+**2. Dashboard CMO** (`/ferramentas/cmo-semanal/dashboard`)
+- ✅ **KPIs**:
+  - CMO Médio (média de todas as semanas)
+  - Tendência (subindo/descendo/estável)
+  - Aderência à Meta (% de semanas dentro da meta)
+  - Última Semana (valor + nº funcionários)
+- ✅ **Gráficos**:
+  - Evolução do CMO (AreaChart com linha de meta)
+  - Composição do CMO (BarChart empilhado)
+  - Evolução da Equipe (LineChart)
+- ✅ **Análises**:
+  - Média por componente
+  - Distribuição percentual
+  - Alertas de semanas acima da meta
+
+**3. Comparação de Simulações** (`/ferramentas/cmo-semanal/comparar`)
+- ✅ Seleção de 2 semanas quaisquer
+- ✅ Comparação lado a lado:
+  - CMO Total (variação % e R$)
+  - Freelas, Fixos, Alimentação, Pro Labore
+  - Número de funcionários
+- ✅ Identificação de funcionários novos/removidos
+- ✅ Badges visuais (NOVO em verde, REMOVIDO em vermelho)
+- ✅ Resumo da diferença total
+
+**4. Sistema de Alertas** (`/ferramentas/cmo-semanal/alertas`)
+- ✅ Verificação automática de CMO > Meta
+- ✅ Criação automática de alertas
+- ✅ Listagem (todos/pendentes/enviados)
+- ✅ Marcar como enviado
+- ✅ Detalhes: valor, meta, diferença, variação %
+- ✅ Link direto para a semana específica
+- ✅ Cards visuais com cores (vermelho/verde)
+
+**5. Histórico** (`/ferramentas/cmo-semanal/historico`)
+- ✅ Lista de todas as simulações
+- ✅ Filtro por ano
+- ✅ Variação percentual vs semana anterior
+- ✅ Informações de auditoria (criado por, atualizado por, travado por)
+- ✅ Link para detalhes da semana
+
+---
+
+### Estrutura de Banco de Dados
+
+**Tabelas Criadas**:
+
+```sql
+-- CMO Semanal (principal)
+CREATE TABLE cmo_semanal (
+  id UUID PRIMARY KEY,
+  bar_id INTEGER REFERENCES bars(id),
+  ano INTEGER,
+  semana INTEGER,
+  data_inicio DATE,
+  data_fim DATE,
+  freelas NUMERIC(10,2),
+  fixos_total NUMERIC(10,2),
+  cma_alimentacao NUMERIC(10,2),
+  pro_labore_mensal NUMERIC(10,2),
+  pro_labore_semanal NUMERIC(10,2),
+  cmo_total NUMERIC(10,2),
+  simulacao_salva BOOLEAN,
+  meta_cmo NUMERIC(10,2),
+  acima_meta BOOLEAN GENERATED ALWAYS AS (cmo_total > COALESCE(meta_cmo, 999999)) STORED,
+  alerta_enviado BOOLEAN,
+  alerta_enviado_em TIMESTAMP,
+  created_by INTEGER REFERENCES usuarios_bar(id),
+  updated_by INTEGER REFERENCES usuarios_bar(id),
+  travado_por INTEGER REFERENCES usuarios_bar(id),
+  travado_em TIMESTAMP,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP,
+  UNIQUE(bar_id, ano, semana)
+);
+
+-- Simulação de Funcionários
+CREATE TABLE cmo_simulacao_funcionarios (
+  id UUID PRIMARY KEY,
+  cmo_semanal_id UUID REFERENCES cmo_semanal(id) ON DELETE CASCADE,
+  funcionario_nome VARCHAR(255),
+  tipo_contratacao VARCHAR(10) CHECK (tipo_contratacao IN ('CLT', 'PJ')),
+  area VARCHAR(100),
+  vale_transporte NUMERIC(10,2),
+  salario_bruto NUMERIC(10,2),
+  adicional NUMERIC(10,2),
+  adicional_aviso_previo NUMERIC(10,2),
+  dias_trabalhados INTEGER,
+  salario_liquido NUMERIC(10,2),
+  adicionais_total NUMERIC(10,2),
+  aviso_previo NUMERIC(10,2),
+  custo_empresa NUMERIC(10,2),
+  custo_total NUMERIC(10,2),
+  custo_semanal NUMERIC(10,2),
+  calculo_detalhado JSONB,
+  created_at TIMESTAMP
+);
+
+-- Alertas CMO
+CREATE TABLE cmo_alertas (
+  id UUID PRIMARY KEY,
+  cmo_semanal_id UUID REFERENCES cmo_semanal(id) ON DELETE CASCADE,
+  bar_id INTEGER REFERENCES bars(id),
+  tipo_alerta VARCHAR(50),
+  mensagem TEXT,
+  valor_cmo NUMERIC(10,2),
+  valor_meta NUMERIC(10,2),
+  diferenca NUMERIC(10,2),
+  percentual_diferenca NUMERIC(5,2),
+  enviado BOOLEAN DEFAULT FALSE,
+  enviado_em TIMESTAMP,
+  created_at TIMESTAMP
+);
+
+-- Metas CMO
+CREATE TABLE cmo_metas (
+  id UUID PRIMARY KEY,
+  bar_id INTEGER REFERENCES bars(id),
+  ano INTEGER,
+  mes INTEGER,
+  meta_cmo_semanal NUMERIC(10,2),
+  meta_cmo_percentual NUMERIC(5,2),
+  observacoes TEXT,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP,
+  UNIQUE(bar_id, ano, mes)
+);
+
+-- View de Histórico
+CREATE VIEW vw_cmo_historico AS
+SELECT 
+  cs.*,
+  ub_created.nome as created_by_nome,
+  ub_updated.nome as updated_by_nome,
+  ub_travado.nome as travado_by_nome,
+  b.nome as bar_nome
+FROM cmo_semanal cs
+LEFT JOIN usuarios_bar ub_created ON cs.created_by = ub_created.id
+LEFT JOIN usuarios_bar ub_updated ON cs.updated_by = ub_updated.id
+LEFT JOIN usuarios_bar ub_travado ON cs.travado_por = ub_travado.id
+LEFT JOIN bars b ON cs.bar_id = b.id;
+```
+
+**Campos CMA em cmv_semanal**:
+```sql
+ALTER TABLE cmv_semanal
+ADD COLUMN estoque_inicial_funcionarios NUMERIC(10,2),
+ADD COLUMN compras_alimentacao NUMERIC(10,2),
+ADD COLUMN estoque_final_funcionarios NUMERIC(10,2),
+ADD COLUMN cma_total NUMERIC(10,2);
+```
+
+---
+
+### APIs Criadas
+
+**CMO**:
+- `GET /api/cmo-semanal` - Buscar CMO por bar/ano/semana
+- `POST /api/cmo-semanal` - Criar nova simulação
+- `PUT /api/cmo-semanal` - Atualizar simulação existente
+- `PATCH /api/cmo-semanal/[id]/travar` - Travar/destravar simulação
+- `GET /api/cmo-semanal/buscar-automatico` - Buscar Freelas + CMA automaticamente
+- `GET /api/cmo-semanal/detalhes` - Buscar detalhes completos (com funcionários)
+- `GET /api/cmo-semanal/historico` - Listar histórico de simulações
+
+**Alertas**:
+- `GET /api/cmo-semanal/alertas` - Listar alertas
+- `POST /api/cmo-semanal/alertas` - Criar alerta
+- `PATCH /api/cmo-semanal/alertas` - Marcar como enviado
+- `POST /api/cmo-semanal/verificar-alertas` - Verificar e criar alertas automaticamente
+
+**CMA**:
+- `GET /api/cmv-semanal/buscar-cma` - Buscar dados CMA
+- Integrado em: `GET /api/cmv-semanal/buscar-dados-automaticos`
+
+---
+
+### Arquivos Criados (21 novos)
+
+**Frontend - Páginas**:
+1. `src/app/ferramentas/cmo-semanal/page.tsx` - Página principal
+2. `src/app/ferramentas/cmo-semanal/dashboard/page.tsx` - Dashboard
+3. `src/app/ferramentas/cmo-semanal/comparar/page.tsx` - Comparação
+4. `src/app/ferramentas/cmo-semanal/alertas/page.tsx` - Alertas
+5. `src/app/ferramentas/cmo-semanal/historico/page.tsx` - Histórico
+6. `src/app/ferramentas/cma-semanal/page.tsx` - CMA
+
+**Frontend - APIs**:
+7. `src/app/api/cmo-semanal/route.ts` - CRUD CMO
+8. `src/app/api/cmo-semanal/[id]/travar/route.ts` - Lock/Unlock
+9. `src/app/api/cmo-semanal/buscar-automatico/route.ts` - Busca automática
+10. `src/app/api/cmo-semanal/detalhes/route.ts` - Detalhes
+11. `src/app/api/cmo-semanal/historico/route.ts` - Histórico
+12. `src/app/api/cmo-semanal/alertas/route.ts` - Alertas CRUD
+13. `src/app/api/cmo-semanal/verificar-alertas/route.ts` - Verificação
+14. `src/app/api/cmv-semanal/buscar-cma/route.ts` - CMA
+
+**Frontend - Biblioteca**:
+15. `src/lib/calculos-folha.ts` - Lógica de cálculos CLT/PJ
+
+**Arquivos Modificados**:
+16. `src/app/api/cmv-semanal/buscar-dados-automaticos/route.ts` - Integração CMA
+17. `src/app/api/cmv-semanal/mensal/route.ts` - Agregação CMA
+18. `src/app/ferramentas/cmv-semanal/tabela/page.tsx` - Seção CMA
+19. `src/components/layouts/ModernSidebarOptimized.tsx` - Menu
+20. `src/lib/menu-config.ts` - Configuração menu
+21. `backend/supabase/functions/contahub-sync/index.ts` - Atualização
+
+---
+
+### Menu Lateral Atualizado
+
+**Ferramentas**:
+- 🍽️ CMA - Alimentação
+- 👥 CMO Semanal
+- 📊 CMO - Dashboard
+- 🔄 CMO - Comparar
+- 🔔 CMO - Alertas
+
+---
+
+### Benefícios do Sistema CMO/CMA
+
+1. **Visibilidade Total**: Acompanhamento semanal de todos os custos de mão de obra
+2. **Simulação Flexível**: Adicionar/remover funcionários e ver impacto imediato
+3. **Alertas Proativos**: Notificação automática quando CMO ultrapassa meta
+4. **Comparação Histórica**: Identificar tendências e variações semana a semana
+5. **Auditoria Completa**: Rastreabilidade de todas as mudanças
+6. **Cálculos Precisos**: Lógica CLT/PJ com FGTS, INSS e produtividade
+7. **Dashboard Visual**: Gráficos de evolução e composição
+8. **Integração Automática**: Freelas do NIBO e CMA do CMV
+
+---
+
+### Commit de Deploy
+
+**Hash**: `af3d16d7`  
+**Mensagem**: "feat: Implementar sistema completo de CMO (Custo de Mao de Obra)"  
+**Data**: 26/02/2026 19:30 BRT  
+**Arquivos**: 21 arquivos (+4504 linhas)
+
 ### 1. Consolidação de Edge Functions ✅
 
 **Redução**: 68 → 38 Edge Functions (-44%)
@@ -535,6 +851,8 @@
 8. **Type-check**: Sempre rodar `npm run type-check` antes de push.
 9. **Lazy Loading**: Usar componentes lazy quando possível.
 10. **Dispatchers**: Sempre usar dispatchers ao invés de criar novas Edge Functions.
+11. **CMO/CMA**: Sistema completo implementado. Meta padrão: R$ 45.000/semana.
+12. **Recharts**: Usar para gráficos (LineChart, BarChart, AreaChart).
 
 ---
 
@@ -559,7 +877,7 @@
 
 ---
 
-**Última atualização**: 26/02/2026 14:30 BRT  
+**Última atualização**: 26/02/2026 19:45 BRT  
 **Próxima revisão**: Quando houver mudanças significativas no sistema
 
 ---
