@@ -47,6 +47,11 @@ interface CMVSemanal {
   chegadeira: number;
   mesa_adm_casa: number;
   mesa_rh: number;
+  // CMA - Custo de Alimentação de Funcionários
+  estoque_inicial_funcionarios: number;
+  compras_alimentacao: number;
+  estoque_final_funcionarios: number;
+  cma_total: number;
 }
 
 // Obter número da semana ISO e o ano ISO
@@ -184,8 +189,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Calcular semanas para estoque inicial e final
+    const primeiroDiaMes = new Date(ano, mes - 1, 1);
+    const { semana: semanaInicial, ano: anoInicial } = getWeekAndYear(primeiroDiaMes);
+    
+    const primeiroDiaMesSeguinte = new Date(ano, mes, 1);
+    const { semana: semanaFinal, ano: anoFinal } = getWeekAndYear(primeiroDiaMesSeguinte);
+
     // Agregar dados CMV com proporção
-    const dadosMensais = agregarCMVProportional(semanasComProporcao, cmvMap, estoqueFinalMesAnterior);
+    const dadosMensais = agregarCMVProportional(semanasComProporcao, cmvMap, estoqueFinalMesAnterior, ano, mes);
 
     // Adicionar metadados
     const resultado = {
@@ -204,6 +216,28 @@ export async function GET(request: NextRequest) {
       mes: resultado,
       periodo: { dataInicio, dataFim },
       semanasIncluidas: semanasComProporcao.map(s => `${s.anoISO}-S${s.semana} (${Math.round(s.proporcao * 100)}%)`),
+      estoqueInfo: {
+        inicial: {
+          data: `${String(mes).padStart(2, '0')}/01/${ano}`,
+          semana: `${anoInicial}-S${semanaInicial}`,
+          valores: {
+            total: dadosMensais.estoque_inicial,
+            cozinha: dadosMensais.estoque_inicial_cozinha,
+            bebidas: dadosMensais.estoque_inicial_bebidas,
+            drinks: dadosMensais.estoque_inicial_drinks
+          }
+        },
+        final: {
+          data: `01/${String(mes + 1).padStart(2, '0')}/${mes === 12 ? ano + 1 : ano}`,
+          semana: `${anoFinal}-S${semanaFinal}`,
+          valores: {
+            total: dadosMensais.estoque_final,
+            cozinha: dadosMensais.estoque_final_cozinha,
+            bebidas: dadosMensais.estoque_final_bebidas,
+            drinks: dadosMensais.estoque_final_drinks
+          }
+        }
+      },
       parametros: { mes, ano, barId }
     });
 
@@ -220,7 +254,9 @@ export async function GET(request: NextRequest) {
 function agregarCMVProportional(
   semanasComProporcao: { semana: number; anoISO: number; proporcao: number }[],
   cmvMap: Map<string, CMVSemanal>,
-  estoqueFinalMesAnterior: CMVSemanal | null = null
+  estoqueFinalMesAnterior: CMVSemanal | null = null,
+  ano: number,
+  mes: number
 ): Record<string, number | null> {
   // Funções para somar com proporção
   const somaProportional = (campo: keyof CMVSemanal): number => {
@@ -248,31 +284,35 @@ function agregarCMVProportional(
   };
 
   // CORRIGIDO: Para visão mensal igual à planilha Digão
-  // Estoque Inicial do Mês = Estoque Inicial da PRIMEIRA semana que tem dias no mês
-  // Estoque Final do Mês = Estoque Final da ÚLTIMA semana que tem dias no mês
+  // Estoque Inicial do Mês = Estoque do dia 01 do mês (ex: 01/01, 01/02, 01/03)
+  // Estoque Final do Mês = Estoque do dia 01 do mês seguinte (ex: 01/02, 01/03, 01/04)
   
   // Ordenar semanas uma vez (para reutilizar)
   const semanasOrdenadas = [...semanasComProporcao].sort((a, b) => {
     if (a.anoISO !== b.anoISO) return a.anoISO - b.anoISO;
     return a.semana - b.semana;
   });
-  const primeiraSemana = semanasOrdenadas[0];
-  const ultimaSemana = semanasOrdenadas[semanasOrdenadas.length - 1];
+  
+  // Determinar a semana que contém o dia 01 do mês atual (para estoque inicial)
+  const primeiroDiaMes = new Date(ano, mes - 1, 1);
+  const { semana: semanaInicial, ano: anoInicial } = getWeekAndYear(primeiroDiaMes);
+  
+  // Determinar a semana que contém o dia 01 do mês seguinte (para estoque final)
+  const primeiroDiaMesSeguinte = new Date(ano, mes, 1);
+  const { semana: semanaFinal, ano: anoFinal } = getWeekAndYear(primeiroDiaMesSeguinte);
 
-  // Estoque Inicial: da primeira semana do mês
+  // Estoque Inicial: da semana que contém o dia 01 do mês
   const primeiroEstoque = (campoInicial: keyof CMVSemanal, campoFinalAnterior: keyof CMVSemanal): number | null => {
-    // Buscar estoque inicial da primeira semana do mês
-    if (primeiraSemana) {
-      const dados = cmvMap.get(`${primeiraSemana.anoISO}-${primeiraSemana.semana}`);
-      if (dados && dados[campoInicial] !== null && dados[campoInicial] !== undefined) {
-        const valor = parseFloat(String(dados[campoInicial])) || 0;
-        if (valor > 0) {
-          return valor;
-        }
+    // Buscar estoque inicial da semana que contém o dia 01 do mês
+    const dados = cmvMap.get(`${anoInicial}-${semanaInicial}`);
+    if (dados && dados[campoInicial] !== null && dados[campoInicial] !== undefined) {
+      const valor = parseFloat(String(dados[campoInicial])) || 0;
+      if (valor > 0) {
+        return valor;
       }
     }
     
-    // Fallback: usar estoque final do mês anterior se o estoque inicial da primeira semana for 0
+    // Fallback: usar estoque final do mês anterior se o estoque inicial for 0
     if (estoqueFinalMesAnterior && estoqueFinalMesAnterior[campoFinalAnterior] !== null) {
       const valorFallback = parseFloat(String(estoqueFinalMesAnterior[campoFinalAnterior])) || 0;
       if (valorFallback > 0) {
@@ -284,27 +324,31 @@ function agregarCMVProportional(
     return 0;
   };
 
-  // Estoque Final: da última semana do mês
-  const ultimoEstoque = (campoFinal: keyof CMVSemanal, campoInicialCorrespondente: keyof CMVSemanal): number | null => {
-    // Buscar estoque final da última semana do mês
+  // Estoque Final: da semana que contém o dia 01 do mês seguinte
+  // O estoque final do mês é o estoque inicial da primeira semana do mês seguinte
+  const ultimoEstoque = (campoInicial: keyof CMVSemanal, campoFinal: keyof CMVSemanal): number | null => {
+    // Buscar estoque inicial da semana que contém o dia 01 do mês seguinte
+    const dados = cmvMap.get(`${anoFinal}-${semanaFinal}`);
+    if (dados && dados[campoInicial] !== null && dados[campoInicial] !== undefined) {
+      const valor = parseFloat(String(dados[campoInicial])) || 0;
+      if (valor > 0) {
+        return valor;
+      }
+    }
+    
+    // Fallback 1: tentar estoque_final da última semana do mês atual
+    const ultimaSemana = semanasOrdenadas[semanasOrdenadas.length - 1];
     if (ultimaSemana) {
-      const dados = cmvMap.get(`${ultimaSemana.anoISO}-${ultimaSemana.semana}`);
-      if (dados && dados[campoFinal] !== null && dados[campoFinal] !== undefined) {
-        const valor = parseFloat(String(dados[campoFinal])) || 0;
-        if (valor > 0) {
-          return valor;
-        }
-        // Se estoque_final é 0, tentar estoque_inicial da mesma semana como fallback
-        if (dados[campoInicialCorrespondente] !== null && dados[campoInicialCorrespondente] !== undefined) {
-          const valorInicial = parseFloat(String(dados[campoInicialCorrespondente])) || 0;
-          if (valorInicial > 0) {
-            return valorInicial;
-          }
+      const dadosUltimaSemana = cmvMap.get(`${ultimaSemana.anoISO}-${ultimaSemana.semana}`);
+      if (dadosUltimaSemana && dadosUltimaSemana[campoFinal] !== null && dadosUltimaSemana[campoFinal] !== undefined) {
+        const valorFinal = parseFloat(String(dadosUltimaSemana[campoFinal])) || 0;
+        if (valorFinal > 0) {
+          return valorFinal;
         }
       }
     }
     
-    // Fallback: usar estoque final do mês anterior se disponível
+    // Fallback 2: usar estoque final do mês anterior se disponível
     if (estoqueFinalMesAnterior) {
       const valorFallback = parseFloat(String(estoqueFinalMesAnterior[campoFinal])) || 0;
       if (valorFallback > 0) {
@@ -322,7 +366,7 @@ function agregarCMVProportional(
     vendas_liquidas: somaProportional('vendas_liquidas'),
     faturamento_cmvivel: somaProportional('faturamento_cmvivel'),
     
-    // Estoque Inicial (primeiro do mês, com fallback para estoque final do mês anterior)
+    // Estoque Inicial (dia 01 do mês, com fallback para estoque final do mês anterior)
     estoque_inicial: primeiroEstoque('estoque_inicial', 'estoque_final'),
     estoque_inicial_cozinha: primeiroEstoque('estoque_inicial_cozinha', 'estoque_final_cozinha'),
     estoque_inicial_bebidas: primeiroEstoque('estoque_inicial_bebidas', 'estoque_final_bebidas'),
@@ -335,11 +379,11 @@ function agregarCMVProportional(
     compras_custo_drinks: somaProportional('compras_custo_drinks'),
     compras_custo_outros: somaProportional('compras_custo_outros'),
     
-    // Estoque Final (último do mês, com fallbacks)
-    estoque_final: ultimoEstoque('estoque_final', 'estoque_inicial'),
-    estoque_final_cozinha: ultimoEstoque('estoque_final_cozinha', 'estoque_inicial_cozinha'),
-    estoque_final_bebidas: ultimoEstoque('estoque_final_bebidas', 'estoque_inicial_bebidas'),
-    estoque_final_drinks: ultimoEstoque('estoque_final_drinks', 'estoque_inicial_drinks'),
+    // Estoque Final (dia 01 do mês seguinte = estoque_inicial da semana do mês seguinte)
+    estoque_final: ultimoEstoque('estoque_inicial', 'estoque_final'),
+    estoque_final_cozinha: ultimoEstoque('estoque_inicial_cozinha', 'estoque_final_cozinha'),
+    estoque_final_bebidas: ultimoEstoque('estoque_inicial_bebidas', 'estoque_final_bebidas'),
+    estoque_final_drinks: ultimoEstoque('estoque_inicial_drinks', 'estoque_final_drinks'),
     
     // Consumações (soma proporcional)
     consumo_socios: somaProportional('consumo_socios'),
@@ -362,6 +406,12 @@ function agregarCMVProportional(
     
     // CMV Real (soma proporcional)
     cmv_real: somaProportional('cmv_real'),
+    
+    // CMA - Custo de Alimentação de Funcionários
+    estoque_inicial_funcionarios: primeiroEstoque('estoque_inicial_funcionarios', 'estoque_final_funcionarios'),
+    compras_alimentacao: somaProportional('compras_alimentacao'),
+    estoque_final_funcionarios: ultimoEstoque('estoque_inicial_funcionarios', 'estoque_final_funcionarios'),
+    cma_total: somaProportional('cma_total'),
     
     // Percentuais (média ponderada)
     cmv_limpo_percentual: mediaProportional('cmv_limpo_percentual'),

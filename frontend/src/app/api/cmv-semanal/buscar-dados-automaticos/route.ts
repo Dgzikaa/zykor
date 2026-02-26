@@ -63,6 +63,12 @@ export async function POST(request: NextRequest) {
       estoque_final_cozinha: 0,
       estoque_final_bebidas: 0,
       estoque_final_drinks: 0,
+
+      // CMA - Custo de Alimentação de Funcionários
+      estoque_inicial_funcionarios: 0,
+      compras_alimentacao: 0,
+      estoque_final_funcionarios: 0,
+      cma_total: 0,
     };
 
     // 1-2. BUSCAR TODAS AS CONSUMAÇÕES E CLASSIFICAR COM PRIORIDADE
@@ -501,7 +507,112 @@ export async function POST(request: NextRequest) {
       console.error('Erro ao buscar estoque inicial:', err);
     }
 
-    // 7. CONSOLIDAR TOTAIS
+    // 7. BUSCAR DADOS CMA (Custo de Alimentação de Funcionários)
+    try {
+      console.log('🍽️ Buscando dados CMA (Alimentação Funcionários)...');
+      
+      const categoriasFuncionarios = ['HORTIFRUTI (F)', 'MERCADO (F)', 'PROTEÍNA (F)'];
+
+      // 7.1. Estoque Inicial de Funcionários
+      const dataContagemInicial = data_inicio;
+      const { data: insumosFunc } = await supabase
+        .from('insumos')
+        .select('id, categoria')
+        .eq('bar_id', bar_id)
+        .in('categoria', categoriasFuncionarios);
+
+      if (insumosFunc && insumosFunc.length > 0) {
+        const insumosFuncMap = new Map(insumosFunc.map((i: any) => [i.id, i]));
+
+        const { data: contagensIniciaisFunc } = await supabase
+          .from('contagem_estoque_insumos')
+          .select('insumo_id, estoque_final, custo_unitario')
+          .eq('bar_id', bar_id)
+          .eq('data_contagem', dataContagemInicial);
+
+        if (contagensIniciaisFunc && contagensIniciaisFunc.length > 0) {
+          contagensIniciaisFunc.forEach((contagem: any) => {
+            const insumo = insumosFuncMap.get(contagem.insumo_id);
+            if (!insumo) return;
+            const valor = contagem.estoque_final * (contagem.custo_unitario || 0);
+            resultado.estoque_inicial_funcionarios += valor;
+          });
+          console.log(`✅ Estoque Inicial Funcionários: R$ ${resultado.estoque_inicial_funcionarios.toFixed(2)}`);
+        }
+
+        // 7.2. Estoque Final de Funcionários
+        const dataFimDate = new Date(data_fim + 'T12:00:00Z');
+        const diaSemana = dataFimDate.getUTCDay();
+        let diasParaSegunda = diaSemana === 0 ? 1 : diaSemana === 6 ? 2 : (8 - diaSemana) % 7 || 7;
+        dataFimDate.setUTCDate(dataFimDate.getUTCDate() + diasParaSegunda);
+        const dataSegundaFinal = dataFimDate.toISOString().split('T')[0];
+
+        const { data: contagemFinalFunc } = await supabase
+          .from('contagem_estoque_insumos')
+          .select('data_contagem, estoque_final')
+          .eq('bar_id', bar_id)
+          .eq('data_contagem', dataSegundaFinal)
+          .gt('estoque_final', 0)
+          .limit(1);
+
+        const dataContagemFinal = contagemFinalFunc && contagemFinalFunc.length > 0 
+          ? dataSegundaFinal 
+          : null;
+
+        if (dataContagemFinal) {
+          const { data: contagensFinaisFunc } = await supabase
+            .from('contagem_estoque_insumos')
+            .select('insumo_id, estoque_final, custo_unitario')
+            .eq('bar_id', bar_id)
+            .eq('data_contagem', dataContagemFinal);
+
+          if (contagensFinaisFunc && contagensFinaisFunc.length > 0) {
+            contagensFinaisFunc.forEach((contagem: any) => {
+              const insumo = insumosFuncMap.get(contagem.insumo_id);
+              if (!insumo) return;
+              const valor = contagem.estoque_final * (contagem.custo_unitario || 0);
+              resultado.estoque_final_funcionarios += valor;
+            });
+            console.log(`✅ Estoque Final Funcionários: R$ ${resultado.estoque_final_funcionarios.toFixed(2)}`);
+          }
+        }
+      }
+
+      // 7.3. Compras de Alimentação (categoria "Alimentação" do NIBO)
+      const dataInicioFull = data_inicio + (usarDataCriacao ? 'T00:00:00' : '');
+      const dataFimFull = data_fim + (usarDataCriacao ? 'T23:59:59' : '');
+      
+      const queryBuilder = supabase
+        .from('nibo_agendamentos')
+        .select('categoria_nome, valor')
+        .eq('bar_id', bar_id)
+        .eq('tipo', 'Debit');
+
+      const { data: comprasAlimentacao } = usarDataCriacao
+        ? await queryBuilder.gte('criado_em', dataInicioFull).lte('criado_em', dataFimFull)
+        : await queryBuilder.gte('data_competencia', data_inicio).lte('data_competencia', data_fim);
+
+      if (comprasAlimentacao) {
+        resultado.compras_alimentacao = comprasAlimentacao
+          .filter(item => {
+            const cat = (item.categoria_nome || '').toLowerCase();
+            return cat === 'alimentação' || cat === 'alimentacao';
+          })
+          .reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0);
+        console.log(`✅ Compras Alimentação: R$ ${resultado.compras_alimentacao.toFixed(2)}`);
+      }
+
+      // 7.4. Calcular CMA Total
+      resultado.cma_total = resultado.estoque_inicial_funcionarios + 
+                            resultado.compras_alimentacao - 
+                            resultado.estoque_final_funcionarios;
+      console.log(`📊 CMA TOTAL: R$ ${resultado.cma_total.toFixed(2)}`);
+
+    } catch (err) {
+      console.error('Erro ao buscar dados CMA:', err);
+    }
+
+    // 8. CONSOLIDAR TOTAIS
     // Estoque
     resultado.estoque_inicial = resultado.estoque_inicial_cozinha + resultado.estoque_inicial_bebidas + resultado.estoque_inicial_drinks;
     resultado.estoque_final = resultado.estoque_final_cozinha + resultado.estoque_final_bebidas + resultado.estoque_final_drinks;
@@ -520,7 +631,7 @@ export async function POST(request: NextRequest) {
     console.log(`📊 COMPRAS TOTAL: R$ ${compras_periodo.toFixed(2)}`);
     console.log('✅ Dados automáticos buscados com sucesso');
 
-    // 8. CALCULAR CONSUMOS COM MULTIPLICADOR 0.35
+    // 9. CALCULAR CONSUMOS COM MULTIPLICADOR 0.35
     // 🔧 4 CATEGORIAS de consumação (todas × 0.35):
     // - Sócios: total_consumo_socios × 0.35
     // - Funcionários: mesa_adm_casa × 0.35 (inclui RH)

@@ -47,6 +47,8 @@ import {
   Plug,
   Building2,
   Megaphone,
+  History,
+  Bell,
 } from 'lucide-react';
 
 /**
@@ -145,7 +147,11 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: Users, label: 'NPS Funcionários', href: '/ferramentas/nps', permission: 'gestao' },
       { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
       { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', permission: 'gestao' },
-      { icon: Users, label: 'Gestão de CMO', href: '/ferramentas/simulacao-cmo', permission: 'gestao' },
+      { icon: ChefHat, label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal', permission: 'gestao' },
+      { icon: Users, label: 'CMO Semanal', href: '/ferramentas/cmo-semanal', permission: 'gestao' },
+      { icon: TrendingUp, label: 'CMO - Dashboard', href: '/ferramentas/cmo-semanal/dashboard', permission: 'gestao' },
+      { icon: History, label: 'CMO - Comparar', href: '/ferramentas/cmo-semanal/comparar', permission: 'gestao' },
+      { icon: Bell, label: 'CMO - Alertas', href: '/ferramentas/cmo-semanal/alertas', permission: 'gestao' },
       { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
       { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
       { icon: DollarSign, label: 'DRE', href: '/ferramentas/dre', permission: 'dashboard_financeiro_mensal' },

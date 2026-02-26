@@ -207,8 +207,8 @@ export default function CMVSemanalPage() {
     
     // 4. Calcular CMV Real
     // CMV Real = (Estoque Inicial + Compras - Estoque Final) - 
-    //            (Consumo Sócios + Consumo Benefícios + Consumo ADM + Consumo RH + Consumo Artista + Outros Ajustes) +
-    //            Ajuste Bonificações
+    //            (Consumo Sócios + Consumo Benefícios + Consumo ADM + Consumo RH + Consumo Artista + Outros Ajustes) -
+    //            Ajuste Bonificações (bonificações reduzem o CMV)
     const cmvBruto = (dados.estoque_inicial || 0) + 
                      (dados.compras_periodo || 0) - 
                      (dados.estoque_final || 0);
@@ -220,7 +220,7 @@ export default function CMVSemanalPage() {
                           (dados.consumo_artista || 0) + 
                           (dados.outros_ajustes || 0);
     
-    dados.cmv_real = cmvBruto - totalConsumos + (dados.ajuste_bonificacoes || 0);
+    dados.cmv_real = cmvBruto - totalConsumos - (dados.ajuste_bonificacoes || 0);
     
     // 5. Calcular CMV Limpo (%) e CMV Real (%)
     // CMV Limpo = (CMV Real / Faturamento CMVível) * 100
@@ -1395,7 +1395,7 @@ export default function CMVSemanalPage() {
               <div className="flex items-start gap-2">
                 <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                 <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                  <p><strong>CMV Real =</strong> (Estoque Inicial + Compras - Estoque Final) - (Consumos) + Bonificações</p>
+                  <p><strong>CMV Real =</strong> (Estoque Inicial + Compras - Estoque Final) - (Consumos) - Bonificações</p>
                   <p><strong>CMV Limpo =</strong> (CMV Real / Faturamento CMVível) × 100</p>
                   <p><strong>Gap =</strong> CMV Limpo - CMV Teórico</p>
                 </div>

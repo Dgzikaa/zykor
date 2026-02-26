@@ -236,10 +236,47 @@ const SECOES: SecaoConfig[] = [
         label: 'CMV',
         semCollapse: true,
         metricas: [
-          { key: 'cmv_real', label: 'CMV R$', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial + Compras - Est.Final - Consumos', formato: 'moeda' },
+          { key: 'cmv_real', label: 'CMV R$', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial + Compras - Est.Final - Consumos - Bonificações', formato: 'moeda' },
           { key: 'cmv_percentual', label: 'CMV Real (%)', status: 'calculado', fonte: 'Calculado', calculo: 'CMV R$ / Faturamento Bruto × 100', formato: 'percentual' },
           { key: 'cmv_limpo_percentual', label: 'CMV Limpo (%)', status: 'calculado', fonte: 'Calculado', calculo: '(CMV R$ / Fat. CMVível) × 100', formato: 'percentual' },
           { key: 'cmv_teorico_percentual', label: 'CMV Teórico/Meta (%)', status: 'manual', fonte: 'Planilha', calculo: 'Valor meta definido', formato: 'percentual' },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'cma',
+    titulo: 'CMA - ALIMENTAÇÃO FUNCIONÁRIOS',
+    icone: <Users className="w-4 h-4" />,
+    cor: 'bg-amber-600',
+    grupos: [
+      {
+        id: 'estoque_inicial_func',
+        label: 'Estoque Inicial (F)',
+        metricas: [
+          { key: 'estoque_inicial_funcionarios', label: 'Estoque Inicial Funcionários', status: 'auto', fonte: 'Contagem Estoque', calculo: 'HORTIFRUTI (F) + MERCADO (F) + PROTEÍNA (F)', formato: 'moeda' },
+        ]
+      },
+      {
+        id: 'compras_alimentacao',
+        label: '(+) Compras Alimentação',
+        metricas: [
+          { key: 'compras_alimentacao', label: 'Compras Alimentação', status: 'auto', fonte: 'NIBO', calculo: 'categoria_nome = Alimentação', formato: 'moeda', drilldown: true },
+        ]
+      },
+      {
+        id: 'estoque_final_func',
+        label: '(-) Estoque Final (F)',
+        metricas: [
+          { key: 'estoque_final_funcionarios', label: 'Estoque Final Funcionários', status: 'auto', fonte: 'Contagem Estoque', calculo: 'HORTIFRUTI (F) + MERCADO (F) + PROTEÍNA (F)', formato: 'moeda' },
+        ]
+      },
+      {
+        id: 'cma_resultado',
+        label: 'Resultado CMA',
+        semCollapse: true,
+        metricas: [
+          { key: 'cma_total', label: 'CMA Total', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial (F) + Compras Alimentação - Est.Final (F)', formato: 'moeda' },
         ]
       }
     ]
@@ -302,7 +339,8 @@ export default function CMVSemanalTabelaPage() {
   const [secoesAbertas, setSecoesAbertas] = useState<Record<string, boolean>>({
     vendas: true,
     cmv: true,
-    resultados: true
+    resultados: true,
+    cma: true
   });
   const [gruposAbertos, setGruposAbertos] = useState<Record<string, boolean>>({
     // Vendas - expandido
@@ -315,6 +353,11 @@ export default function CMVSemanalTabelaPage() {
     'cmv-bonificacoes': false,
     // Resultados - expandido (mostra os 3 itens)
     'resultados-cmv_resultado': true,
+    // CMA - grupos colapsados por padrão
+    'cma-estoque_inicial_func': false,
+    'cma-compras_alimentacao': false,
+    'cma-estoque_final_func': false,
+    'cma-cma_resultado': true,
   });
   const [editando, setEditando] = useState<{ semanaId: string; campo: string } | null>(null);
   const [valorEdit, setValorEdit] = useState('');
@@ -654,6 +697,12 @@ export default function CMVSemanalTabelaPage() {
       return (semana.bonificacao_contrato_anual || 0) + 
              (semana.bonificacao_cashback_mensal || 0);
     }
+    // CMV Real (%) = CMV R$ / Faturamento Bruto × 100
+    if (key === 'cmv_percentual') {
+      const cmvReal = semana.cmv_real || 0;
+      const fatBruto = semana.vendas_brutas || 0;
+      return fatBruto > 0 ? (cmvReal / fatBruto) * 100 : 0;
+    }
     return (semana as any)[key] ?? null;
   };
 
@@ -928,15 +977,20 @@ export default function CMVSemanalTabelaPage() {
                             <div className="space-y-1">
                               <div className={cn("font-semibold text-sm", STATUS_COLORS[metrica.status].text)}>
                                 {metrica.status === 'auto' && 'Automático (Verificar)'}
-                                {metrica.status === 'manual' && 'Manual (Editável)'}
+                                {metrica.status === 'manual' && (visao === 'mensal' && metrica.editavel ? 'Soma Proporcional (Mensal)' : 'Manual (Editável)')}
                                 {metrica.status === 'calculado' && 'Calculado (Verificar)'}
                               </div>
                               <div className="text-xs text-gray-600 dark:text-gray-300">
-                                <strong>Fonte:</strong> {metrica.fonte}
+                                <strong>Fonte:</strong> {visao === 'mensal' && metrica.editavel ? 'Agregação das Semanas' : metrica.fonte}
                               </div>
                               <div className="text-xs text-gray-600 dark:text-gray-300">
-                                <strong>Cálculo:</strong> {metrica.calculo}
+                                <strong>Cálculo:</strong> {visao === 'mensal' && metrica.editavel ? 'Soma proporcional das semanas do mês' : metrica.calculo}
                               </div>
+                              {visao === 'mensal' && metrica.editavel && (
+                                <div className="text-xs text-amber-600 dark:text-amber-400 mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                  ⚠️ Para editar, use a visão Semanal
+                                </div>
+                              )}
                             </div>
                           </TooltipContent>
                         </Tooltip>
