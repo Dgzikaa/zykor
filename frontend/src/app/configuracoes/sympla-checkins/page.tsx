@@ -26,37 +26,41 @@ export default function SymplaCheckinsPage() {
 
   const carregarEventos = useCallback(async () => {
     try {
-      // Eventos fixos do Carnaval 2026
+      // Buscar contagem de participantes do banco
+      const response = await fetch('/api/integracoes/sympla/participantes-count');
+      const data = await response.json();
+      
+      // Eventos fixos do Carnaval 2026 com contagem real
       const eventosCarnaval: Evento[] = [
         {
           evento_sympla_id: 's322f32',
           nome_evento: '13.02(Sex)| Abre Alas com Samba da Tia Zélia & Convidados | Carna Vira-Lata | Ordinário Bar & Música',
           data_inicio: '2026-02-13T18:00:00-03:00',
-          total_participantes: 0
+          total_participantes: data.counts?.['s322f32'] || 0
         },
         {
           evento_sympla_id: 's322f39',
           nome_evento: '14.02(Sáb)|Barato Total - A festa da música brasileira| Carna Vira-Lata | Ordinário Bar',
           data_inicio: '2026-02-14T18:00:00-03:00',
-          total_participantes: 0
+          total_participantes: data.counts?.['s322f39'] || 0
         },
         {
           evento_sympla_id: 's322f46',
           nome_evento: '15.02(Dom)|Doze por Oito & Convidados | Bloco pressão alta | Carna Vira-Lata | Ordinário Bar',
           data_inicio: '2026-02-15T18:00:00-03:00',
-          total_participantes: 0
+          total_participantes: data.counts?.['s322f46'] || 0
         },
         {
           evento_sympla_id: 's322f4f',
           nome_evento: '16.02(Seg)|Macetada Pagodão & Nãnan Matos - Noite do pagodão baiano| Carna Vira-Lata | Ordinário Bar',
           data_inicio: '2026-02-16T18:00:00-03:00',
-          total_participantes: 0
+          total_participantes: data.counts?.['s322f4f'] || 0
         },
         {
           evento_sympla_id: 's322f58',
           nome_evento: '17.02(Ter)|Bloco do MSN - DJ Umiranda, Israel Paixão + Convidados | Ordinário Bar',
           data_inicio: '2026-02-17T18:00:00-03:00',
-          total_participantes: 0
+          total_participantes: data.counts?.['s322f58'] || 0
         }
       ];
       
@@ -201,9 +205,19 @@ export default function SymplaCheckinsPage() {
                         </div>
                         <div className="text-right">
                           <p className="text-sm text-gray-500 dark:text-gray-400">Participantes</p>
-                          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {evento.total_participantes}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className={`text-2xl font-bold ${evento.total_participantes > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                              {evento.total_participantes}
+                            </p>
+                            {evento.total_participantes === 0 && (
+                              <span className="px-2 py-1 text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded">
+                                Importar CSV
+                              </span>
+                            )}
+                            {evento.total_participantes > 0 && (
+                              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

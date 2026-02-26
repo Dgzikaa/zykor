@@ -22,14 +22,12 @@ export const ScrollTrigger = ({ children }: { children: React.ReactNode }) => <>
 export const TransitionWrapper = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 export const LoadingTransition = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 
-// Componentes modernos avançados
-export { SearchGlobal as GlobalSearch } from './search-global-modern';
-export { ScrollToTop } from './scroll-animations-modern';
-export { default as CommandPalette } from './command-palette-modern';
-export { default as ThemeSwitcher } from './theme-switcher-modern';
+// Componentes modernos avançados (comentados temporariamente)
+// export { SearchGlobal as GlobalSearch } from './global-search';
+export { ScrollToTop } from './scroll-animations';
+// export { default as CommandPalette } from './command-palette';
 // KeyboardShortcuts não está implementado ainda
 // export { KeyboardShortcuts } from './accessibility';
-export { ModernNotifications } from './notifications-modern';
 
 // Utility functions
 export const debounce = (func: Function, wait: number) => {

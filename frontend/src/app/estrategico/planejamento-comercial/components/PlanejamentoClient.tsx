@@ -19,6 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import { 
   Calendar, 
   Edit, 
@@ -96,6 +97,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
   const [dados, setDados] = useState<PlanejamentoData[]>(initialData);
   const [filtroMes, setFiltroMes] = useState(serverMes);
   const [filtroAno, setFiltroAno] = useState(serverAno);
+  const [linhaHighlight, setLinhaHighlight] = useState<number | null>(null);
   
   useEffect(() => {
     setDados(initialData);
@@ -346,66 +348,156 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
   }, [dados]);
 
   return (
-    <div className="min-h-[calc(100vh-8px)] bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-2 py-1 pb-6 max-w-[98vw]">
-        {dados.length === 0 ? (
-          <Card className="card-dark p-8">
-            <div className="text-center">
-              <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <h3 className="card-title-dark mb-2">Nenhum evento encontrado</h3>
-              <p className="card-description-dark">
-                Não há eventos cadastrados para {meses.find(m => m.value === filtroMes)?.label} de {filtroAno}
-              </p>
-              <div className="mt-4 flex justify-center gap-4">
-                 <Select value={filtroMes.toString()} onValueChange={(value) => alterarPeriodo(parseInt(value), filtroAno)}>
-                    <SelectTrigger className="w-32 bg-white dark:bg-gray-700"><SelectValue /></SelectTrigger>
-                    <SelectContent>{meses.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}</SelectContent>
-                 </Select>
-                 <Select value={filtroAno.toString()} onValueChange={(value) => alterarPeriodo(filtroMes, parseInt(value))}>
-                    <SelectTrigger className="w-24 bg-white dark:bg-gray-700"><SelectValue /></SelectTrigger>
-                    <SelectContent>{anos.map(a => <SelectItem key={a} value={a.toString()}>{a}</SelectItem>)}</SelectContent>
-                 </Select>
+    <div className="h-[calc(100vh-80px)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      {/* Header Fixo - Controles */}
+      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="max-w-full mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="font-semibold text-gray-900 dark:text-white">
+                📊 Planejamento Comercial
+              </span>
+              <div className="flex items-center gap-2">
+                <Select value={filtroMes.toString()} onValueChange={(value) => alterarPeriodo(parseInt(value), filtroAno)}>
+                  <SelectTrigger className="w-32 bg-white dark:bg-gray-700 h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {meses.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={filtroAno.toString()} onValueChange={(value) => alterarPeriodo(filtroMes, parseInt(value))}>
+                  <SelectTrigger className="w-24 bg-white dark:bg-gray-700 h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {anos.map(a => <SelectItem key={a} value={a.toString()}>{a}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-          </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* Conteúdo com scroll único */}
+      <div className="flex-1 overflow-auto relative">
+        {dados.length === 0 ? (
+          <div className="container mx-auto px-4 py-8">
+            <Card className="card-dark p-8">
+              <div className="text-center">
+                <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                <h3 className="card-title-dark mb-2">Nenhum evento encontrado</h3>
+                <p className="card-description-dark">
+                  Não há eventos cadastrados para {meses.find(m => m.value === filtroMes)?.label} de {filtroAno}
+                </p>
+              </div>
+            </Card>
+          </div>
         ) : (
-          <>
+          <div className="container mx-auto px-2 py-4 max-w-[98vw]">
             <div className="flex gap-4">
-              <Card className="card-dark flex-1 hidden md:block">
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto border-x border-gray-200 dark:border-gray-700">
-                    <table className="w-full text-[11px] border-collapse">
-                      <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
-                        <tr>
-                          <th className="px-1 py-0.5 text-left text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">Data</th>
-                          <th className="px-1 py-0.5 text-left text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">Dia</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">Real</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">M1</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">Cl.P</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">Cl.R</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">R.Tot</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">R.P</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">Lot</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">TE.P</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">TE.R</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">TB.P</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">TB.R</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">T.Med</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">C.Art</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">C.Prod</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">%Art</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">%B</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">%D</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">%C</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">%S</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">T.Coz</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">T.Bar</th>
-                          <th className="px-1 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {dados.map((evento) => (
-                          <tr key={evento.evento_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+              <div className="flex-1 hidden md:block">
+                {/* Header Fixo */}
+                <div className="sticky top-0 z-30 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-t-xl shadow-sm overflow-x-auto">
+                  <table className="w-full text-[11px] border-collapse table-fixed" style={{ minWidth: '1800px' }}>
+                    <colgroup>
+                      <col style={{ width: '60px' }} />
+                      <col style={{ width: '40px' }} />
+                      <col style={{ width: '90px' }} />
+                      <col style={{ width: '90px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '40px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '60px' }} />
+                      <col style={{ width: '60px' }} />
+                      <col style={{ width: '80px' }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th className="px-1 py-2 text-left text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">Data</th>
+                        <th className="px-1 py-2 text-left text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">Dia</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">Real</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">M1</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">Cl.P</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">Cl.R</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">R.Tot</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">R.P</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">Lot</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">TE.P</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">TE.R</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">TB.P</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">TB.R</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">T.Med</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">C.Art</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">C.Prod</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">%Art</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">%B</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">%D</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">%C</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">%S</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">T.Coz</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase border-r border-gray-200 dark:border-gray-700">T.Bar</th>
+                        <th className="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">Ações</th>
+                      </tr>
+                    </thead>
+                  </table>
+                </div>
+
+                {/* Corpo da Tabela */}
+                <div className="bg-white dark:bg-gray-800 border-x border-b border-gray-200 dark:border-gray-700 rounded-b-xl shadow-sm overflow-x-auto">
+                  <table className="w-full text-[11px] border-collapse table-fixed" style={{ minWidth: '1800px' }}>
+                    <colgroup>
+                      <col style={{ width: '60px' }} />
+                      <col style={{ width: '40px' }} />
+                      <col style={{ width: '90px' }} />
+                      <col style={{ width: '90px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '40px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '60px' }} />
+                      <col style={{ width: '60px' }} />
+                      <col style={{ width: '80px' }} />
+                    </colgroup>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {dados.map((evento, idx) => (
+                          <tr 
+                            key={evento.evento_id} 
+                            onClick={() => setLinhaHighlight(idx)}
+                            className={`cursor-pointer transition-colors ${
+                              linhaHighlight === idx 
+                                ? 'bg-emerald-100 dark:bg-emerald-900/30' 
+                                : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                            }`}
+                          >
                             <td className="px-1 py-0.5 text-xs font-medium text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700">
                               <TooltipProvider>
                                 <Tooltip>
@@ -442,17 +534,16 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             <td className="px-1 py-0.5 text-right text-xs border-r border-gray-200 dark:border-gray-700"><span className={`font-medium ${evento.t_bar_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_bar > 0 ? formatarTempo(evento.t_bar) : '-'}</span></td>
                             <td className="px-1 py-0.5 text-center">
                               <div className="flex gap-1 justify-center">
-                                <Button onClick={() => abrirModal(evento, false)} size="sm" variant="outline" className="h-7 w-7 p-0"><Eye className="h-3 w-3" /></Button>
-                                <Button onClick={() => abrirModal(evento, true)} size="sm" variant="outline" className="h-7 w-7 p-0"><Edit className="h-3 w-3" /></Button>
+                                <Button onClick={(e) => { e.stopPropagation(); abrirModal(evento, false); }} size="sm" variant="outline" className="h-7 w-7 p-0"><Eye className="h-3 w-3" /></Button>
+                                <Button onClick={(e) => { e.stopPropagation(); abrirModal(evento, true); }} size="sm" variant="outline" className="h-7 w-7 p-0"><Edit className="h-3 w-3" /></Button>
                               </div>
                             </td>
                           </tr>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
               {/* Sidebar */}
               <div className="w-64 flex-shrink-0 hidden md:block">
@@ -530,10 +621,11 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                 </Card>
               </div>
             </div>
-          </>
+          </div>
         )}
+      </div>
 
-        <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
             <DialogContent className="max-w-[70vw] max-h-[85vh] p-0 overflow-hidden rounded-lg shadow-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
               <DialogHeader className="bg-gray-50 dark:bg-gray-800 p-4 border-b border-gray-200 dark:border-gray-700"><DialogTitle className="flex items-center gap-3 text-xl font-semibold text-gray-900 dark:text-white"><BarChart3 className="h-6 w-6 text-gray-600 dark:text-gray-400" />{modoEdicao ? 'Editar Evento' : 'Visualizar Evento'} - {eventoEdicao?.nome}</DialogTitle><DialogDescription>{modoEdicao ? 'Edite os dados planejados e reais' : 'Comparativo Planejado vs Realizado'}</DialogDescription></DialogHeader>
               <div className="flex-1 overflow-y-auto p-3">
@@ -559,7 +651,6 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
               <DialogFooter className="bg-gray-50 dark:bg-gray-800 p-4 border-t"><Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>{modoEdicao && <Button onClick={salvarEdicao} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar Alterações'}</Button>}</DialogFooter>
             </DialogContent>
         </Dialog>
-      </div>
     </div>
   );
 }

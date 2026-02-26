@@ -460,9 +460,8 @@ export async function GET(request: Request) {
         e.data_evento >= dataInicioMes && e.data_evento <= dataFimMes
       ) || [];
 
-      const totalRealizado = eventosDoMes.reduce((sum, e) => 
-        sum + (e.real_r || 0) + (e.sympla_liquido || 0) + (e.yuzer_liquido || 0), 0
-      );
+      // real_r JÁ INCLUI ContaHub + Sympla + Yuzer (calculado pela função calculate_evento_metrics)
+      const totalRealizado = eventosDoMes.reduce((sum, e) => sum + (e.real_r || 0), 0);
       const totalMeta = eventosDoMes.reduce((sum, e) => sum + (e.m1_r || 0), 0);
       faturamentoRealMap.set(`${ano}-${mes}`, { realizado: totalRealizado, meta: totalMeta });
     });

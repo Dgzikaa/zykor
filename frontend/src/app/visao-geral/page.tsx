@@ -25,7 +25,7 @@ import {
   ModernGrid, 
   ModernStat 
 } from '@/components/layouts/ModernPageLayout';
-import { useZykorToast } from '@/components/ui/toast-modern';
+// Toast já importado via useToast acima
 import { usePushNotifications } from '@/lib/push-notifications';
 import { useBackgroundSync } from '@/lib/background-sync';
 import { useBadgeAPI } from '@/lib/badge-api';

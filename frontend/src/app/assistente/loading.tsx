@@ -1,5 +1,1 @@
-import { RelatorioSkeleton } from '@/components/skeletons/page-skeletons';
-
-export default function AssistenteLoading() {
-  return <RelatorioSkeleton />;
-}
+﻿export { DashboardLoading as default } from '@/components/ui/unified-loading';

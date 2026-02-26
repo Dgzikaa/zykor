@@ -1,5 +1,1 @@
-import { DashboardSkeleton } from '@/components/skeletons/page-skeletons';
-
-export default function CRMLoading() {
-  return <DashboardSkeleton />;
-}
+﻿export { DashboardLoading as default } from '@/components/ui/unified-loading';

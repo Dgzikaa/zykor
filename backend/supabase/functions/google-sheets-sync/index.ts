@@ -36,6 +36,32 @@ const DEFAULT_NPS_RESERVAS_FILE_ID = '1HXSsGWum84HrB3yRvuzv-TsPcd8wEywVrOztdFcHn
 const DEFAULT_VOZ_CLIENTE_FILE_ID = '10YoLlCX1K5bPI6qeZ56wagFSY8q7oOMCOJVgObNEKdo'
 const DEFAULT_PESQUISA_FELICIDADE_FILE_ID = '1sYIKzphim9bku0jl_J6gSDEqrIhYMxAn'
 
+// ========== REDIRECT HELPER ==========
+async function redirectToFunction(functionName: string, body: any): Promise<any> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  
+  const targetUrl = `${supabaseUrl}/functions/v1/${functionName}`
+  
+  console.log(`🔄 Redirecionando para: ${functionName}`)
+  
+  const response = await fetch(targetUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${serviceKey}`,
+    },
+    body: JSON.stringify(body),
+  })
+  
+  const result = await response.json()
+  
+  return {
+    dispatched_to: functionName,
+    result,
+  }
+}
+
 // ========== SYNC NPS ==========
 interface SyncOpts {
   data_inicio?: string
@@ -548,14 +574,29 @@ serve(async (req) => {
         result = await syncPesquisaFelicidade(bar_id)
         break
       
-      // Manter compatibilidade com chamadas antigas
+      case 'fichas-tecnicas':
+        result = await redirectToFunction('sync-fichas-tecnicas', body)
+        break
+      
+      case 'insumos-receitas':
+        result = await redirectToFunction('sync-insumos-receitas', body)
+        break
+      
       case 'contagem':
-        // sync-contagem-sheets tem lógica muito diferente, mantém separado por enquanto
-        return errorResponse('Use a função sync-contagem-sheets para contagem de estoque', null, 400)
+        result = await redirectToFunction('sync-contagem-sheets', body)
+        break
+      
+      case 'orcamentacao':
+        result = await redirectToFunction('sync-orcamentacao-sheets', body)
+        break
+      
+      case 'cmv':
+        result = await redirectToFunction('sync-cmv-sheets', body)
+        break
       
       default:
         return errorResponse(
-          `Action inválida: ${action}. Use: nps, nps-reservas, voz-cliente, pesquisa-felicidade`,
+          `Action inválida: ${action}. Use: nps, nps-reservas, voz-cliente, pesquisa-felicidade, fichas-tecnicas, insumos-receitas, contagem, orcamentacao, cmv`,
           null,
           400
         )

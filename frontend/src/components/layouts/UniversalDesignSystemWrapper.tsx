@@ -4,12 +4,7 @@ import React, { useState, useEffect } from 'react';
 import {
   ErrorBoundary,
   PageTransition,
-  GlobalSearch,
   ScrollToTop,
-  CommandPalette,
-  ThemeSwitcher,
-  // KeyboardShortcuts,
-  ModernNotifications
 } from '@/components/ui';
 import { Button } from '@/components/ui/button';
 import { Search, Command, Settings, Accessibility } from 'lucide-react';
@@ -90,10 +85,7 @@ export function UniversalDesignSystemWrapper({
                     
                     {/* Floating Action Buttons */}
                     <div className="fixed bottom-6 right-6 flex flex-col space-y-3 z-50">
-                      {/* Theme Switcher */}
-                      {enableThemeSwitcher && (
-                        <ThemeSwitcher />
-                      )}
+                      {/* Theme Switcher - Removido na otimização */}
                       
                       {/* Accessibility Button */}
                       {enableAccessibility && (
@@ -138,23 +130,8 @@ export function UniversalDesignSystemWrapper({
                       <ScrollToTop />
                     </div>
                     
-                    {/* Modals e Overlays */}
-                    {enableGlobalSearch && (
-                      <GlobalSearch
-                        isOpen={showGlobalSearch}
-                        onClose={() => setShowGlobalSearch(false)}
-                      />
-                    )}
-                    
-                    {enableCommandPalette && (
-                      <CommandPalette
-                        isOpen={showCommandPalette}
-                        onClose={() => setShowCommandPalette(false)}
-                      />
-                    )}
-                    
-                    {/* Sistema de Notificações */}
-                    <ModernNotifications />
+                    {/* Modals e Overlays - Desabilitados temporariamente */}
+                    {/* GlobalSearch e CommandPalette removidos na otimização */}
                     
                     {/* Keyboard Shortcuts Handler */}
                     {/* KeyboardShortcuts não implementado ainda
@@ -176,31 +153,8 @@ export function UniversalDesignSystemWrapper({
                     
                     {/* Floating Action Buttons (sem acessibilidade) */}
                     <div className="fixed bottom-6 right-6 flex flex-col space-y-3 z-50">
-                      {enableThemeSwitcher && <ThemeSwitcher />}
-                      
-                      {enableGlobalSearch && (
-                        <Button
-                          onClick={() => setShowGlobalSearch(true)}
-                          size="sm"
-                          variant="outline"
-                          className="rounded-full w-12 h-12 p-0 shadow-lg"
-                          title="Busca Global (⌘K)"
-                        >
-                          <Search className="w-5 h-5" />
-                        </Button>
-                      )}
-                      
                       <ScrollToTop />
                     </div>
-                    
-                    {enableGlobalSearch && (
-                      <GlobalSearch
-                        isOpen={showGlobalSearch}
-                        onClose={() => setShowGlobalSearch(false)}
-                      />
-                    )}
-                    
-                    <ModernNotifications />
                   </div>
                 </PageTransition>
           )}
@@ -211,11 +165,8 @@ export function UniversalDesignSystemWrapper({
                 {children}
                 
                 <div className="fixed bottom-6 right-6 flex flex-col space-y-3 z-50">
-                  {enableThemeSwitcher && <ThemeSwitcher />}
                   <ScrollToTop />
                 </div>
-                
-                <ModernNotifications />
               </div>
             </PageTransition>
           )}

@@ -1,5 +1,1 @@
-import { ConfiguracoesSkeleton } from '@/components/skeletons/page-skeletons';
-
-export default function GuiaLoading() {
-  return <ConfiguracoesSkeleton />;
-}
+﻿export { DashboardLoading as default } from '@/components/ui/unified-loading';

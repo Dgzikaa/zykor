@@ -181,8 +181,9 @@ export async function getPlanejamentoComercial(
         ano: dataEvento.getUTCFullYear(),
         dia_formatado: dataEvento.getUTCDate().toString().padStart(2, '0'),
         data_curta: `${dataEvento.getUTCDate().toString().padStart(2, '0')}/${(dataEvento.getUTCMonth() + 1).toString().padStart(2, '0')}`,
-        
-        real_receita: (evento.real_r || 0) + (evento.sympla_liquido || 0) + (evento.yuzer_liquido || 0),
+
+        // real_r JÁ INCLUI ContaHub + Sympla + Yuzer (calculado pela função calculate_evento_metrics)
+        real_receita: evento.real_r || 0,
         m1_receita: evento.m1_r || 0,
         
         clientes_plan: evento.cl_plan || 0,

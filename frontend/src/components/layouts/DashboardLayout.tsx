@@ -2,7 +2,7 @@
 
 import { ReactNode } from 'react';
 import { DarkHeader } from './DarkHeader';
-import { ModernSidebar } from './ModernSidebar';
+import { ModernSidebarOptimized } from './ModernSidebarOptimized';
 import { BottomNavigation } from './BottomNavigation';
 import AuthGuard from '@/components/auth/AuthGuard';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -28,7 +28,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
           <DarkHeader />
           <div className="flex flex-1">
-            <ModernSidebar />
+            <ModernSidebarOptimized />
             <main className="flex-1 transition-all duration-300 ease-in-out overflow-y-auto">
               <ErrorBoundary>
                 {children}

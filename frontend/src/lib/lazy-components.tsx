@@ -82,7 +82,7 @@ export const LazyStaggerContainer = dynamic(
  * O sidebar é um componente pesado com muitas animações
  */
 export const LazyModernSidebar = dynamic(
-  () => import('@/components/layouts/ModernSidebar').then((mod) => mod.ModernSidebar),
+  () => import('@/components/layouts/ModernSidebarOptimized').then((mod) => mod.ModernSidebarOptimized),
   {
     loading: () => (
       <div className="w-14 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 animate-pulse">

@@ -1,5 +1,1 @@
-import { VisaoGeralSkeleton } from '@/components/skeletons/page-skeletons';
-
-export default function EstrategicoLoading() {
-  return <VisaoGeralSkeleton />;
-}
+﻿export { VisaoGeralLoading as default } from '@/components/ui/unified-loading';

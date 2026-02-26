@@ -12,9 +12,16 @@ import {
 import { 
   Skeleton, 
   SkeletonCard
-} from '@/components/ui/skeleton-modern';
-import { AccessibleText, SkipLink, FocusRing } from '@/components/ui/accessibility-wrapper';
-import { useZykorToast } from '@/components/ui/toast-modern';
+} from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+
+// Componentes de acessibilidade simplificados
+const AccessibleText = ({ children, level, className }: any) => {
+  const Tag = level ? `h${level}` as any : 'span';
+  return <Tag className={className}>{children}</Tag>;
+};
+const SkipLink = () => null;
+const FocusRing = ({ children }: any) => <>{children}</>;
 import { ChevronLeft, ChevronRight, MoreVertical, Maximize2, Filter } from 'lucide-react';
 
 /**
@@ -60,7 +67,7 @@ export function ModernPageLayout({
   onFilter
 }: ModernPageLayoutProps) {
   const showSkeleton = loading;
-  const toast = useZykorToast();
+  const { toast } = useToast();
 
   // Componente de skeleton baseado no tipo
   const renderSkeleton = () => {
@@ -109,7 +116,7 @@ export function ModernPageLayout({
           <div className="space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="flex items-center space-x-4 p-4 card-dark">
-                <Skeleton variant="circular" className="h-10 w-10" />
+                <Skeleton className="h-10 w-10 rounded-full" />
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-3/4" />
                   <Skeleton className="h-3 w-1/2" />

@@ -1,5 +1,1 @@
-import { OperacoesSkeleton } from '@/components/skeletons/page-skeletons';
-
-export default function OperacionalLoading() {
-  return <OperacoesSkeleton />;
-}
+﻿export { DashboardLoading as default } from '@/components/ui/unified-loading';
