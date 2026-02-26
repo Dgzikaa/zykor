@@ -1,7 +1,7 @@
 # ZYKOR - CONTEXTO COMPLETO DO SISTEMA
 
 > **LEIA ESTE ARQUIVO EM CADA NOVO CHAT!**  
-> Última atualização: **26/02/2026**
+> Última atualização: **26/02/2026 - 14:30 BRT**
 
 ---
 
@@ -210,7 +210,12 @@
 | CMV Limpo | 31% |
 | CMO (Custo Mão de Obra) | 20-23% |
 | Margem Ideal | 65% |
-| Stockout Médio | 9.3% |
+| Stockout Médio | 8.55% (corrigido 26/02) |
+
+**Produtos Excluídos do Stockout**:
+- `[HH]` - Happy Hour (promoções)
+- `[DD]` - Dose Dupla (promoções)
+- `[IN]` - Insumos (não vendáveis)
 
 ### NPS e Avaliações
 
@@ -227,7 +232,50 @@
 
 ---
 
-## OTIMIZAÇÕES RECENTES (26/02/2026)
+## OTIMIZAÇÕES RECENTES (25-26/02/2026)
+
+### 0. ContaHub - Correção Stockout e Automação Completa ✅ (26/02/2026)
+
+**Problema Identificado**:
+- Cron `contahub-sync` não rodou em 26/02 para dados de 25/02
+- `eventos_base` não estava atualizando após coleta do ContaHub
+- % stockout estava em 23% (esperado: ~9%)
+- Produtos com prefixos [HH], [DD], [IN] não estavam sendo excluídos
+
+**Soluções Implementadas**:
+
+**1. Refatoração `contahub-sync`** ✅
+- Moveu toda lógica de coleta para dentro da função
+- Removeu dependência de funções deletadas
+- Implementou coleta diária automática às 07:00 BRT
+- Adicionou coleta de: faturamento, PAX, tickets, produtos, stockout, marketing
+
+**2. Correção Cálculo Stockout** ✅
+- **Edge Function** (`contahub-stockout-sync`):
+  - Filtra produtos ANTES de salvar no banco
+  - Exclui prefixos: `[HH]` (Happy Hour), `[DD]` (Dose Dupla), `[IN]` (Insumos)
+  - Calcula estatísticas já com produtos filtrados
+- **Database Function** (`update_eventos_base_from_contahub_batch`):
+  - Atualiza query SQL para excluir produtos com prefixos
+  - Usa `prd_desc NOT LIKE '[HH]%'`, `NOT LIKE '[DD]%'`, `NOT LIKE '[IN]%'`
+- **Resultado**: % stockout corrigido de 23% para 8.55%
+
+**3. Automação 100% do Pipeline** ✅
+- `contahub-sync` (07:00) → coleta dados brutos
+- `contahub-processor` (07:15) → processa dados
+- `update_eventos_base_from_contahub_batch` (07:30) → atualiza eventos_base
+- Pipeline totalmente automático sem intervenção manual
+
+**Arquivos Modificados**:
+- `backend/supabase/functions/contahub-sync/index.ts` - Refatoração completa
+- `backend/supabase/functions/contahub-stockout-sync/index.ts` - Filtros de exclusão
+- `database/functions/update_eventos_base_from_contahub_batch.sql` - Query otimizada
+
+**Benefícios**:
+- Dados sempre atualizados automaticamente
+- Métricas de stockout precisas
+- Banco de dados limpo (sem produtos irrelevantes)
+- Confiabilidade do pipeline aumentada
 
 ### 1. Consolidação de Edge Functions ✅
 
@@ -268,6 +316,26 @@
 
 ### 4. Otimização Frontend ✅
 
+**Nova UI - Planejamento Comercial** ✅ (26/02/2026)
+- ✅ **Grupos Colapsáveis**: Métricas organizadas em 3 grupos (Clientes, Ticket, Análises)
+- ✅ **Botões Expandir/Recolher**: Controle individual e geral de expansão
+- ✅ **Nomes Completos**: Exibe nomes completos das colunas (ex: "Clientes Presentes" ao invés de "Cl.P")
+- ✅ **Coluna Artista**: Nova coluna após "Dia" mostrando nome da atração
+- ✅ **Alinhamento Perfeito**: Larguras fixas (width, minWidth, maxWidth) em todos os elementos
+- ✅ **Tabela Unificada**: Header e body em tabela única com sticky header
+- ✅ **Ícones e Cores**: Cada grupo com ícone e cor distintos (azul=Clientes, roxo=Ticket, laranja=Análises)
+- ✅ **Responsividade**: Layout adaptável mantendo alinhamento em todos os estados
+
+**Larguras Fixas Implementadas**:
+- Data: 90px
+- Dia: 65px
+- Artista: 300px
+- Receita Real / Meta M1: 130px
+- Clientes (expandido): 100px cada
+- Ticket (expandido): 110px cada
+- Análises (expandido): 110px (Cost), 90px (Percent), 105px (Time)
+- Ações: 120px
+
 **Páginas Duplicadas Removidas**:
 - ❌ `planejamento-comercial/page-excel.tsx`
 - ❌ `planejamento-comercial/page-simple.tsx`
@@ -295,7 +363,44 @@
 
 **Total**: ~165KB de redução no bundle inicial
 
-### 5. Consolidação de Cards ✅
+### 5. Otimização Completa do Banco de Dados ✅
+
+**Segurança (RLS)**:
+- ✅ 20 views `SECURITY DEFINER` removidas
+- ✅ 291 políticas RLS ativas e seguras
+- ✅ Multi-tenancy implementado (`user_has_access_to_bar`, `user_has_access_to_empresa`)
+- ✅ Políticas consolidadas (removidas duplicatas)
+- ✅ Materialized views protegidas
+- ✅ Políticas com `USING (true)` corrigidas (12 tabelas)
+
+**Performance (Índices)**:
+- ✅ 70 índices criados para foreign keys sem cobertura
+- ✅ 150+ índices não usados removidos
+- ✅ Índices duplicados removidos
+- ✅ Índices para queries lentas criados (sympla_participantes, contahub_analitico)
+
+**Performance (RLS)**:
+- ✅ `auth.uid()` e `auth.role()` otimizados com `(SELECT ...)` (18 tabelas)
+- ✅ Políticas permissivas múltiplas consolidadas (4 tabelas)
+- ✅ Auth RLS InitPlan otimizado
+
+**Performance (Funções)**:
+- ✅ 62 funções com `search_path = public, pg_temp`
+- ✅ `auto_recalculo_eventos_pendentes` otimizada (1853ms → otimizado)
+
+**Performance (Tabelas)**:
+- ✅ VACUUM FULL em `eventos_base` (bloat removido)
+- ✅ Autovacuum agressivo em 6 tabelas grandes (contahub_*)
+- ✅ Tamanho total: 1.08 GB
+
+**Estatísticas Finais**:
+- **446 índices** otimizados
+- **187 tabelas** com RLS
+- **291 políticas RLS** ativas
+- **62 funções** com search_path seguro
+- **0 erros críticos** do Supabase Linter
+
+### 6. Consolidação de Cards ✅
 
 **Removidos**:
 - ❌ `standard-card.tsx` (não usado)
@@ -454,5 +559,20 @@
 
 ---
 
-**Última atualização**: 26/02/2026 01:45 BRT  
+**Última atualização**: 26/02/2026 14:30 BRT  
 **Próxima revisão**: Quando houver mudanças significativas no sistema
+
+---
+
+## CONFIGURAÇÕES DE INFRAESTRUTURA
+
+### Supabase Database
+- **Connection Pooling**: Transaction Pooler ativo (porta 6543)
+- **PgBouncer**: Ativo e funcionando
+- **Max Connections**: 60 (uso atual: ~20%)
+- **Auth Connections**: 10 fixas (não crítico, considerar % no futuro)
+
+### Vercel (Frontend)
+- **Framework**: Next.js 14+
+- **Conexão**: Via REST API do Supabase (não usa conexão direta ao PostgreSQL)
+- **Deploy**: Automático via GitHub (branch main)
