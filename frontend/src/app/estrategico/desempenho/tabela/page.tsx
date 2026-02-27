@@ -801,8 +801,14 @@ export default function TabelaDesempenhoPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
-                            <div className="font-semibold text-base">
+                          <td className="py-3 px-4">
+                            <div className={`font-semibold text-base ${
+                              item.meta_semanal > 0 && item.faturamento_total < item.meta_semanal
+                                ? 'text-red-600 dark:text-red-400'
+                                : item.meta_semanal > 0 && item.faturamento_total >= item.meta_semanal
+                                ? 'text-green-600 dark:text-green-400'
+                                : 'text-gray-800 dark:text-gray-200'
+                            }`}>
                               {formatarMoeda(item.faturamento_total)}
                             </div>
                           </td>

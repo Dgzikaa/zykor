@@ -505,11 +505,11 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         {/* Subcolunas CLIENTES */}
                         {gruposAbertos.clientes && (
                           <>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Presentes</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Reais</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Reservas Total</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Reservas Pres.</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r-2 border-blue-400 dark:border-blue-500" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Lotação Máx.</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Clientes Presentes</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Clientes Reais</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Reservas Total</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Reservas Presentes</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r-2 border-blue-400 dark:border-blue-500" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Lotação Máxima</th>
                           </>
                         )}
                         {!gruposAbertos.clientes && <th className="border-r-2 border-blue-400 dark:border-blue-500 bg-blue-50/50 dark:bg-blue-900/10" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}></th>}
@@ -517,11 +517,11 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         {/* Subcolunas TICKET */}
                         {gruposAbertos.ticket && (
                           <>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Entrada Plan.</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Entrada Planejado</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Entrada Real</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Bar Plan.</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Bar Real</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r-2 border-purple-400 dark:border-purple-500" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Médio</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Bar Planejado</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Bar Real</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r-2 border-purple-400 dark:border-purple-500" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Ticket Médio</th>
                           </>
                         )}
                         {!gruposAbertos.ticket && <th className="border-r-2 border-purple-400 dark:border-purple-500 bg-purple-50/50 dark:bg-purple-900/10" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}></th>}
@@ -546,11 +546,26 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {dados.map((evento, idx) => (
+                        {dados.map((evento, idx) => {
+                          // Calcular número da semana ISO
+                          const getWeekNumber = (dateStr: string) => {
+                            const date = new Date(dateStr + 'T00:00:00');
+                            const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+                            const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000;
+                            return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+                          };
+                          
+                          const currentWeek = getWeekNumber(evento.data_evento);
+                          const previousWeek = idx > 0 ? getWeekNumber(dados[idx - 1].data_evento) : null;
+                          const isNewWeek = previousWeek !== null && currentWeek !== previousWeek;
+                          
+                          return (
                           <tr 
                             key={evento.evento_id} 
                             onClick={() => setLinhaHighlight(idx)}
                             className={`cursor-pointer transition-colors ${
+                              isNewWeek ? 'border-t-4 border-gray-600 dark:border-gray-400' : ''
+                            } ${
                               linhaHighlight === idx 
                                 ? 'bg-emerald-100 dark:bg-emerald-900/30' 
                                 : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
@@ -613,7 +628,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                               </div>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>

@@ -207,8 +207,8 @@ export default function CMVSemanalPage() {
     
     // 4. Calcular CMV Real
     // CMV Real = (Estoque Inicial + Compras - Estoque Final) - 
-    //            (Consumo Sócios + Consumo Benefícios + Consumo ADM + Consumo RH + Consumo Artista + Outros Ajustes) -
-    //            Ajuste Bonificações (bonificações reduzem o CMV)
+    //            (Consumo Sócios + Consumo Benefícios + Consumo ADM + Consumo RH + Consumo Artista + Outros Ajustes) +
+    //            Ajuste Bonificações (bonificações aumentam o CMV - descontos recebidos)
     const cmvBruto = (dados.estoque_inicial || 0) + 
                      (dados.compras_periodo || 0) - 
                      (dados.estoque_final || 0);
@@ -220,7 +220,7 @@ export default function CMVSemanalPage() {
                           (dados.consumo_artista || 0) + 
                           (dados.outros_ajustes || 0);
     
-    dados.cmv_real = cmvBruto - totalConsumos - (dados.ajuste_bonificacoes || 0);
+    dados.cmv_real = cmvBruto - totalConsumos + (dados.ajuste_bonificacoes || 0);
     
     // 5. Calcular CMV Limpo (%) e CMV Real (%)
     // CMV Limpo = (CMV Real / Faturamento CMVível) * 100

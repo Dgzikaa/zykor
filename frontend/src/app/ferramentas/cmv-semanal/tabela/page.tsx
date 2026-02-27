@@ -216,7 +216,7 @@ const SECOES: SecaoConfig[] = [
       },
       {
         id: 'bonificacoes',
-        label: '(-) Bonificações',
+        label: '(+) Bonificações',
         metricas: [
           { key: 'ajuste_bonificacoes', label: 'TOTAL', status: 'manual', fonte: 'Manual', calculo: 'Contrato Anual + Cashback Mensal', formato: 'moeda' },
           { key: 'bonificacao_contrato_anual', label: 'Contrato Anual', status: 'manual', fonte: 'Manual', calculo: 'Valor inserido manualmente', formato: 'moeda', editavel: true },
@@ -761,7 +761,7 @@ export default function CMVSemanalTabelaPage() {
           { label: '(+) Compras', valor: compras },
           { label: '(-) Estoque Final', valor: -estoqueFinal },
           { label: '(-) Consumações × 0.35', valor: -consumosTotal },
-          { label: '(-) Bonificações', valor: -bonificacoes },
+          { label: '(+) Bonificações', valor: bonificacoes },
         ];
       case 'cmv_percentual':
         return [{

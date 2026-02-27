@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { logAuditEvent } from '@/lib/audit-logger';
 
 // Cache por 2 minutos para dados CMV
 export const revalidate = 120;
@@ -102,6 +103,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Buscar registro existente para auditoria
+    const { data: existente } = await supabase
+      .from('cmv_semanal')
+      .select('*')
+      .eq('bar_id', bar_id)
+      .eq('ano', registro.ano)
+      .eq('semana', registro.semana)
+      .single();
+
     // Adicionar bar_id ao registro
     const registroCompleto = {
       ...registro,
@@ -124,6 +134,28 @@ export async function POST(request: NextRequest) {
         { error: 'Erro ao salvar dados de CMV', details: error.message },
         { status: 500 }
       );
+    }
+
+    // Registrar auditoria
+    try {
+      await logAuditEvent({
+        operation: existente ? 'UPDATE_CMV' : 'CREATE_CMV',
+        description: `${existente ? 'Atualização' : 'Criação'} de CMV - Semana ${registro.semana}/${registro.ano}`,
+        barId: bar_id,
+        tableName: 'cmv_semanal',
+        recordId: data.id,
+        oldValues: existente || undefined,
+        newValues: data,
+        severity: 'info',
+        category: 'financial',
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+        endpoint: '/api/cmv-semanal',
+        method: 'POST'
+      });
+    } catch (auditError) {
+      console.error('Erro ao registrar auditoria:', auditError);
+      // Não falha a operação se auditoria falhar
     }
 
     return NextResponse.json({
@@ -153,6 +185,13 @@ export async function PUT(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Buscar registro existente para auditoria
+    const { data: existente } = await supabase
+      .from('cmv_semanal')
+      .select('*')
+      .eq('id', id)
+      .single();
 
     // Campos permitidos para atualização
     const camposPermitidos = [
@@ -204,6 +243,28 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Registrar auditoria
+    try {
+      await logAuditEvent({
+        operation: 'UPDATE_CMV_FIELDS',
+        description: `Atualização de campos do CMV - ID: ${id}`,
+        barId: existente?.bar_id,
+        tableName: 'cmv_semanal',
+        recordId: id,
+        oldValues: existente || undefined,
+        newValues: data,
+        severity: 'info',
+        category: 'financial',
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+        endpoint: '/api/cmv-semanal',
+        method: 'PUT',
+        metadata: { campos_alterados: Object.keys(campos) }
+      });
+    } catch (auditError) {
+      console.error('Erro ao registrar auditoria:', auditError);
+    }
+
     return NextResponse.json({
       success: true,
       data,
@@ -232,6 +293,13 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Buscar registro antes de excluir para auditoria
+    const { data: existente } = await supabase
+      .from('cmv_semanal')
+      .select('*')
+      .eq('id', parseInt(id))
+      .single();
+
     const { error } = await supabase
       .from('cmv_semanal')
       .delete()
@@ -243,6 +311,26 @@ export async function DELETE(request: NextRequest) {
         { error: 'Erro ao excluir registro', details: error.message },
         { status: 500 }
       );
+    }
+
+    // Registrar auditoria
+    try {
+      await logAuditEvent({
+        operation: 'DELETE_CMV',
+        description: `Exclusão de CMV - ID: ${id}`,
+        barId: existente?.bar_id,
+        tableName: 'cmv_semanal',
+        recordId: id,
+        oldValues: existente || undefined,
+        severity: 'warning',
+        category: 'financial',
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+        endpoint: '/api/cmv-semanal',
+        method: 'DELETE'
+      });
+    } catch (auditError) {
+      console.error('Erro ao registrar auditoria:', auditError);
     }
 
     return NextResponse.json({

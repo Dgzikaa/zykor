@@ -88,7 +88,7 @@ const SECOES: SecaoConfig[] = [
         id: 'custos',
         label: 'Custos',
         metricas: [
-          { key: 'cmo', label: 'CMO %', status: 'nao_confiavel', fonte: 'NIBO', calculo: 'Custos MO / Faturamento', formato: 'percentual', inverso: true },
+          { key: 'cmo', label: 'CMO %', status: 'auto', fonte: 'Simulação CMO Travada', calculo: 'CMO Total / Faturamento × 100', formato: 'percentual', inverso: true },
           { key: 'custo_atracao_faturamento', label: 'Atração/Fat.', status: 'auto', fonte: 'NIBO', calculo: 'Atrações / Faturamento', formato: 'percentual', inverso: true },
         ]
       }

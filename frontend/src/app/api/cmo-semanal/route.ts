@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { logAuditEvent } from '@/lib/audit-logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -145,6 +146,27 @@ export async function POST(request: NextRequest) {
       if (funcsError) throw funcsError;
     }
 
+    // Registrar auditoria
+    try {
+      await logAuditEvent({
+        operation: 'CREATE_CMO',
+        description: `Criação de CMO - Semana ${cmo.semana}/${cmo.ano}`,
+        barId: cmo.bar_id,
+        tableName: 'cmo_semanal',
+        recordId: novoCmo.id,
+        newValues: novoCmo,
+        severity: 'info',
+        category: 'financial',
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+        endpoint: '/api/cmo-semanal',
+        method: 'POST',
+        metadata: { total_funcionarios: funcionarios?.length || 0 }
+      });
+    } catch (auditError) {
+      console.error('Erro ao registrar auditoria:', auditError);
+    }
+
     return NextResponse.json({
       success: true,
       data: novoCmo,
@@ -174,10 +196,10 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Verificar se está travado
+    // Buscar CMO existente para auditoria e verificar se está travado
     const { data: cmoExistente } = await supabase
       .from('cmo_semanal')
-      .select('simulacao_salva')
+      .select('*')
       .eq('id', cmo.id)
       .single();
 
@@ -252,6 +274,28 @@ export async function PUT(request: NextRequest) {
         .insert(funcsParaInserir);
 
       if (funcsError) throw funcsError;
+    }
+
+    // Registrar auditoria
+    try {
+      await logAuditEvent({
+        operation: 'UPDATE_CMO',
+        description: `Atualização de CMO - ID: ${cmo.id}`,
+        barId: cmoExistente?.bar_id,
+        tableName: 'cmo_semanal',
+        recordId: cmo.id,
+        oldValues: cmoExistente || undefined,
+        newValues: cmoAtualizado,
+        severity: 'info',
+        category: 'financial',
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+        endpoint: '/api/cmo-semanal',
+        method: 'PUT',
+        metadata: { total_funcionarios: funcionarios?.length || 0 }
+      });
+    } catch (auditError) {
+      console.error('Erro ao registrar auditoria:', auditError);
     }
 
     return NextResponse.json({
