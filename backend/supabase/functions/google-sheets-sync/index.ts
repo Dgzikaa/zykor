@@ -86,6 +86,20 @@ async function syncNPS(barId?: number, opts?: SyncOpts): Promise<{ message: stri
       const fileId = (config?.configuracoes as any)?.nps_file_id || DEFAULT_NPS_FILE_ID
       const sheetName = (config?.configuracoes as any)?.nps_sheet_name || 'Respostas ao formulário 1'
       
+      // Pular Deboche (bar_id 4) se não houver configuração específica
+      if (bar.id === 4 && !config?.configuracoes) {
+        console.log(`⏭️ Pulando ${bar.nome} - sem configuração específica de NPS`)
+        resultados.push({
+          bar_id: bar.id,
+          bar_nome: bar.nome,
+          processados: 0,
+          inseridos: 0,
+          success: true,
+          error: 'Sem configuração específica - pulado'
+        })
+        continue
+      }
+      
       console.log(`📋 Arquivo: ${fileId}`)
       
       const arrayBuffer = await downloadDriveFileAsExcel(fileId, accessToken)

@@ -376,28 +376,23 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
       <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div className="max-w-full mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="font-semibold text-gray-900 dark:text-white">
-                📊 Planejamento Comercial
-              </span>
-              <div className="flex items-center gap-2">
-                <Select value={filtroMes.toString()} onValueChange={(value) => alterarPeriodo(parseInt(value), filtroAno)}>
-                  <SelectTrigger className="w-32 bg-white dark:bg-gray-700 h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {meses.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={filtroAno.toString()} onValueChange={(value) => alterarPeriodo(filtroMes, parseInt(value))}>
-                  <SelectTrigger className="w-24 bg-white dark:bg-gray-700 h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {anos.map(a => <SelectItem key={a} value={a.toString()}>{a}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="flex items-center gap-2">
+              <Select value={filtroMes.toString()} onValueChange={(value) => alterarPeriodo(parseInt(value), filtroAno)}>
+                <SelectTrigger className="w-32 bg-white dark:bg-gray-700 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {meses.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={filtroAno.toString()} onValueChange={(value) => alterarPeriodo(filtroMes, parseInt(value))}>
+                <SelectTrigger className="w-24 bg-white dark:bg-gray-700 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {anos.map(a => <SelectItem key={a} value={a.toString()}>{a}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
@@ -505,7 +500,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         {/* Subcolunas CLIENTES */}
                         {gruposAbertos.clientes && (
                           <>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Clientes Presentes</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Clientes Planejado</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Clientes Reais</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Reservas Total</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Reservas Presentes</th>

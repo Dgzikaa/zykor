@@ -314,47 +314,72 @@ export async function GET(request: NextRequest) {
       let dadosCompletos = false;
       let motivoIncompleto = '';
 
-      if (isBebida) {
-        tipo = 'bebida';
-        // Para bebidas: t0-t3 (lançamento até entrega)
-        if (item.t0_t3 && item.t0_t3 > 0) {
-          tempo = item.t0_t3;
-          tempoValido = tempo >= 30 && tempo <= 1200; // 0.5 a 20 minutos
-          tempoUsado = 't0-t3';
-          dadosCompletos = !!(item.t0_lancamento && item.t3_entrega);
-          if (!dadosCompletos) {
-            motivoIncompleto = !item.t0_lancamento ? 'sem_t0' : 'sem_t3';
-          }
-        } else {
-          motivoIncompleto = 'sem_calculo_t0_t3';
+      // Deboche (bar_id 4): usar t0_t2 para tudo
+      const isDeboche = barId === 4;
+
+      if (isDeboche) {
+        // Deboche: usar t0_t2 (lançamento até fim produção) para tudo
+        if (isBebida) {
+          tipo = 'bebida';
+        } else if (isComida) {
+          tipo = 'comida';
         }
-      } else if (isComida) {
-        tipo = 'comida';
-        // Para comidas: t1-t2 (início produção até fim produção)
-        if (item.t1_t2 && item.t1_t2 > 0) {
-          tempo = item.t1_t2;
-          tempoValido = tempo >= 60 && tempo <= 2700; // 1 a 45 minutos
-          tempoUsado = 't1-t2';
-          dadosCompletos = !!(item.t1_prodini && item.t2_prodfim);
+
+        if (item.t0_t2 && item.t0_t2 > 0) {
+          tempo = item.t0_t2;
+          tempoValido = tempo >= 30 && tempo <= 2700; // 0.5 a 45 minutos
+          tempoUsado = 't0-t2';
+          dadosCompletos = !!(item.t0_lancamento && item.t2_prodfim);
           if (!dadosCompletos) {
-            motivoIncompleto = !item.t1_prodini ? 'sem_t1' : 'sem_t2';
+            motivoIncompleto = !item.t0_lancamento ? 'sem_t0' : 'sem_t2';
           }
         } else {
-          motivoIncompleto = 'sem_calculo_t1_t2';
+          motivoIncompleto = 'sem_calculo_t0_t2';
         }
       } else {
-        // Produto indefinido - tentar t1_t2 como fallback
-        tipo = 'indefinido';
-        if (item.t1_t2 && item.t1_t2 > 0) {
-          tempo = item.t1_t2;
-          tempoValido = tempo >= 30 && tempo <= 3600; // 0.5 a 60 minutos
-          tempoUsado = 't1-t2 (fallback)';
-          dadosCompletos = !!(item.t1_prodini && item.t2_prodfim);
-          if (!dadosCompletos) {
-            motivoIncompleto = !item.t1_prodini ? 'sem_t1' : 'sem_t2';
+        // Ordinário: lógica original
+        if (isBebida) {
+          tipo = 'bebida';
+          // Para bebidas: t0-t3 (lançamento até entrega)
+          if (item.t0_t3 && item.t0_t3 > 0) {
+            tempo = item.t0_t3;
+            tempoValido = tempo >= 30 && tempo <= 1200; // 0.5 a 20 minutos
+            tempoUsado = 't0-t3';
+            dadosCompletos = !!(item.t0_lancamento && item.t3_entrega);
+            if (!dadosCompletos) {
+              motivoIncompleto = !item.t0_lancamento ? 'sem_t0' : 'sem_t3';
+            }
+          } else {
+            motivoIncompleto = 'sem_calculo_t0_t3';
+          }
+        } else if (isComida) {
+          tipo = 'comida';
+          // Para comidas: t1-t2 (início produção até fim produção)
+          if (item.t1_t2 && item.t1_t2 > 0) {
+            tempo = item.t1_t2;
+            tempoValido = tempo >= 60 && tempo <= 2700; // 1 a 45 minutos
+            tempoUsado = 't1-t2';
+            dadosCompletos = !!(item.t1_prodini && item.t2_prodfim);
+            if (!dadosCompletos) {
+              motivoIncompleto = !item.t1_prodini ? 'sem_t1' : 'sem_t2';
+            }
+          } else {
+            motivoIncompleto = 'sem_calculo_t1_t2';
           }
         } else {
-          motivoIncompleto = 'sem_dados_tempo';
+          // Produto indefinido - tentar t1_t2 como fallback
+          tipo = 'indefinido';
+          if (item.t1_t2 && item.t1_t2 > 0) {
+            tempo = item.t1_t2;
+            tempoValido = tempo >= 30 && tempo <= 3600; // 0.5 a 60 minutos
+            tempoUsado = 't1-t2 (fallback)';
+            dadosCompletos = !!(item.t1_prodini && item.t2_prodfim);
+            if (!dadosCompletos) {
+              motivoIncompleto = !item.t1_prodini ? 'sem_t1' : 'sem_t2';
+            }
+          } else {
+            motivoIncompleto = 'sem_dados_tempo';
+          }
         }
       }
 

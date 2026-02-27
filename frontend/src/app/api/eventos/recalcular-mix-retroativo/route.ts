@@ -15,6 +15,9 @@ const LOCAIS_BEBIDAS = ['Chopp', 'Baldes', 'Pegue e Pague', 'PP', 'Venda Volante
 const LOCAIS_COMIDAS = ['Cozinha', 'Cozinha 1', 'Cozinha 2'];
 const LOCAIS_DRINKS = ['Preshh', 'Drinks', 'Drinks Autorais', 'Mexido', 'Shot e Dose', 'Batidos', 'Montados'];
 
+// Classificação específica por bar
+const LOCAIS_DRINKS_DEBOCHE = [...LOCAIS_DRINKS, 'Salao']; // Deboche (bar_id 4): Salao é Drinks
+
 /**
  * Recalcula o Mix de Vendas (percent_b, percent_d, percent_c) para eventos
  * baseado nos dados atuais do contahub_analitico
@@ -38,6 +41,9 @@ async function calcularMixVendasEvento(barId: number, dataEvento: string): Promi
     return null;
   }
 
+  // Selecionar classificação de drinks baseado no bar
+  const locaisDrinks = barId === 4 ? LOCAIS_DRINKS_DEBOCHE : LOCAIS_DRINKS;
+
   let valor_bebidas = 0;
   let valor_comidas = 0;
   let valor_drinks = 0;
@@ -53,7 +59,7 @@ async function calcularMixVendasEvento(barId: number, dataEvento: string): Promi
       valor_bebidas += valor;
     } else if (LOCAIS_COMIDAS.includes(loc)) {
       valor_comidas += valor;
-    } else if (LOCAIS_DRINKS.includes(loc)) {
+    } else if (locaisDrinks.includes(loc)) {
       valor_drinks += valor;
     } else {
       valor_outros += valor;

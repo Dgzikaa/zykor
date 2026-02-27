@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -233,29 +233,45 @@ export async function GET(request: NextRequest) {
         let tempo = 0;
         let isValidTempo = false;
 
-        if (isComida(produto, grupo)) {
-          // Para comidas: usar t1_t2 (início produção até fim produção)
-          if (item.t1_t2 && item.t1_t2 > 0 && item.t1_t2 <= 2700) {
-            // max 45 min
-            tempo = item.t1_t2;
+        // Deboche (bar_id 4): usar t0_t2 para tudo
+        const isDeboche = parseInt(bar_id) === 4;
+
+        if (isDeboche) {
+          // Deboche: usar t0_t2 (lançamento até fim produção) para tudo
+          if (item.t0_t2 && item.t0_t2 > 0 && item.t0_t2 <= 2700) {
+            tempo = item.t0_t2;
             isValidTempo = true;
-            pedidosCozinha += quantidade;
-          }
-        } else if (isBebida(produto, grupo)) {
-          // Para bebidas: usar t0_t3 (lançamento até entrega)
-          if (item.t0_t3 && item.t0_t3 > 0 && item.t0_t3 <= 1200) {
-            // max 20 min
-            tempo = item.t0_t3;
-            isValidTempo = true;
-            pedidosBar += quantidade;
+            if (isComida(produto, grupo)) {
+              pedidosCozinha += quantidade;
+            } else if (isBebida(produto, grupo)) {
+              pedidosBar += quantidade;
+            } else {
+              pedidosCozinha += quantidade;
+            }
           }
         } else {
-          // Para produtos indefinidos: tentar t1_t2 como fallback
-          if (item.t1_t2 && item.t1_t2 > 0 && item.t1_t2 <= 3600) {
-            // max 60 min
-            tempo = item.t1_t2;
-            isValidTempo = true;
-            pedidosCozinha += quantidade; // considerar como cozinha
+          // Ordinário: lógica original
+          if (isComida(produto, grupo)) {
+            // Para comidas: usar t1_t2 (início produção até fim produção)
+            if (item.t1_t2 && item.t1_t2 > 0 && item.t1_t2 <= 2700) {
+              tempo = item.t1_t2;
+              isValidTempo = true;
+              pedidosCozinha += quantidade;
+            }
+          } else if (isBebida(produto, grupo)) {
+            // Para bebidas: usar t0_t3 (lançamento até entrega)
+            if (item.t0_t3 && item.t0_t3 > 0 && item.t0_t3 <= 1200) {
+              tempo = item.t0_t3;
+              isValidTempo = true;
+              pedidosBar += quantidade;
+            }
+          } else {
+            // Para produtos indefinidos: tentar t1_t2 como fallback
+            if (item.t1_t2 && item.t1_t2 > 0 && item.t1_t2 <= 3600) {
+              tempo = item.t1_t2;
+              isValidTempo = true;
+              pedidosCozinha += quantidade;
+            }
           }
         }
 
