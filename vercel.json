@@ -1,8 +1,4 @@
-﻿{
-  "buildCommand": "cd frontend && npm run build",
-  "outputDirectory": "frontend/.next",
-  "installCommand": "cd frontend && npm install",
-  "devCommand": "cd frontend && npm run dev",
+{
   "crons": [
     {
       "path": "/api/configuracoes/credenciais/nibo-sync-simple",
