@@ -107,9 +107,10 @@ export async function GET(request: NextRequest) {
     (eventosMensais || []).forEach((evento: any) => {
       const mes = evento.data_evento.substring(5, 7);
       for (const [trimestre, dados] of Object.entries(padroesSazonais)) {
-        if (dados.meses.includes(mes)) {
-          dados.faturamento += evento.real_r || 0;
-          dados.eventos += 1;
+        const dadosTrimestre = dados as any;
+        if (dadosTrimestre.meses.includes(mes)) {
+          dadosTrimestre.faturamento += evento.real_r || 0;
+          dadosTrimestre.eventos += 1;
         }
       }
     });

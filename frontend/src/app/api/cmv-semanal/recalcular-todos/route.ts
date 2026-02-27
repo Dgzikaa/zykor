@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const recalculados = [];
-    const erros = [];
+    const recalculados: any[] = [];
+    const erros: any[] = [];
 
     // Recalcular cada CMV
     for (const cmv of cmvs) {

@@ -202,8 +202,8 @@ export async function POST(request: Request) {
         .from('cmo_semanal')
         .select('cmo_total, freelas, fixos_total, cma_alimentacao, pro_labore_semanal, simulacao_salva')
         .eq('bar_id', barId)
-        .eq('ano', ano)
-        .eq('semana', semana)
+        .eq('ano', anoInicio)
+        .eq('semana', semana.numero_semana)
         .eq('simulacao_salva', true) // Apenas simulações travadas
         .single();
 
@@ -221,14 +221,14 @@ export async function POST(request: Request) {
           { categoria: 'Pro Labore', quantidade: 1, total: cmoTravado.pro_labore_semanal || 0 }
         );
 
-        console.log(`👷 CMO da Simulação Travada (Semana ${semana}/${ano}):`);
+        console.log(`👷 CMO da Simulação Travada (Semana ${semana.numero_semana}/${anoInicio}):`);
         custosCMODetalhados.forEach(item => {
           console.log(`  - ${item.categoria}: R$ ${item.total.toFixed(2)}`);
         });
         console.log(`  - TOTAL CMO: R$ ${custoTotalCMO.toFixed(2)}`);
       } else {
         // Fallback: Calcular pelo NIBO (método antigo) se não houver simulação travada
-        console.log(`⚠️ Nenhuma simulação CMO travada encontrada para Semana ${semana}/${ano}. Usando cálculo pelo NIBO.`);
+        console.log(`⚠️ Nenhuma simulação CMO travada encontrada para Semana ${semana.numero_semana}/${anoInicio}. Usando cálculo pelo NIBO.`);
         
         const mesFimStr = `${anoFim}-${(mesFim + 1).toString().padStart(2, '0')}-01`;
         
