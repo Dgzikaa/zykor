@@ -27,10 +27,10 @@ interface AnalyticCard {
 export default function AnaliticoPage() {
   const cards: AnalyticCard[] = [
     {
-      title: 'Retrospectiva 2025',
-      description: 'Análise completa do ano com métricas e conquistas',
-      icon: Sparkles,
-      href: '/retrospectiva-2025',
+      title: 'Clientes',
+      description: 'Análise de clientes mais recorrentes',
+      icon: Users,
+      href: '/analitico/clientes',
       implemented: true
     },
     {
@@ -47,55 +47,6 @@ export default function AnaliticoPage() {
       href: '/analitico/eventos/comparativo',
       implemented: true
     },
-    {
-      title: 'Clientes',
-      description: 'Análise de clientes mais recorrentes',
-      icon: Users,
-      href: '/analitico/clientes',
-      implemented: true
-    },
-    {
-      title: 'Sócios',
-      description: 'Análise detalhada de sócios e membros',
-      icon: UserCheck,
-      href: '/analitico/socios',
-      implemented: true
-    },
-    {
-      title: 'Resumo',
-      description: 'Resumo geral de métricas e indicadores',
-      icon: BarChart3,
-      href: '/analitico/resumo',
-      implemented: true
-    },
-    {
-      title: 'Análise Semanal',
-      description: 'Análise de performance por semana',
-      icon: CalendarDays,
-      href: '/analitico/semanal',
-      implemented: true
-    },
-    {
-      title: 'Produtos',
-      description: 'Análise de produtos mais vendidos',
-      icon: PieChart,
-      href: '/analitico/produtos',
-      implemented: true
-    },
-    {
-      title: 'Vendas',
-      description: 'Análise de padrões de vendas',
-      icon: TrendingUp,
-      href: '/analitico/vendas',
-      implemented: false
-    },
-    {
-      title: 'Categorias',
-      description: 'Análise por categorias de produtos',
-      icon: Calendar,
-      href: '/analitico/categorias',
-      implemented: false
-    }
   ]
 
   const implementedCount = cards.filter(c => c.implemented).length;

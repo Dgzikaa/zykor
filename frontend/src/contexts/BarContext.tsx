@@ -63,7 +63,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
           localStorage.setItem('sgb_user', JSON.stringify(userData));
         }
       } catch (e) {
-        console.error('❌ Erro ao sincronizar permissões do bar:', e);
+        // Erro silencioso
       } finally {
         setTimeout(() => {
           isSyncingRef.current = false;
@@ -115,7 +115,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
                 const userData = JSON.parse(storedUser);
                 userEmail = userData.email;
               } catch (e) {
-                console.error('❌ BarContext: Erro ao parsear localStorage:', e);
+                // Erro silencioso
               }
             }
           }
@@ -153,9 +153,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
                   // Se o bar selecionado não existe mais nos bares disponíveis, usar o primeiro
                   barToSelect = foundBar || data.bars[0];
                   
-                  if (!foundBar) {
-                    console.log('⚠️ BarContext: Bar selecionado não está mais disponível, usando primeiro bar');
-                  }
+                  // Se bar não encontrado, usar primeiro disponível
                 } else {
                   barToSelect = data.bars[0];
                 }
@@ -170,21 +168,16 @@ export function BarProvider({ children }: { children: ReactNode }) {
                 setIsLoading(false);
                 return;
               }
-            } else {
-              console.log('❌ BarContext: Nenhum bar encontrado na API');
             }
-          } else {
-            console.error('❌ BarContext: Erro na API:', response.status);
           }
         } catch (error) {
-          console.error('❌ BarContext: Erro ao chamar API:', error);
+          // Erro silencioso
         }
 
         if (mounted) {
           setIsLoading(false);
         }
       } catch (error) {
-        console.error('Erro ao carregar bares do usuário:', error);
         if (mounted) setIsLoading(false);
       }
     }

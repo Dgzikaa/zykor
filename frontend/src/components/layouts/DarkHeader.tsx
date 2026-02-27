@@ -206,6 +206,7 @@ export function DarkHeader() {
               alt="Logo ZYKOR"
               width={64}
               height={64}
+              priority
               className="h-10 w-auto object-contain hover:scale-105 transition-transform duration-200"
             />
           </Link>

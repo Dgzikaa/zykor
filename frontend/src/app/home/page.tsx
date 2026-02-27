@@ -16,7 +16,8 @@ import {
   MessageSquare,
   CreditCard,
   Package,
-  AlertCircle
+  AlertCircle,
+  Star
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
@@ -70,15 +71,23 @@ const allQuickActions: QuickAction[] = [
   },
   {
     title: 'Analítico',
-    description: 'Retrospectiva, clientes, eventos e produtos',
+    description: 'Clientes e eventos',
     href: '/analitico',
     icon: PieChart,
     color: 'from-violet-500 to-purple-600',
     permissions: ['todos', 'relatorios_eventos', 'relatorios_clientes', 'relatorios_clientes_ativos', 'gestao_crm']
   },
   {
+    title: 'Extras',
+    description: 'Retrospectiva, tempo de estadia e mais',
+    href: '/extras',
+    icon: Star,
+    color: 'from-yellow-500 to-amber-500',
+    permissions: ['todos']
+  },
+  {
     title: 'Ferramentas',
-    description: 'CFP, calendário, contagem e simulações',
+    description: 'Produção, estoque, CMV, CMO e mais',
     href: '/ferramentas',
     icon: Wrench,
     color: 'from-amber-500 to-orange-500',

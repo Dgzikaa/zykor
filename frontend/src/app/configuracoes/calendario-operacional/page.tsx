@@ -25,6 +25,7 @@ import {
   History,
   BarChart3
 } from 'lucide-react';
+import { LoadingState } from '@/components/ui/loading-state';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/contexts/PageTitleContext';
@@ -566,10 +567,11 @@ export default function CalendarioOperacionalPage() {
 
             {/* Calendário */}
             {loading ? (
-              <div className="text-center py-12">
-                <RefreshCw className="w-8 h-8 animate-spin mx-auto text-blue-600" />
-                <p className="text-gray-600 dark:text-gray-400 mt-4">Carregando calendário...</p>
-              </div>
+              <LoadingState
+                title="Carregando calendário..."
+                subtitle="Processando dias operacionais"
+                icon={<CalendarIcon className="w-4 h-4" />}
+              />
             ) : (
               <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                 {/* Cabeçalho dos dias da semana */}

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { LoadingState } from '@/components/ui/loading-state';
 import { Beer, Martini, UtensilsCrossed, TrendingUp, DollarSign, ShoppingCart, RefreshCcw } from 'lucide-react';
 
 interface VendaCategoria {
@@ -151,9 +152,11 @@ export default function VendasCategoriasPage() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <RefreshCcw className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
-          </div>
+          <LoadingState 
+            title="Carregando análise..."
+            subtitle="Processando vendas por categoria"
+            icon={<ShoppingCart className="w-4 h-4" />}
+          />
         ) : (
           <>
             {/* Cards de Totais Gerais */}

@@ -154,11 +154,6 @@ export default function VisaoGeralPage() {
         });
       }
     } catch (error) {
-      // Log apenas em desenvolvimento
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erro ao carregar indicadores:', error);
-      }
-      
       toast.toast({
         title: 'Erro',
         description: 'Não foi possível carregar os indicadores',

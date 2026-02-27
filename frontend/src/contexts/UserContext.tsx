@@ -100,7 +100,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar dados do usuário:', error);
       // Limpar dados corrompidos
       localStorage.removeItem('sgb_user');
       setUser(null);
@@ -120,7 +119,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         window.dispatchEvent(new CustomEvent('userDataUpdated'));
       }
     } catch (error) {
-      console.error('❌ Erro ao atualizar dados do usuário:', error);
+      // Erro silencioso
     }
   };
 
@@ -150,7 +149,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
       }
     } catch (error) {
-      console.error('Erro ao recarregar dados do usuário:', error);
       setUser(null);
     }
   };
@@ -172,7 +170,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         }
       }, 100);
     } catch (error) {
-      console.error('Erro no logout:', error);
       // Em caso de erro, tentar recarregar mesmo assim
       if (typeof window !== 'undefined') {
         window.location.href = '/login';

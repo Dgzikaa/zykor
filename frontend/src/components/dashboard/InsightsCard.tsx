@@ -64,7 +64,7 @@ export default function InsightsCard({
         body: JSON.stringify({
           action: 'analisar',
           barId: selectedBar.id,
-          enviarDiscord: false // Não envia para Discord ao carregar
+          enviarDiscord: false
         })
       });
 
@@ -75,7 +75,7 @@ export default function InsightsCard({
         setLastUpdate(new Date());
       }
     } catch (error) {
-      console.error('Erro ao buscar insights:', error);
+      // Erro silencioso
     } finally {
       setLoading(false);
     }
@@ -123,7 +123,7 @@ export default function InsightsCard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'analisar',
+          action: 'processar_pendentes',
           barId: selectedBar.id,
           enviarDiscord: true
         })

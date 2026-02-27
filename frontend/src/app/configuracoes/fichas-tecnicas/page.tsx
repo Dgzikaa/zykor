@@ -19,6 +19,7 @@ import {
   Database,
   ChefHat
 } from 'lucide-react';
+import { LoadingState } from '@/components/ui/loading-state';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { toast } from 'sonner';

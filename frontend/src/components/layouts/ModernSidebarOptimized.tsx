@@ -49,6 +49,7 @@ import {
   Megaphone,
   History,
   Bell,
+  Star,
 } from 'lucide-react';
 
 /**
@@ -113,10 +114,7 @@ const defaultSidebarItems: SidebarItem[] = [
     permission: 'relatorios',
     subItems: [
       { icon: Users, label: 'Clientes', href: '/analitico/clientes', permission: 'relatorios' },
-      { icon: Clock, label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
-      { icon: Ticket, label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'relatorios' },
       { icon: BarChart3, label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
-      { icon: Sparkles, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },
     ],
   },
   {
@@ -140,7 +138,6 @@ const defaultSidebarItems: SidebarItem[] = [
     color: 'text-green-600 dark:text-green-400',
     permission: 'ferramentas',
     subItems: [
-      { icon: Megaphone, label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
       { icon: Package, label: 'Produção e Insumos', href: '/ferramentas/producao-insumos', permission: 'operacoes' },
       { icon: Package, label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque', permission: 'operacoes' },
       { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
@@ -148,10 +145,7 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
       { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', permission: 'gestao' },
       { icon: ChefHat, label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal', permission: 'gestao' },
-      { icon: Users, label: 'CMO Semanal', href: '/ferramentas/cmo-semanal', permission: 'gestao' },
-      { icon: TrendingUp, label: 'CMO - Dashboard', href: '/ferramentas/cmo-semanal/dashboard', permission: 'gestao' },
-      { icon: History, label: 'CMO - Comparar', href: '/ferramentas/cmo-semanal/comparar', permission: 'gestao' },
-      { icon: Bell, label: 'CMO - Alertas', href: '/ferramentas/cmo-semanal/alertas', permission: 'gestao' },
+      { icon: Users, label: 'CMO - Mão de Obra', href: '/ferramentas/cmo', permission: 'gestao' },
       { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
       { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
       { icon: DollarSign, label: 'DRE', href: '/ferramentas/dre', permission: 'dashboard_financeiro_mensal' },
@@ -174,6 +168,19 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: FileSearch, label: 'Auditoria', href: '/configuracoes/auditoria', permission: 'configuracoes' },
       { icon: Target, label: 'Saúde dos Dados', href: '/configuracoes/saude-dados', permission: 'configuracoes' },
       { icon: Activity, label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },
+    ],
+  },
+  {
+    icon: Star,
+    label: 'Extras',
+    href: '/extras',
+    color: 'text-yellow-600 dark:text-yellow-400',
+    permission: 'home',
+    subItems: [
+      { icon: Clock, label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
+      { icon: Sparkles, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },
+      { icon: Ticket, label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'relatorios' },
+      { icon: Megaphone, label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
     ],
   },
 ];

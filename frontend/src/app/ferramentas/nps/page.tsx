@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { LoadingState } from '@/components/ui/loading-state';
 import React from 'react';
 import { Smile, TrendingUp, Calendar, Users, BarChart3, Download, Upload, FileSpreadsheet, RefreshCcw, Star, MessageSquare, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -173,12 +174,11 @@ function NPSCategorizadoTab({ dataInicio, dataFim, selectedBar }: {
       </Card>
 
       {loading ? (
-        <Card className="bg-white dark:bg-gray-800">
-          <CardContent className="p-8 text-center">
-            <RefreshCcw className="h-8 w-8 animate-spin mx-auto mb-2 text-gray-400" />
-            <p className="text-gray-600 dark:text-gray-400">Carregando dados...</p>
-          </CardContent>
-        </Card>
+        <LoadingState 
+          title="Carregando análise..."
+          subtitle="Processando dados de NPS"
+          icon={<Smile className="w-4 h-4" />}
+        />
       ) : dadosPaginados.length === 0 ? (
         <Card className="bg-white dark:bg-gray-800">
           <CardContent className="p-8 text-center">

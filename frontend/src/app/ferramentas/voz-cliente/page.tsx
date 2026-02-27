@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { LoadingState } from '@/components/ui/loading-state';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
@@ -354,9 +355,11 @@ export default function VozClientePage() {
           <Card>
             <CardContent className="p-0">
               {loading ? (
-                <div className="flex items-center justify-center h-48">
-                  <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
+                <LoadingState 
+                  title="Carregando feedbacks..."
+                  subtitle="Processando voz do cliente"
+                  icon={<MessageCircle className="w-4 h-4" />}
+                />
               ) : feedbacks.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
                   <MessageCircle className="h-12 w-12 mb-3 opacity-50" />

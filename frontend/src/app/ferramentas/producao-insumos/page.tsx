@@ -38,6 +38,7 @@ import {
   TrendingUp,
   AlertCircle,
 } from 'lucide-react';
+import { LoadingState } from '@/components/ui/loading-state';
 
 interface Insumo {
   id: number;
@@ -319,10 +320,11 @@ export default function ProducaoInsumosPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Carregando dados...</p>
-        </div>
+        <LoadingState
+          title="Carregando produção e insumos..."
+          subtitle="Processando receitas e insumos"
+          icon={<Package className="w-4 h-4" />}
+        />
       </div>
     );
   }

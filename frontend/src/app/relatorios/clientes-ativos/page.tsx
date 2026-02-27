@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { LoadingState } from '@/components/ui/loading-state';
 import { 
   Users, 
   UserPlus, 
@@ -298,10 +299,11 @@ export default function ClientesAtivosPage() {
 
             {/* Loading ou Dados */}
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
-                <span className="ml-3 text-gray-600 dark:text-gray-400">Carregando dados...</span>
-              </div>
+              <LoadingState 
+                title="Carregando análise..."
+                subtitle="Processando dados de clientes ativos"
+                icon={<Users className="w-4 h-4" />}
+              />
             ) : data ? (
               <>
                 {/* Cards de Métricas */}
@@ -489,10 +491,11 @@ export default function ClientesAtivosPage() {
                   </div>
 
                   {loadingEvolucao ? (
-                    <div className="flex items-center justify-center py-12">
-                      <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
-                      <span className="ml-3 text-gray-600 dark:text-gray-400">Carregando evolução...</span>
-                    </div>
+                    <LoadingState 
+                      title="Carregando evolução..."
+                      subtitle="Processando dados mensais"
+                      icon={<BarChart3 className="w-4 h-4" />}
+                    />
                   ) : evolucaoData.length > 0 ? (
                     <div className="space-y-6">
                       {/* Gráfico de Novos Clientes x Retornantes */}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { LoadingState } from '@/components/ui/loading-state'
 import {
   TrendingUp,
   Users,
@@ -68,16 +69,12 @@ export default function Retrospectiva2025Page() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          className="text-center"
-        >
-          <Sparkles className="w-16 h-16 text-blue-600 dark:text-blue-400 mx-auto mb-4 animate-spin" />
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white">Carregando retrospectiva...</p>
-        </motion.div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <LoadingState 
+          title="Carregando retrospectiva..."
+          subtitle="Preparando sua análise de 2025"
+          icon={<Sparkles className="w-4 h-4" />}
+        />
       </div>
     )
   }
@@ -161,7 +158,7 @@ export default function Retrospectiva2025Page() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             {/* Card: Faturamento Total */}
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
@@ -178,12 +175,33 @@ export default function Retrospectiva2025Page() {
               </div>
             </div>
 
-            {/* Card: Clientes Ativos */}
+            {/* Card: Total de Clientes */}
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <Users className="w-8 h-8 text-blue-600 dark:text-blue-400" />
                 <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded">
-                  Clientes
+                  Total
+                </span>
+              </div>
+              <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+                {new Intl.NumberFormat('pt-BR').format(data?.financeiro?.totalClientes || 0)}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Total de Clientes 2025
+              </div>
+              {data?.financeiro?.recorrenciaMedia > 0 && (
+                <div className="text-xs text-green-600 dark:text-green-400 mt-2">
+                  {(data.financeiro.recorrenciaMedia * 100).toFixed(1)}% de recorrência
+                </div>
+              )}
+            </div>
+
+            {/* Card: Clientes Ativos Médio */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <Users className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+                <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 px-2 py-1 rounded">
+                  Base Ativa
                 </span>
               </div>
               <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
@@ -192,11 +210,9 @@ export default function Retrospectiva2025Page() {
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 Clientes Ativos Médio
               </div>
-              {data?.financeiro?.recorrenciaMedia > 0 && (
-                <div className="text-xs text-green-600 dark:text-green-400 mt-2">
-                  {(data.financeiro.recorrenciaMedia * 100).toFixed(1)}% de recorrência
-                </div>
-              )}
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                Base de 90 dias
+              </div>
             </div>
 
             {/* Card: Ticket Médio */}
@@ -251,7 +267,7 @@ export default function Retrospectiva2025Page() {
                 </span>
               </div>
               <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                {((data?.financeiro?.cmvLimpoMedio || 0) * 100).toFixed(1)}%
+                {(data?.financeiro?.cmvLimpoMedio || 0).toFixed(1)}%
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 Média Anual
@@ -274,7 +290,7 @@ export default function Retrospectiva2025Page() {
                 </span>
               </div>
               <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                {((data?.financeiro?.cmoMedio || 0) * 100).toFixed(1)}%
+                {(data?.financeiro?.cmoMedio || 0).toFixed(1)}%
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 Custo Mão de Obra
@@ -297,7 +313,7 @@ export default function Retrospectiva2025Page() {
                 </span>
               </div>
               <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                {((data?.financeiro?.percentualArtisticaMedio || 0) * 100).toFixed(1)}%
+                {(data?.financeiro?.percentualArtisticaMedio || 0).toFixed(1)}%
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 Custo Artístico
@@ -325,9 +341,10 @@ export default function Retrospectiva2025Page() {
               <TabsTrigger value="cultura">Cultura</TabsTrigger>
               <TabsTrigger value="problemas">Desafios</TabsTrigger>
               <TabsTrigger value="conquistas">Insights</TabsTrigger>
-              <TabsTrigger value="mega">360°</TabsTrigger>
+              {/* Temporariamente desabilitadas - dados em desenvolvimento */}
+              {/* <TabsTrigger value="mega">360°</TabsTrigger>
               <TabsTrigger value="ultra">Ultra</TabsTrigger>
-              <TabsTrigger value="extras">Extras</TabsTrigger>
+              <TabsTrigger value="extras">Extras</TabsTrigger> */}
               <TabsTrigger value="2026">2026</TabsTrigger>
             </TabsList>
 
@@ -451,11 +468,11 @@ export default function Retrospectiva2025Page() {
                         <span className="text-sm font-bold text-blue-600 dark:text-blue-400">#{index + 1}</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{produto.nome}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">{produto.quantidade} unidades</div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{produto.produto}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{new Intl.NumberFormat('pt-BR').format(produto.quantidade)} unidades</div>
                       </div>
                       <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {formatCurrency(produto.vendaLiquida)}
+                        {formatCurrency(produto.faturamento)}
                       </div>
                     </div>
                   ))}
@@ -1409,9 +1426,15 @@ export default function Retrospectiva2025Page() {
 
             </TabsContent>
 
-            {/* TAB: MEGA INSIGHTS 360° */}
+            {/* TAB: MEGA INSIGHTS 360° - DESABILITADO */}
             <TabsContent value="mega" className="space-y-6">
-              {/* Header */}
+              <div className="text-center p-8">
+                <p className="text-gray-500">Esta seção está em desenvolvimento.</p>
+              </div>
+            </TabsContent>
+
+            {/* TAB: MEGA INSIGHTS 360° - CONTEÚDO ORIGINAL COMENTADO */}
+            {false && <div>
               <div className="text-center mb-8">
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                   🔥 Mega Insights 360°
@@ -1555,20 +1578,29 @@ export default function Retrospectiva2025Page() {
               {data?.insightsAdicionais?.googleReviews && (
                 <div className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-xl p-6">
                   <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    ⭐ Google Reviews - Evolução
+                    ⭐ Google Reviews 2025
                   </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    {(data?.insightsAdicionais?.googleReviews || []).map((mes: any, idx: number) => (
-                      <div key={idx} className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center">
-                        <div className="text-sm text-gray-500">Mês {mes.mes}</div>
-                        <div className="text-2xl font-bold text-green-600">{mes.notagoogle}</div>
-                        <div className="text-xs text-gray-500">{mes.avaliacoes5estrelas} ⭐⭐⭐⭐⭐</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 text-center">
+                      <div className="text-sm text-gray-500 mb-2">Média de Avaliações</div>
+                      <div className="text-4xl font-bold text-green-600">
+                        {(data?.insightsAdicionais?.googleReviews?.mediaAvaliacoes || 0).toFixed(1)}
                       </div>
-                    ))}
+                      <div className="text-xs text-gray-500 mt-2">⭐⭐⭐⭐⭐</div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 text-center">
+                      <div className="text-sm text-gray-500 mb-2">Total de Avaliações</div>
+                      <div className="text-4xl font-bold text-green-600">
+                        {data?.insightsAdicionais?.googleReviews?.totalAvaliacoes || 0}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-2">reviews em 2025</div>
+                    </div>
                   </div>
                   <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-3">
-                      <div className="text-2xl font-bold text-green-600">{data?.insightsAdicionais?.totaisGerais?.mediaNotaGoogle}</div>
+                      <div className="text-2xl font-bold text-green-600">
+                        {(data?.insightsAdicionais?.googleReviews?.mediaAvaliacoes || 0).toFixed(1)}
+                      </div>
                       <div className="text-sm text-gray-500">Nota Média</div>
                     </div>
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-3">
@@ -1587,40 +1619,42 @@ export default function Retrospectiva2025Page() {
                 </div>
               )}
 
-              {/* COMBOS GROWTH */}
-              <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
-                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  📦 Crescimento de Combos/Baldinhos
-                </h4>
-                <div className="grid grid-cols-4 gap-4">
-                  {(data?.insightsAdicionais?.combosGrowth || []).map((tri: any, idx: number) => (
-                    <div key={idx} className={`rounded-lg p-4 text-center ${
-                      idx === 3 ? 'bg-green-100 dark:bg-green-900/30 ring-2 ring-green-500' : 'bg-white dark:bg-gray-800'
-                    }`}>
-                      <div className="font-bold text-gray-900 dark:text-white">{tri.trimestre}</div>
-                      <div className={`text-3xl font-bold ${idx === 3 ? 'text-green-600' : 'text-blue-600'}`}>
-                        {tri.percentualcombos}%
+              {/* COMBOS GROWTH - Temporariamente desabilitado */}
+              {Array.isArray(data?.insightsAdicionais?.combosGrowth) && data?.insightsAdicionais?.combosGrowth.length > 0 && (
+                <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
+                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    📦 Crescimento de Combos/Baldinhos
+                  </h4>
+                  <div className="grid grid-cols-4 gap-4">
+                    {data.insightsAdicionais.combosGrowth.map((tri: any, idx: number) => (
+                      <div key={idx} className={`rounded-lg p-4 text-center ${
+                        idx === 3 ? 'bg-green-100 dark:bg-green-900/30 ring-2 ring-green-500' : 'bg-white dark:bg-gray-800'
+                      }`}>
+                        <div className="font-bold text-gray-900 dark:text-white">{tri.trimestre}</div>
+                        <div className={`text-3xl font-bold ${idx === 3 ? 'text-green-600' : 'text-blue-600'}`}>
+                          {tri.percentualcombos}%
+                        </div>
+                        <div className="text-sm text-gray-500">R$ {Math.round(tri.vendascombos/1000)}k</div>
                       </div>
-                      <div className="text-sm text-gray-500">R$ {Math.round(tri.vendascombos/1000)}k</div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  <div className="mt-4 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      💡 Combos cresceram de <strong>5.6%</strong> para <strong>33.5%</strong> das vendas! Estratégia funcionando!
+                    </p>
+                  </div>
                 </div>
-                <div className="mt-4 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
-                    💡 Combos cresceram de <strong>5.6%</strong> para <strong>33.5%</strong> das vendas! Estratégia funcionando!
-                  </p>
-                </div>
-              </div>
+              )}
 
               {/* TOP CERVEJAS */}
-              {data?.insightsAdicionais?.topCervejas && (
+              {Array.isArray(data?.insightsAdicionais?.topCervejas) && data?.insightsAdicionais?.topCervejas.length > 0 && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6">
                     <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                       🍺 Top Cervejas
                     </h4>
                     <div className="space-y-2">
-                      {(data?.insightsAdicionais?.topCervejas || []).slice(0, 8).map((cerveja: any, idx: number) => (
+                      {data.insightsAdicionais.topCervejas.slice(0, 8).map((cerveja: any, idx: number) => (
                         <div key={idx} className="flex items-center justify-between p-2 bg-white dark:bg-gray-700/50 rounded-lg">
                           <div className="flex items-center gap-2">
                             <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
@@ -1688,11 +1722,17 @@ export default function Retrospectiva2025Page() {
                   </div>
                 </div>
               </div>
+            </div>}
+
+            {/* TAB: ULTRA INSIGHTS - DESABILITADO */}
+            <TabsContent value="ultra" className="space-y-6">
+              <div className="text-center p-8">
+                <p className="text-gray-500">Esta seção está em desenvolvimento.</p>
+              </div>
             </TabsContent>
 
-            {/* TAB: ULTRA INSIGHTS */}
-            <TabsContent value="ultra" className="space-y-6">
-              {/* Header */}
+            {/* TAB: ULTRA INSIGHTS - CONTEÚDO ORIGINAL COMENTADO */}
+            {false && <div>
               <div className="text-center mb-8">
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                   💎 Ultra Insights - Análise Avançada
@@ -2014,11 +2054,17 @@ export default function Retrospectiva2025Page() {
                   ))}
                 </div>
               </div>
+            </div>}
+
+            {/* TAB: INSIGHTS EXTRAS - DESABILITADO */}
+            <TabsContent value="extras" className="space-y-6">
+              <div className="text-center p-8">
+                <p className="text-gray-500">Esta seção está em desenvolvimento.</p>
+              </div>
             </TabsContent>
 
-            {/* TAB: INSIGHTS EXTRAS */}
-            <TabsContent value="extras" className="space-y-6">
-              {/* Header */}
+            {/* TAB: INSIGHTS EXTRAS - CONTEÚDO ORIGINAL COMENTADO */}
+            {false && <div>
               <div className="text-center mb-8">
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                   ⚡ Insights Extras - Análise Operacional
@@ -2467,7 +2513,7 @@ export default function Retrospectiva2025Page() {
                   </div>
                 </div>
               </div>
-            </TabsContent>
+            </div>}
 
             {/* TAB: PLANEJAMENTO 2026 */}
             <TabsContent value="2026" className="space-y-6">

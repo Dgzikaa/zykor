@@ -40,7 +40,8 @@ export function getGeminiModel(
   client: GoogleGenerativeAI,
   config: GeminiConfig = {}
 ) {
-  const modelName = config.model || 'gemini-1.5-pro-latest';
+  // Usar gemini-1.5-flash que é mais estável e disponível
+  const modelName = config.model || 'gemini-1.5-flash';
   
   return client.getGenerativeModel({
     model: modelName,
@@ -55,6 +56,7 @@ export function getGeminiModel(
 
 /**
  * Gerar resposta do Gemini com tratamento de erros
+ * Usando API REST diretamente para evitar problemas de versão
  */
 export async function generateGeminiResponse(
   prompt: string,
@@ -62,20 +64,47 @@ export async function generateGeminiResponse(
   history?: GeminiMessage[]
 ): Promise<string> {
   try {
-    const client = createGeminiClient();
-    const model = getGeminiModel(client, config);
-    
-    let result;
-    
-    if (history && history.length > 0) {
-      const chat = model.startChat({ history });
-      result = await chat.sendMessage(prompt);
-    } else {
-      result = await model.generateContent(prompt);
+    const apiKey = Deno.env.get('GEMINI_API_KEY');
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY não configurada');
     }
+
+    // Usar API v1 diretamente - modelo estável de 2026
+    const model = config.model || 'gemini-2.0-flash-exp';
+    const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
     
-    const response = result.response;
-    return response.text();
+    const requestBody = {
+      contents: [{
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        temperature: config.temperature ?? 0.7,
+        topP: config.topP ?? 0.95,
+        topK: config.topK ?? 40,
+        maxOutputTokens: config.maxOutputTokens ?? 8192,
+      }
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API Gemini retornou ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      throw new Error('Resposta inválida da API Gemini');
+    }
+
+    return data.candidates[0].content.parts[0].text;
   } catch (error) {
     console.error('❌ Erro ao gerar resposta do Gemini:', error);
     throw new Error(`Erro na API Gemini: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);

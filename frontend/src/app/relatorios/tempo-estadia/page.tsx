@@ -6,7 +6,7 @@ import PageHeader from '@/components/layouts/PageHeader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
+import { LoadingState } from '@/components/ui/loading-state'
 import { Clock, Calendar, TrendingUp, Users, BarChart3, Timer } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useBar } from '@/contexts/BarContext'
@@ -97,20 +97,16 @@ export default function TempoEstadiaPage() {
         hasFetchedRef.current = true
         lastBarIdRef.current = selectedBar.id
       } catch (err) {
-        console.error('Erro:', err)
         setError('Erro ao carregar relatório')
-        toast({
-          title: 'Erro',
-          description: 'Não foi possível carregar o relatório de tempo de estadia',
-          variant: 'destructive'
-        })
+        hasFetchedRef.current = true
+        lastBarIdRef.current = selectedBar.id
       } finally {
         setLoading(false)
       }
     }
     
     fetchData()
-  }, [selectedBar?.id, toast])
+  }, [selectedBar?.id])
 
   if (!selectedBar?.id) {
     return (
@@ -136,26 +132,13 @@ export default function TempoEstadiaPage() {
           description="Análise detalhada de permanência dos clientes"
         />
 
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="flex flex-col items-center gap-4">
-              <div className="relative">
-                <div className="w-16 h-16 border-4 border-blue-200 dark:border-blue-900 rounded-full"></div>
-                <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
-              </div>
-              <div className="text-center">
-                <p className="text-lg font-medium text-gray-900 dark:text-white">Carregando análise...</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Processando dados de tempo de estadia
-                </p>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
-                <Timer className="w-4 h-4" />
-                <span>Analisando permanência dos clientes</span>
-              </div>
-            </div>
-          </div>
-        ) : error ? (
+      {loading ? (
+        <LoadingState 
+          title="Carregando análise..."
+          subtitle="Processando dados de tempo de estadia"
+          icon={<Timer className="w-4 h-4" />}
+        />
+      ) : error ? (
           <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardContent className="p-6 text-center">
               <p className="text-red-500">{error}</p>

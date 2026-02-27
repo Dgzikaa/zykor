@@ -1,0 +1,19 @@
+# Não Criar Documentação Automaticamente
+
+## NUNCA criar arquivos .md automaticamente
+
+- **NUNCA** criar arquivos markdown (.md) sem o usuário pedir explicitamente
+- **SEMPRE** explicar no chat diretamente
+- Só criar .md quando o usuário pedir: "crie um documento", "gere um md", etc.
+
+## Exemplos
+
+❌ **ERRADO**: Criar RESUMO.md, PROBLEMAS-CORRIGIDOS.md, etc automaticamente
+✅ **CORRETO**: Explicar tudo no chat, usar formatação markdown no chat
+
+## Quando criar .md
+
+Apenas quando o usuário explicitamente pedir:
+- "crie um documento sobre..."
+- "gere um md com..."
+- "faça um arquivo markdown..."

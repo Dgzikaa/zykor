@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar, Package, TrendingDown, TrendingUp, RefreshCw, AlertTriangle, CheckCircle, MapPin } from 'lucide-react';
+import { LoadingState } from '@/components/ui/loading-state';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
@@ -1017,10 +1018,11 @@ export default function StockoutPage() {
               )}
 
               {loading && (
-                <div className="text-center py-8">
-                  <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-gray-400" />
-                  <p className="text-gray-600 dark:text-gray-400">Carregando dados de stockout...</p>
-                </div>
+                <LoadingState
+                  title="Carregando stockout..."
+                  subtitle="Analisando produtos indisponíveis"
+                  icon={<Package className="w-4 h-4" />}
+                />
               )}
             </TabsContent>
 
@@ -1311,10 +1313,11 @@ export default function StockoutPage() {
               )}
 
               {loading && (
-                <div className="text-center py-8">
-                  <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-gray-400" />
-                  <p className="text-gray-600 dark:text-gray-400">Carregando histórico de stockout...</p>
-                </div>
+                <LoadingState
+                  title="Carregando histórico..."
+                  subtitle="Buscando dados anteriores de stockout"
+                  icon={<Calendar className="w-4 h-4" />}
+                />
               )}
             </TabsContent>
           </Tabs>

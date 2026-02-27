@@ -13,6 +13,7 @@ import {
   Loader2, RefreshCw, CheckCircle, XCircle, Clock, Activity, 
   Database, Zap, Server, AlertTriangle, ArrowLeft 
 } from 'lucide-react';
+import { LoadingState } from '@/components/ui/loading-state';
 import Link from 'next/link';
 
 interface HealthData {
@@ -146,8 +147,11 @@ export default function MonitoramentoPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-        <span className="ml-3 text-lg text-gray-600 dark:text-gray-300">Carregando monitoramento...</span>
+        <LoadingState
+          title="Carregando monitoramento..."
+          subtitle="Verificando status do sistema"
+          icon={<Activity className="w-4 h-4" />}
+        />
       </div>
     );
   }

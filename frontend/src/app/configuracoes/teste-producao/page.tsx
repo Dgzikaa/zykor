@@ -24,6 +24,7 @@ import {
   PlayCircle,
   StopCircle
 } from 'lucide-react';
+import { LoadingState } from '@/components/ui/loading-state';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
@@ -368,10 +369,11 @@ export default function TesteProducaoPage() {
 
         {/* Lista de Receitas */}
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
-            <span className="ml-3 text-gray-600 dark:text-gray-400">Carregando receitas...</span>
-          </div>
+          <LoadingState
+            title="Carregando receitas..."
+            subtitle="Preparando testes de produção"
+            icon={<ChefHat className="w-4 h-4" />}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {receitasFiltradas.map((receita) => (

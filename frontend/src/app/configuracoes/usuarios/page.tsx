@@ -28,6 +28,7 @@ import {
   CreditCard,
   Building
 } from 'lucide-react';
+import { LoadingState } from '@/components/ui/loading-state';
 import { useToast } from '@/hooks/use-toast';
 import PageHeader from '@/components/layouts/PageHeader';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -505,10 +506,11 @@ function UsuariosPage() {
   if (permissionsLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">Verificando permissões...</p>
-        </div>
+        <LoadingState
+          title="Verificando permissões..."
+          subtitle="Validando acesso ao módulo"
+          icon={<Shield className="w-4 h-4" />}
+        />
       </div>
     );
   }

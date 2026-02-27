@@ -21,6 +21,7 @@ import {
   Loader2,
   Info
 } from "lucide-react";
+import { LoadingState } from '@/components/ui/loading-state';
 import { toast } from 'sonner';
 import { useBar } from '@/contexts/BarContext';
 

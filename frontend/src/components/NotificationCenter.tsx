@@ -80,10 +80,10 @@ export function NotificationCenter() {
     'todas' | 'nao_lidas' | 'insights'
   >('todas');
   const [configuracoes, setConfiguracoes] = useState({
-    autoRefresh: true,
+    autoRefresh: false, // ✅ Desabilitado por padrão para melhor performance
     showBadge: true,
     playSound: false,
-    refreshInterval: 120000, // ✅ Otimizado: 2 minutos em vez de 30s
+    refreshInterval: 300000, // ✅ 5 minutos (só ativa se usuário habilitar)
   });
 
   // =====================================================
@@ -186,14 +186,10 @@ export function NotificationCenter() {
 
   const handleMarcarComoLida = async (notificacaoId: string) => {
     try {
-      if (!notificacaoId) {
-        console.error('❌ ID da notificação não fornecido');
-        return;
-      }
-
+      if (!notificacaoId) return;
       await marcarComoLida(notificacaoId);
     } catch (error) {
-      console.error('❌ Erro ao marcar notificação como lida:', error);
+      // Erro silencioso
     }
   };
 
@@ -201,29 +197,22 @@ export function NotificationCenter() {
     try {
       await marcarTodasComoLidas();
     } catch (error) {
-      console.error('❌ Erro ao marcar todas como lidas:', error);
+      // Erro silencioso
     }
   };
 
   const handleExcluirNotificacao = async (notificacaoId: string) => {
     try {
-      if (!notificacaoId) {
-        console.error('❌ ID da notificação não fornecido');
-        return;
-      }
-
+      if (!notificacaoId) return;
       await excluirNotificacao(notificacaoId);
     } catch (error) {
-      console.error('❌ Erro ao excluir notificação:', error);
+      // Erro silencioso
     }
   };
 
   const handleAcaoNotificacao = (acao: NotificacaoAcao) => {
     try {
-      if (!acao) {
-        console.error('❌ Ação não fornecida');
-        return;
-      }
+      if (!acao) return;
 
       if (acao.action === 'redirect' && acao.url) {
         router.push(acao.url);
@@ -232,7 +221,7 @@ export function NotificationCenter() {
         window.open(acao.url, '_blank');
       }
     } catch (error) {
-      console.error('❌ Erro ao executar ação da notificação:', error);
+      // Erro silencioso
     }
   };
 

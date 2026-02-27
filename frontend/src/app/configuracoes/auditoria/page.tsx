@@ -19,6 +19,7 @@ import {
   FileSearch,
   Play
 } from 'lucide-react'
+import { LoadingState } from '@/components/ui/loading-state'
 import { format, parseISO, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -342,10 +343,11 @@ export default function AuditoriaPage() {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <RefreshCcw className="w-6 h-6 animate-spin text-blue-500" />
-                    <span className="ml-2 text-gray-600 dark:text-gray-400">Carregando...</span>
-                  </div>
+                  <LoadingState
+                    title="Carregando auditoria..."
+                    subtitle="Buscando registros de alterações"
+                    icon={<FileSearch className="w-4 h-4" />}
+                  />
                 ) : registros.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-gray-500">
                     <CheckCircle className="w-12 h-12 mb-2 text-green-500" />

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { LoadingState } from '@/components/ui/loading-state'
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -183,23 +184,12 @@ export default function AnaliseCouvertPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="w-16 h-16 border-4 border-blue-200 dark:border-blue-900 rounded-full"></div>
-            <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
-          </div>
-          <div className="text-center">
-            <p className="text-lg font-medium text-gray-900 dark:text-white">Carregando análise...</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Processando dados de entrada obrigatória
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
-            <Ticket className="w-4 h-4" />
-            <span>Analisando quartas e sextas desde setembro</span>
-          </div>
-        </div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <LoadingState 
+          title="Carregando análise..."
+          subtitle="Processando dados de entrada obrigatória"
+          icon={<Ticket className="w-4 h-4" />}
+        />
       </div>
     )
   }

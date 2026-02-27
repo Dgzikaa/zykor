@@ -150,6 +150,11 @@ export function useInsightsNotifications(): UseInsightsNotificationsResult {
         })
       });
 
+      if (!response.ok) {
+        setLoading(false);
+        return;
+      }
+
       const result = await response.json();
       
       if (result.success && result.resultado?.alertas) {
@@ -173,19 +178,20 @@ export function useInsightsNotifications(): UseInsightsNotificationsResult {
         setLastUpdate(new Date());
       }
     } catch (err) {
-      console.error('Erro ao buscar insights:', err);
-      setError('Erro ao buscar alertas inteligentes');
+      // Erro silencioso
     } finally {
       setLoading(false);
     }
   }, [selectedBar?.id]);
 
   // Carregar alertas quando o bar mudar
+  // DESABILITADO: Problema com modelo do Gemini na API
+  // Para reativar: verificar modelo correto do Gemini e atualizar gemini-client.ts
   useEffect(() => {
-    if (selectedBar?.id && !hasInitializedRef.current) {
-      fetchAlertas();
-      hasInitializedRef.current = true;
-    }
+    // if (selectedBar?.id && !hasInitializedRef.current) {
+    //   fetchAlertas();
+    //   hasInitializedRef.current = true;
+    // }
   }, [selectedBar?.id, fetchAlertas]);
 
   // Reset quando trocar de bar

@@ -63,7 +63,7 @@ pessoas_sympla as (
   group by 1,2
 ),
 reputacao as (
-  select extract(year from date)::int as ano,
+  select extract(year from published_at_date)::int as ano,
          avg(stars) filter (
            where stars is not null and stars > 0
          )::numeric as reputacao_media
@@ -137,13 +137,50 @@ with keys as (
          ((extract(month from data_evento)::int - 1) / 3 + 1)::int as trimestre
   from public.view_eventos
 ),
-clientes_contahub as (
-  select bar_id,
+clientes_unicos AS (
+  SELECT bar_id,
          extract(year from dt_gerencial)::int as ano,
          ((extract(month from dt_gerencial)::int - 1) / 3 + 1)::int as trimestre,
-         sum(coalesce(pessoas, 0))::numeric as pessoas_contahub
-  from public.contahub_periodo
-  group by 1,2,3
+         COUNT(DISTINCT cli_fone)::numeric as clientes_totais
+  FROM public.contahub_periodo
+  WHERE cli_fone IS NOT NULL
+    AND LENGTH(cli_fone) >= 8
+    AND dt_gerencial >= '2024-01-01'
+  GROUP BY 1,2,3
+),
+base_ativa AS (
+  SELECT 
+    k.bar_id,
+    k.ano,
+    k.trimestre,
+    COUNT(DISTINCT cp.cli_fone)::numeric as base_ativa_90d
+  FROM keys k
+  CROSS JOIN LATERAL (
+    SELECT CASE k.trimestre
+      WHEN 1 THEN (k.ano || '-03-31')::DATE
+      WHEN 2 THEN (k.ano || '-06-30')::DATE
+      WHEN 3 THEN (k.ano || '-09-30')::DATE
+      WHEN 4 THEN (k.ano || '-12-31')::DATE
+    END as fim_trimestre
+  ) datas
+  LEFT JOIN public.contahub_periodo cp ON 
+    cp.bar_id = k.bar_id
+    AND cp.dt_gerencial >= (datas.fim_trimestre - INTERVAL '90 days')
+    AND cp.dt_gerencial <= LEAST(datas.fim_trimestre, CURRENT_DATE)
+    AND cp.cli_fone IS NOT NULL
+    AND LENGTH(cp.cli_fone) >= 8
+  WHERE cp.cli_fone IN (
+    SELECT cli_fone
+    FROM public.contahub_periodo
+    WHERE bar_id = k.bar_id
+      AND dt_gerencial >= (datas.fim_trimestre - INTERVAL '90 days')
+      AND dt_gerencial <= LEAST(datas.fim_trimestre, CURRENT_DATE)
+      AND cli_fone IS NOT NULL
+      AND LENGTH(cli_fone) >= 8
+    GROUP BY cli_fone
+    HAVING COUNT(*) >= 2
+  )
+  GROUP BY 1,2,3
 ),
 clientes_yuzer as (
   select bar_id,
@@ -235,6 +272,8 @@ grant select on table public.view_visao_geral_trimestral to anon, authenticated;
 --   $$refresh materialized view concurrently public.view_visao_geral_trimestral$$);
 -- Para evitar jobs duplicados, cheque antes:
 -- SELECT * FROM cron.job;
+
+
 
 
 

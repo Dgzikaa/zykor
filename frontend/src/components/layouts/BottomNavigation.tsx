@@ -29,6 +29,8 @@ import {
   MessageCircle,
   Send,
   DollarSign,
+  Star,
+  Ticket,
 } from 'lucide-react';
 
 interface BottomNavItem {
@@ -101,30 +103,8 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
       color: 'text-indigo-600 dark:text-indigo-400',
       permission: 'relatorios',
       subItems: [
-        { icon: Clock, label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
         { icon: Users, label: 'Clientes', href: '/analitico/clientes', permission: 'relatorios' },
-        { icon: Users, label: 'Clientes Ativos', href: '/relatorios/clientes-ativos', permission: 'relatorios' },
-        { icon: Sparkles, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },
-      ],
-    },
-    {
-      icon: Wrench,
-      label: 'Ferramentas',
-      href: '/ferramentas',
-      color: 'text-green-600 dark:text-green-400',
-      permission: 'ferramentas',
-      subItems: [
-        { icon: Megaphone, label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'operacoes' },
-        { icon: Package, label: 'Produção e Insumos', href: '/ferramentas/producao-insumos', permission: 'receitas_insumos' },
-        { icon: Package, label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque', permission: 'operacoes' },
-        { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
-        { icon: Users, label: 'NPS', href: '/ferramentas/nps', permission: 'home' },
-        { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
-        { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', permission: 'relatorios' },
-        { icon: Users, label: 'Simulação de CMO', href: '/ferramentas/simulacao-cmo', permission: 'gestao' },
-        { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'operacoes' },
-        // { icon: TrendingUp, label: 'CFP - Finanças', href: '/fp', permission: 'home' }, // TODO: Implementar
-        { icon: Sparkles, label: 'Agente IA', href: '/ferramentas/agente', permission: 'home' },
+        { icon: Clock, label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
       ],
     },
     {
@@ -142,12 +122,45 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
       ],
     },
     {
+      icon: Wrench,
+      label: 'Ferramentas',
+      href: '/ferramentas',
+      color: 'text-green-600 dark:text-green-400',
+      permission: 'ferramentas',
+      subItems: [
+        { icon: Users, label: 'Clientes Ativos', href: '/relatorios/clientes-ativos', permission: 'relatorios' },
+        { icon: Package, label: 'Produção e Insumos', href: '/ferramentas/producao-insumos', permission: 'receitas_insumos' },
+        { icon: Package, label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque', permission: 'operacoes' },
+        { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
+        { icon: Users, label: 'NPS', href: '/ferramentas/nps', permission: 'home' },
+        { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
+        { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', permission: 'relatorios' },
+        { icon: Users, label: 'Simulação de CMO', href: '/ferramentas/simulacao-cmo', permission: 'gestao' },
+        { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'operacoes' },
+        // { icon: TrendingUp, label: 'CFP - Finanças', href: '/fp', permission: 'home' }, // TODO: Implementar
+        { icon: Sparkles, label: 'Agente IA', href: '/ferramentas/agente', permission: 'home' },
+      ],
+    },
+    {
       icon: Settings,
       label: 'Configurações',
       href: '/configuracoes',
       color: 'text-gray-600 dark:text-gray-400',
       permission: 'configuracoes',
       subItems: [],
+    },
+    {
+      icon: Star,
+      label: 'Extras',
+      href: '/extras',
+      color: 'text-yellow-600 dark:text-yellow-400',
+      permission: 'home',
+      subItems: [
+        { icon: Clock, label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
+        { icon: Sparkles, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },
+        { icon: Ticket, label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'relatorios' },
+        { icon: Megaphone, label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
+      ],
     },
   ];
 

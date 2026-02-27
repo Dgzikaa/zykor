@@ -30,6 +30,7 @@ import {
   Trash2,
   Plus
 } from "lucide-react";
+import { LoadingState } from '@/components/ui/loading-state';
 import DreManualModal from "@/components/dre/DreManualModal";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, Title, Filler } from 'chart.js';
 import { Pie, Line } from 'react-chartjs-2';
@@ -664,9 +665,11 @@ export default function DrePage() {
 
             <TabsContent value="dashboard" className="p-4 sm:p-6 lg:p-8">
               {loadingYearly ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                </div>
+                <LoadingState
+                  title="Carregando DRE..."
+                  subtitle="Processando demonstrativo de resultados"
+                  icon={<BarChart3 className="w-4 h-4" />}
+                />
               ) : error ? (
                 <div className="text-center py-12">
                   <div className="text-red-600 dark:text-red-400 text-lg font-semibold mb-2">Erro ao carregar dados</div>

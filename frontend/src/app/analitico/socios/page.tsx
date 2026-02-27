@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { LoadingState } from '@/components/ui/loading-state';
 import { Loader2, TrendingUp, Users, DollarSign, Calendar } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
@@ -214,10 +215,11 @@ export default function SociosPage() {
 
         {/* Loading state */}
         {loading && (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-            <span className="ml-2 text-gray-600 dark:text-gray-400">Carregando dados...</span>
-          </div>
+          <LoadingState 
+            title="Carregando análise..."
+            subtitle="Processando gastos dos sócios"
+            icon={<Users className="w-4 h-4" />}
+          />
         )}
 
         {/* Error state */}

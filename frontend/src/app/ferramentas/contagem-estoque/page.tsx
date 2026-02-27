@@ -27,6 +27,7 @@ import {
   Settings,
   X
 } from 'lucide-react';
+import { LoadingState } from '@/components/ui/loading-state';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { usePageTitle } from '@/contexts/PageTitleContext';
@@ -429,10 +430,11 @@ export default function ContagemEstoquePage() {
   if (barLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
-          <p className="text-gray-600 dark:text-gray-400">Carregando...</p>
-        </div>
+        <LoadingState
+          title="Carregando contagem de estoque..."
+          subtitle="Preparando dados de inventário"
+          icon={<Package className="w-4 h-4" />}
+        />
       </div>
     );
   }
@@ -942,10 +944,11 @@ export default function ContagemEstoquePage() {
                 </CardHeader>
                 <CardContent>
                   {loadingContagens ? (
-                    <div className="text-center py-8">
-                      <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-gray-400" />
-                      <p className="text-gray-600 dark:text-gray-400">Carregando contagens...</p>
-                    </div>
+                    <LoadingState
+                      title="Carregando histórico..."
+                      subtitle="Buscando contagens anteriores"
+                      icon={<History className="w-4 h-4" />}
+                    />
                   ) : contagensFiltradas.length === 0 ? (
                     <div className="text-center py-8">
                       <Package className="h-12 w-12 mx-auto mb-2 text-gray-400" />

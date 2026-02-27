@@ -7,6 +7,7 @@ import PageHeader from '@/components/layouts/PageHeader'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { LoadingState } from '@/components/ui/loading-state'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -862,81 +863,11 @@ export default function ClientesPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
         <div className="container mx-auto px-3 py-6">
-          {/* Header Skeleton */}
-          <div className="mb-6">
-            <div className="flex items-center gap-3 mb-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              <span className="text-gray-700 dark:text-gray-300 font-medium">Carregando dados dos clientes...</span>
-            </div>
-            <Skeleton className="h-8 w-64 mb-2 bg-gray-300 dark:bg-gray-600" />
-            <Skeleton className="h-5 w-96 bg-gray-300 dark:bg-gray-600" />
-          </div>
-          
-          {/* Cards de Estatísticas Skeleton */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Card key={i} className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-lg">
-                <CardHeader className="pb-2 bg-gradient-to-r from-gray-300 to-gray-400 dark:from-gray-600 dark:to-gray-700">
-                  <Skeleton className="h-4 w-20 bg-gray-400 dark:bg-gray-500" />
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <Skeleton className="h-8 w-24 mb-2 bg-gray-200 dark:bg-gray-700" />
-                  <Skeleton className="h-3 w-16 bg-gray-200 dark:bg-gray-700" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Tabela Skeleton */}
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-900 dark:from-slate-700 dark:to-slate-800">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-5 w-5 rounded bg-slate-500" />
-                    <div>
-                      <Skeleton className="h-6 w-48 mb-2 bg-slate-500" />
-                      <Skeleton className="h-4 w-64 bg-slate-600" />
-                    </div>
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <Skeleton className="h-10 w-48 bg-slate-500 rounded-xl" />
-                    <Skeleton className="h-10 w-10 bg-slate-500 rounded-xl" />
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Skeleton className="h-10 w-32 bg-slate-500 rounded-xl" />
-                  <Skeleton className="h-10 w-32 bg-slate-500 rounded-xl" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div>
-                <Table>
-                  <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
-                    <TableRow className="border-b border-slate-200 dark:border-slate-700">
-                      {[...Array(8)].map((_, i) => (
-                        <TableHead key={i} className="py-4">
-                          <Skeleton className="h-4 w-16" />
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {[...Array(10)].map((_, i) => (
-                      <TableRow key={i} className="border-b border-slate-100 dark:border-slate-800">
-                        {[...Array(8)].map((_, j) => (
-                          <TableCell key={j} className="py-4">
-                            <Skeleton className="h-4 w-full bg-gray-200 dark:bg-gray-700" />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+          <LoadingState 
+            title="Carregando análise..."
+            subtitle="Processando dados dos clientes"
+            icon={<Users className="w-4 h-4" />}
+          />
         </div>
       </div>
     )

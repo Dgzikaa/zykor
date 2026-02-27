@@ -20,6 +20,7 @@ import {
   Bell,
   Lock
 } from 'lucide-react'
+import { LoadingState } from '@/components/ui/loading-state'
 import { format, parseISO, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -264,9 +265,11 @@ export default function SaudeDadosPage() {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <RefreshCcw className="w-6 h-6 animate-spin text-blue-500" />
-                  </div>
+                  <LoadingState
+                    title="Carregando validações..."
+                    subtitle="Verificando integridade dos dados"
+                    icon={<Shield className="w-4 h-4" />}
+                  />
                 ) : validacoes.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     Nenhuma validação encontrada

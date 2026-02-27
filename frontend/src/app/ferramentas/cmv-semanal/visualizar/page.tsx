@@ -86,7 +86,13 @@ export default function CMVSemanalVisualizarPage() {
       if (!response.ok) throw new Error('Erro ao carregar CMVs');
 
       const data = await response.json();
-      setCmvs(data.data || []);
+      
+      // Filtrar apenas CMVs com dados (não zerados)
+      const cmvsComDados = (data.data || []).filter((cmv: CMVSemanal) => 
+        cmv.faturamento_cmvivel > 0 || cmv.cmv_real > 0
+      );
+      
+      setCmvs(cmvsComDados);
 
     } catch (error) {
       console.error('Erro ao carregar CMVs:', error);

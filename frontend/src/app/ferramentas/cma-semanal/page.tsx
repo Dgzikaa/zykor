@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Save, RefreshCw, Calculator, ChefHat } from 'lucide-react';
+import { LoadingState } from '@/components/ui/loading-state';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface CMASemanal {
@@ -361,11 +362,11 @@ export default function CMASemanalPage() {
 
       {/* Formulário CMA */}
       {loading ? (
-        <Card>
-          <CardContent className="py-12 flex justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-          </CardContent>
-        </Card>
+        <LoadingState
+          title="Carregando CMA..."
+          subtitle="Processando custos de alimentação"
+          icon={<ChefHat className="w-4 h-4" />}
+        />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Estoques e Compras */}

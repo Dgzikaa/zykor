@@ -41,6 +41,7 @@ import {
   Table,
   CloudDownload
 } from 'lucide-react';
+import { LoadingState } from '@/components/ui/loading-state';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
 import { useToast } from '@/hooks/use-toast';
@@ -124,6 +125,7 @@ export default function CMVSemanalPage() {
   const [criterioDataCompras, setCriterioDataCompras] = useState<'competencia' | 'criacao'>('competencia');
   const [sincronizando, setSincronizando] = useState(false);
   const [cmvs, setCmvs] = useState<CMVSemanal[]>([]);
+  const [cmvsTotais, setCmvsTotais] = useState(0); // Total de CMVs antes do filtro
   const [anoFiltro, setAnoFiltro] = useState(() => new Date().getFullYear());
   const [statusFiltro, setStatusFiltro] = useState('TODOS');
   
@@ -464,7 +466,15 @@ export default function CMVSemanalPage() {
       if (!response.ok) throw new Error('Erro ao carregar CMVs');
 
       const data = await response.json();
-      setCmvs(data.data || []);
+      const todosOsCmvs = data.data || [];
+      
+      // Filtrar apenas CMVs com dados (não zerados)
+      const cmvsComDados = todosOsCmvs.filter((cmv: CMVSemanal) => 
+        cmv.faturamento_cmvivel > 0 || cmv.cmv_real > 0 || cmv.vendas_brutas > 0
+      );
+      
+      setCmvsTotais(todosOsCmvs.length);
+      setCmvs(cmvsComDados);
 
     } catch (error) {
       console.error('Erro ao carregar CMVs:', error);
@@ -712,10 +722,11 @@ export default function CMVSemanalPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCcw className="h-8 w-8 animate-spin text-blue-600 dark:text-blue-400 mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400 font-medium">Carregando CMVs...</p>
-        </div>
+        <LoadingState
+          title="Carregando CMVs..."
+          subtitle="Processando dados de custo de mercadoria vendida"
+          icon={<Calculator className="w-4 h-4" />}
+        />
       </div>
     );
   }
@@ -832,12 +843,40 @@ export default function CMVSemanalPage() {
         </Card>
 
 
+        {/* Aviso sobre filtro automático */}
+        {cmvs.length === 0 && (
+          <Card className="card-dark mb-6 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                    Nenhum CMV com dados encontrado
+                  </h4>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Não há registros de CMV com dados preenchidos para o ano selecionado. 
+                    Use o botão <strong>"Atualizar Dados"</strong> para sincronizar dados da planilha e NIBO, 
+                    ou <strong>"Processar Semana Atual"</strong> para calcular o CMV da semana corrente.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Tabela de CMVs */}
         <Card className="card-dark">
           <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-            <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
-              <TrendingUp className="h-5 w-5" />
-              CMVs Registrados ({cmvs.length})
+            <CardTitle className="flex items-center justify-between text-gray-900 dark:text-white">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                CMVs Registrados ({cmvs.length})
+              </div>
+              {cmvsTotais > cmvs.length && (
+                <Badge variant="outline" className="text-xs">
+                  {cmvsTotais - cmvs.length} sem dados ocultos
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">

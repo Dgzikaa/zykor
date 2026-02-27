@@ -33,49 +33,49 @@ const funcionalidadesImplementadas = [
         titulo: 'Segmentação RFM',
         descricao: '7 segmentos estratégicos com ações personalizadas',
         url: '/crm/inteligente',
-        acesso: 'Sidebar > Analítico > CRM Inteligente > Segmentação RFM',
+        acesso: 'Sidebar > CRM > Segmentação RFM',
         status: 'completo'
       },
       {
         titulo: 'Predição de Churn com IA',
         descricao: 'Score de risco 0-100% e alertas automáticos',
         url: '/crm/churn-prediction',
-        acesso: 'Sidebar > Analítico > CRM Inteligente > Predição de Churn',
+        acesso: 'Sidebar > CRM > Predição Churn',
         status: 'completo'
       },
       {
         titulo: 'Campanhas Automáticas',
         descricao: 'WhatsApp, Email e Cupons personalizados',
         url: '/crm/campanhas',
-        acesso: 'Sidebar > Analítico > CRM Inteligente > Campanhas',
+        acesso: 'Sidebar > CRM > Campanhas',
         status: 'completo'
       },
       {
         titulo: 'Padrões de Comportamento',
         descricao: 'Análise de hábitos: dia, horário, eventos',
         url: '/crm/padroes-comportamento',
-        acesso: 'Sidebar > Analítico > CRM Inteligente > Padrões',
+        acesso: 'Sidebar > CRM > Padrões',
         status: 'completo'
       },
       {
         titulo: 'LTV e Engajamento',
         descricao: 'Lifetime Value e Score de Engajamento',
         url: '/crm/ltv-engajamento',
-        acesso: 'Sidebar > Analítico > CRM Inteligente > LTV',
+        acesso: 'Sidebar > CRM > LTV e Engajamento',
         status: 'completo'
       },
       {
         titulo: 'Recomendações IA',
         descricao: 'Sugestões personalizadas por cliente',
         url: '/crm/recomendacoes',
-        acesso: 'Sidebar > Analítico > CRM Inteligente > Recomendações',
+        acesso: 'Sidebar > CRM > Recomendações',
         status: 'completo'
       },
       {
         titulo: 'Dashboard de Retenção',
         descricao: 'Cohort Analysis e Funil de Jornada',
         url: '/crm/retencao',
-        acesso: 'Sidebar > Analítico > CRM Inteligente > Retenção',
+        acesso: 'Sidebar > CRM > Retenção',
         status: 'completo'
       },
     ]
@@ -145,7 +145,7 @@ const funcionalidadesImplementadas = [
         titulo: 'Clientes Ativos - Evolução',
         descricao: 'Gráficos mensais de novos/retornantes',
         url: '/relatorios/clientes-ativos',
-        acesso: 'Sidebar > Analítico > Clientes Ativos',
+        acesso: 'Sidebar > Extras > Clientes Ativos',
         status: 'completo'
       },
     ]

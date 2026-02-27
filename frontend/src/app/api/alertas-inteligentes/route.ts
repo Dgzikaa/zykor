@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -9,37 +11,55 @@ export async function POST(request: NextRequest) {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('[Alertas] Variáveis de ambiente não encontradas');
       return NextResponse.json(
         { success: false, error: 'Configuração do Supabase não encontrada' },
         { status: 500 }
       );
     }
 
-    const response = await fetch(`${supabaseUrl}/functions/v1/alertas-inteligentes`, {
+    console.log('[Alertas] Chamando Edge Function:', `${supabaseUrl}/functions/v1/alertas-dispatcher`);
+
+    // Chamar alertas-dispatcher (nome correto da Edge Function)
+    const response = await fetch(`${supabaseUrl}/functions/v1/alertas-dispatcher`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${supabaseServiceKey}`
       },
-      body: JSON.stringify({ action, barId, enviarDiscord })
+      body: JSON.stringify({ 
+        action, 
+        bar_id: barId,
+        params: { enviarDiscord }
+      })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Erro na Edge Function alertas-inteligentes:', errorText);
+      console.error('[Alertas] Erro da Edge Function:', response.status, errorText);
       return NextResponse.json(
-        { success: false, error: 'Erro ao processar alertas' },
+        { success: false, error: `Erro ao processar alertas: ${errorText}` },
         { status: response.status }
       );
     }
 
     const result = await response.json();
-    return NextResponse.json(result);
+    console.log('[Alertas] Sucesso:', result);
+    
+    // Adaptar resposta para formato esperado pelo frontend
+    return NextResponse.json({
+      success: result.success,
+      resultado: {
+        alertas: result.data?.alertas || [],
+        insights: [],
+        metricas: result.data?.periodo || {}
+      }
+    });
 
   } catch (error) {
-    console.error('Erro na API alertas-inteligentes:', error);
+    console.error('[Alertas] Erro interno:', error);
     return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
+      { success: false, error: `Erro interno: ${error instanceof Error ? error.message : 'Desconhecido'}` },
       { status: 500 }
     );
   }
