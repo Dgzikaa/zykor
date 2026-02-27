@@ -1,4 +1,4 @@
-{
+﻿{
   "crons": [
     {
       "path": "/api/configuracoes/credenciais/nibo-sync-simple",
@@ -15,6 +15,10 @@
     {
       "path": "/api/configuracoes/desempenho/recalculo-diario",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/contahub/stockout-sync",
+      "schedule": "0 20 * * *"
     }
   ],
   "functions": {
@@ -28,6 +32,9 @@
       "maxDuration": 300
     },
     "src/app/api/configuracoes/desempenho/recalculo-diario/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/contahub/stockout-sync/route.ts": {
       "maxDuration": 300
     }
   },
