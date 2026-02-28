@@ -424,5 +424,29 @@ function agregarDadosSemanaisProporcionais(
     gmn_total_acoes: somaMarketingProportional('gmn_total_acoes'),
     gmn_total_visualizacoes: somaMarketingProportional('gmn_total_visualizacoes'),
     gmn_solicitacoes_rotas: somaMarketingProportional('gmn_solicitacoes_rotas'),
+    
+    // Gestão Produção
+    quebra_utensilios: somaProportional('quebra_utensilios'),
+    bonificacoes_contratos: somaProportional('bonificacoes_contratos'),
+    nota_producao_bar: mediaProportional('nota_producao_bar'),
+    nota_producao_cozinha: mediaProportional('nota_producao_cozinha'),
+    perc_checklist_producao: mediaProportional('perc_checklist_producao'),
+    desvio_semana: somaProportional('desvio_semana'),
+    
+    // Gestão RH
+    quorum_pesquisa_felicidade: mediaProportional('quorum_pesquisa_felicidade'),
+    vagas_abertas: Math.round(mediaProportional('vagas_abertas')),
+    num_testes_ps: somaProportional('num_testes_ps'),
+    perc_comparecimento_ps: mediaProportional('perc_comparecimento_ps'),
+    aprovados_ps: somaProportional('aprovados_ps'),
+    perc_checklist_rh: mediaProportional('perc_checklist_rh'),
+    absenteismo: mediaProportional('absenteismo'),
+    
+    // Gestão Financeiro
+    num_lancamentos_vencidos: somaProportional('num_lancamentos_vencidos'),
+    conciliacoes_pendentes: somaProportional('conciliacoes_pendentes'),
+    erros_pente_fino: somaProportional('erros_pente_fino'),
+    lancamentos_atrasados: somaProportional('lancamentos_atrasados'),
+    perc_checklist_semanal_terca: mediaProportional('perc_checklist_semanal_terca'),
   };
 }

@@ -86,6 +86,24 @@ export interface DadosSemana {
   m_ctr: number;
   m_custo_por_clique: number;
   m_conversas_iniciadas: number;
+  quebra_utensilios?: number;
+  bonificacoes_contratos?: number;
+  nota_producao_bar?: number;
+  nota_producao_cozinha?: number;
+  perc_checklist_producao?: number;
+  desvio_semana?: number;
+  quorum_pesquisa_felicidade?: number;
+  vagas_abertas?: number;
+  num_testes_ps?: number;
+  perc_comparecimento_ps?: number;
+  aprovados_ps?: number;
+  perc_checklist_rh?: number;
+  absenteismo?: number;
+  num_lancamentos_vencidos?: number;
+  conciliacoes_pendentes?: number;
+  erros_pente_fino?: number;
+  lancamentos_atrasados?: number;
+  perc_checklist_semanal_terca?: number;
 }
 
 export type MetricaStatus = 'auto' | 'manual' | 'nao_confiavel';
@@ -130,4 +148,13 @@ export interface SecaoConfig {
   icone: React.ReactNode;
   cor: string;
   grupos: GrupoMetricas[];
+}
+
+export interface MetaDesempenho {
+  valor: number;
+  operador: string;
+}
+
+export interface MetasDesempenhoMap {
+  [metrica: string]: MetaDesempenho;
 }

@@ -408,5 +408,29 @@ function agregarDadosSemanaisProporcionais(
     gmn_total_acoes: sumProp(marketingMap, 'gmn_total_acoes'),
     gmn_total_visualizacoes: sumProp(marketingMap, 'gmn_total_visualizacoes'),
     gmn_solicitacoes_rotas: sumProp(marketingMap, 'gmn_solicitacoes_rotas'),
+    
+    // Gestão Produção
+    quebra_utensilios: sumProp(desempenhoMap, 'quebra_utensilios'),
+    bonificacoes_contratos: sumProp(desempenhoMap, 'bonificacoes_contratos'),
+    nota_producao_bar: avgProp(desempenhoMap, 'nota_producao_bar'),
+    nota_producao_cozinha: avgProp(desempenhoMap, 'nota_producao_cozinha'),
+    perc_checklist_producao: avgProp(desempenhoMap, 'perc_checklist_producao'),
+    desvio_semana: sumProp(desempenhoMap, 'desvio_semana'),
+    
+    // Gestão RH
+    quorum_pesquisa_felicidade: avgProp(desempenhoMap, 'quorum_pesquisa_felicidade'),
+    vagas_abertas: Math.round(avgProp(desempenhoMap, 'vagas_abertas')),
+    num_testes_ps: sumProp(desempenhoMap, 'num_testes_ps'),
+    perc_comparecimento_ps: avgProp(desempenhoMap, 'perc_comparecimento_ps'),
+    aprovados_ps: sumProp(desempenhoMap, 'aprovados_ps'),
+    perc_checklist_rh: avgProp(desempenhoMap, 'perc_checklist_rh'),
+    absenteismo: avgProp(desempenhoMap, 'absenteismo'),
+    
+    // Gestão Financeiro
+    num_lancamentos_vencidos: sumProp(desempenhoMap, 'num_lancamentos_vencidos'),
+    conciliacoes_pendentes: sumProp(desempenhoMap, 'conciliacoes_pendentes'),
+    erros_pente_fino: sumProp(desempenhoMap, 'erros_pente_fino'),
+    lancamentos_atrasados: sumProp(desempenhoMap, 'lancamentos_atrasados'),
+    perc_checklist_semanal_terca: avgProp(desempenhoMap, 'perc_checklist_semanal_terca'),
   };
 }

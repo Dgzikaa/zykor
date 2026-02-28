@@ -27,14 +27,17 @@ import {
   Pencil,
   Check,
   X,
-  Table2
+  Table2,
+  Factory,
+  UserCog,
+  Calculator
 } from 'lucide-react';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import { DadosSemana, SecaoConfig, GrupoMetricas, MetricaConfig, TipoAgregacao } from '../types';
+import { DadosSemana, SecaoConfig, GrupoMetricas, MetricaConfig, TipoAgregacao, MetasDesempenhoMap } from '../types';
 import { GoogleReviewsTooltip } from './GoogleReviewsTooltip';
 
 // ============================================================================
@@ -248,6 +251,86 @@ const SECOES: SecaoConfig[] = [
         ]
       }
     ]
+  },
+  {
+    id: 'producao',
+    titulo: 'Gestão Produção',
+    icone: <Factory className="w-4 h-4" />,
+    cor: 'bg-teal-600',
+    grupos: [
+      {
+        id: 'stockout_zykor',
+        label: 'Stockout Zykor',
+        metricas: [
+          { key: 'stockout_drinks_perc', label: 'Stockout Drinks Zykor', status: 'auto', fonte: 'ContaHub Stockout', calculo: 'Média da semana de drinks', formato: 'percentual', inverso: true },
+          { key: 'stockout_comidas_perc', label: 'Stockout Comidas Zykor', status: 'auto', fonte: 'ContaHub Stockout', calculo: 'Média da semana de comidas', formato: 'percentual', inverso: true },
+        ]
+      },
+      {
+        id: 'gestao_producao',
+        label: 'Gestão',
+        metricas: [
+          { key: 'quebra_utensilios', label: 'Quebra de Utensílios', status: 'manual', fonte: 'Manual', calculo: 'Valor em R$ de utensílios quebrados', formato: 'moeda', editavel: true },
+          { key: 'bonificacoes_contratos', label: 'Bonificações Contratos', status: 'manual', fonte: 'Manual', calculo: 'Valor em R$ de bonificações', formato: 'moeda', editavel: true },
+          { key: 'nota_producao_bar', label: 'Nota Produção Bar', status: 'manual', fonte: 'Manual', calculo: 'Nota de 0 a 10', formato: 'decimal', editavel: true },
+          { key: 'nota_producao_cozinha', label: 'Nota Produção Cozinha', status: 'manual', fonte: 'Manual', calculo: 'Nota de 0 a 10', formato: 'decimal', editavel: true },
+          { key: 'perc_checklist_producao', label: '% Checklist', status: 'manual', fonte: 'Manual', calculo: 'Percentual de checklist concluído', formato: 'percentual', editavel: true },
+          { key: 'desvio_semana', label: 'Desvio da Semana', status: 'manual', fonte: 'Manual', calculo: 'Valor de desvio em R$', formato: 'moeda', editavel: true },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'rh',
+    titulo: 'Gestão RH',
+    icone: <UserCog className="w-4 h-4" />,
+    cor: 'bg-cyan-600',
+    grupos: [
+      {
+        id: 'recrutamento',
+        label: 'Recrutamento',
+        metricas: [
+          { key: 'vagas_abertas', label: 'Vagas Abertas', status: 'manual', fonte: 'Manual', calculo: 'Número de vagas abertas', formato: 'numero', editavel: true },
+          { key: 'num_testes_ps', label: 'Nº de Testes PS', status: 'manual', fonte: 'Manual', calculo: 'Número de testes realizados', formato: 'numero', editavel: true },
+          { key: 'perc_comparecimento_ps', label: '% Comparecimento PS', status: 'manual', fonte: 'Manual', calculo: 'Percentual de comparecimento', formato: 'percentual', editavel: true },
+          { key: 'aprovados_ps', label: 'Aprovados', status: 'manual', fonte: 'Manual', calculo: 'Número de aprovados', formato: 'numero', editavel: true },
+        ]
+      },
+      {
+        id: 'gestao_rh',
+        label: 'Gestão',
+        metricas: [
+          { key: 'quorum_pesquisa_felicidade', label: 'Quórum Pesquisa Felicidade', status: 'manual', fonte: 'Manual', calculo: 'Percentual de participação', formato: 'percentual', editavel: true },
+          { key: 'perc_checklist_rh', label: '% Checklist', status: 'manual', fonte: 'Manual', calculo: 'Percentual de checklist concluído', formato: 'percentual', editavel: true },
+          { key: 'absenteismo', label: 'Absenteísmo', status: 'manual', fonte: 'Manual', calculo: 'Percentual de absenteísmo', formato: 'percentual', editavel: true, inverso: true },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'financeiro',
+    titulo: 'Gestão Financeiro',
+    icone: <Calculator className="w-4 h-4" />,
+    cor: 'bg-amber-600',
+    grupos: [
+      {
+        id: 'lancamentos',
+        label: 'Lançamentos',
+        metricas: [
+          { key: 'num_lancamentos_vencidos', label: 'Nº de Lançamentos Vencidos', status: 'manual', fonte: 'Manual', calculo: 'Número de lançamentos vencidos', formato: 'numero', editavel: true, inverso: true },
+          { key: 'lancamentos_atrasados', label: 'Lançamentos Atrasados', status: 'manual', fonte: 'Manual', calculo: 'Número de lançamentos atrasados', formato: 'numero', editavel: true, inverso: true },
+          { key: 'conciliacoes_pendentes', label: 'Conciliações Pendentes', status: 'manual', fonte: 'Manual', calculo: 'Número de conciliações pendentes', formato: 'numero', editavel: true, inverso: true },
+          { key: 'erros_pente_fino', label: 'Erros Pente Fino', status: 'manual', fonte: 'Manual', calculo: 'Número de erros encontrados', formato: 'numero', editavel: true, inverso: true },
+        ]
+      },
+      {
+        id: 'checklist_financeiro',
+        label: 'Checklist',
+        metricas: [
+          { key: 'perc_checklist_semanal_terca', label: '% Checklist Semanal até Terça', status: 'manual', fonte: 'Manual', calculo: 'Percentual de checklist concluído até terça', formato: 'percentual', editavel: true },
+        ]
+      }
+    ]
   }
 ];
 
@@ -313,6 +396,42 @@ const formatarValor = (valor: number | string | null | undefined, formato: strin
   }
 };
 
+// Verifica se o valor atingiu a meta e retorna a cor
+const verificarMeta = (valor: number | null | undefined, metricaKey: string, metas: MetasDesempenhoMap): 'verde' | 'vermelho' | 'neutro' => {
+  if (valor === null || valor === undefined || !metas[metricaKey]) return 'neutro';
+  
+  const meta = metas[metricaKey];
+  const num = typeof valor === 'number' ? valor : parseFloat(valor as any);
+  
+  if (isNaN(num)) return 'neutro';
+  
+  switch (meta.operador) {
+    case '>=':
+      return num >= meta.valor ? 'verde' : 'vermelho';
+    case '<=':
+      return num <= meta.valor ? 'verde' : 'vermelho';
+    case '>':
+      return num > meta.valor ? 'verde' : 'vermelho';
+    case '<':
+      return num < meta.valor ? 'verde' : 'vermelho';
+    case '=':
+      return num === meta.valor ? 'verde' : 'vermelho';
+    default:
+      return 'neutro';
+  }
+};
+
+const getCorMeta = (status: 'verde' | 'vermelho' | 'neutro'): string => {
+  switch (status) {
+    case 'verde':
+      return 'text-emerald-600 dark:text-emerald-400 font-semibold';
+    case 'vermelho':
+      return 'text-red-600 dark:text-red-400 font-semibold';
+    default:
+      return 'text-gray-600 dark:text-gray-400';
+  }
+};
+
 const formatarDataCurta = (dataStr: string): string => {
   if (!dataStr) return '';
   const data = new Date(dataStr + 'T12:00:00');
@@ -371,6 +490,7 @@ export function DesempenhoClient({
   const [loading, setLoading] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [semanaAtualIdx, setSemanaAtualIdx] = useState<number>(-1);
+  const [metas, setMetas] = useState<MetasDesempenhoMap>({});
   
   const [secoesAbertas, setSecoesAbertas] = useState<Record<string, boolean>>({
     guardrail: true,
@@ -378,7 +498,10 @@ export function DesempenhoClient({
     qualidade: true,
     produtos: true,
     vendas: true,
-    marketing: true
+    marketing: true,
+    producao: true,
+    rh: true,
+    financeiro: true
   });
   
   const [gruposAbertos, setGruposAbertos] = useState<Record<string, boolean>>({
@@ -398,6 +521,12 @@ export function DesempenhoClient({
     'vendas-horarios': true,
     'marketing-organico': true,
     'marketing-pago': true,
+    'producao-stockout_zykor': true,
+    'producao-gestao_producao': true,
+    'rh-recrutamento': true,
+    'rh-gestao_rh': true,
+    'financeiro-lancamentos': true,
+    'financeiro-checklist_financeiro': true,
   });
   
   const secoesNaoColapsaveis = useMemo(() => ['ovt', 'qualidade', 'vendas'], []);
@@ -483,6 +612,25 @@ export function DesempenhoClient({
   useEffect(() => {
     setPageTitle('Desempenho');
   }, [setPageTitle]);
+
+  // Carregar metas
+  useEffect(() => {
+    const carregarMetas = async () => {
+      if (!selectedBar) return;
+      
+      try {
+        const response = await fetch(`/api/estrategico/desempenho/metas?bar_id=${selectedBar.id}&periodo=${visao}`);
+        if (response.ok) {
+          const data = await response.json();
+          setMetas(data.metas || {});
+        }
+      } catch (error) {
+        console.error('Erro ao carregar metas:', error);
+      }
+    };
+    
+    carregarMetas();
+  }, [selectedBar, visao]);
 
   const toggleGrupo = useCallback((grupoId: string) => {
     setGruposAbertos(prev => ({ ...prev, [grupoId]: !prev[grupoId] }));
@@ -719,7 +867,7 @@ export function DesempenhoClient({
                    return (
                       <div key={grupo.id}>
                          {mostrarHeaderGrupo && (
-                            <TooltipProvider>
+                            <TooltipProvider delayDuration={300}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <div className={cn("flex items-center gap-2 px-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600", !secoesNaoColapsaveis.includes(secao.id) && "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700")} style={{ height: '36px' }} onClick={() => !secoesNaoColapsaveis.includes(secao.id) && toggleGrupo(`${secao.id}-${grupo.id}`)}>
@@ -750,7 +898,7 @@ export function DesempenhoClient({
                          )}
                          {/* Métricas */}
                          {(!mostrarHeaderGrupo || secoesNaoColapsaveis.includes(secao.id) || gruposAbertos[`${secao.id}-${grupo.id}`]) && metricasParaMostrar.map((metrica) => (
-                           <TooltipProvider key={metrica.key}>
+                           <TooltipProvider key={metrica.key} delayDuration={300}>
                               <Tooltip>
                                  <TooltipTrigger asChild>
                                     <div className="flex items-center gap-2 px-6 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-help bg-gray-50/50 dark:bg-gray-800/50" style={{ height: '32px' }}>
@@ -763,6 +911,11 @@ export function DesempenhoClient({
                                      <p className="font-semibold text-sm">{metrica.label}</p>
                                      <p className="text-xs"><strong>Fonte:</strong> {metrica.fonte}</p>
                                      <p className="text-xs"><strong>Cálculo:</strong> {metrica.calculo}</p>
+                                     {metas[metrica.key] && (
+                                       <p className="text-xs mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                         <strong>Meta {visao === 'semanal' ? 'Semanal' : 'Mensal'}:</strong> {formatarValor(metas[metrica.key].valor, metrica.formato, metrica.sufixo)}
+                                       </p>
+                                     )}
                                      <div className="flex items-center gap-1 mt-1">
                                        <div className={cn("w-2 h-2 rounded-full", STATUS_COLORS[metrica.status].dot)} />
                                        <span className={cn("text-xs", STATUS_COLORS[metrica.status].text)}>
@@ -850,13 +1003,18 @@ export function DesempenhoClient({
                                                <TooltipProvider>
                                                  <Tooltip>
                                                    <TooltipTrigger asChild>
-                                                     <span className="text-xs font-medium text-gray-900 dark:text-white text-center cursor-help">{valorPrincipalFormatado}</span>
+                                                     <span className={cn("text-xs font-medium text-center cursor-help", getCorMeta(verificarMeta(valorPrincipal, metricaPrincipal.key, metas)))}>{valorPrincipalFormatado}</span>
                                                    </TooltipTrigger>
                                                    <TooltipContent side="top" className={cn("max-w-xs p-3", STATUS_COLORS[metricaPrincipal.status].bg)}>
                                                      <div className="space-y-1">
                                                        <p className="font-semibold text-sm">{metricaPrincipal.label}</p>
                                                        <p className="text-xs"><strong>Fonte:</strong> {metricaPrincipal.fonte}</p>
                                                        <p className="text-xs"><strong>Cálculo:</strong> {metricaPrincipal.calculo}</p>
+                                                       {metas[metricaPrincipal.key] && (
+                                                         <p className="text-xs mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                                           <strong>Meta {visao === 'semanal' ? 'Semanal' : 'Mensal'}:</strong> {formatarValor(metas[metricaPrincipal.key].valor, metricaPrincipal.formato, metricaPrincipal.sufixo)}
+                                                         </p>
+                                                       )}
                                                        <div className="flex items-center gap-1 mt-1">
                                                          <div className={cn("w-2 h-2 rounded-full", STATUS_COLORS[metricaPrincipal.status].dot)} />
                                                          <span className={cn("text-xs", STATUS_COLORS[metricaPrincipal.status].text)}>
@@ -925,7 +1083,7 @@ export function DesempenhoClient({
                                                   dataInicio={semana.data_inicio}
                                                   dataFim={semana.data_fim}
                                                 >
-                                                  <span className="text-xs text-gray-600 dark:text-gray-400 text-center">
+                                                  <span className={cn("text-xs text-center", getCorMeta(verificarMeta(valor, metrica.key, metas)))}>
                                                     {valorFormatado}
                                                   </span>
                                                 </GoogleReviewsTooltip>
@@ -933,7 +1091,7 @@ export function DesempenhoClient({
                                                 <TooltipProvider>
                                                   <Tooltip>
                                                     <TooltipTrigger asChild>
-                                                      <span className="text-xs text-gray-600 dark:text-gray-400 text-center cursor-help underline decoration-dotted">
+                                                      <span className={cn("text-xs text-center cursor-help underline decoration-dotted", getCorMeta(verificarMeta(valor, metrica.key, metas)))}>
                                                         {valorFormatado}
                                                       </span>
                                                     </TooltipTrigger>
@@ -942,6 +1100,11 @@ export function DesempenhoClient({
                                                         <p className="font-semibold text-sm">{metrica.label}</p>
                                                         <p className="text-xs"><strong>Fonte:</strong> {metrica.fonte}</p>
                                                         <p className="text-xs"><strong>Cálculo:</strong> {metrica.calculo}</p>
+                                                        {metas[metrica.key] && (
+                                                          <p className="text-xs mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                                            <strong>Meta {visao === 'semanal' ? 'Semanal' : 'Mensal'}:</strong> {formatarValor(metas[metrica.key].valor, metrica.formato, metrica.sufixo)}
+                                                          </p>
+                                                        )}
                                                         {metrica.keyPercentual && valorPercentual !== null && typeof valorPercentual === 'number' && (
                                                           <p className="text-xs"><strong>Percentual:</strong> {valorPercentual.toFixed(1)}%</p>
                                                         )}
@@ -1005,7 +1168,7 @@ export function DesempenhoClient({
                                                <TooltipProvider>
                                                  <Tooltip>
                                                    <TooltipTrigger asChild>
-                                                     <span className="text-xs text-gray-600 dark:text-gray-400 text-center cursor-help">
+                                                     <span className={cn("text-xs text-center cursor-help", getCorMeta(verificarMeta(valor, metrica.key, metas)))}>
                                                        {valorFormatado}
                                                      </span>
                                                    </TooltipTrigger>
@@ -1014,6 +1177,11 @@ export function DesempenhoClient({
                                                        <p className="font-semibold text-sm">{metrica.label}</p>
                                                        <p className="text-xs"><strong>Fonte:</strong> {metrica.fonte}</p>
                                                        <p className="text-xs"><strong>Cálculo:</strong> {metrica.calculo}</p>
+                                                       {metas[metrica.key] && (
+                                                         <p className="text-xs mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                                           <strong>Meta {visao === 'semanal' ? 'Semanal' : 'Mensal'}:</strong> {formatarValor(metas[metrica.key].valor, metrica.formato, metrica.sufixo)}
+                                                         </p>
+                                                       )}
                                                        <div className="flex items-center gap-1 mt-1">
                                                          <div className={cn("w-2 h-2 rounded-full", STATUS_COLORS[metrica.status].dot)} />
                                                          <span className={cn("text-xs", STATUS_COLORS[metrica.status].text)}>
