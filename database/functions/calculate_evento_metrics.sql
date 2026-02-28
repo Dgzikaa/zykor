@@ -66,29 +66,25 @@ BEGIN
     -- 1. BUSCAR DADOS YUZER
     -- =================================================
     SELECT 
-        faturamento_liquido,
-        receita_ingressos,
-        quantidade_ingressos,
-        percent_bebidas,
-        percent_drinks,
-        percent_comidas,
-        valor_bebidas,
-        valor_comidas
+        yp.valor_liquido as faturamento_liquido,
+        COALESCE(SUM(CASE WHEN yprod.eh_ingresso = true THEN yprod.valor_total ELSE 0 END), 0) as receita_ingressos,
+        COALESCE(SUM(CASE WHEN yprod.eh_ingresso = true THEN yprod.quantidade ELSE 0 END), 0) as quantidade_ingressos
     INTO yuzer_data
-    FROM yuzer_resumo2 
-    WHERE data_evento = evento_record.data_evento 
-    AND bar_id = evento_record.bar_id;
+    FROM yuzer_pagamento yp
+    LEFT JOIN yuzer_produtos yprod ON yp.data_evento = yprod.data_evento AND yp.bar_id = yprod.bar_id
+    WHERE yp.data_evento = evento_record.data_evento 
+    AND yp.bar_id = evento_record.bar_id
+    GROUP BY yp.valor_liquido;
     
     -- =================================================
-    -- 2. BUSCAR DADOS CONTAHUB PAGAMENTOS (EXCLUINDO CONTA ASSINADA E PIX MANUAL)
+    -- 2. BUSCAR DADOS CONTAHUB PAGAMENTOS (EXCLUINDO APENAS CONTA ASSINADA)
     -- =================================================
     SELECT SUM(liquido) as total_liquido
     INTO contahub_pag
     FROM contahub_pagamentos
     WHERE dt_gerencial = evento_record.data_evento 
     AND bar_id = evento_record.bar_id
-    AND meio != 'Conta Assinada'
-    AND meio != 'Pix Manual';
+    AND meio != 'Conta Assinada';
     
     -- =================================================
     -- 3. BUSCAR DADOS CONTAHUB PERÍODO

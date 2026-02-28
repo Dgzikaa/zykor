@@ -183,24 +183,26 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         let valor_outros = 0;
         let total_valorfinal = 0;
 
+        // Classificação específica por bar
+        const locaisBebidas = ['Chopp', 'Baldes', 'Pegue e Pague', 'PP', 'Venda Volante', 'Bar'];
+        const locaisComidas = ['Cozinha', 'Cozinha 1', 'Cozinha 2'];
+        const locaisDrinksBase = ['Preshh', 'Drinks', 'Drinks Autorais', 'Mexido', 'Shot e Dose', 'Batidos', 'Montados'];
+        const locaisDrinks = user.bar_id === 4 ? [...locaisDrinksBase, 'Salao'] : locaisDrinksBase;
+
         contahubData.forEach(item => {
           const valor = item.valorfinal || 0;
           const loc = item.loc_desc || '';
           total_valorfinal += valor;
 
-          // Bebidas: Chopp, Baldes, Pegue e Pague, PP, Venda Volante, Bar
-          if (['Chopp', 'Baldes', 'Pegue e Pague', 'PP', 'Venda Volante', 'Bar'].includes(loc)) {
+          if (locaisBebidas.includes(loc)) {
             valor_bebidas += valor;
           }
-          // Comidas: Cozinha, Cozinha 1, Cozinha 2
-          else if (['Cozinha', 'Cozinha 1', 'Cozinha 2'].includes(loc)) {
+          else if (locaisComidas.includes(loc)) {
             valor_comidas += valor;
           }
-          // Drinks: Preshh, Drinks, Drinks Autorais, Mexido, Shot e Dose, Batidos, Montados
-          else if (['Preshh', 'Drinks', 'Drinks Autorais', 'Mexido', 'Shot e Dose', 'Batidos', 'Montados'].includes(loc)) {
+          else if (locaisDrinks.includes(loc)) {
             valor_drinks += valor;
           }
-          // Outros
           else {
             valor_outros += valor;
           }
