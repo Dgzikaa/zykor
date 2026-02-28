@@ -434,7 +434,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                 
                 {/* Tabela Completa */}
                 <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-x-auto">
-                  <table className="text-[10px] border-collapse" style={{width: 'max-content'}}>
+                  <table className="text-[10px] border-collapse w-full min-w-max">
                     <thead className="bg-gray-50 dark:bg-gray-800">
                       <tr className="sticky top-0 z-30 bg-gray-50 dark:bg-gray-800">
                         {/* Colunas Fixas */}
