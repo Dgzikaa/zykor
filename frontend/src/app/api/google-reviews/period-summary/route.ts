@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,10 +19,17 @@ interface ReviewSummary {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await getSupabaseClient();
-    if (!supabase) {
-      return NextResponse.json({ error: 'Erro ao conectar com banco' }, { status: 500 });
-    }
+    // Usar service_role para bypass RLS (dados públicos de reviews)
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      }
+    );
     
     const { searchParams } = new URL(request.url);
     const barId = parseInt(searchParams.get('bar_id') || '3');
