@@ -46,6 +46,7 @@ export function GoogleReviewsTooltip({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log('🎯 Popover state changed:', { open, hasSummary: !!summary, loading });
     if (open && !summary && !loading) {
       fetchSummary();
     }
@@ -55,16 +56,19 @@ export function GoogleReviewsTooltip({
     setLoading(true);
     setError(null);
     try {
+      console.log('🔍 Buscando reviews:', { barId, dataInicio, dataFim });
       const response = await fetch(
         `/api/google-reviews/period-summary?bar_id=${barId}&data_inicio=${dataInicio}&data_fim=${dataFim}`
       );
       const data = await response.json();
+      console.log('📊 Resposta da API:', data);
       if (data.success) {
         setSummary(data.summary);
       } else {
         setError(data.error || 'Erro ao carregar dados');
       }
     } catch (err) {
+      console.error('❌ Erro ao buscar reviews:', err);
       setError('Erro ao conectar com servidor');
     } finally {
       setLoading(false);
