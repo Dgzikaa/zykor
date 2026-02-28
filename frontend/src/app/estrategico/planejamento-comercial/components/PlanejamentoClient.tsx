@@ -435,8 +435,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                 {/* Tabela Completa */}
                 <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-x-auto">
                   <table className="text-[10px] border-collapse" style={{width: 'max-content'}}>
-                    <thead className="sticky top-0 z-30 bg-gray-50 dark:bg-gray-800">
-                      <tr>
+                    <thead className="bg-gray-50 dark:bg-gray-800">
+                      <tr className="sticky top-0 z-30 bg-gray-50 dark:bg-gray-800">
                         {/* Colunas Fixas */}
                         <th className="px-2 py-3 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-300 border-r border-gray-300 dark:border-gray-600 sticky left-0 bg-gray-50 dark:bg-gray-800 z-10" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>Data</th>
                         <th className="px-2 py-3 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-300 border-r border-gray-300 dark:border-gray-600 sticky left-[90px] bg-gray-50 dark:bg-gray-800 z-10" style={{width: '65px', minWidth: '65px', maxWidth: '65px'}}>Dia</th>
@@ -490,10 +490,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                       </tr>
                       
                       {/* Segunda linha com subcolunas */}
-                      <tr className="border-t border-gray-300 dark:border-gray-600">
-                        <th className="border-r border-gray-200 dark:border-gray-700" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}></th>
-                        <th className="border-r border-gray-200 dark:border-gray-700" style={{width: '65px', minWidth: '65px', maxWidth: '65px'}}></th>
-                        <th className="border-r-2 border-gray-400 dark:border-gray-500" style={{width: '300px', minWidth: '300px', maxWidth: '300px'}}></th>
+                      <tr className="border-t border-gray-300 dark:border-gray-600 sticky top-[52px] z-20 bg-gray-50 dark:bg-gray-800">
+                        <th className="border-r border-gray-200 dark:border-gray-700 sticky left-0 bg-gray-50 dark:bg-gray-800 z-10" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}></th>
+                        <th className="border-r border-gray-200 dark:border-gray-700 sticky left-[90px] bg-gray-50 dark:bg-gray-800 z-10" style={{width: '65px', minWidth: '65px', maxWidth: '65px'}}></th>
+                        <th className="border-r-2 border-gray-400 dark:border-gray-500 sticky left-[155px] bg-gray-50 dark:bg-gray-800 z-10" style={{width: '300px', minWidth: '300px', maxWidth: '300px'}}></th>
                         <th className="border-r border-gray-200 dark:border-gray-700" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}></th>
                         <th className="border-r-2 border-gray-400 dark:border-gray-500" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}></th>
                         
