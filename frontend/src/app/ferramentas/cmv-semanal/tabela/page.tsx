@@ -294,10 +294,10 @@ const formatarValor = (valor: number | null | undefined, formato: string, sufixo
       return `${valor.toFixed(2)}%`;
     case 'decimal':
       return (Math.round(valor * 100) / 100).toFixed(2).replace('.', ',') + (sufixo || '');
-    case 'gap':
+    case 'gap': {
       const prefix = valor > 0 ? '+' : '';
-      const color = valor < 0 ? 'text-yellow-600' : valor <= 5 ? 'text-green-600' : 'text-red-600';
       return `${prefix}${valor.toFixed(2)}%`;
+    }
     default:
       return new Intl.NumberFormat('pt-BR').format(valor) + (sufixo || '');
   }
@@ -750,7 +750,7 @@ export default function CMVSemanalTabelaPage() {
           { label: 'Cashback Mensal', valor: semana.bonificacao_cashback_mensal || 0 },
         ];
       // RESULTADOS - Tooltips com cálculos detalhados
-      case 'cmv_real':
+      case 'cmv_real': {
         const estoqueInicial = (semana.estoque_inicial_cozinha || 0) + (semana.estoque_inicial_drinks || 0) + (semana.estoque_inicial_bebidas || 0);
         const compras = (semana.compras_custo_comida || 0) + (semana.compras_custo_drinks || 0) + (semana.compras_custo_bebidas || 0) + (semana.compras_custo_outros || 0);
         const estoqueFinal = (semana.estoque_final_cozinha || 0) + (semana.estoque_final_drinks || 0) + (semana.estoque_final_bebidas || 0);
@@ -764,13 +764,14 @@ export default function CMVSemanalTabelaPage() {
           { label: '(-) Consumações × 0.35', valor: -consumosTotal },
           { label: '(+) Bonificações', valor: bonificacoes },
         ];
+      }
       case 'cmv_percentual':
         return [{
           label: 'CMV R$ / Fat. Bruto',
           valor: semana.cmv_percentual ?? (semana.vendas_brutas ? (semana.cmv_real || 0) / semana.vendas_brutas * 100 : 0),
           formula: 'CMV R$ ÷ Faturamento Bruto × 100'
         }];
-      case 'cmv_limpo_percentual':
+      case 'cmv_limpo_percentual': {
         const cmvReal = semana.cmv_real || 0;
         const fatCmvivel = semana.faturamento_cmvivel || 1;
         return [
@@ -778,6 +779,7 @@ export default function CMVSemanalTabelaPage() {
           { label: '÷ Fat. CMVível', valor: fatCmvivel },
           { label: '× 100', valor: (cmvReal / fatCmvivel) * 100, formula: `(${formatarValor(cmvReal, 'moeda')} ÷ ${formatarValor(fatCmvivel, 'moeda')}) × 100` },
         ];
+      }
       case 'cmv_teorico_percentual':
         return [
           { label: 'Meta CMV', valor: semana.cmv_teorico_percentual || 0, formula: 'Valor teórico/meta definido' },

@@ -342,7 +342,7 @@ export default function AgenteChatPage() {
               </Button>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-              💡 Dica: Ensine o agente sobre suas regras de negócio. Ex: "Me avise quando o CMV passar de 30%"
+              💡 Dica: Ensine o agente sobre suas regras de negócio. Ex: &quot;Me avise quando o CMV passar de 30%&quot;
             </p>
           </div>
         </Card>

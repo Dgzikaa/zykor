@@ -184,7 +184,7 @@ export function GoogleReviewsTooltip({
                       </span>
                     </div>
                     <p className="text-gray-600 dark:text-gray-400 line-clamp-2">
-                      "{review.texto}"
+                      &quot;{review.texto}&quot;
                     </p>
                   </div>
                 ))}

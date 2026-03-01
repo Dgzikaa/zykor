@@ -66,7 +66,9 @@ async function getAllSuppliers(barId: number, apiToken: string): Promise<any[]> 
       try {
         const errorBody = await response.text();
         errorDetails = errorBody.substring(0, 500);
-      } catch { }
+      } catch (e) {
+        // Ignorar erro ao ler body
+      }
       console.error(`[BUSCAR-STAKEHOLDER] Erro NIBO ${response.status}: ${errorDetails}`);
       throw new Error(`Erro NIBO: ${response.status}${errorDetails ? ` - ${errorDetails}` : ''}`);
     }

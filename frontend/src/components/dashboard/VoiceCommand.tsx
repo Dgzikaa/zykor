@@ -173,7 +173,7 @@ export default function VoiceCommand({ onCommand, onResult, isProcessing = false
             <div className="text-center">
               {transcript ? (
                 <p className="text-gray-900 dark:text-white font-medium">
-                  "{transcript}"
+                  &quot;{transcript}&quot;
                 </p>
               ) : (
                 <p className="text-gray-500 dark:text-gray-400 text-sm">
@@ -184,7 +184,7 @@ export default function VoiceCommand({ onCommand, onResult, isProcessing = false
 
             {/* Dicas */}
             <div className="mt-3 text-xs text-gray-400 text-center">
-              Exemplos: "Como foi ontem?" • "Top 5 produtos" • "Qual o CMV?"
+              Exemplos: &quot;Como foi ontem?&quot; • &quot;Top 5 produtos&quot; • &quot;Qual o CMV?&quot;
             </div>
           </motion.div>
         )}

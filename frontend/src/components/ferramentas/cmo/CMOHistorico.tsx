@@ -56,7 +56,7 @@ export default function CMOHistorico() {
       if (json.success) {
         setHistorico(json.data || []);
       }
-    } catch (error) {
+    } catch (e) {
       toast({
         title: 'Erro',
         description: 'Erro ao buscar histórico',

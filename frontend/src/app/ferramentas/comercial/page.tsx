@@ -903,7 +903,7 @@ export default function ComercialPage() {
                     <h5 className="font-semibold text-gray-900 dark:text-white mb-3">Q1 (Jan-Mar)</h5>
                     <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
                       <li className="flex items-center gap-2">🎭 <span>Carnaval (Fev)</span></li>
-                      <li className="flex items-center gap-2">☘️ <span>St. Patrick's (Mar)</span></li>
+                      <li className="flex items-center gap-2">☘️ <span>St. Patrick&apos;s (Mar)</span></li>
                       <li className="flex items-center gap-2">🎵 <span>Lollapalooza (Mar)</span></li>
                     </ul>
                   </div>

@@ -470,7 +470,7 @@ export default function EventosComparativoPage() {
                 Selecione os períodos para comparar
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Configure os filtros acima e clique em "Comparar"
+                Configure os filtros acima e clique em &quot;Comparar&quot;
               </p>
             </CardContent>
           </Card>

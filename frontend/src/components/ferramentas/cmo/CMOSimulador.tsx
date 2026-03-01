@@ -122,7 +122,7 @@ export default function CMOSimulador() {
       } else {
         setFuncionarios([]);
       }
-    } catch (error) {
+    } catch (e) {
       // Erro ao buscar dados
     } finally {
       setLoading(false);
@@ -169,7 +169,7 @@ export default function CMOSimulador() {
           description: 'Dados automáticos carregados',
         });
       }
-    } catch (error) {
+    } catch (e) {
       toast({
         title: 'Erro',
         description: 'Erro ao buscar dados automáticos',
@@ -266,10 +266,10 @@ export default function CMOSimulador() {
       } else {
         throw new Error(json.error || 'Erro ao salvar');
       }
-    } catch (error) {
+    } catch (e) {
       toast({
         title: 'Erro',
-        description: (error as Error).message,
+        description: (e as Error).message,
         variant: 'destructive',
       });
     } finally {
@@ -303,7 +303,7 @@ export default function CMOSimulador() {
           description: dados.simulacao_salva ? 'Simulação destravada' : 'Simulação travada',
         });
       }
-    } catch (error) {
+    } catch (e) {
       toast({
         title: 'Erro',
         description: 'Erro ao atualizar simulação',
@@ -454,7 +454,7 @@ export default function CMOSimulador() {
                 disabled={simulacaoTravada}
               />
               <p className="text-xs text-muted-foreground">
-                Soma das categorias "FREELAS" do NIBO
+                Soma das categorias &quot;FREELAS&quot; do NIBO
               </p>
             </div>
 
@@ -589,7 +589,7 @@ export default function CMOSimulador() {
             <div className="text-center py-12 text-muted-foreground">
               <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>Nenhum funcionário adicionado</p>
-              <p className="text-sm">Clique em "Adicionar Funcionário" para começar</p>
+              <p className="text-sm">Clique em &quot;Adicionar Funcionário&quot; para começar</p>
             </div>
           ) : (
             <div className="space-y-4">

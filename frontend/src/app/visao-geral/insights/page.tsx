@@ -281,7 +281,7 @@ export default function InsightsAgentePage() {
                   </div>
                 ) : padroes.length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
-                    Nenhum padrão detectado. Clique em "Detectar Padrões" para iniciar a análise.
+                    Nenhum padrão detectado. Clique em &quot;Detectar Padrões&quot; para iniciar a análise.
                   </div>
                 ) : (
                   <div className="space-y-4">

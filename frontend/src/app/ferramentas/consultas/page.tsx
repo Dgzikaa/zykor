@@ -487,7 +487,7 @@ export default function ConsultasPage() {
                 </select>
                 {competenciaApos ? (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Desabilitado quando "Competência após" é preenchido
+                    Desabilitado quando &quot;Competência após&quot; é preenchido
                   </p>
                 ) : (
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
@@ -559,7 +559,7 @@ export default function ConsultasPage() {
                         : `${resultado.filtros.mesesRetroativos} mês(es)`
                     }</strong> (a partir de {formatDate(resultado.filtros.competenciaApos)}) para maior velocidade. 
                     Consultadas <strong>{resultado.paginasConsultadas}</strong> páginas ({resultado.registrosApiOriginal} registros da API). 
-                    Se precisar buscar mais histórico, aumente o limite ou preencha o campo "Competência após".</p>
+                    Se precisar buscar mais histórico, aumente o limite ou preencha o campo &quot;Competência após&quot;.</p>
                   </div>
                 </div>
               </div>

@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
         try {
           const parsed = JSON.parse(userDataHeader);
           barId = parsed?.bar_id;
-        } catch {}
+        } catch (e) {}
       }
     }
     

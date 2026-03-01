@@ -584,7 +584,7 @@ export default function AnaliseCouvertPage() {
             {/* Nota explicativa */}
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 mb-4">
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                ℹ️ <strong>Nota:</strong> "Ainda não voltaram" significa que não vieram em nenhuma {diaSelecionado === 'quarta' ? 'quarta' : 'sexta'} após a entrada obrigatória.
+                ℹ️ <strong>Nota:</strong> &quot;Ainda não voltaram&quot; significa que não vieram em nenhuma {diaSelecionado === 'quarta' ? 'quarta' : 'sexta'} após a entrada obrigatória.
                 Como temos apenas {recorrencia?.dias_depois || 0} dias de dados após a mudança, alguns podem voltar nas próximas semanas.
               </p>
             </div>

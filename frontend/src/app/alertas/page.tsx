@@ -356,7 +356,7 @@ export default function AlertasPage() {
               </p>
               <p className="text-xs text-purple-600 dark:text-purple-400">
                 Os alertas são gerados automaticamente analisando faturamento, metas, checklists e outros indicadores.
-                Você também pode recebê-los no Discord clicando em "Enviar Discord".
+                Você também pode recebê-los no Discord clicando em &quot;Enviar Discord&quot;.
               </p>
             </div>
           </div>

@@ -165,13 +165,14 @@ export function getRangePeriodo(
       dataInicio = hoje;
       break;
       
-    case 'semana':
+    case 'semana': {
       const diaSemana = hoje.getDay();
       dataInicio = new Date(hoje);
       dataInicio.setDate(diaAtual - diaSemana);
       dataFim = new Date(dataInicio);
       dataFim.setDate(dataInicio.getDate() + 6);
       break;
+    }
       
     case 'mes':
       dataInicio = new Date(anoAtual, mesAtual, 1);

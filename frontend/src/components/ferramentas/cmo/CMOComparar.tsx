@@ -64,7 +64,7 @@ export default function CMOComparar() {
             setSemana2Id(lista[1].id);
           }
         }
-      } catch (error) {
+      } catch (e) {
         // Erro ao buscar semanas
       }
     };
@@ -85,7 +85,7 @@ export default function CMOComparar() {
         const res2 = await fetch(`/api/cmo-semanal/detalhes?id=${semana2Id}`);
         const json2 = await res2.json();
         if (json2.success) setDados2(json2.data);
-      } catch (error) {
+      } catch (e) {
         toast({
           title: 'Erro',
           description: 'Erro ao buscar dados para comparação',

@@ -503,7 +503,7 @@ export default function CMASemanalPage() {
               e PROTEÍNA (F) da contagem de estoque
             </li>
             <li>
-              <strong>Compras:</strong> Valores da categoria "Alimentação" do NIBO
+              <strong>Compras:</strong> Valores da categoria &quot;Alimentação&quot; do NIBO
             </li>
           </ul>
         </CardContent>

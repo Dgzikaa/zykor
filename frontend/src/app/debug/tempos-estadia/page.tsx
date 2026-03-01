@@ -79,7 +79,7 @@ export default function DebugTemposEstadia() {
           <Card>
             <CardHeader>
               <CardTitle>
-                Resultados para "{clienteFiltro}" ({dados.length} registros)
+                Resultados para &quot;{clienteFiltro}&quot; ({dados.length} registros)
               </CardTitle>
             </CardHeader>
             <CardContent>

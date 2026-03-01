@@ -584,7 +584,7 @@ export default function ClientesVIPPage() {
                     Nenhum cliente encontrado
                   </h3>
                   <p className="text-gray-500 dark:text-gray-400 mb-4">
-                    Clique em "Atualizar Perfis" para sincronizar os dados de consumo
+                    Clique em &quot;Atualizar Perfis&quot; para sincronizar os dados de consumo
                   </p>
                   <Button onClick={syncPerfis} disabled={syncing}>
                     <RefreshCcw className="w-4 h-4 mr-2" />

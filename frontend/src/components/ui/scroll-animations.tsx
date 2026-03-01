@@ -161,7 +161,7 @@ export function Parallax({
       case 'right':
         return useTransform(scrollYProgress, [0, 1], [offset, offset + 100 * speed]);
       default:
-        return baseTransform;
+        return useTransform(scrollYProgress, [0, 1], [0, 100 * speed]);
     }
   };
 
@@ -313,7 +313,7 @@ export function ScrollProgress({
             opacity: useTransform(scrollYProgress, [0, 0.1, 0.9, 1], [0, 1, 1, 0]),
           }}
         >
-          {Math.round(scrollYProgress.get() * 100)}%
+          {Math.round((scrollYProgress.get() || 0) * 100)}%
         </motion.div>
       )}
     </div>

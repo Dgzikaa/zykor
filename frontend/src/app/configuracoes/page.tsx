@@ -671,7 +671,7 @@ export default function ConfiguracoesPage() {
           {filteredConfiguracoes.length === 0 && (
             <div className="text-center py-12">
               <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 dark:text-gray-400">Nenhuma configuração encontrada para "{searchTerm}"</p>
+              <p className="text-gray-600 dark:text-gray-400">Nenhuma configuração encontrada para &quot;{searchTerm}&quot;</p>
             </div>
           )}
         </div>

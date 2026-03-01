@@ -66,7 +66,7 @@ function identificarTipoChave(chave: string): { tipo: string; chaveFormatada: st
   const chaveClean = chave.trim();
   
   // Email
-  if (chaveClean.includes('@') && /^[\w\.-]+@[\w\.-]+\.\w{2,4}$/.test(chaveClean)) {
+  if (chaveClean.includes('@') && /^[\w.-]+@[\w.-]+\.\w{2,4}$/.test(chaveClean)) {
     return { tipo: 'EMAIL', chaveFormatada: chaveClean.toLowerCase() };
   }
   

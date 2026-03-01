@@ -64,11 +64,12 @@ export async function GET(request: NextRequest) {
       case 'mes':
         dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
         break;
-      case 'trimestre':
+      case 'trimestre': {
         const mesAtual = hoje.getMonth();
         const trimestreInicio = Math.floor(mesAtual / 3) * 3;
         dataInicio = new Date(hoje.getFullYear(), trimestreInicio, 1);
         break;
+      }
       case 'semana':
       default:
         dataInicio = new Date(hoje);

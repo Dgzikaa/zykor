@@ -46,7 +46,7 @@ export default function CMODashboard() {
       if (json.success) {
         setDados(json.data || []);
       }
-    } catch (error) {
+    } catch (e) {
       toast({
         title: 'Erro',
         description: 'Erro ao buscar dados',

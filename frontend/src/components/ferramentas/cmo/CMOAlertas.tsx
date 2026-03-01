@@ -58,7 +58,7 @@ export default function CMOAlertas() {
       if (json.success) {
         setAlertas(json.data || []);
       }
-    } catch (error) {
+    } catch (e) {
       toast({
         title: 'Erro',
         description: 'Erro ao buscar alertas',
@@ -86,7 +86,7 @@ export default function CMOAlertas() {
         });
         buscarAlertas();
       }
-    } catch (error) {
+    } catch (e) {
       toast({
         title: 'Erro',
         description: 'Erro ao atualizar alerta',
@@ -117,7 +117,7 @@ export default function CMOAlertas() {
         });
         buscarAlertas();
       }
-    } catch (error) {
+    } catch (e) {
       toast({
         title: 'Erro',
         description: 'Erro ao verificar alertas',

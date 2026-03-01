@@ -2105,8 +2105,8 @@ async function registrarMetrica(
       cache_hit: dados.cache_hit,
       error_message: dados.error_message || null
     });
-  } catch (error) {
-    console.error('Erro ao registrar métrica:', error);
+  } catch (e) {
+    console.error('Erro ao registrar métrica:', e);
   }
 }
 
@@ -2136,8 +2136,8 @@ async function salvarHistorico(
       deep_links: dados.deep_links || null,
       chart_data: dados.chart_data || null
     });
-  } catch (error) {
-    console.error('Erro ao salvar histórico:', error);
+  } catch (e) {
+    console.error('Erro ao salvar histórico:', e);
   }
 }
 
@@ -2178,8 +2178,8 @@ async function chamarAgenteSQLExpert(pergunta: string, barId: number): Promise<A
     }
     
     return null;
-  } catch (error) {
-    console.error('[Agente] Erro ao chamar agente-sql-expert:', error);
+  } catch (e) {
+    console.error('[Agente] Erro ao chamar agente-sql-expert:', e);
     return null;
   }
 }
@@ -2326,9 +2326,9 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error) {
+  } catch (e) {
     const responseTime = Date.now() - startTime;
-    console.error('Erro no agente:', error);
+    console.error('Erro no agente:', e);
     
     // Registrar erro nas métricas
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -2340,13 +2340,13 @@ export async function POST(request: NextRequest) {
       response_time_ms: responseTime,
       success: false,
       cache_hit: false,
-      error_message: String(error)
+      error_message: String(e)
     });
     
     return NextResponse.json({
       success: false,
       response: 'Desculpe, ocorreu um erro ao processar sua solicitação. Tente novamente.',
-      error: String(error)
+      error: String(e)
     }, { status: 500 });
   }
 }
@@ -2377,11 +2377,11 @@ export async function PATCH(request: NextRequest) {
     if (error) throw error;
 
     return NextResponse.json({ success: true, message: 'Feedback registrado com sucesso!' });
-  } catch (error) {
-    console.error('Erro ao registrar feedback:', error);
+  } catch (e) {
+    console.error('Erro ao registrar feedback:', e);
     return NextResponse.json({
       success: false,
-      error: String(error)
+      error: String(e)
     }, { status: 500 });
   }
 }
@@ -2434,11 +2434,11 @@ export async function GET(request: NextRequest) {
         sessoes: Object.values(sessoes).slice(0, 10)
       });
     }
-  } catch (error) {
-    console.error('Erro ao carregar histórico:', error);
+  } catch (e) {
+    console.error('Erro ao carregar histórico:', e);
     return NextResponse.json({
       success: false,
-      error: String(error)
+      error: String(e)
     }, { status: 500 });
   }
 }

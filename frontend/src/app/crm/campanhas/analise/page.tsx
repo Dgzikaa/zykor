@@ -313,7 +313,7 @@ export default function AnaliseCampanhasPage() {
                   {campanha.analise && (
                     <div className="mt-3 pt-3 border-t border-gray-700">
                       <p className="text-xs text-gray-500">
-                        Clique em "Ver Detalhes" e defina a data alvo para ver métricas de reserva e conversão
+                        Clique em &quot;Ver Detalhes&quot; e defina a data alvo para ver métricas de reserva e conversão
                       </p>
                     </div>
                   )}

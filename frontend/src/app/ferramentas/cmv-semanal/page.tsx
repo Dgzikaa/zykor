@@ -855,8 +855,8 @@ export default function CMVSemanalPage() {
                   </h4>
                   <p className="text-sm text-blue-700 dark:text-blue-300">
                     Não há registros de CMV com dados preenchidos para o ano selecionado. 
-                    Use o botão <strong>"Atualizar Dados"</strong> para sincronizar dados da planilha e NIBO, 
-                    ou <strong>"Processar Semana Atual"</strong> para calcular o CMV da semana corrente.
+                    Use o botão <strong>&quot;Atualizar Dados&quot;</strong> para sincronizar dados da planilha e NIBO, 
+                    ou <strong>&quot;Processar Semana Atual&quot;</strong> para calcular o CMV da semana corrente.
                   </p>
                 </div>
               </div>

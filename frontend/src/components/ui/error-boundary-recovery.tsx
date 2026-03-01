@@ -863,7 +863,7 @@ export const ErrorBoundaryExample: React.FC = () => {
               ) : (
                 <div className="p-4 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                   <p className="text-yellow-800 dark:text-yellow-200">
-                    Selecione um tipo de erro e clique em "Gerar Erro"
+                    Selecione um tipo de erro e clique em &quot;Gerar Erro&quot;
                   </p>
                 </div>
               )}
@@ -872,7 +872,7 @@ export const ErrorBoundaryExample: React.FC = () => {
             <div className="text-center p-8 text-gray-500 dark:text-gray-400">
               <Shield className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
               <p className="text-lg font-medium mb-2">Nenhum erro ativo</p>
-              <p className="text-sm">Clique em "Gerar Erro" para testar o sistema</p>
+              <p className="text-sm">Clique em &quot;Gerar Erro&quot; para testar o sistema</p>
             </div>
           )}
         </div>

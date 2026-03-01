@@ -355,7 +355,7 @@ export default function AreasContagemPage() {
                     Nenhuma área cadastrada
                   </h3>
                   <p className="text-gray-600 dark:text-gray-400">
-                    Clique em "Nova Área" acima para começar a organizar as contagens
+                    Clique em &quot;Nova Área&quot; acima para começar a organizar as contagens
                   </p>
                 </div>
               ) : (

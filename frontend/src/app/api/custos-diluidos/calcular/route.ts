@@ -180,7 +180,7 @@ function calcularDiluicao(
       });
       break;
 
-    case 'dias_uteis':
+    case 'dias_uteis': {
       // Dilui em todos os dias úteis do mês (seg-sáb)
       const diasUteis = calcularDiasUteis(mes, ano);
       diasAplicaveis = diasUteis.length;
@@ -190,8 +190,9 @@ function calcularDiluicao(
         distribuicao[data] = valorPorDia;
       });
       break;
+    }
 
-    case 'semanas':
+    case 'semanas': {
       // Dilui por semana (divide por 4 ou 5 semanas)
       const semanasDoMes = calcularSemanas(mes, ano, eventos);
       diasAplicaveis = eventos.length;
@@ -208,6 +209,7 @@ function calcularDiluicao(
       
       valorPorDia = diasAplicaveis > 0 ? custo.valor_total / diasAplicaveis : 0;
       break;
+    }
 
     case 'mensal':
       // Valor fixo mensal - não dilui, aplica o total no primeiro evento

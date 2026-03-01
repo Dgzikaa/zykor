@@ -189,7 +189,7 @@ export default function ExtrasPage() {
           <div className="text-center py-12">
             <Star className="w-16 h-16 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
             <p className="text-gray-600 dark:text-gray-400 text-lg">
-              Nenhum extra encontrado com "{searchTerm}"
+              Nenhum extra encontrado com &quot;{searchTerm}&quot;
             </p>
           </div>
         )}
