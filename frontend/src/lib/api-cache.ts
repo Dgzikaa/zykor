@@ -50,7 +50,7 @@ export function createCacheHeaders(
     /** Se é privado (não pode ser cacheado por CDN) */
     private?: boolean;
   }
-): HeadersInit {
+): Record<string, string> {
   const seconds = typeof duration === 'number' ? duration : CACHE_TIMES[duration];
   const swr = options?.staleWhileRevalidate ?? Math.floor(seconds * 0.5);
   const visibility = options?.private ? 'private' : 'public';

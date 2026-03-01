@@ -151,7 +151,7 @@ export default function DadosReuniaoPage() {
           </div>
 
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
-            💡 Clique em "Copiar Tudo" e cole diretamente no Excel/Google Sheets (Ctrl+V)
+            💡 Clique em &quot;Copiar Tudo&quot; e cole diretamente no Excel/Google Sheets (Ctrl+V)
           </p>
         </div>
 
@@ -288,7 +288,7 @@ export default function DadosReuniaoPage() {
             📋 Como usar:
           </h3>
           <ol className="text-sm text-blue-800 dark:text-blue-400 space-y-1">
-            <li>1. Clique em <strong>"Copiar Tudo para Planilha"</strong></li>
+            <li>1. Clique em <strong>&quot;Copiar Tudo para Planilha&quot;</strong></li>
             <li>2. Abra sua planilha do Excel ou Google Sheets</li>
             <li>3. Selecione a célula onde quer colar e pressione <strong>Ctrl+V</strong></li>
             <li>4. Os dados serão colados em colunas separadas automaticamente!</li>

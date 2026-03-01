@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, Lock, TrendingUp, TrendingDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
-interface CMOHistorico {
+interface CMOHistoricoData {
   id: string;
   bar_id: number;
   bar_nome: string;
@@ -35,7 +35,7 @@ export default function CMOHistorico() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
 
-  const [historico, setHistorico] = useState<CMOHistorico[]>([]);
+  const [historico, setHistorico] = useState<CMOHistoricoData[]>([]);
   const [loading, setLoading] = useState(true);
   const [anoFiltro, setAnoFiltro] = useState<number>(new Date().getFullYear());
 

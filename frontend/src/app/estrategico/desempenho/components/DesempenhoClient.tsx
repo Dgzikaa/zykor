@@ -389,10 +389,11 @@ const formatarValor = (valor: number | string | null | undefined, formato: strin
       return `${num.toFixed(1)}%`;
     case 'decimal':
       return (Math.round(num * 100) / 100).toFixed(2).replace('.', ',') + (sufixo || '');
-    default:
+    default: {
       const valorArredondado = Math.round(num * 100) / 100;
       const isInteiro = valorArredondado === Math.floor(valorArredondado);
       return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: isInteiro ? 0 : 2 }).format(valorArredondado) + (sufixo || '');
+    }
   }
 };
 

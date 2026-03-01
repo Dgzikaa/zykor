@@ -1172,7 +1172,6 @@ export default function CMVSemanalTabelaPage() {
                                           value={valorEdit}
                                           onChange={(e) => setValorEdit(e.target.value)}
                                           className="w-16 h-6 text-xs p-1"
-                                          autoFocus
                                           onClick={(e) => e.stopPropagation()}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Enter') salvarMetrica(semana.id, metrica.key);

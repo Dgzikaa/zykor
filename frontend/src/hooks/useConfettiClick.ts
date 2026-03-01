@@ -53,7 +53,7 @@ export function triggerConfetti(
       })
       break
 
-    case 'burst':
+    case 'burst': {
       // Explosão em múltiplas direções
       const burst = () => {
         confetti({
@@ -75,6 +75,7 @@ export function triggerConfetti(
       }
       burst()
       break
+    }
 
     case 'rain':
       confetti({

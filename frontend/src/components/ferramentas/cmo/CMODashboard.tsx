@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from 'recharts';
 
-interface CMODashboard {
+interface CMOData {
   id: string;
   ano: number;
   semana: number;
@@ -25,7 +25,7 @@ export default function CMODashboard() {
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
-  const [dados, setDados] = useState<CMODashboard[]>([]);
+  const [dados, setDados] = useState<CMOData[]>([]);
   const [anoFiltro, setAnoFiltro] = useState<number>(new Date().getFullYear());
   const [metaCMO, setMetaCMO] = useState<number>(45000);
 

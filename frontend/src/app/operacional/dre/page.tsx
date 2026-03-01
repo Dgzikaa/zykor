@@ -1291,7 +1291,7 @@ export default function DrePage() {
                               Nenhum lançamento manual encontrado
                             </p>
                             <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-500 mt-1">
-                              Use o botão "Novo" para adicionar ajustes manuais
+                              Use o botão &quot;Novo&quot; para adicionar ajustes manuais
                             </p>
                           </div>
                         ) : (

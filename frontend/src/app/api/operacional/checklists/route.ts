@@ -146,7 +146,9 @@ export async function POST(req: NextRequest) {
         try {
           const parsed = JSON.parse(userDataHeader);
           barId = parsed?.bar_id;
-        } catch (e) {}
+        } catch (e) {
+          // Ignorar erro de parse
+        }
       }
     }
     

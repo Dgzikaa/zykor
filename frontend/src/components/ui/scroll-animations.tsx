@@ -148,24 +148,17 @@ export function Parallax({
     offset: ['start end', 'end start'],
   });
 
-  const getParallaxTransform = () => {
-    const baseTransform = useTransform(scrollYProgress, [0, 1], [0, 100 * speed]);
-    
-    switch (direction) {
-      case 'up':
-        return useTransform(scrollYProgress, [0, 1], [offset, offset - 100 * speed]);
-      case 'down':
-        return useTransform(scrollYProgress, [0, 1], [offset, offset + 100 * speed]);
-      case 'left':
-        return useTransform(scrollYProgress, [0, 1], [offset, offset - 100 * speed]);
-      case 'right':
-        return useTransform(scrollYProgress, [0, 1], [offset, offset + 100 * speed]);
-      default:
-        return useTransform(scrollYProgress, [0, 1], [0, 100 * speed]);
-    }
-  };
+  const transformUp = useTransform(scrollYProgress, [0, 1], [offset, offset - 100 * speed]);
+  const transformDown = useTransform(scrollYProgress, [0, 1], [offset, offset + 100 * speed]);
+  const transformLeft = useTransform(scrollYProgress, [0, 1], [offset, offset - 100 * speed]);
+  const transformRight = useTransform(scrollYProgress, [0, 1], [offset, offset + 100 * speed]);
+  const transformDefault = useTransform(scrollYProgress, [0, 1], [0, 100 * speed]);
 
-  const transform = getParallaxTransform();
+  const transform = direction === 'up' ? transformUp :
+                   direction === 'down' ? transformDown :
+                   direction === 'left' ? transformLeft :
+                   direction === 'right' ? transformRight :
+                   transformDefault;
 
   return (
     <motion.div
@@ -300,6 +293,8 @@ export function ScrollProgress({
     restDelta: 0.001,
   });
 
+  const opacity = useTransform(scrollYProgress, [0, 0.1, 0.9, 1], [0, 1, 1, 0]);
+
   return (
     <div className={cn('fixed top-0 left-0 right-0 z-50', className)}>
       <motion.div
@@ -310,7 +305,7 @@ export function ScrollProgress({
         <motion.div
           className="absolute top-0 right-0 bg-gray-900 text-white px-2 py-1 text-xs rounded-bl"
           style={{
-            opacity: useTransform(scrollYProgress, [0, 0.1, 0.9, 1], [0, 1, 1, 0]),
+            opacity,
           }}
         >
           {Math.round((scrollYProgress.get() || 0) * 100)}%

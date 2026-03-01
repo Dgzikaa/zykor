@@ -1435,7 +1435,7 @@ export default function Retrospectiva2025Page() {
 
             {/* TAB: MEGA INSIGHTS 360° - CONTEÚDO ORIGINAL COMENTADO */}
             {false && (
-            <div>
+            (<div>
               <div className="text-center mb-8">
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                   🔥 Mega Insights 360°
@@ -1723,7 +1723,7 @@ export default function Retrospectiva2025Page() {
                   </div>
                 </div>
               </div>
-            </div>
+            </div>)
             )}
 
             {/* TAB: ULTRA INSIGHTS - DESABILITADO */}
@@ -1735,7 +1735,7 @@ export default function Retrospectiva2025Page() {
 
             {/* TAB: ULTRA INSIGHTS - CONTEÚDO ORIGINAL COMENTADO */}
             {false && (
-            <div>
+            (<div>
               <div className="text-center mb-8">
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                   💎 Ultra Insights - Análise Avançada
@@ -2057,7 +2057,7 @@ export default function Retrospectiva2025Page() {
                   ))}
                 </div>
               </div>
-            </div>
+            </div>)
             )}
 
             {/* TAB: INSIGHTS EXTRAS - DESABILITADO */}
@@ -2069,7 +2069,7 @@ export default function Retrospectiva2025Page() {
 
             {/* TAB: INSIGHTS EXTRAS - CONTEÚDO ORIGINAL COMENTADO */}
             {false && (
-            <div>
+            (<div>
               <div className="text-center mb-8">
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                   ⚡ Insights Extras - Análise Operacional
@@ -2518,7 +2518,7 @@ export default function Retrospectiva2025Page() {
                   </div>
                 </div>
               </div>
-            </div>
+            </div>)
             )}
 
             {/* TAB: PLANEJAMENTO 2026 */}

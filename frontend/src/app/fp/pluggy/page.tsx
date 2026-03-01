@@ -482,8 +482,8 @@ export default function PluggyPage() {
               </div>
 
               <p className="mt-4 text-sm">
-                <strong>💡 Como usar:</strong> Clique em "Conectar Banco", escolha sua instituição financeira 
-                e faça login com suas credenciais. Após conectar, clique em "Sincronizar" para importar suas transações.
+                <strong>💡 Como usar:</strong> Clique em &quot;Conectar Banco&quot;, escolha sua instituição financeira 
+                e faça login com suas credenciais. Após conectar, clique em &quot;Sincronizar&quot; para importar suas transações.
               </p>
             </div>
           </CardContent>

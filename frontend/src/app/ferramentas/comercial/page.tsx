@@ -1217,7 +1217,7 @@ export default function ComercialPage() {
                       Nenhum evento de concorrência identificado ainda.
                     </p>
                     <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-                      Clique em "Executar Agente" para buscar eventos em Sympla, Ingresse e outros sites.
+                      Clique em &quot;Executar Agente&quot; para buscar eventos em Sympla, Ingresse e outros sites.
                     </p>
                   </div>
                 ) : (

@@ -313,11 +313,11 @@ function classifyIntent(message: string): { intent: string; entities: Record<str
   
   // 1. DETECTAR DATA ESPECÍFICA PRIMEIRO (DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY, DD/MM/YY, DD/MM, etc.)
   // Formato com ano
-  const dataRegexComAno = /(\d{1,2})[\.\/\-](\d{1,2})[\.\/\-](\d{2,4})/;
+  const dataRegexComAno = /(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})/;
   const dataMatchComAno = message.match(dataRegexComAno);
   
   // Formato sem ano (DD/MM) - assume ano atual
-  const dataRegexSemAno = /(\d{1,2})[\.\/\-](\d{1,2})(?![\.\/\-\d])/;
+  const dataRegexSemAno = /(\d{1,2})[./\-](\d{1,2})(?![./\-\d])/;
   const dataMatchSemAno = message.match(dataRegexSemAno);
   
   // Formato "dia X de mes" ou "X de mes"
