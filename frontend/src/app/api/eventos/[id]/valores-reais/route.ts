@@ -235,14 +235,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         let percent_stockout = 0;
 
         if (!stockoutError && stockoutData && stockoutData.length > 0) {
-          // Aplicar filtros de prefixo manualmente (ilike não funciona com .not())
+          // Aplicar filtros de prefixo manualmente (case-insensitive)
           const stockoutFiltrado = stockoutData.filter(item => {
-            const desc = item.prd_desc || '';
-            // Excluir produtos com prefixos específicos
-            return !desc.startsWith('[HH]') && // Happy Hour
-                   !desc.startsWith('[PP]') && // Pegue Pague
-                   !desc.startsWith('[DD]') && // Dose Dupla
-                   !desc.startsWith('[IN]');   // Insumos
+            const desc = (item.prd_desc || '').toLowerCase();
+            
+            // Filtros comuns para ambos os bares
+            if (desc.startsWith('[hh]') || desc.startsWith('[pp]') || 
+                desc.startsWith('[dd]') || desc.startsWith('[in]')) {
+              return false;
+            }
+            
+            // Filtros específicos do Deboche (bar_id = 4)
+            if (user.bar_id === 4) {
+              if (desc.includes('dose dupla') || desc.includes('dose dulpa') ||
+                  desc.includes('chegadeira') || desc.includes('sem álcool') ||
+                  desc.includes('sem alcool') || desc.includes('grupo adicional') ||
+                  desc.includes('promo chivas') || desc.includes('uso interno')) {
+                return false;
+              }
+            }
+            
+            return true;
           });
 
           const total_ativos = stockoutFiltrado.length;
@@ -294,13 +307,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             .not('loc_desc', 'is', null);
 
           if (dadosStockout && dadosStockout.length > 0) {
-            // Aplicar filtros de prefixo
+            // Aplicar filtros de prefixo (case-insensitive)
             const stockoutFiltrado = dadosStockout.filter(item => {
-              const desc = item.prd_desc || '';
-              return !desc.startsWith('[HH]') && 
-                     !desc.startsWith('[PP]') && 
-                     !desc.startsWith('[DD]') && 
-                     !desc.startsWith('[IN]');
+              const desc = (item.prd_desc || '').toLowerCase();
+              
+              // Filtros comuns
+              if (desc.startsWith('[hh]') || desc.startsWith('[pp]') || 
+                  desc.startsWith('[dd]') || desc.startsWith('[in]')) {
+                return false;
+              }
+              
+              // Filtros específicos do Deboche
+              if (user.bar_id === 4) {
+                if (desc.includes('dose dupla') || desc.includes('dose dulpa') ||
+                    desc.includes('chegadeira') || desc.includes('sem álcool') ||
+                    desc.includes('sem alcool') || desc.includes('grupo adicional') ||
+                    desc.includes('promo chivas') || desc.includes('uso interno')) {
+                  return false;
+                }
+              }
+              
+              return true;
             });
 
             const total_ativos = stockoutFiltrado.length;
