@@ -220,23 +220,29 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }
 
         // 🔄 BUSCAR DADOS DE STOCKOUT COM OS MESMOS FILTROS DO ANALÍTICO
+        // Filtros de locais específicos por bar
+        const locaisExcluidos = user.bar_id === 4 
+          ? ['Pegue e Pague', 'Shot e Dose', 'Venda Volante'] // Deboche: exclui Shot e Dose
+          : ['Pegue e Pague', 'Venda Volante', 'Baldes']; // Ordinário: inclui Shot e Dose, exclui Baldes
+
         const { data: stockoutData, error: stockoutError } = await supabase
           .from('contahub_stockout')
           .select('prd_ativo, prd_venda, loc_desc, prd_desc')
           .eq('data_consulta', eventoData.data_evento)
           .eq('bar_id', user.bar_id)
           .eq('prd_ativo', 'S') // Apenas produtos ativos
-          // FILTROS DO ANALÍTICO - Locais
-          .neq('loc_desc', 'Pegue e Pague')
-          .neq('loc_desc', 'Shot e Dose')
-          .neq('loc_desc', 'Venda Volante')
           .not('loc_desc', 'is', null); // Excluir "Sem local definido"
+        
+        // Aplicar filtro de locais manualmente
+        const stockoutComLocais = stockoutData?.filter(item => 
+          !locaisExcluidos.includes(item.loc_desc || '')
+        ) || [];
 
         let percent_stockout = 0;
 
-        if (!stockoutError && stockoutData && stockoutData.length > 0) {
+        if (!stockoutError && stockoutComLocais && stockoutComLocais.length > 0) {
           // Aplicar filtros de prefixo manualmente (case-insensitive)
-          const stockoutFiltrado = stockoutData.filter(item => {
+          const stockoutFiltrado = stockoutComLocais.filter(item => {
             const desc = (item.prd_desc || '').toLowerCase();
             
             // Filtros comuns para ambos os bares
@@ -294,21 +300,28 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         // Mesmo sem dados analíticos, tentar calcular stockout COM FILTROS
         try {
           console.log('🔄 Tentando calcular apenas stockout...');
+          
+          // Filtros de locais específicos por bar
+          const locaisExcluidosStockout = user.bar_id === 4 
+            ? ['Pegue e Pague', 'Shot e Dose', 'Venda Volante']
+            : ['Pegue e Pague', 'Venda Volante', 'Baldes'];
+          
           const { data: dadosStockout } = await supabase
             .from('contahub_stockout')
             .select('prd_ativo, prd_venda, loc_desc, prd_desc')
             .eq('prd_ativo', 'S')
             .eq('data_consulta', eventoData.data_evento)
             .eq('bar_id', user.bar_id)
-            // FILTROS DO ANALÍTICO - Locais
-            .neq('loc_desc', 'Pegue e Pague')
-            .neq('loc_desc', 'Shot e Dose')
-            .neq('loc_desc', 'Venda Volante')
             .not('loc_desc', 'is', null);
+          
+          // Aplicar filtro de locais manualmente
+          const dadosStockoutComLocais = dadosStockout?.filter(item => 
+            !locaisExcluidosStockout.includes(item.loc_desc || '')
+          ) || [];
 
-          if (dadosStockout && dadosStockout.length > 0) {
+          if (dadosStockoutComLocais && dadosStockoutComLocais.length > 0) {
             // Aplicar filtros de prefixo (case-insensitive)
-            const stockoutFiltrado = dadosStockout.filter(item => {
+            const stockoutFiltrado = dadosStockoutComLocais.filter(item => {
               const desc = (item.prd_desc || '').toLowerCase();
               
               // Filtros comuns
