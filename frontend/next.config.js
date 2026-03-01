@@ -8,25 +8,28 @@ const nextConfig = {
   reactStrictMode: false, // Desabilitar para evitar chamadas duplas da API
   
   // ✅ Definir raiz do workspace explicitamente para evitar warning de múltiplos lockfiles
-  // Aponta para o diretório frontend (onde está este next.config.js)
   outputFileTracingRoot: __dirname,
-  
-  // ✅ TypeScript e ESLint
+
+  // ✅ Turbopack: raiz = pasta do frontend (caminho absoluto; evita inferência em src/app)
+  turbopack: {
+    root: path.resolve(__dirname),
+  },
+
+  // ✅ TypeScript (ESLint agora via next lint / eslint.config.*)
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-    dirs: ['src'],
-  },
-  
-  // ✅ Configurações de imagem
+
+  // ✅ Configurações de imagem (remotePatterns substitui domains)
   images: {
     formats: ['image/webp', 'image/avif'],
     minimumCacheTTL: 60,
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
-    domains: ['localhost', '127.0.0.1'],
+    remotePatterns: [
+      { protocol: 'http', hostname: 'localhost', pathname: '/**' },
+      { protocol: 'http', hostname: '127.0.0.1', pathname: '/**' },
+    ],
     unoptimized: process.env.NODE_ENV === 'development',
   },
   

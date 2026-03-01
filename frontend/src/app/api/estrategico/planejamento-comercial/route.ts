@@ -157,17 +157,26 @@ export async function GET(request: NextRequest) {
     }
 
     // Filtro adicional para garantir apenas eventos do mês correto (evitar problemas de timezone)
+    // E remover segundas-feiras (bar fechado)
     const eventosFiltrados = eventos?.filter(evento => {
       const dataEvento = new Date(evento.data_evento + 'T00:00:00Z');
       const mesEvento = dataEvento.getUTCMonth() + 1;
       const anoEvento = dataEvento.getUTCFullYear();
       const isCorrectMonth = mesEvento === mes && anoEvento === ano;
       
+      // Remover segundas-feiras (dow = 1)
+      const dow = dataEvento.getUTCDay();
+      const isSegunda = dow === 1;
+      
       if (!isCorrectMonth) {
         console.log(`⚠️ Evento fora do período: ${evento.data_evento} (${evento.nome}) - Mês: ${mesEvento}, Ano: ${anoEvento}`);
       }
       
-      return isCorrectMonth;
+      if (isSegunda) {
+        console.log(`⚠️ Segunda-feira removida: ${evento.data_evento} (${evento.nome})`);
+      }
+      
+      return isCorrectMonth && !isSegunda;
     }) || [];
 
     console.log(`📊 Eventos após filtro adicional: ${eventosFiltrados.length}`);
