@@ -168,12 +168,14 @@ export async function GET(request: NextRequest) {
       const dow = dataEvento.getUTCDay();
       const isSegundaDeboche = dow === 1 && user.bar_id === 4;
       
+      console.log(`📅 Evento: ${evento.data_evento} (${evento.nome}) - DOW: ${dow}, Bar ID: ${user.bar_id}, É segunda do Deboche? ${isSegundaDeboche}`);
+      
       if (!isCorrectMonth) {
         console.log(`⚠️ Evento fora do período: ${evento.data_evento} (${evento.nome}) - Mês: ${mesEvento}, Ano: ${anoEvento}`);
       }
       
       if (isSegundaDeboche) {
-        console.log(`⚠️ Segunda-feira do Deboche removida: ${evento.data_evento} (${evento.nome})`);
+        console.log(`⚠️ Segunda-feira do Deboche removida: ${evento.data_evento} (${evento.nome}) - DOW: ${dow}`);
       }
       
       return isCorrectMonth && !isSegundaDeboche;
