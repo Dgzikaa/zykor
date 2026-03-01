@@ -317,7 +317,7 @@ function classifyIntent(message: string): { intent: string; entities: Record<str
   const dataMatchComAno = message.match(dataRegexComAno);
   
   // Formato sem ano (DD/MM) - assume ano atual
-  const dataRegexSemAno = /(\d{1,2})[./\-](\d{1,2})(?![./\-\d])/;
+  const dataRegexSemAno = /(\d{1,2})[./\-](\d{1,2})(?![./\d])/;
   const dataMatchSemAno = message.match(dataRegexSemAno);
   
   // Formato "dia X de mes" ou "X de mes"
