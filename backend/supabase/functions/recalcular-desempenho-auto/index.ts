@@ -150,6 +150,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         console.log(`🍺 Mix Semanal - Bebidas: ${percBebidasPonderado.toFixed(1)}%, Drinks: ${percDrinksPonderado.toFixed(1)}%, Comida: ${percComidaPonderado.toFixed(1)}%, Happy Hour: ${percHappyHourPonderado.toFixed(1)}%`)
 
+        // Calcular reservas (pessoas) e mesas (count de reservas)
+        const { data: eventosReservas } = await supabase
+          .from('eventos_base')
+          .select('res_tot, res_p, num_mesas_tot, num_mesas_presentes')
+          .eq('bar_id', barId)
+          .gte('data_evento', startDate)
+          .lte('data_evento', endDate)
+          .eq('ativo', true)
+
+        // res_tot e res_p = pessoas (SUM)
+        const reservasTotais = (eventosReservas || []).reduce((sum, e) => sum + (parseInt(e.res_tot) || 0), 0)
+        const reservasPresentes = (eventosReservas || []).reduce((sum, e) => sum + (parseInt(e.res_p) || 0), 0)
+        
+        // num_mesas_tot e num_mesas_presentes = mesas (COUNT)
+        const mesasTotais = (eventosReservas || []).reduce((sum, e) => sum + (parseInt(e.num_mesas_tot) || 0), 0)
+        const mesasPresentes = (eventosReservas || []).reduce((sum, e) => sum + (parseInt(e.num_mesas_presentes) || 0), 0)
+
+        console.log(`🎫 Mesas: ${mesasTotais}/${mesasPresentes} | Pessoas: ${reservasTotais}/${reservasPresentes}`)
+
         // Atualizar no banco
         const { error: updateError } = await supabase
           .from('desempenho_semanal')
@@ -158,6 +177,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
             clientes_atendidos: clientesAtendidos,
             ticket_medio: ticketMedio,
             meta_semanal: metaSemanal,
+            mesas_totais: mesasTotais,
+            mesas_presentes: mesasPresentes,
+            reservas_totais: reservasTotais,
+            reservas_presentes: reservasPresentes,
             stockout_drinks_perc: stockoutDrinksPerc,
             stockout_comidas_perc: stockoutComidasPerc,
             perc_bebidas: percBebidasPonderado,
