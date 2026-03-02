@@ -1,4 +1,4 @@
-{
+﻿{
     "name": "zykor-frontend",
     "version": "2.0.0",
     "description": "Zykor - O núcleo da gestão de bares - Frontend React",
@@ -25,7 +25,7 @@
         "clean": "rm -rf .next out dist || true",
         "clean:cache": "rm -rf .next/cache || true",
         "precommit": "npm run code-quality && npm run type-check",
-        "prebuild": "npm run clean && npm run type-check",
+        "prebuild": "npm run clean",
         "postbuild": "echo '✅ Build completed successfully'",
         "logs:on": "node scripts/toggle-logs.js on",
         "logs:off": "node scripts/toggle-logs.js off",
