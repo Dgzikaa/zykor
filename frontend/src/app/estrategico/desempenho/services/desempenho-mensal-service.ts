@@ -161,6 +161,11 @@ async function getDadosMensais(
 
   const dadosSemanais = agregarDadosSemanaisProporcionais(semanasComProporcao, desempenhoMap, marketingMap);
 
+  // Calcular reservas diárias (de eventos_base)
+  const sumInt = (arr: any[], key: string) => arr.reduce((acc, e) => acc + (parseInt(e[key]) || 0), 0);
+  const reservasTotaisDiarias = sumInt(eventosDiarios || [], 'res_tot');
+  const reservasPresentesDiarias = sumInt(eventosDiarios || [], 'res_p');
+
   // Calcular faturamento total para os percentuais
   const faturamentoTotal = dadosDiarios.faturamento_total || 0;
   const contaAssinadaPerc = faturamentoTotal > 0 ? (contaAssinadaValor / faturamentoTotal) * 100 : 0;
@@ -174,6 +179,9 @@ async function getDadosMensais(
     data_fim: dataFim,
     ...dadosSemanais,
     ...dadosDiarios,
+    // Sobrescrever reservas com dados diários (de eventos_base)
+    reservas_totais: reservasTotaisDiarias,
+    reservas_presentes: reservasPresentesDiarias,
     // Sobrescrever com valores calculados diretamente das tabelas de origem
     conta_assinada_valor: contaAssinadaValor,
     conta_assinada_perc: contaAssinadaPerc,
@@ -222,10 +230,15 @@ function agregarDadosDiarios(eventos: any[]) {
   const diasComFaturamento = eventos.filter(e => parseFloat(e.real_r) > 0);
   const n = diasComFaturamento.length;
 
-  if (n === 0) return { faturamento_total: 0, clientes_atendidos: 0 };
-
   const sum = (arr: any[], key: string) => arr.reduce((acc, e) => acc + (parseFloat(e[key]) || 0), 0);
   const sumInt = (arr: any[], key: string) => arr.reduce((acc, e) => acc + (parseInt(e[key]) || 0), 0);
+
+  if (n === 0) return { 
+    faturamento_total: 0, 
+    clientes_atendidos: 0,
+    reservas_totais: sumInt(eventos, 'res_tot'),
+    reservas_presentes: sumInt(eventos, 'res_p'),
+  };
 
   const faturamentoTotal = sum(diasComFaturamento, 'real_r');
   const clientesTotal = sumInt(diasComFaturamento, 'cl_real');
@@ -263,8 +276,6 @@ function agregarDadosDiarios(eventos: any[]) {
     perc_bebidas: faturamentoTotal > 0 ? somaPercentBPonderado / faturamentoTotal : 0,
     perc_drinks: faturamentoTotal > 0 ? somaPercentDPonderado / faturamentoTotal : 0,
     perc_comida: faturamentoTotal > 0 ? somaPercentCPonderado / faturamentoTotal : 0,
-    reservas_totais: sumInt(eventos, 'res_tot'),
-    reservas_presentes: sumInt(eventos, 'res_p'),
     tempo_saida_cozinha: tmCoz,
     tempo_saida_bar: tmBar,
     perc_faturamento_ate_19h: percFat19,
