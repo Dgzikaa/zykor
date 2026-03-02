@@ -63,7 +63,14 @@ export async function POST(request: NextRequest) {
     console.log(`📅 Encontradas ${datasUnicas.length} datas únicas para recalcular`);
 
     // 3. Para cada data, recalcular as estatísticas
-    const resultados = [];
+    const resultados: Array<{
+      data: string;
+      total_produtos: number;
+      produtos_ativos: number;
+      produtos_inativos: number;
+      percentual_stockout: string;
+      percentual_disponibilidade: string;
+    }> = [];
     
     for (const data of datasUnicas) {
       // Buscar produtos da data
