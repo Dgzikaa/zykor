@@ -2,23 +2,25 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'secondary' | 'destructive' | 'outline';
+  variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning';
 }
 
 const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
-  ({ className, variant = 'default', ...props }, ref) => {
+  ({ className, variant = 'outline', ...props }, ref) => {
     const variantClasses = {
-      default: 'bg-blue-600 text-white hover:bg-blue-700',
-      secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200',
-      destructive: 'bg-red-600 text-white hover:bg-red-700',
-      outline: 'border border-gray-300 text-gray-900',
+      default: 'border-[hsl(var(--primary))] text-[hsl(var(--primary))] bg-[hsl(var(--primary)/0.1)]',
+      secondary: 'border-[hsl(var(--muted-foreground))] text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]',
+      destructive: 'border-[hsl(var(--destructive))] text-[hsl(var(--destructive))] bg-[hsl(var(--destructive)/0.1)]',
+      success: 'border-[hsl(var(--success))] text-[hsl(var(--success))] bg-[hsl(var(--success)/0.1)]',
+      warning: 'border-[hsl(var(--warning))] text-[hsl(var(--warning))] bg-[hsl(var(--warning)/0.1)]',
+      outline: 'border-[hsl(var(--border))] text-[hsl(var(--foreground))] bg-transparent',
     };
 
     return (
       <div
         ref={ref}
         className={cn(
-          'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2',
+          'inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium transition-colors',
           variantClasses[variant],
           className
         )}

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getAdminClient } from '@/lib/supabase-admin';
 import { createCacheHeaders } from '@/lib/api-cache';
+import { requireAdmin } from '@/lib/auth/server';
+import { logAuditEvent } from '@/lib/auth/audit';
 
 // Cache de 5 minutos para lista de bares (muda pouco)
 // Nota: revalidate precisa ser valor literal, não pode usar constante
@@ -45,13 +47,13 @@ interface BarMapped {
 // 🏪 GET /api/bars
 // ========================================
 
-export async function GET() {
+export const GET = requireAdmin(async (request, user) => {
   try {
-    // Inicializar cliente Supabase
-    const supabase = await getSupabaseClient();
+    // Inicializar cliente Supabase Admin
+    const supabase = await getAdminClient();
     if (!supabase) {
       return NextResponse.json(
-        { error: 'Erro ao conectar com banco' },
+        { success: false, error: 'Erro ao conectar com banco' },
         { status: 500 }
       );
     }
@@ -86,6 +88,15 @@ export async function GET() {
       data.map((b: BarMapped) => b.nome)
     );
 
+    // Logar acesso
+    await logAuditEvent({
+      user_id: user.id,
+      action: 'LIST_BARS',
+      resource: 'bares',
+      ip_address: request.headers.get('x-forwarded-for') || undefined,
+      user_agent: request.headers.get('user-agent') || undefined,
+    });
+
     return NextResponse.json({
       success: true,
       bars: data,
@@ -103,15 +114,15 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = requireAdmin(async (request, user) => {
   try {
-    // Inicializar cliente Supabase
-    const supabase = await getSupabaseClient();
+    // Inicializar cliente Supabase Admin
+    const supabase = await getAdminClient();
     if (!supabase) {
       return NextResponse.json(
-        { error: 'Erro ao conectar com banco' },
+        { success: false, error: 'Erro ao conectar com banco' },
         { status: 500 }
       );
     }
@@ -160,6 +171,17 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ Novo bar criado: ${nome} (ID: ${data.id})`);
 
+    // Logar criação
+    await logAuditEvent({
+      user_id: user.id,
+      action: 'CREATE_BAR',
+      resource: 'bares',
+      resource_id: data.id.toString(),
+      changes: { nome, endereco, telefone, cnpj, email },
+      ip_address: request.headers.get('x-forwarded-for') || undefined,
+      user_agent: request.headers.get('user-agent') || undefined,
+    });
+
     return NextResponse.json({
       success: true,
       data: data,
@@ -176,12 +198,12 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 async function createDefaultConfigurations(barId: number) {
   try {
-    // Inicializar cliente Supabase
-    const supabase = await getSupabaseClient();
+    // Inicializar cliente Supabase Admin
+    const supabase = await getAdminClient();
     if (!supabase) {
       throw new Error('Erro ao conectar com banco');
     }
@@ -227,13 +249,13 @@ async function createDefaultConfigurations(barId: number) {
   }
 }
 
-export async function PUT(request: NextRequest) {
+export const PUT = requireAdmin(async (request, user) => {
   try {
-    // Inicializar cliente Supabase
-    const supabase = await getSupabaseClient();
+    // Inicializar cliente Supabase Admin
+    const supabase = await getAdminClient();
     if (!supabase) {
       return NextResponse.json(
-        { error: 'Erro ao conectar com banco' },
+        { success: false, error: 'Erro ao conectar com banco' },
         { status: 500 }
       );
     }
@@ -279,6 +301,17 @@ export async function PUT(request: NextRequest) {
       throw error;
     }
 
+    // Logar atualização
+    await logAuditEvent({
+      user_id: user.id,
+      action: 'UPDATE_BAR',
+      resource: 'bares',
+      resource_id: id.toString(),
+      changes: updates,
+      ip_address: request.headers.get('x-forwarded-for') || undefined,
+      user_agent: request.headers.get('user-agent') || undefined,
+    });
+
     return NextResponse.json({
       success: true,
       data: data,
@@ -295,15 +328,15 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = requireAdmin(async (request, user) => {
   try {
-    // Inicializar cliente Supabase
-    const supabase = await getSupabaseClient();
+    // Inicializar cliente Supabase Admin
+    const supabase = await getAdminClient();
     if (!supabase) {
       return NextResponse.json(
-        { error: 'Erro ao conectar com banco' },
+        { success: false, error: 'Erro ao conectar com banco' },
         { status: 500 }
       );
     }
@@ -347,6 +380,17 @@ export async function DELETE(request: NextRequest) {
 
     console.log(`🗑️ Bar deletado: ${bar.nome} (ID: ${id})`);
 
+    // Logar exclusão
+    await logAuditEvent({
+      user_id: user.id,
+      action: 'DELETE_BAR',
+      resource: 'bares',
+      resource_id: id,
+      changes: { deleted_bar: { nome: bar.nome } },
+      ip_address: request.headers.get('x-forwarded-for') || undefined,
+      user_agent: request.headers.get('user-agent') || undefined,
+    });
+
     return NextResponse.json({
       success: true,
       message: `Bar "${bar.nome}" deletado com sucesso!`,
@@ -362,4 +406,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

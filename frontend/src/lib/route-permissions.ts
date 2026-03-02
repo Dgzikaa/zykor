@@ -87,6 +87,7 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // ========================================
   // FERRAMENTAS (Todos os usuários podem ver)
   // ========================================
+  { path: '/ferramentas/stockout', requiredModules: ['ferramentas', 'gestao_stockout', 'ferramentas_stockout', 'dashboard', 'home'] },
   { path: '/ferramentas', requiredModules: ['ferramentas', 'dashboard', 'home'] },
   
   // ========================================

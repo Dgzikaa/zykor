@@ -1,16 +1,11 @@
 /**
- * Configuração Centralizada do Menu Lateral
+ * Configuração DINÂMICA do Menu Lateral
  * 
- * FONTE ÚNICA DE VERDADE para:
- * - Estrutura do menu lateral (sidebar)
- * - Módulos disponíveis para permissões de usuários
+ * Este arquivo IMPORTA a estrutura do menu lateral e gera automaticamente
+ * os módulos de permissão. Assim, qualquer alteração no menu lateral
+ * reflete AUTOMATICAMENTE nas permissões de usuários.
  * 
- * Qualquer alteração aqui reflete automaticamente em:
- * - API de permissões (/api/configuracoes/permissoes)
- * - Tela de edição de usuários
- * 
- * IMPORTANTE: Ao adicionar/remover itens do menu, também atualize o
- * arquivo ModernSidebarOptimized.tsx para manter sincronizado.
+ * FONTE ÚNICA DE VERDADE: ModernSidebarOptimized.tsx
  */
 
 // Interface para módulos de permissão (usada pela API)
@@ -21,70 +16,103 @@ export interface ModuloPermissao {
 }
 
 /**
- * MÓDULOS DISPONÍVEIS PARA PERMISSÕES
- * 
- * Organizados por seção do menu lateral.
- * Cada módulo aqui corresponde a um item do menu.
+ * Estrutura do menu lateral (importada dinamicamente)
+ * Esta é uma cópia da estrutura do ModernSidebarOptimized.tsx
+ * para evitar dependências circulares e problemas de importação client/server
  */
-export const MODULOS_MENU: ModuloPermissao[] = [
-  // ═══════════════════════════════════════════════════════════════
-  // ESTRATÉGICO
-  // ═══════════════════════════════════════════════════════════════
-  { id: 'estrategico_visao_geral', nome: 'Visão Geral', categoria: 'Estratégico' },
-  { id: 'estrategico_desempenho', nome: 'Desempenho', categoria: 'Estratégico' },
-  { id: 'estrategico_planejamento', nome: 'Planejamento Comercial', categoria: 'Estratégico' },
-  { id: 'estrategico_orcamentacao', nome: 'Orçamentação', categoria: 'Estratégico' },
-  
-  // ═══════════════════════════════════════════════════════════════
-  // ANALÍTICO
-  // ═══════════════════════════════════════════════════════════════
-  { id: 'analitico_clientes', nome: 'Clientes', categoria: 'Analítico' },
-  { id: 'analitico_tempo_estadia', nome: 'Tempo de Estadia', categoria: 'Analítico' },
-  { id: 'analitico_impacto_entrada', nome: 'Impacto Entrada', categoria: 'Analítico' },
-  { id: 'analitico_eventos', nome: 'Eventos', categoria: 'Analítico' },
-  { id: 'analitico_retrospectiva', nome: 'Retrospectiva 2025', categoria: 'Analítico' },
-  
-  // ═══════════════════════════════════════════════════════════════
-  // CRM
-  // ═══════════════════════════════════════════════════════════════
-  { id: 'crm_umbler', nome: 'Umbler Talk', categoria: 'CRM' },
-  { id: 'crm_segmentacao', nome: 'Segmentação RFM', categoria: 'CRM' },
-  { id: 'crm_churn', nome: 'Predição Churn', categoria: 'CRM' },
-  { id: 'crm_ltv', nome: 'LTV e Engajamento', categoria: 'CRM' },
-  { id: 'crm_padroes', nome: 'Padrões de Comportamento', categoria: 'CRM' },
-  
-  // ═══════════════════════════════════════════════════════════════
-  // FERRAMENTAS
-  // ═══════════════════════════════════════════════════════════════
-  { id: 'ferramentas_comercial', nome: 'Central Comercial', categoria: 'Ferramentas' },
-  { id: 'ferramentas_producao', nome: 'Produção e Insumos', categoria: 'Ferramentas' },
-  { id: 'ferramentas_contagem_estoque', nome: 'Contagem de Estoque', categoria: 'Ferramentas' },
-  { id: 'ferramentas_contagem_rapida', nome: 'Contagem Rápida', categoria: 'Ferramentas' },
-  { id: 'ferramentas_agendamento', nome: 'Agendamento', categoria: 'Ferramentas' },
-  { id: 'ferramentas_nps', nome: 'NPS Funcionários', categoria: 'Ferramentas' },
-  { id: 'ferramentas_cmv', nome: 'CMV Semanal', categoria: 'Ferramentas' },
-  { id: 'ferramentas_cma', nome: 'CMA - Alimentação Funcionários', categoria: 'Ferramentas' },
-  { id: 'ferramentas_cmo', nome: 'CMO Semanal', categoria: 'Ferramentas' },
-  { id: 'ferramentas_cmo_dashboard', nome: 'CMO - Dashboard', categoria: 'Ferramentas' },
-  { id: 'ferramentas_cmo_comparar', nome: 'CMO - Comparar', categoria: 'Ferramentas' },
-  { id: 'ferramentas_cmo_alertas', nome: 'CMO - Alertas', categoria: 'Ferramentas' },
-  { id: 'ferramentas_stockout', nome: 'Stockout', categoria: 'Ferramentas' },
-  { id: 'ferramentas_consultas', nome: 'Consultas', categoria: 'Ferramentas' },
-  { id: 'ferramentas_dre', nome: 'DRE', categoria: 'Ferramentas' },
-  
-  // ═══════════════════════════════════════════════════════════════
-  // CONFIGURAÇÕES
-  // ═══════════════════════════════════════════════════════════════
-  { id: 'config_usuarios', nome: 'Usuários', categoria: 'Configurações' },
-  { id: 'config_fichas_tecnicas', nome: 'Fichas Técnicas', categoria: 'Configurações' },
-  { id: 'config_checklists', nome: 'Checklists', categoria: 'Configurações' },
-  { id: 'config_metas', nome: 'Metas', categoria: 'Configurações' },
-  { id: 'config_teste_producao', nome: 'Teste de Produção', categoria: 'Configurações' },
-  { id: 'config_calendario', nome: 'Calendário Operacional', categoria: 'Configurações' },
-  { id: 'config_auditoria', nome: 'Auditoria', categoria: 'Configurações' },
-  { id: 'config_saude_dados', nome: 'Saúde dos Dados', categoria: 'Configurações' },
-  { id: 'config_monitoramento', nome: 'Monitoramento', categoria: 'Configurações' },
+const MENU_LATERAL_STRUCTURE = [
+  {
+    label: 'Estratégico',
+    subItems: [
+      { label: 'Visão Geral', href: '/estrategico/visao-geral' },
+      { label: 'Desempenho', href: '/estrategico/desempenho' },
+      { label: 'Planejamento', href: '/estrategico/planejamento-comercial' },
+      { label: 'Orçamentação', href: '/estrategico/orcamentacao' },
+    ],
+  },
+  {
+    label: 'Analítico',
+    subItems: [
+      { label: 'Clientes', href: '/analitico/clientes' },
+      { label: 'Eventos', href: '/analitico/eventos' },
+    ],
+  },
+  {
+    label: 'CRM',
+    subItems: [
+      { label: 'Umbler Talk', href: '/crm/umbler' },
+      { label: 'Segmentação RFM', href: '/crm/inteligente' },
+      { label: 'Predição Churn', href: '/crm/churn-prediction' },
+      { label: 'LTV e Engajamento', href: '/crm/ltv-engajamento' },
+      { label: 'Padrões', href: '/crm/padroes-comportamento' },
+    ],
+  },
+  {
+    label: 'Ferramentas',
+    subItems: [
+      { label: 'Produção e Insumos', href: '/ferramentas/producao-insumos' },
+      { label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque' },
+      { label: 'Agendamento', href: '/ferramentas/agendamento' },
+      { label: 'NPS Funcionários', href: '/ferramentas/nps' },
+      { label: 'Voz do Cliente', href: '/ferramentas/voz-cliente' },
+      { label: 'CMV Semanal', href: '/ferramentas/cmv-semanal' },
+      { label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal' },
+      { label: 'CMO - Mão de Obra', href: '/ferramentas/cmo' },
+      { label: 'Stockout', href: '/ferramentas/stockout' },
+      { label: 'Consultas', href: '/ferramentas/consultas' },
+      { label: 'DRE', href: '/ferramentas/dre' },
+    ],
+  },
+  {
+    label: 'Configurações',
+    subItems: [
+      { label: 'Usuários', href: '/configuracoes/usuarios' },
+      { label: 'Fichas Técnicas', href: '/configuracoes/fichas-tecnicas' },
+      { label: 'Checklists', href: '/configuracoes/checklists' },
+      { label: 'Metas', href: '/configuracoes/metas' },
+      { label: 'Teste de Produção', href: '/configuracoes/teste-producao' },
+      { label: 'Calendário Operacional', href: '/configuracoes/calendario-operacional' },
+      { label: 'Auditoria', href: '/configuracoes/auditoria' },
+      { label: 'Saúde dos Dados', href: '/configuracoes/saude-dados' },
+      { label: 'Monitoramento', href: '/configuracoes/monitoramento' },
+    ],
+  },
+  {
+    label: 'Extras',
+    subItems: [
+      { label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia' },
+      { label: 'Retrospectiva 2025', href: '/retrospectiva-2025' },
+      { label: 'Impacto Entrada', href: '/ferramentas/analise-couvert' },
+      { label: 'Central Comercial', href: '/ferramentas/comercial' },
+    ],
+  },
 ];
+
+/**
+ * Gera ID único para o módulo baseado na categoria e nome
+ */
+function gerarIdModulo(categoria: string, nome: string): string {
+  const categoriaSlug = categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const nomeSlug = nome
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  return `${categoriaSlug}_${nomeSlug}`;
+}
+
+/**
+ * MÓDULOS GERADOS AUTOMATICAMENTE DO MENU LATERAL
+ * Esta lista é gerada dinamicamente da estrutura acima
+ */
+export const MODULOS_MENU: ModuloPermissao[] = MENU_LATERAL_STRUCTURE.flatMap(secao =>
+  secao.subItems.map(item => ({
+    id: gerarIdModulo(secao.label, item.label),
+    nome: item.label,
+    categoria: secao.label,
+  }))
+);
 
 /**
  * Retorna todos os módulos disponíveis para configuração de permissões
@@ -114,56 +142,33 @@ export function getCategorias(): string[] {
 }
 
 /**
- * MAPEAMENTO: Módulo específico -> Permissões genéricas que ele concede
+ * MAPEAMENTO AUTOMÁTICO: Módulo específico -> Permissões genéricas
  * 
- * Quando um usuário tem um módulo específico (ex: 'estrategico_desempenho'),
- * ele automaticamente ganha acesso às permissões genéricas listadas aqui.
- * Isso permite que o sidebar (que usa permissões genéricas) funcione corretamente.
+ * Este mapeamento é gerado automaticamente baseado na categoria do módulo.
+ * Regras:
+ * - Estratégico -> ['gestao', 'home']
+ * - Analítico -> ['relatorios']
+ * - CRM -> ['gestao']
+ * - Ferramentas -> ['ferramentas', 'operacoes']
+ * - Configurações -> ['configuracoes']
+ * - Extras -> ['home', 'relatorios']
  */
-export const MODULO_TO_PERMISSIONS: Record<string, string[]> = {
-  // Estratégico
-  estrategico_visao_geral: ['home', 'gestao'],
-  estrategico_desempenho: ['gestao'],
-  estrategico_planejamento: ['planejamento', 'gestao'],
-  estrategico_orcamentacao: ['home', 'gestao'],
-  
-  // Analítico
-  analitico_clientes: ['relatorios'],
-  analitico_tempo_estadia: ['relatorios'],
-  analitico_impacto_entrada: ['relatorios'],
-  analitico_eventos: ['relatorios'],
-  analitico_retrospectiva: ['home', 'relatorios'],
-  
-  // CRM
-  crm_umbler: ['gestao'],
-  crm_segmentacao: ['gestao'],
-  crm_churn: ['gestao'],
-  crm_ltv: ['gestao'],
-  crm_padroes: ['gestao'],
-  
-  // Ferramentas
-  ferramentas_comercial: ['gestao', 'ferramentas'],
-  ferramentas_producao: ['operacoes', 'ferramentas'],
-  ferramentas_contagem_estoque: ['operacoes', 'ferramentas'],
-  ferramentas_contagem_rapida: ['operacoes', 'ferramentas'],
-  ferramentas_agendamento: ['financeiro_agendamento', 'ferramentas'],
-  ferramentas_nps: ['gestao', 'ferramentas'],
-  ferramentas_cmv: ['gestao', 'ferramentas'],
-  ferramentas_stockout: ['gestao', 'ferramentas'],
-  ferramentas_consultas: ['financeiro_agendamento', 'ferramentas'],
-  ferramentas_dre: ['dashboard_financeiro_mensal', 'ferramentas'],
-  
-  // Configurações
-  config_usuarios: ['configuracoes'],
-  config_fichas_tecnicas: ['operacoes', 'configuracoes'],
-  config_checklists: ['configuracoes'],
-  config_metas: ['configuracoes'],
-  config_teste_producao: ['operacoes', 'configuracoes'],
-  config_calendario: ['operacoes', 'configuracoes'],
-  config_auditoria: ['configuracoes'],
-  config_saude_dados: ['configuracoes'],
-  config_monitoramento: ['configuracoes'],
-};
+function gerarPermissoesAutomaticas(categoria: string): string[] {
+  const mapa: Record<string, string[]> = {
+    'Estratégico': ['gestao', 'home'],
+    'Analítico': ['relatorios'],
+    'CRM': ['gestao'],
+    'Ferramentas': ['ferramentas', 'operacoes'],
+    'Configurações': ['configuracoes'],
+    'Extras': ['home', 'relatorios'],
+  };
+  return mapa[categoria] || ['home'];
+}
+
+export const MODULO_TO_PERMISSIONS: Record<string, string[]> = MODULOS_MENU.reduce((acc, modulo) => {
+  acc[modulo.id] = gerarPermissoesAutomaticas(modulo.categoria);
+  return acc;
+}, {} as Record<string, string[]>);
 
 /**
  * Dado um array de módulos específicos, retorna todas as permissões genéricas

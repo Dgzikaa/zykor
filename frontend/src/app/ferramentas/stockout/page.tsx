@@ -610,30 +610,36 @@ export default function StockoutPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
-        <Card className="card-dark mb-6">
-          <CardContent className="p-6">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="tabs-list-dark mb-6">
-                <TabsTrigger value="diario" className="tabs-trigger-dark inline-flex items-center">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  <span>Análise Diária</span>
-                </TabsTrigger>
-                <TabsTrigger value="historico" className="tabs-trigger-dark inline-flex items-center">
-                  <TrendingDown className="h-4 w-4 mr-2" />
-                  <span>Histórico</span>
-                </TabsTrigger>
-              </TabsList>
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">Controle de Stockout</h1>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+            Análise de disponibilidade de produtos
+          </p>
+        </div>
+      </div>
 
-            <TabsContent value="diario" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="bg-[hsl(var(--muted))] p-1 rounded-lg mb-4">
+          <TabsTrigger value="diario" className="inline-flex items-center gap-1.5 text-sm">
+            <Calendar className="h-3.5 w-3.5" />
+            <span>Análise Diária</span>
+          </TabsTrigger>
+          <TabsTrigger value="historico" className="inline-flex items-center gap-1.5 text-sm">
+            <TrendingDown className="h-3.5 w-3.5" />
+            <span>Histórico</span>
+          </TabsTrigger>
+        </TabsList>
+
+            <TabsContent value="diario" className="space-y-4">
               {/* Controles de Busca */}
-              <Card className="card-dark">
-                <CardContent className="p-3 sm:p-4">
+              <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                <CardContent className="p-3">
                   <div className="flex flex-col gap-3 sm:gap-4">
                     {/* Seletor de Modo */}
                     <div className="flex flex-col xs:flex-row xs:items-center gap-2 xs:gap-3">
-                      <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                      <span className="text-xs sm:text-sm font-medium text-[hsl(var(--foreground))] whitespace-nowrap">
                         Modo de análise:
                       </span>
                       <div className="flex gap-2">
@@ -641,7 +647,7 @@ export default function StockoutPage() {
                           size="sm"
                           variant={modoAnalise === 'unica' ? 'default' : 'outline'}
                           onClick={() => setModoAnalise('unica')}
-                          className={modoAnalise === 'unica' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'btn-outline-dark'}
+                          className={modoAnalise === 'unica' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]'}
                           leftIcon={<Calendar className="w-4 h-4" />}
                         >
                           Data Única
@@ -650,7 +656,7 @@ export default function StockoutPage() {
                           size="sm"
                           variant={modoAnalise === 'periodo' ? 'default' : 'outline'}
                           onClick={() => setModoAnalise('periodo')}
-                          className={modoAnalise === 'periodo' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'btn-outline-dark'}
+                          className={modoAnalise === 'periodo' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]'}
                           leftIcon={<TrendingDown className="w-4 h-4" />}
                         >
                           Período
@@ -663,7 +669,7 @@ export default function StockoutPage() {
                       {modoAnalise === 'unica' ? (
                         <>
                           <div className="flex items-center gap-2">
-                            <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                            <label className="text-xs sm:text-sm font-medium text-[hsl(var(--foreground))] whitespace-nowrap">
                               Data:
                             </label>
                             <Input
@@ -686,7 +692,7 @@ export default function StockoutPage() {
                       ) : (
                         <>
                           <div className="flex items-center gap-2">
-                            <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                            <label className="text-xs sm:text-sm font-medium text-[hsl(var(--foreground))] whitespace-nowrap">
                               De:
                             </label>
                             <Input
@@ -697,7 +703,7 @@ export default function StockoutPage() {
                             />
                           </div>
                           <div className="flex items-center gap-2">
-                            <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                            <label className="text-xs sm:text-sm font-medium text-[hsl(var(--foreground))] whitespace-nowrap">
                               Até:
                             </label>
                             <Input
@@ -726,15 +732,15 @@ export default function StockoutPage() {
               {stockoutData && (
                 <>
                   {/* Cards de Estatísticas */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                    <Card className="card-dark">
-                      <CardHeader className="pb-2 p-3 sm:p-4">
-                        <CardTitle className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                      <CardHeader className="pb-1.5 p-3">
+                        <CardTitle className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
                           {modoAnalise === 'periodo' ? 'Média de Produtos' : 'Total'}
                         </CardTitle>
                       </CardHeader>
-                      <CardContent className="p-3 sm:p-4 pt-0">
-                        <div className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+                      <CardContent className="p-3 pt-0">
+                        <div className="text-xl font-bold">
                           {stockoutData?.estatisticas?.total_produtos || 0}
                         </div>
                         {modoAnalise === 'periodo' && (
@@ -745,51 +751,51 @@ export default function StockoutPage() {
                       </CardContent>
                     </Card>
 
-                    <Card className="card-dark">
-                      <CardHeader className="pb-2 p-3 sm:p-4">
-                        <CardTitle className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
+                    <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                      <CardHeader className="pb-1.5 p-3">
+                        <CardTitle className="text-xs font-medium text-green-600 dark:text-green-400">
                           {modoAnalise === 'periodo' ? 'Média Ativos' : 'Ativos'}
                         </CardTitle>
                       </CardHeader>
-                      <CardContent className="p-3 sm:p-4 pt-0">
-                        <div className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400 flex items-center gap-1 sm:gap-2">
-                          <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" />
+                      <CardContent className="p-3 pt-0">
+                        <div className="text-xl font-bold text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                          <CheckCircle className="h-4 w-4" />
                           {stockoutData?.estatisticas?.produtos_ativos || 0}
                         </div>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
                           {stockoutData?.estatisticas?.percentual_disponibilidade || '0%'}
                         </p>
                       </CardContent>
                     </Card>
 
-                    <Card className="card-dark">
-                      <CardHeader className="pb-2 p-3 sm:p-4">
-                        <CardTitle className="text-xs sm:text-sm font-medium text-red-600 dark:text-red-400">
+                    <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                      <CardHeader className="pb-1.5 p-3">
+                        <CardTitle className="text-xs font-medium text-red-600 dark:text-red-400">
                           {modoAnalise === 'periodo' ? 'Média Inativos' : 'Inativos'}
                         </CardTitle>
                       </CardHeader>
-                      <CardContent className="p-3 sm:p-4 pt-0">
-                        <div className="text-xl sm:text-2xl font-bold text-red-600 dark:text-red-400 flex items-center gap-1 sm:gap-2">
-                          <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5" />
+                      <CardContent className="p-3 pt-0">
+                        <div className="text-xl font-bold text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                          <AlertTriangle className="h-4 w-4" />
                           {stockoutData?.estatisticas?.produtos_inativos || 0}
                         </div>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
                           Em stockout
                         </p>
                       </CardContent>
                     </Card>
 
-                    <Card className="card-dark col-span-2 lg:col-span-1">
-                      <CardHeader className="pb-2 p-3 sm:p-4">
-                        <CardTitle className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">
+                    <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))] col-span-2 lg:col-span-1">
+                      <CardHeader className="pb-1.5 p-3">
+                        <CardTitle className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
                           % Stockout
                         </CardTitle>
                       </CardHeader>
-                      <CardContent className="p-3 sm:p-4 pt-0">
-                        <div className={`text-xl sm:text-2xl font-bold ${getStockoutColor(stockoutData?.estatisticas?.percentual_stockout || '0%')}`}>
+                      <CardContent className="p-3 pt-0">
+                        <div className={`text-xl font-bold ${getStockoutColor(stockoutData?.estatisticas?.percentual_stockout || '0%')}`}>
                           {stockoutData?.estatisticas?.percentual_stockout || '0%'}
                         </div>
-                        <Badge className={`${getStockoutBadgeVariant(stockoutData?.estatisticas?.percentual_stockout || '0%')} text-xs`}>
+                        <Badge className={`${getStockoutBadgeVariant(stockoutData?.estatisticas?.percentual_stockout || '0%')} text-xs mt-1`}>
                           {parseFloat((stockoutData?.estatisticas?.percentual_stockout || '0%').replace('%', '')) <= 10 ? 'Excelente' :
                            parseFloat((stockoutData?.estatisticas?.percentual_stockout || '0%').replace('%', '')) <= 25 ? 'Atenção' : 'Crítico'}
                         </Badge>
@@ -800,18 +806,18 @@ export default function StockoutPage() {
                   {/* Análise Agrupada por Local */}
                   {stockoutData?.analise_por_local && stockoutData.analise_por_local.length > 0 && (
                     <>
-                      <Card className="card-dark">
-                        <CardHeader className="p-4 sm:p-6">
-                          <CardTitle className="card-title-dark text-base sm:text-lg flex items-center gap-2">
-                            <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
+                      <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                        <CardHeader className="p-4">
+                          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                            <MapPin className="h-4 w-4" />
                             Análise por Local
                           </CardTitle>
-                          <CardDescription className="card-description-dark text-xs sm:text-sm">
+                          <CardDescription className="text-xs">
                             Clique em um local para ver detalhes
                           </CardDescription>
                         </CardHeader>
-                        <CardContent className="p-4 sm:p-6 pt-0">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                        <CardContent className="p-4 pt-0">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {agruparLocaisPorCategoria().map((grupo) => (
                               <div 
                                 key={grupo.key}
@@ -819,10 +825,10 @@ export default function StockoutPage() {
                                   setLocalSelecionado(grupo.key);
                                   setDiaSelecionado(''); // Limpar dia selecionado ao trocar de categoria
                                 }}
-                                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                                className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
                                   localSelecionado === grupo.key
                                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-lg'
-                                    : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-700'
+                                    : 'border-gray-200 dark:border-gray-700 bg-[hsl(var(--muted))] hover:border-blue-300 dark:hover:border-blue-700'
                                 }`}
                               >
                                 <div className="text-center">
@@ -837,7 +843,7 @@ export default function StockoutPage() {
                                   }`}>
                                     {grupo.perc_stockout}%
                                   </div>
-                                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                  <p className="text-sm text-[hsl(var(--muted-foreground))] mb-2">
                                     {grupo.total_produtos} produtos
                                   </p>
                                   <div className="flex justify-center gap-4 text-xs">
@@ -862,7 +868,7 @@ export default function StockoutPage() {
 
                       {/* Detalhes do Local Selecionado */}
                       {localSelecionado && (
-                        <Card className="card-dark">
+                        <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
                           <CardHeader className="p-4 sm:p-6">
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
                               <div className="flex-1">
@@ -883,7 +889,7 @@ export default function StockoutPage() {
                                   setLocalSelecionado('');
                                   setDiaSelecionado('');
                                 }}
-                                className="btn-outline-dark w-full sm:w-auto"
+                                className="border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] w-full sm:w-auto"
                               >
                                 Limpar
                               </Button>
@@ -961,7 +967,7 @@ export default function StockoutPage() {
                                             <h5 className="font-medium text-gray-900 dark:text-white text-sm">
                                               {produto.prd_desc || produto.produto_descricao || 'Produto sem nome'}
                                             </h5>
-                                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                                            <p className="text-xs text-[hsl(var(--muted-foreground))]">
                                               Local: {produto.loc_desc || produto.local_producao || 'Não informado'}
                                             </p>
                                           </div>
@@ -988,7 +994,7 @@ export default function StockoutPage() {
                                             <h5 className="font-medium text-gray-900 dark:text-white text-sm">
                                               {produto.prd_desc || produto.produto_descricao || 'Produto sem nome'}
                                             </h5>
-                                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                                            <p className="text-xs text-[hsl(var(--muted-foreground))]">
                                               Local: {produto.loc_desc || produto.local_producao || 'Não informado'}
                                             </p>
                                           </div>
@@ -1027,11 +1033,11 @@ export default function StockoutPage() {
             </TabsContent>
 
             <TabsContent value="historico" className="space-y-4 sm:space-y-6">
-              <Card className="card-dark">
+              <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
                 <CardContent className="p-3 sm:p-4">
                   <div className="flex flex-col xs:flex-row flex-wrap items-stretch xs:items-center gap-2 sm:gap-3">
                     <div className="flex items-center gap-2">
-                      <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                      <label className="text-xs sm:text-sm font-medium text-[hsl(var(--foreground))] whitespace-nowrap">
                         De:
                       </label>
                       <Input
@@ -1042,7 +1048,7 @@ export default function StockoutPage() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                      <label className="text-xs sm:text-sm font-medium text-[hsl(var(--foreground))] whitespace-nowrap">
                         Até:
                       </label>
                       <Input
@@ -1069,9 +1075,9 @@ export default function StockoutPage() {
                 <>
                   {/* Resumo do Período */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                    <Card className="card-dark">
+                    <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
                       <CardHeader className="pb-2 p-3 sm:p-4">
-                        <CardTitle className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">
+                        <CardTitle className="text-xs sm:text-sm font-medium text-[hsl(var(--muted-foreground))]">
                           Total de Dias
                         </CardTitle>
                       </CardHeader>
@@ -1082,7 +1088,7 @@ export default function StockoutPage() {
                       </CardContent>
                     </Card>
 
-                    <Card className="card-dark">
+                    <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
                       <CardHeader className="pb-2 p-3 sm:p-4">
                         <CardTitle className="text-xs sm:text-sm font-medium text-red-600 dark:text-red-400">
                           Média Stockout
@@ -1098,7 +1104,7 @@ export default function StockoutPage() {
                       </CardContent>
                     </Card>
 
-                    <Card className="card-dark">
+                    <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
                       <CardHeader className="pb-2 p-3 sm:p-4">
                         <CardTitle className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
                           Média Disponível
@@ -1113,7 +1119,7 @@ export default function StockoutPage() {
                   </div>
 
                   {/* Análise por Dia da Semana */}
-                  <Card className="card-dark">
+                  <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
                     <CardHeader className="p-4 sm:p-6">
                       <CardTitle className="card-title-dark text-base sm:text-lg flex items-center gap-2">
                         <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -1129,7 +1135,7 @@ export default function StockoutPage() {
                           <div key={index} className={`p-4 rounded-lg border-2 ${
                             dia.melhor_dia ? 'border-green-500 bg-green-50 dark:bg-green-900/20' :
                             dia.pior_dia ? 'border-red-500 bg-red-50 dark:bg-red-900/20' :
-                            'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'
+                            'border-gray-200 dark:border-gray-700 bg-[hsl(var(--muted))]'
                           }`}>
                             <div className="text-center">
                               <h4 className="font-semibold text-sm text-gray-900 dark:text-white mb-1">
@@ -1138,7 +1144,7 @@ export default function StockoutPage() {
                               <div className={`text-lg font-bold ${getStockoutColor(dia.media_stockout)}`}>
                                 {dia.media_stockout}
                               </div>
-                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
                                 {dia.total_ocorrencias} dia{dia.total_ocorrencias !== 1 ? 's' : ''}
                               </p>
                               {dia.melhor_dia && (
@@ -1160,7 +1166,7 @@ export default function StockoutPage() {
 
                   {/* Histórico Diário */}
                   {historicoData?.historico_diario && historicoData.historico_diario.length > 0 && (
-                    <Card className="card-dark">
+                    <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
                       <CardHeader className="p-4 sm:p-6">
                         <CardTitle className="card-title-dark text-base sm:text-lg flex items-center gap-2">
                           <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -1193,7 +1199,7 @@ export default function StockoutPage() {
                                   <div className={`text-sm font-semibold ${getStockoutColor(dia.percentual_stockout || '0%')}`}>
                                     {stockoutPerc.toFixed(1)}%
                                   </div>
-                                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                  <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
                                     {dia.dia_semana?.substring(0, 3) || ''}
                                   </div>
                                 </div>
@@ -1207,7 +1213,7 @@ export default function StockoutPage() {
 
                   {/* Análise Semanal */}
                   {historicoData?.analise_semanal && historicoData.analise_semanal.length > 1 && (
-                    <Card className="card-dark">
+                    <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
                       <CardHeader className="p-4 sm:p-6">
                         <CardTitle className="card-title-dark text-base sm:text-lg flex items-center gap-2">
                           <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -1220,12 +1226,12 @@ export default function StockoutPage() {
                       <CardContent className="p-4 sm:p-6 pt-0">
                         <div className="space-y-2 sm:space-y-3">
                           {historicoData.analise_semanal.map((semana, index) => (
-                            <div key={index} className="flex flex-col xs:flex-row xs:items-center justify-between gap-2 xs:gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                            <div key={index} className="flex flex-col xs:flex-row xs:items-center justify-between gap-2 xs:gap-3 p-3 bg-[hsl(var(--muted))] rounded-lg">
                               <div className="flex-1">
                                 <h4 className="font-medium text-sm sm:text-base text-gray-900 dark:text-white">
                                   Semana {semana.numero_semana}
                                 </h4>
-                                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                                <p className="text-xs sm:text-sm text-[hsl(var(--muted-foreground))]">
                                   {formatarData(semana.semana_inicio)} - {formatarData(semana.semana_fim)} • {semana.dias_com_dados} dias
                                 </p>
                               </div>
@@ -1253,7 +1259,7 @@ export default function StockoutPage() {
                   )}
 
                   {/* Tabela de Histórico */}
-                  <Card className="card-dark">
+                  <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
                     <CardHeader className="p-4 sm:p-6">
                       <CardTitle className="card-title-dark text-base sm:text-lg">
                         Histórico Detalhado
@@ -1282,7 +1288,7 @@ export default function StockoutPage() {
                                 <td className="table-cell-dark font-medium">
                                   {formatarData(dia.data_referencia)}
                                 </td>
-                                <td className="table-cell-dark text-center text-gray-600 dark:text-gray-400">
+                                <td className="table-cell-dark text-center text-[hsl(var(--muted-foreground))]">
                                   {dia.dia_semana}
                                 </td>
                                 <td className="table-cell-dark text-center">
@@ -1321,9 +1327,6 @@ export default function StockoutPage() {
               )}
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
-      </div>
     </div>
   );
 }

@@ -2,1266 +2,139 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== ANIMAÇÕES SHIMMER ===== */
-@keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+/* ===== FONTE INTER (GOOGLE FONTS) ===== */
+@layer base {
+  :root {
+    --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  }
 }
 
-/* ===== PALETA DE CORES ZYKOR ===== */
+/* ===== PALETA DE CORES MINIMALISTA - NEUTRAL + INDIGO ===== */
 :root {
-  /* Cores Primárias ZYKOR */
-  --zykor-blue: #4A90E2;      /* Azul do Z */
-  --zykor-purple: #8B5FBF;    /* Roxo do texto */
-  --zykor-gradient: linear-gradient(135deg, #4A90E2 0%, #8B5FBF 100%);
+  /* Cores Base - Neutral */
+  --background: 0 0% 100%;              /* Branco puro #FFFFFF */
+  --foreground: 222 47% 11%;            /* Quase preto #1C2432 */
+  --muted: 0 0% 98%;                    /* Cinza SUPER sutil #FAFAFA */
+  --muted-foreground: 215 16% 47%;      /* Cinza médio #6B7280 */
+  --border: 214 32% 91%;                /* Borda sutil #E2E8F0 */
+  --input: 214 32% 91%;                 /* Input border #E2E8F0 */
+  --ring: 239 84% 67%;                  /* Focus ring indigo #6366F1 */
   
-  /* Cores adaptativas para temas */
-  --zykor-text-on-light: #1f2937;     /* Texto escuro para fundo claro */
-  --zykor-text-on-dark: #f9fafb;      /* Texto claro para fundo escuro */
-  --zykor-bg-light: #ffffff;          /* Fundo claro */
-  --zykor-bg-dark: #111827;           /* Fundo escuro */
+  /* Cor de Destaque - Indigo */
+  --primary: 239 84% 67%;               /* Indigo vibrante #6366F1 */
+  --primary-foreground: 0 0% 100%;      /* Branco #FFFFFF */
   
-  /* Variações Azul */
-  --zykor-blue-50: #EBF4FD;
-  --zykor-blue-100: #D1E7FB;
-  --zykor-blue-200: #A8D1F7;
-  --zykor-blue-300: #6BA6E8;
-  --zykor-blue-400: #4A90E2;   /* Principal */
-  --zykor-blue-500: #3A7BD5;
-  --zykor-blue-600: #2F6AC4;
-  --zykor-blue-700: #285AAF;
-  --zykor-blue-800: #1F4788;
-  --zykor-blue-900: #1A3A6B;
+  /* Cor Secundária - Neutral */
+  --secondary: 210 40% 96%;             /* Cinza claro #F1F5F9 */
+  --secondary-foreground: 222 47% 11%;  /* Quase preto #1C2432 */
   
-  /* Variações Roxo */
-  --zykor-purple-50: #F3EDFA;
-  --zykor-purple-100: #E3D2F2;
-  --zykor-purple-200: #CDB0E6;
-  --zykor-purple-300: #A478D4;
-  --zykor-purple-400: #8B5FBF;  /* Principal */
-  --zykor-purple-500: #7548A8;
-  --zykor-purple-600: #653A94;
-  --zykor-purple-700: #562F7F;
-  --zykor-purple-800: #452565;
-  --zykor-purple-900: #371D52;
+  /* Accent - Indigo */
+  --accent: 239 84% 67%;                /* Indigo #6366F1 */
+  --accent-foreground: 0 0% 100%;       /* Branco #FFFFFF */
   
-  /* Cores suaves para insights */
-  --blue-25: #f8fafc;
-  --green-25: #f0fdf4;
-  --purple-25: #faf5ff;
-  --orange-25: #fffbeb;
-  --red-25: #fef2f2;
+  /* Status Colors */
+  --success: 142 76% 36%;               /* Verde limpo #16A34A */
+  --success-foreground: 0 0% 100%;      /* Branco #FFFFFF */
+  --destructive: 0 84% 60%;             /* Vermelho limpo #EF4444 */
+  --destructive-foreground: 0 0% 100%;  /* Branco #FFFFFF */
+  --warning: 38 92% 50%;                /* Amarelo/laranja #F59E0B */
+  --warning-foreground: 0 0% 100%;      /* Branco #FFFFFF */
   
-  /* Aplicações do Sistema */
-  --primary: var(--zykor-blue);
-  --primary-foreground: white;
-  --secondary: var(--zykor-purple);
-  --secondary-foreground: white;
-  --accent: var(--zykor-purple);
-  --accent-foreground: white;
-  --muted: #64748b;
-  --muted-foreground: #475569;
+  /* Card */
+  --card: 0 0% 100%;                    /* Branco #FFFFFF */
+  --card-foreground: 222 47% 11%;       /* Quase preto #1C2432 */
+  
+  /* Popover */
+  --popover: 0 0% 100%;                 /* Branco #FFFFFF */
+  --popover-foreground: 222 47% 11%;    /* Quase preto #1C2432 */
+  
+  /* Radius */
+  --radius: 0.5rem;                     /* 8px */
 }
 
-/* Variáveis específicas para dark mode */
-[data-theme="dark"], .dark {
-  --zykor-card-bg: #1f2937;
-  --zykor-card-border: #374151;
-  --zykor-text-primary: #f9fafb;
-  --zykor-text-secondary: #d1d5db;
-  --zykor-text-muted: #9ca3af;
+/* Dark Mode - Estilo Shadcn (Neutro e Elegante) */
+.dark {
+  --background: 0 0% 4%;                /* Preto profundo #0A0A0A */
+  --foreground: 0 0% 98%;               /* Branco puro #FAFAFA */
+  --muted: 0 0% 10%;                    /* Cinza escuro #1A1A1A */
+  --muted-foreground: 0 0% 64%;         /* Cinza médio #A3A3A3 */
+  --border: 0 0% 15%;                   /* Borda escura #262626 */
+  --input: 0 0% 15%;                    /* Input border #262626 */
+  --ring: 0 0% 83%;                     /* Focus ring cinza claro #D4D4D4 */
+  
+  --primary: 0 0% 98%;                  /* Branco #FAFAFA */
+  --primary-foreground: 0 0% 9%;        /* Preto #171717 */
+  
+  --secondary: 0 0% 15%;                /* Cinza escuro #262626 */
+  --secondary-foreground: 0 0% 98%;     /* Branco #FAFAFA */
+  
+  --accent: 0 0% 15%;                   /* Cinza escuro #262626 */
+  --accent-foreground: 0 0% 98%;        /* Branco #FAFAFA */
+  
+  --success: 142 76% 36%;               /* Verde #16A34A */
+  --success-foreground: 0 0% 98%;       /* Branco #FAFAFA */
+  --destructive: 0 63% 31%;             /* Vermelho escuro #7F1D1D */
+  --destructive-foreground: 0 0% 98%;   /* Branco #FAFAFA */
+  --warning: 38 92% 50%;                /* Amarelo #F59E0B */
+  --warning-foreground: 0 0% 9%;        /* Preto #171717 */
+  
+  --card: 0 0% 4%;                      /* Preto profundo #0A0A0A */
+  --card-foreground: 0 0% 98%;          /* Branco #FAFAFA */
+  
+  --popover: 0 0% 4%;                   /* Preto profundo #0A0A0A */
+  --popover-foreground: 0 0% 98%;       /* Branco #FAFAFA */
 }
 
-/* Variáveis específicas para light mode */
-[data-theme="light"], .light {
-  --zykor-card-bg: #ffffff;
-  --zykor-card-border: #e5e7eb;
-  --zykor-text-primary: #111827;
-  --zykor-text-secondary: #4b5563;
-  --zykor-text-muted: #6b7280;
-}
-
-/* ===== UTILITÁRIOS E PADRÕES ZYKOR (dark mode + componentes) ===== */
-@layer components {
-  /* Cards padrão com dark mode */
-  .card-dark {
-    @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm;
+/* ===== BASE STYLES ===== */
+@layer base {
+  * {
+    @apply border-[hsl(var(--border))];
   }
-
-  .card-title-dark {
-    @apply text-lg font-semibold text-gray-900 dark:text-white;
-  }
-
-  .card-description-dark {
-    @apply text-sm text-gray-600 dark:text-gray-400;
-  }
-
-  /* Botões padrão dark */
-  .btn-primary-dark {
-    @apply inline-flex flex-row items-center justify-center px-4 py-2 rounded-lg font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors;
-  }
-
-  .btn-secondary-dark {
-    @apply inline-flex flex-row items-center justify-center px-4 py-2 rounded-lg font-medium bg-gray-100 hover:bg-gray-200 text-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 transition-colors;
-  }
-
-  .btn-success-dark {
-    @apply inline-flex flex-row items-center justify-center px-4 py-2 rounded-lg font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 transition-colors;
-  }
-
-  .btn-danger-dark {
-    @apply inline-flex flex-row items-center justify-center px-4 py-2 rounded-lg font-medium text-white bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 transition-colors;
-  }
-
-  .btn-outline-dark {
-    @apply inline-flex flex-row items-center justify-center px-4 py-2 rounded-lg font-medium border border-gray-300 text-gray-900 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800 transition-colors;
-  }
-
-  /* Inputs padrão dark */
-  .input-dark {
-    @apply bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg;
-  }
-
-  .textarea-dark {
-    @apply bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg;
-  }
-
-  .select-dark {
-    @apply bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg;
-  }
-
-  /* Status */
-  .status-success { @apply text-green-600 dark:text-green-400; }
-  .status-error { @apply text-red-600 dark:text-red-400; }
-  .status-warning { @apply text-yellow-600 dark:text-yellow-400; }
-  .status-info { @apply text-blue-600 dark:text-blue-400; }
-
-  /* Ícones */
-  .icon-primary { @apply text-gray-600 dark:text-gray-400; }
-  .icon-secondary { @apply text-gray-500 dark:text-gray-500; }
-  .icon-muted { @apply text-gray-400 dark:text-gray-600; }
-
-  /* Tabs */
-  .tabs-list-dark { @apply bg-gray-100 dark:bg-gray-700 rounded-lg p-1 border border-gray-200 dark:border-gray-700; }
-  .tabs-trigger-dark { @apply dark:text-gray-300 text-gray-700 data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white rounded-md px-3 py-2 transition-colors; }
-
-  /* Modais */
-  .modal-dark { @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700; }
-  .modal-overlay-dark { @apply bg-black/40 backdrop-blur-sm; }
-  .modal-button-primary { @apply btn-primary-dark; }
-  .modal-button-secondary { @apply btn-outline-dark; }
-  .modal-form-grid { @apply grid grid-cols-1 md:grid-cols-2 gap-4; }
-  .modal-form-group { @apply space-y-2; }
-  .modal-form-group-full { @apply space-y-2 md:col-span-2; }
-  .modal-label { @apply text-gray-700 dark:text-gray-300 font-medium; }
-  .modal-input { @apply input-dark; }
-  .modal-textarea { @apply textarea-dark; }
-  .modal-select-trigger { @apply select-dark; }
-  .modal-select-content { @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700; }
-  .modal-select-item { @apply text-gray-900 dark:text-gray-100 focus:bg-gray-100 dark:focus:bg-gray-700; }
-
-  /* Tabelas */
-  .table-dark { @apply w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden; }
-  .table-header-dark { @apply bg-gray-50 dark:bg-gray-700; }
-  .table-row-dark { @apply border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700; }
-  .table-cell-dark { @apply text-gray-900 dark:text-gray-100; }
-}
-
-/* ===== SISTEMA DE BOTÕES MODERNOS - ZYKOR ===== */
-
-/* Botão Base */
-.btn-modern {
-  @apply inline-flex flex-row items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all duration-200 ease-in-out;
-  @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
-  @apply disabled:opacity-50 disabled:cursor-not-allowed;
-}
-
-/* ===== REGRA GLOBAL: BOTÕES SEMPRE HORIZONTAIS ===== */
-/* Garantir que TODOS os botões tenham layout horizontal */
-button {
-  @apply flex-row !important;
-}
-
-button > * {
-  @apply inline-flex flex-row items-center gap-2;
-}
-
-/* para Chrome, Safari e Edge */
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-/* para Firefox */
-.hide-scrollbar {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-/* Scrollbar horizontal visível e estilizada */
-.scrollbar-visible::-webkit-scrollbar {
-  height: 12px;
-  width: 12px;
-}
-
-.scrollbar-visible::-webkit-scrollbar-track {
-  background: #e5e7eb;
-  border-radius: 6px;
-}
-
-.scrollbar-visible::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #4A90E2, #8B5FBF);
-  border-radius: 6px;
-  border: 2px solid #e5e7eb;
-}
-
-.scrollbar-visible::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #3A7BD5, #7548A8);
-}
-
-.dark .scrollbar-visible::-webkit-scrollbar-track {
-  background: #374151;
-}
-
-.dark .scrollbar-visible::-webkit-scrollbar-thumb {
-  border-color: #374151;
-}
-
-/* Para Firefox */
-.scrollbar-visible {
-  scrollbar-width: auto;
-  scrollbar-color: #4A90E2 #e5e7eb;
-}
-
-.dark .scrollbar-visible {
-  scrollbar-color: #4A90E2 #374151;
-}
-
-/* Scrollbar estilizada para áreas de scroll */
-.overflow-x-scroll::-webkit-scrollbar,
-.overflow-y-auto::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-}
-
-.overflow-x-scroll::-webkit-scrollbar-track,
-.overflow-y-auto::-webkit-scrollbar-track {
-  background: #e5e7eb;
-  border-radius: 6px;
-}
-
-.overflow-x-scroll::-webkit-scrollbar-thumb,
-.overflow-y-auto::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #4A90E2, #8B5FBF);
-  border-radius: 6px;
-  border: 2px solid #e5e7eb;
-}
-
-.overflow-x-scroll::-webkit-scrollbar-thumb:hover,
-.overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #3A7BD5, #7548A8);
-}
-
-.dark .overflow-x-scroll::-webkit-scrollbar-track,
-.dark .overflow-y-auto::-webkit-scrollbar-track {
-  background: #374151;
-}
-
-.dark .overflow-x-scroll::-webkit-scrollbar-thumb,
-.dark .overflow-y-auto::-webkit-scrollbar-thumb {
-  border-color: #374151;
-}
-
-/* Botão Primário - ZYKOR Blue */
-.btn-primary {
-  @apply btn-modern;
-  background: var(--zykor-blue);
-  @apply hover:opacity-90;
-  @apply text-white shadow-lg;
-  @apply focus:ring-2;
-  focus-ring-color: var(--zykor-blue-300);
-}
-
-.btn-primary:hover {
-  background: var(--zykor-blue-500);
-}
-
-/* Botão Primário com Gradiente ZYKOR */
-.btn-primary-gradient {
-  @apply btn-modern;
-  background: var(--zykor-gradient);
-  @apply text-white shadow-lg;
-  @apply focus:ring-2;
-  focus-ring-color: var(--zykor-blue-300);
-}
-
-.btn-primary-gradient:hover {
-  background: linear-gradient(135deg, var(--zykor-blue-500) 0%, var(--zykor-purple-500) 100%);
-}
-
-/* ===== CLASSES UTILITÁRIAS ZYKOR ===== */
-
-/* Classes para cores suaves */
-.bg-blue-25 { background-color: var(--blue-25); }
-.bg-green-25 { background-color: var(--green-25); }
-.bg-purple-25 { background-color: var(--purple-25); }
-.bg-orange-25 { background-color: var(--orange-25); }
-.bg-red-25 { background-color: var(--red-25); }
-.bg-yellow-25 { background-color: #fffbeb; }
-
-/* Botão com gradiente ZYKOR que funciona em ambos os temas */
-.btn-zykor {
-  background: var(--zykor-gradient);
-  @apply text-white font-medium py-2 px-4 rounded-lg transition-all duration-200;
-  @apply hover:opacity-90 focus:ring-2 focus:ring-offset-2;
-  focus-ring-color: var(--zykor-blue-300);
-}
-
-/* Logo adaptativo para temas */
-.logo-zykor {
-  @apply transition-all duration-200;
-}
-
-/* Favicon melhorado para contraste */
-.favicon-improved {
-  filter: drop-shadow(0 0 2px rgba(0,0,0,0.3));
-}
-
-/* Dark mode favicon */
-@media (prefers-color-scheme: dark) {
-  .favicon-improved {
-    filter: drop-shadow(0 0 2px rgba(255,255,255,0.3));
+  
+  body {
+    @apply bg-[hsl(var(--background))] text-[hsl(var(--foreground))];
   }
 }
 
-/* Card com cores ZYKOR adaptativo */
-.card-zykor {
-  background-color: var(--zykor-card-bg);
-  border: 1px solid var(--zykor-card-border);
-  @apply rounded-xl shadow-sm transition-colors duration-200;
+/* ===== SCROLLBAR MINIMALISTA ===== */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
 }
 
-/* Texto primário ZYKOR */
-.text-zykor-primary {
-  color: var(--zykor-blue);
-}
-
-/* Texto secundário ZYKOR */
-.text-zykor-secondary {
-  color: var(--zykor-purple);
-}
-
-/* Background gradiente ZYKOR */
-.bg-zykor-gradient {
-  background: var(--zykor-gradient);
-}
-
-/* Avatar com gradiente ZYKOR */
-.avatar-zykor {
-  background: var(--zykor-gradient);
-  @apply text-white flex items-center justify-center font-semibold;
-}
-
-/* Botão Secundário - Cinza */
-.btn-secondary {
-  @apply btn-modern;
-  @apply bg-gray-100 hover:bg-gray-200;
-  @apply text-gray-700 border border-gray-300;
-  @apply focus:ring-gray-500;
-  @apply dark:bg-gray-700 dark:hover:bg-gray-600;
-  @apply dark:text-gray-200 dark:border-gray-600;
-}
-
-/* Botão Sucesso - Verde */
-.btn-success {
-  @apply btn-modern;
-  @apply bg-green-600 hover:bg-green-700;
-  @apply text-white shadow-lg;
-  @apply focus:ring-green-500;
-  @apply dark:bg-green-500 dark:hover:bg-green-600;
-}
-
-/* Botão Perigo - Vermelho */
-.btn-danger {
-  @apply btn-modern;
-  @apply bg-red-600 hover:bg-red-700;
-  @apply text-white shadow-lg;
-  @apply focus:ring-red-500;
-  @apply dark:bg-red-500 dark:hover:bg-red-600;
-}
-
-/* ===== ESTILOS REACT-BIG-CALENDAR - DESIGN LIMPO E PROFISSIONAL ===== */
-
-.modern-calendar {
-  --calendar-bg: #ffffff;
-  --calendar-border: #e5e7eb;
-  --header-bg: #f9fafb;
-  --header-text: #374151;
-  --day-bg: #ffffff;
-  --day-hover: #f3f4f6;
-  --today-bg: #eff6ff;
-  --today-border: #3b82f6;
-  --event-bg: transparent;
-  --event-text: #374151;
-  --off-range-bg: #f9fafb;
-  --off-range-text: #9ca3af;
-}
-
-.dark .modern-calendar {
-  --calendar-bg: #1f2937;
-  --calendar-border: #374151;
-  --header-bg: #111827;
-  --header-text: #f9fafb;
-  --day-bg: #1f2937;
-  --day-hover: #374151;
-  --today-bg: #1e3a8a;
-  --today-border: #3b82f6;
-  --event-bg: transparent;
-  --event-text: #f9fafb;
-  --off-range-bg: #111827;
-  --off-range-text: #6b7280;
-}
-
-.modern-calendar .rbc-calendar {
-  background: var(--calendar-bg);
-  border: 1px solid var(--calendar-border);
-  border-radius: 8px;
-  overflow: hidden;
-  font-family: inherit;
-}
-
-.modern-calendar .rbc-header {
-  background: var(--header-bg);
-  color: var(--header-text);
-  font-weight: 600;
-  padding: 12px 8px;
-  border-bottom: 1px solid var(--calendar-border);
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.modern-calendar .rbc-month-view {
-  border: none;
-}
-
-.modern-calendar .rbc-day-bg {
-  background: var(--day-bg);
-  border: 1px solid var(--calendar-border);
-  transition: background-color 0.2s ease;
-  position: relative;
-}
-
-.modern-calendar .rbc-day-bg:hover {
-  background: var(--day-hover);
-}
-
-.modern-calendar .rbc-off-range-bg {
-  background: var(--off-range-bg);
-}
-
-.modern-calendar .rbc-off-range {
-  color: var(--off-range-text);
-}
-
-.modern-calendar .rbc-today {
-  background: var(--today-bg) !important;
-  border: 2px solid var(--today-border) !important;
-  border-radius: 6px;
-}
-
-.modern-calendar .rbc-date-cell {
-  padding: 8px;
-  font-weight: 500;
-  color: var(--event-text);
-}
-
-.modern-calendar .rbc-button-link {
-  color: var(--event-text);
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.modern-calendar .rbc-show-more {
-  background: transparent;
-  color: #3b82f6;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
-}
-
-.modern-calendar .rbc-show-more:hover {
-  background: rgba(59, 130, 246, 0.1);
-}
-
-/* Melhorar posicionamento do conteúdo dos eventos */
-.modern-calendar .rbc-event-content {
-  font-size: 11px;
-  line-height: 1.2;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  min-height: 36px;
-}
-
-/* Ajustar altura das células do calendário para acomodar melhor os eventos */
-.modern-calendar .rbc-month-row {
-  border: none;
-  min-height: 100px;
-  position: relative;
-}
-
-.modern-calendar .rbc-day-bg {
-  min-height: 100px;
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 2px;
-  padding-top: 0px;
-}
-
-/* Garantir que o conteúdo dos eventos seja bem posicionado */
-.modern-calendar .rbc-event {
-  background: var(--event-bg);
-  border: none;
-  border-radius: 4px;
-  padding: 4px 6px;
-  margin: 1px 0;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--event-text);
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 40px;
-  height: auto;
-  width: 100%;
-  max-width: calc(100% - 8px);
-}
-
-.modern-calendar .rbc-event:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-/* Ícone de status no canto superior esquerdo da célula do dia */
-.modern-calendar .rbc-day-bg[data-has-events='true']::after {
-  content: '';
-  position: absolute;
-  top: 4px;
-  left: 4px;
+.scrollbar-thin::-webkit-scrollbar {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  background: #10b981;
-  border: 1px solid #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  z-index: 1;
 }
 
-.modern-calendar .rbc-day-bg[data-status='pendente']::after {
-  background: #f59e0b;
-}
-
-.modern-calendar .rbc-day-bg[data-status='cancelado']::after {
-  background: #ef4444;
-}
-
-.modern-calendar .rbc-toolbar {
-  background: var(--header-bg);
-  border-bottom: 1px solid var(--calendar-border);
-  padding: 16px;
-  margin: 0;
-}
-
-.modern-calendar .rbc-toolbar-label {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--header-text);
-  text-transform: capitalize;
-}
-
-.modern-calendar .rbc-toolbar button {
-  background: #ffffff;
-  border: 1px solid var(--calendar-border);
-  color: var(--event-text);
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.modern-calendar .rbc-toolbar button:hover {
-  background: #f3f4f6;
-  border-color: #d1d5db;
-}
-
-.modern-calendar .rbc-toolbar button:active {
-  background: #e5e7eb;
-}
-
-.modern-calendar .rbc-toolbar button.rbc-active {
-  background: #3b82f6;
-  border-color: #3b82f6;
-  color: #ffffff;
-}
-
-.dark .modern-calendar .rbc-toolbar button {
-  background: #374151;
-  border-color: #4b5563;
-  color: #f9fafb;
-}
-
-.dark .modern-calendar .rbc-toolbar button:hover {
-  background: #4b5563;
-  border-color: #6b7280;
-}
-
-.dark .modern-calendar .rbc-toolbar button:active {
-  background: #6b7280;
-}
-
-.modern-calendar .rbc-btn-group {
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.modern-calendar .rbc-btn-group button {
-  border-radius: 0;
-  margin: 0;
-}
-
-.modern-calendar .rbc-btn-group button:first-child {
-  border-top-left-radius: 6px;
-  border-bottom-left-radius: 6px;
-}
-
-.modern-calendar .rbc-btn-group button:last-child {
-  border-top-right-radius: 6px;
-  border-bottom-right-radius: 6px;
-}
-
-/* Garantir que as células de conteúdo tenham posição relativa */
-.modern-calendar .rbc-row-content {
-  border: none;
-  position: relative;
-}
-
-/* Ajustar posicionamento das células de data */
-.modern-calendar .rbc-date-cell {
-  padding: 4px 8px;
-  font-weight: 500;
-  color: var(--event-text);
-  position: relative;
-  z-index: 2;
-}
-
-/* Scrollbar personalizada */
-.modern-calendar ::-webkit-scrollbar {
-  width: 6px;
-}
-
-.modern-calendar ::-webkit-scrollbar-track {
-  background: var(--off-range-bg);
-}
-
-.modern-calendar ::-webkit-scrollbar-thumb {
-  background: var(--calendar-border);
-  border-radius: 3px;
-}
-
-.modern-calendar ::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
-
-/* Responsividade */
-@media (max-width: 768px) {
-  .modern-calendar .rbc-toolbar {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .modern-calendar .rbc-toolbar-label {
-    font-size: 18px;
-  }
-
-  .modern-calendar .rbc-header {
-    padding: 8px 4px;
-    font-size: 12px;
-  }
-
-  .modern-calendar .rbc-date-cell {
-    padding: 4px;
-    font-size: 12px;
-  }
-}
-
-/* Animações */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.modern-calendar .rbc-event {
-  animation: fadeIn 0.3s ease-out;
-}
-
-/* Estados de foco */
-.modern-calendar .rbc-toolbar button:focus {
-  outline: 2px solid rgba(59, 130, 246, 0.5);
-  outline-offset: 2px;
-}
-
-/* Melhorias para acessibilidade */
-.modern-calendar .rbc-event:focus {
-  outline: 2px solid rgba(59, 130, 246, 0.6);
-  outline-offset: 1px;
-}
-
-/* Efeitos de glassmorphism */
-.modern-calendar .rbc-calendar::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
-  pointer-events: none;
-  border-radius: 12px;
-}
-
-/* Botão Aviso - Amarelo */
-.btn-warning {
-  @apply btn-modern;
-  @apply bg-yellow-500 hover:bg-yellow-600;
-  @apply text-white shadow-lg;
-  @apply focus:ring-yellow-500;
-  @apply dark:bg-yellow-500 dark:hover:bg-yellow-600;
-}
-
-/* Botão Info - Ciano */
-.btn-info {
-  @apply btn-modern;
-  @apply bg-cyan-600 hover:bg-cyan-700;
-  @apply text-white shadow-lg;
-  @apply focus:ring-cyan-500;
-  @apply dark:bg-cyan-500 dark:hover:bg-cyan-600;
-}
-
-/* Botão Outline - Contorno */
-.btn-outline {
-  @apply btn-modern;
-  @apply bg-transparent border-2 border-gray-300;
-  @apply text-gray-700 hover:bg-gray-50;
-  @apply focus:ring-gray-500;
-  @apply dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800;
-}
-
-/* Botão Outline Colorido */
-.btn-outline-primary {
-  @apply btn-modern;
-  @apply bg-transparent border-2 border-blue-600;
-  @apply text-blue-600 hover:bg-blue-50;
-  @apply focus:ring-blue-500;
-  @apply dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-900/20;
-}
-
-.btn-outline-success {
-  @apply btn-modern;
-  @apply bg-transparent border-2 border-green-600;
-  @apply text-green-600 hover:bg-green-50;
-  @apply focus:ring-green-500;
-  @apply dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/20;
-}
-
-.btn-outline-danger {
-  @apply btn-modern;
-  @apply bg-transparent border-2 border-red-600;
-  @apply text-red-600 hover:bg-red-50;
-  @apply focus:ring-red-500;
-  @apply dark:border-red-500 dark:text-red-400 dark:hover:bg-red-900/20;
-}
-
-/* Tamanhos */
-.btn-sm {
-  @apply px-3 py-2 text-sm;
-}
-
-.btn-lg {
-  @apply px-6 py-3 text-lg;
-}
-
-.btn-xl {
-  @apply px-8 py-4 text-xl;
-}
-
-/* Botão com Loading */
-.btn-loading {
-  @apply relative;
-}
-
-.btn-loading .btn-content {
-  @apply opacity-0;
-}
-
-.btn-loading .btn-spinner {
-  @apply absolute inset-0 flex items-center justify-center;
-}
-
-/* Botão com Ícone */
-.btn-icon {
-  @apply p-2.5;
-}
-
-.btn-icon.btn-sm {
-  @apply p-2;
-}
-
-.btn-icon.btn-lg {
-  @apply p-3;
-}
-
-/* Botão Full Width */
-.btn-full {
-  @apply w-full;
-}
-
-/* Botão Rounded */
-.btn-rounded {
-  @apply rounded-full;
-}
-
-/* Botão Ghost (sem background) */
-.btn-ghost {
-  @apply btn-modern;
-  @apply bg-transparent hover:bg-gray-100;
-  @apply text-gray-700 hover:text-gray-900;
-  @apply focus:ring-gray-500;
-  @apply dark:hover:bg-gray-800 dark:text-gray-300 dark:hover:text-white;
-}
-
-/* Botão Link */
-.btn-link {
-  @apply btn-modern;
-  @apply bg-transparent underline-offset-4;
-  @apply text-blue-600 hover:text-blue-800 hover:underline;
-  @apply focus:ring-blue-500;
-  @apply dark:text-blue-400 dark:hover:text-blue-300;
-}
-
-/* Estados Especiais */
-.btn-loading {
-  @apply cursor-wait;
-}
-
-.btn-disabled {
-  @apply opacity-50 cursor-not-allowed;
-}
-
-/* ===== SISTEMA DE CARDS MODERNOS - ZYKOR ===== */
-
-/* Card Base */
-.card-modern {
-  @apply bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700;
-  @apply shadow-sm hover:shadow-lg transition-all duration-300 ease-in-out;
-}
-
-/* Card com Gradiente */
-.card-gradient {
-  @apply card-modern;
-  @apply bg-gradient-to-br from-white to-gray-50;
-  @apply dark:from-gray-800 dark:to-gray-900;
-}
-
-/* Card de Integração */
-.card-integration {
-  @apply card-modern;
-  @apply p-6 hover:shadow-xl;
-  @apply border-l-4 border-l-blue-500;
-  @apply dark:border-l-blue-400;
-}
-
-/* Card de Status */
-.card-status {
-  @apply card-modern;
-  @apply p-4 text-center;
-  @apply border-l-4;
-}
-
-.card-status.success {
-  @apply border-l-green-500 bg-green-50 dark:bg-green-900/20;
-}
-
-.card-status.warning {
-  @apply border-l-yellow-500 bg-yellow-50 dark:bg-yellow-900/20;
-}
-
-.card-status.error {
-  @apply border-l-red-500 bg-red-50 dark:bg-red-900/20;
-}
-
-.card-status.info {
-  @apply border-l-blue-500 bg-blue-50 dark:bg-blue-900/20;
-}
-
-/* ===== SISTEMA DE LAYOUTS - ZYKOR ===== */
-
-/* Container Principal */
-.container-modern {
-  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
-}
-
-/* Grid de Integrações */
-.grid-integrations {
-  @apply grid gap-6;
-  @apply grid-cols-1 md:grid-cols-2 lg:grid-cols-3;
-}
-
-/* Seção de Integração */
-.section-integration {
-  @apply space-y-6;
-}
-
-/* Header de Seção */
-.section-header {
-  @apply flex items-center justify-between;
-  @apply mb-8 pb-4 border-b border-gray-200 dark:border-gray-700;
-}
-
-.section-title {
-  @apply text-2xl font-bold text-gray-900 dark:text-white;
-}
-
-.section-subtitle {
-  @apply text-gray-600 dark:text-gray-400 mt-1;
-}
-
-/* Badge de Status */
-.badge-status {
-  @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium;
-  @apply transition-all duration-200;
-}
-
-.badge-status.active {
-  @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
-}
-
-.badge-status.inactive {
-  @apply bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200;
-}
-
-.badge-status.error {
-  @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200;
-}
-
-.badge-status.warning {
-  @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200;
-}
-
-.badge-status.pending {
-  @apply bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200;
-}
-
-/* Ícone de Integração */
-.icon-integration {
-  @apply p-3 rounded-xl;
-  @apply bg-blue-500;
-  @apply text-white shadow-lg;
-  @apply transition-all duration-300;
-}
-
-.icon-integration:hover {
-  @apply bg-blue-600;
-  @apply shadow-xl;
-}
-
-/* Lista de Features */
-.features-list {
-  @apply space-y-2 mt-4;
-}
-
-.feature-item {
-  @apply flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400;
-}
-
-.feature-item::before {
-  content: '✓';
-  @apply text-green-500 font-bold;
-}
-
-/* Botões de Ação */
-.actions-group {
-  @apply flex gap-3 mt-6;
-}
-
-.action-primary {
-  @apply btn-primary flex-1;
-}
-
-.action-secondary {
-  @apply btn-outline flex-1;
-}
-
-.action-icon {
-  @apply btn-icon btn-outline;
-}
-
-/* Responsividade para Cards */
-@media (max-width: 768px) {
-  .grid-integrations {
-    @apply grid-cols-1;
-  }
-
-  .card-integration {
-    @apply p-4;
-  }
-
-  .actions-group {
-    @apply flex-col;
-  }
-}
-
-/* ===== SISTEMA DE ACESSIBILIDADE - ZYKOR ===== */
-
-/* Classes para acessibilidade WCAG 2.1 AA */
-
-/* Alto contraste */
-.high-contrast {
-  --zykor-text-primary: #000000;
-  --zykor-text-secondary: #000000; 
-  --zykor-bg-light: #ffffff;
-  --zykor-bg-dark: #000000;
-}
-
-.dark.high-contrast {
-  --zykor-text-primary: #ffffff;
-  --zykor-text-secondary: #ffffff;
-  --zykor-bg-light: #000000;
-  --zykor-bg-dark: #ffffff;
-}
-
-/* Tamanhos de fonte */
-[data-font-size="small"] {
-  font-size: 87.5%; /* 14px base */
-}
-
-[data-font-size="medium"] {
-  font-size: 100%; /* 16px base - padrão */
-}
-
-[data-font-size="large"] {
-  font-size: 112.5%; /* 18px base */
-}
-
-[data-font-size="extra-large"] {
-  font-size: 125%; /* 20px base */
-}
-
-/* Movimento reduzido */
-.reduced-motion * {
-  animation-duration: 0.01ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 0.01ms !important;
-  scroll-behavior: auto !important;
-}
-
-/* Navegação por teclado */
-.keyboard-navigation *:focus {
-  outline: 2px solid #4A90E2 !important;
-  outline-offset: 2px !important;
-}
-
-/* Screen reader only */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.sr-only:focus {
-  position: static;
-  width: auto;
-  height: auto;
-  padding: inherit;
-  margin: inherit;
-  overflow: visible;
-  clip: auto;
-  white-space: normal;
-}
-
-/* Skip links */
-.skip-link {
-  position: absolute;
-  top: -40px;
-  left: 6px;
-  background: #4A90E2;
-  color: white;
-  padding: 8px 16px;
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
   border-radius: 4px;
-  text-decoration: none;
-  z-index: 9999;
-  font-weight: 600;
 }
 
-.skip-link:focus {
-  top: 6px;
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
 }
 
-/* Focus dentro de cards e componentes */
-.card-dark:focus-within {
-  ring-width: 2px;
-  ring-color: #4A90E2;
-  ring-offset-width: 2px;
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
 }
 
-/* ===== SISTEMA DE CARDS MODERNOS AVANÇADOS - ZYKOR ===== */
-
-/* Card com Efeitos Modernos */
-.card-modern-advanced {
-  @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700;
-  @apply shadow-2xl transition-all duration-500 rounded-3xl overflow-hidden;
-  @apply relative;
-}
-
-.card-modern-advanced:hover {
-  @apply shadow-2xl;
-}
-
-.card-modern-advanced.group::before {
-  @apply absolute inset-0 bg-gradient-to-r from-orange-500/5 to-red-500/5;
-  @apply opacity-0 transition-opacity duration-500;
-  content: '';
-}
-
-.card-modern-advanced.group:hover::before {
-  @apply opacity-100;
-}
-
-/* Card com Gradiente Sutil */
-.card-gradient-subtle {
-  @apply bg-gradient-to-br from-white/10 to-white/5 dark:from-gray-800/10 dark:to-gray-800/5;
-  @apply backdrop-blur-xl border border-white/20 dark:border-gray-700/20;
-  @apply shadow-2xl transition-all duration-500 rounded-3xl overflow-hidden;
-}
-
-.card-gradient-subtle:hover {
-  @apply shadow-2xl;
-}
-
-/* Botões Modernos com Gradiente */
-.btn-gradient-primary {
-  @apply bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700;
-  @apply text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300;
-  @apply px-6 py-3 rounded-xl font-medium;
-}
-
-.btn-gradient-secondary {
-  @apply bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700;
-  @apply text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300;
-  @apply px-6 py-3 rounded-xl font-medium;
-}
-
-.btn-gradient-copy {
-  @apply bg-gradient-to-br from-blue-500 to-purple-600 border-0 text-white;
-  @apply hover:from-blue-600 hover:to-purple-700 shadow-lg;
-}
-
-/* Inputs Modernos */
-.input-modern {
-  @apply bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600;
-  @apply text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400;
-  @apply font-mono text-sm;
-}
-
-/* Containers de Status Modernos */
-.status-container {
-  @apply p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700;
-  @apply flex items-center justify-between;
-}
-
-.status-label {
-  @apply text-sm font-medium text-gray-900 dark:text-white;
-}
-
-.status-value {
-  @apply text-sm text-gray-600 dark:text-gray-300;
-}
-
-/* Badges Modernos */
-.badge-modern {
-  @apply bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200;
-  @apply border-gray-300 dark:border-gray-600;
-}
-
-/* Ícones Modernos */
-.icon-modern {
-  @apply p-2 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl shadow-lg;
-  @apply text-white;
-}
-
-.icon-modern-blue {
-  @apply p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl shadow-lg;
-  @apply text-white;
-}
-
-/* Estados de Loading Modernos */
-.loading-modern {
-  @apply animate-spin rounded-full h-10 w-10 border-4 border-orange-500 border-t-transparent;
-}
-
-/* Estados de Erro Modernos */
-.error-state-modern {
-  @apply text-center py-12;
-}
-
-.error-icon-modern {
-  @apply p-4 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-3xl;
-  @apply border border-yellow-500/30 inline-block mb-6;
-}
-
-.error-text-modern {
-  @apply text-gray-600 dark:text-gray-300 text-lg;
-}
-
-/* ===== ANIMAÇÕES DE PERFORMANCE (CSS puro) ===== */
-
-/* Fade In - mais leve que framer-motion */
+/* ===== ANIMAÇÕES MINIMALISTAS ===== */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.2s ease-out forwards;
+  animation: fadeIn 0.15s ease-out;
 }
 
-/* Slide Down para submenus */
 @keyframes slideDown {
   from { 
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateY(-4px);
   }
   to { 
     opacity: 1;
@@ -1270,154 +143,26 @@ button > * {
 }
 
 .animate-slideDown {
-  animation: slideDown 0.2s ease-out forwards;
+  animation: slideDown 0.15s ease-out;
 }
 
-/* Slide Up */
-@keyframes slideUp {
-  from { 
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to { 
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-slideUp {
-  animation: slideUp 0.2s ease-out forwards;
-}
-
-/* Scale In */
-@keyframes scaleIn {
-  from { 
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to { 
-    opacity: 1;
-    transform: scale(1);
+/* ===== UTILITY CLASSES ===== */
+@layer utilities {
+  /* Classe para garantir que botões com ícones sempre fiquem em linha */
+  .btn-with-icon {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
   }
 }
 
-.animate-scaleIn {
-  animation: scaleIn 0.2s ease-out forwards;
-}
 
-/* Slide In from Left */
-@keyframes slideInLeft {
-  from { 
-    opacity: 0;
-    transform: translateX(-20px);
-  }
-  to { 
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.animate-slideInLeft {
-  animation: slideInLeft 0.3s ease-out forwards;
-}
-
-/* Slide In from Right */
-@keyframes slideInRight {
-  from { 
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  to { 
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.animate-slideInRight {
-  animation: slideInRight 0.3s ease-out forwards;
-}
-
-/* ===== OTIMIZAÇÕES DE PERFORMANCE ===== */
-
-/* Reduce motion for users who prefer it */
+/* ===== REDUCE MOTION ===== */
 @media (prefers-reduced-motion: reduce) {
-  .animate-fadeIn,
-  .animate-slideDown,
-  .animate-slideUp,
-  .animate-scaleIn,
-  .animate-slideInLeft,
-  .animate-slideInRight,
-  .animate-pulse,
-  .animate-spin {
-    animation: none !important;
-    transition: none !important;
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
-}
-
-/* GPU acceleration for smooth animations */
-.gpu-accelerated {
-  transform: translateZ(0);
-  will-change: transform, opacity;
-  backface-visibility: hidden;
-}
-
-/* Contain paint for better performance */
-.paint-contained {
-  contain: paint;
-}
-
-/* Content visibility for lazy rendering */
-.content-auto {
-  content-visibility: auto;
-  contain-intrinsic-size: 200px;
-}
-
-/* 🚀 Virtualização CSS para tabelas grandes */
-.virtualized-row {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 40px;
-}
-
-.virtualized-section {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 300px;
-}
-
-/* 🚀 Otimização para scroll suave */
-.smooth-scroll {
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* 🚀 Contain layout para evitar reflows */
-.layout-contained {
-  contain: layout style;
-}
-
-/* 🚀 Tabelas otimizadas */
-.table-optimized {
-  table-layout: fixed;
-  will-change: scroll-position;
-}
-
-.table-optimized tbody tr {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 44px;
-}
-
-/* 🚀 Skeletal loading shimmer otimizado */
-.skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    hsl(var(--muted)) 0%,
-    hsl(var(--muted) / 0.5) 50%,
-    hsl(var(--muted)) 100%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s ease-in-out infinite;
-}
-
-@keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
 }

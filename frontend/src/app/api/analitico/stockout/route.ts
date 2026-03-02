@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
       query = query
         .neq('loc_desc', 'Pegue e Pague')
         .neq('loc_desc', 'Venda Volante')
+        .neq('loc_desc', 'Baldes') // Produtos do local Baldes não devem aparecer
         .not('loc_desc', 'is', null); // Excluir "Sem local definido"
       
       // PRODUTOS COM PREFIXOS A IGNORAR (usando % em ambos os lados para pegar espaços)
@@ -118,6 +119,7 @@ export async function POST(request: NextRequest) {
       // Produtos podem pertencer a grupos específicos sem ter o nome do grupo no nome do produto
       // IMPORTANTE: Usar exatamente como está no ContaHub (case-sensitive)
       query = query
+        .not('raw_data->>grp_desc', 'eq', 'Baldes')
         .not('raw_data->>grp_desc', 'eq', 'Happy Hour')
         .not('raw_data->>grp_desc', 'eq', 'Chegadeira')
         .not('raw_data->>grp_desc', 'eq', 'Dose dupla')
@@ -132,7 +134,8 @@ export async function POST(request: NextRequest) {
         .not('raw_data->>grp_desc', 'eq', 'Promo chivas')
         .not('raw_data->>grp_desc', 'eq', 'Promo Chivas')
         .not('raw_data->>grp_desc', 'eq', 'Uso interno')
-        .not('raw_data->>grp_desc', 'eq', 'Uso Interno');
+        .not('raw_data->>grp_desc', 'eq', 'Uso Interno')
+        .not('raw_data->>grp_desc', 'eq', 'Pegue e Pague');
       
       // PRODUTOS DOSE DUPLA (excluir - são variações que não devem contar no stockout)
       // Inclui "Dose Dulpa" que é um typo comum

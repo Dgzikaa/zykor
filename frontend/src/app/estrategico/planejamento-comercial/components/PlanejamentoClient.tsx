@@ -309,6 +309,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
   const anos = [2025, 2026];
 
   const totaisAgregados = useMemo(() => {
+    // Realizado = APENAS soma das receitas reais (não inclui planejado)
+    const realizado = dados.reduce((sum, evento) => {
+      return sum + (evento.real_receita || 0);
+    }, 0);
+    
+    // Empilhamento = Realizado + Planejado dos eventos que ainda não aconteceram
     const empilhamento = dados.reduce((sum, evento) => {
       if (evento.real_receita && evento.real_receita > 0) return sum + evento.real_receita;
       return sum + (evento.m1_receita || 0);
@@ -327,16 +333,16 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
     // Total de clientes
     const totalClientes = eventosRealizados.reduce((sum, e) => sum + (e.clientes_real || 0), 0);
     
-    // Ticket médio geral
-    const ticketMedioGeral = totalClientes > 0 ? empilhamento / totalClientes : 0;
+    // Ticket médio geral (baseado no realizado, não no empilhamento)
+    const ticketMedioGeral = totalClientes > 0 ? realizado / totalClientes : 0;
     
     // Custos totais
     const custoArtistico = eventosRealizados.reduce((sum, e) => sum + (e.c_art || 0), 0);
     const custoProducao = eventosRealizados.reduce((sum, e) => sum + (e.c_prod || 0), 0);
     const custoTotal = custoArtistico + custoProducao;
     
-    // % Custo sobre faturamento
-    const percentCustoFat = empilhamento > 0 ? (custoTotal / empilhamento) * 100 : 0;
+    // % Custo sobre faturamento (baseado no realizado)
+    const percentCustoFat = realizado > 0 ? (custoTotal / realizado) * 100 : 0;
     
     // Médias de tickets
     const eventosComTE = dados.filter(e => e.te_plan > 0);
@@ -350,6 +356,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
     const mediaPercentC = eventosRealizados.length > 0 ? eventosRealizados.reduce((sum, e) => sum + (e.percent_c || 0), 0) / eventosRealizados.length : 0;
     
     return { 
+      realizado,
       empilhamento, 
       metaM1, 
       gap, 
@@ -371,40 +378,13 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
   }, [dados]);
 
   return (
-    <div className="h-[calc(100vh-80px)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
-      {/* Header Fixo - Controles */}
-      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
-        <div className="max-w-full mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Select value={filtroMes.toString()} onValueChange={(value) => alterarPeriodo(parseInt(value), filtroAno)}>
-                <SelectTrigger className="w-32 bg-white dark:bg-gray-700 h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {meses.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={filtroAno.toString()} onValueChange={(value) => alterarPeriodo(filtroMes, parseInt(value))}>
-                <SelectTrigger className="w-24 bg-white dark:bg-gray-700 h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {anos.map(a => <SelectItem key={a} value={a.toString()}>{a}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Conteúdo com scroll único */}
-      <div className="flex-1 overflow-auto relative">
+    <>
+      <div className="flex flex-col">
         {dados.length === 0 ? (
           <div className="container mx-auto px-4 py-8">
             <Card className="card-dark p-8">
               <div className="text-center">
-                <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                <Calendar className="h-12 w-12 mx-auto mb-4 text-[hsl(var(--muted-foreground))]" />
                 <h3 className="card-title-dark mb-2">Nenhum evento encontrado</h3>
                 <p className="card-description-dark">
                   Não há eventos cadastrados para {meses.find(m => m.value === filtroMes)?.label} de {filtroAno}
@@ -416,34 +396,18 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
           <div className="container mx-auto px-2 py-4 max-w-[98vw]">
             <div className="flex gap-4">
               <div className="flex-1 hidden md:block">
-                {/* Botões de Controle */}
-                <div className="mb-2 flex gap-2">
-                  <Button size="sm" variant="outline" onClick={expandirTodos} className="h-8">
-                    <div className="flex items-center gap-1.5">
-                      <Maximize2 className="h-3.5 w-3.5" />
-                      <span>Expandir Todos</span>
-                    </div>
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={recolherTodos} className="h-8">
-                    <div className="flex items-center gap-1.5">
-                      <Minimize2 className="h-3.5 w-3.5" />
-                      <span>Recolher Todos</span>
-                    </div>
-                  </Button>
-                </div>
-                
                 {/* Tabela Completa */}
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-auto max-h-[calc(100vh-240px)]">
+                <div className="bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-xl shadow-sm overflow-auto max-h-[calc(100vh-120px)]">
                   <table className="text-[10px] w-full min-w-max" style={{borderCollapse: 'separate', borderSpacing: 0}}>
-                    <thead className="bg-gray-50 dark:bg-gray-800">
+                    <thead className="bg-[hsl(var(--muted))]/50">
                       {/* Primeira linha - Grupos colapsáveis */}
-                      <tr className="sticky top-0 z-30 bg-gray-50 dark:bg-gray-800 border-b-2 border-gray-300 dark:border-gray-600">
-                        <th colSpan={5} className="border-r-2 border-gray-400 dark:border-gray-500 bg-gray-50 dark:bg-gray-800"></th>
-                        
+                      <tr className="sticky top-0 z-30 bg-[hsl(var(--muted))]/95 backdrop-blur-sm border-b-2 border-[hsl(var(--border))]">
+                        <th colSpan={5} className="border-r-2 border-[hsl(var(--border))] bg-[hsl(var(--muted))]/50"></th>
+
                         {/* Grupo CLIENTES */}
-                        <th 
+                        <th
                           colSpan={gruposAbertos.clientes ? 5 : 1}
-                          className="px-3 py-2 text-center font-semibold text-[11px] text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border-r-2 border-blue-400 dark:border-blue-500 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                          className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('clientes')}
                         >
                           <div className="flex items-center justify-center gap-1.5">
@@ -454,9 +418,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         </th>
                         
                         {/* Grupo TICKET */}
-                        <th 
+                        <th
                           colSpan={gruposAbertos.ticket ? 5 : 1}
-                          className="px-3 py-2 text-center font-semibold text-[11px] text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border-r-2 border-purple-400 dark:border-purple-500 cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                          className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('ticket')}
                         >
                           <div className="flex items-center justify-center gap-1.5">
@@ -467,9 +431,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         </th>
                         
                         {/* Grupo ANÁLISES */}
-                        <th 
+                        <th
                           colSpan={gruposAbertos.analises ? 9 : 1}
-                          className="px-3 py-2 text-center font-semibold text-[11px] text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/20 border-r-2 border-orange-400 dark:border-orange-500 cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                          className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('analises')}
                         >
                           <div className="flex items-center justify-center gap-1.5">
@@ -479,59 +443,59 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                           </div>
                         </th>
                         
-                        <th className="px-3 py-2 text-center font-medium text-gray-700 dark:text-gray-300" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Ações</th>
+                        <th className="px-3 py-2 text-center font-medium text-[hsl(var(--foreground))]" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Ações</th>
                       </tr>
                       
                       {/* Segunda linha - Headers principais e subcolunas */}
-                      <tr className="sticky top-[32px] z-30 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-600">
+                      <tr className="sticky top-[32px] z-30 bg-[hsl(var(--muted))]/95 backdrop-blur-sm border-b border-[hsl(var(--border))]">
                         {/* Colunas Fixas */}
-                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-300 border-r border-gray-300 dark:border-gray-600 sticky left-0 bg-gray-50 dark:bg-gray-800 z-40" style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>Data</th>
-                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-300 border-r border-gray-300 dark:border-gray-600 sticky left-[48px] bg-gray-50 dark:bg-gray-800 z-40" style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>Dia</th>
-                        <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-700 dark:text-gray-300 border-r-2 border-gray-400 dark:border-gray-500 sticky left-[86px] bg-gray-50 dark:bg-gray-800 z-40" style={{width: '140px', minWidth: '140px', maxWidth: '140px'}}>Artista</th>
-                        <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-300 border-r border-gray-300 dark:border-gray-600" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}>Receita Real</th>
-                        <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-300 border-r-2 border-gray-400 dark:border-gray-500" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}>Meta M1</th>
+                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-0 bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>Data</th>
+                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[48px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>Dia</th>
+                        <th className="px-2 py-2 text-left text-[11px] font-semibold border-r-2 border-[hsl(var(--border))] sticky left-[86px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '140px', minWidth: '140px', maxWidth: '140px'}}>Artista</th>
+                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}>Receita Real</th>
+                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))]" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}>Meta M1</th>
                         
                         {/* Subcolunas CLIENTES */}
                         {gruposAbertos.clientes ? (
                           <>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Clientes Planejado</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Clientes Reais</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Reservas Total</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Reservas Presentes</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border-r-2 border-blue-400 dark:border-blue-500" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Lotação Máxima</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Clientes Planejado</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Clientes Reais</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Reservas Total</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Reservas Presentes</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Lotação Máxima</th>
                           </>
                         ) : (
-                          <th className="border-r-2 border-blue-400 dark:border-blue-500 bg-blue-50/50 dark:bg-blue-900/10"></th>
+                          <th className="border-r-2 border-[hsl(var(--border))]"></th>
                         )}
                         
                         {/* Subcolunas TICKET */}
                         {gruposAbertos.ticket ? (
                           <>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Entrada Planejado</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Entrada Real</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Bar Planejado</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Bar Real</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-purple-50/50 dark:bg-purple-900/10 border-r-2 border-purple-400 dark:border-purple-500" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Ticket Médio</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Entrada Planejado</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Entrada Real</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Bar Planejado</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Bar Real</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Ticket Médio</th>
                           </>
                         ) : (
-                          <th className="border-r-2 border-purple-400 dark:border-purple-500 bg-purple-50/50 dark:bg-purple-900/10"></th>
+                          <th className="border-r-2 border-[hsl(var(--border))]"></th>
                         )}
                         
                         {/* Subcolunas ANÁLISES */}
                         {gruposAbertos.analises ? (
                           <>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-orange-50/50 dark:bg-orange-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Custo Artístico</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-orange-50/50 dark:bg-orange-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Custo Produção</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-orange-50/50 dark:bg-orange-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Art/Fat</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-orange-50/50 dark:bg-orange-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Bebidas</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-orange-50/50 dark:bg-orange-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Drinks</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-orange-50/50 dark:bg-orange-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Cozinha</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-orange-50/50 dark:bg-orange-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Stockout</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-orange-50/50 dark:bg-orange-900/10 border-r border-gray-200 dark:border-gray-700" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Tempo Cozinha</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400 bg-orange-50/50 dark:bg-orange-900/10 border-r-2 border-orange-400 dark:border-orange-500" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Tempo Bar</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))]  border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Custo Artístico</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))]  border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Custo Produção</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))]  border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Art/Fat</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))]  border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Bebidas</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))]  border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Drinks</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))]  border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Cozinha</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))]  border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Stockout</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))]  border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Tempo Cozinha</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))]  border-r-2 border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Tempo Bar</th>
                           </>
                         ) : (
-                          <th className="border-r-2 border-orange-400 dark:border-orange-500 bg-orange-50/50 dark:bg-orange-900/10"></th>
+                          <th className="border-r-2 border-[hsl(var(--border))] "></th>
                         )}
                         
                         <th style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}></th>
@@ -552,65 +516,65 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                           const isNewWeek = previousWeek !== null && currentWeek !== previousWeek;
                           
                           return (
-                          <tr 
+                          <tr
                             key={evento.evento_id} 
                             onClick={() => setLinhaHighlight(idx)}
-                            className={`cursor-pointer transition-colors ${
-                              isNewWeek ? 'border-t-4 border-gray-600 dark:border-gray-400' : ''
+                            className={`group cursor-pointer transition-colors ${
+                              isNewWeek ? 'border-t-4 border-[hsl(var(--border))]' : ''
                             } ${
-                              linhaHighlight === idx 
-                                ? 'bg-emerald-100 dark:bg-emerald-900/30' 
-                                : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                              linhaHighlight === idx
+                                ? 'bg-[hsl(var(--muted))]'
+                                : 'hover:bg-[hsl(var(--muted))]/30'
                             }`}
                           >
                             {/* Colunas Fixas */}
-                            <td className={`px-0.5 py-1.5 text-center text-[11px] font-medium text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700 sticky left-0 z-10 ${linhaHighlight === idx ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-white dark:bg-gray-800'}`} style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>{evento.data_curta}</td>
-                            <td className={`px-0.5 py-1.5 text-center text-[11px] text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 sticky left-[48px] z-10 ${linhaHighlight === idx ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-white dark:bg-gray-800'}`} style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
-                            <td className={`px-2 py-1.5 text-left text-[11px] text-gray-900 dark:text-white border-r-2 border-gray-400 dark:border-gray-500 sticky left-[86px] z-10 truncate ${linhaHighlight === idx ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-white dark:bg-gray-800'}`} style={{width: '140px', minWidth: '140px', maxWidth: '140px'}} title={evento.evento_nome || 'Sem atração'}>{evento.evento_nome || '-'}</td>
-                            <td className="px-2 py-1.5 text-center text-[11px] border-r border-gray-200 dark:border-gray-700" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}><span className={`font-semibold ${evento.real_vs_m1_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.real_receita > 0 ? formatarMoeda(evento.real_receita) : '-'}</span></td>
-                            <td className="px-2 py-1.5 text-center text-[11px] text-gray-600 dark:text-gray-400 border-r-2 border-gray-400 dark:border-gray-500" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
+                            <td className={`px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))] sticky left-0 z-10 transition-colors ${linhaHighlight === idx ? 'bg-[hsl(var(--muted))]' : 'bg-[hsl(var(--background))] group-hover:bg-[hsl(var(--muted))]/30'}`} style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>{evento.data_curta}</td>
+                            <td className={`px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] sticky left-[48px] z-10 transition-colors ${linhaHighlight === idx ? 'bg-[hsl(var(--muted))]' : 'bg-[hsl(var(--background))] group-hover:bg-[hsl(var(--muted))]/30'}`} style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
+                            <td className={`px-2 py-1.5 text-left text-[11px] border-r-2 border-[hsl(var(--border))] sticky left-[86px] z-10 truncate transition-colors ${linhaHighlight === idx ? 'bg-[hsl(var(--muted))]' : 'bg-[hsl(var(--background))] group-hover:bg-[hsl(var(--muted))]/30'}`} style={{width: '140px', minWidth: '140px', maxWidth: '140px'}} title={evento.evento_nome || 'Sem atração'}>{evento.evento_nome || '-'}</td>
+                            <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}><span className={`font-semibold ${evento.real_vs_m1_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.real_receita > 0 ? formatarMoeda(evento.real_receita) : '-'}</span></td>
+                            <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
                             
                             {/* Grupo CLIENTES */}
                             {gruposAbertos.clientes ? (
                               <>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-blue-50/30 dark:bg-blue-900/10" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.clientes_plan || '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-gray-200 dark:border-gray-700 bg-blue-50/30 dark:bg-blue-900/10" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.ci_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.clientes_real || '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-blue-50/30 dark:bg-blue-900/10" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.res_tot || '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-blue-50/30 dark:bg-blue-900/10" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.res_p || '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-gray-700 dark:text-gray-300 border-r-2 border-blue-400 dark:border-blue-500 bg-blue-50/30 dark:bg-blue-900/10" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.lot_max || '-'}</td>
+                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.clientes_plan || '-'}</td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.ci_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.clientes_real || '-'}</span></td>
+                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.res_tot || '-'}</td>
+                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.res_p || '-'}</td>
+                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.lot_max || '-'}</td>
                               </>
                             ) : (
-                              <td className="px-2 py-1.5 text-center text-[11px] text-gray-400 dark:text-gray-500 border-r-2 border-blue-400 dark:border-blue-500 bg-blue-50/30 dark:bg-blue-900/10" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
+                              <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] " style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
                             )}
                             
                             {/* Grupo TICKET */}
                             {gruposAbertos.ticket ? (
                               <>
-                                <td className="px-2 py-1.5 text-right text-[11px] text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-purple-50/30 dark:bg-purple-900/10" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.te_plan > 0 ? formatarMoeda(evento.te_plan) : '-'}</td>
-                                <td className="px-2 py-1.5 text-right text-[11px] border-r border-gray-200 dark:border-gray-700 bg-purple-50/30 dark:bg-purple-900/10" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.te_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.te_real > 0 ? formatarMoeda(evento.te_real) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-right text-[11px] text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-purple-50/30 dark:bg-purple-900/10" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.tb_plan > 0 ? formatarMoeda(evento.tb_plan) : '-'}</td>
-                                <td className="px-2 py-1.5 text-right text-[11px] border-r border-gray-200 dark:border-gray-700 bg-purple-50/30 dark:bg-purple-900/10" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.tb_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.tb_real > 0 ? formatarMoeda(evento.tb_real) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-right text-[11px] border-r-2 border-purple-400 dark:border-purple-500 bg-purple-50/30 dark:bg-purple-900/10" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.t_medio_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_medio > 0 ? formatarMoeda(evento.t_medio) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.te_plan > 0 ? formatarMoeda(evento.te_plan) : '-'}</td>
+                                <td className="px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.te_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.te_real > 0 ? formatarMoeda(evento.te_real) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.tb_plan > 0 ? formatarMoeda(evento.tb_plan) : '-'}</td>
+                                <td className="px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.tb_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.tb_real > 0 ? formatarMoeda(evento.tb_real) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-right text-[11px] border-r-2 border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.t_medio_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_medio > 0 ? formatarMoeda(evento.t_medio) : '-'}</span></td>
                               </>
                             ) : (
-                              <td className="px-2 py-1.5 text-center text-[11px] text-gray-400 dark:text-gray-500 border-r-2 border-purple-400 dark:border-purple-500 bg-purple-50/30 dark:bg-purple-900/10" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
+                              <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] " style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
                             )}
                             
                             {/* Grupo ANÁLISES */}
                             {gruposAbertos.analises ? (
                               <>
-                                <td className="px-2 py-1.5 text-right text-[11px] text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-orange-50/30 dark:bg-orange-900/10" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_art > 0 ? formatarMoeda(evento.c_art) : '-'}</td>
-                                <td className="px-2 py-1.5 text-right text-[11px] text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-orange-50/30 dark:bg-orange-900/10" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_prod > 0 ? formatarMoeda(evento.c_prod) : '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-gray-200 dark:border-gray-700 bg-orange-50/30 dark:bg-orange-900/10" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_art_fat_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_art_fat > 0 ? formatarPercentual(evento.percent_art_fat) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-orange-50/30 dark:bg-orange-900/10" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_b > 0 ? formatarPercentual(evento.percent_b) : '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-orange-50/30 dark:bg-orange-900/10" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_d > 0 ? formatarPercentual(evento.percent_d) : '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-orange-50/30 dark:bg-orange-900/10" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_c > 0 ? formatarPercentual(evento.percent_c) : '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-gray-200 dark:border-gray-700 bg-orange-50/30 dark:bg-orange-900/10" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_stockout <= 10 ? 'text-green-600 dark:text-green-400' : evento.percent_stockout <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_stockout > 0 ? formatarPercentual(evento.percent_stockout) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-gray-200 dark:border-gray-700 bg-orange-50/30 dark:bg-orange-900/10" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.t_coz_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_coz > 0 ? formatarTempo(evento.t_coz) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r-2 border-orange-400 dark:border-orange-500 bg-orange-50/30 dark:bg-orange-900/10" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.t_bar_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_bar > 0 ? formatarTempo(evento.t_bar) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_art > 0 ? formatarMoeda(evento.c_art) : '-'}</td>
+                                <td className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_prod > 0 ? formatarMoeda(evento.c_prod) : '-'}</td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] " style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_art_fat_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_art_fat > 0 ? formatarPercentual(evento.percent_art_fat) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_b > 0 ? formatarPercentual(evento.percent_b) : '-'}</td>
+                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_d > 0 ? formatarPercentual(evento.percent_d) : '-'}</td>
+                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_c > 0 ? formatarPercentual(evento.percent_c) : '-'}</td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] " style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_stockout <= 10 ? 'text-green-600 dark:text-green-400' : evento.percent_stockout <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_stockout > 0 ? formatarPercentual(evento.percent_stockout) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] " style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.t_coz_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_coz > 0 ? formatarTempo(evento.t_coz) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))] " style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.t_bar_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_bar > 0 ? formatarTempo(evento.t_bar) : '-'}</span></td>
                               </>
                             ) : (
-                              <td className="px-2 py-1.5 text-center text-[11px] text-gray-400 dark:text-gray-500 border-r-2 border-orange-400 dark:border-orange-500 bg-orange-50/30 dark:bg-orange-900/10" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
+                              <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] " style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
                             )}
                             
                             <td className="px-2 py-2 text-center" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>
@@ -629,73 +593,67 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
 
               {/* Sidebar */}
               <div className="w-64 flex-shrink-0 hidden md:block">
-                <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded-xl shadow-sm p-4 sticky top-4">
+                <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))] rounded-xl shadow-sm p-4 sticky top-4">
                   <div className="space-y-3">
-                    <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
-                      <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        <Filter className="h-4 w-4 text-blue-600" /> Controles
+                    <div className="border-b border-[hsl(var(--border))] pb-3">
+                      <h3 className="font-semibold flex items-center gap-2">
+                        <Filter className="h-4 w-4" /> Controles
                       </h3>
                     </div>
+                    
+                    {/* Botões de Expandir/Recolher */}
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={expandirTodos} 
+                        className="flex-1 h-8"
+                        leftIcon={<Maximize2 className="h-3.5 w-3.5" />}
+                      >
+                        Expandir
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={recolherTodos} 
+                        className="flex-1 h-8"
+                        leftIcon={<Minimize2 className="h-3.5 w-3.5" />}
+                      >
+                        Recolher
+                      </Button>
+                    </div>
+                    
                     <div>
-                      <label className="block text-sm font-medium text-gray-900 dark:text-white mb-3">Período</label>
+                      <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-3">Período</label>
                       <div className="grid grid-cols-2 gap-2">
                         <Select value={filtroMes.toString()} onValueChange={(value) => alterarPeriodo(parseInt(value), filtroAno)}>
-                          <SelectTrigger className="bg-white dark:bg-gray-700"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="bg-[hsl(var(--background))]"><SelectValue /></SelectTrigger>
                           <SelectContent>{meses.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}</SelectContent>
                         </Select>
                         <Select value={filtroAno.toString()} onValueChange={(value) => alterarPeriodo(filtroMes, parseInt(value))}>
-                          <SelectTrigger className="bg-white dark:bg-gray-700"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="bg-[hsl(var(--background))]"><SelectValue /></SelectTrigger>
                           <SelectContent>{anos.map(a => <SelectItem key={a} value={a.toString()}>{a}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     </div>
-                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3"><TrendingUp className="h-4 w-4 text-purple-600" /> Estatísticas</h3>
+                    <div className="pt-4 border-t border-[hsl(var(--border))]">
+                      <h3 className="font-semibold text-[hsl(var(--foreground))] flex items-center gap-2 mb-3"><TrendingUp className="h-4 w-4" /> Estatísticas</h3>
                       <div className="space-y-3 text-xs">
-                         <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
-                            <div className="flex justify-between mb-1"><span>Meta M1:</span> <span className="font-medium text-gray-900 dark:text-white">{formatarMoeda(totaisAgregados.metaM1)}</span></div>
-                            <div className="flex justify-between mb-1"><span>Realizado:</span><span className={`font-medium ${totaisAgregados.empilhamento >= totaisAgregados.metaM1 ? 'text-green-600' : 'text-red-600'}`}>{formatarMoeda(totaisAgregados.empilhamento)}</span></div>
-                            <div className="flex justify-between mb-1"><span>Atingido:</span><span className="font-medium text-blue-600 dark:text-blue-400">{totaisAgregados.metaM1 > 0 ? ((totaisAgregados.empilhamento / totaisAgregados.metaM1) * 100).toFixed(1) : '0.0'}%</span></div>
-                            <div className="flex justify-between"><span>Falta faturar:</span><span className="font-medium text-orange-600">{formatarMoeda(Math.max(0, totaisAgregados.metaM1 - totaisAgregados.empilhamento))}</span></div>
-                         </div>
-                         <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded border border-blue-200 dark:border-blue-800">
-                            <div className="flex justify-between items-center mb-1"><span className="text-blue-700 dark:text-blue-300 font-medium">Empilhamento M1:</span><span className="font-bold text-blue-800 dark:text-blue-200">{formatarMoeda(totaisAgregados.empilhamento)}</span></div>
-                            <div className="flex justify-between items-center mt-1 pt-1 border-t border-blue-200 dark:border-blue-700"><span className="text-xs text-blue-600 dark:text-blue-400 font-medium">GAP:</span><span className={totaisAgregados.isPositive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>{totaisAgregados.isPositive ? "+" : ""}{formatarMoeda(totaisAgregados.gap)} ({totaisAgregados.isPositive ? "+" : ""}{totaisAgregados.gapPercent.toFixed(1)}%)</span></div>
+                         <div className="space-y-1.5">
+                            <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Meta M1:</span> <span className="font-medium text-[hsl(var(--foreground))]">{formatarMoeda(totaisAgregados.metaM1)}</span></div>
+                            <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Realizado:</span><span className={`font-medium ${totaisAgregados.realizado >= totaisAgregados.metaM1 ? 'text-green-600' : 'text-red-600'}`}>{formatarMoeda(totaisAgregados.realizado)}</span></div>
+                            <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Atingido:</span><span className="font-medium">{totaisAgregados.metaM1 > 0 ? ((totaisAgregados.realizado / totaisAgregados.metaM1) * 100).toFixed(1) : '0.0'}%</span></div>
+                            <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Falta faturar:</span><span className={`font-medium ${totaisAgregados.metaM1 - totaisAgregados.realizado > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{formatarMoeda(totaisAgregados.metaM1 - totaisAgregados.realizado)}</span></div>
                          </div>
                          
-                         <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
-                            <div className="flex justify-between mb-1"><span>Período:</span><span className="font-medium text-gray-900 dark:text-white">{meses.find(m => m.value === filtroMes)?.label} {filtroAno}</span></div>
-                            <div className="flex justify-between"><span>Eventos:</span><span className="font-medium text-gray-900 dark:text-white">{totaisAgregados.totalEventosRealizados} / {totaisAgregados.totalEventos}</span></div>
+                         <div className="pt-3 border-t border-[hsl(var(--border))]">
+                            <div className="flex justify-between items-center mb-1.5"><span className="font-medium">Empilhamento M1:</span><span className="font-bold">{formatarMoeda(totaisAgregados.empilhamento)}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">GAP:</span><span className={totaisAgregados.isPositive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>{totaisAgregados.isPositive ? "+" : ""}{formatarMoeda(totaisAgregados.gap)} ({totaisAgregados.isPositive ? "+" : ""}{totaisAgregados.gapPercent.toFixed(1)}%)</span></div>
                          </div>
                          
-                         <div className="bg-purple-50 dark:bg-purple-900/20 p-2 rounded border border-purple-200 dark:border-purple-800">
-                            <div className="flex justify-between mb-1"><span className="text-purple-700 dark:text-purple-300">T.M Entrada:</span><span className="font-medium text-purple-800 dark:text-purple-200">{formatarMoeda(totaisAgregados.mediaTEReal)}</span></div>
-                            <div className="flex justify-between mb-1"><span className="text-purple-700 dark:text-purple-300">T.M Entrada Real:</span><span className="font-medium text-green-600 dark:text-green-400">{formatarMoeda(totaisAgregados.mediaTEReal)}</span></div>
-                         </div>
-                         
-                         <div className="bg-purple-50 dark:bg-purple-900/20 p-2 rounded border border-purple-200 dark:border-purple-800">
-                            <div className="flex justify-between mb-1"><span className="text-purple-700 dark:text-purple-300">T.M Bar:</span><span className="font-medium text-purple-800 dark:text-purple-200">{formatarMoeda(totaisAgregados.mediaTBReal)}</span></div>
-                            <div className="flex justify-between mb-1"><span className="text-purple-700 dark:text-purple-300">T.M Bar Real:</span><span className="font-medium text-green-600 dark:text-green-400">{formatarMoeda(totaisAgregados.mediaTBReal)}</span></div>
-                         </div>
-                         
-                         <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
-                            <div className="flex justify-between mb-1"><span>Meta T.Coz:</span><span className="font-medium text-gray-900 dark:text-white">12.0min</span></div>
-                            <div className="flex justify-between mb-1"><span>T.Coz Real:</span><span className="font-medium text-green-600 dark:text-green-400">{(dados.filter(e => e.t_coz > 0).reduce((sum, e) => sum + e.t_coz, 0) / Math.max(1, dados.filter(e => e.t_coz > 0).length)).toFixed(1)}min</span></div>
-                         </div>
-                         
-                         <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
-                            <div className="flex justify-between mb-1"><span>Meta T.Bar:</span><span className="font-medium text-gray-900 dark:text-white">4.0min</span></div>
-                            <div className="flex justify-between mb-1"><span>T.Bar Real:</span><span className="font-medium text-red-600 dark:text-red-400">{(dados.filter(e => e.t_bar > 0).reduce((sum, e) => sum + e.t_bar, 0) / Math.max(1, dados.filter(e => e.t_bar > 0).length)).toFixed(1)}min</span></div>
-                         </div>
-                         
-                         <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
-                            <div className="flex justify-between mb-1"><span>Meta Clientes:</span><span className="font-medium text-gray-900 dark:text-white">{dados.reduce((sum, e) => sum + (e.clientes_plan || 0), 0).toLocaleString()}</span></div>
-                            <div className="flex justify-between"><span>Clientes Real:</span><span className="font-medium text-green-600 dark:text-green-400">{totaisAgregados.totalClientes.toLocaleString()}</span></div>
-                         </div>
-                         
-                         <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
-                            <div className="flex justify-between mb-1"><span>Meta Reservas Presentes:</span><span className="font-medium text-gray-900 dark:text-white">{dados.reduce((sum, e) => sum + (e.res_tot || 0), 0).toLocaleString()}</span></div>
-                            <div className="flex justify-between"><span>Reservas Presentes Real:</span><span className="font-medium text-green-600 dark:text-green-400">{dados.reduce((sum, e) => sum + (e.res_p || 0), 0).toLocaleString()}</span></div>
+                         <div className="pt-3 border-t border-[hsl(var(--border))] space-y-1.5">
+                            <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Período:</span><span className="font-medium text-[hsl(var(--foreground))]">{meses.find(m => m.value === filtroMes)?.label} {filtroAno}</span></div>
+                            <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Eventos:</span><span className="font-medium text-[hsl(var(--foreground))]">{totaisAgregados.totalEventosRealizados} / {totaisAgregados.totalEventos}</span></div>
                          </div>
                       </div>
                     </div>
@@ -707,32 +665,33 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
         )}
       </div>
 
+      {/* Modal de Edição/Visualização */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-            <DialogContent className="max-w-[70vw] max-h-[85vh] p-0 overflow-hidden rounded-lg shadow-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
-              <DialogHeader className="bg-gray-50 dark:bg-gray-800 p-4 border-b border-gray-200 dark:border-gray-700"><DialogTitle className="flex items-center gap-3 text-xl font-semibold text-gray-900 dark:text-white"><BarChart3 className="h-6 w-6 text-gray-600 dark:text-gray-400" />{modoEdicao ? 'Editar Evento' : 'Visualizar Evento'} - {eventoEdicao?.nome}</DialogTitle><DialogDescription>{modoEdicao ? 'Edite os dados planejados e reais' : 'Comparativo Planejado vs Realizado'}</DialogDescription></DialogHeader>
+            <DialogContent className="max-w-[70vw] max-h-[85vh] p-0 overflow-hidden rounded-lg shadow-lg bg-[hsl(var(--background))] border border-[hsl(var(--border))]">
+              <DialogHeader className="bg-[hsl(var(--muted))] p-4 border-b border-[hsl(var(--border))]"><DialogTitle className="flex items-center gap-3 text-xl font-semibold text-[hsl(var(--foreground))]"><BarChart3 className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />{modoEdicao ? 'Editar Evento' : 'Visualizar Evento'} - {eventoEdicao?.nome}</DialogTitle><DialogDescription>{modoEdicao ? 'Edite os dados planejados e reais' : 'Comparativo Planejado vs Realizado'}</DialogDescription></DialogHeader>
               <div className="flex-1 overflow-y-auto p-3">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                    <div className="space-y-3">
                       <div className="flex items-center gap-3 mb-2 pb-2 border-b"><div className="w-3 h-3 bg-blue-500 rounded-full"></div><h2 className="font-semibold">PLANEJADO</h2></div>
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded border"><Label>Receita M1</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.m1_r || 0} onChange={e => setEventoEdicao(p => p ? {...p, m1_r: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-white dark:bg-gray-700 rounded border">{formatarMoeda(eventoEdicao?.m1_r)}</div>}</div>
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded border"><Label>Clientes</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.cl_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, cl_plan: parseInt(e.target.value)} : null)} /> : <div className="p-2 bg-white dark:bg-gray-700 rounded border">{(eventoEdicao?.cl_plan || 0).toLocaleString()}</div>}</div>
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded border"><Label>Ticket Entrada</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.te_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, te_plan: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-white dark:bg-gray-700 rounded border">{formatarMoeda(eventoEdicao?.te_plan)}</div>}</div>
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded border"><Label>Ticket Bar</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.tb_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, tb_plan: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-white dark:bg-gray-700 rounded border">{formatarMoeda(eventoEdicao?.tb_plan)}</div>}</div>
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded border"><Label>Custo Artístico</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.c_artistico_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_artistico_plan: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-white dark:bg-gray-700 rounded border">{formatarMoeda(eventoEdicao?.c_artistico_plan)}</div>}</div>
+                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Receita M1</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.m1_r || 0} onChange={e => setEventoEdicao(p => p ? {...p, m1_r: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.m1_r)}</div>}</div>
+                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Clientes</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.cl_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, cl_plan: parseInt(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{(eventoEdicao?.cl_plan || 0).toLocaleString()}</div>}</div>
+                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Ticket Entrada</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.te_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, te_plan: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.te_plan)}</div>}</div>
+                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Ticket Bar</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.tb_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, tb_plan: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.tb_plan)}</div>}</div>
+                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Custo Artístico</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.c_artistico_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_artistico_plan: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.c_artistico_plan)}</div>}</div>
                    </div>
                    <div className="space-y-3">
                       <div className="flex items-center gap-3 mb-2 pb-2 border-b"><div className="w-3 h-3 bg-green-500 rounded-full"></div><h2 className="font-semibold">REALIZADO</h2></div>
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded border"><Label>Receita Real</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.real_r || 0} onChange={e => setEventoEdicao(p => p ? {...p, real_r: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-white dark:bg-gray-700 rounded border">{formatarMoeda(eventoEdicao?.real_r)}</div>}</div>
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded border"><Label>Clientes Real</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.cl_real || 0} onChange={e => setEventoEdicao(p => p ? {...p, cl_real: parseInt(e.target.value)} : null)} /> : <div className="p-2 bg-white dark:bg-gray-700 rounded border">{(eventoEdicao?.cl_real || 0).toLocaleString()}</div>}</div>
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded border"><Label>Reservas (Total / Pagas)</Label>{modoEdicao ? <div className="flex gap-2"><Input type="number" value={eventoEdicao?.res_tot || 0} onChange={e => setEventoEdicao(p => p ? {...p, res_tot: parseInt(e.target.value)} : null)} /><Input type="number" value={eventoEdicao?.res_p || 0} onChange={e => setEventoEdicao(p => p ? {...p, res_p: parseInt(e.target.value)} : null)} /></div> : <div className="p-2 bg-white dark:bg-gray-700 rounded border">{eventoEdicao?.res_tot} / {eventoEdicao?.res_p}</div>}</div>
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded border"><Label>Custo Artístico / Prod</Label>{modoEdicao ? <div className="flex gap-2"><Input type="number" value={eventoEdicao?.c_art || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_art: parseFloat(e.target.value)} : null)} /><Input type="number" value={eventoEdicao?.c_prod || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_prod: parseFloat(e.target.value)} : null)} /></div> : <div className="p-2 bg-white dark:bg-gray-700 rounded border">{formatarMoeda(eventoEdicao?.c_art)} / {formatarMoeda(eventoEdicao?.c_prod)}</div>}</div>
-                      <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800"><h3 className="text-base font-medium mb-2 text-gray-900 dark:text-white flex items-center gap-2"><AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" /> Atrasos de Entrega</h3><div className="grid grid-cols-2 gap-4"><div><Label>Cozinha</Label><div className="mt-1 font-medium">{eventoEdicao?.atrasos_cozinha ?? 0}</div></div><div><Label>Bar</Label><div className="mt-1 font-medium">{eventoEdicao?.atrasos_bar ?? 0}</div></div></div></div>
+                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Receita Real</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.real_r || 0} onChange={e => setEventoEdicao(p => p ? {...p, real_r: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.real_r)}</div>}</div>
+                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Clientes Real</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.cl_real || 0} onChange={e => setEventoEdicao(p => p ? {...p, cl_real: parseInt(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{(eventoEdicao?.cl_real || 0).toLocaleString()}</div>}</div>
+                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Reservas (Total / Pagas)</Label>{modoEdicao ? <div className="flex gap-2"><Input type="number" value={eventoEdicao?.res_tot || 0} onChange={e => setEventoEdicao(p => p ? {...p, res_tot: parseInt(e.target.value)} : null)} /><Input type="number" value={eventoEdicao?.res_p || 0} onChange={e => setEventoEdicao(p => p ? {...p, res_p: parseInt(e.target.value)} : null)} /></div> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{eventoEdicao?.res_tot} / {eventoEdicao?.res_p}</div>}</div>
+                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Custo Artístico / Prod</Label>{modoEdicao ? <div className="flex gap-2"><Input type="number" value={eventoEdicao?.c_art || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_art: parseFloat(e.target.value)} : null)} /><Input type="number" value={eventoEdicao?.c_prod || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_prod: parseFloat(e.target.value)} : null)} /></div> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.c_art)} / {formatarMoeda(eventoEdicao?.c_prod)}</div>}</div>
+                      <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800"><h3 className="text-base font-medium mb-2 text-[hsl(var(--foreground))] flex items-center gap-2"><AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" /> Atrasos de Entrega</h3><div className="grid grid-cols-2 gap-4"><div><Label>Cozinha</Label><div className="mt-1 font-medium">{eventoEdicao?.atrasos_cozinha ?? 0}</div></div><div><Label>Bar</Label><div className="mt-1 font-medium">{eventoEdicao?.atrasos_bar ?? 0}</div></div></div></div>
                    </div>
                 </div>
               </div>
-              <DialogFooter className="bg-gray-50 dark:bg-gray-800 p-4 border-t"><Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>{modoEdicao && <Button onClick={salvarEdicao} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar Alterações'}</Button>}</DialogFooter>
+              <DialogFooter className="bg-[hsl(var(--muted))] p-4 border-t"><Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>{modoEdicao && <Button onClick={salvarEdicao} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar Alterações'}</Button>}</DialogFooter>
             </DialogContent>
-        </Dialog>
-    </div>
+      </Dialog>
+    </>
   );
 }

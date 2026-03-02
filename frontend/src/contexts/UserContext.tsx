@@ -68,7 +68,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const loadUserData = () => {
+  const loadUserData = async () => {
     // Check if we're on the client side
     if (typeof window === 'undefined') {
       setLoading(false);
@@ -79,30 +79,49 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
 
     try {
-      const userData = localStorage.getItem('sgb_user');
+      // Buscar dados do servidor (fonte de verdade)
+      const response = await fetch('/api/auth/me', {
+        credentials: 'include',
+      });
 
-      if (userData) {
-        const parsedUser = JSON.parse(userData);
-
-        // Validar se os dados do usuário são válidos
-        if (
-          parsedUser &&
-          parsedUser.id &&
-          parsedUser.email &&
-          parsedUser.nome
-        ) {
-          setUser(parsedUser);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.user) {
+          setUser(data.user);
+          // Salvar no localStorage apenas para cache (não é fonte de verdade)
+          localStorage.setItem('sgb_user', JSON.stringify(data.user));
         } else {
-          localStorage.removeItem('sgb_user');
           setUser(null);
+          localStorage.removeItem('sgb_user');
         }
       } else {
+        // Não autenticado ou token inválido
         setUser(null);
+        localStorage.removeItem('sgb_user');
+        
+        // Se não está na página de login, redirecionar
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login';
+        }
       }
     } catch (error) {
-      // Limpar dados corrompidos
-      localStorage.removeItem('sgb_user');
-      setUser(null);
+      console.error('Erro ao carregar dados do usuário:', error);
+      // Tentar fallback para localStorage (compatibilidade)
+      try {
+        const userData = localStorage.getItem('sgb_user');
+        if (userData) {
+          const parsedUser = JSON.parse(userData);
+          if (parsedUser && parsedUser.id && parsedUser.email) {
+            setUser(parsedUser);
+          } else {
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
+      } catch {
+        setUser(null);
+      }
     } finally {
       setLoading(false);
       setIsInitialized(true);
@@ -140,38 +159,34 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    try {
-      const userData = localStorage.getItem('sgb_user');
-      if (userData) {
-        const parsedUser = JSON.parse(userData);
-        setUser(parsedUser);
-      } else {
-        setUser(null);
-      }
-    } catch (error) {
-      setUser(null);
-    }
+    // Buscar dados atualizados do servidor
+    await loadUserData();
   };
 
   const logout = async () => {
     try {
+      // Chamar API de logout para limpar cookies
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
       setUser(null);
+      
       // Only clear localStorage on client side
       if (typeof window !== 'undefined') {
         localStorage.removeItem('sgb_user');
         localStorage.removeItem('sgb_selected_bar_id');
         localStorage.removeItem('sgb_session');
+        
+        // Redirecionar para login
+        window.location.href = '/login';
       }
-
-      // Aguardar um pouco antes de recarregar para garantir limpeza
-      setTimeout(() => {
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
-        }
-      }, 100);
     } catch (error) {
-      // Em caso de erro, tentar recarregar mesmo assim
+      console.error('Erro ao fazer logout:', error);
+      // Em caso de erro, limpar localmente e redirecionar
       if (typeof window !== 'undefined') {
+        localStorage.clear();
         window.location.href = '/login';
       }
     }

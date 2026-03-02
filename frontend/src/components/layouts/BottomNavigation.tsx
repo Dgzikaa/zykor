@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useMenuBadges } from '@/hooks/useMenuBadges';
+import { useBadges } from '@/contexts/BadgesContext';
 import {
   Home,
   CheckSquare,
@@ -318,7 +318,7 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
 export function BottomNavigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
-  const { badges } = useMenuBadges();
+  const { badges } = useBadges();
 
   const isActive = (href: string) => {
     if (href === '/home') return pathname === '/home';

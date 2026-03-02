@@ -161,14 +161,14 @@ export default function AuthGuard({
 
 function AuthLoadingScreen() {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+    <div className="min-h-screen bg-[hsl(var(--background))] flex items-center justify-center">
       <div className="text-center">
-        <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+        <div className="w-16 h-16 border-4 border-[hsl(var(--border))] border-t-[hsl(var(--primary))] rounded-full animate-spin mx-auto mb-4"></div>
         <div className="space-y-2">
-          <p className="text-lg font-medium text-gray-900 dark:text-white">
+          <p className="text-lg font-medium text-[hsl(var(--foreground))]">
             Carregando suas informações...
           </p>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
             Aguarde enquanto verificamos suas permissões
           </p>
         </div>

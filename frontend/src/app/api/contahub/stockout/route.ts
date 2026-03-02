@@ -88,14 +88,29 @@ async function fetchContaHubStockout(
 }
 
 async function saveStockoutData(barId: number, date: string, hour: string, data: any[]): Promise<number> {
-  // Filtrar produtos Happy Hour (não devem entrar no stockout)
-  const termosExcluidos = ['happy hour', 'happyhour', 'happy-hour'];
+  // Filtrar produtos que não devem entrar no stockout
+  const termosExcluidos = ['happy hour', 'happyhour', 'happy-hour', 'balde', 'baldes'];
+  const locaisExcluidos = ['baldes', 'pegue e pague', 'venda volante'];
+  const gruposExcluidos = ['baldes', 'happy hour', 'dose dupla', 'insumos', 'pegue e pague', 'uso interno'];
+  
   const filteredData = data.filter(item => {
     const prdDesc = (item.prd_desc || '').toLowerCase();
-    return !termosExcluidos.some(termo => prdDesc.includes(termo));
+    const locDesc = (item.loc_desc || '').toLowerCase();
+    const grpDesc = (item.grp_desc || '').toLowerCase();
+    
+    // Excluir por nome do produto
+    const excluirPorNome = termosExcluidos.some(termo => prdDesc.includes(termo));
+    
+    // Excluir por local de produção
+    const excluirPorLocal = locaisExcluidos.some(local => locDesc.includes(local));
+    
+    // Excluir por grupo
+    const excluirPorGrupo = gruposExcluidos.some(grupo => grpDesc.includes(grupo));
+    
+    return !excluirPorNome && !excluirPorLocal && !excluirPorGrupo;
   });
   
-  console.log(`🔍 Filtrando Happy Hour: ${data.length} produtos -> ${filteredData.length} (excluídos: ${data.length - filteredData.length})`);
+  console.log(`🔍 Filtrando produtos excluídos: ${data.length} produtos -> ${filteredData.length} (excluídos: ${data.length - filteredData.length})`);
   
   const records = filteredData.map(item => ({
     bar_id: barId,

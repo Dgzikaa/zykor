@@ -1,242 +1,255 @@
+/**
+ * API de Login - Versão Segura
+ * Gera token JWT e retorna dados do usuário
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { normalizeEmail } from '@/lib/email-utils';
-import { safeErrorLog } from '@/lib/logger';
+import { generateToken } from '@/lib/auth/jwt';
+import { logAuditEvent } from '@/lib/auth/audit';
+import type { AuthenticatedUser } from '@/lib/auth/types';
 
-export const dynamic = 'force-dynamic'
-
-// 🔇 Controle de logs verbose - defina como true para debug de login
-const VERBOSE_LOGIN_LOGS = process.env.NODE_ENV === 'development' && process.env.DEBUG_LOGIN === 'true';
-
-// ========================================
-// 🔐 API PARA AUTENTICAÇÃO
-// ========================================
-
-interface UsuarioBar {
-  id: string;
-  user_id: string;
-  nome: string;
-  email: string;
-  ativo: boolean;
-  senha_redefinida: boolean;
-  permissao: string;
-  bar_id: string;
-  modulos_permitidos?: string[] | Record<string, any>;
-}
-
-interface LoginFailureLog {
-  email: string;
-  reason: string;
-  ipAddress: string;
-  userAgent: string;
-  sessionId: string;
-}
-
-// Função para log de falhas de login (apenas erros reais, não verbose)
-async function logLoginFailure(data: LoginFailureLog) {
-  // Apenas loga em casos reais de falha (não verbose)
-  if (VERBOSE_LOGIN_LOGS) {
-    console.log('❌ Login failed:', data);
-  }
-  // TODO: Implementar log real no banco/Sentry
-}
-
-// ========================================
-// 🔐 POST /api/auth/login
-// ========================================
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
-  // Capturar informações do cliente para logging
+  // Capturar informações do cliente
   const forwarded = request.headers.get('x-forwarded-for');
   const clientIp = forwarded
     ? forwarded.split(',')[0]
     : request.headers.get('x-real-ip') || 'unknown';
   const userAgent = request.headers.get('user-agent') || 'unknown';
-  const sessionId =
-    request.headers.get('x-session-id') || `session_${Date.now()}`;
 
   try {
-    const body = await request.json();
-    const email = normalizeEmail(body.email); // ✅ Normaliza email
-    const senha = body.senha || body.password; // Aceita tanto 'senha' quanto 'password'
+    const { email, password, senha } = await request.json();
+    const userPassword = password || senha;
 
-    if (VERBOSE_LOGIN_LOGS) {
-      console.log('🔐 Tentativa de login:', email);
-    }
-
-    // Validação básica
-    if (!email || !senha) {
-      await logLoginFailure({
-        email: email || 'unknown',
-        reason: 'Missing email or password',
-        ipAddress: clientIp,
-        userAgent,
-        sessionId,
-      });
-
+    if (!email || !userPassword) {
       return NextResponse.json(
-        {
-          error: 'Email e senha são obrigatórios',
-          details: 'MISSING_CREDENTIALS',
-        },
+        { success: false, error: 'Email e senha são obrigatórios' },
         { status: 400 }
       );
     }
 
-    // Conectar ao Supabase Admin
-    const supabase = await getAdminClient();
+    // Obter clientes Supabase
+    const adminClient = await getAdminClient();
+    const authClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
 
-    // Buscar usuário (agora é único por email)
-    const { data: usuario, error: usuarioError } = await supabase
-      .from('usuarios')
-      .select('*')
-      .eq('email', email)
-      .eq('ativo', true)
-      .single();
-
-    if (usuarioError || !usuario) {
-      await logLoginFailure({
+    // Autenticar com Supabase Auth
+    console.log(`🔐 Tentando login para: ${email}`);
+    const { data: authData, error: authError } =
+      await authClient.auth.signInWithPassword({
         email,
-        reason: 'User not found',
-        ipAddress: clientIp,
-        userAgent,
-        sessionId,
+        password: userPassword,
       });
 
+    if (authError || !authData.user) {
+      console.log(`❌ Falha no login: ${email}`);
+      console.log(`❌ Erro Supabase:`, authError?.message || 'Usuário não encontrado');
       return NextResponse.json(
-        {
-          error: 'Credenciais inválidas',
-          details: 'USER_NOT_FOUND',
-        },
+        { success: false, error: authError?.message || 'Email ou senha incorretos' },
+        { status: 401 }
+      );
+    }
+    
+    console.log(`✅ Autenticação Supabase OK para: ${email}`);
+
+    // Buscar dados do usuário na tabela usuarios
+    console.log(`🔍 Buscando usuário com auth_id: ${authData.user.id}`);
+    let { data: usuarios, error: dbError } = await adminClient
+      .from('usuarios')
+      .select('*')
+      .eq('auth_id', authData.user.id)
+      .eq('ativo', true);
+
+    console.log(`📊 Resultado busca por auth_id:`, { usuarios: usuarios?.length || 0, error: dbError?.message });
+
+    if (dbError || !usuarios || usuarios.length === 0) {
+      console.log(`⚠️ Usuário não encontrado por auth_id, tentando por email...`);
+      // Tentar buscar por email e atualizar auth_id
+      const { data: usuariosPorEmail } = await adminClient
+        .from('usuarios')
+        .select('*')
+        .eq('email', email)
+        .eq('ativo', true);
+
+      if (usuariosPorEmail && usuariosPorEmail.length > 0) {
+        const usuarioExistente = usuariosPorEmail[0];
+        
+        // Atualizar auth_id
+        await adminClient
+          .from('usuarios')
+          .update({ auth_id: authData.user.id })
+          .eq('email', email);
+
+        usuarios = [{ ...usuarioExistente, auth_id: authData.user.id }];
+      } else {
+        return NextResponse.json(
+          { success: false, error: 'Usuário não encontrado ou inativo' },
+          { status: 401 }
+        );
+      }
+    }
+
+    if (!usuarios || usuarios.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Usuário não encontrado' },
         { status: 401 }
       );
     }
 
-    // Buscar bares do usuário através de usuarios_bares
-    const { data: relacoes } = await supabase
-      .from('usuarios_bares')
-      .select(`
-        bar_id,
-        bares:bar_id(id, nome, ativo)
-      `)
-      .eq('usuario_id', usuario.auth_id);
+    const usuarioPrincipal = usuarios[0];
 
-    // Filtrar apenas bares ativos
-    const availableBars = (relacoes || [])
-      .filter((rel: any) => rel.bares && !Array.isArray(rel.bares) && rel.bares.ativo)
-      .map((rel: any) => ({
-        id: rel.bares.id,
-        nome: rel.bares.nome
-      }));
+    // Verificar se precisa redefinir senha
+    if (!usuarioPrincipal.senha_redefinida) {
+      const token = Buffer.from(`${usuarioPrincipal.email}:${Date.now()}`).toString('base64');
+      const protocol = request.headers.get('x-forwarded-proto') || 'https';
+      const host = request.headers.get('host') || request.headers.get('x-forwarded-host');
+      const baseUrl = host?.includes('localhost') 
+        ? `http://${host}` 
+        : `${protocol}://${host}`;
 
-    // Verificar senha (usando Supabase Auth)
-    try {
-      // Tentar fazer login usando Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: email, // Email já está normalizado
-        password: senha,
-      });
-
-      if (authError || !authData.user) {
-        if (VERBOSE_LOGIN_LOGS) {
-          console.log('❌ Erro na autenticação:', authError?.message);
-        }
-        
-        await logLoginFailure({
-          email,
-          reason: authError?.message || 'Invalid password',
-          ipAddress: clientIp,
-          userAgent,
-          sessionId,
-        });
-
-        return NextResponse.json(
-          {
-            error: 'Credenciais inválidas',
-            details: 'INVALID_PASSWORD',
-            // Em desenvolvimento, incluir mais detalhes
-            ...(process.env.NODE_ENV === 'development' && {
-              debug: {
-                authError: authError?.message,
-                user_id: usuario.user_id,
-                email_normalized: email.toLowerCase()
-              }
-            })
-          },
-          { status: 401 }
-        );
-      }
-
-      // Preparar dados do usuário para resposta
-      const userData = {
-        id: usuario.id,
-        auth_id: usuario.auth_id,
-        nome: usuario.nome,
-        email: usuario.email,
-        role: usuario.role || 'funcionario',
-        setor: usuario.setor,
-        bar_id: availableBars.length > 0 ? availableBars[0].id : null,
-        modulos_permitidos: usuario.modulos_permitidos || [],
-        ativo: usuario.ativo,
-        senha_redefinida: usuario.senha_redefinida,
-        availableBars: availableBars,
-      };
-
-      // Retornar sucesso com dados do usuário e token
       return NextResponse.json({
-        success: true,
-        user: userData,
-        session: authData.session,
-        message: 'Login realizado com sucesso',
-      });
-
-    } catch (authError) {
-      safeErrorLog('autenticação login', authError);
-      await logLoginFailure({
-        email,
-        reason: 'Authentication error',
-        ipAddress: clientIp,
-        userAgent,
-        sessionId,
-      });
-
-      return NextResponse.json(
-        {
-          error: 'Erro interno de autenticação',
-          details: 'AUTH_ERROR',
+        success: false,
+        requirePasswordReset: true,
+        redirectUrl: `${baseUrl}/usuarios/redefinir-senha?email=${encodeURIComponent(usuarioPrincipal.email)}&token=${token}`,
+        user: {
+          nome: usuarioPrincipal.nome,
+          email: usuarioPrincipal.email,
         },
-        { status: 500 }
+        message: 'É necessário redefinir sua senha no primeiro acesso',
+      });
+    }
+
+    // Buscar bares do usuário
+    const { data: usuariosBares } = await adminClient
+      .from('usuarios_bares')
+      .select('bar_id')
+      .eq('usuario_id', usuarioPrincipal.auth_id);
+
+    const barIds = usuariosBares?.map((ub: { bar_id: number }) => ub.bar_id) || [];
+
+    // Buscar dados completos dos bares
+    const { data: barsData } = await adminClient
+      .from('bares')
+      .select('id, nome')
+      .in('id', barIds)
+      .eq('ativo', true);
+
+    // Normalizar modulos_permitidos como array
+    let modulosPermitidos: string[] = [];
+    if (Array.isArray(usuarioPrincipal.modulos_permitidos)) {
+      modulosPermitidos = usuarioPrincipal.modulos_permitidos;
+    } else if (typeof usuarioPrincipal.modulos_permitidos === 'object' && usuarioPrincipal.modulos_permitidos) {
+      modulosPermitidos = Object.keys(usuarioPrincipal.modulos_permitidos).filter(
+        k => usuarioPrincipal.modulos_permitidos[k]
       );
     }
 
-  } catch (error) {
-    safeErrorLog('login geral', error);
-    await logLoginFailure({
-      email: 'unknown',
-      reason: 'Server error',
-      ipAddress: clientIp,
-      userAgent,
-      sessionId,
+    // Criar array de bares com permissões
+    const baresComNome = barsData?.map((bar: { id: number; nome: string }) => ({
+      bar_id: bar.id,
+      id: bar.id,
+      nome: bar.nome,
+      role: usuarioPrincipal.role,
+      modulos_permitidos: modulosPermitidos,
+    })) || [];
+
+    // Selecionar primeiro bar como padrão
+    const selectedBar = baresComNome[0] || { bar_id: 0, id: 0, nome: 'Sem bar' };
+
+    // Gerar token JWT
+    const token = generateToken({
+      user_id: usuarioPrincipal.id,
+      auth_id: usuarioPrincipal.auth_id,
+      email: usuarioPrincipal.email,
+      bar_id: selectedBar.bar_id,
+      role: usuarioPrincipal.role,
+      modulos_permitidos: modulosPermitidos,
     });
 
+    // Preparar dados do usuário
+    const user: AuthenticatedUser = {
+      id: usuarioPrincipal.id,
+      auth_id: usuarioPrincipal.auth_id,
+      email: usuarioPrincipal.email,
+      nome: usuarioPrincipal.nome,
+      role: usuarioPrincipal.role,
+      bar_id: selectedBar.bar_id,
+      modulos_permitidos: modulosPermitidos,
+      ativo: usuarioPrincipal.ativo,
+      senha_redefinida: usuarioPrincipal.senha_redefinida,
+      setor: usuarioPrincipal.setor,
+      telefone: usuarioPrincipal.telefone,
+      created_at: usuarioPrincipal.created_at,
+      updated_at: usuarioPrincipal.updated_at,
+    };
+
+    // Logar login bem-sucedido
+    await logAuditEvent({
+      user_id: usuarioPrincipal.id,
+      action: 'LOGIN',
+      resource: 'auth',
+      ip_address: clientIp,
+      user_agent: userAgent,
+    });
+
+    console.log(`✅ Login bem-sucedido: ${usuarioPrincipal.nome} (${usuarioPrincipal.email})`);
+
+    // Fazer logout do authClient
+    await authClient.auth.signOut();
+
+    // Criar resposta com cookie
+    const response = NextResponse.json({
+      success: true,
+      user,
+      availableBars: baresComNome,
+      token, // Retornar token também (para debug)
+      session: authData.session, // Adicionar session para compatibilidade
+    });
+
+    // Salvar token em cookie httpOnly
+    response.cookies.set('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24 * 7, // 7 dias
+      path: '/',
+    });
+
+    // Manter cookie sgb_user para compatibilidade (temporário)
+    const userCookie = {
+      id: usuarioPrincipal.id,
+      auth_id: usuarioPrincipal.auth_id,
+      email: usuarioPrincipal.email,
+      nome: usuarioPrincipal.nome,
+      role: usuarioPrincipal.role,
+      bar_id: selectedBar.bar_id,
+      modulos_permitidos: modulosPermitidos,
+      ativo: usuarioPrincipal.ativo,
+    };
+
+    response.cookies.set('sgb_user', JSON.stringify(userCookie), {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
+    });
+
+    return response;
+  } catch (error: unknown) {
+    console.error('🔥 Erro fatal na API de login:', error);
+
+    const errorMessage =
+      error instanceof Error ? error.message : 'Erro desconhecido';
+
     return NextResponse.json(
-      {
-        error: 'Erro interno do servidor',
-        details: 'SERVER_ERROR',
-      },
+      { success: false, error: 'Erro interno do servidor' },
       { status: 500 }
     );
   }
-}
-
-// ========================================
-// 🔓 GET /api/auth/login - Health Check
-// ========================================
-
-export async function GET() {
-  return NextResponse.json({
-    status: 'ok',
-    message: 'Login API is running',
-    timestamp: new Date().toISOString(),
-  });
 }

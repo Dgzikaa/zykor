@@ -1,7 +1,7 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { DarkSidebarLayout } from './DarkSidebarLayout';
+import { MinimalLayout } from './MinimalLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 interface CreateDashboardLayoutOptions {
@@ -14,7 +14,7 @@ interface CreateDashboardLayoutOptions {
 /**
  * Factory function para criar layouts de dashboard padronizados
  * 
- * Isso elimina a necessidade de duplicar código em cada pasta.
+ * Usa o MinimalLayout (estilo Notion) como padrão.
  * 
  * @example
  * // Em qualquer layout.tsx:
@@ -28,7 +28,7 @@ interface CreateDashboardLayoutOptions {
 
 // Layout padrão simples (mais comum)
 export function SimpleDashboardLayout({ children }: { children: ReactNode }) {
-  return <DarkSidebarLayout>{children}</DarkSidebarLayout>;
+  return <MinimalLayout>{children}</MinimalLayout>;
 }
 
 // Função para criar layouts com proteção
@@ -39,7 +39,7 @@ export function createProtectedDashboardLayout(options: CreateDashboardLayoutOpt
         requiredModule={options.requiredModule}
         requiredRole={options.requiredRole}
       >
-        <DarkSidebarLayout>{children}</DarkSidebarLayout>
+        <MinimalLayout>{children}</MinimalLayout>
       </ProtectedRoute>
     );
   };

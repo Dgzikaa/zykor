@@ -1,12 +1,20 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
 
 import { ToastProvider, GlobalToastListener } from '@/components/ui/toast';
+
+const inter = Inter({ 
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 import { Toaster } from 'sonner';
 import ErrorBoundary from '@/components/ui/error-boundary';
 import { BarProvider } from '@/contexts/BarContext';
 import { UserProvider } from '@/contexts/UserContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { BadgesProvider } from '@/contexts/BadgesContext';
 import { LGPDProvider } from '@/hooks/useLGPD';
 import { CommandPaletteProvider } from '@/contexts/CommandPaletteContext';
 import { PageTitleProvider } from '@/contexts/PageTitleContext';
@@ -36,30 +44,32 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <body className={`${inter.variable} min-h-screen font-sans antialiased`}>
         <ThemeProvider>
           <LGPDProvider>
             <UserProvider>
               <BarProvider>
-                <CommandPaletteProvider>
-                  <PageTitleProvider>
-                    <ToastProvider>
-                      <ErrorBoundary>
-                        <PermissionGuard>
-                          <div className="min-h-screen">
-                            {children}
-                          </div>
-                        </PermissionGuard>
-                      </ErrorBoundary>
-                      <ClientOnlyLayoutParts />
-                      <GlobalToastListener />
-                      <Toaster position="top-right" richColors />
-                      {/* <RetrospectiveButton /> */}
-                      {/* <AssistantWrapper /> */}
-                      {/* <ZykorPWABanner /> */}
-                    </ToastProvider>
-                  </PageTitleProvider>
-                </CommandPaletteProvider>
+                <BadgesProvider>
+                  <CommandPaletteProvider>
+                    <PageTitleProvider>
+                      <ToastProvider>
+                        <ErrorBoundary>
+                          <PermissionGuard>
+                            <div className="min-h-screen">
+                              {children}
+                            </div>
+                          </PermissionGuard>
+                        </ErrorBoundary>
+                        <ClientOnlyLayoutParts />
+                        <GlobalToastListener />
+                        <Toaster position="top-right" richColors />
+                        {/* <RetrospectiveButton /> */}
+                        {/* <AssistantWrapper /> */}
+                        {/* <ZykorPWABanner /> */}
+                      </ToastProvider>
+                    </PageTitleProvider>
+                  </CommandPaletteProvider>
+                </BadgesProvider>
               </BarProvider>
             </UserProvider>
           </LGPDProvider>

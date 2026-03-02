@@ -163,17 +163,17 @@ export function CommandPaletteSearchPlaceholder({
       role="button"
       tabIndex={0}
       className={`
-        flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1 sm:py-1 bg-gray-100 dark:bg-gray-800 
-        border border-gray-200 dark:border-gray-700 rounded-full
-        cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50
+        flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1 sm:py-1 bg-[hsl(var(--muted))]/50
+        border border-[hsl(var(--border))] rounded-full
+        cursor-pointer hover:bg-[hsl(var(--muted))]
         transition-colors ${className}
       `}
     >
-      <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
-      <span className="text-gray-500 dark:text-gray-400 text-sm flex-1 truncate">
+      <Search className="w-4 h-4 text-[hsl(var(--muted-foreground))] flex-shrink-0" />
+      <span className="text-[hsl(var(--muted-foreground))] text-sm flex-1 truncate">
         {placeholder}
       </span>
-      <div className=" lg:flex items-center gap-1 text-xs text-gray-500 dark:text-gray-300">
+      <div className=" lg:flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))]">
         <kbd className="px-1.5 py-0.5 text-xs">
           {`${keyHint}+K`}
         </kbd>

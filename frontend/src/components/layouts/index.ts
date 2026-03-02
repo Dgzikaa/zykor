@@ -8,9 +8,13 @@ export { DarkHeader } from './DarkHeader';
 export { ModernSidebarOptimized as ModernSidebar } from './ModernSidebarOptimized';
 export { BottomNavigation } from './BottomNavigation';
 
+// Minimal Layout (Novo - Estilo Notion)
+export { MinimalLayout, SimpleDashboardLayout } from './MinimalLayout';
+export { MinimalHeader } from './MinimalHeader';
+export { MinimalSidebar } from './MinimalSidebar';
+
 // Layout Factory (para criar layouts padronizados)
 export { 
-  SimpleDashboardLayout,
   createProtectedDashboardLayout,
   default as createDashboardLayout 
 } from './createDashboardLayout';

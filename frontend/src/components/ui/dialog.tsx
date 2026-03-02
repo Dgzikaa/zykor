@@ -1,497 +1,124 @@
-﻿import * as React from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+'use client';
+
+import * as React from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { X, Maximize2, Minimize2 } from 'lucide-react';
 
-// Hook para verificar se está no cliente
-function useIsClient() {
-  const [isClient, setIsClient] = React.useState(false);
-  
-  React.useEffect(() => {
-    setIsClient(true);
-  }, []);
-  
-  return isClient;
-}
+const Dialog = DialogPrimitive.Root;
 
-interface DialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  children: React.ReactNode;
-  variant?: 'default' | 'centered' | 'fullscreen' | 'drawer' | 'glass';
-  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
-  animated?: boolean;
-  closeOnOverlayClick?: boolean;
-  showCloseButton?: boolean;
-}
+const DialogTrigger = DialogPrimitive.Trigger;
 
-interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
-  maxHeight?: string;
-  scrollable?: boolean;
-  resizable?: boolean;
-  draggable?: boolean;
-}
+const DialogPortal = DialogPrimitive.Portal;
 
-interface DialogHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
-  showMaximize?: boolean;
-  onMaximize?: () => void;
-  isMaximized?: boolean;
-}
+const DialogClose = DialogPrimitive.Close;
 
-interface DialogTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
-  children: React.ReactNode;
-}
+const DialogOverlay = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Overlay>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
+>(({ className, ...props }, ref) => (
+  <DialogPrimitive.Overlay
+    ref={ref}
+    className={cn(
+      'fixed inset-0 z-50 bg-black/50 backdrop-blur-sm',
+      'data-[state=open]:animate-fadeIn',
+      className
+    )}
+    {...props}
+  />
+));
+DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
-interface DialogDescriptionProps extends React.HTMLAttributes<HTMLParagraphElement> {
-  children: React.ReactNode;
-}
-
-interface DialogFooterProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
-  justify?: 'start' | 'center' | 'end' | 'between';
-}
-
-// Context para compartilhar props entre componentes
-const DialogContext = React.createContext<{
-  onOpenChange: (open: boolean) => void;
-  variant: string;
-  size: string;
-  animated: boolean;
-  showCloseButton: boolean;
-} | null>(null);
-
-const useDialogContext = () => {
-  const context = React.useContext(DialogContext);
-  if (!context) {
-    throw new Error('Dialog components must be used within a Dialog');
-  }
-  return context;
-};
-
-const Dialog: React.FC<DialogProps> = ({ 
-  open, 
-  onOpenChange, 
-  children,
-  variant = 'default',
-  size = 'md',
-  animated = true,
-  closeOnOverlayClick = true,
-  showCloseButton = true
-}) => {
-  const [mounted, setMounted] = React.useState(false);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  React.useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onOpenChange(false);
-      }
-    };
-
-    if (open) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
-    };
-  }, [open, onOpenChange]);
-
-  if (!mounted) return null;
-
-  const getVariantStyles = () => {
-    switch (variant) {
-      case 'centered':
-        return 'flex items-center justify-center p-4';
-      case 'fullscreen':
-        return 'flex items-center justify-center p-0';
-      case 'drawer':
-        return 'flex items-end justify-center p-0';
-      case 'glass':
-        return 'flex items-center justify-center p-4';
-      default:
-        return 'flex items-center justify-center p-4';
-    }
-  };
-
-  const overlayVariants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1,
-      transition: { duration: 0.2 }
-    },
-    exit: { 
-      opacity: 0,
-      transition: { duration: 0.2 }
-    }
-  };
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1,
-      transition: { 
-        duration: 0.3,
-        staggerChildren: 0.1
-      }
-    },
-    exit: { 
-      opacity: 0,
-      transition: { duration: 0.2 }
-    }
-  };
-
-  return (
-    <AnimatePresence>
-      {open && mounted && (
-        <>
-          {createPortal(
-            <motion.div
-              variants={animated ? overlayVariants : undefined}
-              initial={animated ? "hidden" : undefined}
-              animate={animated ? "visible" : undefined}
-              exit={animated ? "exit" : undefined}
-              className={cn(
-                "fixed inset-0 z-50 backdrop-blur-sm",
-                variant === 'glass' 
-                  ? 'bg-black/20' 
-                  : 'bg-black/50'
-              )}
-              onClick={closeOnOverlayClick ? () => onOpenChange(false) : undefined}
-            />,
-            document.body
-          )}
-          {createPortal(
-            <motion.div
-              variants={animated ? containerVariants : undefined}
-              initial={animated ? "hidden" : undefined}
-              animate={animated ? "visible" : undefined}
-              exit={animated ? "exit" : undefined}
-              className={cn(
-                "fixed inset-0 z-50",
-                getVariantStyles()
-              )}
-            >
-              <DialogContext.Provider value={{ 
-                onOpenChange, 
-                variant, 
-                size, 
-                animated, 
-                showCloseButton 
-              }}>
-                {children}
-              </DialogContext.Provider>
-            </motion.div>,
-            document.body
-          )}
-        </>
-      )}
-    </AnimatePresence>
-  );
-};
-
-const DialogContent: React.FC<DialogContentProps> = ({
-  children,
-  className,
-  maxHeight,
-  scrollable = true,
-  resizable = false,
-  draggable = false,
-  ...props
-}) => {
-  const { variant, size, animated } = useDialogContext();
-  const [isMaximized, setIsMaximized] = React.useState(false);
-
-  const getSizeStyles = () => {
-    if (isMaximized || variant === 'fullscreen') {
-      return 'w-full h-full max-w-none max-h-none';
-    }
-    
-    switch (size) {
-      case 'sm':
-        return 'w-full max-w-md max-h-[80vh]';
-      case 'md':
-        return 'w-full max-w-lg max-h-[85vh]';
-      case 'lg':
-        return 'w-full max-w-2xl max-h-[90vh]';
-      case 'xl':
-        return 'w-full max-w-4xl max-h-[95vh]';
-      case 'full':
-        return 'w-full h-full max-w-none max-h-none';
-      default:
-        return 'w-full max-w-lg max-h-[85vh]';
-    }
-  };
-
-  const getVariantStyles = () => {
-    switch (variant) {
-      case 'drawer':
-        return 'rounded-t-2xl border-t border-l border-r';
-      case 'fullscreen':
-        return 'rounded-none border-0';
-      case 'glass':
-        return 'rounded-2xl border border-white/20 dark:border-gray-700/50 bg-white/10 dark:bg-gray-800/10 backdrop-blur-xl';
-      default:
-        return 'rounded-2xl border border-gray-200 dark:border-gray-700';
-    }
-  };
-
-  const contentVariants = {
-    hidden: { 
-      opacity: 0, 
-      scale: 0.95,
-      y: variant === 'drawer' ? 100 : 20
-    },
-    visible: { 
-      opacity: 1, 
-      scale: 1,
-      y: 0,
-      transition: { 
-        duration: 0.3,
-        ease: [0.4, 0, 0.2, 1] as any
-      }
-    },
-    exit: { 
-      opacity: 0, 
-      scale: 0.95,
-      y: variant === 'drawer' ? 100 : 20,
-      transition: { duration: 0.2 }
-    }
-  };
-
-  const { onDrag, onDragStart, onDragEnd, onAnimationStart, onAnimationEnd, onAnimationIteration, onTransitionEnd, ...motionProps } = props;
-  
-  return (
-    <motion.div
-      variants={animated ? contentVariants : undefined}
+const DialogContent = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+>(({ className, children, ...props }, ref) => (
+  <DialogPortal>
+    <DialogOverlay />
+    <DialogPrimitive.Content
+      ref={ref}
       className={cn(
-        'relative bg-white dark:bg-gray-800 shadow-2xl',
+        'fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%]',
+        'w-full max-w-lg max-h-[90vh]',
+        'bg-[hsl(var(--card))] text-[hsl(var(--card-foreground))]',
+        'border border-[hsl(var(--border))] rounded-lg shadow-lg',
         'flex flex-col overflow-hidden',
-        getSizeStyles(),
-        getVariantStyles(),
-        resizable && 'resize',
-        draggable && 'cursor-move',
+        'data-[state=open]:animate-slideDown',
         className
       )}
-      style={{ maxHeight }}
-      {...motionProps}
-    >
-      {/* Resize handle */}
-      {resizable && !isMaximized && (
-        <div className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize">
-          <div className="absolute bottom-1 right-1 w-2 h-2 border-r-2 border-b-2 border-gray-400" />
-        </div>
-      )}
-      
-      <div className={cn(
-        'flex-1 flex flex-col',
-        scrollable && 'overflow-hidden'
-      )}>
-        {children}
-      </div>
-    </motion.div>
-  );
-};
-
-const DialogHeader: React.FC<DialogHeaderProps> = ({
-  children,
-  className,
-  showMaximize = false,
-  onMaximize,
-  isMaximized = false,
-  ...props
-}) => {
-  const { onOpenChange, showCloseButton, animated } = useDialogContext();
-
-  const { onDrag, onDragStart, onDragEnd, onAnimationStart, onAnimationEnd, onAnimationIteration, onTransitionEnd, ...motionProps } = props;
-  
-  return (
-    <motion.div
-      initial={animated ? { opacity: 0, y: -20 } : undefined}
-      animate={animated ? { opacity: 1, y: 0 } : undefined}
-      transition={animated ? { delay: 0.1 } : undefined}
-      className={cn(
-        'flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700',
-        'bg-gray-50/50 dark:bg-gray-800/50',
-        className
-      )}
-      {...motionProps}
-    >
-      <div className="flex-1 min-w-0">
-        {children}
-      </div>
-      
-      <div className="flex items-center space-x-2 ml-4">
-        {showMaximize && (
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={onMaximize}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          >
-            {isMaximized ? (
-              <Minimize2 className="w-4 h-4 text-gray-500" />
-            ) : (
-              <Maximize2 className="w-4 h-4 text-gray-500" />
-            )}
-          </motion.button>
-        )}
-        
-        {showCloseButton && (
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => onOpenChange(false)}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          >
-            <X className="w-4 h-4 text-gray-500" />
-          </motion.button>
-        )}
-      </div>
-    </motion.div>
-  );
-};
-
-const DialogTitle: React.FC<DialogTitleProps> = ({
-  children,
-  className,
-  ...props
-}) => {
-  const { animated } = useDialogContext();
-
-  const { onDrag, onDragStart, onDragEnd, onAnimationStart, onAnimationEnd, onAnimationIteration, onTransitionEnd, ...motionProps } = props;
-  
-  return (
-    <motion.h2
-      initial={animated ? { opacity: 0, x: -20 } : undefined}
-      animate={animated ? { opacity: 1, x: 0 } : undefined}
-      transition={animated ? { delay: 0.2 } : undefined}
-      className={cn(
-        'text-lg font-semibold text-gray-900 dark:text-gray-100 truncate',
-        className
-      )}
-      {...motionProps}
+      {...props}
     >
       {children}
-    </motion.h2>
-  );
-};
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100 transition-opacity">
+        <X className="h-4 w-4" />
+        <span className="sr-only">Close</span>
+      </DialogPrimitive.Close>
+    </DialogPrimitive.Content>
+  </DialogPortal>
+));
+DialogContent.displayName = DialogPrimitive.Content.displayName;
 
-const DialogDescription: React.FC<DialogDescriptionProps> = ({
-  children,
+const DialogHeader = ({
   className,
   ...props
-}) => {
-  const { animated } = useDialogContext();
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn('flex flex-col space-y-1.5 p-6', className)}
+    {...props}
+  />
+);
+DialogHeader.displayName = 'DialogHeader';
 
-  const { onDrag, onDragStart, onDragEnd, onAnimationStart, onAnimationEnd, onAnimationIteration, onTransitionEnd, ...motionProps } = props;
-  
-  return (
-    <motion.p
-      initial={animated ? { opacity: 0, x: -20 } : undefined}
-      animate={animated ? { opacity: 1, x: 0 } : undefined}
-      transition={animated ? { delay: 0.3 } : undefined}
-      className={cn(
-        'text-sm text-gray-600 dark:text-gray-400 mt-1',
-        className
-      )}
-      {...motionProps}
-    >
-      {children}
-    </motion.p>
-  );
-};
-
-const DialogBody: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
-  children,
+const DialogFooter = ({
   className,
   ...props
-}) => {
-  const { animated } = useDialogContext();
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      'flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 p-6',
+      className
+    )}
+    {...props}
+  />
+);
+DialogFooter.displayName = 'DialogFooter';
 
-  const { onDrag, onDragStart, onDragEnd, onAnimationStart, onAnimationEnd, onAnimationIteration, onTransitionEnd, ...motionProps } = props;
-  
-  return (
-    <motion.div
-      initial={animated ? { opacity: 0, y: 20 } : undefined}
-      animate={animated ? { opacity: 1, y: 0 } : undefined}
-      transition={animated ? { delay: 0.2 } : undefined}
-      className={cn(
-        'flex-1 p-6 overflow-y-auto',
-        className
-      )}
-      {...motionProps}
-    >
-      {children}
-    </motion.div>
-  );
-};
+const DialogTitle = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Title>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
+>(({ className, ...props }, ref) => (
+  <DialogPrimitive.Title
+    ref={ref}
+    className={cn(
+      'text-lg font-semibold leading-none tracking-tight',
+      className
+    )}
+    {...props}
+  />
+));
+DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
-const DialogFooter: React.FC<DialogFooterProps> = ({
-  children,
-  className,
-  justify = 'end',
-  ...props
-}) => {
-  const { animated } = useDialogContext();
-
-  const justifyClasses = {
-    start: 'justify-start',
-    center: 'justify-center',
-    end: 'justify-end',
-    between: 'justify-between'
-  };
-
-  const { onDrag, onDragStart, onDragEnd, onAnimationStart, onAnimationEnd, onAnimationIteration, onTransitionEnd, ...motionProps } = props;
-  
-  return (
-    <motion.div
-      initial={animated ? { opacity: 0, y: 20 } : undefined}
-      animate={animated ? { opacity: 1, y: 0 } : undefined}
-      transition={animated ? { delay: 0.3 } : undefined}
-      className={cn(
-        'flex items-center gap-3 p-6 border-t border-gray-200 dark:border-gray-700',
-        'bg-gray-50/50 dark:bg-gray-800/50',
-        justifyClasses[justify],
-        className
-      )}
-      {...motionProps}
-    >
-      {children}
-    </motion.div>
-  );
-};
-
-// DialogTrigger - componente para abrir o dialog
-const DialogTrigger: React.FC<React.HTMLAttributes<HTMLElement>> = ({
-  children,
-  onClick,
-  ...props
-}) => {
-  return (
-    <div onClick={onClick} {...props}>
-      {children}
-    </div>
-  );
-};
+const DialogDescription = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Description>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
+>(({ className, ...props }, ref) => (
+  <DialogPrimitive.Description
+    ref={ref}
+    className={cn('text-sm text-[hsl(var(--muted-foreground))]', className)}
+    {...props}
+  />
+));
+DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
 export {
   Dialog,
+  DialogPortal,
+  DialogOverlay,
+  DialogClose,
   DialogTrigger,
   DialogContent,
   DialogHeader,
+  DialogFooter,
   DialogTitle,
   DialogDescription,
-  DialogBody,
-  DialogFooter,
 };

@@ -2,10 +2,7 @@ import { PlanejamentoClient } from './components/PlanejamentoClient';
 import { getPlanejamentoComercial } from './services/planejamento-service';
 import { createClient } from '@supabase/supabase-js';
 import { getBarIdServer } from '@/lib/auth-server';
-import { BarSyncCheck } from '@/components/BarSyncCheck'; // Assuming this exists based on visao-geral
-
-// Cache por 1 minuto (igual ao route.ts original)
-export const revalidate = 60;
+import { BarSyncCheck } from '@/components/BarSyncCheck';
 
 export default async function PlanejamentoComercialPage({
   searchParams,

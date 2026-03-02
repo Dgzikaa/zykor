@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Cliente API que adiciona automaticamente headers de autenticação
  */
 
@@ -19,13 +19,16 @@ export async function apiCall(endpoint: string, options: ApiOptions = {}) {
       ...(options.headers || {}),
     };
 
-    // Pegar apenas dados essenciais do usuário
+    // Cookie httpOnly é enviado automaticamente pelo navegador
+    // Não precisa adicionar token manualmente
+    
+    // Manter x-user-data para compatibilidade temporária
     if (typeof window !== 'undefined') {
       const userData = localStorage.getItem('sgb_user');
       if (userData) {
         try {
           const user = JSON.parse(userData);
-          // Enviar apenas ID e email (dados pequenos)
+          headers['x-user-data'] = encodeURIComponent(userData);
           if (user.id) headers['x-user-id'] = user.id;
           if (user.email) headers['x-user-email'] = user.email;
         } catch (e) {
@@ -38,6 +41,7 @@ export async function apiCall(endpoint: string, options: ApiOptions = {}) {
     const fetchOptions: RequestInit = {
       method: options.method || 'GET',
       headers,
+      credentials: 'include', // Incluir cookies (httpOnly)
     };
 
     // Adicionar body se necessário
@@ -50,6 +54,13 @@ export async function apiCall(endpoint: string, options: ApiOptions = {}) {
 
     // Verificar se a resposta é OK
     if (!response.ok) {
+      // Se 401, token expirado - redirecionar para login
+      if (response.status === 401 && typeof window !== 'undefined') {
+        localStorage.clear();
+        window.location.href = '/login';
+        throw new Error('Sessão expirada');
+      }
+      
       const errorData = await response.json().catch(() => ({}));
       console.error(`❌ API Error ${response.status}:`, errorData);
       throw new Error(errorData.error || `HTTP ${response.status}`);

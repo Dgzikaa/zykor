@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo, memo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useMenuBadges } from '@/hooks/useMenuBadges';
+import { useBadges } from '@/contexts/BadgesContext';
 import { cn } from '@/lib/utils';
 
 // 🚀 Rotas principais para prefetch (melhora navegação)
@@ -337,7 +337,7 @@ export function ModernSidebarOptimized() {
   const pathname = usePathname();
   const router = useRouter();
   const { hasPermission, user, loading: userLoading } = usePermissions();
-  const { badges } = useMenuBadges();
+  const { badges } = useBadges();
   
   // 🚀 Prefetch das rotas prioritárias ao montar o sidebar
   useEffect(() => {

@@ -1,36 +1,58 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { hasRoutePermission, getRoutePermission } from './src/lib/route-permissions';
+import { validateToken } from './src/lib/auth/jwt';
 
 interface User {
   id: number;
   email: string;
   nome: string;
   role: 'admin' | 'funcionario' | 'financeiro';
-  modulos_permitidos: string[] | Record<string, any>;
+  modulos_permitidos: string[];
   ativo: boolean;
 }
 
-// Função para pegar dados do usuário dos cookies
-function getStoredUser(request: NextRequest): User | null {
+// Função para pegar dados do usuário validando JWT
+async function getAuthenticatedUser(request: NextRequest): Promise<User | null> {
   try {
-    // Tentar pegar do cookie sgb_user (usado pelo sistema de login)
+    // 1. Tentar pegar token JWT (prioridade)
+    const authToken = request.cookies.get('auth_token')?.value;
+    if (authToken) {
+      const decoded = validateToken(authToken);
+      if (decoded) {
+        return {
+          id: decoded.user_id,
+          email: decoded.email,
+          nome: '', // Nome virá do banco se necessário
+          role: decoded.role as 'admin' | 'funcionario' | 'financeiro',
+          modulos_permitidos: decoded.modulos_permitidos,
+          ativo: true, // Se token é válido, usuário está ativo
+        };
+      }
+    }
+
+    // 2. Fallback para cookie sgb_user (compatibilidade temporária)
     const sgbUserCookie = request.cookies.get('sgb_user')?.value;
     if (sgbUserCookie) {
       const userData = JSON.parse(decodeURIComponent(sgbUserCookie));
-      return userData;
-    }
-
-    // Fallback para userData (compatibilidade)
-    const userDataCookie = request.cookies.get('userData')?.value;
-    if (userDataCookie) {
-      const userData = JSON.parse(decodeURIComponent(userDataCookie));
-      return userData;
+      // Normalizar modulos_permitidos como array
+      let modulosPermitidos: string[] = [];
+      if (Array.isArray(userData.modulos_permitidos)) {
+        modulosPermitidos = userData.modulos_permitidos;
+      } else if (typeof userData.modulos_permitidos === 'object') {
+        modulosPermitidos = Object.keys(userData.modulos_permitidos).filter(
+          k => userData.modulos_permitidos[k]
+        );
+      }
+      return {
+        ...userData,
+        modulos_permitidos: modulosPermitidos,
+      };
     }
 
     return null;
   } catch (error) {
-    console.error('Erro ao parsear dados do usuário:', error);
+    console.error('Erro ao validar autenticação:', error);
     return null;
   }
 }
@@ -41,7 +63,7 @@ const PUBLIC_ROUTES = ['/login', '/auth', '/api'];
 // Rotas que devem ser ignoradas pelo middleware
 const IGNORED_ROUTES = ['/_next', '/favicon.ico', '/static'];
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.nextUrl.hostname;
 
@@ -65,7 +87,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Verificar autenticação
-  const user = getStoredUser(request);
+  const user = await getAuthenticatedUser(request);
 
   if (!user) {
     console.log(`🚫 MIDDLEWARE: Usuário não autenticado tentando acessar ${pathname}`);
@@ -74,30 +96,34 @@ export function middleware(request: NextRequest) {
 
   // Verificar se usuário está ativo
   if (!user.ativo) {
-    console.log(`🚫 MIDDLEWARE: Usuário ${user.nome} está inativo`);
+    console.log(`🚫 MIDDLEWARE: Usuário ${user.nome || user.email} está inativo`);
     return NextResponse.redirect(new URL('/login?error=usuario_inativo', request.url));
   }
 
   // Verificar permissões da rota
   const routeConfig = getRoutePermission(pathname);
   
-  if (routeConfig) {
-    const hasPermission = hasRoutePermission(pathname, user);
-    
-    if (!hasPermission) {
-      console.log(`🚫 MIDDLEWARE: Usuário ${user.nome} (${user.role}) sem permissão para ${pathname}`);
-      console.log(`   Módulos do usuário:`, user.modulos_permitidos);
-      console.log(`   Módulos necessários:`, routeConfig.requiredModules);
-      
-      return NextResponse.redirect(
-        new URL(`/home?error=acesso_negado&rota=${encodeURIComponent(pathname)}`, request.url)
-      );
-    }
-    
-    console.log(`✅ MIDDLEWARE: Usuário ${user.nome} autorizado para ${pathname}`);
-  } else {
-    console.warn(`⚠️ MIDDLEWARE: Rota ${pathname} sem configuração de permissão`);
+  if (!routeConfig) {
+    // DENY BY DEFAULT - Bloquear rotas não configuradas
+    console.error(`🚫 MIDDLEWARE: Rota não configurada: ${pathname}`);
+    return NextResponse.redirect(
+      new URL('/home?error=rota_nao_autorizada', request.url)
+    );
   }
+  
+  const hasPermission = hasRoutePermission(pathname, user);
+  
+  if (!hasPermission) {
+    console.log(`🚫 MIDDLEWARE: Usuário ${user.nome || user.email} (${user.role}) sem permissão para ${pathname}`);
+    console.log(`   Módulos do usuário:`, user.modulos_permitidos);
+    console.log(`   Módulos necessários:`, routeConfig.requiredModules);
+    
+    return NextResponse.redirect(
+      new URL(`/home?error=acesso_negado&rota=${encodeURIComponent(pathname)}`, request.url)
+    );
+  }
+  
+  console.log(`✅ MIDDLEWARE: Usuário ${user.nome || user.email} autorizado para ${pathname}`);
 
   return NextResponse.next();
 }

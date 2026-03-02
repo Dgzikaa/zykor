@@ -325,7 +325,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     // Buscar configuração do bar e credenciais do ContaHub
     const { data: barConfig, error: barError } = await supabase
-      .from('bars')
+      .from('bares')
       .select('config')
       .eq('id', bar_id)
       .single();

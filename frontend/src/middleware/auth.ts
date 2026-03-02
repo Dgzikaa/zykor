@@ -3,7 +3,7 @@ import { getAdminClient } from '@/lib/supabase-admin';
 import { safeErrorLog } from '@/lib/logger';
 
 // 🔇 Controle de logs verbose - defina como true para debug
-const VERBOSE_AUTH_LOGS = false;
+const VERBOSE_AUTH_LOGS = true;
 
 // Tipos para o usuário autenticado
 export interface AuthenticatedUser {

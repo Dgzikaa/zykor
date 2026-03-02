@@ -108,30 +108,13 @@ export function DataTablePro<T extends Record<string, any>>({
   };
 
   return (
-    <div className={cn('card-dark overflow-hidden', className)}>
+    <div className={cn('bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg overflow-hidden', className)}>
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-3 p-3 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between gap-3 p-3 border-b border-[hsl(var(--border))]">
         <div className="flex items-center gap-3">
           {toolbarTitle && (
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{toolbarTitle}</h3>
+            <h3 className="text-sm font-semibold text-[hsl(var(--foreground))]">{toolbarTitle}</h3>
           )}
-          {/* Column visibility */}
-          <div className="flex items-center gap-2">
-            {columns.map(col => (
-              <label key={String(col.key)} className="text-xs text-gray-600 dark:text-gray-400 inline-flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  className="accent-blue-600"
-                  checked={visibleCols.includes(String(col.key))}
-                  onChange={(e) => {
-                    const key = String(col.key);
-                    setVisibleCols(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key));
-                  }}
-                />
-                {col.header}
-              </label>
-            ))}
-          </div>
         </div>
         <div className="flex items-center gap-2">
           {actions}
@@ -139,7 +122,7 @@ export function DataTablePro<T extends Record<string, any>>({
             <input
               placeholder="Pesquisar..."
               aria-label="Pesquisar na tabela"
-              className="input-dark px-3 py-2 text-sm"
+              className="bg-[hsl(var(--background))] border border-[hsl(var(--input))] text-[hsl(var(--foreground))] px-3 py-2 text-sm rounded-md"
               value={query}
               onChange={e => setQuery(e.target.value)}
             />
@@ -148,22 +131,22 @@ export function DataTablePro<T extends Record<string, any>>({
       </div>
 
       <div className="overflow-auto">
-        <table className="table-dark w-full">
-          <thead className={cn('table-header-dark', stickyHeader && 'sticky top-0 z-10')}>
-            <tr className="table-row-dark">
+        <table className="w-full">
+          <thead className={cn('bg-[hsl(var(--muted))]/50', stickyHeader && 'sticky top-0 z-10')}>
+            <tr className="border-b border-[hsl(var(--border))]">
               {selectableRows && (
                 <th className="px-4 py-3">
-                  <input type="checkbox" className="accent-blue-600" checked={allSelected} onChange={toggleSelectAll} />
+                  <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
                 </th>
               )}
               {visibleColumns.map((col, idx) => (
                 <th
                   key={String(col.key) + idx}
                   className={cn(
-                    'px-4 py-3 text-left text-gray-700 dark:text-gray-200 font-medium select-none',
+                    'px-4 py-3 text-left text-[hsl(var(--muted-foreground))] text-xs font-medium uppercase tracking-wider select-none',
                     col.align === 'center' && 'text-center',
                     col.align === 'right' && 'text-right',
-                    col.sortable && 'cursor-pointer'
+                    col.sortable && 'cursor-pointer hover:text-[hsl(var(--foreground))]'
                   )}
                   style={{ width: col.width }}
                   scope="col"
@@ -181,12 +164,11 @@ export function DataTablePro<T extends Record<string, any>>({
           </thead>
           <tbody>
             {sorted.map((row, rIdx) => (
-              <tr key={rIdx} className={cn('table-row-dark', dense ? 'h-10' : 'h-12')}>
+              <tr key={rIdx} className={cn('border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/30 transition-colors')}>
                 {selectableRows && (
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-4">
                     <input
                       type="checkbox"
-                      className="accent-blue-600"
                       checked={selectedIdxs.has(rIdx)}
                       onChange={() => toggleRow(rIdx)}
                     />
@@ -196,7 +178,7 @@ export function DataTablePro<T extends Record<string, any>>({
                   <td
                     key={String(col.key) + cIdx}
                     className={cn(
-                      'table-cell-dark px-4 py-3 align-middle',
+                      'px-4 py-4 align-middle text-sm',
                       col.align === 'center' && 'text-center',
                       col.align === 'right' && 'text-right'
                     )}
@@ -208,7 +190,7 @@ export function DataTablePro<T extends Record<string, any>>({
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={(selectableRows ? 1 : 0) + visibleColumns.length} className="px-4 py-6 text-center text-gray-600 dark:text-gray-400">
+                <td colSpan={(selectableRows ? 1 : 0) + visibleColumns.length} className="px-4 py-6 text-center text-[hsl(var(--muted-foreground))]">
                   Nenhum dado encontrado
                 </td>
               </tr>

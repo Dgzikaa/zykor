@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/auth/server';
+import { logAuditEvent } from '@/lib/auth/audit';
+import { getAdminClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 // GET - Listar todos os usuários com seus bares associados
-export async function GET() {
+export const GET = requireAdmin(async (request, user) => {
   try {
+    const supabase = await getAdminClient();
+    
     // Buscar usuários
     const { data: usuarios, error } = await supabase
       .from('usuarios')
@@ -63,19 +63,29 @@ export async function GET() {
       };
     }) || [];
 
-    return NextResponse.json({ usuarios: usuariosFormatados });
+    // Logar acesso
+    await logAuditEvent({
+      user_id: user.id,
+      action: 'LIST_USUARIOS',
+      resource: 'usuarios',
+      ip_address: request.headers.get('x-forwarded-for') || undefined,
+      user_agent: request.headers.get('user-agent') || undefined,
+    });
+
+    return NextResponse.json({ success: true, usuarios: usuariosFormatados });
   } catch (error) {
     console.error('Erro ao buscar usuários:', error);
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
+      { success: false, error: 'Erro interno do servidor' },
       { status: 500 }
     );
   }
-}
+});
 
 // POST - Criar novo usuário
-export async function POST(request: NextRequest) {
+export const POST = requireAdmin(async (request, user) => {
   try {
+    const supabase = await getAdminClient();
     let body;
     try {
       body = await request.json();
@@ -214,7 +224,19 @@ export async function POST(request: NextRequest) {
       console.warn('⚠️ Erro ao enviar email de boas-vindas:', emailError);
     }
 
+    // Logar criação
+    await logAuditEvent({
+      user_id: user.id,
+      action: 'CREATE_USUARIO',
+      resource: 'usuarios',
+      resource_id: usuario.id.toString(),
+      changes: { email, nome, role, bares_ids: baresParaAssociar },
+      ip_address: request.headers.get('x-forwarded-for') || undefined,
+      user_agent: request.headers.get('user-agent') || undefined,
+    });
+
     return NextResponse.json({ 
+      success: true,
       usuario: { ...usuario, bares_ids: baresParaAssociar },
       message: emailSent 
         ? 'Usuário criado com sucesso! Email com credenciais de acesso foi enviado.' 
@@ -229,15 +251,16 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Erro ao criar usuário:', error);
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
+      { success: false, error: 'Erro interno do servidor' },
       { status: 500 }
     );
   }
-}
+});
 
 // PUT - Atualizar usuário
-export async function PUT(request: NextRequest) {
+export const PUT = requireAdmin(async (request, user) => {
   try {
+    const supabase = await getAdminClient();
     const body = await request.json();
     const { id, email, nome, role, bar_id, bares_ids, modulos_permitidos, ativo, celular, telefone, cpf, data_nascimento, endereco, cep, cidade, estado } = body;
 
@@ -356,7 +379,19 @@ export async function PUT(request: NextRequest) {
 
     console.log(`✅ Usuário ${nome} atualizado com sucesso (ID: ${id}, Bares: ${baresParaAssociar.join(', ')})`);
 
+    // Logar atualização
+    await logAuditEvent({
+      user_id: user.id,
+      action: 'UPDATE_USUARIO',
+      resource: 'usuarios',
+      resource_id: id.toString(),
+      changes: { email, nome, role, bares_ids: baresParaAssociar },
+      ip_address: request.headers.get('x-forwarded-for') || undefined,
+      user_agent: request.headers.get('user-agent') || undefined,
+    });
+
     return NextResponse.json({ 
+      success: true,
       usuario: { ...usuario, bares_ids: baresParaAssociar }, 
       message: 'Usuário atualizado com sucesso',
       auth_updated: !!currentUser.auth_id 
@@ -364,15 +399,16 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('Erro ao atualizar usuário:', error);
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
+      { success: false, error: 'Erro interno do servidor' },
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE - Deletar usuário (exclusão completa)
-export async function DELETE(request: NextRequest) {
+export const DELETE = requireAdmin(async (request, user) => {
   try {
+    const supabase = await getAdminClient();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -428,6 +464,17 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
+    // Logar exclusão
+    await logAuditEvent({
+      user_id: user.id,
+      action: 'DELETE_USUARIO',
+      resource: 'usuarios',
+      resource_id: id,
+      changes: { deleted_user: { nome: usuario.nome, email: usuario.email } },
+      ip_address: request.headers.get('x-forwarded-for') || undefined,
+      user_agent: request.headers.get('user-agent') || undefined,
+    });
+
     return NextResponse.json({ 
       success: true,
       message: `Usuário ${usuario.nome} (${usuario.email}) foi excluído completamente do sistema`
@@ -436,8 +483,8 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error('❌ Erro ao excluir usuário:', error);
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
+      { success: false, error: 'Erro interno do servidor' },
       { status: 500 }
     );
   }
-}
+});

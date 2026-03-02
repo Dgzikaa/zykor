@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Loader2, Star, MessageCircle, ThumbsUp, AlertTriangle } from 'lucide-react';
 import {
   Popover,
@@ -45,35 +45,31 @@ export function GoogleReviewsTooltip({
   const [summary, setSummary] = useState<ReviewSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    console.log('🎯 Popover state changed:', { open, hasSummary: !!summary, loading });
-    if (open && !summary && !loading) {
-      fetchSummary();
-    }
-  }, [open]);
-
-  const fetchSummary = async () => {
+  const fetchSummary = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      console.log('🔍 Buscando reviews:', { barId, dataInicio, dataFim });
       const response = await fetch(
         `/api/google-reviews/period-summary?bar_id=${barId}&data_inicio=${dataInicio}&data_fim=${dataFim}`
       );
       const data = await response.json();
-      console.log('📊 Resposta da API:', data);
       if (data.success) {
         setSummary(data.summary);
       } else {
         setError(data.error || 'Erro ao carregar dados');
       }
     } catch (err) {
-      console.error('❌ Erro ao buscar reviews:', err);
       setError('Erro ao conectar com servidor');
     } finally {
       setLoading(false);
     }
-  };
+  }, [barId, dataInicio, dataFim]);
+
+  useEffect(() => {
+    if (open && !summary && !loading) {
+      fetchSummary();
+    }
+  }, [open, summary, loading, fetchSummary]);
 
   const renderStars = (count: number, total: number) => {
     const stars: React.ReactNode[] = [];

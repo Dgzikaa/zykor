@@ -27,19 +27,19 @@ export function PageHeader({
   className,
 }: PageHeaderProps) {
   return (
-    <div className={cn('mb-6', className)}>
+    <div className={cn('mb-8', className)}>
       {breadcrumb && breadcrumb.length > 0 && (
-        <nav className="flex items-center text-sm mb-3 text-gray-600 dark:text-gray-400" aria-label="Breadcrumb">
+        <nav className="flex items-center text-xs mb-2 text-[hsl(var(--muted-foreground))]" aria-label="Breadcrumb">
           <ol className="inline-flex items-center gap-2">
             {breadcrumb.map((item, idx) => (
               <li key={`${item.label}-${idx}`} className="inline-flex items-center gap-2">
-                {idx > 0 && <span className="text-gray-400">/</span>}
+                {idx > 0 && <span>/</span>}
                 {item.href ? (
-                  <Link href={item.href} className="hover:text-gray-900 dark:hover:text-white transition-colors">
+                  <Link href={item.href} className="hover:text-[hsl(var(--foreground))] transition-colors">
                     {item.label}
                   </Link>
                 ) : (
-                  <span className="text-gray-900 dark:text-white">{item.label}</span>
+                  <span className="text-[hsl(var(--foreground))]">{item.label}</span>
                 )}
               </li>
             ))}
@@ -49,9 +49,9 @@ export function PageHeader({
 
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{title}</h1>
+          <h1 className="text-2xl font-semibold text-[hsl(var(--foreground))]">{title}</h1>
           {description && (
-            <p className="text-gray-700 dark:text-gray-400">{description}</p>
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">{description}</p>
           )}
           {children}
         </div>
@@ -62,5 +62,3 @@ export function PageHeader({
 }
 
 export default PageHeader;
-
-
