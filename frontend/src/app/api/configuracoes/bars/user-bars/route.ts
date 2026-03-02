@@ -6,108 +6,93 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    // Log apenas em desenvolvimento
     if (process.env.NODE_ENV === 'development') {
       console.log('🔍 API: Buscando bares do usuário...');
     }
 
     const user = await authenticateUser(request);
     if (!user) {
-      // Log apenas em desenvolvimento
       if (process.env.NODE_ENV === 'development') {
         console.log('❌ API: Usuário não autenticado');
       }
       return authErrorResponse('Usuário não autenticado');
     }
 
-    // Log apenas em desenvolvimento
     if (process.env.NODE_ENV === 'development') {
       console.log('✅ API: Usuário autenticado:', user.nome);
     }
 
     const supabase = await getAdminClient();
-    // Log apenas em desenvolvimento
     if (process.env.NODE_ENV === 'development') {
       console.log('🔗 API: Cliente Supabase conectado');
     }
 
-    // Buscar os bares do usuário com módulos permitidos
-    const { data: userData, error: userError } = await supabase
-      .from('usuarios_bar')
-      .select('id, email, nome, role, bar_id, modulos_permitidos')
+    // 1. Buscar dados do usuário
+    const { data: usuarioData, error: userError } = await supabase
+      .from('usuarios')
+      .select('id, auth_id, email, nome, role, setor, modulos_permitidos')
       .eq('email', user.email)
-      .eq('ativo', true);
+      .eq('ativo', true)
+      .single();
 
-    if (userError) {
+    if (userError || !usuarioData) {
       console.error('❌ API: Erro ao buscar dados do usuário:', userError);
       return NextResponse.json(
-        {
-          error: 'Erro ao buscar dados do usuário',
-        },
-        { status: 500 }
-      );
-    }
-
-    // Logs detalhados apenas em desenvolvimento
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📊 API: Dados do usuário encontrados:', userData);
-    }
-
-    if (!userData || userData.length === 0) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('❌ API: Usuário não tem acesso a nenhum bar');
-      }
-      return NextResponse.json(
-        {
-          error: 'Usuário não tem acesso a nenhum bar',
-        },
+        { error: 'Usuário não encontrado' },
         { status: 404 }
       );
     }
 
-    // Extrair IDs únicos dos bares
-    const barIds = [...new Set(userData.map((user: any) => user.bar_id))];
-    // Log apenas em desenvolvimento
     if (process.env.NODE_ENV === 'development') {
-      console.log('🏪 API: IDs dos bares encontrados:', barIds);
+      console.log('📊 API: Dados do usuário encontrados:', usuarioData);
     }
 
-    // Buscar detalhes dos bares
-    const { data: barsData, error: barsError } = await supabase
-      .from('bars')
-      .select('id, nome')
-      .in('id', barIds)
-      .eq('ativo', true);
+    // 2. Buscar bares do usuário através de usuarios_bares
+    const { data: relacoes, error: relacoesError } = await supabase
+      .from('usuarios_bares')
+      .select(`
+        bar_id,
+        bares:bar_id(id, nome, ativo)
+      `)
+      .eq('usuario_id', usuarioData.auth_id);
 
-    if (barsError) {
-      console.error('❌ API: Erro ao buscar bares:', barsError);
+    if (relacoesError) {
+      console.error('❌ API: Erro ao buscar relacionamentos:', relacoesError);
       return NextResponse.json(
-        {
-          error: 'Erro ao buscar bares',
-        },
+        { error: 'Erro ao buscar bares do usuário' },
         { status: 500 }
       );
     }
 
-    // Log apenas em desenvolvimento
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ API: Bares encontrados:', barsData);
+    if (!relacoes || relacoes.length === 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('❌ API: Usuário não tem acesso a nenhum bar');
+      }
+      return NextResponse.json(
+        { error: 'Usuário não tem acesso a nenhum bar' },
+        { status: 404 }
+      );
     }
 
-    // Enriquecer os dados dos bares com modulos_permitidos do usuário
-    const barsEnriquecidos = (barsData || []).map((bar: { id: number; nome: string }) => {
-      const userBarData = userData.find((u: any) => u.bar_id === bar.id);
-      return {
-        ...bar,
-        modulos_permitidos: userBarData?.modulos_permitidos || [],
-        role: userBarData?.role || 'funcionario',
-      };
-    });
+    // 3. Filtrar apenas bares ativos e enriquecer com permissões do usuário
+    const barsEnriquecidos = relacoes
+      .filter(rel => rel.bares?.ativo)
+      .map(rel => ({
+        id: rel.bares.id,
+        nome: rel.bares.nome,
+        modulos_permitidos: usuarioData.modulos_permitidos || [],
+        role: usuarioData.role || 'funcionario',
+        setor: usuarioData.setor,
+      }));
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ API: Bares encontrados:', barsEnriquecidos);
+    }
 
     return NextResponse.json({
       success: true,
       bars: barsEnriquecidos,
-      userData: userData,
+      userData: usuarioData,
     });
   } catch (error) {
     console.error('❌ API: Erro interno:', error);

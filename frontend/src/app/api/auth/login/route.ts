@@ -86,14 +86,15 @@ export async function POST(request: NextRequest) {
     // Conectar ao Supabase Admin
     const supabase = await getAdminClient();
 
-    // Buscar usuário - pode ter múltiplos registros se tiver acesso a múltiplos bares
-    const { data: usuarios, error: usuarioError } = await supabase
-      .from('usuarios_bar')
+    // Buscar usuário (agora é único por email)
+    const { data: usuario, error: usuarioError } = await supabase
+      .from('usuarios')
       .select('*')
-      .eq('email', email) // Email já está normalizado
-      .eq('ativo', true);
+      .eq('email', email)
+      .eq('ativo', true)
+      .single();
 
-    if (usuarioError || !usuarios || usuarios.length === 0) {
+    if (usuarioError || !usuario) {
       await logLoginFailure({
         email,
         reason: 'User not found',
@@ -111,18 +112,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Usar o primeiro registro como base (todos têm os mesmos dados de autenticação)
-    const usuario = usuarios[0];
-    
-    // Buscar todos os bares que o usuário tem acesso
-    const barIds = [...new Set(usuarios.map(u => u.bar_id))];
-    const { data: barsData } = await supabase
-      .from('bars')
-      .select('id, nome')
-      .in('id', barIds)
-      .eq('ativo', true);
-    
-    const availableBars = barsData || [];
+    // Buscar bares do usuário através de usuarios_bares
+    const { data: relacoes } = await supabase
+      .from('usuarios_bares')
+      .select(`
+        bar_id,
+        bares:bar_id(id, nome, ativo)
+      `)
+      .eq('usuario_id', usuario.auth_id);
+
+    // Filtrar apenas bares ativos
+    const availableBars = (relacoes || [])
+      .filter(rel => rel.bares?.ativo)
+      .map(rel => ({
+        id: rel.bares.id,
+        nome: rel.bares.nome
+      }));
 
     // Verificar senha (usando Supabase Auth)
     try {
@@ -163,18 +168,18 @@ export async function POST(request: NextRequest) {
       }
 
       // Preparar dados do usuário para resposta
-      // Incluir lista de bares disponíveis para suporte multi-bar
       const userData = {
         id: usuario.id,
-        user_id: usuario.user_id,
+        auth_id: usuario.auth_id,
         nome: usuario.nome,
         email: usuario.email,
         role: usuario.role || 'funcionario',
-        bar_id: availableBars.length > 0 ? availableBars[0].id : usuario.bar_id, // Bar padrão
+        setor: usuario.setor,
+        bar_id: availableBars.length > 0 ? availableBars[0].id : null,
         modulos_permitidos: usuario.modulos_permitidos || [],
         ativo: usuario.ativo,
         senha_redefinida: usuario.senha_redefinida,
-        availableBars: availableBars, // Lista de bares que o usuário tem acesso
+        availableBars: availableBars,
       };
 
       // Retornar sucesso com dados do usuário e token

@@ -8,11 +8,12 @@ const VERBOSE_AUTH_LOGS = false;
 // Tipos para o usuário autenticado
 export interface AuthenticatedUser {
   id: number;
-  user_id: string;
+  auth_id: string;
   email: string;
   nome: string;
   role: 'admin' | 'financeiro' | 'funcionario';
-  bar_id: number;
+  setor?: string;
+  bar_id?: number;
   modulos_permitidos: string[] | Record<string, any>;
   ativo: boolean;
 }
