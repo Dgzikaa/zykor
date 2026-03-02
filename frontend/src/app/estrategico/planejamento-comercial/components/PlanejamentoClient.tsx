@@ -72,6 +72,7 @@ interface EventoEdicaoCompleta {
   percent_b: number;
   percent_d: number;
   percent_c: number;
+  percent_happy_hour: number;
   percent_stockout: number;
   t_coz: number;
   t_bar: number;

@@ -206,6 +206,7 @@ export async function getPlanejamentoComercial(
         percent_b: evento.percent_b || 0,
         percent_d: evento.percent_d || 0,
         percent_c: evento.percent_c || 0,
+        percent_happy_hour: evento.percent_happy_hour || 0,
         
         t_coz: evento.t_coz || 0,
         t_bar: evento.t_bar || 0,
