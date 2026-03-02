@@ -57,18 +57,31 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const endDate = semana.data_fim
         const barId = semana.bar_id
 
-        // Buscar dados consolidados de eventos_base (real_r já inclui ContaHub + Yuzer + Sympla)
+        // Buscar faturamento de contahub_pagamentos (excluindo conta assinada)
+        const { data: pagamentosData } = await supabase
+          .from('contahub_pagamentos')
+          .select('valor, meio')
+          .eq('bar_id', barId)
+          .gte('dt_gerencial', startDate)
+          .lte('dt_gerencial', endDate)
+        
+        const faturamentoBruto = (pagamentosData || []).reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0)
+        const contaAssinada = (pagamentosData || []).filter(item => item.meio === 'Conta Assinada').reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0)
+        const faturamentoTotal = faturamentoBruto - contaAssinada
+        
+        // Buscar clientes de eventos_base
         const { data: eventosData } = await supabase
           .from('eventos_base')
-          .select('real_r, cl_real')
+          .select('cl_real')
           .eq('bar_id', barId)
           .gte('data_evento', startDate)
           .lte('data_evento', endDate)
           .eq('ativo', true)
-
-        const faturamentoTotal = (eventosData || []).reduce((sum, item) => sum + (parseFloat(item.real_r) || 0), 0)
+        
         const clientesAtendidos = (eventosData || []).reduce((sum, item) => sum + (parseInt(item.cl_real) || 0), 0)
         const ticketMedio = clientesAtendidos > 0 ? faturamentoTotal / clientesAtendidos : 0
+        
+        console.log(`💰 Faturamento - Bruto: R$ ${faturamentoBruto.toFixed(2)} | Conta Assinada: R$ ${contaAssinada.toFixed(2)} | Líquido: R$ ${faturamentoTotal.toFixed(2)}`)
 
         // Buscar meta semanal (soma de m1_r dos eventos)
         const { data: eventosMetaData } = await supabase
