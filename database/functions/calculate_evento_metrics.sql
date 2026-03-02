@@ -39,6 +39,8 @@ DECLARE
     calculated_c_prod NUMERIC;
     calculated_res_tot INTEGER;
     calculated_res_p INTEGER;
+    calculated_num_mesas_tot INTEGER;
+    calculated_num_mesas_presentes INTEGER;
 BEGIN
     -- Buscar dados do evento
     SELECT * INTO evento_record 

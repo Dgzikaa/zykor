@@ -116,8 +116,8 @@ const SECOES: SecaoConfig[] = [
         id: 'reservas',
         label: 'Reservas',
         metricas: [
-          { key: 'reservas_totais', label: 'Reservas Realizadas', status: 'auto', fonte: 'GetIn', calculo: 'Total reservas/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_totais' },
-          { key: 'reservas_presentes', label: 'Reservas Presentes', status: 'auto', fonte: 'GetIn', calculo: 'Reservas seated/pessoas', formato: 'reservas', keyPessoas: 'pessoas_reservas_presentes' },
+          { key: 'mesas_totais', label: 'Reservas Realizadas', status: 'auto', fonte: 'GetIn', calculo: 'Nº mesas / Nº pessoas (COUNT reservas / SUM people)', formato: 'reservas', keyPessoas: 'reservas_totais' },
+          { key: 'mesas_presentes', label: 'Reservas Presentes', status: 'auto', fonte: 'GetIn', calculo: 'Nº mesas seated / Nº pessoas seated', formato: 'reservas', keyPessoas: 'reservas_presentes' },
           { key: 'quebra_reservas', label: 'Quebra de Reservas', status: 'auto', fonte: 'Calculado', calculo: '(Pessoas Total - Pessoas Presentes) / Pessoas Total', formato: 'percentual' },
         ]
       }
@@ -248,86 +248,6 @@ const SECOES: SecaoConfig[] = [
           { key: 'm_alcance', label: 'Alcance Pago', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
           { key: 'm_cliques', label: 'Cliques Ads', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
           { key: 'm_ctr', label: 'CTR', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'percentual', editavel: true },
-        ]
-      }
-    ]
-  },
-  {
-    id: 'producao',
-    titulo: 'Gestão Produção',
-    icone: <Factory className="w-4 h-4" />,
-    cor: 'bg-teal-600',
-    grupos: [
-      {
-        id: 'stockout_zykor',
-        label: 'Stockout Zykor',
-        metricas: [
-          { key: 'stockout_drinks_perc', label: 'Stockout Drinks Zykor', status: 'auto', fonte: 'ContaHub Stockout', calculo: 'Média da semana de drinks', formato: 'percentual', inverso: true },
-          { key: 'stockout_comidas_perc', label: 'Stockout Comidas Zykor', status: 'auto', fonte: 'ContaHub Stockout', calculo: 'Média da semana de comidas', formato: 'percentual', inverso: true },
-        ]
-      },
-      {
-        id: 'gestao_producao',
-        label: 'Gestão',
-        metricas: [
-          { key: 'quebra_utensilios', label: 'Quebra de Utensílios', status: 'manual', fonte: 'Manual', calculo: 'Valor em R$ de utensílios quebrados', formato: 'moeda', editavel: true },
-          { key: 'bonificacoes_contratos', label: 'Bonificações Contratos', status: 'manual', fonte: 'Manual', calculo: 'Valor em R$ de bonificações', formato: 'moeda', editavel: true },
-          { key: 'nota_producao_bar', label: 'Nota Produção Bar', status: 'manual', fonte: 'Manual', calculo: 'Nota de 0 a 10', formato: 'decimal', editavel: true },
-          { key: 'nota_producao_cozinha', label: 'Nota Produção Cozinha', status: 'manual', fonte: 'Manual', calculo: 'Nota de 0 a 10', formato: 'decimal', editavel: true },
-          { key: 'perc_checklist_producao', label: '% Checklist', status: 'manual', fonte: 'Manual', calculo: 'Percentual de checklist concluído', formato: 'percentual', editavel: true },
-          { key: 'desvio_semana', label: 'Desvio da Semana', status: 'manual', fonte: 'Manual', calculo: 'Valor de desvio em R$', formato: 'moeda', editavel: true },
-        ]
-      }
-    ]
-  },
-  {
-    id: 'rh',
-    titulo: 'Gestão RH',
-    icone: <UserCog className="w-4 h-4" />,
-    cor: 'bg-cyan-600',
-    grupos: [
-      {
-        id: 'recrutamento',
-        label: 'Recrutamento',
-        metricas: [
-          { key: 'vagas_abertas', label: 'Vagas Abertas', status: 'manual', fonte: 'Manual', calculo: 'Número de vagas abertas', formato: 'numero', editavel: true },
-          { key: 'num_testes_ps', label: 'Nº de Testes PS', status: 'manual', fonte: 'Manual', calculo: 'Número de testes realizados', formato: 'numero', editavel: true },
-          { key: 'perc_comparecimento_ps', label: '% Comparecimento PS', status: 'manual', fonte: 'Manual', calculo: 'Percentual de comparecimento', formato: 'percentual', editavel: true },
-          { key: 'aprovados_ps', label: 'Aprovados', status: 'manual', fonte: 'Manual', calculo: 'Número de aprovados', formato: 'numero', editavel: true },
-        ]
-      },
-      {
-        id: 'gestao_rh',
-        label: 'Gestão',
-        metricas: [
-          { key: 'quorum_pesquisa_felicidade', label: 'Quórum Pesquisa Felicidade', status: 'manual', fonte: 'Manual', calculo: 'Percentual de participação', formato: 'percentual', editavel: true },
-          { key: 'perc_checklist_rh', label: '% Checklist', status: 'manual', fonte: 'Manual', calculo: 'Percentual de checklist concluído', formato: 'percentual', editavel: true },
-          { key: 'absenteismo', label: 'Absenteísmo', status: 'manual', fonte: 'Manual', calculo: 'Percentual de absenteísmo', formato: 'percentual', editavel: true, inverso: true },
-        ]
-      }
-    ]
-  },
-  {
-    id: 'financeiro',
-    titulo: 'Gestão Financeiro',
-    icone: <Calculator className="w-4 h-4" />,
-    cor: 'bg-amber-600',
-    grupos: [
-      {
-        id: 'lancamentos',
-        label: 'Lançamentos',
-        metricas: [
-          { key: 'num_lancamentos_vencidos', label: 'Nº de Lançamentos Vencidos', status: 'manual', fonte: 'Manual', calculo: 'Número de lançamentos vencidos', formato: 'numero', editavel: true, inverso: true },
-          { key: 'lancamentos_atrasados', label: 'Lançamentos Atrasados', status: 'manual', fonte: 'Manual', calculo: 'Número de lançamentos atrasados', formato: 'numero', editavel: true, inverso: true },
-          { key: 'conciliacoes_pendentes', label: 'Conciliações Pendentes', status: 'manual', fonte: 'Manual', calculo: 'Número de conciliações pendentes', formato: 'numero', editavel: true, inverso: true },
-          { key: 'erros_pente_fino', label: 'Erros Pente Fino', status: 'manual', fonte: 'Manual', calculo: 'Número de erros encontrados', formato: 'numero', editavel: true, inverso: true },
-        ]
-      },
-      {
-        id: 'checklist_financeiro',
-        label: 'Checklist',
-        metricas: [
-          { key: 'perc_checklist_semanal_terca', label: '% Checklist Semanal até Terça', status: 'manual', fonte: 'Manual', calculo: 'Percentual de checklist concluído até terça', formato: 'percentual', editavel: true },
         ]
       }
     ]
@@ -522,12 +442,6 @@ export function DesempenhoClient({
     'vendas-horarios': true,
     'marketing-organico': true,
     'marketing-pago': true,
-    'producao-stockout_zykor': true,
-    'producao-gestao_producao': true,
-    'rh-recrutamento': true,
-    'rh-gestao_rh': true,
-    'financeiro-lancamentos': true,
-    'financeiro-checklist_financeiro': true,
   });
   
   const secoesNaoColapsaveis = useMemo(() => ['ovt', 'qualidade', 'vendas'], []);
@@ -747,20 +661,47 @@ export function DesempenhoClient({
       return;
     }
     
-    // Usar API route existente (PUT /api/gestao/desempenho)
-    // TODO: Converter para Server Action
     try {
       setLoading(true);
-      const response = await fetch('/api/gestao/desempenho', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: barId }))
-        },
-        body: JSON.stringify({ id: semanaId, [campo]: numValue })
-      });
+      
+      // Detectar se é campo de marketing no mensal
+      const isMarketingField = campo.startsWith('o_') || campo.startsWith('m_') || campo.startsWith('g_') || campo.startsWith('gmn_');
+      
+      if (visao === 'mensal' && isMarketingField) {
+        // Buscar dados da semana/mês atual para pegar ano e mes
+        const semanaAtual = semanasProcessadas.find(s => s.id === semanaId);
+        if (!semanaAtual) {
+          throw new Error('Semana/mês não encontrado');
+        }
+        
+        // Salvar em marketing_mensal
+        const response = await fetch('/api/estrategico/marketing-mensal', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            bar_id: barId,
+            ano: semanaAtual.ano,
+            mes: semanaAtual.numero_semana, // No mensal, numero_semana é o mês
+            [campo]: numValue
+          })
+        });
 
-      if (!response.ok) throw new Error('Erro ao salvar');
+        if (!response.ok) throw new Error('Erro ao salvar marketing mensal');
+      } else {
+        // Usar API route existente para desempenho semanal
+        const response = await fetch('/api/gestao/desempenho', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: barId }))
+          },
+          body: JSON.stringify({ id: semanaId, [campo]: numValue })
+        });
+
+        if (!response.ok) throw new Error('Erro ao salvar');
+      }
       
       // Atualizar estado local para refletir imediatamente
       setValoresLocais(prev => ({

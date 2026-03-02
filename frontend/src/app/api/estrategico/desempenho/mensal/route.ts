@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     // ========== PARTE 1: Dados diários de eventos_base ==========
     const { data: eventosDiarios, error: eventosError } = await supabase
       .from('eventos_base')
-      .select('data_evento, real_r, cl_real, t_medio, percent_b, percent_d, percent_c, res_tot, res_p, t_coz, t_bar, fat_19h_percent, faturamento_couvert, faturamento_bar, percent_stockout')
+      .select('data_evento, real_r, cl_real, t_medio, percent_b, percent_d, percent_c, res_tot, res_p, num_mesas_tot, num_mesas_presentes, t_coz, t_bar, fat_19h_percent, faturamento_couvert, faturamento_bar, percent_stockout')
       .eq('bar_id', barId)
       .gte('data_evento', dataInicio)
       .lte('data_evento', dataFim);
@@ -45,6 +45,19 @@ export async function GET(request: NextRequest) {
 
     // Agregar dados diários
     const dadosDiarios = agregarDadosDiarios(eventosDiarios || []);
+
+    // ========== PARTE 1.5: Dados mensais de marketing (100% manual) ==========
+    const { data: marketingMensal, error: marketingMensalError } = await supabase
+      .from('marketing_mensal')
+      .select('*')
+      .eq('bar_id', barId)
+      .eq('ano', ano)
+      .eq('mes', mes)
+      .single();
+
+    if (marketingMensalError && marketingMensalError.code !== 'PGRST116') {
+      console.error('Erro ao buscar marketing mensal:', marketingMensalError);
+    }
 
     // ========== PARTE 2: Dados semanais proporcionais ==========
     // Identificar semanas que têm dias no mês e calcular proporção
@@ -97,7 +110,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Agregar dados semanais com proporção
-    const dadosSemanais = agregarDadosSemanaisProporcionais(semanasComProporcao, desempenhoMap, marketingMap);
+    const dadosSemanais = agregarDadosSemanaisProporcionais(semanasComProporcao, desempenhoMap, marketingMap, marketingMensal);
 
     // ========== Combinar dados diários e semanais ==========
     const dadosMensais = {
@@ -189,6 +202,8 @@ function agregarDadosDiarios(eventos: any[]): any {
   const clientesTotal = diasComFaturamento.reduce((acc, e) => acc + (parseInt(e.cl_real) || 0), 0);
   const reservasTotal = eventos.reduce((acc, e) => acc + (parseInt(e.res_tot) || 0), 0);
   const reservasPresentes = eventos.reduce((acc, e) => acc + (parseInt(e.res_p) || 0), 0);
+  const mesasTotal = eventos.reduce((acc, e) => acc + (parseInt(e.num_mesas_tot) || 0), 0);
+  const mesasPresentes = eventos.reduce((acc, e) => acc + (parseInt(e.num_mesas_presentes) || 0), 0);
   const faturamentoCouvert = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.faturamento_couvert) || 0), 0);
   const faturamentoBar = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.faturamento_bar) || 0), 0);
 
@@ -241,9 +256,11 @@ function agregarDadosDiarios(eventos: any[]): any {
     perc_drinks: faturamentoTotal > 0 ? somaPercentDPonderado / faturamentoTotal : 0,
     perc_comida: faturamentoTotal > 0 ? somaPercentCPonderado / faturamentoTotal : 0,
     
-    // Reservas
+    // Reservas (mesas / pessoas)
     reservas_totais: reservasTotal,
     reservas_presentes: reservasPresentes,
+    mesas_totais: mesasTotal,
+    mesas_presentes: mesasPresentes,
     
     // Tempos
     tempo_saida_cozinha: tempoMedioCoz,
@@ -265,7 +282,8 @@ function agregarDadosDiarios(eventos: any[]): any {
 function agregarDadosSemanaisProporcionais(
   semanasComProporcao: { semana: number; anoISO: number; proporcao: number }[],
   desempenhoMap: Map<string, any>,
-  marketingMap: Map<string, any>
+  marketingMap: Map<string, any>,
+  marketingMensal: any
 ): any {
   let totalProporcao = 0;
   
@@ -394,36 +412,36 @@ function agregarDadosSemanaisProporcionais(
     couvert_atracoes: somaProportional('couvert_atracoes'),
     qui_sab_dom: somaProportional('qui_sab_dom'),
     
-    // Marketing Orgânico
-    o_num_posts: somaMarketingProportional('o_num_posts'),
-    o_alcance: somaMarketingProportional('o_alcance'),
-    o_interacao: somaMarketingProportional('o_interacao'),
-    o_compartilhamento: somaMarketingProportional('o_compartilhamento'),
-    o_engajamento: mediaMarketingProportional('o_engajamento'),
-    o_num_stories: somaMarketingProportional('o_num_stories'),
-    o_visu_stories: somaMarketingProportional('o_visu_stories'),
-    
-    // Marketing Pago - Meta
-    m_valor_investido: somaMarketingProportional('m_valor_investido'),
-    m_alcance: somaMarketingProportional('m_alcance'),
-    m_frequencia: mediaMarketingProportional('m_frequencia'),
-    m_cpm: mediaMarketingProportional('m_cpm'),
-    m_cliques: somaMarketingProportional('m_cliques'),
-    m_ctr: mediaMarketingProportional('m_ctr'),
-    m_custo_por_clique: mediaMarketingProportional('m_cpc'),
-    m_conversas_iniciadas: somaMarketingProportional('m_conversas_iniciadas'),
-    
-    // Google Ads
-    g_valor_investido: somaMarketingProportional('g_valor_investido'),
-    g_impressoes: somaMarketingProportional('g_impressoes'),
-    g_cliques: somaMarketingProportional('g_cliques'),
-    g_ctr: mediaMarketingProportional('g_ctr'),
-    g_solicitacoes_rotas: somaMarketingProportional('g_solicitacoes_rotas'),
-    
-    // GMN
-    gmn_total_acoes: somaMarketingProportional('gmn_total_acoes'),
-    gmn_total_visualizacoes: somaMarketingProportional('gmn_total_visualizacoes'),
-    gmn_solicitacoes_rotas: somaMarketingProportional('gmn_solicitacoes_rotas'),
+    // Marketing Orgânico (100% MANUAL - não usar proporção)
+    o_num_posts: marketingMensal?.o_num_posts || 0,
+    o_alcance: marketingMensal?.o_alcance || 0,
+    o_interacao: marketingMensal?.o_interacao || 0,
+    o_compartilhamento: marketingMensal?.o_compartilhamento || 0,
+    o_engajamento: marketingMensal?.o_engajamento || 0,
+    o_num_stories: marketingMensal?.o_num_stories || 0,
+    o_visu_stories: marketingMensal?.o_visu_stories || 0,
+
+    // Marketing Pago - Meta (100% MANUAL - não usar proporção)
+    m_valor_investido: marketingMensal?.m_valor_investido || 0,
+    m_alcance: marketingMensal?.m_alcance || 0,
+    m_frequencia: marketingMensal?.m_frequencia || 0,
+    m_cpm: marketingMensal?.m_cpm || 0,
+    m_cliques: marketingMensal?.m_cliques || 0,
+    m_ctr: marketingMensal?.m_ctr || 0,
+    m_custo_por_clique: marketingMensal?.m_cpc || 0,
+    m_conversas_iniciadas: marketingMensal?.m_conversas_iniciadas || 0,
+
+    // Google Ads (100% MANUAL - não usar proporção)
+    g_valor_investido: marketingMensal?.g_valor_investido || 0,
+    g_impressoes: marketingMensal?.g_impressoes || 0,
+    g_cliques: marketingMensal?.g_cliques || 0,
+    g_ctr: marketingMensal?.g_ctr || 0,
+    g_solicitacoes_rotas: marketingMensal?.g_solicitacoes_rotas || 0,
+
+    // GMN (100% MANUAL - não usar proporção)
+    gmn_total_acoes: marketingMensal?.gmn_total_acoes || 0,
+    gmn_total_visualizacoes: marketingMensal?.gmn_total_visualizacoes || 0,
+    gmn_solicitacoes_rotas: marketingMensal?.gmn_solicitacoes_rotas || 0,
     
     // Gestão Produção
     quebra_utensilios: somaProportional('quebra_utensilios'),

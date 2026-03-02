@@ -24,6 +24,8 @@ export interface DadosSemana {
   clientes_ativos: number;
   reservas_totais: number;
   reservas_presentes: number;
+  mesas_totais: number;
+  mesas_presentes: number;
   pessoas_reservas_totais?: number;
   pessoas_reservas_presentes?: number;
   quebra_reservas?: number;
