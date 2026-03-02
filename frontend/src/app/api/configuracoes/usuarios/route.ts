@@ -28,7 +28,7 @@ export async function GET() {
       console.error('Erro ao buscar relacionamentos usuários-bares:', baresError);
     }
 
-    // Criar mapa de bares por usuário (usando UUID)
+    // Criar mapa de bares por usuário (usando auth_id como chave)
     const baresMap: Record<string, number[]> = {};
     usuariosBares?.forEach(ub => {
       if (!baresMap[ub.usuario_id]) {
@@ -58,8 +58,8 @@ export async function GET() {
       return {
         ...u,
         modulos_permitidos: modulosPermitidos,
-        // Adicionar array de bares (usando UUID)
-        bares_ids: baresMap[u.id] || []
+        // Adicionar array de bares (usando auth_id como chave no mapa)
+        bares_ids: baresMap[u.auth_id] || []
       };
     }) || [];
 
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
 
     // 3. Criar relacionamentos na tabela usuarios_bares (múltiplos bares)
     const relacionamentos = baresParaAssociar.map(barId => ({
-      usuario_id: usuario.id, // UUID do usuário
+      usuario_id: usuario.auth_id, // auth_id do usuário (FK aponta para auth_id)
       bar_id: barId
     }));
 

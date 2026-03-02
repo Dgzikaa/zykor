@@ -47,14 +47,14 @@ export async function GET(request: NextRequest) {
       console.log('📊 API: Dados do usuário encontrados:', usuarioData);
     }
 
-    // 2. Buscar bares do usuário através de usuarios_bares (usando id UUID)
+    // 2. Buscar bares do usuário através de usuarios_bares (usando auth_id)
     const { data: relacoes, error: relacoesError } = await supabase
       .from('usuarios_bares')
       .select(`
         bar_id,
         bares!inner(id, nome, ativo)
       `)
-      .eq('usuario_id', usuarioData.id);
+      .eq('usuario_id', usuarioData.auth_id);
 
     if (relacoesError) {
       console.error('❌ API: Erro ao buscar relacionamentos:', relacoesError);
