@@ -57,31 +57,33 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const endDate = semana.data_fim
         const barId = semana.bar_id
 
-        // Buscar faturamento de contahub_pagamentos (excluindo conta assinada)
-        const { data: pagamentosData } = await supabase
-          .from('contahub_pagamentos')
-          .select('valor, meio')
-          .eq('bar_id', barId)
-          .gte('dt_gerencial', startDate)
-          .lte('dt_gerencial', endDate)
-        
-        const faturamentoBruto = (pagamentosData || []).reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0)
-        const contaAssinada = (pagamentosData || []).filter(item => item.meio === 'Conta Assinada').reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0)
-        const faturamentoTotal = faturamentoBruto - contaAssinada
-        
-        // Buscar clientes de eventos_base
+        // Buscar faturamento de eventos_base (já inclui ContaHub + Yuzer + Sympla)
         const { data: eventosData } = await supabase
           .from('eventos_base')
-          .select('cl_real')
+          .select('real_r, cl_real')
           .eq('bar_id', barId)
           .gte('data_evento', startDate)
           .lte('data_evento', endDate)
           .eq('ativo', true)
+
+        const faturamentoBruto = (eventosData || []).reduce((sum, item) => sum + (parseFloat(item.real_r) || 0), 0)
+        
+        // Buscar conta assinada do ContaHub para descontar
+        const { data: contaAssinadaData } = await supabase
+          .from('contahub_pagamentos')
+          .select('valor')
+          .eq('bar_id', barId)
+          .gte('dt_gerencial', startDate)
+          .lte('dt_gerencial', endDate)
+          .eq('meio', 'Conta Assinada')
+        
+        const contaAssinada = (contaAssinadaData || []).reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0)
+        const faturamentoTotal = faturamentoBruto - contaAssinada
         
         const clientesAtendidos = (eventosData || []).reduce((sum, item) => sum + (parseInt(item.cl_real) || 0), 0)
         const ticketMedio = clientesAtendidos > 0 ? faturamentoTotal / clientesAtendidos : 0
         
-        console.log(`💰 Faturamento - Bruto: R$ ${faturamentoBruto.toFixed(2)} | Conta Assinada: R$ ${contaAssinada.toFixed(2)} | Líquido: R$ ${faturamentoTotal.toFixed(2)}`)
+        console.log(`💰 Faturamento - Bruto (ContaHub+Yuzer+Sympla): R$ ${faturamentoBruto.toFixed(2)} | Conta Assinada: R$ ${contaAssinada.toFixed(2)} | Líquido: R$ ${faturamentoTotal.toFixed(2)}`)
 
         // Buscar meta semanal (soma de m1_r dos eventos)
         const { data: eventosMetaData } = await supabase
