@@ -67,6 +67,12 @@ export async function POST(request: NextRequest) {
 
     const supabase = await getAdminClient();
 
+
+    if (!user.bar_id) {
+      return NextResponse.json({ error: 'Bar ID não encontrado' }, { status: 400 });
+    }
+    const barIdStr = user.bar_id.toString();
+
     // Verificar se checklist existe
     const { data: checklist, error: checklistError } = await supabase
       .from('checklists')
@@ -101,7 +107,7 @@ export async function POST(request: NextRequest) {
     const conflitos = await verificarConflitosAtribuicao(
       supabase as SupabaseClient,
       data as Record<string, unknown>,
-      user.bar_id.toString()
+      barIdStr
     );
     if (conflitos.length > 0) {
       return NextResponse.json(
@@ -127,7 +133,7 @@ export async function POST(request: NextRequest) {
       observacoes: data.observacoes,
       data_inicio: data.data_inicio,
       data_fim: data.data_fim,
-      criado_por: user.user_id,
+      criado_por: user.auth_id,
       criado_em: new Date().toISOString(),
     };
 

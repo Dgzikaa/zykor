@@ -74,6 +74,12 @@ export async function GET(request: NextRequest) {
 
     const supabase = await getAdminClient();
 
+
+    if (!user.bar_id) {
+      return NextResponse.json({ error: 'Bar ID não encontrado' }, { status: 400 });
+    }
+    const barIdStr = user.bar_id.toString();
+
     let query = supabase
       .from('checklist_schedules')
       .select(
@@ -191,7 +197,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar conflitos de agendamento
-    const conflito = verificarConflitoAgendamento(supabase, data, user.bar_id);
+    const conflito = verificarConflitoAgendamento(supabase, data, user.bar_id!);
     if (conflito) {
       return NextResponse.json(
         {
@@ -206,7 +212,7 @@ export async function POST(request: NextRequest) {
     const agendamentoData = {
       ...data,
       bar_id: user.bar_id,
-      criado_por: user.user_id,
+      criado_por: user.auth_id,
       created_at: new Date().toISOString(),
     };
 

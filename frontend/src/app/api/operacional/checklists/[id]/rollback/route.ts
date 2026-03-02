@@ -106,7 +106,7 @@ export async function POST(
         estrutura_anterior: checklistAtual.estrutura,
         mudancas_detectadas: [`Rollback para versão ${versao_destino}`],
         comentario: `${comentario} (rollback v${checklistAtual.versao} → v${versao_destino})`,
-        usuario_id: user.user_id,
+        usuario_id: user.auth_id,
         tipo_mudanca: 'rollback',
       });
 
@@ -124,7 +124,7 @@ export async function POST(
       estrutura: versaoDestino.estrutura_anterior,
       versao: novaVersao,
       atualizado_em: new Date().toISOString(),
-      atualizado_por: user.user_id,
+      atualizado_por: user.auth_id,
     };
 
     // Aplicar o rollback

@@ -18,8 +18,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!user.bar_id) {
+      return NextResponse.json({ error: 'Bar ID não encontrado' }, { status: 400 });
+    }
+    const barIdStr = user.bar_id.toString();
+
     const { searchParams } = new URL(request.url);
-    const barId = searchParams.get('bar_id') || user.bar_id.toString();
+    const barId = searchParams.get('bar_id') || barIdStr;
 
     const supabase = await getAdminClient();
 

@@ -240,7 +240,7 @@ export async function PUT(
     } else {
       // Template privado só pode ser editado pelo criador ou admin do bar
       if (
-        template.criado_por !== user.user_id &&
+        template.criado_por !== user.auth_id &&
         template.bar_id !== user.bar_id
       ) {
         return permissionErrorResponse(
@@ -415,7 +415,7 @@ export async function DELETE(
     } else {
       // Template privado só pode ser deletado pelo criador ou admin do bar
       if (
-        template.criado_por !== user.user_id &&
+        template.criado_por !== user.auth_id &&
         template.bar_id !== user.bar_id
       ) {
         return permissionErrorResponse(

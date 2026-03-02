@@ -61,7 +61,7 @@ export async function GET(
 
     // Verificar se o usuário tem acesso a esta notificação
     const temAcesso =
-      notificacao.usuario_id === user.user_id ||
+      notificacao.usuario_id === user.auth_id ||
       notificacao.role_alvo === user.role ||
       user.role === 'admin';
 
@@ -131,7 +131,7 @@ export async function PUT(
 
     // Verificar permissões
     const temAcesso =
-      notificacaoAtual.usuario_id === user.user_id ||
+      notificacaoAtual.usuario_id === user.auth_id ||
       notificacaoAtual.role_alvo === user.role ||
       user.role === 'admin';
 
@@ -250,7 +250,7 @@ export async function DELETE(
 
     // Verificar permissões (apenas admin ou próprio usuário pode excluir)
     const podeExcluir =
-      user.role === 'admin' || notificacao.usuario_id === user.user_id;
+      user.role === 'admin' || notificacao.usuario_id === user.auth_id;
 
     if (!podeExcluir) {
       return NextResponse.json(
@@ -370,7 +370,7 @@ async function marcarTodasComoLidas(
     })
     .eq('bar_id', user.bar_id)
     .in('status', ['pendente', 'enviada'])
-    .or(`usuario_id.eq.${user.user_id},role_alvo.eq.${user.role}`);
+    .or(`usuario_id.eq.${user.auth_id},role_alvo.eq.${user.role}`);
 
   if (modulo) {
     query = query.eq('modulo', modulo);
@@ -389,7 +389,7 @@ async function marcarTodasComoLidas(
   }
 
   console.log(
-    `📱 ${count} notificações marcadas como lidas para usuário ${user.user_id}`
+    `📱 ${count} notificações marcadas como lidas para usuário ${user.auth_id}`
   );
 
   return NextResponse.json({
@@ -417,7 +417,7 @@ async function limparNotificacoesAntigas(
     .delete()
     .eq('bar_id', user.bar_id)
     .eq('status', 'lida')
-    .or(`usuario_id.eq.${user.user_id},role_alvo.eq.${user.role}`)
+    .or(`usuario_id.eq.${user.auth_id},role_alvo.eq.${user.role}`)
     .lt('lida_em', dataLimite);
 
   if (error) {
@@ -431,7 +431,7 @@ async function limparNotificacoesAntigas(
   }
 
   console.log(
-    `🧹 ${count} notificações antigas removidas para usuário ${user.user_id}`
+    `🧹 ${count} notificações antigas removidas para usuário ${user.auth_id}`
   );
 
   return NextResponse.json({

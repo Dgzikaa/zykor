@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
         caminho_storage: fullPath,
         url_publica: urlData.publicUrl,
         pasta: folder,
-        uploadado_por: user.user_id,
+        uploadado_por: user.auth_id,
         bar_id: user.bar_id,
         metadados: {
           compressed: compress,
@@ -346,7 +346,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verificar se pode deletar (só quem fez upload ou admin)
-    if (anexo.uploadado_por !== user.user_id && user.role !== 'admin') {
+    if (anexo.uploadado_por !== user.auth_id && user.role !== 'admin') {
       return permissionErrorResponse('Sem permissão para deletar este arquivo');
     }
 

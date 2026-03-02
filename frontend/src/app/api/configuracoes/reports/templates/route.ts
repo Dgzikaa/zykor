@@ -239,7 +239,7 @@ export async function POST(request: NextRequest) {
     // Criar template
     const novoTemplate = {
       ...data,
-      criado_por: user.user_id,
+      criado_por: user.auth_id,
       criado_em: new Date().toISOString(),
       atualizado_em: new Date().toISOString(),
     };

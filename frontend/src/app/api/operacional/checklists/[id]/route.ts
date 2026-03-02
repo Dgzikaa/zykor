@@ -347,7 +347,7 @@ export async function PUT(
         estrutura_anterior: checklistExistente.estrutura,
         mudancas_detectadas: mudancasDetectadas.detalhes,
         comentario: data.comentario_edicao || 'Atualização automática',
-        usuario_id: user.user_id,
+        usuario_id: user.auth_id,
         tipo_mudanca: mudancasDetectadas.tipoMudanca,
       });
 
@@ -364,7 +364,7 @@ export async function PUT(
       ...data,
       versao: novaVersao,
       atualizado_em: new Date().toISOString(),
-      atualizado_por: user.user_id,
+      atualizado_por: user.auth_id,
     };
 
     // Remover campos que não devem ser atualizados diretamente
@@ -482,7 +482,7 @@ export async function DELETE(
         .update({
           ativo: false,
           atualizado_em: new Date().toISOString(),
-          atualizado_por: user.user_id,
+          atualizado_por: user.auth_id,
         })
         .eq('id', checklistId)
         .eq('bar_id', user.bar_id);
@@ -500,7 +500,7 @@ export async function DELETE(
         checklist_id: checklistId,
         versao: 0, // Versão especial para arquivamento
         comentario: 'Checklist arquivado (possui execuções)',
-        usuario_id: user.user_id,
+        usuario_id: user.auth_id,
         tipo_mudanca: 'arquivamento',
       });
 

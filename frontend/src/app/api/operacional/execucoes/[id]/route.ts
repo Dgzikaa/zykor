@@ -8,7 +8,7 @@ import { z } from 'zod';
 // =====================================================
 
 interface AuthenticatedUser {
-  user_id: string;
+  auth_id: string;
   email: string;
   role: string;
   bar_id?: number;
@@ -406,7 +406,7 @@ function podeAcessarExecucao(
 
   // Funcionário só pode acessar suas próprias execuções
   if (user.role === 'funcionario') {
-    return user.user_id === execucao.funcionario_id;
+    return user.auth_id === execucao.funcionario_id;
   }
 
   // Gerente pode acessar execuções do seu bar
@@ -429,7 +429,7 @@ function podeEditarExecucao(
 
   // Funcionário só pode editar suas próprias execuções
   if (user.role === 'funcionario') {
-    return user.user_id === execucao.funcionario_id;
+    return user.auth_id === execucao.funcionario_id;
   }
 
   // Gerente pode editar execuções do seu bar

@@ -78,6 +78,12 @@ export async function POST(request: NextRequest) {
 
     const supabase = await getAdminClient();
 
+
+    if (!user.bar_id) {
+      return NextResponse.json({ error: 'Bar ID não encontrado' }, { status: 400 });
+    }
+    const barIdStr = user.bar_id.toString();
+
     if (modo === 'template') {
       // Criar notificação usando template
       const data = CriarNotificacaoTemplateSchema.parse(body);
@@ -85,7 +91,7 @@ export async function POST(request: NextRequest) {
       const { data: notificacao, error } = await supabase.rpc(
         'criar_notificacao_template',
         {
-          p_bar_id: user.bar_id.toString(),
+          p_bar_id: barIdStr,
           p_template_nome: data.template_nome,
           p_template_modulo: data.template_modulo,
           p_template_categoria: data.template_categoria,
@@ -134,7 +140,7 @@ export async function POST(request: NextRequest) {
         const { data: existente } = await supabase
           .from('notificacoes')
           .select('id')
-          .eq('bar_id', user.bar_id.toString())
+          .eq('bar_id', barIdStr)
           .eq('chave_duplicacao', data.chave_duplicacao)
           .eq('status', 'pendente')
           .single();
@@ -150,7 +156,7 @@ export async function POST(request: NextRequest) {
 
       // Criar notificação
       const novaNotificacao = {
-        bar_id: user.bar_id.toString(),
+        bar_id: barIdStr,
         usuario_id: data.usuario_id,
         role_alvo: data.role_alvo,
         modulo: data.modulo,
@@ -168,7 +174,7 @@ export async function POST(request: NextRequest) {
         referencia_tipo: data.referencia_tipo,
         referencia_id: data.referencia_id,
         chave_duplicacao: data.chave_duplicacao,
-        criada_por: user.user_id,
+        criada_por: user.auth_id,
         status: 'pendente',
       };
 
@@ -253,6 +259,11 @@ export async function GET(request: NextRequest) {
 
     const data = FiltrosSchema.parse(filtros);
 
+    if (!user.bar_id) {
+      return NextResponse.json({ error: 'Bar ID não encontrado' }, { status: 400 });
+    }
+    const barIdStr = user.bar_id.toString();
+
     const supabase = await getAdminClient();
 
     // Construir query base - CORRIGIDO: usar apenas colunas existentes
@@ -275,14 +286,14 @@ export async function GET(request: NextRequest) {
         bar_id
       `
       )
-      .eq('bar_id', user.bar_id.toString());
+      .eq('bar_id', barIdStr);
 
     // Filtrar por usuário específico
     if (data.usuario_id) {
       query = query.eq('usuario_id', data.usuario_id);
     } else {
       // Mostrar todas as notificações do bar (temporariamente)
-      // query = query.eq('usuario_id', user.user_id)
+      // query = query.eq('usuario_id', user.auth_id)
     }
 
     // Aplicar filtros
@@ -363,8 +374,8 @@ export async function GET(request: NextRequest) {
     // Calcular estatísticas rápidas
     const estatisticas = await calcularEstatisticasRapidas(
       supabase,
-      user.bar_id.toString(),
-      user.user_id,
+      barIdStr,
+      user.auth_id,
       user.role
     );
 

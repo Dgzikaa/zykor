@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import {
   authenticateUser,
@@ -347,7 +347,7 @@ const TEMPLATES_PREDEFINIDOS: TemplatePredefinido[] = [
 // =====================================================
 export async function GET(request: NextRequest) {
   try {
-    // 🔐 AUTENTICAÇÃO
+    // 🔝 AUTENTICAÇÃO
     const user = await authenticateUser(request);
     if (!user) {
       return authErrorResponse('Usuário não autenticado');
@@ -355,6 +355,11 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const query = TemplateQuerySchema.parse(Object.fromEntries(searchParams));
+
+    if (!user.bar_id) {
+      return NextResponse.json({ error: 'Bar ID não encontrado' }, { status: 400 });
+    }
+    const barIdStr = user.bar_id.toString();
 
     const supabase = await getAdminClient();
 
@@ -364,7 +369,7 @@ export async function GET(request: NextRequest) {
       .select(
         `
         *,
-        criado_por:usuarios_bar!criado_por (nome, email),
+        criado_por:usuarios!criado_por (nome, email),
         template_tags (
           template_tags (nome, cor)
         )
@@ -374,7 +379,7 @@ export async function GET(request: NextRequest) {
       .order('criado_em', { ascending: false });
 
     // Filtrar por templates públicos OU do próprio bar
-    dbQuery = dbQuery.or(`publico.eq.true,bar_id.eq.${user.bar_id.toString()}`);
+    dbQuery = dbQuery.or(`publico.eq.true,bar_id.eq.${barIdStr}`);
 
     // Aplicar filtros
     if (query.categoria) {
@@ -421,7 +426,7 @@ export async function GET(request: NextRequest) {
     const { data: stats } = await supabase
       .from('checklist_templates')
       .select('categoria, publico, predefinido')
-      .or(`publico.eq.true,bar_id.eq.${user.bar_id.toString()}`);
+      .or(`publico.eq.true,bar_id.eq.${barIdStr}`);
 
     interface TemplateStats {
       categoria: string;
@@ -461,7 +466,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'Erro interno do servidor',
-        details: error instanceof Error ? error.message : String(error),
+        details: apiError.message,
       },
       { status: 500 }
     );
@@ -473,7 +478,7 @@ export async function GET(request: NextRequest) {
 // =====================================================
 export async function POST(request: NextRequest) {
   try {
-    // 🔐 AUTENTICAÇÃO
+    // 🔝 AUTENTICAÇÃO
     const user = await authenticateUser(request);
     if (!user) {
       return authErrorResponse('Usuário não autenticado');
@@ -491,21 +496,7 @@ export async function POST(request: NextRequest) {
     if (body.action === 'install_predefined') {
       console.log('📦 Instalando templates predefinidos...');
 
-      const templatesParaInstalar: Array<{
-        nome: string;
-        descricao: string;
-        categoria: string;
-        setor: string;
-        tipo: string;
-        frequencia: string;
-        tempo_estimado: number;
-        tags: string[];
-        estrutura: TemplateEstrutura;
-        publico: boolean;
-        predefinido: boolean;
-        bar_id: null;
-        criado_por: string;
-      }> = [];
+      const templatesParaInstalar: any[] = [];
 
       for (const template of TEMPLATES_PREDEFINIDOS) {
         // Verificar se já existe
@@ -522,7 +513,7 @@ export async function POST(request: NextRequest) {
             publico: true,
             predefinido: true,
             bar_id: null, // Templates do sistema não pertencem a nenhum bar específico
-            criado_por: user.user_id,
+            criado_por: user.auth_id,
           });
         }
       }
@@ -594,7 +585,7 @@ export async function POST(request: NextRequest) {
         predefinido: false,
         estrutura: data.estrutura,
         bar_id: data.publico ? null : user.bar_id,
-        criado_por: user.user_id,
+        criado_por: user.auth_id,
       })
       .select()
       .single();
@@ -663,7 +654,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'Erro interno do servidor',
-        details: error instanceof Error ? error.message : String(error),
+        details: apiError.message,
       },
       { status: 500 }
     );
@@ -675,7 +666,7 @@ export async function POST(request: NextRequest) {
 // =====================================================
 export async function DELETE(request: NextRequest) {
   try {
-    // 🔐 AUTENTICAÇÃO
+    // 🔝 AUTENTICAÇÃO
     const user = await authenticateUser(request);
     if (!user) {
       return authErrorResponse('Usuário não autenticado');
@@ -725,7 +716,7 @@ export async function DELETE(request: NextRequest) {
     } else {
       // Template privado só pode ser deletado pelo criador ou admin do bar
       if (
-        template.criado_por !== user.user_id &&
+        template.criado_por !== user.auth_id &&
         template.bar_id !== user.bar_id
       ) {
         return permissionErrorResponse(
@@ -777,7 +768,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'Erro interno do servidor',
-        details: error instanceof Error ? error.message : String(error),
+        details: apiError.message,
       },
       { status: 500 }
     );

@@ -109,7 +109,7 @@ export async function POST(
     const dadosFinalizacao: DadosFinalizacao = {
       status: 'completado',
       finalizado_em: finalizadoEm.toISOString(),
-      finalizado_por: user.user_id,
+      finalizado_por: user.auth_id,
       observacoes_finais: data.observacoes_finais,
       score_final: scoreResult.score_total,
       score_detalhado: scoreResult,
@@ -123,7 +123,7 @@ export async function POST(
         dados: data.assinatura_digital.url || '',
         tipo: 'assinatura',
         assinado_em: finalizadoEm.toISOString(),
-        assinado_por: user.user_id,
+        assinado_por: user.auth_id,
       };
     }
 
@@ -155,7 +155,7 @@ export async function POST(
     // Registrar no histórico de atividades (opcional)
     await registrarAtividade(supabase, {
       execucao_id: execucaoId,
-      usuario_id: user.user_id,
+      usuario_id: user.auth_id,
       acao: 'finalizacao',
       detalhes: {
         score: scoreResult.score_total,
@@ -293,8 +293,8 @@ export async function GET(
 // =====================================================
 
 interface User {
-  user_id: string;
-  bar_id: number;
+  auth_id: string;
+  bar_id?: number;
   role: string;
 }
 
@@ -356,7 +356,7 @@ function podeFinalizarExecucao(user: User, execucao: Execucao): boolean {
 
   // Funcionários só podem finalizar suas próprias execuções
   if (user.role === 'funcionario') {
-    return execucao.funcionario_id === user.user_id;
+    return execucao.funcionario_id === user.auth_id;
   }
 
   return false;
@@ -370,7 +370,7 @@ function podeAcessarExecucao(user: User, execucao: Execucao): boolean {
 
   // Funcionários só podem acessar suas próprias execuções
   if (user.role === 'funcionario') {
-    return execucao.funcionario_id === user.user_id;
+    return execucao.funcionario_id === user.auth_id;
   }
 
   return false;
