@@ -1381,8 +1381,8 @@ export async function POST(request: NextRequest) {
       icone_categoria,
       ordem_exibicao: novaOrdem,
       meta_ativa: true,
-      criado_por: user.user_id,
-      atualizado_por: user.user_id,
+      criado_por: user.auth_id,
+      atualizado_por: user.auth_id,
       criado_em: new Date().toISOString(),
       atualizado_em: new Date().toISOString(),
     };
@@ -1471,7 +1471,7 @@ export async function PUT(request: NextRequest) {
           valor_mensal: metaAtualizada.valor_mensal,
           valor_unico: metaAtualizada.valor_unico,
           meta_ativa: metaAtualizada.meta_ativa,
-          atualizado_por: user.user_id,
+          atualizado_por: user.auth_id,
           atualizado_em: new Date().toISOString(),
         };
       }

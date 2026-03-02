@@ -156,7 +156,7 @@ export async function POST(
     const checklistData = checklist as Checklist;
 
     // Verificar se funcionário existe (se especificado)
-    const funcionarioId = data.funcionario_responsavel || user.user_id;
+    const funcionarioId = data.funcionario_responsavel || user.auth_id;
     const { data: funcionario, error: funcionarioError } = await supabase
       .from('usuarios_bar')
       .select('id, nome, role')
@@ -202,7 +202,7 @@ export async function POST(
     const novaExecucao: NovaExecucao = {
       checklist_id: checklistId,
       funcionario_id: funcionarioId,
-      iniciado_por: user.user_id,
+      iniciado_por: user.auth_id,
       status: 'em_andamento',
       iniciado_em: new Date().toISOString(),
       observacoes_iniciais: data.observacoes_iniciais,

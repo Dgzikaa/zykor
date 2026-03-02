@@ -104,7 +104,7 @@ export async function PUT(
     const metaAtualizada = {
       ...metasExistentes[metaIndex],
       ...body,
-      atualizado_por: user.user_id,
+      atualizado_por: user.auth_id,
       atualizado_em: new Date().toISOString(),
     };
 

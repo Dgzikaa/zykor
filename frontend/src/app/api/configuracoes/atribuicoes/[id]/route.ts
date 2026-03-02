@@ -48,6 +48,14 @@ export async function GET(
       return authErrorResponse('Usuário não autenticado');
     }
 
+    if (!user.bar_id) {
+      return NextResponse.json(
+        { error: 'Bar ID não encontrado' },
+        { status: 400 }
+      );
+    }
+    const barIdStr = user.bar_id.toString();
+
     const { id: atribuicaoId } = await params;
     const supabase = await getAdminClient();
 
@@ -65,7 +73,7 @@ export async function GET(
       `
       )
       .eq('id', atribuicaoId)
-      .eq('bar_id', user.bar_id)
+      .eq('bar_id', barIdStr)
       .single();
 
     if (error) {
@@ -102,7 +110,7 @@ export async function GET(
     // Buscar funcionários elegíveis (se necessário)
     const funcionariosElegiveis = await buscarFuncionariosElegiveis(
       supabase as SupabaseClient,
-      user.bar_id.toString(),
+      barIdStr,
       atribuicao.tipo_atribuicao,
       atribuicao.cargo || undefined,
       atribuicao.setor || undefined
@@ -145,6 +153,14 @@ export async function PUT(
       return authErrorResponse('Usuário não autenticado');
     }
 
+    if (!user.bar_id) {
+      return NextResponse.json(
+        { error: 'Bar ID não encontrado' },
+        { status: 400 }
+      );
+    }
+    const barIdStr = user.bar_id.toString();
+
     // Verificar permissões
     if (!['admin', 'financeiro'].includes(user.role)) {
       return NextResponse.json(
@@ -166,7 +182,7 @@ export async function PUT(
       .from('checklist_atribuicoes')
       .select('*')
       .eq('id', atribuicaoId)
-      .eq('bar_id', user.bar_id)
+      .eq('bar_id', barIdStr)
       .single();
 
     if (fetchError || !atribuicaoAtual) {
@@ -188,7 +204,7 @@ export async function PUT(
     const dadosAtualizacao = {
       ...data,
       atualizado_em: new Date().toISOString(),
-      atualizado_por: user.user_id,
+      atualizado_por: user.auth_id,
     };
 
     const { data: atribuicaoAtualizada, error: updateError } = await supabase
@@ -268,6 +284,14 @@ export async function DELETE(
       return authErrorResponse('Usuário não autenticado');
     }
 
+    if (!user.bar_id) {
+      return NextResponse.json(
+        { error: 'Bar ID não encontrado' },
+        { status: 400 }
+      );
+    }
+    const barIdStr = user.bar_id.toString();
+
     // Verificar permissões
     if (!['admin', 'financeiro'].includes(user.role)) {
       return NextResponse.json(
@@ -289,7 +313,7 @@ export async function DELETE(
       .from('checklist_atribuicoes')
       .select('*')
       .eq('id', atribuicaoId)
-      .eq('bar_id', user.bar_id)
+      .eq('bar_id', barIdStr)
       .single();
 
     if (fetchError || !atribuicao) {
@@ -331,7 +355,7 @@ export async function DELETE(
         .update({
           status: 'cancelado',
           cancelado_em: new Date().toISOString(),
-          cancelado_por: user.user_id,
+          cancelado_por: user.auth_id,
           motivo_cancelamento: 'Atribuição excluída',
         })
         .eq('atribuicao_id', atribuicaoId)
@@ -345,7 +369,7 @@ export async function DELETE(
         ativo: false,
         excluido: true,
         excluido_em: new Date().toISOString(),
-        excluido_por: user.user_id,
+        excluido_por: user.auth_id,
       })
       .eq('id', atribuicaoId);
 

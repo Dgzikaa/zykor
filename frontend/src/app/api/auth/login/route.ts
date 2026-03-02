@@ -123,8 +123,8 @@ export async function POST(request: NextRequest) {
 
     // Filtrar apenas bares ativos
     const availableBars = (relacoes || [])
-      .filter(rel => rel.bares?.ativo)
-      .map(rel => ({
+      .filter((rel: any) => rel.bares && !Array.isArray(rel.bares) && rel.bares.ativo)
+      .map((rel: any) => ({
         id: rel.bares.id,
         nome: rel.bares.nome
       }));

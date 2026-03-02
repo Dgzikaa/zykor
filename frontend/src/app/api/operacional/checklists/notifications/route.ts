@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
       destinatarios_enviados: resultados.sucessos,
       destinatarios_falha: resultados.falhas,
       mensagem_enviada: mensagem,
-      enviado_por: user.user_id,
+      enviado_por: user.auth_id,
       bar_id: user.bar_id,
     } as any);
 

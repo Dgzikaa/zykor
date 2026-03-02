@@ -234,6 +234,1174 @@
 
 ---
 
+## 💻 PADRÕES DE CÓDIGO
+
+### APIs Next.js (Route Handlers)
+
+#### Padrão GET com Filtros
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseClient } from '@/lib/supabase';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: NextRequest) {
+  try {
+    // 1. Extrair parâmetros
+    const { searchParams } = new URL(request.url);
+    const barId = searchParams.get('bar_id');
+    const ano = searchParams.get('ano');
+    const semana = searchParams.get('semana');
+
+    // 2. Validar parâmetros obrigatórios
+    if (!barId) {
+      return NextResponse.json(
+        { error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
+
+    // 3. Conectar ao Supabase
+    const supabase = await getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Erro ao conectar com banco' },
+        { status: 500 }
+      );
+    }
+
+    // 4. Construir query com filtros opcionais
+    let query = supabase
+      .from('eventos_base')
+      .select('*')
+      .eq('bar_id', barId);
+
+    if (ano) query = query.eq('ano', ano);
+    if (semana) query = query.eq('semana', semana);
+
+    // 5. Executar query
+    const { data, error } = await query.order('data_evento', { ascending: false });
+
+    if (error) {
+      console.error('Erro ao buscar dados:', error);
+      return NextResponse.json(
+        { error: 'Erro ao buscar dados' },
+        { status: 500 }
+      );
+    }
+
+    // 6. Tipar como any[] para evitar problemas
+    const dados = (data || []) as any[];
+
+    // 7. Retornar resposta
+    return NextResponse.json({
+      success: true,
+      data: dados,
+      total: dados.length
+    });
+
+  } catch (error) {
+    console.error('Erro interno:', error);
+    return NextResponse.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+---
+
+#### Padrão POST com Validação
+
+```typescript
+export async function POST(request: NextRequest) {
+  try {
+    // 1. Parse do body
+    const body = await request.json();
+    const { bar_id, ano, semana, dados } = body;
+
+    // 2. Validação
+    if (!bar_id || !ano || !semana) {
+      return NextResponse.json(
+        { error: 'Campos obrigatórios faltando' },
+        { status: 400 }
+      );
+    }
+
+    // 3. Conectar ao Supabase
+    const supabase = await getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Erro ao conectar com banco' },
+        { status: 500 }
+      );
+    }
+
+    // 4. Pegar user_id do header (se disponível)
+    const userId = request.headers.get('x-user-id');
+    const userIdInt = userId ? parseInt(userId) : null;
+
+    // 5. Inserir no banco
+    const { data: novoRegistro, error } = await supabase
+      .from('tabela')
+      .insert({
+        bar_id,
+        ano,
+        semana,
+        ...dados,
+        created_by: userIdInt,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao inserir:', error);
+      return NextResponse.json(
+        { error: 'Erro ao criar registro' },
+        { status: 500 }
+      );
+    }
+
+    // 6. Retornar sucesso
+    return NextResponse.json({
+      success: true,
+      data: novoRegistro,
+      message: 'Registro criado com sucesso'
+    });
+
+  } catch (error) {
+    console.error('Erro interno:', error);
+    return NextResponse.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+---
+
+#### Padrão PUT com Auditoria
+
+```typescript
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { id, ...dadosAtualizacao } = body;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'ID é obrigatório' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = await getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Erro ao conectar com banco' },
+        { status: 500 }
+      );
+    }
+
+    // Buscar registro existente (para auditoria)
+    const { data: registroExistente } = await supabase
+      .from('tabela')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    // Verificar se está travado
+    if (registroExistente?.travado) {
+      return NextResponse.json(
+        { error: 'Registro travado. Destrave antes de editar.' },
+        { status: 403 }
+      );
+    }
+
+    // Atualizar
+    const userId = request.headers.get('x-user-id');
+    const userIdInt = userId ? parseInt(userId) : null;
+
+    const { data: registroAtualizado, error } = await supabase
+      .from('tabela')
+      .update({
+        ...dadosAtualizacao,
+        updated_at: new Date().toISOString(),
+        updated_by: userIdInt
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao atualizar:', error);
+      return NextResponse.json(
+        { error: 'Erro ao atualizar registro' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: registroAtualizado,
+      message: 'Registro atualizado com sucesso'
+    });
+
+  } catch (error) {
+    console.error('Erro interno:', error);
+    return NextResponse.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+---
+
+#### Padrão DELETE
+
+```typescript
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'ID é obrigatório' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = await getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Erro ao conectar com banco' },
+        { status: 500 }
+      );
+    }
+
+    // Soft delete (preferido)
+    const { error } = await supabase
+      .from('tabela')
+      .update({ 
+        deletado: true,
+        deletado_em: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    // Hard delete (usar com cuidado)
+    // const { error } = await supabase
+    //   .from('tabela')
+    //   .delete()
+    //   .eq('id', id);
+
+    if (error) {
+      console.error('Erro ao deletar:', error);
+      return NextResponse.json(
+        { error: 'Erro ao deletar registro' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Registro deletado com sucesso'
+    });
+
+  } catch (error) {
+    console.error('Erro interno:', error);
+    return NextResponse.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+---
+
+### Edge Functions (Supabase/Deno)
+
+#### Padrão Dispatcher
+
+```typescript
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface DispatcherRequest {
+  action: string;
+  bar_id?: number;
+  params?: Record<string, any>;
+}
+
+serve(async (req) => {
+  // CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const body: DispatcherRequest = await req.json();
+    const { action, bar_id = 3, params } = body;
+
+    console.log(`🚀 Dispatcher - Action: ${action}`);
+
+    // Inicializar Supabase
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    let resultado;
+
+    // Router de actions
+    switch (action) {
+      case 'acao-1':
+        resultado = await executarAcao1(supabase, bar_id, params);
+        break;
+      
+      case 'acao-2':
+        resultado = await executarAcao2(supabase, bar_id, params);
+        break;
+      
+      default:
+        return new Response(
+          JSON.stringify({ error: `Action não encontrada: ${action}` }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, data: resultado }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Erro no dispatcher:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
+
+async function executarAcao1(supabase: any, barId: number, params: any) {
+  // Lógica da ação 1
+  const { data } = await supabase
+    .from('tabela')
+    .select('*')
+    .eq('bar_id', barId);
+  
+  return data;
+}
+
+async function executarAcao2(supabase: any, barId: number, params: any) {
+  // Lógica da ação 2
+  return { message: 'Ação 2 executada' };
+}
+```
+
+---
+
+#### Padrão com Módulos Compartilhados
+
+```typescript
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sendDiscordEmbed, createInfoEmbed } from '../_shared/discord-notifier.ts';
+import { formatarMoeda, formatarPercentual } from '../_shared/formatters.ts';
+import { buscarEventosPeriodo } from '../_shared/eventos-data.ts';
+
+serve(async (req) => {
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
+    // Buscar dados usando módulo compartilhado
+    const eventos = await buscarEventosPeriodo(
+      supabase,
+      3, // bar_id
+      '2026-01-01',
+      '2026-01-31'
+    );
+
+    // Calcular métricas
+    const faturamentoTotal = eventos.reduce((acc, e) => acc + (e.real_r || 0), 0);
+
+    // Enviar notificação usando módulo compartilhado
+    await sendDiscordEmbed(
+      Deno.env.get('DISCORD_WEBHOOK_URL')!,
+      createInfoEmbed(
+        'Relatório Mensal',
+        `Faturamento: ${formatarMoeda(faturamentoTotal)}`
+      )
+    );
+
+    return new Response(
+      JSON.stringify({ success: true }),
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Erro:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+});
+```
+
+---
+
+### Componentes React
+
+#### Padrão de Página com Loading
+
+```typescript
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import UnifiedLoading from '@/components/layouts/unified-loading';
+
+interface Dados {
+  id: number;
+  nome: string;
+  valor: number;
+}
+
+export default function PaginaExemplo() {
+  const [dados, setDados] = useState<Dados[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    carregarDados();
+  }, []);
+
+  const carregarDados = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/endpoint?bar_id=3');
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao carregar dados');
+      }
+
+      setDados(result.data || []);
+    } catch (err: any) {
+      console.error('Erro:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <UnifiedLoading type="dashboard" />;
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <Card className="border-red-500">
+          <CardContent className="pt-6">
+            <p className="text-red-500">Erro: {error}</p>
+            <Button onClick={carregarDados} className="mt-4">
+              Tentar Novamente
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Título da Página</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {dados.length === 0 ? (
+            <p className="text-muted-foreground">Nenhum dado encontrado</p>
+          ) : (
+            <div className="space-y-2">
+              {dados.map((item) => (
+                <div key={item.id} className="p-4 border rounded">
+                  <h3>{item.nome}</h3>
+                  <p>R$ {item.valor.toFixed(2)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+```
+
+---
+
+#### Padrão de Formulário
+
+```typescript
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+
+export default function FormularioExemplo() {
+  const [formData, setFormData] = useState({
+    nome: '',
+    valor: 0,
+  });
+  const [salvando, setSalvando] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validação
+    if (!formData.nome) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+
+    try {
+      setSalvando(true);
+
+      const response = await fetch('/api/endpoint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bar_id: 3,
+          ...formData
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao salvar');
+      }
+
+      toast.success('Salvo com sucesso!');
+      
+      // Resetar formulário
+      setFormData({ nome: '', valor: 0 });
+
+    } catch (err: any) {
+      console.error('Erro:', err);
+      toast.error(err.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="nome">Nome</Label>
+        <Input
+          id="nome"
+          value={formData.nome}
+          onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+          placeholder="Digite o nome"
+          disabled={salvando}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="valor">Valor</Label>
+        <Input
+          id="valor"
+          type="number"
+          value={formData.valor}
+          onChange={(e) => setFormData({ ...formData, valor: parseFloat(e.target.value) })}
+          placeholder="0.00"
+          disabled={salvando}
+        />
+      </div>
+
+      <Button type="submit" disabled={salvando}>
+        {salvando ? 'Salvando...' : 'Salvar'}
+      </Button>
+    </form>
+  );
+}
+```
+
+---
+
+### Utilitários Comuns
+
+#### Formatação de Valores
+
+```typescript
+// lib/formatters.ts
+
+export function formatarMoeda(valor: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(valor);
+}
+
+export function formatarPercentual(valor: number, casasDecimais: number = 1): string {
+  return `${valor.toFixed(casasDecimais)}%`;
+}
+
+export function formatarData(data: string | Date): string {
+  const d = typeof data === 'string' ? new Date(data) : data;
+  return d.toLocaleDateString('pt-BR');
+}
+
+export function formatarDiaSemana(data: string | Date): string {
+  const d = typeof data === 'string' ? new Date(data) : data;
+  const dias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  return dias[d.getDay()];
+}
+
+export function formatarNumero(valor: number, casasDecimais: number = 0): string {
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: casasDecimais,
+    maximumFractionDigits: casasDecimais
+  }).format(valor);
+}
+```
+
+---
+
+#### Cliente Supabase
+
+```typescript
+// lib/supabase.ts
+
+import { createClient } from '@supabase/supabase-js';
+
+export async function getSupabaseClient() {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Variáveis de ambiente do Supabase não configuradas');
+      return null;
+    }
+
+    return createClient(supabaseUrl, supabaseAnonKey);
+  } catch (error) {
+    console.error('Erro ao criar cliente Supabase:', error);
+    return null;
+  }
+}
+
+export function getAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Variáveis de ambiente do Supabase não configuradas');
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
+```
+
+---
+
+### Padrões de Nomenclatura
+
+**Arquivos**:
+- APIs: `route.ts` (Next.js App Router)
+- Páginas: `page.tsx`
+- Componentes: `PascalCase.tsx`
+- Utilitários: `kebab-case.ts`
+- Edge Functions: `index.ts`
+
+**Variáveis**:
+- Componentes React: `PascalCase`
+- Funções: `camelCase`
+- Constantes: `UPPER_SNAKE_CASE`
+- Interfaces/Types: `PascalCase`
+
+**Banco de Dados**:
+- Tabelas: `snake_case`
+- Colunas: `snake_case`
+- Views: `vw_nome_view`
+- Functions: `snake_case`
+
+---
+
+## 🔍 QUERIES ÚTEIS
+
+### Eventos e Faturamento
+
+#### Buscar eventos do mês com faturamento
+
+```sql
+SELECT 
+  id,
+  data_evento,
+  dia_semana,
+  artista,
+  real_r as faturamento,
+  cl_real as publico,
+  t_medio as ticket_medio,
+  percent_stockout as stockout_perc
+FROM eventos_base
+WHERE bar_id = 3
+  AND data_evento BETWEEN '2026-01-01' AND '2026-01-31'
+  AND real_r > 1000  -- Ignorar dias fechados
+ORDER BY data_evento DESC;
+```
+
+---
+
+#### Média por dia da semana
+
+```sql
+SELECT 
+  dia_semana,
+  COUNT(*) as total_eventos,
+  AVG(real_r) as media_faturamento,
+  AVG(cl_real) as media_publico,
+  AVG(t_medio) as media_ticket
+FROM eventos_base
+WHERE bar_id = 3
+  AND real_r > 1000
+  AND data_evento >= '2025-01-01'
+GROUP BY dia_semana
+ORDER BY 
+  CASE dia_semana
+    WHEN 'Domingo' THEN 1
+    WHEN 'Segunda' THEN 2
+    WHEN 'Terça' THEN 3
+    WHEN 'Quarta' THEN 4
+    WHEN 'Quinta' THEN 5
+    WHEN 'Sexta' THEN 6
+    WHEN 'Sábado' THEN 7
+  END;
+```
+
+---
+
+#### Top 10 dias de maior faturamento
+
+```sql
+SELECT 
+  data_evento,
+  dia_semana,
+  artista,
+  real_r as faturamento,
+  cl_real as publico,
+  t_medio as ticket_medio
+FROM eventos_base
+WHERE bar_id = 3
+  AND real_r > 1000
+ORDER BY real_r DESC
+LIMIT 10;
+```
+
+---
+
+#### Comparar mês atual vs mês anterior
+
+```sql
+WITH mes_atual AS (
+  SELECT 
+    SUM(real_r) as faturamento,
+    SUM(cl_real) as publico,
+    COUNT(*) as dias_operacao
+  FROM eventos_base
+  WHERE bar_id = 3
+    AND data_evento >= DATE_TRUNC('month', CURRENT_DATE)
+    AND real_r > 1000
+),
+mes_anterior AS (
+  SELECT 
+    SUM(real_r) as faturamento,
+    SUM(cl_real) as publico,
+    COUNT(*) as dias_operacao
+  FROM eventos_base
+  WHERE bar_id = 3
+    AND data_evento >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')
+    AND data_evento < DATE_TRUNC('month', CURRENT_DATE)
+    AND real_r > 1000
+)
+SELECT 
+  ma.faturamento as faturamento_atual,
+  mp.faturamento as faturamento_anterior,
+  ((ma.faturamento - mp.faturamento) / mp.faturamento * 100) as variacao_percentual,
+  ma.publico as publico_atual,
+  mp.publico as publico_anterior,
+  ma.dias_operacao as dias_atual,
+  mp.dias_operacao as dias_anterior
+FROM mes_atual ma, mes_anterior mp;
+```
+
+---
+
+### Produtos e Vendas
+
+#### Top 10 produtos mais vendidos
+
+```sql
+SELECT 
+  prd_desc as produto,
+  grp_desc as grupo,
+  SUM(qtd) as quantidade_total,
+  SUM(valorfinal) as faturamento_total,
+  AVG(valorfinal / NULLIF(qtd, 0)) as preco_medio
+FROM contahub_analitico
+WHERE bar_id = 3
+  AND trn_dtgerencial BETWEEN '2026-01-01' AND '2026-01-31'
+  AND prd_desc NOT LIKE '[HH]%'  -- Excluir Happy Hour
+  AND prd_desc NOT LIKE '[DD]%'  -- Excluir Dose Dupla
+  AND prd_desc NOT LIKE '[IN]%'  -- Excluir Insumos
+GROUP BY prd_desc, grp_desc
+ORDER BY faturamento_total DESC
+LIMIT 10;
+```
+
+---
+
+#### Produtos com maior margem (estimada)
+
+```sql
+SELECT 
+  prd_desc as produto,
+  SUM(qtd) as qtd_vendida,
+  SUM(valorfinal) as faturamento,
+  SUM(custo * qtd) as custo_total,
+  SUM(valorfinal) - SUM(custo * qtd) as margem_bruta,
+  ((SUM(valorfinal) - SUM(custo * qtd)) / NULLIF(SUM(valorfinal), 0) * 100) as margem_percentual
+FROM contahub_analitico
+WHERE bar_id = 3
+  AND trn_dtgerencial BETWEEN '2026-01-01' AND '2026-01-31'
+  AND custo > 0
+GROUP BY prd_desc
+HAVING SUM(valorfinal) > 1000  -- Apenas produtos relevantes
+ORDER BY margem_bruta DESC
+LIMIT 20;
+```
+
+---
+
+#### Produtos mais cancelados
+
+```sql
+SELECT 
+  prd_desc as produto,
+  COUNT(*) as total_cancelamentos,
+  SUM(valorfinal) as valor_cancelado
+FROM contahub_analitico
+WHERE bar_id = 3
+  AND trn_dtgerencial BETWEEN '2026-01-01' AND '2026-01-31'
+  AND tipo = 'CANCELAMENTO'
+GROUP BY prd_desc
+ORDER BY total_cancelamentos DESC
+LIMIT 20;
+```
+
+---
+
+### CMV e Custos
+
+#### CMV das últimas 4 semanas
+
+```sql
+SELECT 
+  ano,
+  semana,
+  data_inicio,
+  data_fim,
+  vendas_liquidas as faturamento,
+  cmv_calculado,
+  cmv_limpo_percentual,
+  cmv_teorico_percentual,
+  gap,
+  cma_total
+FROM cmv_semanal
+WHERE bar_id = 3
+  AND ano = 2026
+ORDER BY semana DESC
+LIMIT 4;
+```
+
+---
+
+#### CMV por categoria (bebidas, comida, drinks)
+
+```sql
+SELECT 
+  semana,
+  data_inicio,
+  cmv_bebidas,
+  cmv_alimentos,
+  cmv_descartaveis,
+  cmv_outros,
+  cmv_calculado as cmv_total
+FROM cmv_semanal
+WHERE bar_id = 3
+  AND ano = 2026
+ORDER BY semana DESC;
+```
+
+---
+
+#### Evolução do CMV (últimos 6 meses)
+
+```sql
+SELECT 
+  TO_CHAR(data_inicio, 'YYYY-MM') as mes,
+  AVG(cmv_limpo_percentual) as cmv_medio,
+  MIN(cmv_limpo_percentual) as cmv_minimo,
+  MAX(cmv_limpo_percentual) as cmv_maximo
+FROM cmv_semanal
+WHERE bar_id = 3
+  AND data_inicio >= CURRENT_DATE - INTERVAL '6 months'
+GROUP BY TO_CHAR(data_inicio, 'YYYY-MM')
+ORDER BY mes DESC;
+```
+
+---
+
+### CMO e Mão de Obra
+
+#### CMO das últimas semanas
+
+```sql
+SELECT 
+  cs.ano,
+  cs.semana,
+  cs.data_inicio,
+  cs.data_fim,
+  cs.freelas,
+  cs.fixos_total,
+  cs.cma_alimentacao,
+  cs.pro_labore_semanal,
+  cs.cmo_total,
+  cs.meta_cmo,
+  cs.acima_meta,
+  COUNT(csf.id) as total_funcionarios
+FROM cmo_semanal cs
+LEFT JOIN cmo_simulacao_funcionarios csf ON cs.id = csf.cmo_semanal_id
+WHERE cs.bar_id = 3
+  AND cs.ano = 2026
+GROUP BY cs.id
+ORDER BY cs.semana DESC
+LIMIT 4;
+```
+
+---
+
+#### Funcionários por área (última semana)
+
+```sql
+SELECT 
+  csf.area,
+  COUNT(*) as total_funcionarios,
+  SUM(csf.custo_semanal) as custo_total_area,
+  AVG(csf.custo_semanal) as custo_medio_funcionario
+FROM cmo_semanal cs
+JOIN cmo_simulacao_funcionarios csf ON cs.id = csf.cmo_semanal_id
+WHERE cs.bar_id = 3
+  AND cs.ano = 2026
+  AND cs.semana = (
+    SELECT MAX(semana) FROM cmo_semanal WHERE bar_id = 3 AND ano = 2026
+  )
+GROUP BY csf.area
+ORDER BY custo_total_area DESC;
+```
+
+---
+
+### Financeiro (NIBO)
+
+#### Contas a pagar vencidas
+
+```sql
+SELECT 
+  id,
+  titulo,
+  descricao,
+  categoria_nome,
+  stakeholder_nome,
+  valor,
+  data_vencimento,
+  CURRENT_DATE - data_vencimento as dias_atraso
+FROM nibo_agendamentos
+WHERE bar_id = 3
+  AND tipo = 'pagar'
+  AND status IN ('aberto', 'vencido')
+  AND data_vencimento < CURRENT_DATE
+  AND deletado = false
+ORDER BY data_vencimento ASC;
+```
+
+---
+
+#### Despesas por categoria (mês)
+
+```sql
+SELECT 
+  categoria_nome,
+  COUNT(*) as total_lancamentos,
+  SUM(valor) as total_categoria
+FROM nibo_agendamentos
+WHERE bar_id = 3
+  AND tipo = 'pagar'
+  AND status = 'pago'
+  AND data_pagamento BETWEEN '2026-01-01' AND '2026-01-31'
+  AND deletado = false
+GROUP BY categoria_nome
+ORDER BY total_categoria DESC;
+```
+
+---
+
+#### Fluxo de caixa projetado (próximos 30 dias)
+
+```sql
+WITH receber AS (
+  SELECT 
+    data_vencimento,
+    SUM(valor) as valor_receber
+  FROM nibo_agendamentos
+  WHERE bar_id = 3
+    AND tipo = 'receber'
+    AND status = 'aberto'
+    AND data_vencimento BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
+    AND deletado = false
+  GROUP BY data_vencimento
+),
+pagar AS (
+  SELECT 
+    data_vencimento,
+    SUM(valor) as valor_pagar
+  FROM nibo_agendamentos
+  WHERE bar_id = 3
+    AND tipo = 'pagar'
+    AND status = 'aberto'
+    AND data_vencimento BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
+    AND deletado = false
+  GROUP BY data_vencimento
+)
+SELECT 
+  COALESCE(r.data_vencimento, p.data_vencimento) as data,
+  COALESCE(r.valor_receber, 0) as a_receber,
+  COALESCE(p.valor_pagar, 0) as a_pagar,
+  COALESCE(r.valor_receber, 0) - COALESCE(p.valor_pagar, 0) as saldo_dia
+FROM receber r
+FULL OUTER JOIN pagar p ON r.data_vencimento = p.data_vencimento
+ORDER BY data ASC;
+```
+
+---
+
+### Análises Avançadas
+
+#### Correlação faturamento x dia da semana x artista
+
+```sql
+SELECT 
+  dia_semana,
+  genero,
+  COUNT(*) as total_eventos,
+  AVG(real_r) as media_faturamento,
+  AVG(cl_real) as media_publico,
+  AVG(t_medio) as media_ticket
+FROM eventos_base
+WHERE bar_id = 3
+  AND real_r > 1000
+  AND data_evento >= '2025-01-01'
+GROUP BY dia_semana, genero
+HAVING COUNT(*) >= 3  -- Apenas com amostra significativa
+ORDER BY media_faturamento DESC;
+```
+
+---
+
+#### Detecção de anomalias (faturamento)
+
+```sql
+WITH stats AS (
+  SELECT 
+    AVG(real_r) as media,
+    STDDEV(real_r) as desvio_padrao
+  FROM eventos_base
+  WHERE bar_id = 3
+    AND real_r > 1000
+    AND data_evento >= CURRENT_DATE - INTERVAL '90 days'
+)
+SELECT 
+  e.data_evento,
+  e.dia_semana,
+  e.artista,
+  e.real_r as faturamento,
+  s.media,
+  s.desvio_padrao,
+  (e.real_r - s.media) / NULLIF(s.desvio_padrao, 0) as z_score,
+  CASE 
+    WHEN ABS((e.real_r - s.media) / NULLIF(s.desvio_padrao, 0)) > 2 THEN 'ANOMALIA'
+    ELSE 'NORMAL'
+  END as classificacao
+FROM eventos_base e, stats s
+WHERE e.bar_id = 3
+  AND e.real_r > 1000
+  AND e.data_evento >= CURRENT_DATE - INTERVAL '30 days'
+ORDER BY ABS((e.real_r - s.media) / NULLIF(s.desvio_padrao, 0)) DESC;
+```
+
+---
+
+#### Análise de retenção de clientes
+
+```sql
+SELECT 
+  DATE_TRUNC('month', data_evento) as mes,
+  COUNT(DISTINCT cl_real) as clientes_unicos,
+  -- Clientes que voltaram no mês seguinte
+  COUNT(DISTINCT CASE 
+    WHEN EXISTS (
+      SELECT 1 FROM eventos_base e2 
+      WHERE e2.bar_id = eventos_base.bar_id 
+        AND e2.data_evento BETWEEN eventos_base.data_evento + INTERVAL '1 month' 
+        AND eventos_base.data_evento + INTERVAL '2 months'
+    ) THEN cl_real 
+  END) as clientes_retornaram
+FROM eventos_base
+WHERE bar_id = 3
+  AND real_r > 1000
+  AND data_evento >= CURRENT_DATE - INTERVAL '6 months'
+GROUP BY DATE_TRUNC('month', data_evento)
+ORDER BY mes DESC;
+```
+
+---
+
 ## OTIMIZAÇÕES RECENTES (25-26/02/2026)
 
 ### 0. ContaHub - Correção Stockout e Automação Completa ✅ (26/02/2026)
@@ -1129,6 +2297,726 @@ curl "https://zykor.vercel.app/api/exploracao/agente-diario?secret=zykor-cron-se
 
 ---
 
+## 🚨 TROUBLESHOOTING
+
+### Erros Comuns e Soluções
+
+#### 1. "column does not exist"
+
+**Causa**: Tabela foi renomeada ou coluna não existe no banco.
+
+**Solução**:
+```sql
+-- Verificar colunas da tabela
+SELECT column_name, data_type 
+FROM information_schema.columns 
+WHERE table_name = 'nome_tabela' 
+  AND table_schema = 'public'
+ORDER BY ordinal_position;
+```
+
+**Prevenção**: Sempre verificar estrutura da tabela antes de usar em queries.
+
+---
+
+#### 2. "null value in column violates not-null constraint"
+
+**Causa**: Campo obrigatório não foi preenchido.
+
+**Solução**:
+- Adicionar validação no frontend
+- Adicionar valor default no banco
+- Verificar se campo realmente precisa ser NOT NULL
+
+```sql
+-- Adicionar default
+ALTER TABLE tabela 
+ALTER COLUMN coluna SET DEFAULT valor_padrao;
+
+-- Remover constraint NOT NULL (se apropriado)
+ALTER TABLE tabela 
+ALTER COLUMN coluna DROP NOT NULL;
+```
+
+---
+
+#### 3. "Erro ao conectar com banco" (getSupabaseClient retorna null)
+
+**Causa**: Variáveis de ambiente não configuradas.
+
+**Solução**:
+1. Verificar `.env.local`:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://uqtgsvujwcbymjmvkjhy.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+```
+
+2. Reiniciar servidor de desenvolvimento:
+```bash
+npm run dev
+```
+
+---
+
+#### 4. "PGRST116" (No rows found)
+
+**Causa**: Query com `.single()` não encontrou resultado.
+
+**Solução**:
+```typescript
+const { data, error } = await supabase
+  .from('tabela')
+  .select('*')
+  .eq('id', id)
+  .single();
+
+// Verificar se erro é "not found"
+if (error && error.code !== 'PGRST116') {
+  throw error;  // Erro real
+}
+
+// data será null se não encontrar
+if (!data) {
+  return NextResponse.json(
+    { error: 'Registro não encontrado' },
+    { status: 404 }
+  );
+}
+```
+
+---
+
+#### 5. TypeScript: "Type 'unknown' is not assignable"
+
+**Causa**: Supabase retorna tipos genéricos.
+
+**Solução**:
+```typescript
+// Tipar como any[]
+const dados = (data || []) as any[];
+
+// Ou criar interface
+interface Evento {
+  id: number;
+  nome: string;
+  data_evento: string;
+}
+
+const eventos = (data || []) as Evento[];
+```
+
+---
+
+#### 6. "Row Level Security" bloqueando acesso
+
+**Causa**: RLS ativo mas usuário não tem permissão.
+
+**Solução**:
+```typescript
+// Usar service role key para bypass RLS (apenas em Edge Functions)
+import { createServiceRoleClient } from '@/lib/supabase-admin';
+
+const supabase = createServiceRoleClient();
+
+// OU verificar políticas RLS
+SELECT * FROM pg_policies 
+WHERE tablename = 'nome_tabela';
+```
+
+---
+
+#### 7. "Quota exceeded" (Gemini API)
+
+**Causa**: Limite de requisições da API Gemini atingido.
+
+**Solução**:
+- Sistema já tem fallback automático
+- Verificar logs: `console.log('Quota Gemini excedida')`
+- Aguardar reset do quota (diário)
+
+---
+
+#### 8. CMV muito alto (> 50%)
+
+**Causa**: Produtos com prefixos [HH], [DD], [IN] não foram filtrados.
+
+**Solução**:
+```sql
+-- Verificar produtos incluídos
+SELECT prd_desc, SUM(custo * qtd) as custo_total
+FROM contahub_analitico
+WHERE trn_dtgerencial = '2026-01-15'
+  AND (
+    prd_desc LIKE '[HH]%' OR 
+    prd_desc LIKE '[DD]%' OR 
+    prd_desc LIKE '[IN]%'
+  )
+GROUP BY prd_desc;
+
+-- Filtrar corretamente
+WHERE prd_desc NOT LIKE '[HH]%'
+  AND prd_desc NOT LIKE '[DD]%'
+  AND prd_desc NOT LIKE '[IN]%'
+```
+
+---
+
+#### 9. "Too many connections" (PostgreSQL)
+
+**Causa**: Limite de conexões atingido.
+
+**Solução**:
+- Usar Connection Pooling (PgBouncer) - porta 6543
+- Verificar conexões ativas:
+```sql
+SELECT count(*) FROM pg_stat_activity;
+```
+
+- Fechar conexões idle:
+```sql
+SELECT pg_terminate_backend(pid) 
+FROM pg_stat_activity 
+WHERE state = 'idle' 
+  AND state_change < NOW() - INTERVAL '5 minutes';
+```
+
+---
+
+#### 10. Build falhando no Vercel
+
+**Causa**: Erros de TypeScript não detectados localmente.
+
+**Solução**:
+```bash
+# Rodar type-check antes de push
+cd frontend
+npm run type-check
+
+# Se houver erros, corrigir antes de fazer push
+```
+
+---
+
+### Debugging
+
+#### Logs do Sistema
+
+**Frontend (Next.js)**:
+```typescript
+// Sempre usar console.error para erros
+console.error('Erro ao buscar dados:', error);
+
+// console.log para debug
+console.log('Dados recebidos:', data);
+```
+
+**Edge Functions**:
+```typescript
+// Logs aparecem no Supabase Dashboard > Edge Functions > Logs
+console.log('🚀 Função iniciada');
+console.error('❌ Erro:', error.message);
+```
+
+**Cron Jobs**:
+```sql
+-- Ver logs de execução
+SELECT * FROM cron.job_run_details 
+WHERE jobid = 266  -- ID do cron job
+ORDER BY start_time DESC 
+LIMIT 10;
+```
+
+---
+
+#### Verificar Saúde do Sistema
+
+```sql
+-- Score de saúde dos dados
+SELECT * FROM relatorios_diarios 
+ORDER BY executado_em DESC 
+LIMIT 1;
+
+-- Eventos sem recálculo
+SELECT COUNT(*) 
+FROM eventos_base 
+WHERE precisa_recalculo = true;
+
+-- CMV problemáticos
+SELECT * FROM cmv_semanal 
+WHERE cmv_limpo_percentual > 50 
+   OR cmv_limpo_percentual < 0;
+```
+
+---
+
+## 📝 WORKFLOWS
+
+### Adicionar Nova Funcionalidade
+
+**Passo a passo completo**:
+
+1. **Criar API** (`frontend/src/app/api/[nome]/route.ts`):
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseClient } from '@/lib/supabase';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: NextRequest) {
+  // ... implementação
+}
+```
+
+2. **Criar Página** (`frontend/src/app/[modulo]/[nome]/page.tsx`):
+```typescript
+'use client';
+
+import { useState, useEffect } from 'react';
+
+export default function NovaPagina() {
+  // ... implementação
+}
+```
+
+3. **Adicionar no Menu** (`frontend/src/lib/menu-config.ts`):
+```typescript
+{
+  name: 'Nome da Funcionalidade',
+  href: '/modulo/nome',
+  icon: IconName,
+  badge: null,
+}
+```
+
+4. **Rodar Type-Check**:
+```bash
+cd frontend
+npm run type-check
+```
+
+5. **Testar Localmente**:
+```bash
+npm run dev
+# Abrir http://localhost:3001/modulo/nome
+```
+
+6. **Commit e Push**:
+```bash
+git add .
+git commit -m "feat: Adicionar funcionalidade X"
+git push origin main
+```
+
+---
+
+### Criar Nova Tabela no Banco
+
+1. **Criar Migration SQL** (`database/migrations/YYYY-MM-DD-nome.sql`):
+```sql
+-- Criar tabela
+CREATE TABLE nova_tabela (
+  id SERIAL PRIMARY KEY,
+  bar_id INTEGER REFERENCES bares(id),
+  nome VARCHAR(255) NOT NULL,
+  valor NUMERIC(10,2),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Criar índices
+CREATE INDEX idx_nova_tabela_bar_id ON nova_tabela(bar_id);
+
+-- Adicionar RLS
+ALTER TABLE nova_tabela ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Usuários podem ver registros do seu bar"
+ON nova_tabela FOR SELECT
+USING (user_has_access_to_bar(bar_id));
+
+-- Adicionar trigger de updated_at
+CREATE TRIGGER update_nova_tabela_updated_at
+  BEFORE UPDATE ON nova_tabela
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_generic();
+```
+
+2. **Aplicar Migration**:
+- Via Supabase Dashboard: SQL Editor > Colar SQL > Run
+- Via CLI: `supabase db push`
+
+3. **Atualizar Tipos** (`frontend/src/types/supabase.ts`):
+```typescript
+export interface NovaTabela {
+  id: number;
+  bar_id: number;
+  nome: string;
+  valor: number;
+  created_at: string;
+  updated_at: string;
+}
+```
+
+4. **Documentar** (neste arquivo):
+- Adicionar na seção "Banco de Dados"
+- Descrever colunas principais
+- Adicionar query de exemplo
+
+---
+
+### Adicionar Nova Edge Function
+
+1. **Criar Arquivo** (`backend/supabase/functions/nome-funcao/index.ts`):
+```typescript
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+serve(async (req) => {
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
+    // Lógica da função
+    
+    return new Response(
+      JSON.stringify({ success: true }),
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Erro:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+});
+```
+
+2. **Deploy**:
+```bash
+# Via Supabase CLI
+supabase functions deploy nome-funcao
+
+# Ou via Dashboard: Edge Functions > Deploy
+```
+
+3. **Configurar Secrets** (se necessário):
+```bash
+supabase secrets set NOME_SECRET=valor
+```
+
+4. **Testar**:
+```bash
+curl -X POST https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/nome-funcao \
+  -H "Authorization: Bearer ANON_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"param": "valor"}'
+```
+
+---
+
+### Adicionar Cron Job
+
+1. **Criar Função SQL**:
+```sql
+CREATE OR REPLACE FUNCTION executar_tarefa_agendada()
+RETURNS void AS $$
+BEGIN
+  -- Lógica da tarefa
+  RAISE NOTICE 'Tarefa executada com sucesso';
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE WARNING 'Erro na tarefa: %', SQLERRM;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+2. **Agendar com pg_cron**:
+```sql
+-- Todo dia às 9h
+SELECT cron.schedule(
+  'nome-do-job',
+  '0 9 * * *',
+  $$SELECT executar_tarefa_agendada();$$
+);
+
+-- Verificar jobs ativos
+SELECT * FROM cron.job;
+```
+
+3. **Monitorar Execuções**:
+```sql
+SELECT * FROM cron.job_run_details 
+WHERE jobname = 'nome-do-job'
+ORDER BY start_time DESC 
+LIMIT 10;
+```
+
+---
+
+### Corrigir Dados Problemáticos
+
+#### CMV Negativo ou > 100%
+
+```sql
+-- 1. Identificar problemas
+SELECT * FROM cmv_semanal 
+WHERE cmv_limpo_percentual < 0 
+   OR cmv_limpo_percentual > 100;
+
+-- 2. Recalcular manualmente
+UPDATE cmv_semanal 
+SET 
+  cmv_calculado = estoque_inicial + compras_periodo - estoque_final,
+  cmv_limpo_percentual = (
+    (estoque_inicial + compras_periodo - estoque_final) / 
+    NULLIF(vendas_liquidas, 0) * 100
+  )
+WHERE id = 123;
+```
+
+#### Público Faltante
+
+```sql
+-- 1. Identificar eventos sem público
+SELECT * FROM eventos_base 
+WHERE cl_real IS NULL 
+  AND real_r > 1000;
+
+-- 2. Estimar público baseado em ticket médio
+UPDATE eventos_base 
+SET cl_real = ROUND(real_r / 104.91)  -- Ticket médio histórico
+WHERE cl_real IS NULL 
+  AND real_r > 1000;
+```
+
+---
+
+### Deploy para Produção
+
+**Checklist Pré-Deploy**:
+
+- [ ] Rodar `npm run type-check` no frontend
+- [ ] Testar funcionalidade localmente
+- [ ] Verificar se variáveis de ambiente estão configuradas no Vercel
+- [ ] Revisar código (não deixar console.logs desnecessários)
+- [ ] Atualizar documentação (se necessário)
+
+**Deploy**:
+```bash
+# 1. Commit
+git add .
+git commit -m "feat: Descrição da mudança"
+
+# 2. Push (deploy automático no Vercel)
+git push origin main
+
+# 3. Verificar deploy no Vercel Dashboard
+# https://vercel.com/seu-projeto/deployments
+```
+
+**Pós-Deploy**:
+- [ ] Testar em produção
+- [ ] Verificar logs no Vercel
+- [ ] Monitorar erros no Sentry (se configurado)
+
+---
+
+## ⚙️ CONFIGURAÇÕES E VARIÁVEIS
+
+### Variáveis de Ambiente
+
+#### Frontend (.env.local)
+
+```env
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://uqtgsvujwcbymjmvkjhy.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+
+# Aplicação
+NEXT_PUBLIC_APP_URL=http://localhost:3001
+CRON_SECRET=zykor-cron-secret-2026
+
+# APIs Externas
+GEMINI_API_KEY=AIza...
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+
+# ContaHub
+CONTAHUB_API_KEY=...
+CONTAHUB_BASE_URL=https://api.contahub.com
+
+# NIBO
+NIBO_API_KEY=...
+NIBO_BASE_URL=https://api.nibo.com.br
+
+# Sympla
+SYMPLA_TOKEN=...
+
+# Yuzer
+YUZER_API_KEY=...
+
+# GetIn
+GETIN_API_KEY=...
+```
+
+---
+
+#### Vercel (Produção)
+
+**Configurar em**: Vercel Dashboard > Project > Settings > Environment Variables
+
+**Variáveis Obrigatórias**:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `CRON_SECRET`
+- `GEMINI_API_KEY`
+
+**Variáveis Opcionais** (integrações):
+- `CONTAHUB_API_KEY`
+- `NIBO_API_KEY`
+- `DISCORD_WEBHOOK_URL`
+- `SYMPLA_TOKEN`
+- `YUZER_API_KEY`
+- `GETIN_API_KEY`
+
+---
+
+#### Supabase (Secrets)
+
+**Configurar em**: Supabase Dashboard > Project Settings > Edge Functions > Secrets
+
+```bash
+# Via CLI
+supabase secrets set GEMINI_API_KEY=AIza...
+supabase secrets set DISCORD_WEBHOOK_URL=https://...
+supabase secrets set CONTAHUB_API_KEY=...
+supabase secrets set NIBO_API_KEY=...
+
+# Listar secrets
+supabase secrets list
+```
+
+---
+
+### Configurações do Banco
+
+#### Connection Pooling
+
+**Status**: ✅ Ativo (PgBouncer)  
+**Porta**: 6543  
+**Pool Mode**: Transaction  
+**Max Connections**: 60
+
+**Connection String**:
+```
+postgresql://postgres:[PASSWORD]@db.uqtgsvujwcbymjmvkjhy.supabase.co:6543/postgres
+```
+
+---
+
+#### Extensões Instaladas
+
+```sql
+SELECT * FROM pg_extension;
+```
+
+**Principais**:
+- `pg_cron` - Agendamento de tarefas
+- `http` - Requisições HTTP
+- `uuid-ossp` - Geração de UUIDs
+- `pg_stat_statements` - Estatísticas de queries
+
+---
+
+#### Configurações de Performance
+
+```sql
+-- Autovacuum agressivo em tabelas grandes
+ALTER TABLE contahub_analitico 
+SET (autovacuum_vacuum_scale_factor = 0.05);
+
+ALTER TABLE contahub_tempo 
+SET (autovacuum_vacuum_scale_factor = 0.05);
+
+-- Search path seguro em funções
+ALTER FUNCTION nome_funcao() 
+SET search_path = public, pg_temp;
+```
+
+---
+
+### Configurações do Frontend
+
+#### Next.js Config (`next.config.js`)
+
+```javascript
+module.exports = {
+  reactStrictMode: true,
+  swcMinify: true,
+  
+  // Otimizações
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+  
+  // Domínios permitidos para imagens
+  images: {
+    domains: ['uqtgsvujwcbymjmvkjhy.supabase.co'],
+  },
+};
+```
+
+---
+
+#### TailwindCSS Config
+
+**Dark Mode**: Ativo (class-based)  
+**Tema**: Customizado com cores do Ordinário Bar
+
+---
+
+### Integrações Externas
+
+#### ContaHub
+
+**Endpoint**: `https://api.contahub.com`  
+**Autenticação**: API Key no header  
+**Rate Limit**: 100 req/min  
+**Sync**: Diário às 07:00 BRT
+
+---
+
+#### NIBO
+
+**Endpoint**: `https://api.nibo.com.br`  
+**Autenticação**: OAuth 2.0  
+**Rate Limit**: 60 req/min  
+**Sync**: Diário às 10:00 BRT
+
+---
+
+#### Google Gemini
+
+**Modelo**: `gemini-2.0-flash-exp`  
+**Header**: `x-goog-api-key`  
+**Quota**: 1500 req/dia (free tier)  
+**Fallback**: Ativo (resposta enriquecida sem IA)
+
+---
+
+#### Discord Webhooks
+
+**Canais**:
+- Alertas Gerais: `DISCORD_WEBHOOK_URL`
+- Alertas Críticos: `DISCORD_WEBHOOK_CRITICAL`
+- Logs Sistema: `DISCORD_WEBHOOK_LOGS`
+
+---
+
 ## DECISÕES ARQUITETURAIS
 
 ### 1. Consolidação de Funções ✅
@@ -1167,21 +3055,49 @@ curl "https://zykor.vercel.app/api/exploracao/agente-diario?secret=zykor-cron-se
 
 ## PONTOS DE ATENÇÃO ⚠️
 
-1. **Quota Gemini**: API tem limite. Sistema tem fallback.
-2. **Operação 7 dias**: Bar abre todos os dias em 2026!
-3. **Consolidação**: Evitar criar novas Edge Functions.
-4. **Dark Mode**: Obrigatório em todas as páginas.
-5. **Copa do Mundo 2026**: Ano excepcional!
-6. **Aniversário bar**: 31/01 - Niver Ordi.
-7. **NPS Drinks/Comida**: Pontos a melhorar (7.4 e 7.7).
-8. **Type-check**: Sempre rodar `npm run type-check` antes de push.
-9. **Lazy Loading**: Usar componentes lazy quando possível.
-10. **Dispatchers**: Sempre usar dispatchers ao invés de criar novas Edge Functions.
-11. **CMO/CMA**: Sistema completo implementado. Meta padrão: R$ 45.000/semana.
-12. **Recharts**: Usar para gráficos (LineChart, BarChart, AreaChart).
-13. **🆕 Exploração Diária**: Sistema automatizado rodando diariamente às 9h via Supabase Cron.
-14. **🆕 CRON_SECRET**: Variável obrigatória no Vercel para autenticação do agente diário.
-15. **🆕 Relatórios Diários**: Histórico completo salvo em `relatorios_diarios` para análises futuras.
+### Operacionais
+1. **Operação 7 dias**: Bar abre todos os dias em 2026!
+2. **Copa do Mundo 2026**: Ano excepcional!
+3. **Aniversário bar**: 31/01 - Niver Ordi.
+4. **NPS Drinks/Comida**: Pontos a melhorar (7.4 e 7.7).
+
+### Técnicos
+5. **Type-check**: SEMPRE rodar `npm run type-check` antes de push.
+6. **Consolidação**: Evitar criar novas Edge Functions. Usar dispatchers existentes.
+7. **Dark Mode**: Obrigatório em todas as páginas.
+8. **Lazy Loading**: Usar componentes lazy quando possível (framer-motion, recharts).
+9. **RLS**: Todas as tabelas principais têm Row Level Security ativo.
+10. **Connection Pooling**: Usar porta 6543 (PgBouncer) para evitar "too many connections".
+
+### APIs e Integrações
+11. **Quota Gemini**: API tem limite de 1500 req/dia. Sistema tem fallback automático.
+12. **CRON_SECRET**: Variável obrigatória no Vercel para autenticação de cron jobs.
+13. **ContaHub Sync**: Roda diariamente às 07:00 BRT. Filtra produtos [HH], [DD], [IN].
+14. **NIBO Sync**: Roda diariamente às 10:00 BRT.
+
+### Sistemas Implementados
+15. **CMO/CMA**: Sistema completo. Meta padrão: R$ 45.000/semana.
+16. **Exploração Diária**: Agente automatizado rodando às 9h via Supabase Cron.
+17. **Relatórios Diários**: Histórico completo em `relatorios_diarios`.
+18. **Dispatchers**: 8 dispatchers unificados (agente, alertas, integracao, contahub, google-sheets, discord, sync, webhook).
+
+### Banco de Dados
+19. **187 Tabelas**: Total de 1.08 GB. Top 3: contahub_analitico (191 MB), contahub_tempo (161 MB), contahub_stockout (67 MB).
+20. **446 Índices**: Otimizados para performance.
+21. **291 Políticas RLS**: Ativas para segurança multi-tenancy.
+22. **Triggers**: `update_updated_at_generic()` em 28 tabelas.
+
+### Boas Práticas
+23. **Queries**: Sempre filtrar `real_r > 1000` para ignorar dias fechados.
+24. **Erros**: Usar `console.error()` para erros, `console.log()` para debug.
+25. **Tipos**: Tipar arrays do Supabase como `any[]` para evitar problemas.
+26. **Auditoria**: Usar `logAuditEvent()` em operações críticas (create, update, delete).
+27. **Recharts**: Biblioteca padrão para gráficos (LineChart, BarChart, AreaChart).
+28. **Formatters**: Usar funções de `lib/formatters.ts` para moeda, percentual, data.
+
+### Documentação
+29. **Base de Conhecimento**: Este arquivo (`zykor-context.md`) é a fonte única de verdade.
+30. **Sempre Atualizar**: Ao adicionar funcionalidades, atualizar este arquivo.
 
 ---
 
@@ -1206,17 +3122,26 @@ curl "https://zykor.vercel.app/api/exploracao/agente-diario?secret=zykor-cron-se
 
 ---
 
-**Última atualização**: 27/02/2026 11:45 BRT  
+**Última atualização**: 02/03/2026 23:30 BRT  
 **Próxima revisão**: Quando houver mudanças significativas no sistema
 
 **Mudanças nesta atualização**:
-- ✅ Sistema de Exploração Diária Automatizada implementado
-- ✅ 9 novas APIs de análise criadas
-- ✅ 3 Cron Jobs configurados (diário, semanal, mensal)
-- ✅ Tabela `relatorios_diarios` criada
-- ✅ Documentação completa de 30 dias de exploração
-- ✅ 50+ insights gerados, 20+ ações recomendadas
-- ✅ Automação via Supabase Cron (pg_cron + http)
+- ✅ **BASE DE CONHECIMENTO COMPLETA** - Arquivo unificado criado
+- ✅ **Seção Banco de Dados** - 187 tabelas documentadas com colunas e relacionamentos
+- ✅ **Seção Padrões de Código** - Templates prontos para APIs, Edge Functions e Componentes
+- ✅ **Seção Queries Úteis** - 20+ queries SQL prontas para uso
+- ✅ **Seção Troubleshooting** - 10 erros comuns com soluções
+- ✅ **Seção Workflows** - Processos do dia-a-dia documentados
+- ✅ **Seção Configurações** - Todas as variáveis de ambiente e configs
+- ✅ **Índice Navegável** - Links para todas as seções
+- ✅ **Pontos de Atenção** - Reorganizados em categorias (30 itens)
+
+**Objetivo Alcançado**: 
+- 🎯 Economizar tokens (não precisa mais listar tabelas)
+- 🎯 Contexto sempre disponível em um único arquivo
+- 🎯 Onboarding rápido para novos desenvolvedores (ou novos chats)
+- 🎯 Troubleshooting eficiente com soluções documentadas
+- 🎯 Workflows padronizados para tarefas comuns
 
 ---
 

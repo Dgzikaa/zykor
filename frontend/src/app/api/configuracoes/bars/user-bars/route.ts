@@ -76,8 +76,8 @@ export async function GET(request: NextRequest) {
 
     // 3. Filtrar apenas bares ativos e enriquecer com permissões do usuário
     const barsEnriquecidos = relacoes
-      .filter(rel => rel.bares?.ativo)
-      .map(rel => ({
+      .filter((rel: any) => rel.bares && !Array.isArray(rel.bares) && rel.bares.ativo)
+      .map((rel: any) => ({
         id: rel.bares.id,
         nome: rel.bares.nome,
         modulos_permitidos: usuarioData.modulos_permitidos || [],

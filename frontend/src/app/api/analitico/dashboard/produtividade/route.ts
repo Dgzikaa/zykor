@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -165,6 +165,15 @@ export async function GET(request: NextRequest) {
 
     const supabase = await getAdminClient();
 
+    if (!user.bar_id) {
+      return NextResponse.json(
+        { error: 'Bar ID não encontrado' },
+        { status: 400 }
+      );
+    }
+
+    const barIdStr = user.bar_id.toString();
+
     // Calcular data de início baseada no período
     const dataFim = new Date();
     const dataInicio = new Date();
@@ -173,7 +182,7 @@ export async function GET(request: NextRequest) {
     // Buscar métricas gerais
     const metricas = await calcularMetricasGerais(
       supabase,
-      user.bar_id.toString(),
+      barIdStr,
       dataInicio,
       dataFim
     );
@@ -181,7 +190,7 @@ export async function GET(request: NextRequest) {
     // Buscar ranking de funcionários
     const ranking = await calcularRankingFuncionarios(
       supabase,
-      user.bar_id.toString(),
+      barIdStr,
       dataInicio,
       dataFim,
       funcionarioId || undefined,
@@ -192,24 +201,24 @@ export async function GET(request: NextRequest) {
     // Buscar evolução temporal
     const evolucao = await calcularEvolucaoTemporal(
       supabase,
-      user.bar_id.toString(),
+      barIdStr,
       dataInicio,
       dataFim
     );
 
     // Buscar alertas e pendências
-    const alertas = await buscarAlertas(supabase, user.bar_id.toString());
+    const alertas = await buscarAlertas(supabase, barIdStr);
 
     // Buscar estatísticas por setor/cargo
     const estatisticasPorSetor = await calcularEstatisticasPorSetor(
       supabase,
-      user.bar_id.toString(),
+      barIdStr,
       dataInicio,
       dataFim
     );
     const estatisticasPorCargo = await calcularEstatisticasPorCargo(
       supabase,
-      user.bar_id.toString(),
+      barIdStr,
       dataInicio,
       dataFim
     );
@@ -217,7 +226,7 @@ export async function GET(request: NextRequest) {
     // Buscar top checklists
     const topChecklists = await buscarTopChecklists(
       supabase,
-      user.bar_id.toString(),
+      barIdStr,
       dataInicio,
       dataFim
     );
