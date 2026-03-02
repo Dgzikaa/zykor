@@ -8,15 +8,14 @@ export const dynamic = 'force-dynamic'
 // 🔐 API PARA AUTENTICAÇÃO
 // ========================================
 
-interface UsuarioBar {
+interface Usuario {
   id: string;
-  user_id: string;
+  auth_id: string;
   nome: string;
   email: string;
   ativo: boolean;
   senha_redefinida: boolean;
-  permissao: string;
-  bar_id: string;
+  role: string;
   modulos_permitidos?: string[] | Record<string, any>;
 }
 
@@ -139,24 +138,24 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('✅ Autenticação bem-sucedida. User ID:', authData.user.id);
-    console.log('📊 Buscando dados do usuário na tabela usuarios_bar...');
+    console.log('📊 Buscando dados do usuário na tabela usuarios...');
 
-    // Buscar dados do usuário na tabela usuarios_bar
+    // Buscar dados do usuário na tabela usuarios
     const { data: usuarios, error: dbError } = await adminClient
-      .from('usuarios_bar')
+      .from('usuarios')
       .select('*')
-      .eq('user_id', authData.user.id)
+      .eq('auth_id', authData.user.id)
       .eq('ativo', true);
 
-    console.log('🔍 Query executada - User ID:', authData.user.id);
+    console.log('🔍 Query executada - Auth ID:', authData.user.id);
     console.log('🔍 Usuários encontrados:', usuarios?.length || 0);
 
-    // Se não encontrou usuário ativo, tentar buscar qualquer usuário com esse user_id
+    // Se não encontrou usuário ativo, tentar buscar qualquer usuário com esse auth_id
     if (!usuarios || usuarios.length === 0) {
       const { data: todosUsuarios } = await adminClient
-        .from('usuarios_bar')
+        .from('usuarios')
         .select('*')
-        .eq('user_id', authData.user.id);
+        .eq('auth_id', authData.user.id);
 
       console.log(
         '🔍 Todos os usuários (incluindo inativos):',
@@ -168,7 +167,7 @@ export async function POST(request: NextRequest) {
 
       // Também tentar buscar por email
       const { data: usuariosPorEmail } = await adminClient
-        .from('usuarios_bar')
+        .from('usuarios')
         .select('*')
         .eq('email', email);
 
@@ -191,42 +190,42 @@ export async function POST(request: NextRequest) {
 
     let usuariosAtivos = usuarios;
     if (!usuariosAtivos || usuariosAtivos.length === 0) {
-      console.log('❌ Usuário não encontrado na tabela usuarios_bar');
+      console.log('❌ Usuário não encontrado na tabela usuarios');
 
-      // Verificar se existe usuário por email mas com user_id diferente
+      // Verificar se existe usuário por email mas com auth_id diferente
       const { data: usuariosPorEmail } = await adminClient
-        .from('usuarios_bar')
+        .from('usuarios')
         .select('*')
         .eq('email', email);
 
       if (usuariosPorEmail && usuariosPorEmail.length > 0) {
         const usuarioExistente = usuariosPorEmail[0];
-        console.log('🔧 Detectado user_id desatualizado. Corrigindo...');
-        console.log('🔧 ID antigo:', usuarioExistente.user_id);
+        console.log('🔧 Detectado auth_id desatualizado. Corrigindo...');
+        console.log('🔧 ID antigo:', usuarioExistente.auth_id);
         console.log('🔧 ID novo:', authData.user.id);
 
-        // Atualizar o user_id na tabela para corresponder ao Supabase Auth
+        // Atualizar o auth_id na tabela para corresponder ao Supabase Auth
         const { error: updateError } = await adminClient
-          .from('usuarios_bar')
-          .update({ user_id: authData.user.id })
+          .from('usuarios')
+          .update({ auth_id: authData.user.id })
           .eq('email', email);
 
         if (updateError) {
-          console.error('❌ Erro ao atualizar user_id:', updateError);
+          console.error('❌ Erro ao atualizar auth_id:', updateError);
           return NextResponse.json(
             { success: false, error: 'Erro interno do servidor' },
             { status: 500 }
           );
         }
 
-        console.log('✅ User_id atualizado com sucesso!');
+        console.log('✅ Auth_id atualizado com sucesso!');
 
         // Buscar novamente o usuário com o ID atualizado
         const { data: usuariosAtualizados, error: newDbError } =
           await adminClient
-            .from('usuarios_bar')
+            .from('usuarios')
             .select('*')
-            .eq('user_id', authData.user.id)
+            .eq('auth_id', authData.user.id)
             .eq('ativo', true);
 
         if (newDbError) {
@@ -248,7 +247,7 @@ export async function POST(request: NextRequest) {
       if (!usuariosAtivos || usuariosAtivos.length === 0) {
         await logLoginFailure({
           email,
-          reason: 'Usuário não encontrado ou inativo na tabela usuarios_bar',
+          reason: 'Usuário não encontrado ou inativo na tabela usuarios',
           ipAddress: clientIp,
           userAgent,
           sessionId,
@@ -306,47 +305,41 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const baresAcesso = usuariosAtivos.map((u: UsuarioBar) => ({
-      bar_id: u.bar_id,
-      role: u.permissao,
-      modulos_permitidos: u.modulos_permitidos, // Assuming modulos_permitidos is part of UsuarioBar
-    }));
+    // Buscar bares do usuário através da tabela usuarios_bares
+    console.log('🔍 Buscando bares do usuário...');
+    const { data: usuariosBares, error: baresError } = await adminClient
+      .from('usuarios_bares')
+      .select('bar_id')
+      .eq('usuario_id', usuarioPrincipal.id);
 
-    console.log('🔍 Buscando dados completos dos bares...');
+    if (baresError) {
+      console.error('❌ Erro ao buscar bares do usuário:', baresError);
+    }
+
+    const barIds = usuariosBares?.map((ub: { bar_id: number }) => ub.bar_id) || [];
+    console.log('🔍 Bar IDs encontrados:', barIds);
 
     // Buscar dados completos dos bares (incluindo nome)
-    const barIds = [
-      ...new Set(baresAcesso.map((b: { bar_id: string }) => b.bar_id)),
-    ];
-    const { data: barsData, error: barsError } = await adminClient
-      .from('bars')
+    const { data: barsData, error: barsDataError } = await adminClient
+      .from('bares')
       .select('id, nome')
       .in('id', barIds)
       .eq('ativo', true);
 
-    if (barsError) {
-      console.error('❌ Erro ao buscar dados dos bares:', barsError);
+    if (barsDataError) {
+      console.error('❌ Erro ao buscar dados dos bares:', barsDataError);
     }
 
     console.log('✅ Dados dos bares encontrados:', barsData?.length || 0);
 
-    // Enriquecer baresAcesso com nome dos bares
-    const baresComNome = baresAcesso.map(
-      (bar: {
-        bar_id: string;
-        role: string;
-        modulos_permitidos?: string[] | Record<string, any>;
-      }) => {
-        const barData = barsData?.find(
-          (b: { id: string; nome: string }) => b.id === bar.bar_id
-        );
-        return {
-          ...bar,
-          id: bar.bar_id, // Para compatibilidade com BarContext
-          nome: barData?.nome || `Bar ${bar.bar_id}`,
-        };
-      }
-    );
+    // Criar array de bares com permissões do usuário
+    const baresComNome = barsData?.map((bar: { id: number; nome: string }) => ({
+      bar_id: bar.id,
+      id: bar.id, // Para compatibilidade com BarContext
+      nome: bar.nome,
+      role: usuarioPrincipal.role,
+      modulos_permitidos: usuarioPrincipal.modulos_permitidos,
+    })) || [];
 
     console.log('🔍 Buscando credenciais de APIs...');
 
@@ -395,7 +388,7 @@ export async function POST(request: NextRequest) {
       id: usuarioPrincipal.id,
       email: usuarioPrincipal.email,
       nome: usuarioPrincipal.nome,
-      role: usuarioPrincipal.permissao,
+      role: usuarioPrincipal.role,
     };
 
     nextResponse.cookies.set('sgb_user', JSON.stringify(userCookie), {

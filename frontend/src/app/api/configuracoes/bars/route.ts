@@ -56,9 +56,9 @@ export async function GET() {
       );
     }
 
-    // Buscar dados da tabela 'bar' (estrutura atual do banco)
-    const { data: barData, error } = await supabase
-      .from('bars')
+    // Buscar dados da tabela 'bares' (estrutura atual do banco)
+    const { data: barData, error } = await (supabase as any)
+      .from('bares')
       .select('*')
       .order('id', { ascending: false });
 
@@ -145,8 +145,8 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    const { data, error } = await supabase
-      .from('bars')
+    const { data, error } = await (supabase as any)
+      .from('bares')
       .insert([newBar])
       .select()
       .single();
@@ -268,8 +268,8 @@ export async function PUT(request: NextRequest) {
       }
     });
 
-    const { data, error } = await supabase
-      .from('bars')
+    const { data, error } = await (supabase as any)
+      .from('bares')
       .update(updates)
       .eq('id', id)
       .select()
@@ -322,8 +322,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Buscar o bar antes de deletar
-    const { data: bar } = await supabase
-      .from('bars')
+    const { data: bar } = await (supabase as any)
+      .from('bares')
       .select('nome')
       .eq('id', parseInt(id))
       .single();
@@ -339,7 +339,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Deletar o bar
-    const { error } = await supabase.from('bars').delete().eq('id', parseInt(id));
+    const { error } = await (supabase as any).from('bares').delete().eq('id', parseInt(id));
 
     if (error) {
       throw error;

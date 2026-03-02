@@ -13,9 +13,9 @@ export async function GET() {
   try {
     // Buscar usuários
     const { data: usuarios, error } = await supabase
-      .from('usuarios_bar')
+      .from('usuarios')
       .select('*')
-      .order('criado_em', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
 
@@ -28,8 +28,8 @@ export async function GET() {
       console.error('Erro ao buscar relacionamentos usuários-bares:', baresError);
     }
 
-    // Criar mapa de bares por usuário
-    const baresMap: Record<number, number[]> = {};
+    // Criar mapa de bares por usuário (usando UUID)
+    const baresMap: Record<string, number[]> = {};
     usuariosBares?.forEach(ub => {
       if (!baresMap[ub.usuario_id]) {
         baresMap[ub.usuario_id] = [];
@@ -58,8 +58,8 @@ export async function GET() {
       return {
         ...u,
         modulos_permitidos: modulosPermitidos,
-        // Adicionar array de bares (da nova tabela, com fallback para bar_id legado)
-        bares_ids: baresMap[u.id] || (u.bar_id ? [u.bar_id] : [])
+        // Adicionar array de bares (usando UUID)
+        bares_ids: baresMap[u.id] || []
       };
     }) || [];
 
@@ -130,19 +130,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Criar registro na tabela usuarios_bar (usar primeiro bar como principal)
+    // 2. Criar registro na tabela usuarios
     const { data: usuario, error } = await supabase
-      .from('usuarios_bar')
+      .from('usuarios')
       .insert({
-        user_id: authUser.user.id, // UUID do usuário criado no Auth
-        bar_id: baresParaAssociar[0], // Manter compatibilidade com bar_id legado
+        auth_id: authUser.user.id, // UUID do usuário criado no Auth
         email,
         nome,
         role,
         modulos_permitidos: modulosArray,
         ativo,
-        celular: celular || null,
-        telefone: telefone || null,
+        telefone: celular || telefone || null,
         cpf: cpf || null,
         data_nascimento: data_nascimento || null,
         endereco: endereco || null,
@@ -150,20 +148,20 @@ export async function POST(request: NextRequest) {
         cidade: cidade || null,
         estado: estado || null,
         senha_redefinida: false,
-        criado_em: new Date().toISOString(),
+        created_at: new Date().toISOString(),
       })
       .select()
       .single();
 
     if (error) {
-      // Se falhar ao criar na tabela usuarios_bar, remover usuário do Auth
+      // Se falhar ao criar na tabela usuarios, remover usuário do Auth
       await supabase.auth.admin.deleteUser(authUser.user.id);
       throw error;
     }
 
     // 3. Criar relacionamentos na tabela usuarios_bares (múltiplos bares)
     const relacionamentos = baresParaAssociar.map(barId => ({
-      usuario_id: usuario.id,
+      usuario_id: usuario.id, // UUID do usuário
       bar_id: barId
     }));
 
@@ -258,10 +256,10 @@ export async function PUT(request: NextRequest) {
     // Garantir que modulos_permitidos seja um array
     const modulosArray = Array.isArray(modulos_permitidos) ? modulos_permitidos : [];
 
-    // 1. Buscar user_id atual para atualizar Auth
+    // 1. Buscar auth_id atual para atualizar Auth
     const { data: currentUser, error: fetchError } = await supabase
-      .from('usuarios_bar')
-      .select('user_id, email')
+      .from('usuarios')
+      .select('auth_id, email')
       .eq('id', id)
       .single();
 
@@ -272,8 +270,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // 2. Atualizar Supabase Auth (se houver user_id)
-    if (currentUser.user_id) {
+    // 2. Atualizar Supabase Auth (se houver auth_id)
+    if (currentUser.auth_id) {
       try {
         const authUpdates: Record<string, unknown> = {
           user_metadata: {
@@ -289,7 +287,7 @@ export async function PUT(request: NextRequest) {
         }
 
         const { error: authError } = await supabase.auth.admin.updateUserById(
-          currentUser.user_id,
+          currentUser.auth_id,
           authUpdates
         );
 
@@ -303,31 +301,25 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // 3. Atualizar tabela usuarios_bar
+    // 3. Atualizar tabela usuarios
     const updateData: Record<string, unknown> = {
       email,
       nome,
       role,
       modulos_permitidos: modulosArray,
       ativo,
-      celular: celular || null,
-      telefone: telefone || null,
+      telefone: celular || telefone || null,
       cpf: cpf || null,
       data_nascimento: data_nascimento || null,
       endereco: endereco || null,
       cep: cep || null,
       cidade: cidade || null,
       estado: estado || null,
-      atualizado_em: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
-    // Atualizar bar_id principal se houver bares
-    if (baresParaAssociar.length > 0) {
-      updateData.bar_id = baresParaAssociar[0];
-    }
-
     const { data: usuario, error } = await supabase
-      .from('usuarios_bar')
+      .from('usuarios')
       .update(updateData)
       .eq('id', id)
       .select()
@@ -367,7 +359,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ 
       usuario: { ...usuario, bares_ids: baresParaAssociar }, 
       message: 'Usuário atualizado com sucesso',
-      auth_updated: !!currentUser.user_id 
+      auth_updated: !!currentUser.auth_id 
     });
   } catch (error) {
     console.error('Erro ao atualizar usuário:', error);
@@ -391,10 +383,10 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // 1. Buscar dados do usuário para obter o user_id do Auth
+    // 1. Buscar dados do usuário para obter o auth_id do Auth
     const { data: usuario, error: fetchError } = await supabase
-      .from('usuarios_bar')
-      .select('user_id, email, nome')
+      .from('usuarios')
+      .select('auth_id, email, nome')
       .eq('id', id)
       .single();
 
@@ -407,23 +399,23 @@ export async function DELETE(request: NextRequest) {
 
     console.log(`🗑️ Iniciando exclusão completa do usuário: ${usuario.email}`);
 
-    // 2. Excluir da tabela usuarios_bar
+    // 2. Excluir da tabela usuarios
     const { error: deleteTableError } = await supabase
-      .from('usuarios_bar')
+      .from('usuarios')
       .delete()
       .eq('id', id);
 
     if (deleteTableError) {
-      console.error('❌ Erro ao excluir da tabela usuarios_bar:', deleteTableError);
+      console.error('❌ Erro ao excluir da tabela usuarios:', deleteTableError);
       throw deleteTableError;
     }
 
-    console.log('✅ Usuário removido da tabela usuarios_bar');
+    console.log('✅ Usuário removido da tabela usuarios');
 
-    // 3. Excluir do Supabase Auth (se user_id existir)
-    if (usuario.user_id) {
+    // 3. Excluir do Supabase Auth (se auth_id existir)
+    if (usuario.auth_id) {
       try {
-        const { error: authDeleteError } = await supabase.auth.admin.deleteUser(usuario.user_id);
+        const { error: authDeleteError } = await supabase.auth.admin.deleteUser(usuario.auth_id);
         
         if (authDeleteError) {
           console.warn('⚠️ Erro ao excluir do Auth (usuário pode já ter sido removido):', authDeleteError.message);

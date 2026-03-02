@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { hasRoutePermission, getRoutePermission } from './src/lib/route-permissions';
 
 interface User {
   id: number;
   email: string;
   nome: string;
-  role: 'admin' | 'manager' | 'funcionario';
+  role: 'admin' | 'funcionario' | 'financeiro';
   modulos_permitidos: string[] | Record<string, any>;
   ativo: boolean;
 }
@@ -13,57 +14,41 @@ interface User {
 // Função para pegar dados do usuário dos cookies
 function getStoredUser(request: NextRequest): User | null {
   try {
-    const userDataCookie = request.cookies.get('userData')?.value;
-    if (!userDataCookie) return null;
+    // Tentar pegar do cookie sgb_user (usado pelo sistema de login)
+    const sgbUserCookie = request.cookies.get('sgb_user')?.value;
+    if (sgbUserCookie) {
+      const userData = JSON.parse(decodeURIComponent(sgbUserCookie));
+      return userData;
+    }
 
-    const userData = JSON.parse(decodeURIComponent(userDataCookie));
-    return userData;
+    // Fallback para userData (compatibilidade)
+    const userDataCookie = request.cookies.get('userData')?.value;
+    if (userDataCookie) {
+      const userData = JSON.parse(decodeURIComponent(userDataCookie));
+      return userData;
+    }
+
+    return null;
   } catch (error) {
     console.error('Erro ao parsear dados do usuário:', error);
     return null;
   }
 }
 
-// Verificar se usuário tem permissão para marketing
-function hasMarketingPermission(user: User): boolean {
-  console.log(
-    `🔍 VERIFICANDO MARKETING - User: ${user.nome}, Role: ${user.role}`
-  );
-  console.log(`🔍 MÓDULOS: ${JSON.stringify(user.modulos_permitidos)}`);
+// Rotas que não precisam de autenticação
+const PUBLIC_ROUTES = ['/login', '/auth', '/api'];
 
-  // Admin sempre tem acesso
-  if (user.role === 'admin') {
-    console.log(`✅ ADMIN - Acesso liberado para ${user.nome}`);
-    return true;
-  }
-
-  // Verificar se tem módulo marketing_360 (ID 18)
-  let hasModule18 = false;
-  let hasModuleMarketing = false;
-
-  // Se modulos_permitidos é um array
-  if (Array.isArray(user.modulos_permitidos)) {
-    hasModule18 = user.modulos_permitidos.includes('18');
-    hasModuleMarketing = user.modulos_permitidos.includes('marketing_360');
-  }
-  // Se modulos_permitidos é um objeto
-  else if (typeof user.modulos_permitidos === 'object') {
-    hasModule18 = user.modulos_permitidos['18'] === true;
-    hasModuleMarketing = user.modulos_permitidos['marketing_360'] === true;
-  }
-
-  console.log(`🔍 Tem módulo 18? ${hasModule18}`);
-  console.log(`🔍 Tem módulo marketing_360? ${hasModuleMarketing}`);
-
-  const hasPermission = hasModule18 || hasModuleMarketing;
-  console.log(`🔍 RESULTADO FINAL: ${hasPermission}`);
-
-  return hasPermission;
-}
+// Rotas que devem ser ignoradas pelo middleware
+const IGNORED_ROUTES = ['/_next', '/favicon.ico', '/static'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.nextUrl.hostname;
+
+  // Ignorar rotas estáticas e API
+  if (IGNORED_ROUTES.some(route => pathname.startsWith(route))) {
+    return NextResponse.next();
+  }
 
   // Redirecionar raiz para /login apenas em produção (domínio zykor.com.br)
   if (
@@ -74,48 +59,44 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Só verificar marketing-360
-  if (pathname === '/visao-geral/marketing-360') {
-    console.log(`🎯 VERIFICANDO MARKETING-360`);
-
-    const user = getStoredUser(request);
-
-    if (!user) {
-      console.log('🚫 MIDDLEWARE: Usuário não autenticado');
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
-
-    console.log(`👤 USUÁRIO ENCONTRADO: ${JSON.stringify(user)}`);
-
-    if (!hasMarketingPermission(user)) {
-      console.log(
-        `🚫 MIDDLEWARE: Usuário ${user.nome} (${user.role}) sem permissão para marketing`
-      );
-      return NextResponse.redirect(
-        new URL('/home?error=sem_permissao_marketing', request.url)
-      );
-    }
-
-    console.log(
-      `✅ MIDDLEWARE: Usuário ${user.nome} autorizado para marketing`
-    );
-    console.log(
-      `✅ MIDDLEWARE: Usuário ${user.nome} autorizado para marketing`
-    );
+  // Permitir rotas públicas
+  if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
+    return NextResponse.next();
   }
 
-  // Verificar acesso a /estrategico (Apenas Admin)
-  if (pathname.startsWith('/estrategico')) {
-    const user = getStoredUser(request);
+  // Verificar autenticação
+  const user = getStoredUser(request);
 
-    if (!user) {
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
+  if (!user) {
+    console.log(`🚫 MIDDLEWARE: Usuário não autenticado tentando acessar ${pathname}`);
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
 
-    if (user.role !== 'admin') {
-      console.log(`🚫 MIDDLEWARE: Usuário ${user.nome} sem permissão para estratégico`);
-      return NextResponse.redirect(new URL('/home?error=sem_permissao_estrategico', request.url));
+  // Verificar se usuário está ativo
+  if (!user.ativo) {
+    console.log(`🚫 MIDDLEWARE: Usuário ${user.nome} está inativo`);
+    return NextResponse.redirect(new URL('/login?error=usuario_inativo', request.url));
+  }
+
+  // Verificar permissões da rota
+  const routeConfig = getRoutePermission(pathname);
+  
+  if (routeConfig) {
+    const hasPermission = hasRoutePermission(pathname, user);
+    
+    if (!hasPermission) {
+      console.log(`🚫 MIDDLEWARE: Usuário ${user.nome} (${user.role}) sem permissão para ${pathname}`);
+      console.log(`   Módulos do usuário:`, user.modulos_permitidos);
+      console.log(`   Módulos necessários:`, routeConfig.requiredModules);
+      
+      return NextResponse.redirect(
+        new URL(`/home?error=acesso_negado&rota=${encodeURIComponent(pathname)}`, request.url)
+      );
     }
+    
+    console.log(`✅ MIDDLEWARE: Usuário ${user.nome} autorizado para ${pathname}`);
+  } else {
+    console.warn(`⚠️ MIDDLEWARE: Rota ${pathname} sem configuração de permissão`);
   }
 
   return NextResponse.next();

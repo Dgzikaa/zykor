@@ -11,6 +11,7 @@ import { LGPDProvider } from '@/hooks/useLGPD';
 import { CommandPaletteProvider } from '@/contexts/CommandPaletteContext';
 import { PageTitleProvider } from '@/contexts/PageTitleContext';
 import { ClientOnlyLayoutParts } from '@/components/ClientOnlyLayoutParts';
+import { PermissionGuard } from '@/components/PermissionGuard';
 
 export const metadata: Metadata = {
   title: 'Zykor - O núcleo da gestão de bares',
@@ -44,9 +45,11 @@ export default function RootLayout({
                   <PageTitleProvider>
                     <ToastProvider>
                       <ErrorBoundary>
-                        <div className="min-h-screen">
-                          {children}
-                        </div>
+                        <PermissionGuard>
+                          <div className="min-h-screen">
+                            {children}
+                          </div>
+                        </PermissionGuard>
                       </ErrorBoundary>
                       <ClientOnlyLayoutParts />
                       <GlobalToastListener />

@@ -76,7 +76,7 @@ export async function authenticateUser(
       // Validar se o usuário ainda existe e está ativo
       const supabase = await getAdminClient();
       const { data: usuario, error } = await supabase
-        .from('usuarios_bar')
+        .from('usuarios')
         .select('*')
         .eq('id', userData.id)
         .eq('ativo', true)
