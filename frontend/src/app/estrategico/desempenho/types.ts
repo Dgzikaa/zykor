@@ -22,12 +22,10 @@ export interface DadosSemana {
   perc_clientes_novos: number;
   clientes_atendidos: number;
   clientes_ativos: number;
-  reservas_totais: number;
-  reservas_presentes: number;
-  mesas_totais: number;
-  mesas_presentes: number;
-  pessoas_reservas_totais?: number;
-  pessoas_reservas_presentes?: number;
+  reservas_totais: number; // Pessoas totais
+  reservas_presentes: number; // Pessoas presentes
+  mesas_totais: number; // Mesas totais (COUNT de reservas)
+  mesas_presentes: number; // Mesas presentes (COUNT de reservas presentes)
   quebra_reservas?: number;
   conta_assinada_valor?: number;
   conta_assinada_perc?: number;

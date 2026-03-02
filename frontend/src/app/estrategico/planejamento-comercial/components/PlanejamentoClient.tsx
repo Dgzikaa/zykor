@@ -210,6 +210,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
       percent_b: evento.percent_b || 0,
       percent_d: evento.percent_d || 0,
       percent_c: evento.percent_c || 0,
+      percent_happy_hour: evento.percent_happy_hour || 0,
       percent_stockout: evento.percent_stockout || 0,
       t_coz: evento.t_coz || 0,
       t_bar: evento.t_bar || 0,
@@ -379,7 +380,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
   }, [dados]);
 
   return (
-    <>
+    <TooltipProvider>
       <div className="flex flex-col">
         {dados.length === 0 ? (
           <div className="container mx-auto px-4 py-8">
@@ -509,61 +510,74 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         {gruposAbertos.producao ? (
                           <>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger className="cursor-help">% Bebidas</TooltipTrigger>
-                                  <TooltipContent className="max-w-xs">
-                                    <div className="text-xs space-y-1">
-                                      <p className="font-semibold">Categorias incluídas:</p>
-                                      <ul className="list-disc list-inside space-y-0.5">
-                                        <li>Chopp</li>
-                                        <li>Bar</li>
-                                        <li>Pegue e Pague</li>
-                                        <li>Venda Volante</li>
-                                        <li>Baldes</li>
-                                      </ul>
-                                    </div>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="cursor-help underline decoration-dotted">% Bebidas</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
+                                  <div className="text-xs space-y-1">
+                                    <p className="font-semibold">Categorias incluídas:</p>
+                                    <ul className="list-disc list-inside space-y-0.5">
+                                      <li>Chopp</li>
+                                      <li>Bar</li>
+                                      <li>Pegue e Pague</li>
+                                      <li>Venda Volante</li>
+                                      <li>Baldes</li>
+                                    </ul>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
                             </th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger className="cursor-help">% Drinks</TooltipTrigger>
-                                  <TooltipContent className="max-w-xs">
-                                    <div className="text-xs space-y-1">
-                                      <p className="font-semibold">Categorias incluídas:</p>
-                                      <ul className="list-disc list-inside space-y-0.5">
-                                        <li>Preshh</li>
-                                        <li>Montados</li>
-                                        <li>Mexido</li>
-                                        <li>Drinks</li>
-                                        <li>Drinks Autorais</li>
-                                        <li>Shot e Dose</li>
-                                        <li>Batidos</li>
-                                      </ul>
-                                    </div>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="cursor-help underline decoration-dotted">% Drinks</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
+                                  <div className="text-xs space-y-1">
+                                    <p className="font-semibold">Categorias incluídas:</p>
+                                    <ul className="list-disc list-inside space-y-0.5">
+                                      <li>Preshh</li>
+                                      <li>Montados</li>
+                                      <li>Mexido</li>
+                                      <li>Drinks</li>
+                                      <li>Drinks Autorais</li>
+                                      <li>Shot e Dose</li>
+                                      <li>Batidos</li>
+                                    </ul>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
                             </th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger className="cursor-help">% Cozinha</TooltipTrigger>
-                                  <TooltipContent className="max-w-xs">
-                                    <div className="text-xs space-y-1">
-                                      <p className="font-semibold">Categorias incluídas:</p>
-                                      <ul className="list-disc list-inside space-y-0.5">
-                                        <li>Cozinha</li>
-                                        <li>Cozinha 1</li>
-                                        <li>Cozinha 2</li>
-                                      </ul>
-                                    </div>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="cursor-help underline decoration-dotted">% Cozinha</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
+                                  <div className="text-xs space-y-1">
+                                    <p className="font-semibold">Categorias incluídas:</p>
+                                    <ul className="list-disc list-inside space-y-0.5">
+                                      <li>Cozinha</li>
+                                      <li>Cozinha 1</li>
+                                      <li>Cozinha 2</li>
+                                    </ul>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="cursor-help underline decoration-dotted">% Happy Hour</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
+                                  <div className="text-xs space-y-1">
+                                    <p className="font-semibold">Produtos Happy Hour</p>
+                                    <p className="text-[hsl(var(--muted-foreground))]">Produtos do grupo Happy Hour / Total vendas</p>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
                             </th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Stockout</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Tempo Cozinha</th>
@@ -652,6 +666,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_b > 0 ? formatarPercentual(evento.percent_b) : '-'}</td>
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_d > 0 ? formatarPercentual(evento.percent_d) : '-'}</td>
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_c > 0 ? formatarPercentual(evento.percent_c) : '-'}</td>
+                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_happy_hour > 0 ? formatarPercentual(evento.percent_happy_hour) : '-'}</td>
                                 <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_stockout <= 10 ? 'text-green-600 dark:text-green-400' : evento.percent_stockout <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_stockout > 0 ? formatarPercentual(evento.percent_stockout) : '-'}</span></td>
                                 <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.t_coz_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_coz > 0 ? formatarTempo(evento.t_coz) : '-'}</span></td>
                                 <td className="px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.t_bar_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_bar > 0 ? formatarTempo(evento.t_bar) : '-'}</span></td>
@@ -775,6 +790,6 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
               <DialogFooter className="bg-[hsl(var(--muted))] p-4 border-t"><Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>{modoEdicao && <Button onClick={salvarEdicao} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar Alterações'}</Button>}</DialogFooter>
             </DialogContent>
       </Dialog>
-    </>
+    </TooltipProvider>
   );
 }

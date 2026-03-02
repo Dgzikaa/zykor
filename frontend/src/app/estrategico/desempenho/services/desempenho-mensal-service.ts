@@ -358,8 +358,9 @@ function agregarDadosSemanaisProporcionais(
   };
 
   // Calcular quebra de reservas corretamente (igual à API route)
-  const pessoasReservasTotal = Math.round(sumProp(desempenhoMap, 'pessoas_reservas_totais'));
-  const pessoasReservasPresentes = Math.round(sumProp(desempenhoMap, 'pessoas_reservas_presentes'));
+  // reservas_totais e reservas_presentes no banco = pessoas (não mesas)
+  const pessoasReservasTotal = Math.round(sumProp(desempenhoMap, 'reservas_totais'));
+  const pessoasReservasPresentes = Math.round(sumProp(desempenhoMap, 'reservas_presentes'));
   const quebraReservasCalc = pessoasReservasTotal > 0 
     ? ((pessoasReservasTotal - pessoasReservasPresentes) / pessoasReservasTotal) * 100 
     : 0;
@@ -386,10 +387,12 @@ function agregarDadosSemanaisProporcionais(
     perc_clientes_novos: avgProp(desempenhoMap, 'perc_clientes_novos'),
     
     // Reservas (números absolutos - soma arredondada)
-    reservas_totais_semanal: Math.round(sumProp(desempenhoMap, 'reservas_totais')),
-    reservas_presentes_semanal: Math.round(sumProp(desempenhoMap, 'reservas_presentes')),
-    pessoas_reservas_totais: pessoasReservasTotal,
-    pessoas_reservas_presentes: pessoasReservasPresentes,
+    // reservas_totais/reservas_presentes = PESSOAS
+    // mesas_totais/mesas_presentes = MESAS (COUNT de reservas)
+    reservas_totais: pessoasReservasTotal,
+    reservas_presentes: pessoasReservasPresentes,
+    mesas_totais: Math.round(sumProp(desempenhoMap, 'mesas_totais')),
+    mesas_presentes: Math.round(sumProp(desempenhoMap, 'mesas_presentes')),
     // Quebra de reservas = (Pessoas Total - Pessoas Presentes) / Pessoas Total × 100
     quebra_reservas: quebraReservasCalc,
     

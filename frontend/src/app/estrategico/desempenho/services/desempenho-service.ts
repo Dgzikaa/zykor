@@ -236,8 +236,9 @@ export async function getSemanas(
       : null;
 
     // Calcular Quebra de Reservas = (Pessoas Total - Pessoas Presentes) / Pessoas Total × 100
-    const pessoasTotal = s.pessoas_reservas_totais || 0;
-    const pessoasPresentes = s.pessoas_reservas_presentes || 0;
+    // reservas_totais e reservas_presentes no banco = pessoas (não mesas)
+    const pessoasTotal = s.reservas_totais || 0;
+    const pessoasPresentes = s.reservas_presentes || 0;
     const quebraReservas = pessoasTotal > 0 
       ? ((pessoasTotal - pessoasPresentes) / pessoasTotal) * 100 
       : 0;
