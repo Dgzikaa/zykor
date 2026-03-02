@@ -106,6 +106,7 @@ export async function getPlanejamentoComercial(
         percent_b,
         percent_d,
         percent_c,
+        percent_happy_hour,
         percent_stockout,
         t_coz,
         t_bar,
