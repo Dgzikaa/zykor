@@ -107,17 +107,17 @@ const SECOES: SecaoConfig[] = [
         id: 'volume',
         label: 'Volume',
         metricas: [
-          { key: 'clientes_ativos', label: 'Clientes Ativos', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes únicos ativos no período', formato: 'numero' },
-          { key: 'clientes_atendidos', label: 'Visitas', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Soma de cl_real de todos os eventos (Sympla + Yuzer + ContaHub)', formato: 'numero' },
-          { key: 'perc_clientes_novos', label: '% Novos Clientes', status: 'auto', fonte: 'Stored Procedure', calculo: 'Novos / Total', formato: 'percentual' },
+          { key: 'clientes_ativos', label: 'Clientes Ativos', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes únicos com 2+ visitas nos últimos 90 dias (até o último dia do período)', formato: 'numero' },
+          { key: 'clientes_atendidos', label: 'Visitas', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Soma de clientes_real de todos os eventos (Sympla + Yuzer + ContaHub)', formato: 'numero' },
+          { key: 'perc_clientes_novos', label: '% Novos Clientes', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes novos / Total de visitas', formato: 'percentual' },
         ]
       },
       {
         id: 'reservas',
         label: 'Reservas',
         metricas: [
-          { key: 'mesas_totais', label: 'Reservas Realizadas', status: 'auto', fonte: 'GetIn', calculo: 'Nº mesas / Nº pessoas (COUNT reservas / SUM people)', formato: 'reservas', keyPessoas: 'reservas_totais' },
-          { key: 'mesas_presentes', label: 'Reservas Presentes', status: 'auto', fonte: 'GetIn', calculo: 'Nº mesas seated / Nº pessoas seated', formato: 'reservas', keyPessoas: 'reservas_presentes' },
+          { key: 'mesas_totais', label: 'Reservas Realizadas', status: 'auto', fonte: 'GetIn', calculo: 'Mesas reservadas / Total de pessoas reservadas', formato: 'reservas', keyPessoas: 'reservas_totais' },
+          { key: 'mesas_presentes', label: 'Reservas Presentes', status: 'auto', fonte: 'GetIn', calculo: 'Mesas presentes / Pessoas presentes', formato: 'reservas', keyPessoas: 'reservas_presentes' },
           { key: 'quebra_reservas', label: 'Quebra de Reservas', status: 'auto', fonte: 'Calculado', calculo: '(Pessoas Total - Pessoas Presentes) / Pessoas Total', formato: 'percentual' },
         ]
       }
@@ -627,13 +627,33 @@ export function DesempenhoClient({
         console.log('✅ CMV processado:', resultado.message);
       }
 
-      // 3. Atualizar a página
+      // 3. Recalcular desempenho semanal (atualiza tabela desempenho_semanal)
+      console.log('📊 Recalculando desempenho semanal...');
+      const desempenhoResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/recalcular-desempenho-auto`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
+          }
+        }
+      );
+      
+      if (!desempenhoResponse.ok) {
+        console.warn('⚠️ Erro ao recalcular desempenho, continuando...');
+      } else {
+        const resultado = await desempenhoResponse.json();
+        console.log('✅ Desempenho recalculado:', resultado.message);
+      }
+
+      // 4. Atualizar a página
       console.log('🔃 Atualizando página...');
       router.refresh();
 
       toast({
         title: "✅ Dados Atualizados",
-        description: "Planilha + NIBO sincronizados com sucesso"
+        description: "Planilha + NIBO + Desempenho sincronizados"
       });
 
     } catch (error) {

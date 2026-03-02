@@ -132,7 +132,7 @@ export function DataTablePro<T extends Record<string, any>>({
 
       <div className="overflow-auto">
         <table className="w-full">
-          <thead className={cn('bg-[hsl(var(--muted))]/50', stickyHeader && 'sticky top-0 z-10')}>
+          <thead className={cn('bg-[hsl(var(--muted))]/60', stickyHeader && 'sticky top-0 z-10')}>
             <tr className="border-b border-[hsl(var(--border))]">
               {selectableRows && (
                 <th className="px-4 py-3">
@@ -164,7 +164,7 @@ export function DataTablePro<T extends Record<string, any>>({
           </thead>
           <tbody>
             {sorted.map((row, rIdx) => (
-              <tr key={rIdx} className={cn('border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/30 transition-colors')}>
+              <tr key={rIdx} className={cn('border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/30')}>
                 {selectableRows && (
                   <td className="px-4 py-4">
                     <input

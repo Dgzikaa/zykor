@@ -107,12 +107,12 @@ export default function ConfiguracoesPage() {
       icon: Users,
       href: '/configuracoes/usuarios',
       badge: 'Ativo',
-      badgeColor: 'border-blue-200 text-blue-700 dark:border-blue-700 dark:text-blue-300',
-      iconBgColor: 'bg-blue-100 dark:bg-blue-900/30',
-      iconTextColor: 'text-blue-600 dark:text-blue-400',
-      buttonBgColor: 'bg-blue-500/10 dark:bg-blue-900/20',
-      buttonBorderColor: 'border-blue-500 dark:border-blue-700',
-      buttonTextColor: 'text-blue-600 dark:text-blue-400',
+      badgeColor: 'border-[hsl(var(--border))] text-[hsl(var(--foreground))]',
+      iconBgColor: 'bg-[hsl(var(--muted))]',
+      iconTextColor: 'text-[hsl(var(--foreground))]',
+      buttonBgColor: 'bg-[hsl(var(--muted))]',
+      buttonBorderColor: 'border-[hsl(var(--border))]',
+      buttonTextColor: 'text-[hsl(var(--foreground))]',
       features: 'Cadastro • Edição • Permissões',
       category: 'principal'
     },
@@ -122,12 +122,12 @@ export default function ConfiguracoesPage() {
       icon: Lock,
       href: '/configuracoes/permissoes',
       badge: 'Admin',
-      badgeColor: 'border-purple-200 text-purple-700 dark:border-purple-700 dark:text-purple-300',
-      iconBgColor: 'bg-purple-100 dark:bg-purple-900/30',
-      iconTextColor: 'text-purple-600 dark:text-purple-400',
-      buttonBgColor: 'bg-purple-500/10 dark:bg-purple-900/20',
-      buttonBorderColor: 'border-purple-500 dark:border-purple-700',
-      buttonTextColor: 'text-purple-600 dark:text-purple-400',
+      badgeColor: 'border-[hsl(var(--border))] text-[hsl(var(--foreground))]',
+      iconBgColor: 'bg-[hsl(var(--muted))]',
+      iconTextColor: 'text-[hsl(var(--foreground))]',
+      buttonBgColor: 'bg-[hsl(var(--muted))]',
+      buttonBorderColor: 'border-[hsl(var(--border))]',
+      buttonTextColor: 'text-[hsl(var(--foreground))]',
       features: 'Roles • Módulos • Acessos',
       category: 'principal'
     },
@@ -137,11 +137,11 @@ export default function ConfiguracoesPage() {
       icon: Shield,
       href: '/configuracoes/seguranca',
       badge: 'Crítico',
-      badgeColor: 'border-red-200 text-red-700 dark:border-red-700 dark:text-red-300',
-      iconBgColor: 'bg-red-100 dark:bg-red-900/30',
+      badgeColor: 'border-red-200 dark:border-red-800 text-red-700 dark:text-red-400',
+      iconBgColor: 'bg-red-50 dark:bg-red-950',
       iconTextColor: 'text-red-600 dark:text-red-400',
-      buttonBgColor: 'bg-red-500/10 dark:bg-red-900/20',
-      buttonBorderColor: 'border-red-500 dark:border-red-700',
+      buttonBgColor: 'bg-red-50 dark:bg-red-950',
+      buttonBorderColor: 'border-red-200 dark:border-red-800',
       buttonTextColor: 'text-red-600 dark:text-red-400',
       features: 'Autenticação • Proteção',
       category: 'principal'
@@ -447,8 +447,8 @@ export default function ConfiguracoesPage() {
                       {configuracoes.length}
                     </p>
                   </div>
-                  <div className="p-1.5 sm:p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                    <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
+                  <div className="p-1.5 sm:p-2 bg-[hsl(var(--muted))] rounded-lg">
+                    <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-[hsl(var(--foreground))]" />
                   </div>
                 </div>
               </CardContent>
@@ -465,8 +465,8 @@ export default function ConfiguracoesPage() {
                       {loading ? '...' : stats.integracoes}
                     </p>
                   </div>
-                  <div className="p-1.5 sm:p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                    <Database className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
+                  <div className="p-1.5 sm:p-2 bg-[hsl(var(--muted))] rounded-lg">
+                    <Database className="w-5 h-5 sm:w-6 sm:h-6 text-[hsl(var(--foreground))]" />
                   </div>
                 </div>
               </CardContent>

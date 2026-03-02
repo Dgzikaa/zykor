@@ -267,9 +267,9 @@ export default function HomePage() {
                       </p>
                       
                       {/* Action button */}
-                      <div className="mt-auto flex items-center justify-center text-blue-600 dark:text-blue-400 font-semibold text-xs sm:text-sm group-hover:gap-2 transition-all duration-300">
+                      <div className="mt-auto flex items-center justify-center text-[hsl(var(--primary))] font-semibold text-xs sm:text-sm group-hover:gap-2 transition-all">
                         <span className="hidden sm:inline">Acessar</span>
-                        <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform duration-300" />
+                        <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform" />
                       </div>
                     </div>
                     

@@ -731,20 +731,114 @@ export default function StockoutPage() {
 
               {stockoutData && (
                 <>
+                  {/* Timeline de Datas (apenas no modo período) */}
+                  {modoAnalise === 'periodo' && historicoData?.historico_diario && historicoData.historico_diario.length > 0 && (
+                    <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                      <CardHeader className="p-3">
+                        <CardTitle className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
+                          Selecione uma Data
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                          Clique em uma data para ver o resumo específico do dia
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-3 pt-0">
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                          {/* Botão "Todas as Datas" (Resumo Geral) */}
+                          <button
+                            onClick={() => {
+                              setDiaSelecionado('');
+                              buscarDadosPeriodo();
+                            }}
+                            className={`flex-shrink-0 px-4 py-2.5 rounded-lg border-2 transition-all ${
+                              !diaSelecionado
+                                ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10 shadow-sm'
+                                : 'border-[hsl(var(--border))] bg-[hsl(var(--muted))] hover:border-[hsl(var(--primary))]/50'
+                            }`}
+                          >
+                            <div className="text-center">
+                              <div className="text-xs font-semibold text-[hsl(var(--foreground))]">
+                                Resumo Geral
+                              </div>
+                              <div className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                                {historicoData.historico_diario.length} dias
+                              </div>
+                            </div>
+                          </button>
+
+                          {/* Botões de Datas */}
+                          {historicoData.historico_diario.map((dia) => {
+                            const stockoutValue = parseFloat(dia.percentual_stockout.replace('%', ''));
+                            const stockoutColor = 
+                              stockoutValue <= 10 ? 'text-green-600 dark:text-green-400' :
+                              stockoutValue <= 25 ? 'text-yellow-600 dark:text-yellow-400' :
+                              'text-red-600 dark:text-red-400';
+                            
+                            return (
+                              <button
+                                key={dia.data_referencia}
+                                onClick={() => {
+                                  setDiaSelecionado(dia.data_referencia);
+                                  buscarDadosStockout(dia.data_referencia, filtrosAtivos);
+                                }}
+                                className={`flex-shrink-0 px-4 py-2.5 rounded-lg border-2 transition-all ${
+                                  diaSelecionado === dia.data_referencia
+                                    ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10 shadow-sm'
+                                    : 'border-[hsl(var(--border))] bg-[hsl(var(--muted))] hover:border-[hsl(var(--primary))]/50'
+                                }`}
+                              >
+                                <div className="text-center">
+                                  <div className="text-xs font-semibold text-[hsl(var(--foreground))]">
+                                    {formatarData(dia.data_referencia)}
+                                  </div>
+                                  <div className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                                    {dia.dia_semana}
+                                  </div>
+                                  <div className={`text-sm font-bold mt-1 ${stockoutColor}`}>
+                                    {dia.percentual_stockout}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
                   {/* Cards de Estatísticas */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* Indicador de visualização (apenas no modo período com dia selecionado) */}
+                    {modoAnalise === 'periodo' && diaSelecionado && (
+                      <div className="col-span-2 lg:col-span-4 flex items-center gap-2 px-3 py-2 bg-[hsl(var(--muted))] rounded-lg border border-[hsl(var(--border))]">
+                        <Calendar className="h-4 w-4 text-[hsl(var(--primary))]" />
+                        <span className="text-xs font-medium text-[hsl(var(--foreground))]">
+                          Visualizando: <strong>{formatarData(diaSelecionado)}</strong>
+                        </span>
+                        <button
+                          onClick={() => {
+                            setDiaSelecionado('');
+                            buscarDadosPeriodo();
+                          }}
+                          className="ml-auto text-xs text-[hsl(var(--primary))] hover:underline"
+                        >
+                          Ver resumo geral
+                        </button>
+                      </div>
+                    )}
+
                     <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
                       <CardHeader className="pb-1.5 p-3">
                         <CardTitle className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-                          {modoAnalise === 'periodo' ? 'Média de Produtos' : 'Total'}
+                          {modoAnalise === 'periodo' && !diaSelecionado ? 'Média de Produtos' : 'Total'}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-3 pt-0">
                         <div className="text-xl font-bold">
                           {stockoutData?.estatisticas?.total_produtos || 0}
                         </div>
-                        {modoAnalise === 'periodo' && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {modoAnalise === 'periodo' && !diaSelecionado && (
+                          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
                             por dia
                           </p>
                         )}
@@ -754,7 +848,7 @@ export default function StockoutPage() {
                     <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
                       <CardHeader className="pb-1.5 p-3">
                         <CardTitle className="text-xs font-medium text-green-600 dark:text-green-400">
-                          {modoAnalise === 'periodo' ? 'Média Ativos' : 'Ativos'}
+                          {modoAnalise === 'periodo' && !diaSelecionado ? 'Média Ativos' : 'Ativos'}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-3 pt-0">
@@ -771,7 +865,7 @@ export default function StockoutPage() {
                     <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
                       <CardHeader className="pb-1.5 p-3">
                         <CardTitle className="text-xs font-medium text-red-600 dark:text-red-400">
-                          {modoAnalise === 'periodo' ? 'Média Inativos' : 'Inativos'}
+                          {modoAnalise === 'periodo' && !diaSelecionado ? 'Média Inativos' : 'Inativos'}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-3 pt-0">

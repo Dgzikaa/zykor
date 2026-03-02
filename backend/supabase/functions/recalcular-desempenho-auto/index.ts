@@ -57,48 +57,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const endDate = semana.data_fim
         const barId = semana.bar_id
 
-        // Buscar dados do ContaHub
-        const { data: contahubData } = await supabase
-          .from('contahub_pagamentos')
-          .select('liquido')
-          .eq('bar_id', barId)
-          .gte('dt_gerencial', startDate)
-          .lte('dt_gerencial', endDate)
-
-        const faturamentoContahub = (contahubData || []).reduce((sum, item) => sum + (parseFloat(item.liquido) || 0), 0)
-
-        // Buscar dados do Yuzer
-        const { data: yuzerData } = await supabase
-          .from('yuzer_pagamento')
-          .select('valor_liquido')
-          .eq('bar_id', barId)
-          .gte('data_evento', startDate)
-          .lte('data_evento', endDate)
-
-        const faturamentoYuzer = (yuzerData || []).reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0)
-
-        // Buscar dados do Sympla
-        const { data: symplaData } = await supabase
-          .from('sympla_pedidos')
-          .select('valor_liquido')
-          .gte('data_pedido', startDate)
-          .lte('data_pedido', endDate)
-
-        const faturamenteSympla = (symplaData || []).reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0)
-
-        const faturamentoTotal = faturamentoContahub + faturamentoYuzer + faturamenteSympla
-
-        // Buscar clientes atendidos (visitas) do eventos_base
+        // Buscar dados consolidados de eventos_base (real_r já inclui ContaHub + Yuzer + Sympla)
         const { data: eventosData } = await supabase
           .from('eventos_base')
-          .select('cl_real')
+          .select('real_r, cl_real')
           .eq('bar_id', barId)
           .gte('data_evento', startDate)
           .lte('data_evento', endDate)
+          .eq('ativo', true)
 
+        const faturamentoTotal = (eventosData || []).reduce((sum, item) => sum + (parseFloat(item.real_r) || 0), 0)
         const clientesAtendidos = (eventosData || []).reduce((sum, item) => sum + (parseInt(item.cl_real) || 0), 0)
-
         const ticketMedio = clientesAtendidos > 0 ? faturamentoTotal / clientesAtendidos : 0
+
+        // Buscar meta semanal (soma de m1_r dos eventos)
+        const { data: eventosMetaData } = await supabase
+          .from('eventos_base')
+          .select('m1_r')
+          .eq('bar_id', barId)
+          .gte('data_evento', startDate)
+          .lte('data_evento', endDate)
+          .eq('ativo', true)
+
+        const metaSemanal = (eventosMetaData || []).reduce((sum, item) => sum + (parseFloat(item.m1_r) || 0), 0)
 
         // Buscar stockout de drinks (Zykor) - calcular percentual médio da semana
         const { data: stockoutDrinksData } = await supabase
@@ -131,10 +112,43 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const stockoutComidasPerc = totalComidas > 0 ? (stockoutComidasCount / totalComidas) * 100 : 0
 
         console.log(`🍽️ Comidas: ${stockoutComidasCount}/${totalComidas} = ${stockoutComidasPerc.toFixed(2)}%`)
-
-        console.log(`💰 Faturamento: R$ ${faturamentoTotal.toFixed(2)} (CH: ${faturamentoContahub.toFixed(2)}, Yuzer: ${faturamentoYuzer.toFixed(2)}, Sympla: ${faturamenteSympla.toFixed(2)})`)
+        console.log(`💰 Faturamento Total: R$ ${faturamentoTotal.toFixed(2)} (${eventosData?.length || 0} dias)`)
         console.log(`👥 Clientes: ${clientesAtendidos}`)
         console.log(`🎫 Ticket Médio: R$ ${ticketMedio.toFixed(2)}`)
+
+        // Calcular percentuais de mix (bebidas/drinks/comida/happy hour) - média ponderada pelo faturamento
+        const { data: eventosComPercentuais } = await supabase
+          .from('eventos_base')
+          .select('real_r, percent_b, percent_d, percent_c, percent_happy_hour')
+          .eq('bar_id', barId)
+          .gte('data_evento', startDate)
+          .lte('data_evento', endDate)
+          .eq('ativo', true)
+          .not('real_r', 'is', null)
+          .gt('real_r', 0)
+
+        let percBebidasPonderado = 0
+        let percDrinksPonderado = 0
+        let percComidaPonderado = 0
+        let percHappyHourPonderado = 0
+
+        if (eventosComPercentuais && eventosComPercentuais.length > 0) {
+          const faturamentoTotalComPerc = eventosComPercentuais.reduce((sum, e) => sum + parseFloat(e.real_r), 0)
+          
+          if (faturamentoTotalComPerc > 0) {
+            const somaBebidasPonderada = eventosComPercentuais.reduce((sum, e) => sum + (parseFloat(e.real_r) * (parseFloat(e.percent_b) || 0) / 100), 0)
+            const somaDrinksPonderada = eventosComPercentuais.reduce((sum, e) => sum + (parseFloat(e.real_r) * (parseFloat(e.percent_d) || 0) / 100), 0)
+            const somaComidaPonderada = eventosComPercentuais.reduce((sum, e) => sum + (parseFloat(e.real_r) * (parseFloat(e.percent_c) || 0) / 100), 0)
+            const somaHappyHourPonderada = eventosComPercentuais.reduce((sum, e) => sum + (parseFloat(e.real_r) * (parseFloat(e.percent_happy_hour) || 0) / 100), 0)
+            
+            percBebidasPonderado = (somaBebidasPonderada / faturamentoTotalComPerc) * 100
+            percDrinksPonderado = (somaDrinksPonderada / faturamentoTotalComPerc) * 100
+            percComidaPonderado = (somaComidaPonderada / faturamentoTotalComPerc) * 100
+            percHappyHourPonderado = (somaHappyHourPonderada / faturamentoTotalComPerc) * 100
+          }
+        }
+
+        console.log(`🍺 Mix Semanal - Bebidas: ${percBebidasPonderado.toFixed(1)}%, Drinks: ${percDrinksPonderado.toFixed(1)}%, Comida: ${percComidaPonderado.toFixed(1)}%, Happy Hour: ${percHappyHourPonderado.toFixed(1)}%`)
 
         // Atualizar no banco
         const { error: updateError } = await supabase
@@ -143,8 +157,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
             faturamento_total: faturamentoTotal,
             clientes_atendidos: clientesAtendidos,
             ticket_medio: ticketMedio,
+            meta_semanal: metaSemanal,
             stockout_drinks_perc: stockoutDrinksPerc,
             stockout_comidas_perc: stockoutComidasPerc,
+            perc_bebidas: percBebidasPonderado,
+            perc_drinks: percDrinksPonderado,
+            perc_comida: percComidaPonderado,
+            perc_happy_hour: percHappyHourPonderado,
             updated_at: new Date().toISOString(),
           })
           .eq('id', semana.id)

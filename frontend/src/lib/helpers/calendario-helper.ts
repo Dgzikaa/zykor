@@ -138,20 +138,37 @@ export async function verificarBarAberto(
     const ultimaTercaOperacional = new Date('2025-04-15T12:00:00Z');
     let resultado: StatusDia;
     
-    if (diaSemana === 2 && dataVerificacao > ultimaTercaOperacional) {
-      // APENAS TERÇAS FECHAM (dia 2 = terça)
-      resultado = {
-        aberto: false,
-        motivo: 'Terça-feira (bar fechado)',
-        fonte: 'padrao'
-      };
+    // LÓGICA ESPECÍFICA POR BAR
+    if (barId === 4) {
+      // DEBOCHE: Fecha às segundas-feiras
+      if (diaSemana === 1) {
+        resultado = {
+          aberto: false,
+          motivo: 'Segunda-feira (Deboche fechado)',
+          fonte: 'padrao'
+        };
+      } else {
+        resultado = {
+          aberto: true,
+          motivo: `${diasSemana[diaSemana]} (dia normal de funcionamento)`,
+          fonte: 'padrao'
+        };
+      }
     } else {
-      // Todos os outros dias (incluindo segundas): aberto
-      resultado = {
-        aberto: true,
-        motivo: `${diasSemana[diaSemana]} (dia normal de funcionamento)`,
-        fonte: 'padrao'
-      };
+      // ORDINÁRIO: Fecha às terças-feiras (após 15/04/2025)
+      if (diaSemana === 2 && dataVerificacao > ultimaTercaOperacional) {
+        resultado = {
+          aberto: false,
+          motivo: 'Terça-feira (bar fechado)',
+          fonte: 'padrao'
+        };
+      } else {
+        resultado = {
+          aberto: true,
+          motivo: `${diasSemana[diaSemana]} (dia normal de funcionamento)`,
+          fonte: 'padrao'
+        };
+      }
     }
 
     // Salvar no cache
@@ -259,20 +276,37 @@ export async function verificarMultiplasDatas(
       }
 
       // 3º - Padrão semanal
-      if (diaSemana === 2 && dataVerificacao > ultimaTercaOperacional) {
-        // APENAS TERÇAS FECHAM (dia 2 = terça)
-        resultado.set(data, {
-          aberto: false,
-          motivo: 'Terça-feira (bar fechado)',
-          fonte: 'padrao'
-        });
+      // LÓGICA ESPECÍFICA POR BAR
+      if (barId === 4) {
+        // DEBOCHE: Fecha às segundas-feiras
+        if (diaSemana === 1) {
+          resultado.set(data, {
+            aberto: false,
+            motivo: 'Segunda-feira (Deboche fechado)',
+            fonte: 'padrao'
+          });
+        } else {
+          resultado.set(data, {
+            aberto: true,
+            motivo: 'Dia normal de funcionamento',
+            fonte: 'padrao'
+          });
+        }
       } else {
-        // Todos os outros dias (incluindo segundas): aberto
-        resultado.set(data, {
-          aberto: true,
-          motivo: 'Dia normal de funcionamento',
-          fonte: 'padrao'
-        });
+        // ORDINÁRIO: Fecha às terças-feiras (após 15/04/2025)
+        if (diaSemana === 2 && dataVerificacao > ultimaTercaOperacional) {
+          resultado.set(data, {
+            aberto: false,
+            motivo: 'Terça-feira (bar fechado)',
+            fonte: 'padrao'
+          });
+        } else {
+          resultado.set(data, {
+            aberto: true,
+            motivo: 'Dia normal de funcionamento',
+            fonte: 'padrao'
+          });
+        }
       }
     }
 

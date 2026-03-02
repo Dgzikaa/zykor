@@ -702,21 +702,21 @@ function UsuariosPage() {
       {/* Modal de Edição/Criação */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b border-[hsl(var(--border))]">
-            <DialogTitle className="text-lg font-semibold">
+          <DialogHeader className="px-6 pt-5 pb-4 border-b border-[hsl(var(--border))]">
+            <DialogTitle className="text-base font-semibold">
               {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
             </DialogTitle>
-            <DialogDescription className="text-sm">
+            <DialogDescription className="text-xs text-[hsl(var(--muted-foreground))]">
               {editingUser ? 'Atualize as informações do usuário' : 'Preencha os dados para criar um novo usuário'}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="overflow-y-auto flex-1 px-6 py-6 scrollbar-thin">
-            <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="overflow-y-auto flex-1 px-6 py-5 scrollbar-thin">
+            <form onSubmit={handleSubmit} className="space-y-6">
               {/* Dados Básicos */}
-              <div className="space-y-4">
-                <div className="pb-2">
-                  <h3 className="text-sm font-medium">Dados Básicos</h3>
+              <div className="space-y-3">
+                <div className="pb-1">
+                  <h3 className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Dados Básicos</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
@@ -839,9 +839,9 @@ function UsuariosPage() {
               </div>
 
               {/* Endereço */}
-              <div className="space-y-4 pt-4 border-t border-[hsl(var(--border))]">
-                <div className="pb-2">
-                  <h3 className="text-sm font-medium">Endereço</h3>
+              <div className="space-y-3 pt-4 border-t border-[hsl(var(--border))]">
+                <div className="pb-1">
+                  <h3 className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Endereço</h3>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-1.5">
@@ -884,9 +884,9 @@ function UsuariosPage() {
               </div>
 
               {/* Permissões */}
-              <div className="space-y-4 pt-4 border-t border-[hsl(var(--border))]">
-                <div className="pb-2">
-                  <h3 className="text-sm font-medium">Permissões</h3>
+              <div className="space-y-3 pt-4 border-t border-[hsl(var(--border))]">
+                <div className="pb-1">
+                  <h3 className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Permissões</h3>
                 </div>
                 
                 {/* Checkbox de Administrador */}
@@ -905,20 +905,20 @@ function UsuariosPage() {
                 {/* Módulos específicos */}
                 <div className={`rounded-lg p-3 border border-[hsl(var(--border))] max-h-64 overflow-y-auto scrollbar-thin ${isAdminUser ? 'opacity-50 pointer-events-none' : ''}`}>
                   {isAdminUser && (
-                    <div className="mb-3 p-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
+                    <div className="mb-3 p-2 rounded-md bg-[hsl(var(--muted))]">
                       <p className="text-xs text-[hsl(var(--muted-foreground))]">
                         Administrador tem acesso a todos os módulos automaticamente
                       </p>
                     </div>
                   )}
                   {Object.entries(modulosPorCategoria).map(([categoria, categoriaModulos]) => (
-                    <div key={categoria} className="mb-4 last:mb-0">
-                      <h4 className="text-xs font-semibold text-[hsl(var(--foreground))] mb-2 capitalize border-b border-[hsl(var(--border))] pb-1.5">
+                    <div key={categoria} className="mb-3 last:mb-0">
+                      <h4 className="text-xs font-semibold text-[hsl(var(--muted-foreground))] mb-2 capitalize border-b border-[hsl(var(--border))] pb-1.5 uppercase tracking-wider">
                         {categoria.replace('_', ' ')}
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         {categoriaModulos.map(modulo => (
-                          <div key={modulo.id} className="flex items-center space-x-2 p-1.5 rounded-md hover:bg-[hsl(var(--muted))] transition-colors">
+                          <div key={modulo.id} className="flex items-center space-x-2 p-1.5 rounded-md hover:bg-[hsl(var(--muted))]">
                             <Checkbox
                               checked={isAdminUser || (Array.isArray(formData.modulos_permitidos) && formData.modulos_permitidos.includes(modulo.id))}
                               onCheckedChange={(checked) => handleModuloChange(modulo.id, checked as boolean)}
@@ -963,7 +963,7 @@ function UsuariosPage() {
             </form>
           </div>
 
-          <DialogFooter className="px-6 py-4 border-t border-[hsl(var(--border))] flex gap-3">
+          <DialogFooter className="px-6 py-3.5 border-t border-[hsl(var(--border))] flex gap-2">
             <Button 
               type="button" 
               variant="outline" 

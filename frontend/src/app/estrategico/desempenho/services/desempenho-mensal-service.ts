@@ -51,14 +51,6 @@ async function getDadosMensais(
 
   const dadosDiarios = agregarDadosDiarios(eventosDiarios || []);
 
-  // 1.1. Buscar dados de mesas do GetIn
-  const { data: getinReservas } = await supabase
-    .from('getin_reservations')
-    .select('reservation_date, status')
-    .eq('bar_id', barId)
-    .gte('reservation_date', dataInicio)
-    .lte('reservation_date', dataFim);
-
   // 2. Dados semanais proporcionais
   const semanasComProporcao = calcularSemanasComProporcao(mes, ano);
   
@@ -124,13 +116,23 @@ async function getDadosMensais(
     .gte('created_at', dataInicio)
     .lte('created_at', dataFim + 'T23:59:59');
 
-  const [desempenhoResults, marketingResults, contaAssinadaResult, descontosResult, clientesAtivosResult, falaeNpsResult] = await Promise.all([
+  // 7. Buscar dados de marketing mensal (preenchimento manual)
+  const marketingMensalPromise = supabase
+    .from('marketing_mensal')
+    .select('*')
+    .eq('bar_id', barId)
+    .eq('ano', ano)
+    .eq('mes', mes)
+    .single();
+
+  const [desempenhoResults, marketingResults, contaAssinadaResult, descontosResult, clientesAtivosResult, falaeNpsResult, marketingMensalResult] = await Promise.all([
     Promise.all(desempenhoPromises),
     Promise.all(marketingPromises),
     contaAssinadaPromise,
     descontosPromise,
     clientesAtivosPromise,
-    falaeNpsPromise
+    falaeNpsPromise,
+    marketingMensalPromise
   ]);
 
   const desempenhoData = desempenhoResults.flatMap(r => r.data || []);
@@ -169,14 +171,47 @@ async function getDadosMensais(
 
   const dadosSemanais = agregarDadosSemanaisProporcionais(semanasComProporcao, desempenhoMap, marketingMap);
 
-  // Calcular reservas diárias (de eventos_base) e mesas (de getin_reservations)
+  // Sobrescrever dados de marketing com valores manuais da tabela marketing_mensal (se existirem)
+  const marketingMensal = marketingMensalResult.data;
+  if (marketingMensal) {
+    // Marketing Orgânico
+    if (marketingMensal.o_num_posts !== null) dadosSemanais.o_num_posts = marketingMensal.o_num_posts;
+    if (marketingMensal.o_alcance !== null) dadosSemanais.o_alcance = marketingMensal.o_alcance;
+    if (marketingMensal.o_interacao !== null) dadosSemanais.o_interacao = marketingMensal.o_interacao;
+    if (marketingMensal.o_compartilhamento !== null) dadosSemanais.o_compartilhamento = marketingMensal.o_compartilhamento;
+    if (marketingMensal.o_engajamento !== null) dadosSemanais.o_engajamento = marketingMensal.o_engajamento;
+    if (marketingMensal.o_num_stories !== null) dadosSemanais.o_num_stories = marketingMensal.o_num_stories;
+    if (marketingMensal.o_visu_stories !== null) dadosSemanais.o_visu_stories = marketingMensal.o_visu_stories;
+    
+    // Marketing Pago - Meta
+    if (marketingMensal.m_valor_investido !== null) dadosSemanais.m_valor_investido = marketingMensal.m_valor_investido;
+    if (marketingMensal.m_alcance !== null) dadosSemanais.m_alcance = marketingMensal.m_alcance;
+    if (marketingMensal.m_frequencia !== null) dadosSemanais.m_frequencia = marketingMensal.m_frequencia;
+    if (marketingMensal.m_cpm !== null) dadosSemanais.m_cpm = marketingMensal.m_cpm;
+    if (marketingMensal.m_cliques !== null) dadosSemanais.m_cliques = marketingMensal.m_cliques;
+    if (marketingMensal.m_ctr !== null) dadosSemanais.m_ctr = marketingMensal.m_ctr;
+    if (marketingMensal.m_custo_por_clique !== null) dadosSemanais.m_custo_por_clique = marketingMensal.m_custo_por_clique;
+    if (marketingMensal.m_conversas_iniciadas !== null) dadosSemanais.m_conversas_iniciadas = marketingMensal.m_conversas_iniciadas;
+    
+    // Google Ads
+    if (marketingMensal.g_valor_investido !== null) dadosSemanais.g_valor_investido = marketingMensal.g_valor_investido;
+    if (marketingMensal.g_impressoes !== null) dadosSemanais.g_impressoes = marketingMensal.g_impressoes;
+    if (marketingMensal.g_cliques !== null) dadosSemanais.g_cliques = marketingMensal.g_cliques;
+    if (marketingMensal.g_ctr !== null) dadosSemanais.g_ctr = marketingMensal.g_ctr;
+    if (marketingMensal.g_solicitacoes_rotas !== null) dadosSemanais.g_solicitacoes_rotas = marketingMensal.g_solicitacoes_rotas;
+    
+    // GMN
+    if (marketingMensal.gmn_total_acoes !== null) dadosSemanais.gmn_total_acoes = marketingMensal.gmn_total_acoes;
+    if (marketingMensal.gmn_total_visualizacoes !== null) dadosSemanais.gmn_total_visualizacoes = marketingMensal.gmn_total_visualizacoes;
+    if (marketingMensal.gmn_solicitacoes_rotas !== null) dadosSemanais.gmn_solicitacoes_rotas = marketingMensal.gmn_solicitacoes_rotas;
+  }
+
+  // Calcular reservas e mesas de eventos_base (já sincronizados do GetIn via sync_mesas_getin_to_eventos)
   const sumInt = (arr: any[], key: string) => arr.reduce((acc, e) => acc + (parseInt(e[key]) || 0), 0);
   const reservasTotaisDiarias = sumInt(eventosDiarios || [], 'res_tot');
   const reservasPresentesDiarias = sumInt(eventosDiarios || [], 'res_p');
-  
-  // Calcular mesas do GetIn
-  const mesasTotaisDiarias = (getinReservas || []).length;
-  const mesasPresentesDiarias = (getinReservas || []).filter(r => r.status === 'seated').length;
+  const mesasTotaisDiarias = sumInt(eventosDiarios || [], 'num_mesas_tot');
+  const mesasPresentesDiarias = sumInt(eventosDiarios || [], 'num_mesas_presentes');
 
   // Calcular faturamento total para os percentuais
   const faturamentoTotal = dadosDiarios.faturamento_total || 0;
@@ -403,36 +438,36 @@ function agregarDadosSemanaisProporcionais(
     venda_balcao: sumProp(desempenhoMap, 'venda_balcao'),
     couvert_atracoes: sumProp(desempenhoMap, 'couvert_atracoes'),
     
-    // Marketing Orgânico
-    o_num_posts: sumProp(marketingMap, 'o_num_posts'),
-    o_alcance: sumProp(marketingMap, 'o_alcance'),
-    o_interacao: sumProp(marketingMap, 'o_interacao'),
-    o_compartilhamento: sumProp(marketingMap, 'o_compartilhamento'),
-    o_engajamento: avgProp(marketingMap, 'o_engajamento'),
-    o_num_stories: sumProp(marketingMap, 'o_num_stories'),
-    o_visu_stories: sumProp(marketingMap, 'o_visu_stories'),
+    // Marketing Orgânico - ZERADO (preenchimento manual no mensal)
+    o_num_posts: 0,
+    o_alcance: 0,
+    o_interacao: 0,
+    o_compartilhamento: 0,
+    o_engajamento: 0,
+    o_num_stories: 0,
+    o_visu_stories: 0,
     
-    // Marketing Pago - Meta
-    m_valor_investido: sumProp(marketingMap, 'm_valor_investido'),
-    m_alcance: sumProp(marketingMap, 'm_alcance'),
-    m_frequencia: avgProp(marketingMap, 'm_frequencia'),
-    m_cpm: avgProp(marketingMap, 'm_cpm'),
-    m_cliques: sumProp(marketingMap, 'm_cliques'),
-    m_ctr: avgProp(marketingMap, 'm_ctr'),
-    m_custo_por_clique: avgProp(marketingMap, 'm_cpc'),
-    m_conversas_iniciadas: sumProp(marketingMap, 'm_conversas_iniciadas'),
+    // Marketing Pago - Meta - ZERADO (preenchimento manual no mensal)
+    m_valor_investido: 0,
+    m_alcance: 0,
+    m_frequencia: 0,
+    m_cpm: 0,
+    m_cliques: 0,
+    m_ctr: 0,
+    m_custo_por_clique: 0,
+    m_conversas_iniciadas: 0,
     
-    // Google Ads
-    g_valor_investido: sumProp(marketingMap, 'g_valor_investido'),
-    g_impressoes: sumProp(marketingMap, 'g_impressoes'),
-    g_cliques: sumProp(marketingMap, 'g_cliques'),
-    g_ctr: avgProp(marketingMap, 'g_ctr'),
-    g_solicitacoes_rotas: sumProp(marketingMap, 'g_solicitacoes_rotas'),
+    // Google Ads - ZERADO (preenchimento manual no mensal)
+    g_valor_investido: 0,
+    g_impressoes: 0,
+    g_cliques: 0,
+    g_ctr: 0,
+    g_solicitacoes_rotas: 0,
     
-    // GMN
-    gmn_total_acoes: sumProp(marketingMap, 'gmn_total_acoes'),
-    gmn_total_visualizacoes: sumProp(marketingMap, 'gmn_total_visualizacoes'),
-    gmn_solicitacoes_rotas: sumProp(marketingMap, 'gmn_solicitacoes_rotas'),
+    // GMN - ZERADO (preenchimento manual no mensal)
+    gmn_total_acoes: 0,
+    gmn_total_visualizacoes: 0,
+    gmn_solicitacoes_rotas: 0,
     
     // Gestão Produção
     quebra_utensilios: sumProp(desempenhoMap, 'quebra_utensilios'),

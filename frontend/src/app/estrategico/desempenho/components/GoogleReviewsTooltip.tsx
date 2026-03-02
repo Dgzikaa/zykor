@@ -74,12 +74,12 @@ export function GoogleReviewsTooltip({
   const renderStars = (count: number, total: number) => {
     const stars: React.ReactNode[] = [];
     for (let i = 0; i < count; i++) {
-      stars.push(<Star key={i} className="w-3 h-3 fill-yellow-400 text-yellow-400" />);
+      stars.push(<Star key={i} className="w-3 h-3 fill-yellow-500 text-yellow-500" />);
     }
     return (
       <div className="flex items-center gap-1">
         <span className="flex">{stars}</span>
-        <span className="text-xs text-gray-600 dark:text-gray-400 ml-1">- {total}</span>
+        <span className="text-xs text-[hsl(var(--muted-foreground))] ml-1">- {total}</span>
       </div>
     );
   };
@@ -92,31 +92,31 @@ export function GoogleReviewsTooltip({
         </span>
       </PopoverTrigger>
       <PopoverContent 
-        side="top" 
-        align="center" 
-        className="w-80 p-0 shadow-xl"
+        side="bottom" 
+        align="start" 
+        className="w-96 p-0 shadow-xl z-50"
       >
         {loading ? (
           <div className="flex items-center justify-center p-6">
-            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-            <span className="ml-2 text-sm text-gray-500">Carregando...</span>
+            <Loader2 className="w-5 h-5 animate-spin text-[hsl(var(--muted-foreground))]" />
+            <span className="ml-2 text-sm text-[hsl(var(--muted-foreground))]">Carregando...</span>
           </div>
         ) : error ? (
-          <div className="p-4 text-center text-red-500 text-sm">
+          <div className="p-4 text-center text-red-600 dark:text-red-400 text-sm">
             {error}
           </div>
         ) : summary ? (
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+          <div className="divide-y divide-[hsl(var(--border))]">
             {/* Header com média */}
-            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 p-3 rounded-t-lg">
+            <div className="bg-[hsl(var(--muted))] p-3 rounded-t-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                  <span className="font-bold text-lg text-gray-900 dark:text-white">
+                  <Star className="w-5 h-5 fill-yellow-500 text-yellow-500" />
+                  <span className="font-bold text-lg text-[hsl(var(--foreground))]">
                     {summary.media.toFixed(2).replace('.', ',')}
                   </span>
                 </div>
-                <span className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="text-sm text-[hsl(var(--muted-foreground))]">
                   {summary.total} avaliações
                 </span>
               </div>
@@ -134,15 +134,15 @@ export function GoogleReviewsTooltip({
             {/* Percepção do Cliente */}
             {(summary.elogios.length > 0 || summary.criticas.length > 0) && (
               <div className="p-3 space-y-2">
-                <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-[hsl(var(--foreground))]">
                   <MessageCircle className="w-4 h-4" />
                   Percepção do Cliente
                 </div>
                 
                 {summary.elogios.length > 0 && (
                   <div className="flex items-start gap-2">
-                    <ThumbsUp className="w-3.5 h-3.5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                    <ThumbsUp className="w-3.5 h-3.5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-[hsl(var(--muted-foreground))]">
                       <span className="font-medium text-green-600 dark:text-green-400">Elogios: </span>
                       {summary.elogios.join(', ')}
                     </div>
@@ -151,8 +151,8 @@ export function GoogleReviewsTooltip({
                 
                 {summary.criticas.length > 0 && (
                   <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-3.5 h-3.5 text-orange-500 mt-0.5 flex-shrink-0" />
-                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                    <AlertTriangle className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-[hsl(var(--muted-foreground))]">
                       <span className="font-medium text-orange-600 dark:text-orange-400">Atenção: </span>
                       {summary.criticas.join(', ')}
                     </div>
@@ -163,23 +163,23 @@ export function GoogleReviewsTooltip({
 
             {/* Algumas avaliações recentes */}
             {summary.reviewsComTexto.length > 0 && (
-              <div className="p-3 space-y-2 max-h-32 overflow-y-auto">
-                <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              <div className="p-3 space-y-2 max-h-32 overflow-y-auto scrollbar-thin">
+                <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
                   Avaliações recentes
                 </div>
                 {summary.reviewsComTexto.slice(0, 2).map((review, idx) => (
-                  <div key={idx} className="text-xs bg-gray-50 dark:bg-gray-800 p-2 rounded">
+                  <div key={idx} className="text-xs bg-[hsl(var(--muted))] p-2 rounded">
                     <div className="flex items-center gap-1 mb-1">
-                      <span className="font-medium text-gray-700 dark:text-gray-300">
+                      <span className="font-medium text-[hsl(var(--foreground))]">
                         {review.nome}
                       </span>
                       <span className="flex">
                         {Array.from({ length: review.stars }).map((_, i) => (
-                          <Star key={i} className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
+                          <Star key={i} className="w-2.5 h-2.5 fill-yellow-500 text-yellow-500" />
                         ))}
                       </span>
                     </div>
-                    <p className="text-gray-600 dark:text-gray-400 line-clamp-2">
+                    <p className="text-[hsl(var(--muted-foreground))] line-clamp-2">
                       &quot;{review.texto}&quot;
                     </p>
                   </div>
@@ -188,7 +188,7 @@ export function GoogleReviewsTooltip({
             )}
           </div>
         ) : (
-          <div className="p-4 text-center text-gray-500 text-sm">
+          <div className="p-4 text-center text-[hsl(var(--muted-foreground))] text-sm">
             Sem dados disponíveis
           </div>
         )}

@@ -393,7 +393,7 @@ export default function LoginPage() {
         {/* Notificações */}
         {returnUrl && !showBiometricRegistration && (
           <div
-            className="mb-6 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4"
+            className="mb-6 bg-[hsl(var(--muted))] border border-[hsl(var(--border))] rounded-xl p-4"
             suppressHydrationWarning
           >
             <div
@@ -401,18 +401,18 @@ export default function LoginPage() {
               suppressHydrationWarning
             >
               <div
-                className="w-8 h-8 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center"
+                className="w-8 h-8 bg-[hsl(var(--muted))] rounded-full flex items-center justify-center"
                 suppressHydrationWarning
               >
-                <span className="text-blue-600 dark:text-blue-400 text-sm">
+                <span className="text-[hsl(var(--foreground))] text-sm">
                   🔒
                 </span>
               </div>
               <div>
-                <p className="text-blue-700 dark:text-blue-300 text-sm font-medium">
+                <p className="text-[hsl(var(--foreground))] text-sm font-medium">
                   Acesso protegido
                 </p>
-                <p className="text-blue-600 dark:text-blue-400 text-xs mt-1">
+                <p className="text-[hsl(var(--muted-foreground))] text-xs mt-1">
                   Faça login para acessar a página solicitada
                 </p>
               </div>
@@ -653,7 +653,7 @@ export default function LoginPage() {
           >
             <div className="text-center mb-6" suppressHydrationWarning>
               <div
-                className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 dark:bg-blue-900/50 rounded-full mb-4"
+                className="inline-flex items-center justify-center w-16 h-16 bg-[hsl(var(--muted))] rounded-full mb-4"
                 suppressHydrationWarning
               >
                 <span className="text-2xl">🔑</span>

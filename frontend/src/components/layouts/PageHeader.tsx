@@ -27,7 +27,7 @@ export function PageHeader({
   className,
 }: PageHeaderProps) {
   return (
-    <div className={cn('mb-8', className)}>
+    <div className={cn('mb-6', className)}>
       {breadcrumb && breadcrumb.length > 0 && (
         <nav className="flex items-center text-xs mb-2 text-[hsl(var(--muted-foreground))]" aria-label="Breadcrumb">
           <ol className="inline-flex items-center gap-2">
@@ -35,7 +35,7 @@ export function PageHeader({
               <li key={`${item.label}-${idx}`} className="inline-flex items-center gap-2">
                 {idx > 0 && <span>/</span>}
                 {item.href ? (
-                  <Link href={item.href} className="hover:text-[hsl(var(--foreground))] transition-colors">
+                  <Link href={item.href} className="hover:text-[hsl(var(--foreground))]">
                     {item.label}
                   </Link>
                 ) : (
@@ -48,10 +48,10 @@ export function PageHeader({
       )}
 
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-[hsl(var(--foreground))]">{title}</h1>
+        <div className="space-y-0.5">
+          <h1 className="text-xl font-semibold text-[hsl(var(--foreground))]">{title}</h1>
           {description && (
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">{description}</p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">{description}</p>
           )}
           {children}
         </div>
