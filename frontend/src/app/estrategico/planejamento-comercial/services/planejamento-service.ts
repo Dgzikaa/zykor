@@ -38,6 +38,7 @@ export interface PlanejamentoData {
   percent_b: number;
   percent_d: number;
   percent_c: number;
+  percent_happy_hour: number;
   
   // Tempos e performance
   t_coz: number;
