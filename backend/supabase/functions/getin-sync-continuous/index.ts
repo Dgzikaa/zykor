@@ -89,11 +89,11 @@ serve(async (req) => {
       endDate = ''
     }
 
-    // Calculate date range: custom or (today - 1) to (today + 60)
+    // Calculate date range: custom or (today - 7) to (today + 60)
     if (!startDate || !endDate) {
       const hoje = new Date()
       const dataInicio = new Date(hoje)
-      dataInicio.setDate(hoje.getDate() - 1)
+      dataInicio.setDate(hoje.getDate() - 7) // Últimos 7 dias para capturar alterações retroativas
       
       const dataFim = new Date(hoje)
       dataFim.setDate(hoje.getDate() + 60)
