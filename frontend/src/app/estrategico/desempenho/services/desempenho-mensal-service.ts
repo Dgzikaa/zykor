@@ -44,12 +44,20 @@ async function getDadosMensais(
   // 1. Dados diários
   const { data: eventosDiarios } = await supabase
     .from('eventos_base')
-    .select('data_evento, real_r, cl_real, t_medio, percent_b, percent_d, percent_c, res_tot, res_p, t_coz, t_bar, fat_19h_percent, faturamento_couvert, faturamento_bar')
+    .select('data_evento, real_r, cl_real, t_medio, percent_b, percent_d, percent_c, res_tot, res_p, num_mesas_tot, num_mesas_presentes, t_coz, t_bar, fat_19h_percent, faturamento_couvert, faturamento_bar')
     .eq('bar_id', barId)
     .gte('data_evento', dataInicio)
     .lte('data_evento', dataFim);
 
   const dadosDiarios = agregarDadosDiarios(eventosDiarios || []);
+
+  // 1.1. Buscar dados de mesas do GetIn
+  const { data: getinReservas } = await supabase
+    .from('getin_reservations')
+    .select('reservation_date, status')
+    .eq('bar_id', barId)
+    .gte('reservation_date', dataInicio)
+    .lte('reservation_date', dataFim);
 
   // 2. Dados semanais proporcionais
   const semanasComProporcao = calcularSemanasComProporcao(mes, ano);
@@ -161,10 +169,14 @@ async function getDadosMensais(
 
   const dadosSemanais = agregarDadosSemanaisProporcionais(semanasComProporcao, desempenhoMap, marketingMap);
 
-  // Calcular reservas diárias (de eventos_base)
+  // Calcular reservas diárias (de eventos_base) e mesas (de getin_reservations)
   const sumInt = (arr: any[], key: string) => arr.reduce((acc, e) => acc + (parseInt(e[key]) || 0), 0);
   const reservasTotaisDiarias = sumInt(eventosDiarios || [], 'res_tot');
   const reservasPresentesDiarias = sumInt(eventosDiarios || [], 'res_p');
+  
+  // Calcular mesas do GetIn
+  const mesasTotaisDiarias = (getinReservas || []).length;
+  const mesasPresentesDiarias = (getinReservas || []).filter(r => r.status === 'seated').length;
 
   // Calcular faturamento total para os percentuais
   const faturamentoTotal = dadosDiarios.faturamento_total || 0;
@@ -179,9 +191,11 @@ async function getDadosMensais(
     data_fim: dataFim,
     ...dadosSemanais,
     ...dadosDiarios,
-    // Sobrescrever reservas com dados diários (de eventos_base)
+    // Sobrescrever reservas e mesas com dados diários (de eventos_base)
     reservas_totais: reservasTotaisDiarias,
     reservas_presentes: reservasPresentesDiarias,
+    mesas_totais: mesasTotaisDiarias,
+    mesas_presentes: mesasPresentesDiarias,
     // Sobrescrever com valores calculados diretamente das tabelas de origem
     conta_assinada_valor: contaAssinadaValor,
     conta_assinada_perc: contaAssinadaPerc,
