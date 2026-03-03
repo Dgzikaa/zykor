@@ -42,12 +42,19 @@ async function getDadosMensais(
   const dataFim = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
 
   // 1. Dados diários
-  const { data: eventosDiarios } = await supabase
+  let query = supabase
     .from('eventos_base')
     .select('data_evento, real_r, cl_real, t_medio, percent_b, percent_d, percent_c, res_tot, res_p, num_mesas_tot, num_mesas_presentes, t_coz, t_bar, fat_19h_percent, faturamento_couvert, faturamento_bar')
     .eq('bar_id', barId)
     .gte('data_evento', dataInicio)
     .lte('data_evento', dataFim);
+
+  // Excluir dias de Carnaval 2026 (13-17/02) para Ordinário (bar_id=3)
+  if (barId === 3 && ano === 2026 && mes === 2) {
+    query = query.not('data_evento', 'in', '("2026-02-13","2026-02-14","2026-02-15","2026-02-16","2026-02-17")');
+  }
+
+  const { data: eventosDiarios } = await query;
 
   const dadosDiarios = agregarDadosDiarios(eventosDiarios || []);
 

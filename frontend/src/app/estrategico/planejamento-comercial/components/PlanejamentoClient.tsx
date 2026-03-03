@@ -465,7 +465,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
 
                         {/* Grupo PRODUÇÃO */}
                         <th
-                          colSpan={gruposAbertos.producao ? 6 : 1}
+                          colSpan={gruposAbertos.producao ? 7 : 1}
                           className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('producao')}
                         >
@@ -584,6 +584,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                 </TooltipContent>
                               </Tooltip>
                             </th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasinho Coz</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasinho Bar</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -597,9 +599,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                 </TooltipContent>
                               </Tooltip>
                             </th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Stockout</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasinho Coz</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasinho Bar</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Stockout</th>
                           </>
                         ) : (
                           <th className="border-r-2 border-[hsl(var(--border))]"></th>
@@ -684,10 +684,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_b > 0 ? formatarPercentual(evento.percent_b) : '-'}</td>
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_d > 0 ? formatarPercentual(evento.percent_d) : '-'}</td>
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_c > 0 ? formatarPercentual(evento.percent_c) : '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_happy_hour > 0 ? formatarPercentual(evento.percent_happy_hour) : '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_stockout <= 10 ? 'text-green-600 dark:text-green-400' : evento.percent_stockout <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_stockout > 0 ? formatarPercentual(evento.percent_stockout) : '-'}</span></td>
                                 <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasinho_cozinha <= 10 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasinho_cozinha > 0 ? formatarContagem(evento.atrasinho_cozinha) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasinho_bar <= 50 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasinho_bar > 0 ? formatarContagem(evento.atrasinho_bar) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasinho_bar <= 50 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasinho_bar > 0 ? formatarContagem(evento.atrasinho_bar) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_happy_hour > 0 ? formatarPercentual(evento.percent_happy_hour) : '-'}</td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_stockout <= 10 ? 'text-green-600 dark:text-green-400' : evento.percent_stockout <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_stockout > 0 ? formatarPercentual(evento.percent_stockout) : '-'}</span></td>
                               </>
                             ) : (
                               <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
