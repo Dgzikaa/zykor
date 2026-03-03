@@ -76,6 +76,10 @@ interface EventoEdicaoCompleta {
   percent_stockout: number;
   t_coz: number;
   t_bar: number;
+  atrasinho_cozinha: number;
+  atrasinho_bar: number;
+  atrasao_cozinha: number;
+  atrasao_bar: number;
   sympla_liquido?: number;
   sympla_checkins?: number;
   yuzer_liquido?: number;
@@ -215,6 +219,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
       percent_stockout: evento.percent_stockout || 0,
       t_coz: evento.t_coz || 0,
       t_bar: evento.t_bar || 0,
+      atrasinho_cozinha: evento.atrasinho_cozinha || 0,
+      atrasinho_bar: evento.atrasinho_bar || 0,
+      atrasao_cozinha: evento.atrasao_cozinha || 0,
+      atrasao_bar: evento.atrasao_bar || 0,
       ...dadosSymplaYuzer,
       atrasos_cozinha: atrasosData.atrasos_cozinha,
       atrasos_bar: atrasosData.atrasos_bar,
@@ -267,6 +275,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
           c_prod: eventoEdicao.c_prod || 0,
           t_coz: eventoEdicao.t_coz || 0,
           t_bar: eventoEdicao.t_bar || 0,
+          atrasinho_cozinha: eventoEdicao.atrasinho_cozinha || 0,
+          atrasinho_bar: eventoEdicao.atrasinho_bar || 0,
+          atrasao_cozinha: eventoEdicao.atrasao_cozinha || 0,
+          atrasao_bar: eventoEdicao.atrasao_bar || 0,
           faturamento_couvert_manual: eventoEdicao.faturamento_couvert_manual || null,
           faturamento_bar_manual: eventoEdicao.faturamento_bar_manual || null,
           observacoes: eventoEdicao.observacoes || ''
@@ -298,8 +310,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
   };
 
   const formatarTempo = (valor: number | null | undefined): string => {
+    if (!valor && valor !== 0) return '0,00 min';
+    return `${valor.toFixed(2).replace('.', ',')} min`;
+  };
+
+  const formatarContagem = (valor: number | null | undefined): string => {
     if (!valor && valor !== 0) return '0';
-    // Agora t_coz e t_bar são contagens de atrasinhos (inteiros)
     return Math.round(valor).toString();
   };
 
@@ -670,8 +686,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_c > 0 ? formatarPercentual(evento.percent_c) : '-'}</td>
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_happy_hour > 0 ? formatarPercentual(evento.percent_happy_hour) : '-'}</td>
                                 <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_stockout <= 10 ? 'text-green-600 dark:text-green-400' : evento.percent_stockout <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_stockout > 0 ? formatarPercentual(evento.percent_stockout) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.t_coz_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_coz > 0 ? formatarTempo(evento.t_coz) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.t_bar_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_bar > 0 ? formatarTempo(evento.t_bar) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasinho_cozinha <= 10 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasinho_cozinha > 0 ? formatarContagem(evento.atrasinho_cozinha) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasinho_bar <= 50 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasinho_bar > 0 ? formatarContagem(evento.atrasinho_bar) : '-'}</span></td>
                               </>
                             ) : (
                               <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>

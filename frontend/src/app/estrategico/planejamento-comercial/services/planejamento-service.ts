@@ -43,6 +43,10 @@ export interface PlanejamentoData {
   // Tempos e performance
   t_coz: number;
   t_bar: number;
+  atrasinho_cozinha: number;
+  atrasinho_bar: number;
+  atrasao_cozinha: number;
+  atrasao_bar: number;
   fat_19h: number;
   
   // Stockout
@@ -110,6 +114,10 @@ export async function getPlanejamentoComercial(
         percent_stockout,
         t_coz,
         t_bar,
+        atrasinho_cozinha,
+        atrasinho_bar,
+        atrasao_cozinha,
+        atrasao_bar,
         fat_19h_percent,
         sympla_liquido,
         sympla_checkins,
@@ -162,10 +170,10 @@ export async function getPlanejamentoComercial(
       const tbRealVsPlanGreen = (evento.tb_real || 0) >= (evento.tb_plan || 0);
       const tMedioGreen = (evento.t_medio || 0) >= 93;
       const percentArtFatGreen = (evento.percent_art_fat || 0) <= 15;
-      // t_coz e t_bar agora são contagens de atrasinhos (>15min coz, >5min bar)
-      // Verde se tiver poucos atrasinhos (≤10 coz, ≤50 bar)
-      const tCozGreen = (evento.t_coz || 0) <= 10;
-      const tBarGreen = (evento.t_bar || 0) <= 50;
+      // t_coz e t_bar são médias de tempo em segundos
+      // Verde se média <= 12min (720s) coz, <= 4min (240s) bar
+      const tCozGreen = (evento.t_coz || 0) <= 720;
+      const tBarGreen = (evento.t_bar || 0) <= 240;
       const fat19hGreen = (evento.fat_19h_percent || 0) >= 40;
 
       // NOTE: Removed N+1 RPC calls for clientes_ativos and percent_clientes_novos 
@@ -213,6 +221,10 @@ export async function getPlanejamentoComercial(
         
         t_coz: evento.t_coz || 0,
         t_bar: evento.t_bar || 0,
+        atrasinho_cozinha: evento.atrasinho_cozinha || 0,
+        atrasinho_bar: evento.atrasinho_bar || 0,
+        atrasao_cozinha: evento.atrasao_cozinha || 0,
+        atrasao_bar: evento.atrasao_bar || 0,
         fat_19h: evento.fat_19h_percent || 0,
         
         percent_stockout: evento.percent_stockout || 0,
