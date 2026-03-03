@@ -162,8 +162,10 @@ export async function getPlanejamentoComercial(
       const tbRealVsPlanGreen = (evento.tb_real || 0) >= (evento.tb_plan || 0);
       const tMedioGreen = (evento.t_medio || 0) >= 93;
       const percentArtFatGreen = (evento.percent_art_fat || 0) <= 15;
-      const tCozGreen = (evento.t_coz || 0) <= 12;
-      const tBarGreen = (evento.t_bar || 0) <= 4;
+      // t_coz e t_bar agora são contagens de atrasinhos (>15min coz, >5min bar)
+      // Verde se tiver poucos atrasinhos (≤10 coz, ≤50 bar)
+      const tCozGreen = (evento.t_coz || 0) <= 10;
+      const tBarGreen = (evento.t_bar || 0) <= 50;
       const fat19hGreen = (evento.fat_19h_percent || 0) >= 40;
 
       // NOTE: Removed N+1 RPC calls for clientes_ativos and percent_clientes_novos 

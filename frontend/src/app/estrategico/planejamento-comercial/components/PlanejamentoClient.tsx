@@ -298,8 +298,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
   };
 
   const formatarTempo = (valor: number | null | undefined): string => {
-    if (!valor && valor !== 0) return '0,00 min';
-    return `${valor.toFixed(2).replace('.', ',')} min`;
+    if (!valor && valor !== 0) return '0';
+    // Agora t_coz e t_bar são contagens de atrasinhos (inteiros)
+    return Math.round(valor).toString();
   };
 
   const meses = [
@@ -581,8 +582,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                               </Tooltip>
                             </th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Stockout</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Tempo Cozinha</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Tempo Bar</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasinho Coz</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasinho Bar</th>
                           </>
                         ) : (
                           <th className="border-r-2 border-[hsl(var(--border))]"></th>
