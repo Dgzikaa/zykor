@@ -293,8 +293,9 @@ function agregarDadosDiarios(eventos: any[]) {
   const clientesTotal = sumInt(diasComFaturamento, 'cl_real');
   
   const diasComTempo = diasComFaturamento.filter(e => parseFloat(e.t_coz) > 0 || parseFloat(e.t_bar) > 0);
-  const tmCoz = diasComTempo.length > 0 ? sum(diasComTempo, 't_coz') / diasComTempo.length : 0;
-  const tmBar = diasComTempo.length > 0 ? sum(diasComTempo, 't_bar') / diasComTempo.length : 0;
+  // t_coz e t_bar estão em segundos, converter para minutos
+  const tmCoz = diasComTempo.length > 0 ? (sum(diasComTempo, 't_coz') / diasComTempo.length) / 60 : 0;
+  const tmBar = diasComTempo.length > 0 ? (sum(diasComTempo, 't_bar') / diasComTempo.length) / 60 : 0;
 
   const diasFat19 = diasComFaturamento.filter(e => parseFloat(e.fat_19h_percent) > 0);
   const percFat19 = diasFat19.length > 0 ? sum(diasFat19, 'fat_19h_percent') / diasFat19.length : 0;
