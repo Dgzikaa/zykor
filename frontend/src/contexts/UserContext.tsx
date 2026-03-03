@@ -48,13 +48,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'sgb_user') {
-        // Verificar se há um reload em progresso
-        const barChangeInProgress = sessionStorage.getItem('bar_change_in_progress');
-        if (barChangeInProgress) {
-          const timestamp = parseInt(barChangeInProgress);
-          const now = Date.now();
-          if (now - timestamp < 2000) {
-            // Reload em progresso, não recarregar novamente
+        // Verificar se houve um reload de bar muito recente
+        const lastReload = sessionStorage.getItem('last_bar_reload');
+        if (lastReload) {
+          const timeSinceReload = Date.now() - parseInt(lastReload);
+          if (timeSinceReload < 1000) {
+            // Reload muito recente, aguardar para evitar conflitos
             return;
           }
         }

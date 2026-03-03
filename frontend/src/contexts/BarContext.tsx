@@ -39,12 +39,17 @@ export function BarProvider({ children }: { children: ReactNode }) {
     setSelectedBar(null);
     setAvailableBars([]);
     setIsLoading(true);
+    // Resetar flag para permitir recarga
+    hasLoadedBarsRef.current = false;
     // Resetar favicon para default
     updateFavicon();
   };
 
   // Flag para evitar loops de sincronização
   const isSyncingRef = useRef(false);
+  
+  // Flag para controlar se já carregou os bares
+  const hasLoadedBarsRef = useRef(false);
 
   // Função auxiliar para sincronizar as permissões do bar selecionado no localStorage
   const syncBarPermissions = (bar: Bar) => {
@@ -79,20 +84,8 @@ export function BarProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Verificar se há um reload em progresso recente (últimos 2 segundos)
-    const barChangeInProgress = sessionStorage.getItem('bar_change_in_progress');
-    if (barChangeInProgress) {
-      const timestamp = parseInt(barChangeInProgress);
-      const now = Date.now();
-      if (now - timestamp < 2000) {
-        // Reload muito recente, aguardar
-        setIsLoading(false);
-        return;
-      } else {
-        // Limpar flag antiga
-        sessionStorage.removeItem('bar_change_in_progress');
-      }
-    }
+    // Limpar flag de reload ao inicializar (após o reload já aconteceu)
+    sessionStorage.removeItem('bar_change_in_progress');
 
     let mounted = true;
 
@@ -100,6 +93,11 @@ export function BarProvider({ children }: { children: ReactNode }) {
       try {
         // Aguardar que o UserContext seja inicializado
         if (!userInitialized) {
+          return;
+        }
+        
+        // Se já carregou os bares, não recarregar (evita loops)
+        if (hasLoadedBarsRef.current) {
           return;
         }
 
@@ -179,6 +177,9 @@ export function BarProvider({ children }: { children: ReactNode }) {
                 syncBarPermissions(barToSelect);
                 // Garantir que cookie está atualizado
                 setBarCookie(barToSelect.id);
+                
+                // Marcar que os bares foram carregados
+                hasLoadedBarsRef.current = true;
 
                 setIsLoading(false);
                 return;
@@ -209,6 +210,8 @@ export function BarProvider({ children }: { children: ReactNode }) {
     if (typeof window === 'undefined') return;
 
     const handleUserDataUpdated = () => {
+      // Resetar flag para permitir recarga
+      hasLoadedBarsRef.current = false;
       setIsLoading(true);
       // O useEffect principal vai recarregar com as novas dependências
     };
@@ -294,8 +297,20 @@ export function BarProvider({ children }: { children: ReactNode }) {
       
       // Se o bar mudou, recarregar a página para atualizar os dados
       if (previousBarId !== undefined && previousBarId !== bar.id) {
-        // Marcar que esta aba está fazendo o reload (para evitar loops)
-        sessionStorage.setItem('bar_change_in_progress', Date.now().toString());
+        // Verificar se já não houve um reload muito recente (previne loops)
+        const lastReload = sessionStorage.getItem('last_bar_reload');
+        const now = Date.now();
+        
+        if (lastReload) {
+          const timeSinceLastReload = now - parseInt(lastReload);
+          if (timeSinceLastReload < 1000) {
+            // Reload muito recente (menos de 1 segundo), ignorar para prevenir loop
+            return;
+          }
+        }
+        
+        // Marcar timestamp do reload
+        sessionStorage.setItem('last_bar_reload', now.toString());
         
         // Disparar evento customizado para notificar componentes
         window.dispatchEvent(new CustomEvent('barChanged', { 
