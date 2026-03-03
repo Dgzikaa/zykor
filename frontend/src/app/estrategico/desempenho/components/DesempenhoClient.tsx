@@ -51,7 +51,7 @@ const STATUS_COLORS = {
   nao_confiavel: { dot: 'bg-amber-500', text: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' }
 };
 
-const SECOES: SecaoConfig[] = [
+const getSecoesConfig = (barId?: number): SecaoConfig[] => [
   {
     id: 'guardrail',
     titulo: 'GUARDRAIL - Estratégicos',
@@ -216,12 +216,18 @@ const SECOES: SecaoConfig[] = [
         id: 'horarios',
         label: 'Horários',
         metricas: [
-          { key: 'perc_faturamento_ate_19h', label: '% Fat. até 19h', status: 'auto', fonte: 'eventos_base', calculo: 'Média fat_19h_percent', formato: 'percentual' },
-          { key: 'perc_faturamento_apos_22h', label: '% Fat. após 22h', status: 'auto', fonte: 'contahub_fatporhora', calculo: 'Soma após 22h', formato: 'percentual' },
-          { key: 'qui_sab_dom', label: 'QUI+SÁB+DOM', status: 'auto', fonte: 'eventos_base', calculo: 'Soma real_r', formato: 'moeda' },
-          { key: 'conta_assinada_valor', label: 'Conta Assinada', status: 'auto', fonte: 'contahub_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda_com_percentual', percentualKey: 'conta_assinada_perc' },
-          { key: 'descontos_valor', label: 'Descontos', status: 'auto', fonte: 'contahub_periodo', calculo: 'Soma vr_desconto', formato: 'moeda_com_percentual', percentualKey: 'descontos_perc', temTooltipDetalhes: true },
-          { key: 'cancelamentos', label: 'Cancelamentos', status: 'auto', fonte: 'contahub_cancelamentos', calculo: 'Soma custototal', formato: 'moeda', temTooltipDetalhes: true, detalhesKey: 'cancelamentos_detalhes' },
+          { key: 'perc_faturamento_ate_19h', label: '% Fat. até 19h', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Média fat_19h_percent', formato: 'percentual' as const },
+          { key: 'perc_faturamento_apos_22h', label: '% Fat. após 22h', status: 'auto' as const, fonte: 'contahub_fatporhora', calculo: 'Soma após 22h', formato: 'percentual' as const },
+          // Indicadores diferentes por bar: Ordinário (QUI+SÁB+DOM) vs Deboche (TER+QUA+QUI e SEX+SÁB)
+          ...(barId === 4 ? [
+            { key: 'ter_qua_qui', label: 'TER+QUA+QUI', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Soma real_r terça/quarta/quinta', formato: 'moeda' as const },
+            { key: 'sex_sab', label: 'SEX+SÁB', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Soma real_r sexta/sábado', formato: 'moeda' as const },
+          ] : [
+            { key: 'qui_sab_dom', label: 'QUI+SÁB+DOM', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Soma real_r', formato: 'moeda' as const },
+          ]),
+          { key: 'conta_assinada_valor', label: 'Conta Assinada', status: 'auto' as const, fonte: 'contahub_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda_com_percentual' as const, percentualKey: 'conta_assinada_perc' },
+          { key: 'descontos_valor', label: 'Descontos', status: 'auto' as const, fonte: 'contahub_periodo', calculo: 'Soma vr_desconto', formato: 'moeda_com_percentual' as const, percentualKey: 'descontos_perc', temTooltipDetalhes: true },
+          { key: 'cancelamentos', label: 'Cancelamentos', status: 'auto' as const, fonte: 'contahub_cancelamentos', calculo: 'Soma custototal', formato: 'moeda' as const, temTooltipDetalhes: true, detalhesKey: 'cancelamentos_detalhes' },
         ]
       }
     ]
@@ -408,6 +414,9 @@ export function DesempenhoClient({
   const { selectedBar } = useBar();
   const { user } = useUser();
   const { toast } = useToast();
+  
+  // Gerar configuração de seções baseada no barId
+  const SECOES = useMemo(() => getSecoesConfig(barId), [barId]);
   
   const [loading, setLoading] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);

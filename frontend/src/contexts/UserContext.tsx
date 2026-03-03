@@ -43,14 +43,36 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    // Debounce para evitar múltiplas chamadas simultâneas
+    let debounceTimer: NodeJS.Timeout | null = null;
+
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'sgb_user') {
-        loadUserData();
+        // Verificar se há um reload em progresso
+        const barChangeInProgress = sessionStorage.getItem('bar_change_in_progress');
+        if (barChangeInProgress) {
+          const timestamp = parseInt(barChangeInProgress);
+          const now = Date.now();
+          if (now - timestamp < 2000) {
+            // Reload em progresso, não recarregar novamente
+            return;
+          }
+        }
+        
+        // Debounce para evitar múltiplas chamadas
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          loadUserData();
+        }, 300);
       }
     };
 
     const handleUserDataUpdated = () => {
-      loadUserData();
+      // Debounce para evitar múltiplas chamadas
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadUserData();
+      }, 300);
     };
 
     const handleRefreshContext = () => {
@@ -62,6 +84,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('refreshUserContext', handleRefreshContext);
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('userDataUpdated', handleUserDataUpdated);
       window.removeEventListener('refreshUserContext', handleRefreshContext);

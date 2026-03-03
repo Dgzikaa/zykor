@@ -561,12 +561,21 @@ export default function StockoutPage() {
       }
     }
 
-    // IDÊNTICO ao Desempenho (usa loc.includes(l) - mesmo critério desempenho-semanal-auto)
-    const categoriasParaLocais: Record<string, string[]> = {
-      'Bar': ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'],
-      'Comidas': ['Cozinha 1', 'Cozinha 2', 'Cozinha'],
-      'Drinks': ['Montados', 'Batidos', 'Mexido', 'Preshh'],
+    // Mapeamento por bar_id (Ordinário vs Deboche)
+    const categoriasParaLocaisPorBar: Record<number, Record<string, string[]>> = {
+      3: { // Ordinário
+        'Bebidas': ['Chopp', 'Baldes', 'Shot e Dose', 'Pegue e Pague', 'PP', 'Venda Volante'],
+        'Comidas': ['Cozinha', 'Cozinha 1', 'Cozinha 2'],
+        'Drinks': ['Preshh', 'Drinks', 'Drinks Autorais', 'Mexido', 'Batidos', 'Bar'],
+      },
+      4: { // Deboche
+        'Bebidas': ['Salão'],
+        'Comidas': ['Cozinha 1', 'Cozinha 2'],
+        'Drinks': ['Bar'], // No Deboche, 'Bar' = Drinks!
+      }
     };
+    
+    const categoriasParaLocais = categoriasParaLocaisPorBar[selectedBar?.id || 3] || categoriasParaLocaisPorBar[3];
     
     const termosDaCategoria = categoriasParaLocais[nomeLocal];
     const pertenceCategoria = (localProduto: string) => {

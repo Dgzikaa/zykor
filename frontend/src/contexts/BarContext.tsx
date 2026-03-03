@@ -79,6 +79,21 @@ export function BarProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Verificar se há um reload em progresso recente (últimos 2 segundos)
+    const barChangeInProgress = sessionStorage.getItem('bar_change_in_progress');
+    if (barChangeInProgress) {
+      const timestamp = parseInt(barChangeInProgress);
+      const now = Date.now();
+      if (now - timestamp < 2000) {
+        // Reload muito recente, aguardar
+        setIsLoading(false);
+        return;
+      } else {
+        // Limpar flag antiga
+        sessionStorage.removeItem('bar_change_in_progress');
+      }
+    }
+
     let mounted = true;
 
     async function loadUserBars() {
@@ -279,6 +294,9 @@ export function BarProvider({ children }: { children: ReactNode }) {
       
       // Se o bar mudou, recarregar a página para atualizar os dados
       if (previousBarId !== undefined && previousBarId !== bar.id) {
+        // Marcar que esta aba está fazendo o reload (para evitar loops)
+        sessionStorage.setItem('bar_change_in_progress', Date.now().toString());
+        
         // Disparar evento customizado para notificar componentes
         window.dispatchEvent(new CustomEvent('barChanged', { 
           detail: { previousBarId, newBarId: bar.id, barName: bar.nome } 
