@@ -505,6 +505,34 @@ function UsuariosPage() {
     });
   };
 
+  const getCategoriaSelectionState = (categoriaModulos: Modulo[]) => {
+    const selectedInCategory = categoriaModulos.filter(modulo =>
+      formData.modulos_permitidos.includes(modulo.id)
+    ).length;
+    const total = categoriaModulos.length;
+    return {
+      allSelected: total > 0 && selectedInCategory === total,
+      hasAnySelected: selectedInCategory > 0,
+      selectedCount: selectedInCategory,
+      totalCount: total,
+    };
+  };
+
+  const handleCategoriaToggle = (categoriaModulos: Modulo[], checked: boolean) => {
+    setFormData(prev => {
+      const current = new Set(Array.isArray(prev.modulos_permitidos) ? prev.modulos_permitidos : []);
+      if (checked) {
+        categoriaModulos.forEach(modulo => current.add(modulo.id));
+      } else {
+        categoriaModulos.forEach(modulo => current.delete(modulo.id));
+      }
+      return {
+        ...prev,
+        modulos_permitidos: Array.from(current),
+      };
+    });
+  };
+
   const filteredUsuarios = usuarios.filter(usuario => {
     const matchesSearch = usuario.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          usuario.email.toLowerCase().includes(searchTerm.toLowerCase());
@@ -906,9 +934,32 @@ function UsuariosPage() {
                   )}
                   {Object.entries(modulosPorCategoria).map(([categoria, categoriaModulos]) => (
                     <div key={categoria} className="mb-3 last:mb-0">
-                      <h4 className="text-xs font-semibold text-[hsl(var(--muted-foreground))] mb-2 capitalize border-b border-[hsl(var(--border))] pb-1.5 uppercase tracking-wider">
-                        {categoria.replace('_', ' ')}
-                      </h4>
+                      <div className="flex items-center justify-between mb-2 border-b border-[hsl(var(--border))] pb-1.5">
+                        <h4 className="text-xs font-semibold text-[hsl(var(--muted-foreground))] capitalize uppercase tracking-wider">
+                          {categoria.replace('_', ' ')}
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                            {getCategoriaSelectionState(categoriaModulos).selectedCount}/{getCategoriaSelectionState(categoriaModulos).totalCount}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <Checkbox
+                              id={`categoria-${categoria}`}
+                              checked={isAdminUser || getCategoriaSelectionState(categoriaModulos).allSelected}
+                              onCheckedChange={(checked) =>
+                                handleCategoriaToggle(categoriaModulos, checked as boolean)
+                              }
+                              disabled={isAdminUser}
+                            />
+                            <Label
+                              htmlFor={`categoria-${categoria}`}
+                              className="text-[11px] text-[hsl(var(--muted-foreground))] cursor-pointer"
+                            >
+                              Marcar todos
+                            </Label>
+                          </div>
+                        </div>
+                      </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         {categoriaModulos.map(modulo => (
                           <div key={modulo.id} className="flex items-center space-x-2 p-1.5 rounded-md hover:bg-[hsl(var(--muted))]">

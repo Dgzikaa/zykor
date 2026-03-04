@@ -15,12 +15,22 @@ export interface ModuloPermissao {
   categoria: string;
 }
 
+export interface MenuSubItemConfig {
+  label: string;
+  href: string;
+}
+
+export interface MenuSectionConfig {
+  label: string;
+  subItems: MenuSubItemConfig[];
+}
+
 /**
  * Estrutura do menu lateral (importada dinamicamente)
  * Esta é uma cópia da estrutura do ModernSidebarOptimized.tsx
  * para evitar dependências circulares e problemas de importação client/server
  */
-const MENU_LATERAL_STRUCTURE = [
+export const MENU_LATERAL_STRUCTURE: MenuSectionConfig[] = [
   {
     label: 'Estratégico',
     subItems: [
@@ -130,6 +140,47 @@ export function getModulosPorCategoria(): Record<string, ModuloPermissao[]> {
  */
 export function getCategorias(): string[] {
   return [...new Set(MODULOS_MENU.map(m => m.categoria))];
+}
+
+export interface MenuRoutePermissionEntry {
+  path: string;
+  requiredModules: string[];
+}
+
+function buildSectionFallbackModules(categoria: string): string[] {
+  const categoriaLower = categoria.toLowerCase();
+  const mapa: Record<string, string[]> = {
+    'estratégico': ['estrategico', 'gestao', 'desempenho', 'dashboard', 'home'],
+    estrategico: ['estrategico', 'gestao', 'desempenho', 'dashboard', 'home'],
+    analitico: ['analitico', 'relatorios', 'dashboard', 'home'],
+    'analítico': ['analitico', 'relatorios', 'dashboard', 'home'],
+    ferramentas: ['ferramentas', 'operacoes', 'dashboard', 'home'],
+    configurações: ['configuracoes'],
+    configuracoes: ['configuracoes'],
+    extras: ['home', 'relatorios'],
+  };
+  return mapa[categoriaLower] || ['home'];
+}
+
+/**
+ * Gera mapeamento de rotas a partir do menu lateral (fonte única de verdade).
+ * Cada rota herda:
+ * - módulo específico do item (ex: analitico_clientes)
+ * - permissões genéricas da categoria (ex: relatorios, analitico, home)
+ */
+export function getMenuRoutePermissions(): MenuRoutePermissionEntry[] {
+  const entries = MENU_LATERAL_STRUCTURE.flatMap(section =>
+    section.subItems.map(item => {
+      const moduleId = gerarIdModulo(section.label, item.label);
+      const fallback = buildSectionFallbackModules(section.label);
+      return {
+        path: item.href,
+        requiredModules: Array.from(new Set([moduleId, ...fallback])),
+      };
+    })
+  );
+
+  return entries.sort((a, b) => b.path.length - a.path.length);
 }
 
 /**

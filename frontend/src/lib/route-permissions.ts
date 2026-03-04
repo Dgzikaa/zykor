@@ -1,3 +1,5 @@
+import { getMenuRoutePermissions } from './menu-config';
+
 /**
  * Mapeamento de rotas para módulos/permissões necessárias
  * Este arquivo define quais permissões são necessárias para acessar cada rota
@@ -29,6 +31,14 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // HOME
   // ========================================
   { path: '/home', requiredModules: ['home', 'dashboard'] },
+
+  // ========================================
+  // MENU LATERAL (fonte única de verdade)
+  // ========================================
+  ...getMenuRoutePermissions().map(route => ({
+    path: route.path,
+    requiredModules: route.requiredModules,
+  })),
   
   // ========================================
   // OPERACIONAL
@@ -58,9 +68,11 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // ========================================
   // ANALÍTICO (Todos os usuários podem ver)
   // ========================================
-  { path: '/analitico/dashboard', requiredModules: ['analitico', 'analitico_dashboard', 'dashboard', 'home'] },
-  { path: '/analitico/relatorios', requiredModules: ['analitico', 'analitico_relatorios', 'relatorios', 'dashboard', 'home'] },
-  { path: '/analitico', requiredModules: ['analitico', 'dashboard', 'home'] },
+  { path: '/analitico/clientes', requiredModules: ['analitico_clientes', 'analitico', 'analitico_relatorios', 'relatorios', 'dashboard', 'home'] },
+  { path: '/analitico/eventos', requiredModules: ['analitico_eventos', 'analitico', 'analitico_relatorios', 'relatorios', 'dashboard', 'home'] },
+  { path: '/analitico/dashboard', requiredModules: ['analitico', 'analitico_dashboard', 'analitico_clientes', 'analitico_eventos', 'relatorios', 'dashboard', 'home'] },
+  { path: '/analitico/relatorios', requiredModules: ['analitico', 'analitico_relatorios', 'analitico_clientes', 'analitico_eventos', 'relatorios', 'dashboard', 'home'] },
+  { path: '/analitico', requiredModules: ['analitico', 'analitico_clientes', 'analitico_eventos', 'relatorios', 'dashboard', 'home'] },
   
   // ========================================
   // MARKETING
