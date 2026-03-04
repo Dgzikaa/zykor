@@ -562,16 +562,17 @@ export default function StockoutPage() {
     }
 
     // Mapeamento por bar_id (Ordinário vs Deboche)
+    // DEVE SER IDÊNTICO ao mapeamento da API (normalizarLocal em route.ts)
     const categoriasParaLocaisPorBar: Record<number, Record<string, string[]>> = {
       3: { // Ordinário
-        'Bebidas': ['Chopp', 'Baldes', 'Shot e Dose', 'Pegue e Pague', 'PP', 'Venda Volante'],
-        'Comidas': ['Cozinha', 'Cozinha 1', 'Cozinha 2'],
-        'Drinks': ['Preshh', 'Drinks', 'Drinks Autorais', 'Mexido', 'Batidos', 'Bar'],
+        'Comidas': ['Cozinha 1', 'Cozinha 2'],
+        'Drinks': ['Batidos', 'Montados', 'Mexido', 'Preshh'],
+        'Bar': ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'],
       },
       4: { // Deboche
-        'Bebidas': ['Salão'],
-        'Comidas': ['Cozinha 1', 'Cozinha 2'],
-        'Drinks': ['Bar'], // No Deboche, 'Bar' = Drinks!
+        'Comidas': ['Cozinha', 'Cozinha 2'],
+        'Bar': ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'],
+        'Drinks': ['Batidos', 'Montados', 'Mexido', 'Preshh'],
       }
     };
     
