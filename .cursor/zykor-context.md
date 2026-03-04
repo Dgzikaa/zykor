@@ -3122,7 +3122,69 @@ module.exports = {
 
 ---
 
-**Última atualização**: 02/03/2026 23:30 BRT  
+## 📚 DOCUMENTAÇÃO TÉCNICA ATUALIZADA (03/03/2026)
+
+> **⚠️ LEITURA OBRIGATÓRIA EM NOVOS CHATS!**
+
+### 🔴 PRIORIDADE MÁXIMA
+
+**`.cursor/REGRAS-DE-NEGOCIO-COMPLETAS.md`** (2.009 linhas)
+- ✅ TODAS as 60 colunas de `eventos_base` explicadas
+- ✅ TODAS as 65+ colunas de `desempenho_semanal` explicadas
+- ✅ **13 DIFERENÇAS entre Ordinário e Deboche** documentadas
+- ✅ Fórmulas exatas de cada cálculo
+- ✅ Queries SQL prontas para cada métrica
+- ✅ Limites de atrasos (em segundos)
+- ✅ Categorização de produtos
+- ✅ Regras de agregação (média ponderada vs simples)
+
+**DIFERENÇAS CRÍTICAS ENTRE BARES**:
+1. Locais do ContaHub (loc_desc)
+2. Campos de tempo (t0_t3 vs t0_t2)
+3. Limites de atraso por campo
+4. Grupos de produtos (24 vs 25 grupos)
+5. Custos NIBO (categorias diferentes)
+6. Stockout (locais diferentes)
+7. Reservas (Ordinário tem API, Deboche não)
+8. Faturamento por horário
+9. Dias principais (QUI+SÁB+DOM vs TER+QUA+QUI+SEX+SÁB)
+10. Conta Assinada
+11. Descontos
+12. Cancelamentos
+13. **Dias de operação** (Ordinário 7 dias, Deboche 6 dias - sem segunda)
+
+---
+
+### 🔵 ARQUITETURA E REFATORAÇÃO
+
+**`.cursor/PROPOSTA-ARQUITETURA-LIMPA.md`** (1.200+ linhas)
+- ✅ Fluxo completo de dados validado
+- ✅ Consolidação: 19 Edge Functions → 5
+- ✅ Consolidação: 61 Database Functions → 3
+- ✅ Horários otimizados (06h30-08h = dados prontos)
+- ✅ 5 Scripts SQL prontos para executar
+- ✅ Tabela `bares_config` (configurações centralizadas)
+- ✅ Lógica condicional por bar (lê do banco)
+- ✅ Preparado para migração ZigPay
+
+**`.cursor/MAPEAMENTO-COMPLETO-ARQUITETURA-ATUAL.md`** (146 linhas)
+- ✅ Inventário de 19 Edge Functions
+- ✅ Inventário de 27 Cron Jobs
+- ✅ Problemas identificados (duplicações, conflitos)
+
+---
+
+### 🔑 REGRAS DE OURO (Novos Chats)
+
+1. **SEMPRE ler** `REGRAS-DE-NEGOCIO-COMPLETAS.md` antes de calcular métricas
+2. **NUNCA editar** tabelas `contahub_*`, `yuzer_*`, `sympla_*` (dados brutos)
+3. **SEMPRE usar** `bares_config` para dias de operação (não hardcode)
+4. **SEMPRE usar** IF/ELSIF por bar (Ordinário ≠ Deboche)
+5. **SEMPRE testar** com dados reais de AMBOS os bares
+
+---
+
+**Última atualização**: 03/03/2026 15:30 BRT  
 **Próxima revisão**: Quando houver mudanças significativas no sistema
 
 **Mudanças nesta atualização**:

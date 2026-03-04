@@ -15,9 +15,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   try {
     console.log('🔄 Iniciando recálculo automático de desempenho semanal...');
+    console.log('🔑 Method:', req.method);
+    console.log('🔑 Auth header presente:', !!req.headers.get('authorization'));
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    console.log('🔧 Supabase URL:', supabaseUrl ? 'OK' : 'MISSING');
+    console.log('🔧 Service Key:', supabaseServiceKey ? 'OK' : 'MISSING');
     
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Variáveis do Supabase não encontradas');
@@ -26,23 +31,35 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Buscar todas as semanas que precisam ser recalculadas
-    // LÓGICA: Recalcular semana atual + últimas 3 semanas
+    // LÓGICA: Recalcular semana atual + últimas 3 semanas POR BAR
     const hoje = new Date()
     const trintaDiasAtras = new Date(hoje)
     trintaDiasAtras.setDate(hoje.getDate() - 30)
 
-    const { data: semanas, error: semanasError } = await supabase
+    // Buscar 4 semanas para CADA bar (não 4 no total)
+    const { data: semanasBar3, error: semanasError3 } = await supabase
       .from('desempenho_semanal')
       .select('*')
+      .eq('bar_id', 3)
       .gte('data_fim', trintaDiasAtras.toISOString().split('T')[0])
       .order('data_fim', { ascending: false })
       .limit(4)
 
-    if (semanasError) {
-      throw semanasError
+    const { data: semanasBar4, error: semanasError4 } = await supabase
+      .from('desempenho_semanal')
+      .select('*')
+      .eq('bar_id', 4)
+      .gte('data_fim', trintaDiasAtras.toISOString().split('T')[0])
+      .order('data_fim', { ascending: false })
+      .limit(4)
+
+    if (semanasError3 || semanasError4) {
+      throw semanasError3 || semanasError4
     }
 
-    console.log(`📊 Encontradas ${semanas?.length || 0} semanas para recalcular`)
+    const semanas = [...(semanasBar3 || []), ...(semanasBar4 || [])]
+
+    console.log(`📊 Encontradas ${semanas?.length || 0} semanas para recalcular (${semanasBar3?.length || 0} Ordinário + ${semanasBar4?.length || 0} Deboche)`)
 
     let sucessos = 0
     let erros = 0
