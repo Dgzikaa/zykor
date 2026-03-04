@@ -134,8 +134,6 @@ export async function verificarBarAberto(
     const diaSemana = dataVerificacao.getUTCDay();
     const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     
-    // Verificar se é terça após 15/04/2025
-    const ultimaTercaOperacional = new Date('2025-04-15T12:00:00Z');
     let resultado: StatusDia;
     
     // LÓGICA ESPECÍFICA POR BAR
@@ -155,20 +153,12 @@ export async function verificarBarAberto(
         };
       }
     } else {
-      // ORDINÁRIO: Fecha às terças-feiras (após 15/04/2025)
-      if (diaSemana === 2 && dataVerificacao > ultimaTercaOperacional) {
-        resultado = {
-          aberto: false,
-          motivo: 'Terça-feira (bar fechado)',
-          fonte: 'padrao'
-        };
-      } else {
-        resultado = {
-          aberto: true,
-          motivo: `${diasSemana[diaSemana]} (dia normal de funcionamento)`,
-          fonte: 'padrao'
-        };
-      }
+      // ORDINÁRIO: Abre TODOS OS DIAS (sem dia de fechamento padrão)
+      resultado = {
+        aberto: true,
+        motivo: `${diasSemana[diaSemana]} (dia normal de funcionamento)`,
+        fonte: 'padrao'
+      };
     }
 
     // Salvar no cache
@@ -242,7 +232,6 @@ export async function verificarMultiplasDatas(
 
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
-    const ultimaTercaOperacional = new Date('2025-04-15T12:00:00Z');
 
     // Processar cada data
     for (const data of datas) {
@@ -293,20 +282,12 @@ export async function verificarMultiplasDatas(
           });
         }
       } else {
-        // ORDINÁRIO: Fecha às terças-feiras (após 15/04/2025)
-        if (diaSemana === 2 && dataVerificacao > ultimaTercaOperacional) {
-          resultado.set(data, {
-            aberto: false,
-            motivo: 'Terça-feira (bar fechado)',
-            fonte: 'padrao'
-          });
-        } else {
-          resultado.set(data, {
-            aberto: true,
-            motivo: 'Dia normal de funcionamento',
-            fonte: 'padrao'
-          });
-        }
+        // ORDINÁRIO: Abre TODOS OS DIAS (sem dia de fechamento padrão)
+        resultado.set(data, {
+          aberto: true,
+          motivo: 'Dia normal de funcionamento',
+          fonte: 'padrao'
+        });
       }
     }
 
