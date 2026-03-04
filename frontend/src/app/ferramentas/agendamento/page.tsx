@@ -24,6 +24,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { SelectWithSearch } from '@/components/ui/select-with-search';
@@ -74,9 +75,9 @@ interface PagamentoAgendamento {
   inter_aprovacao_id?: string;
   bar_id?: number;
   bar_nome?: string;
-  criado_por_id?: number;
+  criado_por_id?: string;
   criado_por_nome?: string;
-  atualizado_por_id?: number;
+  atualizado_por_id?: string;
   atualizado_por_nome?: string;
   created_at: string;
   updated_at: string;
@@ -90,6 +91,20 @@ interface Stakeholder {
   phone?: string;
   type: 'fornecedor' | 'socio' | 'funcionario';
   pixKey?: string; // Adicionado para verificar a chave PIX
+}
+
+interface InterCredencial {
+  id: number;
+  nome: string;
+  cnpj?: string | null;
+  conta_corrente?: string | null;
+}
+
+interface FolhaPreviewItem {
+  nome: string;
+  pix: string;
+  cargo: string;
+  total: number;
 }
 
 // Chaves para localStorage
@@ -160,6 +175,15 @@ export default function AgendamentoPage() {
     isSameAsDocument: false,
   });
   const [isAtualizandoPix, setIsAtualizandoPix] = useState(false);
+
+  // Modal de importação da folha
+  const [modalFolha, setModalFolha] = useState(false);
+  const [textoFolha, setTextoFolha] = useState('');
+  const [previewFolha, setPreviewFolha] = useState<FolhaPreviewItem[]>([]);
+  const [categoriaFolhaId, setCategoriaFolhaId] = useState('');
+  const [centroCustoFolhaId, setCentroCustoFolhaId] = useState('');
+  const [competenciaFolha, setCompetenciaFolha] = useState(new Date().toISOString().slice(0, 7));
+  const [dataPagamentoFolha, setDataPagamentoFolha] = useState(new Date().toISOString().split('T')[0]);
 
   // Estados para Agendamento Automático
   const [statusProcessamento, setStatusProcessamento] = useState<{
@@ -243,6 +267,8 @@ export default function AgendamentoPage() {
   // Estados para categorias e centros de custo
   const [categorias, setCategorias] = useState<any[]>([]);
   const [centrosCusto, setCentrosCusto] = useState<any[]>([]);
+  const [interCredenciais, setInterCredenciais] = useState<InterCredencial[]>([]);
+  const [interCredencialSelecionadaId, setInterCredencialSelecionadaId] = useState<string>('');
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
 
   // Função para verificar se o bar tem credenciais configuradas
@@ -284,7 +310,7 @@ export default function AgendamentoPage() {
     setIsLoadingOptions(true);
     try {
       // Carregar categorias passando o bar_id
-      const categoriasResponse = await fetch(`/api/financeiro/nibo/categorias?bar_id=${barId}`);
+      const categoriasResponse = await fetch(`/api/financeiro/nibo/categorias?bar_id=${barId}&somente_pagamento=true`);
       const categoriasData = await categoriasResponse.json();
       if (categoriasData.categorias) {
         setCategorias(categoriasData.categorias);
@@ -298,6 +324,18 @@ export default function AgendamentoPage() {
       if (centrosCustoData.centrosCusto) {
         setCentrosCusto(centrosCustoData.centrosCusto);
       }
+
+      // Carregar credenciais Inter disponíveis para seleção da conta de pagamento
+      const interCredsResponse = await fetch(`/api/financeiro/inter/credenciais?bar_id=${barId}`);
+      const interCredsData = await interCredsResponse.json();
+      if (interCredsData.success && Array.isArray(interCredsData.credenciais)) {
+        setInterCredenciais(interCredsData.credenciais);
+        if (!interCredencialSelecionadaId && interCredsData.credenciais.length > 0) {
+          setInterCredencialSelecionadaId(String(interCredsData.credenciais[0].id));
+        }
+      } else {
+        setInterCredenciais([]);
+      }
     } catch (error) {
       console.error('Erro ao carregar opções:', error);
       toast({
@@ -308,7 +346,7 @@ export default function AgendamentoPage() {
     } finally {
       setIsLoadingOptions(false);
     }
-  }, [toast, barId]);
+  }, [toast, barId, interCredencialSelecionadaId]);
 
   // Funções de persistência
   const saveToLocalStorage = useCallback(() => {
@@ -518,13 +556,12 @@ export default function AgendamentoPage() {
       !novoPagamento.nome_beneficiario ||
       !novoPagamento.valor ||
       !novoPagamento.data_pagamento ||
-      !novoPagamento.categoria_id ||
-      !novoPagamento.centro_custo_id
+      !novoPagamento.categoria_id
     ) {
       toast({
         title: '❌ Campos obrigatórios',
         description:
-          'Preencha CPF/CNPJ, nome, valor, data de pagamento, categoria e centro de custo',
+          'Preencha CPF/CNPJ, nome, valor, data de pagamento e categoria',
         variant: 'destructive',
       });
       return;
@@ -549,7 +586,7 @@ export default function AgendamentoPage() {
 
     const now = new Date().toISOString();
     const usuarioNome = user?.nome || user?.email || 'Usuário';
-    const usuarioId = user?.id;
+    const usuarioId = user?.auth_id;
     
     // Buscar nomes de categoria e centro de custo
     const categoriaSelecionada = categorias.find(c => c.nibo_id === novoPagamento.categoria_id || c.id === novoPagamento.categoria_id);
@@ -627,6 +664,58 @@ export default function AgendamentoPage() {
       return;
     }
 
+    const normalizarCategoria = (value: string) =>
+      value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .trim();
+
+    const categoriasProibidas = new Set([
+      'APORTE DE CAPITAL',
+      'CONTRATOS',
+      'OUTRAS RECEITAS',
+      'DIVIDENDOS',
+      'EMPRESTIMOS DE SOCIOS',
+      'OUTROS INVESTIMENTOS',
+      'RECEITA BRUTA',
+      'RECEITA',
+      'FATURAMENTO',
+      'VENDAS',
+    ]);
+
+    const pendentes = pagamentos.filter(p => p.status === 'pendente');
+    const invalidos = pendentes.filter(p => {
+      const categoriaSelecionada = categorias.find(
+        c => c.nibo_id === p.categoria_id || c.id === p.categoria_id
+      );
+      const nome = normalizarCategoria(
+        String(
+          p.categoria_nome ||
+            categoriaSelecionada?.categoria_nome ||
+            categoriaSelecionada?.name ||
+            categoriaSelecionada?.nome ||
+            ''
+        )
+      );
+      const macro = normalizarCategoria(String(categoriaSelecionada?.categoria_macro || ''));
+      const texto = `${nome} ${macro}`;
+      return (
+        categoriasProibidas.has(nome) ||
+        categoriasProibidas.has(macro) ||
+        /(^| )RECEITA( |$)|FATURAMENTO|VENDAS/.test(texto)
+      );
+    });
+
+    if (invalidos.length > 0) {
+      toast({
+        title: '❌ Categoria inválida para pagamento',
+        description: `${invalidos.length} pagamento(s) pendente(s) estão com categoria de receita/entrada. Ajuste a categoria antes de agendar.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsProcessing(true);
     let sucessos = 0;
     let erros = 0;
@@ -641,10 +730,7 @@ export default function AgendamentoPage() {
             // 2. Agendar no NIBO
             await agendarPagamentoNoNibo(pagamento, stakeholder);
 
-            // 3. Enviar para o Inter
-            await enviarParaInter(pagamento);
-
-            // 4. Atualizar status para agendado
+            // 3. Atualizar status para agendado
             setPagamentos(prev =>
               prev.map(p =>
                 p.id === pagamento.id
@@ -653,7 +739,7 @@ export default function AgendamentoPage() {
                       status: 'agendado',
                       stakeholder_id: stakeholder.id,
                       updated_at: new Date().toISOString(),
-                      atualizado_por_id: user?.id,
+                      atualizado_por_id: user?.auth_id,
                       atualizado_por_nome: user?.nome || user?.email || 'Usuário',
                     }
                   : p
@@ -718,6 +804,7 @@ export default function AgendamentoPage() {
         chave: pagamento.chave_pix,
         data_pagamento: pagamento.data_pagamento,
         bar_id: pagamento.bar_id || barId,
+        inter_credencial_id: interCredencialSelecionadaId ? Number(interCredencialSelecionadaId) : null,
         agendamento_id: pagamento.nibo_agendamento_id, // Para vincular o código de solicitação ao agendamento
       };
 
@@ -747,7 +834,7 @@ export default function AgendamentoPage() {
                   ...p,
                   inter_aprovacao_id: data.data?.codigoSolicitacao || '',
                   updated_at: new Date().toISOString(),
-                  atualizado_por_id: user?.id,
+                  atualizado_por_id: user?.auth_id,
                   atualizado_por_nome: user?.nome || user?.email || 'Usuário',
                 }
               : p
@@ -781,7 +868,7 @@ export default function AgendamentoPage() {
                 ...p,
                 status: 'erro_inter' as any, // Status customizado para erro apenas no Inter
                 updated_at: new Date().toISOString(),
-                atualizado_por_id: user?.id,
+                atualizado_por_id: user?.auth_id,
                 atualizado_por_nome: user?.nome || user?.email || 'Usuário',
               }
             : p
@@ -793,60 +880,15 @@ export default function AgendamentoPage() {
   const verificarStakeholder = async (
     pagamento: PagamentoAgendamento
   ): Promise<Stakeholder> => {
-    // Se não tiver NIBO configurado, retornar stakeholder local
-    if (!credenciaisDisponiveis.nibo) {
-      console.log('[STAKEHOLDER] NIBO não configurado, usando stakeholder local');
-      return {
-        id: `local-${Date.now()}`,
-        name: pagamento.nome_beneficiario,
-        document: pagamento.cpf_cnpj || pagamento.chave_pix || '',
-        type: 'fornecedor'
-      };
-    }
-
-    try {
-      // Buscar stakeholder existente por CPF/CNPJ
-      const cpfCnpj =
-        pagamento.cpf_cnpj || pagamento.chave_pix || '00000000000';
-      const response = await fetch(
-        `/api/financeiro/nibo/stakeholders?q=${cpfCnpj}`
-      );
-      const data = await response.json();
-
-      if (data.success && data.data.length > 0) {
-        return data.data[0];
-      }
-
-      // Criar novo stakeholder
-      const novoStakeholder = {
-        name: pagamento.nome_beneficiario,
-        document: cpfCnpj,
-        type: 'fornecedor' as const,
-      };
-
-      const createResponse = await fetch('/api/financeiro/nibo/stakeholders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(novoStakeholder),
-      });
-
-      const createData = await createResponse.json();
-      return createData.data || {
-        id: `local-${Date.now()}`,
-        name: pagamento.nome_beneficiario,
-        document: cpfCnpj,
-        type: 'fornecedor'
-      };
-    } catch (error) {
-      console.error('Erro ao verificar stakeholder:', error);
-      // Fallback: retornar stakeholder local em caso de erro
-      return {
-        id: `local-${Date.now()}`,
-        name: pagamento.nome_beneficiario,
-        document: pagamento.cpf_cnpj || pagamento.chave_pix || '',
-        type: 'fornecedor'
-      };
-    }
+    // Fluxo de folha: sempre delegar a resolução de funcionário ao backend via /employees.
+    const documento = pagamento.cpf_cnpj || '';
+    return {
+      id: '',
+      name: pagamento.nome_beneficiario,
+      document: documento,
+      type: 'funcionario',
+      pixKey: pagamento.chave_pix || undefined,
+    };
   };
 
   const agendarPagamentoNoNibo = async (
@@ -854,6 +896,49 @@ export default function AgendamentoPage() {
     stakeholder: Stakeholder
   ) => {
     try {
+      const normalizarCategoria = (value: string) =>
+        value
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toUpperCase()
+          .trim();
+
+      const categoriasProibidas = new Set([
+        'APORTE DE CAPITAL',
+        'CONTRATOS',
+        'OUTRAS RECEITAS',
+        'DIVIDENDOS',
+        'EMPRESTIMOS DE SOCIOS',
+        'OUTROS INVESTIMENTOS',
+        'RECEITA BRUTA',
+        'RECEITA',
+        'FATURAMENTO',
+        'VENDAS',
+      ]);
+
+      const categoriaSelecionada = categorias.find(
+        c => c.nibo_id === pagamento.categoria_id || c.id === pagamento.categoria_id
+      );
+      const categoriaNome = String(
+        pagamento.categoria_nome ||
+          categoriaSelecionada?.categoria_nome ||
+          categoriaSelecionada?.name ||
+          categoriaSelecionada?.nome ||
+          ''
+      );
+      const categoriaMacro = String(categoriaSelecionada?.categoria_macro || '');
+      const categoriaTexto = `${normalizarCategoria(categoriaNome)} ${normalizarCategoria(categoriaMacro)}`;
+      const categoriaBloqueada =
+        categoriasProibidas.has(normalizarCategoria(categoriaNome)) ||
+        categoriasProibidas.has(normalizarCategoria(categoriaMacro)) ||
+        /(^| )RECEITA( |$)|FATURAMENTO|VENDAS/.test(categoriaTexto);
+
+      if (categoriaBloqueada) {
+        throw new Error(
+          `Categoria "${categoriaNome || 'Não informada'}" é de entrada/receita e não pode ser usada para pagamento`
+        );
+      }
+
       // VALIDAÇÃO CRÍTICA: Verificar bar_id do pagamento
       const barIdFinal = pagamento.bar_id || barId;
       if (!barIdFinal) {
@@ -865,10 +950,11 @@ export default function AgendamentoPage() {
         console.warn('[AGENDAMENTO] Categoria não selecionada, NIBO pode rejeitar');
       }
 
-      // Formatar valor corretamente
-      const valorNumerico = parseFloat(
-        pagamento.valor.replace('R$', '').replace(',', '.').trim()
-      );
+      // Formatar valor corretamente (pt-BR robusto)
+      const valorNumerico = parseCurrencyToNumber(pagamento.valor);
+      if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) {
+        throw new Error(`Valor inválido para ${pagamento.nome_beneficiario}: ${pagamento.valor}`);
+      }
 
       // Formatar datas no formato ISO
       const dataPagamento = new Date(pagamento.data_pagamento)
@@ -879,13 +965,15 @@ export default function AgendamentoPage() {
         : dataPagamento;
 
       const agendamento = {
-        stakeholderId: stakeholder.id,
+        stakeholderId: stakeholder.id || undefined,
         stakeholder_nome: stakeholder.name || pagamento.nome_beneficiario,
+        stakeholder_document: stakeholder.document || pagamento.cpf_cnpj || undefined,
+        stakeholder_pix_key: stakeholder.pixKey || pagamento.chave_pix || undefined,
         dueDate: dataPagamento,
         scheduleDate: dataPagamento,
         categoria_id: pagamento.categoria_id,
         categoria_nome: pagamento.categoria_nome,
-        centro_custo_id: pagamento.centro_custo_id || '',
+        centro_custo_id: pagamento.centro_custo_id || null,
         centro_custo_nome: pagamento.centro_custo_nome,
         accrualDate: dataCompetencia,
         value: valorNumerico,
@@ -895,7 +983,7 @@ export default function AgendamentoPage() {
         reference: pagamento.codigo_solic || undefined,
         bar_id: barIdFinal,
         bar_nome: pagamento.bar_nome || barNome,
-        criado_por_id: pagamento.criado_por_id || user?.id,
+        criado_por_id: pagamento.criado_por_id || user?.auth_id,
         criado_por_nome: pagamento.criado_por_nome || user?.nome || user?.email,
       };
 
@@ -922,7 +1010,7 @@ export default function AgendamentoPage() {
                   ...p,
                   nibo_agendamento_id: data.data.id,
                   updated_at: new Date().toISOString(),
-                  atualizado_por_id: user?.id,
+                  atualizado_por_id: user?.auth_id,
                   atualizado_por_nome: user?.nome || user?.email || 'Usuário',
                 }
               : p
@@ -944,7 +1032,7 @@ export default function AgendamentoPage() {
                 ...p,
                 status: 'erro',
                 updated_at: new Date().toISOString(),
-                atualizado_por_id: user?.id,
+                atualizado_por_id: user?.auth_id,
                 atualizado_por_nome: user?.nome || user?.email || 'Usuário',
               }
             : p
@@ -980,6 +1068,300 @@ export default function AgendamentoPage() {
   };
 
   const removerFormatacao = (valor: string): string => valor.replace(/\D/g, '');
+
+  const parseCurrencyToNumber = (rawValue: string): number => {
+    if (!rawValue) return 0;
+    let normalized = rawValue.trim();
+    const isNegative = normalized.includes('-');
+    normalized = normalized.replace(/[R$\s]/g, '');
+    normalized = normalized.replace(/\./g, '').replace(',', '.');
+    normalized = normalized.replace('-', '');
+    const parsed = Number.parseFloat(normalized);
+    if (!Number.isFinite(parsed)) return 0;
+    return isNegative ? -Math.abs(parsed) : parsed;
+  };
+
+  const formatCurrency = (value: number): string =>
+    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  const abrirModalFolha = () => {
+    if (!barId) {
+      toast({
+        title: '❌ Nenhum bar selecionado',
+        description: 'Selecione um bar antes de importar a folha',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!categoriaFolhaId && categorias.length > 0) {
+      const categoriaSalario = categorias.find((c: any) => {
+        const nome = String(c.categoria_nome || c.name || c.nome || '').toLowerCase();
+        return nome.includes('sal') || nome.includes('folha') || nome.includes('funcion');
+      });
+      if (categoriaSalario) {
+        setCategoriaFolhaId(categoriaSalario?.nibo_id || categoriaSalario?.id || '');
+      }
+    }
+
+    setModalFolha(true);
+  };
+
+  const processarPreviewFolha = useCallback(() => {
+    const linhas = textoFolha
+      .split('\n')
+      .map(l => l.trim())
+      .filter(Boolean);
+
+    const ignorarLinha = (linhaLower: string): boolean => {
+      return (
+        linhaLower.includes('qtd\t') ||
+        linhaLower.includes('nome completo') ||
+        linhaLower.includes('pagamentos pj') ||
+        linhaLower.includes('totais')
+      );
+    };
+
+    const normalizeHeader = (value: string) =>
+      value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+
+    // Padrão para layout novo (sem cabeçalho): nome | pix | valor | descrição ...
+    let indiceNome = 0;
+    let indicePix = 1;
+    let indiceCargo = 3;
+    let indiceValor = 2;
+    let inicioDados = 0;
+
+    const extrairNomeEPix = (prefixo: string): { nome: string; pix: string } => {
+      const base = prefixo.trim();
+      if (!base) return { nome: '', pix: '' };
+
+      const emailMatch = base.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+      if (emailMatch?.[0]) {
+        return {
+          nome: base.replace(emailMatch[0], '').trim(),
+          pix: emailMatch[0].trim(),
+        };
+      }
+
+      const uuidMatch = base.match(
+        /[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i
+      );
+      if (uuidMatch?.[0]) {
+        return {
+          nome: base.replace(uuidMatch[0], '').trim(),
+          pix: uuidMatch[0].trim(),
+        };
+      }
+
+      const cpfCnpjMatch = base.match(
+        /(\d{3}\.?\d{3}\.?\d{3}-?\d{2}|\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}|\d{11,14})(?!.*(\d{11,14}))/i
+      );
+      if (cpfCnpjMatch?.[0]) {
+        return {
+          nome: base.replace(cpfCnpjMatch[0], '').trim(),
+          pix: cpfCnpjMatch[0].trim(),
+        };
+      }
+
+      const phoneMatch = base.match(
+        /(\(?\d{2}\)?\s*9?\s*\d{4,5}[-\s]?\d{4})$/i
+      );
+      if (phoneMatch?.[0]) {
+        return {
+          nome: base.slice(0, phoneMatch.index).trim(),
+          pix: phoneMatch[0].trim(),
+        };
+      }
+
+      const partes = base.split(/\s{2,}/).filter(Boolean);
+      if (partes.length >= 2) {
+        return {
+          nome: partes.slice(0, -1).join(' ').trim(),
+          pix: partes[partes.length - 1].trim(),
+        };
+      }
+
+      return { nome: base, pix: '' };
+    };
+
+    // Detectar cabeçalho dinâmico (suporta formato antigo e novo).
+    if (linhas.length > 0) {
+      const headerCols = linhas[0].split('\t').map(c => normalizeHeader(c));
+      const headerPossuiCampos = headerCols.some(
+        h =>
+          h.includes('nome_beneficiario') ||
+          h.includes('nome completo') ||
+          h.includes('chave_pix') ||
+          h === 'pix' ||
+          h === 'valor' ||
+          h === 'total'
+      );
+
+      if (headerPossuiCampos) {
+        const idxNome = headerCols.findIndex(h => h.includes('nome_beneficiario') || h.includes('nome completo') || h === 'nome');
+        const idxPix = headerCols.findIndex(h => h.includes('chave_pix') || h === 'pix' || h.includes('chave'));
+        const idxCargo = headerCols.findIndex(h => h === 'cargo' || h.includes('funcao'));
+        const idxValor = headerCols.findIndex(h => h === 'valor');
+        const idxTotal = headerCols.findIndex(h => h === 'total');
+
+        if (idxNome >= 0) indiceNome = idxNome;
+        if (idxPix >= 0) indicePix = idxPix;
+        if (idxCargo >= 0) indiceCargo = idxCargo;
+        if (idxTotal >= 0) {
+          indiceValor = idxTotal;
+        } else if (idxValor >= 0) {
+          indiceValor = idxValor;
+        }
+
+        inicioDados = 1; // pular cabeçalho
+      }
+    }
+
+    const preview: FolhaPreviewItem[] = [];
+
+    for (const linha of linhas.slice(inicioDados)) {
+      const linhaLower = linha.toLowerCase();
+      if (ignorarLinha(linhaLower)) continue;
+
+      if (linha.includes('\t')) {
+        const cols = linha.split('\t').map(c => c.trim());
+        if (cols.length < 2) continue;
+
+        const nome = cols[indiceNome] || cols[0] || '';
+        const pix = cols[indicePix] || '';
+        const cargo = cols[indiceCargo] || cols[3] || 'Funcionário';
+        const totalBruto =
+          cols[indiceValor] ||
+          cols.find(c => /R\$\s*[\d.,]+|^-?\d+[.,]\d{2}$/.test(c)) ||
+          '';
+        const total = parseCurrencyToNumber(totalBruto);
+
+        if (!nome || total <= 0) continue;
+        preview.push({ nome, pix, cargo, total });
+        continue;
+      }
+
+      // Fallback para texto com espaços (sem TAB), ex:
+      // NOME ... PIX ... R$ 1.234,56 DESCRICAO 06/06/2026 15/02/2026
+      const matchLinha = linha.match(
+        /^(.*?)\s+R\$\s*([\d.]+,\d{2})\s+(.*?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})(?:\s+(\d{2}\/\d{2}\/\d{4}))?\s*$/
+      );
+      if (!matchLinha) continue;
+
+      const prefixoNomePix = matchLinha[1] || '';
+      const valorBruto = matchLinha[2] || '';
+      const descricaoLinha = (matchLinha[3] || '').trim();
+      const total = parseCurrencyToNumber(`R$ ${valorBruto}`);
+      if (total <= 0) continue;
+
+      const { nome, pix } = extrairNomeEPix(prefixoNomePix);
+      if (!nome) continue;
+
+      preview.push({
+        nome,
+        pix,
+        cargo: descricaoLinha || 'Funcionário',
+        total,
+      });
+    }
+
+    setPreviewFolha(preview);
+
+    if (preview.length === 0) {
+      toast({
+        title: 'Nenhuma linha válida',
+        description: 'Cole a planilha com TAB ou texto em linhas, contendo nome e valor positivo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    toast({
+      title: 'Prévia da folha gerada',
+      description: `${preview.length} linha(s) pronta(s) para importação`,
+    });
+  }, [textoFolha, toast]);
+
+  const importarFolhaParaLista = () => {
+    if (!categoriaFolhaId) {
+      toast({
+        title: 'Categoria obrigatória',
+        description: 'Selecione uma categoria para os lançamentos da folha',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (previewFolha.length === 0) {
+      toast({
+        title: 'Prévia vazia',
+        description: 'Gere a prévia da folha antes de importar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const usuarioNome = user?.nome || user?.email || 'Usuário';
+    const usuarioId = user?.auth_id;
+    const categoriaSelecionada = categorias.find(
+      c => c.nibo_id === categoriaFolhaId || c.id === categoriaFolhaId
+    );
+    const centroSelecionado = centrosCusto.find(
+      c => c.nibo_id === centroCustoFolhaId || c.id === centroCustoFolhaId
+    );
+
+    const pagamentosFolha: PagamentoAgendamento[] = previewFolha.map((item, index) => {
+      const documentoLimpo = removerFormatacao(item.pix);
+      const documento =
+        documentoLimpo.length === 11 || documentoLimpo.length === 14
+          ? documentoLimpo
+          : '';
+
+      return {
+        id: `${Date.now()}-${index}`,
+        cpf_cnpj: documento,
+        nome_beneficiario: item.nome,
+        chave_pix: item.pix,
+        valor: formatCurrency(item.total),
+        descricao: `Folha ${competenciaFolha} - ${item.cargo}`,
+        data_pagamento: dataPagamentoFolha,
+        data_competencia: `${competenciaFolha}-01`,
+        categoria_id: categoriaFolhaId,
+        categoria_nome:
+          categoriaSelecionada?.categoria_nome ||
+          categoriaSelecionada?.name ||
+          categoriaSelecionada?.nome ||
+          '',
+        centro_custo_id: centroCustoFolhaId || '',
+        centro_custo_nome: centroSelecionado?.nome || centroSelecionado?.name || '',
+        status: 'pendente',
+        bar_id: barId,
+        bar_nome: barNome || '',
+        criado_por_id: usuarioId,
+        criado_por_nome: usuarioNome,
+        atualizado_por_id: usuarioId,
+        atualizado_por_nome: usuarioNome,
+        created_at: now,
+        updated_at: now,
+      };
+    });
+
+    setPagamentos(prev => [...prev, ...pagamentosFolha]);
+    setModalFolha(false);
+    setPreviewFolha([]);
+    setTextoFolha('');
+
+    toast({
+      title: '✅ Folha importada',
+      description: `${pagamentosFolha.length} pagamento(s) adicionado(s) à lista`,
+    });
+  };
 
   const buscarStakeholder = async (document: string) => {
     // Remover formatação antes de validar e buscar
@@ -1165,6 +1547,15 @@ export default function AgendamentoPage() {
       return;
     }
 
+    if (!interCredencialSelecionadaId) {
+      toast({
+        title: '❌ Selecione a API Inter',
+        description: 'Escolha qual conta Inter será usada para este pagamento',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const pendentes = pagamentos.filter(p => p.status === 'pendente');
     
     if (pendentes.length === 0) {
@@ -1219,6 +1610,7 @@ export default function AgendamentoPage() {
             data_pagamento: pagamento.data_pagamento,
             descricao: pagamento.descricao || `Pagamento para ${pagamento.nome_beneficiario}`,
             bar_id: pagamento.bar_id || barId,
+            inter_credencial_id: Number(interCredencialSelecionadaId),
           }),
         });
 
@@ -1244,7 +1636,7 @@ export default function AgendamentoPage() {
                 description: pagamento.descricao || `Pagamento PIX para ${pagamento.nome_beneficiario}`,
                 bar_id: pagamento.bar_id || barId,
                 bar_nome: pagamento.bar_nome || barNome,
-                criado_por_id: user?.id,
+                criado_por_id: user?.auth_id,
                 criado_por_nome: user?.nome || user?.email,
               }),
             });
@@ -1261,7 +1653,7 @@ export default function AgendamentoPage() {
                     status: 'aguardando_aprovacao',
                     inter_aprovacao_id: data.data?.codigoSolicitacao || '',
                     updated_at: new Date().toISOString(),
-                    atualizado_por_id: user?.id,
+                    atualizado_por_id: user?.auth_id,
                     atualizado_por_nome: user?.nome || user?.email || 'Usuário',
                   }
                 : p
@@ -1269,7 +1661,10 @@ export default function AgendamentoPage() {
           );
           sucessos++;
         } else {
-          throw new Error(data.error || 'Erro ao enviar PIX');
+          const credInfo = data?.credencial
+            ? ` [credencial_id=${data.credencial.credencial_id}, cert=${data.credencial.cert_file || 'n/a'}, key=${data.credencial.key_file || 'n/a'}]`
+            : '';
+          throw new Error((data.error || 'Erro ao enviar PIX') + credInfo);
         }
       } catch (error) {
         console.error(`[PIX-DIRETO] Erro no pagamento ${pagamento.nome_beneficiario}:`, error);
@@ -1330,6 +1725,15 @@ export default function AgendamentoPage() {
       toast({
         title: '❌ Credenciais Inter não configuradas',
         description: `O bar "${barNome}" não possui credenciais Inter (certificados PIX) configuradas. Configure antes de continuar.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!interCredencialSelecionadaId) {
+      toast({
+        title: '❌ Selecione a API Inter',
+        description: 'Escolha qual conta Inter será usada para este pagamento',
         variant: 'destructive',
       });
       return;
@@ -1397,6 +1801,7 @@ export default function AgendamentoPage() {
             data_pagamento: pagamento.data_pagamento,
             descricao: pagamento.descricao || `Pagamento para ${pagamento.nome_beneficiario}`,
             bar_id: pagamento.bar_id || barId,
+            inter_credencial_id: Number(interCredencialSelecionadaId),
             agendamento_id: pagamento.nibo_agendamento_id, // Para vincular o código de solicitação ao agendamento
           }),
         });
@@ -1414,7 +1819,7 @@ export default function AgendamentoPage() {
                     inter_aprovacao_id: data.data?.codigoSolicitacao,
                     codigo_solic: data.data?.codigoSolicitacao,
                     updated_at: new Date().toISOString(),
-                    atualizado_por_id: user?.id,
+                    atualizado_por_id: user?.auth_id,
                     atualizado_por_nome: user?.nome || user?.email || 'Usuário',
                   }
                 : p
@@ -1430,14 +1835,14 @@ export default function AgendamentoPage() {
                     ...p, 
                     status: 'erro_inter' as const, 
                     updated_at: new Date().toISOString(),
-                    atualizado_por_id: user?.id,
+                    atualizado_por_id: user?.auth_id,
                     atualizado_por_nome: user?.nome || user?.email || 'Usuário',
                   }
                 : p
             )
           );
           erros++;
-          console.error(`Erro ao enviar PIX para ${pagamento.nome_beneficiario}:`, data.error);
+          console.error(`Erro ao enviar PIX para ${pagamento.nome_beneficiario}:`, data.error, data?.credencial || {});
         }
       } catch (error: any) {
         console.error(`Erro ao enviar PIX para ${pagamento.nome_beneficiario}:`, error);
@@ -1449,7 +1854,7 @@ export default function AgendamentoPage() {
                   ...p, 
                   status: 'erro_inter' as const, 
                   updated_at: new Date().toISOString(),
-                  atualizado_por_id: user?.id,
+                  atualizado_por_id: user?.auth_id,
                   atualizado_por_nome: user?.nome || user?.email || 'Usuário',
                 }
               : p
@@ -1900,6 +2305,24 @@ export default function AgendamentoPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {credenciaisDisponiveis.inter && (
+                    <div>
+                      <Label className="text-gray-700 dark:text-gray-300">
+                        API Inter para pagamento
+                      </Label>
+                      <SelectWithSearch
+                        value={interCredencialSelecionadaId}
+                        onValueChange={(value) => setInterCredencialSelecionadaId(value || '')}
+                        placeholder="Selecione a credencial Inter"
+                        options={interCredenciais.map((cred) => ({
+                          value: String(cred.id),
+                          label: cred.cnpj ? `${cred.nome} (${cred.cnpj})` : cred.nome,
+                        }))}
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-gray-100 dark:bg-gray-600 rounded-lg">
@@ -1989,7 +2412,7 @@ export default function AgendamentoPage() {
                     {/* Botão principal: PIX Direto (sem NIBO) */}
                     <Button
                       onClick={pagarPendentesInterDireto}
-                      disabled={isProcessing || pagandoPixId !== null || metricas.pendentes === 0 || !credenciaisDisponiveis.inter || !barId}
+                      disabled={isProcessing || pagandoPixId !== null || metricas.pendentes === 0 || !credenciaisDisponiveis.inter || !barId || !interCredencialSelecionadaId}
                       variant="outline"
                       className="w-full"
                       title={!credenciaisDisponiveis.inter ? 'Credenciais Inter não configuradas' : 'Enviar PIX direto sem passar pelo NIBO'}
@@ -2028,7 +2451,7 @@ export default function AgendamentoPage() {
                     </Button>
                     <Button
                       onClick={pagarAgendadosInter}
-                      disabled={isProcessing || pagandoPixId !== null || metricas.agendados === 0 || !credenciaisDisponiveis.inter || !barId}
+                      disabled={isProcessing || pagandoPixId !== null || metricas.agendados === 0 || !credenciaisDisponiveis.inter || !barId || !interCredencialSelecionadaId}
                       variant="outline"
                       className="w-full"
                       title={!credenciaisDisponiveis.inter ? 'Credenciais Inter não configuradas para este bar' : ''}
@@ -2276,7 +2699,7 @@ export default function AgendamentoPage() {
                         </div>
                       </div>
                       
-                      {/* Campos obrigatórios: Categoria e Centro de Custo */}
+                      {/* Campo obrigatório: Categoria (centro de custo é opcional) */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label
@@ -2306,7 +2729,7 @@ export default function AgendamentoPage() {
                             htmlFor="centro_custo"
                             className="text-gray-700 dark:text-gray-300"
                           >
-                            Centro de Custo *
+                            Centro de Custo (opcional)
                           </Label>
                           <SelectWithSearch
                             value={novoPagamento.centro_custo_id}
@@ -2360,6 +2783,13 @@ export default function AgendamentoPage() {
                         >
                           <Trash2 className="w-4 h-4" />
                           <span>Limpar Lista</span>
+                        </button>
+                        <button
+                          onClick={abrirModalFolha}
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors"
+                        >
+                          <FileText className="w-4 h-4" />
+                          <span>Pagar Folha</span>
                         </button>
                       </div>
                     </CardContent>
@@ -2970,6 +3400,120 @@ export default function AgendamentoPage() {
             </div>
           </div>
         </div>
+
+        {/* Modal: Importar Folha */}
+        <Dialog open={modalFolha} onOpenChange={setModalFolha}>
+          <DialogContent className="max-w-5xl max-h-[90vh] bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-gray-900 dark:text-white">
+                Importar Folha de Pagamento
+              </DialogTitle>
+              <DialogDescription className="text-gray-600 dark:text-gray-400">
+                Cole a planilha (tabulada), gere a previa e importe os pagamentos para a lista.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-700 dark:text-gray-300">Data de pagamento *</Label>
+                  <Input
+                    type="date"
+                    value={dataPagamentoFolha}
+                    onChange={e => setDataPagamentoFolha(e.target.value)}
+                    className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-700 dark:text-gray-300">Competência (AAAA-MM) *</Label>
+                  <Input
+                    type="month"
+                    value={competenciaFolha}
+                    onChange={e => setCompetenciaFolha(e.target.value)}
+                    className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-700 dark:text-gray-300">Categoria padrão *</Label>
+                  <SelectWithSearch
+                    value={categoriaFolhaId}
+                    onValueChange={value => setCategoriaFolhaId(value || '')}
+                    placeholder="Selecione a categoria da folha"
+                    options={categorias.map(cat => ({
+                      value: cat.nibo_id || cat.id,
+                      label: cat.categoria_nome || cat.name || cat.nome,
+                    }))}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-700 dark:text-gray-300">Centro de custo padrão (opcional)</Label>
+                  <SelectWithSearch
+                    value={centroCustoFolhaId}
+                    onValueChange={value => setCentroCustoFolhaId(value || '')}
+                    placeholder="Selecione um centro de custo"
+                    options={centrosCusto.map(cc => ({
+                      value: cc.nibo_id || cc.id,
+                      label: cc.nome || cc.name,
+                    }))}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-gray-700 dark:text-gray-300">Cole a planilha da folha (TAB)</Label>
+                <textarea
+                  className="w-full h-40 mt-1 p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-mono resize-none border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                  value={textoFolha}
+                  onChange={e => setTextoFolha(e.target.value)}
+                  placeholder="Cole aqui as linhas da folha copiadas do Excel/Sheets"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button onClick={processarPreviewFolha} variant="outline">
+                  Gerar Prévia
+                </Button>
+                <Button
+                  onClick={importarFolhaParaLista}
+                  className="btn-primary"
+                  disabled={previewFolha.length === 0}
+                >
+                  Importar {previewFolha.length > 0 ? `${previewFolha.length} pagamento(s)` : 'Folha'}
+                </Button>
+              </div>
+
+              {previewFolha.length > 0 && (
+                <div className="rounded-lg border border-gray-200 dark:border-gray-600 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-700">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Nome</th>
+                        <th className="px-3 py-2 text-left">PIX</th>
+                        <th className="px-3 py-2 text-left">Cargo</th>
+                        <th className="px-3 py-2 text-left">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewFolha.slice(0, 20).map((item, idx) => (
+                        <tr key={`${item.nome}-${idx}`} className="border-t border-gray-200 dark:border-gray-600">
+                          <td className="px-3 py-2">{item.nome}</td>
+                          <td className="px-3 py-2">{item.pix}</td>
+                          <td className="px-3 py-2">{item.cargo}</td>
+                          <td className="px-3 py-2 font-medium">{formatCurrency(item.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Modal para cadastrar stakeholder */}
         <Dialog open={modalStakeholder} onOpenChange={setModalStakeholder}>

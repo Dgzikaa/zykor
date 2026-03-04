@@ -85,7 +85,7 @@ const PERMISSION_MAPPINGS: Record<string, string[]> = {
   home: ['home'],
   operacoes: ['operacoes', 'checklists', 'terminal_producao', 'receitas_insumos'],
   gestao: ['gestao', 'tempo', 'planejamento'],
-  relatorios: ['relatorios', 'dashboard_financeiro_mensal', 'marketing_360'],
+  relatorios: ['relatorios', 'analitico', 'analitico_clientes', 'analitico_eventos', 'dashboard_financeiro_mensal', 'marketing_360'],
   configuracoes: ['configuracoes'],
   ferramentas: ['operacoes', 'checklists', 'terminal_producao', 'receitas_insumos', 'financeiro_agendamento'],
   cfp: ['home'], // CFP disponível para todos
@@ -113,8 +113,8 @@ const defaultSidebarItems: SidebarItem[] = [
     color: 'text-indigo-600 dark:text-indigo-400',
     permission: 'relatorios',
     subItems: [
-      { icon: Users, label: 'Clientes', href: '/analitico/clientes', permission: 'relatorios' },
-      { icon: BarChart3, label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
+      { icon: Users, label: 'Clientes', href: '/analitico/clientes', permission: 'analitico_clientes' },
+      { icon: BarChart3, label: 'Eventos', href: '/analitico/eventos', permission: 'analitico_eventos' },
     ],
   },
   {

@@ -1,24 +1,31 @@
 import https from 'https';
 import { getInterCertificates } from './certificates';
 
-let cachedToken: string | null = null;
-let tokenExpiresAt: number | null = null;
+type TokenCacheEntry = {
+  token: string;
+  expiresAt: number;
+};
+
+const tokenCache = new Map<string, TokenCacheEntry>();
 
 export async function getInterAccessToken(
   clientId: string,
   clientSecret: string,
-  scope: string = 'pagamento-pix.write'
+  scope: string = 'pagamento-pix.write',
+  mtlsCredentials?: { cert: Buffer; key: Buffer }
 ): Promise<string> {
   const now = Date.now();
-  if (cachedToken && tokenExpiresAt && now < tokenExpiresAt - 30_000) {
-    console.log('🔐 Usando token em cache');
-    return cachedToken;
+  const cacheKey = `${clientId}:${scope}`;
+  const cached = tokenCache.get(cacheKey);
+  if (cached && now < cached.expiresAt - 30_000) {
+    console.log('🔐 Usando token em cache da credencial');
+    return cached.token;
   }
 
   console.log('🔐 Obtendo novo token de acesso via mTLS...');
 
   // Carregar certificados PEM usando função centralizada
-  const { cert, key } = getInterCertificates();
+  const { cert, key } = mtlsCredentials || getInterCertificates();
 
   // Preparar dados para OAuth2
   const data = new URLSearchParams({
@@ -71,9 +78,11 @@ export async function getInterAccessToken(
             console.log('🔐 Scope do token:', parsed.scope);
             console.log('🔐 Expira em:', parsed.expires_in, 'segundos');
 
-            // Cache do token
-            cachedToken = parsed.access_token;
-            tokenExpiresAt = now + parsed.expires_in * 1000;
+            // Cache do token por credencial + escopo
+            tokenCache.set(cacheKey, {
+              token: parsed.access_token,
+              expiresAt: now + parsed.expires_in * 1000,
+            });
 
             resolve(parsed.access_token);
           } else {

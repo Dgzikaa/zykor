@@ -8,18 +8,19 @@ interface PixPaymentParams {
   valor: number;
   descricao: string;
   chave: string;
+  mtlsCredentials?: { cert: Buffer; key: Buffer };
 }
 
 export async function realizarPagamentoPixInter(
   params: PixPaymentParams
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    const { token, contaCorrente, valor, descricao, chave } = params;
+    const { token, contaCorrente, valor, descricao, chave, mtlsCredentials } = params;
 
     console.log('🔐 Iniciando pagamento PIX com https.request...');
 
     // Carregar certificados PEM usando função centralizada
-    const { cert, key } = getInterCertificates();
+    const { cert, key } = mtlsCredentials || getInterCertificates();
 
     // Preparar payload (valor como string conforme Python)
     const payload = {
@@ -38,14 +39,15 @@ export async function realizarPagamentoPixInter(
     const headers = {
       Authorization: `Bearer ${token.trim()}`,
       'Content-Type': 'application/json',
-      'x-conta-corrente': '400516462',
+      'x-conta-corrente': contaCorrente,
+      'x-id-idempotente': idempotenteId,
     };
 
     console.log('📦 Payload para PIX:', JSON.stringify(payload));
     console.log('🔐 Headers para PIX:', {
       Authorization: `Bearer ${token.substring(0, 20)}...`,
       'Content-Type': 'application/json',
-      'x-conta-corrente': '400516462',
+      'x-conta-corrente': contaCorrente,
     });
 
     // Configurar requisição HTTPS com mTLS (produção)
@@ -106,7 +108,9 @@ export async function realizarPagamentoPixInter(
       if (response.body && response.body.trim()) {
         try {
           const errorData = JSON.parse(response.body);
-          errorMessage = errorData.title || errorMessage;
+          const title = errorData.title || `Erro ${response.statusCode}`;
+          const detail = errorData.detail ? String(errorData.detail) : '';
+          errorMessage = detail ? `${title}: ${detail}` : title;
         } catch (parseError) {
           errorMessage = `Erro ${response.statusCode}: ${response.body}`;
         }

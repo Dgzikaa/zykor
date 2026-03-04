@@ -11,22 +11,60 @@ const supabase = createClient(
 );
 
 // Função para obter credenciais do Inter do banco
-async function getInterCredentials(barId: number = 3) {
-  const { data: credencial, error } = await supabase
+async function getInterCredentials(barId: number = 3, credentialId?: number) {
+  let query = supabase
     .from('api_credentials')
     .select('*')
     .eq('bar_id', barId)
     .in('sistema', ['inter', 'banco_inter'])
-    .eq('ativo', true)
-    .limit(1)
-    .single();
+    .eq('ativo', true);
 
+  if (credentialId) {
+    query = query.eq('id', credentialId);
+  } else {
+    query = query.order('id', { ascending: true }).limit(1);
+  }
+
+  const { data: credenciais, error } = await query;
+
+  const credencial = credenciais?.[0];
   if (error || !credencial) {
     console.error('[INTER-PIX] Erro ao buscar credenciais:', error);
     return null;
   }
 
   return credencial;
+}
+
+async function loadCredentialCertificates(configuracoes: any): Promise<{ cert: Buffer; key: Buffer } | null> {
+  const certFile =
+    configuracoes?.cert_file ||
+    configuracoes?.cert_path ||
+    configuracoes?.certificate_file ||
+    null;
+  const keyFile =
+    configuracoes?.key_file ||
+    configuracoes?.key_path ||
+    configuracoes?.private_key_file ||
+    null;
+
+  if (!certFile || !keyFile) {
+    return null;
+  }
+
+  const { data: certBlob, error: certError } = await supabase.storage.from('inter').download(certFile);
+  if (certError || !certBlob) {
+    throw new Error(`Não foi possível baixar certificado no bucket inter: ${certFile}`);
+  }
+
+  const { data: keyBlob, error: keyError } = await supabase.storage.from('inter').download(keyFile);
+  if (keyError || !keyBlob) {
+    throw new Error(`Não foi possível baixar chave privada no bucket inter: ${keyFile}`);
+  }
+
+  const cert = Buffer.from(await certBlob.arrayBuffer());
+  const key = Buffer.from(await keyBlob.arrayBuffer());
+  return { cert, key };
 }
 
 // Funções de validação de chave PIX
@@ -107,6 +145,7 @@ export async function POST(request: NextRequest) {
       chave,
       data_pagamento,
       bar_id,
+      inter_credencial_id,
       agendamento_id // ID do nibo_agendamentos para atualizar com o código de solicitação
     } = body;
 
@@ -124,7 +163,8 @@ export async function POST(request: NextRequest) {
       agendamento_id,
       chave,
       data_pagamento,
-      bar_id
+      bar_id,
+      inter_credencial_id
     });
 
     // Validações
@@ -162,7 +202,10 @@ export async function POST(request: NextRequest) {
     console.log('[INTER-PIX] Tipo de chave identificado:', tipoChave);
 
     // Buscar credenciais do Inter
-    const credenciais = await getInterCredentials(bar_id);
+    const credentialId = Number.isFinite(Number(inter_credencial_id))
+      ? Number(inter_credencial_id)
+      : undefined;
+    const credenciais = await getInterCredentials(bar_id, credentialId);
     
     if (!credenciais) {
       console.error('[INTER-PIX] Credenciais não encontradas para bar_id:', bar_id);
@@ -181,11 +224,28 @@ export async function POST(request: NextRequest) {
     // Extrair credenciais
     const clientId = credenciais.client_id;
     const clientSecret = credenciais.client_secret;
-    const contaCorrente = credenciais.configuracoes?.conta_corrente || '400516462';
+    const contaCorrente = credenciais.configuracoes?.conta_corrente;
+    const credencialDebug = {
+      credencial_id: credenciais.id,
+      empresa_nome: credenciais.empresa_nome || null,
+      conta_corrente: contaCorrente || null,
+      cert_file:
+        credenciais.configuracoes?.cert_file ||
+        credenciais.configuracoes?.cert_path ||
+        credenciais.configuracoes?.certificate_file ||
+        null,
+      key_file:
+        credenciais.configuracoes?.key_file ||
+        credenciais.configuracoes?.key_path ||
+        credenciais.configuracoes?.private_key_file ||
+        null,
+    };
 
-    if (!clientId || !clientSecret) {
+    console.log('[INTER-PIX] Credencial selecionada:', credencialDebug);
+
+    if (!clientId || !clientSecret || !contaCorrente) {
       return NextResponse.json(
-        { success: false, error: 'Credenciais Inter incompletas (falta client_id/client_secret)' },
+        { success: false, error: 'Credenciais Inter incompletas (client_id/client_secret/conta_corrente)' },
         { status: 400 }
       );
     }
@@ -196,7 +256,13 @@ export async function POST(request: NextRequest) {
     try {
       // 1. Obter access_token via OAuth2 com mTLS
       console.log('[INTER-PIX] Obtendo access token...');
-      const accessToken = await getInterAccessToken(clientId, clientSecret, 'pagamento-pix.write');
+      const mtlsCredentials = await loadCredentialCertificates(credenciais.configuracoes);
+      const accessToken = await getInterAccessToken(
+        clientId,
+        clientSecret,
+        'pagamento-pix.write',
+        mtlsCredentials || undefined
+      );
       console.log('[INTER-PIX] Access token obtido com sucesso');
 
       // 2. Realizar pagamento PIX
@@ -206,7 +272,8 @@ export async function POST(request: NextRequest) {
         contaCorrente: contaCorrente,
         valor: valorNumerico,
         descricao: descricao || `Pagamento PIX para ${destinatario || 'beneficiário'}`,
-        chave: tipoChave.chaveFormatada
+        chave: tipoChave.chaveFormatada,
+        mtlsCredentials: mtlsCredentials || undefined
       });
 
       if (!resultadoPix.success) {
@@ -230,8 +297,8 @@ export async function POST(request: NextRequest) {
         });
 
         return NextResponse.json(
-          { success: false, error: resultadoPix.error },
-          { status: 400 }
+          { success: false, error: resultadoPix.error, credencial: credencialDebug },
+          { status: resultadoPix.error?.toLowerCase().includes('acesso negado') ? 401 : 400 }
         );
       }
 
@@ -293,7 +360,8 @@ export async function POST(request: NextRequest) {
           tipoChave: tipoChave.tipo,
           status: 'enviado',
           destinatario,
-          interResponse: resultadoPix.data
+          interResponse: resultadoPix.data,
+          credencial: credencialDebug,
         }
       });
 
@@ -303,7 +371,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { 
           success: false, 
-          error: `Erro na comunicação com Banco Inter: ${interError.message || 'Erro desconhecido'}` 
+          error: `Erro na comunicação com Banco Inter: ${interError.message || 'Erro desconhecido'}`,
+          credencial: credencialDebug,
         },
         { status: 500 }
       );

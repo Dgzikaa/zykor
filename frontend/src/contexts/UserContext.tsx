@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 interface Usuario {
   id: number;
+  auth_id?: string;
   email: string;
   nome: string;
   role: 'admin' | 'manager' | 'funcionario';

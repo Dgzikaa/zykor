@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const barId = searchParams.get('bar_id');
     const ativo = searchParams.get('ativo') !== 'false'; // default: true
+    const somentePagamento = searchParams.get('somente_pagamento') === 'true';
 
     console.log(`[NIBO-CATEGORIAS] Buscando categorias, bar_id=${barId}, ativo=${ativo}`);
 
@@ -62,10 +63,50 @@ export async function GET(request: NextRequest) {
 
     // Mapear para usar nibo_id como 'id' para o frontend
     // Se nibo_id não existir, manter o id interno (fallback)
-    const categoriasFormatadas = categorias?.map(cat => ({
+    let categoriasFormatadas = categorias?.map(cat => ({
       ...cat,
       id: cat.nibo_id || cat.id // Usar nibo_id se disponível
     })) || [];
+
+    // Para contas a pagar, remove categorias de entrada/financeiras não-pagáveis.
+    if (somentePagamento) {
+      const normalize = (value: string) =>
+        value
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toUpperCase()
+          .trim();
+
+      const proibidasExatas = new Set([
+        'APORTE DE CAPITAL',
+        'CONTRATOS',
+        'OUTRAS RECEITAS',
+        'DIVIDENDOS',
+        'EMPRESTIMOS DE SOCIOS',
+        'OUTROS INVESTIMENTOS',
+        'RECEITA BRUTA',
+        'RECEITA',
+        'FATURAMENTO',
+        'VENDAS'
+      ]);
+
+      categoriasFormatadas = categoriasFormatadas.filter((cat) => {
+        // Para agendamento no NIBO, categoria sem nibo_id nao e valida.
+        if (!cat.nibo_id) {
+          return false;
+        }
+
+        const nome = normalize(String(cat.categoria_nome || ''));
+        const macro = normalize(String(cat.categoria_macro || ''));
+        if (proibidasExatas.has(nome) || proibidasExatas.has(macro)) {
+          return false;
+        }
+
+        // Bloqueio por padrão textual para evitar categorias claramente de receita.
+        const texto = `${nome} ${macro}`;
+        return !/(^| )RECEITA( |$)|FATURAMENTO|VENDAS/.test(texto);
+      });
+    }
 
     return NextResponse.json({
       success: true,

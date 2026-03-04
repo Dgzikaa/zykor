@@ -107,53 +107,82 @@ export async function POST(request: NextRequest) {
     const dataPagamentoFormatada = formatarData(data_pagamento);
     const dataCompetenciaFormatada = formatarData(data_competencia) || dataPagamentoFormatada;
 
-    // Montar payload para NIBO /schedules/debit
-    const schedulePayload: any = {
-      stakeholderId: stakeholder_id,
-      dueDate: dataPagamentoFormatada,
-      scheduleDate: dataPagamentoFormatada,
-      accrualDate: dataCompetenciaFormatada,
-      description: descricao || `Pagamento para ${nome_beneficiario || stakeholder_nome}`,
-      categories: [{
-        categoryId: categoria_id,
-        value: valorNegativo,
-        description: descricao || 'Pagamento'
-      }]
+    const buildPayload = (categoryValue: number) => {
+      const payload: any = {
+        stakeholderId: stakeholder_id,
+        dueDate: dataPagamentoFormatada,
+        scheduleDate: dataPagamentoFormatada,
+        accrualDate: dataCompetenciaFormatada,
+        description: descricao || `Pagamento para ${nome_beneficiario || stakeholder_nome}`,
+        categories: [
+          {
+            categoryId: categoria_id,
+            value: categoryValue,
+            description: descricao || 'Pagamento',
+          },
+        ],
+      };
+
+      if (centro_custo_id) {
+        payload.costCenterValueType = 0;
+        payload.costCenters = [
+          {
+            costCenterId: centro_custo_id,
+            value: categoryValue,
+          },
+        ];
+      }
+
+      return payload;
     };
 
-    // Adicionar centro de custo se fornecido
-    if (centro_custo_id) {
-      schedulePayload.costCenterValueType = 0; // 0 = valor
-      schedulePayload.costCenters = [{
-        costCenterId: centro_custo_id,
-        value: String(valorNegativo)
-      }];
+    const postSchedule = async (payload: any) => {
+      const response = await fetch(`${NIBO_BASE_URL}/schedules/debit?apitoken=${credencial.api_token}`, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          apitoken: credencial.api_token,
+        },
+        body: JSON.stringify(payload),
+      });
+      const responseText = await response.text();
+      return { response, responseText };
+    };
+
+    let schedulePayload = buildPayload(valorNegativo);
+    console.log('[AGENDAR-NIBO] Payload (negativo):', JSON.stringify(schedulePayload, null, 2));
+    let { response, responseText } = await postSchedule(schedulePayload);
+
+    if (!response.ok && responseText.includes('Valor do agendamento de pagamento deve ser negativo')) {
+      const valorPositivo = Math.abs(valorNumerico);
+      schedulePayload = buildPayload(valorPositivo);
+      console.warn('[AGENDAR-NIBO] NIBO rejeitou negativo, tentando fallback com valor positivo');
+      console.log('[AGENDAR-NIBO] Payload (fallback positivo):', JSON.stringify(schedulePayload, null, 2));
+      const retry = await postSchedule(schedulePayload);
+      response = retry.response;
+      responseText = retry.responseText;
     }
 
-    console.log('[AGENDAR-NIBO] Payload:', JSON.stringify(schedulePayload, null, 2));
-
-    // Criar agendamento no NIBO
-    const response = await fetch(`${NIBO_BASE_URL}/schedules/debit?apitoken=${credencial.api_token}`, {
-      method: 'POST',
-      headers: {
-        'accept': 'application/json',
-        'Content-Type': 'application/json',
-        'apitoken': credencial.api_token
-      },
-      body: JSON.stringify(schedulePayload)
-    });
-
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[AGENDAR-NIBO] Erro NIBO:', response.status, errorText);
+      console.error('[AGENDAR-NIBO] Erro NIBO:', response.status, responseText);
+      if (responseText.includes('Valor do agendamento de pagamento deve ser negativo')) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              'NIBO rejeitou o agendamento por validação interna de categoria/apropriação. Tente outra categoria de despesa e confira o cadastro da categoria.',
+          },
+          { status: 400 }
+        );
+      }
       return NextResponse.json(
-        { success: false, error: `Erro NIBO: ${response.status} - ${errorText}` },
+        { success: false, error: `Erro NIBO: ${response.status} - ${responseText}` },
         { status: response.status }
       );
     }
 
     // NIBO retorna o ID como texto puro (UUID)
-    const responseText = await response.text();
     const niboId = responseText.replace(/"/g, '').trim();
     
     console.log('[AGENDAR-NIBO] Agendamento criado:', niboId);
