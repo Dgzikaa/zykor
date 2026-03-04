@@ -38,20 +38,9 @@ const MENU_LATERAL_STRUCTURE = [
     ],
   },
   {
-    label: 'CRM',
-    subItems: [
-      { label: 'Umbler Talk', href: '/crm/umbler' },
-      { label: 'Segmentação RFM', href: '/crm/inteligente' },
-      { label: 'Predição Churn', href: '/crm/churn-prediction' },
-      { label: 'LTV e Engajamento', href: '/crm/ltv-engajamento' },
-      { label: 'Padrões', href: '/crm/padroes-comportamento' },
-    ],
-  },
-  {
     label: 'Ferramentas',
     subItems: [
-      { label: 'Produção e Insumos', href: '/ferramentas/producao-insumos' },
-      { label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque' },
+      { label: 'CRM', href: '/ferramentas/crm' },
       { label: 'Agendamento', href: '/ferramentas/agendamento' },
       { label: 'NPS Funcionários', href: '/ferramentas/nps' },
       { label: 'Voz do Cliente', href: '/ferramentas/voz-cliente' },
@@ -60,7 +49,6 @@ const MENU_LATERAL_STRUCTURE = [
       { label: 'CMO - Mão de Obra', href: '/ferramentas/cmo' },
       { label: 'Stockout', href: '/ferramentas/stockout' },
       { label: 'Consultas', href: '/ferramentas/consultas' },
-      { label: 'DRE', href: '/ferramentas/dre' },
     ],
   },
   {
@@ -80,6 +68,9 @@ const MENU_LATERAL_STRUCTURE = [
   {
     label: 'Extras',
     subItems: [
+      { label: 'Produção e Insumos', href: '/ferramentas/producao-insumos' },
+      { label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque' },
+      { label: 'DRE', href: '/ferramentas/dre' },
       { label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia' },
       { label: 'Retrospectiva 2025', href: '/retrospectiva-2025' },
       { label: 'Impacto Entrada', href: '/ferramentas/analise-couvert' },
@@ -148,7 +139,6 @@ export function getCategorias(): string[] {
  * Regras:
  * - Estratégico -> ['gestao', 'home']
  * - Analítico -> ['relatorios']
- * - CRM -> ['gestao']
  * - Ferramentas -> ['ferramentas', 'operacoes']
  * - Configurações -> ['configuracoes']
  * - Extras -> ['home', 'relatorios']
@@ -157,7 +147,6 @@ function gerarPermissoesAutomaticas(categoria: string): string[] {
   const mapa: Record<string, string[]> = {
     'Estratégico': ['gestao', 'home'],
     'Analítico': ['relatorios'],
-    'CRM': ['gestao'],
     'Ferramentas': ['ferramentas', 'operacoes'],
     'Configurações': ['configuracoes'],
     'Extras': ['home', 'relatorios'],
@@ -200,7 +189,7 @@ export const ROLES_PADRAO = {
     nome: 'Gerente',
     descricao: 'Acesso a gestão, relatórios e configurações',
     modulos: MODULOS_MENU
-      .filter(m => ['Estratégico', 'Analítico', 'CRM', 'Ferramentas'].includes(m.categoria))
+      .filter(m => ['Estratégico', 'Analítico', 'Ferramentas'].includes(m.categoria))
       .map(m => m.id),
   },
   funcionario: {

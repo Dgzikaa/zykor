@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useBar } from '@/contexts/BarContext';
 
 interface ClienteChurn {
   cliente_id: string;
@@ -92,6 +93,7 @@ interface Stats {
 }
 
 export default function ChurnPredictionPage() {
+  const { selectedBar } = useBar();
   const [clientes, setClientes] = useState<ClienteChurn[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,7 +118,7 @@ export default function ChurnPredictionPage() {
     try {
       const page = reset ? 1 : paginacao.page + 1;
       const nivelParam = filtroRisco !== 'todos' ? `&nivel_risco=${filtroRisco}` : '';
-      const url = `/api/crm/churn-prediction?page=${page}&limit=50${nivelParam}`;
+      const url = `/api/crm/churn-prediction?page=${page}&limit=50${nivelParam}&bar_id=${selectedBar?.id}`;
 
       const response = await fetch(url);
       const result = await response.json();
@@ -145,8 +147,9 @@ export default function ChurnPredictionPage() {
   };
 
   useEffect(() => {
+    if (!selectedBar?.id) return;
     fetchData(true);
-  }, [filtroRisco]);
+  }, [filtroRisco, selectedBar?.id]);
 
   const enviarWhatsApp = (telefone: string, nome: string) => {
     const mensagem = `Olá ${nome}! Sentimos sua falta aqui no bar! 🍺✨ Que tal dar uma passada?`;
@@ -157,13 +160,13 @@ export default function ChurnPredictionPage() {
   const getNivelBadge = (nivel: string) => {
     switch (nivel) {
       case 'critico':
-        return <Badge className="bg-red-600 dark:bg-red-500">🚨 Crítico</Badge>;
+        return <Badge variant="outline" className="bg-muted text-foreground border-border">🚨 Crítico</Badge>;
       case 'alto':
-        return <Badge className="bg-orange-600 dark:bg-orange-500">⚠️ Alto Risco</Badge>;
+        return <Badge variant="outline" className="bg-muted text-foreground border-border">⚠️ Alto Risco</Badge>;
       case 'medio':
-        return <Badge className="bg-yellow-600 dark:bg-yellow-500">⚡ Médio</Badge>;
+        return <Badge variant="outline" className="bg-muted text-foreground border-border">⚡ Médio</Badge>;
       case 'baixo':
-        return <Badge className="bg-green-600 dark:bg-green-500">✅ Baixo</Badge>;
+        return <Badge variant="outline" className="bg-muted text-foreground border-border">✅ Baixo</Badge>;
       default:
         return <Badge>-</Badge>;
     }
@@ -241,8 +244,8 @@ export default function ChurnPredictionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-2 py-4 max-w-[98vw]">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -277,13 +280,13 @@ export default function ChurnPredictionPage() {
               {/* Crítico */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 cursor-help hover:shadow-md transition-shadow">
+                  <Card className="bg-card border-border cursor-help hover:shadow-md transition-shadow">
                     <CardContent className="p-6">
-                      <div className="text-sm text-red-600 dark:text-red-400 mb-1 flex items-center gap-2">
+                      <div className="text-sm text-muted-foreground mb-1 flex items-center gap-2">
                         <Flame className="w-4 h-4" />
                         Crítico
                       </div>
-                      <div className="text-3xl font-bold text-red-700 dark:text-red-300">{stats.critico}</div>
+                      <div className="text-3xl font-bold text-foreground">{stats.critico}</div>
                     </CardContent>
                   </Card>
                 </TooltipTrigger>
@@ -296,13 +299,13 @@ export default function ChurnPredictionPage() {
               {/* Alto Risco */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 cursor-help hover:shadow-md transition-shadow">
+                  <Card className="bg-card border-border cursor-help hover:shadow-md transition-shadow">
                     <CardContent className="p-6">
-                      <div className="text-sm text-orange-600 dark:text-orange-400 mb-1 flex items-center gap-2">
+                      <div className="text-sm text-muted-foreground mb-1 flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4" />
                         Alto Risco
                       </div>
-                      <div className="text-3xl font-bold text-orange-700 dark:text-orange-300">{stats.alto}</div>
+                      <div className="text-3xl font-bold text-foreground">{stats.alto}</div>
                     </CardContent>
                   </Card>
                 </TooltipTrigger>
@@ -315,13 +318,13 @@ export default function ChurnPredictionPage() {
               {/* Médio Risco */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 cursor-help hover:shadow-md transition-shadow">
+                  <Card className="bg-card border-border cursor-help hover:shadow-md transition-shadow">
                     <CardContent className="p-6">
-                      <div className="text-sm text-yellow-600 dark:text-yellow-400 mb-1 flex items-center gap-2">
+                      <div className="text-sm text-muted-foreground mb-1 flex items-center gap-2">
                         <ShieldAlert className="w-4 h-4" />
                         Médio Risco
                       </div>
-                      <div className="text-3xl font-bold text-yellow-700 dark:text-yellow-300">{stats.medio}</div>
+                      <div className="text-3xl font-bold text-foreground">{stats.medio}</div>
                     </CardContent>
                   </Card>
                 </TooltipTrigger>
@@ -334,13 +337,13 @@ export default function ChurnPredictionPage() {
               {/* Baixo Risco */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 cursor-help hover:shadow-md transition-shadow">
+                  <Card className="bg-card border-border cursor-help hover:shadow-md transition-shadow">
                     <CardContent className="p-6">
-                      <div className="text-sm text-green-600 dark:text-green-400 mb-1 flex items-center gap-2">
+                      <div className="text-sm text-muted-foreground mb-1 flex items-center gap-2">
                         <ShieldCheck className="w-4 h-4" />
                         Baixo Risco
                       </div>
-                      <div className="text-3xl font-bold text-green-700 dark:text-green-300">{stats.baixo}</div>
+                      <div className="text-3xl font-bold text-foreground">{stats.baixo}</div>
                     </CardContent>
                   </Card>
                 </TooltipTrigger>
@@ -355,36 +358,36 @@ export default function ChurnPredictionPage() {
 
         {/* Ações Recomendadas por Nível */}
         {filtroRisco !== 'todos' && filtroRisco !== 'baixo' && (
-          <Card className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-amber-200 dark:border-amber-800 mb-4">
+          <Card className="bg-muted/40 border-border mb-4">
             <CardContent className="p-4">
-              <h3 className="font-semibold text-amber-800 dark:text-amber-200 mb-2 flex items-center gap-2">
+              <h3 className="font-semibold text-foreground mb-2 flex items-center gap-2">
                 <Activity className="w-4 h-4" />
                 Ações Recomendadas para {filtroRisco === 'critico' ? 'Risco Crítico' : filtroRisco === 'alto' ? 'Alto Risco' : 'Risco Médio'}:
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
                 {filtroRisco === 'critico' && (
                   <>
-                    <span className="text-amber-700 dark:text-amber-300">🚨 Contato URGENTE via WhatsApp</span>
-                    <span className="text-amber-700 dark:text-amber-300">💰 Cupom 20-30% de desconto</span>
-                    <span className="text-amber-700 dark:text-amber-300">🎁 Convite VIP para evento especial</span>
-                    <span className="text-amber-700 dark:text-amber-300">⭐ Tratamento prioritário</span>
-                    <span className="text-amber-700 dark:text-amber-300">📞 Ligação de reativação</span>
+                    <span className="text-muted-foreground">🚨 Contato URGENTE via WhatsApp</span>
+                    <span className="text-muted-foreground">💰 Cupom 20-30% de desconto</span>
+                    <span className="text-muted-foreground">🎁 Convite VIP para evento especial</span>
+                    <span className="text-muted-foreground">⭐ Tratamento prioritário</span>
+                    <span className="text-muted-foreground">📞 Ligação de reativação</span>
                   </>
                 )}
                 {filtroRisco === 'alto' && (
                   <>
-                    <span className="text-amber-700 dark:text-amber-300">📞 Contato esta semana</span>
-                    <span className="text-amber-700 dark:text-amber-300">💳 Cupom 15% de desconto</span>
-                    <span className="text-amber-700 dark:text-amber-300">📧 Campanha de reengajamento</span>
-                    <span className="text-amber-700 dark:text-amber-300">🎯 Combo promocional</span>
+                    <span className="text-muted-foreground">📞 Contato esta semana</span>
+                    <span className="text-muted-foreground">💳 Cupom 15% de desconto</span>
+                    <span className="text-muted-foreground">📧 Campanha de reengajamento</span>
+                    <span className="text-muted-foreground">🎯 Combo promocional</span>
                   </>
                 )}
                 {filtroRisco === 'medio' && (
                   <>
-                    <span className="text-amber-700 dark:text-amber-300">📱 Mensagem personalizada</span>
-                    <span className="text-amber-700 dark:text-amber-300">🎉 Convite para evento</span>
-                    <span className="text-amber-700 dark:text-amber-300">💌 Newsletter semanal</span>
-                    <span className="text-amber-700 dark:text-amber-300">🍽️ Novos produtos do cardápio</span>
+                    <span className="text-muted-foreground">📱 Mensagem personalizada</span>
+                    <span className="text-muted-foreground">🎉 Convite para evento</span>
+                    <span className="text-muted-foreground">💌 Newsletter semanal</span>
+                    <span className="text-muted-foreground">🍽️ Novos produtos do cardápio</span>
                   </>
                 )}
               </div>
@@ -425,7 +428,7 @@ export default function ChurnPredictionPage() {
 
               <Button
                 onClick={exportarCSV}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                variant="outline"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Exportar CSV
@@ -465,7 +468,7 @@ export default function ChurnPredictionPage() {
                     {/* WhatsApp Button - Ícone redondo pequeno */}
                     <button
                       onClick={() => enviarWhatsApp(cliente.telefone, cliente.nome)}
-                      className="w-10 h-10 flex-shrink-0 bg-green-500 hover:bg-green-600 rounded-full flex items-center justify-center transition-colors"
+                      className="w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center transition-colors"
                       title="Enviar WhatsApp"
                     >
                       <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
@@ -533,7 +536,8 @@ export default function ChurnPredictionPage() {
                     <Button
                       onClick={carregarMais}
                       disabled={loadingMore}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-8"
+                      variant="outline"
+                      className="px-8"
                     >
                       {loadingMore ? (
                         <>

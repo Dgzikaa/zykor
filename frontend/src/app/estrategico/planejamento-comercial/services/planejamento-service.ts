@@ -14,6 +14,15 @@ export interface PlanejamentoData {
   // Dados financeiros
   real_receita: number;
   m1_receita: number;
+  contahub_bruto?: number;
+  conta_assinada?: number;
+  contahub_liquido?: number;
+  yuzer_entrada?: number;
+  yuzer_bar?: number;
+  yuzer_descontos?: number;
+  yuzer_liquido?: number;
+  sympla_liquido?: number;
+  faturamento_total_detalhado?: number;
   
   // Dados de público
   clientes_plan: number;
@@ -79,6 +88,11 @@ export async function getPlanejamentoComercial(
   ano: number
 ): Promise<PlanejamentoData[]> {
   try {
+    interface YuzerPagamentoResumo {
+      data_evento: string;
+      total_descontos: number | null;
+    }
+
     // Calcular período
     const dataInicio = `${ano}-${mes.toString().padStart(2, '0')}-01`;
     const dataFinalConsulta = mes === 12 ? `${ano + 1}-01-01` : `${ano}-${(mes + 1).toString().padStart(2, '0')}-01`;
@@ -123,6 +137,9 @@ export async function getPlanejamentoComercial(
         sympla_checkins,
         yuzer_liquido,
         yuzer_ingressos,
+        conta_assinada,
+        faturamento_entrada_yuzer,
+        faturamento_bar_yuzer,
         res_tot,
         res_p,
         faturamento_couvert_manual,
@@ -143,6 +160,21 @@ export async function getPlanejamentoComercial(
     }
 
     const eventosFiltrados = eventos || [];
+    const datasEventos = Array.from(new Set(eventosFiltrados.map(e => e.data_evento)));
+
+    let descontosYuzerPorData = new Map<string, number>();
+    if (datasEventos.length > 0) {
+      const { data: yuzerPagamentos } = await supabase
+        .from('yuzer_pagamento')
+        .select('data_evento,total_descontos')
+        .eq('bar_id', barId)
+        .in('data_evento', datasEventos);
+
+      descontosYuzerPorData = (yuzerPagamentos || []).reduce((acc: Map<string, number>, row: YuzerPagamentoResumo) => {
+        acc.set(row.data_evento, Number(row.total_descontos || 0));
+        return acc;
+      }, new Map<string, number>());
+    }
 
     // Trigger recálculo (mas não bloqueante e sem log excessivo no server component)
     const eventosParaRecalcular = eventosFiltrados.filter(e => 
@@ -182,6 +214,12 @@ export async function getPlanejamentoComercial(
       const clientesAtivos: number | null = null;
       
       const dataEvento = new Date(evento.data_evento + 'T00:00:00Z');
+      const valorYuzerLiquido = Number(evento.yuzer_liquido || 0);
+      const valorSymplaLiquido = Number(evento.sympla_liquido || 0);
+      const valorContaAssinada = Number(evento.conta_assinada || 0);
+      const valorContahubLiquido = Number(evento.real_r || 0) - valorYuzerLiquido - valorSymplaLiquido;
+      const valorContahubBruto = valorContahubLiquido + valorContaAssinada;
+      const valorYuzerDescontos = descontosYuzerPorData.get(evento.data_evento) || 0;
 
       return {
         evento_id: evento.id,
@@ -197,6 +235,15 @@ export async function getPlanejamentoComercial(
         // real_r JÁ INCLUI ContaHub + Sympla + Yuzer (calculado pela função calculate_evento_metrics)
         real_receita: evento.real_r || 0,
         m1_receita: evento.m1_r || 0,
+        contahub_bruto: valorContahubBruto,
+        conta_assinada: valorContaAssinada,
+        contahub_liquido: valorContahubLiquido,
+        yuzer_entrada: Number(evento.faturamento_entrada_yuzer || 0),
+        yuzer_bar: Number(evento.faturamento_bar_yuzer || 0),
+        yuzer_descontos: valorYuzerDescontos,
+        yuzer_liquido: valorYuzerLiquido,
+        sympla_liquido: valorSymplaLiquido,
+        faturamento_total_detalhado: valorContahubLiquido + valorYuzerLiquido + valorSymplaLiquido,
         
         clientes_plan: evento.cl_plan || 0,
         clientes_real: evento.cl_real || 0,

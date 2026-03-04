@@ -176,9 +176,9 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         label: 'Mix de Vendas',
         agregacao: { tipo: 'fixa', valorFixo: 100, formato: 'percentual' },
         metricas: [
-          { key: 'perc_bebidas', label: '% Bebidas', status: 'auto', fonte: 'eventos_base', calculo: 'Categorias: Chopp, Bar, Pegue e Pague, Venda Volante, Baldes', formato: 'percentual' },
-          { key: 'perc_drinks', label: '% Drinks', status: 'auto', fonte: 'eventos_base', calculo: 'Categorias: Preshh, Montados, Mexido, Drinks, Drinks Autorais, Shot e Dose, Batidos', formato: 'percentual' },
-          { key: 'perc_comida', label: '% Comida', status: 'auto', fonte: 'eventos_base', calculo: 'Categorias: Cozinha, Cozinha 1, Cozinha 2', formato: 'percentual' },
+          { key: 'perc_bebidas', label: '% Bebidas', status: 'auto', fonte: 'eventos_base', calculo: 'Calculado por categoria_mix canônica (BEBIDA)', formato: 'percentual' },
+          { key: 'perc_drinks', label: '% Drinks', status: 'auto', fonte: 'eventos_base', calculo: 'Calculado por categoria_mix canônica (DRINK)', formato: 'percentual' },
+          { key: 'perc_comida', label: '% Comida', status: 'auto', fonte: 'eventos_base', calculo: 'Calculado por categoria_mix canônica (COMIDA)', formato: 'percentual' },
           { key: 'perc_happy_hour', label: '% Happy Hour', status: 'auto', fonte: 'eventos_base', calculo: 'Produtos do grupo Happy Hour / Total vendas', formato: 'percentual' },
         ]
       },

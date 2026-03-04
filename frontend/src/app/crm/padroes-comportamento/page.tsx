@@ -37,6 +37,7 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
+import { useBar } from '@/contexts/BarContext';
 
 interface PadraoCliente {
   telefone: string;
@@ -57,6 +58,7 @@ interface PadraoCliente {
 }
 
 export default function PadroesComportamentoPage() {
+  const { selectedBar } = useBar();
   const [clientes, setClientes] = useState<PadraoCliente[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -67,7 +69,7 @@ export default function PadroesComportamentoPage() {
   const fetchPadroes = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/crm/padroes-comportamento?limite=100');
+      const response = await fetch(`/api/crm/padroes-comportamento?limite=100&bar_id=${selectedBar?.id}`);
       const result = await response.json();
 
       if (result.success) {
@@ -82,12 +84,13 @@ export default function PadroesComportamentoPage() {
   };
 
   useEffect(() => {
+    if (!selectedBar?.id) return;
     fetchPadroes();
-  }, []);
+  }, [selectedBar?.id]);
 
   const buscarCliente = async (telefone: string) => {
     try {
-      const response = await fetch(`/api/crm/padroes-comportamento?telefone=${telefone}`);
+      const response = await fetch(`/api/crm/padroes-comportamento?telefone=${telefone}&bar_id=${selectedBar?.id}`);
       const result = await response.json();
 
       if (result.success) {
@@ -107,11 +110,11 @@ export default function PadroesComportamentoPage() {
   const getFrequenciaBadge = (freq: string) => {
     switch (freq) {
       case 'alto':
-        return <Badge className="bg-green-600">🔥 Alta (Semanal)</Badge>;
+        return <Badge variant="outline" className="bg-muted text-foreground border-border">🔥 Alta (Semanal)</Badge>;
       case 'medio':
-        return <Badge className="bg-yellow-600">⚡ Média (Mensal)</Badge>;
+        return <Badge variant="outline" className="bg-muted text-foreground border-border">⚡ Média (Mensal)</Badge>;
       case 'baixo':
-        return <Badge className="bg-gray-600">💤 Baixa (Esporádico)</Badge>;
+        return <Badge variant="outline" className="bg-muted text-foreground border-border">💤 Baixa (Esporádico)</Badge>;
       default:
         return <Badge>-</Badge>;
     }
@@ -132,8 +135,8 @@ export default function PadroesComportamentoPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-2 py-4 max-w-[98vw]">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -165,36 +168,36 @@ export default function PadroesComportamentoPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+            <Card className="bg-card border-border">
               <CardContent className="p-6">
                 <div>
-                  <div className="text-sm text-blue-600 dark:text-blue-400 mb-1">Dia Mais Popular</div>
-                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-300 capitalize">
+                  <div className="text-sm text-muted-foreground mb-1">Dia Mais Popular</div>
+                  <div className="text-2xl font-bold text-foreground capitalize">
                     {stats.dia_mais_popular}
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800">
+            <Card className="bg-card border-border">
               <CardContent className="p-6">
                 <div>
-                  <div className="text-sm text-purple-600 dark:text-purple-400 mb-1">Horário Popular</div>
-                  <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
+                  <div className="text-sm text-muted-foreground mb-1">Horário Popular</div>
+                  <div className="text-lg font-bold text-foreground">
                     {stats.horario_mais_popular}
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+            <Card className="bg-card border-border">
               <CardContent className="p-6">
                 <div>
-                  <div className="text-sm text-green-600 dark:text-green-400 mb-1">Alta Frequência</div>
-                  <div className="text-3xl font-bold text-green-700 dark:text-green-300">
+                  <div className="text-sm text-muted-foreground mb-1">Alta Frequência</div>
+                  <div className="text-3xl font-bold text-foreground">
                     {stats.frequencia_alta}
                   </div>
-                  <div className="text-xs text-green-600 dark:text-green-400 mt-1">clientes</div>
+                  <div className="text-xs text-muted-foreground mt-1">clientes</div>
                 </div>
               </CardContent>
             </Card>
@@ -337,30 +340,30 @@ export default function PadroesComportamentoPage() {
                       </CardContent>
                     </Card>
 
-                    <Card className="bg-blue-50 dark:bg-blue-900/20">
+                    <Card className="bg-card border-border">
                       <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-blue-700 dark:text-blue-300 capitalize">
+                        <div className="text-2xl font-bold text-foreground capitalize">
                           {clienteSelecionado.dia_semana_preferido}
                         </div>
-                        <div className="text-sm text-blue-600 dark:text-blue-400">Dia Preferido</div>
+                        <div className="text-sm text-muted-foreground">Dia Preferido</div>
                       </CardContent>
                     </Card>
 
-                    <Card className="bg-purple-50 dark:bg-purple-900/20">
+                    <Card className="bg-card border-border">
                       <CardContent className="p-4 text-center">
-                        <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
+                        <div className="text-lg font-bold text-foreground">
                           {clienteSelecionado.horario_preferido.split(' ')[0]}
                         </div>
-                        <div className="text-sm text-purple-600 dark:text-purple-400">Horário</div>
+                        <div className="text-sm text-muted-foreground">Horário</div>
                       </CardContent>
                     </Card>
 
-                    <Card className="bg-green-50 dark:bg-green-900/20">
+                    <Card className="bg-card border-border">
                       <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-green-700 dark:text-green-300">
+                        <div className="text-2xl font-bold text-foreground">
                           {clienteSelecionado.tamanho_grupo_medio}
                         </div>
-                        <div className="text-sm text-green-600 dark:text-green-400">Tamanho Grupo</div>
+                        <div className="text-sm text-muted-foreground">Tamanho Grupo</div>
                       </CardContent>
                     </Card>
                   </div>
@@ -409,7 +412,7 @@ export default function PadroesComportamentoPage() {
                   </div>
 
                   {/* Insights */}
-                  <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-blue-200 dark:border-blue-800">
+                  <Card className="bg-muted/40 border-border">
                     <CardHeader>
                       <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
                         <Target className="w-5 h-5" />
@@ -419,25 +422,25 @@ export default function PadroesComportamentoPage() {
                     <CardContent>
                       <ul className="space-y-2 text-gray-700 dark:text-gray-300">
                         <li className="flex items-start gap-2">
-                          <Activity className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <Activity className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                           <span>
                             <strong>Frequência {clienteSelecionado.frequencia}:</strong> Visita em média a cada {clienteSelecionado.intervalo_medio_visitas} dias
                           </span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <Calendar className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                          <Calendar className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                           <span>
                             <strong>Dia ideal para campanhas:</strong> {clienteSelecionado.dia_semana_preferido.charAt(0).toUpperCase() + clienteSelecionado.dia_semana_preferido.slice(1)}
                           </span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <Clock className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
+                          <Clock className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                           <span>
                             <strong>Melhor horário de contato:</strong> {clienteSelecionado.horario_preferido}
                           </span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <Users className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                          <Users className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                           <span>
                             {clienteSelecionado.vem_sozinho 
                               ? 'Cliente costuma vir sozinho - ideal para eventos intimistas'

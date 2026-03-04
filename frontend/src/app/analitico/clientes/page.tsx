@@ -839,9 +839,9 @@ export default function ClientesPage() {
   // Verificar se há bar selecionado
   if (!selectedBar) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-        <div className="container mx-auto px-4 py-8">
-          <Card className="bg-white dark:bg-gray-800 border-0 shadow-lg max-w-md mx-auto mt-20">
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-2 py-4 max-w-[98vw]">
+          <Card className="card-dark max-w-md mx-auto mt-20">
             <CardContent className="text-center py-16">
               <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Users className="h-10 w-10 text-amber-500" />
@@ -861,8 +861,8 @@ export default function ClientesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-        <div className="container mx-auto px-3 py-6">
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-2 py-4 max-w-[98vw]">
           <LoadingState 
             title="Carregando análise..."
             subtitle="Processando dados dos clientes"
@@ -875,9 +875,9 @@ export default function ClientesPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-        <div className="container mx-auto px-4 py-8">
-          <Card className="bg-white dark:bg-gray-800 border-0 shadow-lg max-w-md mx-auto mt-20">
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-2 py-4 max-w-[98vw]">
+          <Card className="card-dark max-w-md mx-auto mt-20">
             <CardContent className="text-center py-16">
               <div className="w-20 h-20 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Users className="h-10 w-10 text-red-500" />
@@ -902,18 +902,18 @@ export default function ClientesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-      <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-2 py-4 max-w-[98vw]">
         {/* Header compacto */}
         <div className="flex items-center justify-between mb-6">
           <div className="space-y-1">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg">
-                <Users className="h-6 w-6 text-white" />
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
+              <div className="p-2 bg-muted rounded-lg">
+                <Users className="h-6 w-6 text-foreground" />
               </div>
               Análise de Clientes
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 text-sm ml-11">
+            <p className="text-muted-foreground text-sm ml-11">
               Insights detalhados dos seus clientes mais valiosos
             </p>
           </div>
@@ -924,9 +924,9 @@ export default function ClientesPage() {
 
 
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <Card className="bg-white dark:bg-gray-800 border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden hover:scale-105">
-              <CardHeader className="pb-3 bg-gradient-to-r from-purple-500 to-purple-600">
-                <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
+            <Card className="card-dark shadow-sm overflow-hidden">
+              <CardHeader className="pb-3 border-b border-border/60">
+                <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
                   <Users className="h-4 w-4" />
                   Clientes Únicos
                 </CardTitle>
@@ -943,7 +943,7 @@ export default function ClientesPage() {
                     />
                   )}
                 </div>
-                <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   ContaHub
                 </p>
               </CardContent>
@@ -951,9 +951,9 @@ export default function ClientesPage() {
           </div>
 
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-75">
-            <Card className="bg-white dark:bg-gray-800 border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden hover:scale-105">
-              <CardHeader className="pb-3 bg-gradient-to-r from-emerald-500 to-emerald-600">
-                <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
+            <Card className="card-dark shadow-sm overflow-hidden">
+              <CardHeader className="pb-3 border-b border-border/60">
+                <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />
                   Total de Visitas
                 </CardTitle>
@@ -970,7 +970,7 @@ export default function ClientesPage() {
                     />
                   )}
                 </div>
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Desde a abertura
                 </p>
               </CardContent>
@@ -980,9 +980,9 @@ export default function ClientesPage() {
 
 
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-100">
-            <Card className="bg-white dark:bg-gray-800 border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden hover:scale-105">
-              <CardHeader className="pb-3 bg-gradient-to-r from-amber-500 to-amber-600">
-                <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
+            <Card className="card-dark shadow-sm overflow-hidden">
+              <CardHeader className="pb-3 border-b border-border/60">
+                <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
                   <Target className="h-4 w-4" />
                   Ticket Médio Geral
                 </CardTitle>
@@ -999,7 +999,7 @@ export default function ClientesPage() {
                     />
                   )}
                 </div>
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Por visita paga
                 </p>
               </CardContent>
@@ -1007,9 +1007,9 @@ export default function ClientesPage() {
           </div>
 
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-150">
-            <Card className="bg-white dark:bg-gray-800 border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden hover:scale-105">
-              <CardHeader className="pb-3 bg-gradient-to-r from-orange-500 to-orange-600">
-                <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
+            <Card className="card-dark shadow-sm overflow-hidden">
+              <CardHeader className="pb-3 border-b border-border/60">
+                <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
                   🎫 Ticket Entrada
                 </CardTitle>
               </CardHeader>
@@ -1025,7 +1025,7 @@ export default function ClientesPage() {
                     />
                   )}
                 </div>
-                <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Couvert médio
                 </p>
               </CardContent>
@@ -1033,9 +1033,9 @@ export default function ClientesPage() {
           </div>
 
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-200">
-            <Card className="bg-white dark:bg-gray-800 border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden hover:scale-105">
-              <CardHeader className="pb-3 bg-gradient-to-r from-green-500 to-green-600">
-                <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
+            <Card className="card-dark shadow-sm overflow-hidden">
+              <CardHeader className="pb-3 border-b border-border/60">
+                <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
                   🍺 Ticket Consumo
                 </CardTitle>
               </CardHeader>
@@ -1051,7 +1051,7 @@ export default function ClientesPage() {
                     />
                   )}
                 </div>
-                <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Consumação média
                 </p>
               </CardContent>
@@ -1062,17 +1062,17 @@ export default function ClientesPage() {
         {/* Tabelas com Abas */}
         <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 delay-300">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <Card className="card-dark shadow-lg overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-900 dark:from-slate-700 dark:to-slate-800">
+            <Card className="card-dark shadow-sm overflow-hidden">
+            <CardHeader className="bg-muted/40 border-b border-border">
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="flex items-center gap-2">
-                    <Users className="h-5 w-5 text-white" />
+                    <Users className="h-5 w-5 text-foreground" />
                     <div>
-                      <CardTitle className="text-white">
+                      <CardTitle className="text-foreground">
                         {activeTab === 'clientes' ? 'Top 100 Clientes ContaHub' : 'Top 100 Reservantes Getin'}
                       </CardTitle>
-                      <CardDescription className="text-slate-200">
+                      <CardDescription className="text-muted-foreground">
                         {activeTab === 'clientes' 
                           ? (diaSemanaFiltro !== 'todos' 
                               ? `Clientes ordenados por visitas em ${diasSemana.find(d => d.value === diaSemanaFiltro)?.label}s`
@@ -1084,7 +1084,7 @@ export default function ClientesPage() {
                             )
                         }
                         {diaSemanaFiltro !== 'todos' && (
-                          <span className="ml-2 text-yellow-300 font-semibold">
+                          <span className="ml-2 text-amber-600 dark:text-amber-400 font-semibold">
                             • Apenas visitas/reservas deste dia da semana
                           </span>
                         )}
@@ -1101,11 +1101,12 @@ export default function ClientesPage() {
                         value={buscaCliente}
                         onChange={(e) => setBuscaCliente(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && executarBusca()}
-                        className="w-full sm:w-[180px] bg-slate-700/90 dark:bg-gray-700/90 border-gray-300 dark:border-gray-600 text-white dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-400 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 backdrop-blur-sm"
+                        className="w-full sm:w-[180px]"
                       />
                       <Button
                         onClick={executarBusca}
-                        className="bg-slate-600 hover:bg-slate-500 dark:bg-gray-600 dark:hover:bg-gray-500 text-white rounded-lg"
+                        variant="outline"
+                        className="rounded-lg"
                         size="icon"
                         title="Buscar"
                       >
@@ -1115,7 +1116,7 @@ export default function ClientesPage() {
                         <Button
                           onClick={() => { setBuscaCliente(''); setBuscaAplicada(''); }}
                           variant="ghost"
-                          className="text-slate-300 hover:text-white hover:bg-slate-600/50"
+                          className="text-muted-foreground hover:text-foreground"
                           size="icon"
                           title="Limpar busca"
                         >
@@ -1125,9 +1126,9 @@ export default function ClientesPage() {
                     </div>
                     
                     <Select value={diaSemanaFiltro} onValueChange={setDiaSemanaFiltro}>
-                      <SelectTrigger className="w-full sm:w-[200px] bg-slate-700/90 dark:bg-gray-700/90 border-gray-300 dark:border-gray-600 text-white dark:text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 backdrop-blur-sm">
-                        <CalendarDays className="h-4 w-4 mr-2 text-slate-200 dark:text-gray-400" />
-                        <SelectValue className="text-white" />
+                      <SelectTrigger className="w-full sm:w-[200px]">
+                        <CalendarDays className="h-4 w-4 mr-2 text-muted-foreground" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                         {diasSemana.map((dia) => (
@@ -1141,7 +1142,8 @@ export default function ClientesPage() {
                     <Button
                       onClick={exportarCSV}
                       disabled={(activeTab === 'clientes' ? clientesFiltrados.length : reservantes.length) === 0}
-                      className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 dark:from-green-400 dark:to-green-500 dark:hover:from-green-500 dark:hover:to-green-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
+                      variant="outline"
+                      className="rounded-lg"
                       size="icon"
                     >
                       <Download className="h-4 w-4" />
@@ -1152,27 +1154,27 @@ export default function ClientesPage() {
                 <TabsList className="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-1.5 rounded-xl shadow-sm">
                   <TabsTrigger 
                     value="clientes" 
-                    className="px-4 py-2.5 text-sm font-medium transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/25 !rounded-xl"
+                    className="px-4 py-2.5 text-sm font-medium transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 data-[state=active]:shadow-none !rounded-xl"
                   >
                     <Users className="h-4 w-4 mr-2" />
                     Clientes
                   </TabsTrigger>
                   <TabsTrigger 
                     value="reservantes" 
-                    className="px-4 py-2.5 text-sm font-medium transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/25 !rounded-xl"
+                    className="px-4 py-2.5 text-sm font-medium transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 data-[state=active]:shadow-none !rounded-xl"
                   >
                     <Calendar className="h-4 w-4 mr-2" />
                     Reservantes
                   </TabsTrigger>
                   <TabsTrigger 
                     value="lista-quente" 
-                    className="px-4 py-2.5 text-sm font-medium transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-orange-500/25 !rounded-xl"
+                    className="px-4 py-2.5 text-sm font-medium transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 data-[state=active]:shadow-none !rounded-xl"
                   >
                     <Flame className="h-4 w-4 mr-2" />
                     Lista Quente
                   </TabsTrigger>
                   <Link href="/relatorios/clientes-ativos">
-                    <div className="px-4 py-2.5 text-sm font-medium transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl flex items-center cursor-pointer text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400">
+                    <div className="px-4 py-2.5 text-sm font-medium transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl flex items-center cursor-pointer text-muted-foreground hover:text-foreground">
                       <Activity className="h-4 w-4 mr-2" />
                       Clientes Ativos
                     </div>
@@ -1273,9 +1275,9 @@ export default function ClientesPage() {
                         variant="outline"
                         className={`
                           min-w-[2.5rem] h-8 flex items-center justify-center font-bold text-sm rounded-full
-                          ${index === 0 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-white border-yellow-500 shadow-lg' : ''}
-                          ${index === 1 ? 'bg-gradient-to-r from-gray-300 to-gray-400 text-white border-gray-400 shadow-lg' : ''}
-                          ${index === 2 ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white border-amber-600 shadow-lg' : ''}
+                          ${index === 0 ? 'bg-slate-900 text-white border-slate-900 shadow-sm' : ''}
+                          ${index === 1 ? 'bg-slate-700 text-white border-slate-700 shadow-sm' : ''}
+                          ${index === 2 ? 'bg-slate-600 text-white border-slate-600 shadow-sm' : ''}
                           ${index >= 3 ? 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600' : ''}
                         `}
                       >
@@ -1367,7 +1369,8 @@ export default function ClientesPage() {
                       <Button
                         onClick={() => abrirModalCliente(cliente)}
                         size="sm"
-                        className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 dark:from-blue-400 dark:to-blue-500 dark:hover:from-blue-500 dark:hover:to-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-full w-8 h-8 p-0"
+                        variant="outline"
+                        className="rounded-full w-8 h-8 p-0"
                         aria-label={`Ver detalhes de ${cliente.nome_principal}`}
                       >
                         <Eye className="h-4 w-4" />
@@ -1380,7 +1383,8 @@ export default function ClientesPage() {
                         <Button
                           onClick={() => handleWhatsAppClick(cliente.nome_principal, cliente.telefone)}
                           size="sm"
-                          className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 dark:from-green-400 dark:to-green-500 dark:hover:from-green-500 dark:hover:to-green-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-full w-8 h-8 p-0"
+                          variant="outline"
+                          className="rounded-full w-8 h-8 p-0"
                           aria-label={`Enviar WhatsApp para ${cliente.nome_principal}`}
                         >
                           <MessageCircle className="h-4 w-4" />
@@ -1530,7 +1534,7 @@ export default function ClientesPage() {
                             variant="secondary" 
                             className={`w-8 h-8 rounded-full p-0 flex items-center justify-center font-bold text-sm ${
                               index < 3 
-                                ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-yellow-900' 
+                                ? 'bg-slate-200 dark:bg-slate-500 text-slate-900 dark:text-slate-100' 
                                 : 'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200'
                             }`}
                           >
@@ -1639,7 +1643,7 @@ export default function ClientesPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleWhatsAppClick(reservante.nome_principal, reservante.telefone)}
-                            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 dark:from-green-400 dark:to-green-500 dark:hover:from-green-500 dark:hover:to-green-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-full w-8 h-8 p-0"
+                            className="rounded-full w-8 h-8 p-0"
                           >
                             <MessageCircle className="h-4 w-4" />
                           </Button>
@@ -1681,7 +1685,7 @@ export default function ClientesPage() {
                 )}
 
                 {/* Configurações de Critérios - Completo */}
-                <Card className="bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-orange-200 dark:border-orange-800 mb-6">
+                <Card className="bg-card border-border mb-6">
                   <CardHeader className="pb-4">
                     <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
                       <Settings2 className="h-5 w-5 text-orange-600 dark:text-orange-400" />
@@ -1936,7 +1940,7 @@ export default function ClientesPage() {
                           setSegmentoResumo(null)
                           fetchSegmentacao()
                         }}
-                        className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
+                        className=""
                       >
                         {loadingSegmento ? (
                           <>
@@ -2133,7 +2137,7 @@ export default function ClientesPage() {
                       </div>
                       
                       <div className="flex gap-2">
-                        <Button onClick={() => downloadCSVSegmento(false)} className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white">
+                        <Button onClick={() => downloadCSVSegmento(false)} variant="outline">
                           <FileSpreadsheet className="h-4 w-4 mr-2" />
                           CSV Simples
                         </Button>
@@ -2152,17 +2156,17 @@ export default function ClientesPage() {
                     ) : (
                       <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                         <Table>
-                          <TableHeader className="bg-gradient-to-r from-orange-500 to-red-600">
-                            <TableRow className="border-b border-orange-400">
-                              <TableHead className="text-white font-semibold">#</TableHead>
-                              <TableHead className="text-white font-semibold">Nome</TableHead>
-                              <TableHead className="text-white font-semibold">Email</TableHead>
-                              <TableHead className="text-white font-semibold">Telefone</TableHead>
-                              <TableHead className="text-white font-semibold text-center">No Dia</TableHead>
-                              <TableHead className="text-white font-semibold text-center">Total</TableHead>
-                              <TableHead className="text-white font-semibold text-center">Ticket</TableHead>
-                              <TableHead className="text-white font-semibold text-center">Gasto</TableHead>
-                              <TableHead className="text-white font-semibold text-center">Contato</TableHead>
+                          <TableHeader className="bg-muted/40">
+                            <TableRow className="border-b border-border">
+                              <TableHead className="text-foreground font-semibold">#</TableHead>
+                              <TableHead className="text-foreground font-semibold">Nome</TableHead>
+                              <TableHead className="text-foreground font-semibold">Email</TableHead>
+                              <TableHead className="text-foreground font-semibold">Telefone</TableHead>
+                              <TableHead className="text-foreground font-semibold text-center">No Dia</TableHead>
+                              <TableHead className="text-foreground font-semibold text-center">Total</TableHead>
+                              <TableHead className="text-foreground font-semibold text-center">Ticket</TableHead>
+                              <TableHead className="text-foreground font-semibold text-center">Gasto</TableHead>
+                              <TableHead className="text-foreground font-semibold text-center">Contato</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -2186,7 +2190,7 @@ export default function ClientesPage() {
                                 </TableCell>
                                 <TableCell className="text-center">
                                   {cliente.Telefone ? (
-                                    <Button size="sm" onClick={() => handleWhatsAppClick(cliente.Nome, cliente.Telefone)} className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-full w-8 h-8 p-0">
+                                    <Button size="sm" variant="outline" onClick={() => handleWhatsAppClick(cliente.Nome, cliente.Telefone)} className="rounded-full w-8 h-8 p-0">
                                       <MessageCircle className="h-4 w-4" />
                                     </Button>
                                   ) : <span className="text-gray-400 text-xs">-</span>}
@@ -2244,16 +2248,16 @@ export default function ClientesPage() {
         {/* Modal de Detalhes do Cliente */}
         <Dialog open={modalAberto} onOpenChange={setModalAberto}>
           <DialogContent className="max-w-5xl max-h-[95vh] bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 overflow-hidden p-0">
-            <DialogHeader className="bg-gradient-to-r from-slate-800 to-slate-900 dark:from-slate-700 dark:to-slate-800 p-6 border-b border-gray-200 dark:border-gray-700">
+            <DialogHeader className="bg-muted/40 p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg">
-                  <Users className="h-7 w-7 text-white" />
+                <div className="p-3 bg-muted rounded-xl">
+                  <Users className="h-7 w-7 text-foreground" />
                 </div>
                 <div className="flex-1">
-                  <DialogTitle className="text-2xl font-bold text-white mb-1">
+                  <DialogTitle className="text-2xl font-bold text-foreground mb-1">
                     {clienteSelecionado?.nome_principal}
                   </DialogTitle>
-                  <DialogDescription className="text-slate-200 flex items-center gap-2 text-base">
+                  <DialogDescription className="text-muted-foreground flex items-center gap-2 text-base">
                     <Phone className="h-4 w-4" />
                     {clienteSelecionado?.telefone || 'Sem telefone cadastrado'}
                   </DialogDescription>
@@ -2265,49 +2269,49 @@ export default function ClientesPage() {
               {/* Resumo do Cliente */}
               <div className="grid grid-cols-5 gap-3 mb-6">
                 <div className="animate-in zoom-in-95 duration-200">
-                  <Card className="bg-gradient-to-br from-purple-500 to-purple-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <Card className="card-dark border-border shadow-sm">
                     <CardContent className="p-4 text-center">
-                      <div className="text-2xl font-bold text-white mb-1">
+                      <div className="text-2xl font-bold text-foreground mb-1">
                         {clienteSelecionado?.total_visitas}
                       </div>
-                      <div className="text-purple-100 text-sm font-medium">Total de Visitas</div>
+                      <div className="text-muted-foreground text-sm font-medium">Total de Visitas</div>
                     </CardContent>
                   </Card>
                 </div>
 
                 <div className="animate-in zoom-in-95 duration-200 delay-75">
-                  <Card className="bg-gradient-to-br from-green-500 to-green-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <Card className="card-dark border-border shadow-sm">
                     <CardContent className="p-4 text-center">
-                      <div className="text-xl font-bold text-white mb-1">
+                      <div className="text-xl font-bold text-foreground mb-1">
                         {formatCurrency(clienteSelecionado?.valor_total_gasto || 0)}
                       </div>
-                      <div className="text-green-100 text-sm font-medium">Total Gasto</div>
+                      <div className="text-muted-foreground text-sm font-medium">Total Gasto</div>
                     </CardContent>
                   </Card>
                 </div>
 
                 <div className="animate-in zoom-in-95 duration-200 delay-100">
-                  <Card className="bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <Card className="card-dark border-border shadow-sm">
                     <CardContent className="p-4 text-center">
-                      <div className="text-xl font-bold text-white mb-1">
+                      <div className="text-xl font-bold text-foreground mb-1">
                         {formatCurrency(clienteSelecionado?.ticket_medio_geral || 0)}
                       </div>
-                      <div className="text-orange-100 text-sm font-medium">Ticket Médio</div>
+                      <div className="text-muted-foreground text-sm font-medium">Ticket Médio</div>
                     </CardContent>
                   </Card>
                 </div>
 
                 <div className="animate-in zoom-in-95 duration-200 delay-150">
-                  <Card className="bg-gradient-to-br from-purple-500 to-purple-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <Card className="card-dark border-border shadow-sm">
                     <CardContent className="p-4 text-center">
-                      <div className="text-xl font-bold text-white mb-1">
+                      <div className="text-xl font-bold text-foreground mb-1">
                         {clienteSelecionado?.tempo_medio_estadia_formatado && clienteSelecionado.tempo_medio_estadia_formatado !== 'N/A' 
                           ? clienteSelecionado.tempo_medio_estadia_formatado 
                           : 'Sem dados'}
                       </div>
-                      <div className="text-purple-100 text-sm font-medium">Tempo Médio de Estadia</div>
+                      <div className="text-muted-foreground text-sm font-medium">Tempo Médio de Estadia</div>
                       {clienteSelecionado?.total_visitas_com_tempo && clienteSelecionado.total_visitas_com_tempo > 0 && (
-                        <div className="text-purple-200 text-xs mt-1">
+                        <div className="text-muted-foreground text-xs mt-1">
                           {clienteSelecionado.total_visitas_com_tempo}/{clienteSelecionado.total_visitas} visitas com tempo
                         </div>
                       )}
@@ -2316,23 +2320,23 @@ export default function ClientesPage() {
                 </div>
 
                 <div className="animate-in zoom-in-95 duration-200 delay-200">
-                  <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <Card className="card-dark border-border shadow-sm">
                     <CardContent className="p-4 text-center">
-                      <div className="text-xl font-bold text-white mb-1">
+                      <div className="text-xl font-bold text-foreground mb-1">
                         {clienteSelecionado?.ultima_visita ? formatDate(clienteSelecionado.ultima_visita) : 'N/A'}
                       </div>
-                      <div className="text-blue-100 text-sm font-medium">Última Visita</div>
+                      <div className="text-muted-foreground text-sm font-medium">Última Visita</div>
                     </CardContent>
                   </Card>
                 </div>
 
                 <div className="animate-in zoom-in-95 duration-200 delay-200">
-                  <Card className="bg-gradient-to-br from-indigo-500 to-indigo-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <Card className="card-dark border-border shadow-sm">
                     <CardContent className="p-4 text-center">
-                      <div className="text-xl font-bold text-white mb-1">
+                      <div className="text-xl font-bold text-foreground mb-1">
                         {diaDestaque}
                       </div>
-                      <div className="text-indigo-100 text-sm font-medium">Dia Destaque</div>
+                      <div className="text-muted-foreground text-sm font-medium">Dia Destaque</div>
                     </CardContent>
                   </Card>
                 </div>
@@ -2341,12 +2345,12 @@ export default function ClientesPage() {
               {/* Perfil de Consumo - NOVO */}
               {(loadingPerfil || perfilConsumo) && (
                 <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 mb-6">
-                  <CardHeader className="bg-gradient-to-r from-amber-500 to-orange-600 dark:from-amber-600 dark:to-orange-700">
-                    <CardTitle className="text-white flex items-center gap-2">
+                  <CardHeader className="bg-muted/40 border-b border-border">
+                    <CardTitle className="text-foreground flex items-center gap-2">
                       <span className="text-lg">🎯</span>
                       Perfil de Consumo
                     </CardTitle>
-                    <CardDescription className="text-amber-100">
+                    <CardDescription className="text-muted-foreground">
                       Produtos e categorias favoritas deste cliente
                     </CardDescription>
                   </CardHeader>
@@ -2495,12 +2499,12 @@ export default function ClientesPage() {
 
               {/* Histórico de Visitas */}
               <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-900 dark:from-slate-700 dark:to-slate-800">
-                  <CardTitle className="text-white flex items-center gap-2">
+                <CardHeader className="bg-muted/40 border-b border-border">
+                  <CardTitle className="text-foreground flex items-center gap-2">
                     <CalendarDays className="h-5 w-5" />
                     Histórico de Visitas
                   </CardTitle>
-                  <CardDescription className="text-slate-200">
+                  <CardDescription className="text-muted-foreground">
                     Detalhamento de todas as visitas registradas
                   </CardDescription>
                 </CardHeader>
@@ -2612,15 +2616,15 @@ export default function ClientesPage() {
               {/* Tempos de Estadia Detalhados */}
               {clienteSelecionado?.tempos_estadia_detalhados && clienteSelecionado.tempos_estadia_detalhados.length > 0 && (
                 <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                  <CardHeader className="bg-gradient-to-r from-purple-600 to-purple-700 dark:from-purple-700 dark:to-purple-800">
-                    <CardTitle className="text-white flex items-center gap-2">
+                  <CardHeader className="bg-muted/40 border-b border-border">
+                    <CardTitle className="text-foreground flex items-center gap-2">
                       <span className="text-lg">⏱️</span>
                       Tempos de Estadia
-                      <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
+                      <Badge variant="secondary" className="bg-muted text-foreground border-border">
                         {clienteSelecionado.tempos_estadia_detalhados.length} visitas
                       </Badge>
                     </CardTitle>
-                    <CardDescription className="text-purple-200">
+                    <CardDescription className="text-muted-foreground">
                       Tempo de permanência em cada visita (entrada → saída)
                     </CardDescription>
                   </CardHeader>
@@ -2721,7 +2725,8 @@ export default function ClientesPage() {
                 {clienteSelecionado?.telefone && (
                   <Button
                     onClick={() => handleWhatsAppClick(clienteSelecionado.nome_principal, clienteSelecionado.telefone)}
-                    className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-6 py-3 rounded-xl font-medium"
+                    variant="outline"
+                    className="px-6 py-3 rounded-xl font-medium"
                     size="lg"
                   >
                     <div className="flex items-center gap-3">

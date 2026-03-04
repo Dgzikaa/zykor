@@ -43,6 +43,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import Link from 'next/link';
+import { useBar } from '@/contexts/BarContext';
 
 interface Campanha {
   id: string;
@@ -92,6 +93,14 @@ interface Metricas {
     taxa_entrega: number;
     taxa_resposta: number;
   };
+}
+
+interface IntegrationStatus {
+  integracoes: {
+    umbler: boolean;
+    getin: boolean;
+  };
+  faltantes: string[];
 }
 
 const SEGMENTOS = [
@@ -176,10 +185,14 @@ Bora matar a saudade? 🤗`,
 ];
 
 export default function CampanhasPage() {
+  const { selectedBar } = useBar();
+  const currentBarId = selectedBar?.id;
+
   const [campanhas, setCampanhas] = useState<Campanha[]>([]);
   const [templates] = useState<{ whatsapp: Template[]; email: Template[] }>({ whatsapp: TEMPLATES_WHATSAPP, email: [] });
   const [segmentosStats, setSegmentosStats] = useState<Record<string, number>>({});
   const [umblerConfig, setUmblerConfig] = useState<UmblerConfig | null>(null);
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null);
   const [metricas, setMetricas] = useState<Metricas | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
@@ -197,22 +210,32 @@ export default function CampanhasPage() {
   const [limiteEnvios, setLimiteEnvios] = useState<number | undefined>(undefined);
 
   const fetchCampanhas = async () => {
+    if (!currentBarId) return;
     setLoading(true);
     try {
       // Buscar campanhas da Umbler
-      const response = await fetch('/api/umbler/campanhas?bar_id=3');
+      const response = await fetch(`/api/umbler/campanhas?bar_id=${currentBarId}`);
       const result = await response.json();
       setCampanhas(result.campanhas || []);
 
       // Buscar config da Umbler
-      const configResponse = await fetch('/api/umbler/config?bar_id=3');
+      const configResponse = await fetch(`/api/umbler/config?bar_id=${currentBarId}`);
       const configResult = await configResponse.json();
       setUmblerConfig(configResult);
 
       // Buscar métricas
-      const metricasResponse = await fetch('/api/umbler/metricas?bar_id=3&periodo=30');
+      const metricasResponse = await fetch(`/api/umbler/metricas?bar_id=${currentBarId}&periodo=30`);
       const metricasResult = await metricasResponse.json();
       setMetricas(metricasResult);
+
+      const integrationResponse = await fetch(`/api/configuracoes/integracoes/status?bar_id=${currentBarId}`);
+      const integrationResult = await integrationResponse.json();
+      if (integrationResult.success) {
+        setIntegrationStatus({
+          integracoes: integrationResult.integracoes,
+          faltantes: integrationResult.faltantes || [],
+        });
+      }
 
       // Buscar stats de segmentos (API existente)
       try {
@@ -238,8 +261,9 @@ export default function CampanhasPage() {
   );
 
   useEffect(() => {
+    if (!currentBarId) return;
     fetchCampanhas();
-  }, []);
+  }, [currentBarId]);
 
   const criarCampanha = async () => {
     if (!nome || segmentosSelecionados.length === 0) {
@@ -310,7 +334,7 @@ export default function CampanhasPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          bar_id: 3,
+          bar_id: currentBarId,
           nome,
           tipo: 'marketing',
           template_mensagem: templateContent,
@@ -795,10 +819,28 @@ export default function CampanhasPage() {
                 <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
                 <div>
                   <p className="font-medium text-yellow-800 dark:text-yellow-200">
-                    Integração Umbler não configurada
+                    Integração Umbler não configurada para este bar
                   </p>
                   <p className="text-sm text-yellow-700 dark:text-yellow-300">
                     Configure as credenciais da Umbler Talk para habilitar o disparo em massa via WhatsApp.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {!loading && integrationStatus && integrationStatus.faltantes.length > 0 && (
+          <Card className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 mb-6">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+                <div>
+                  <p className="font-medium text-yellow-800 dark:text-yellow-200">
+                    Integrações ausentes para o bar selecionado
+                  </p>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                    {integrationStatus.faltantes.map((nome) => nome.toUpperCase()).join(' e ')} não está configurado.
                   </p>
                 </div>
               </div>

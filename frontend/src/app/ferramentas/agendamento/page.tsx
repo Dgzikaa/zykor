@@ -1854,19 +1854,19 @@ export default function AgendamentoPage() {
 
   return (
     <ProtectedRoute requiredModule="financeiro">
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="container mx-auto px-4 py-6">
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-2 py-4 max-w-[98vw]">
           {/* Header */}
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-xl w-fit">
-                <Wrench className="w-6 h-6 text-green-600 dark:text-green-400" />
+              <div className="p-2 bg-muted rounded-xl w-fit">
+                <Wrench className="w-6 h-6 text-foreground" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                <h1 className="text-2xl font-bold text-foreground">
                   Ferramenta de Agendamento
                 </h1>
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-muted-foreground">
                   Gerencie agendamentos de pagamentos PIX com integração NIBO e Inter
                 </p>
                 {lastSave && (
@@ -1879,10 +1879,10 @@ export default function AgendamentoPage() {
 
             {/* Indicador de bar ativo - só mostra se tudo estiver ok */}
             {barId && credenciaisDisponiveis.verificado && credenciaisDisponiveis.nibo && credenciaisDisponiveis.inter && (
-              <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <div className="mt-4 p-3 bg-muted/40 border border-border rounded-lg">
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                  <span className="text-sm text-green-700 dark:text-green-300 font-medium">
+                  <CheckCircle className="w-4 h-4 text-foreground" />
+                  <span className="text-sm text-foreground font-medium">
                     Bar ativo: {barNome} - Credenciais NIBO e Inter configuradas
                   </span>
                 </div>
@@ -1893,7 +1893,7 @@ export default function AgendamentoPage() {
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Sidebar com Métricas */}
             <div className="w-full lg:w-80 flex-shrink-0">
-              <Card className="card-dark border-0 shadow-lg lg:sticky lg:top-6">
+              <Card className="card-dark shadow-sm lg:sticky lg:top-6">
                 <CardHeader>
                   <CardTitle className="text-gray-900 dark:text-white">
                     Resumo
@@ -1914,72 +1914,72 @@ export default function AgendamentoPage() {
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                        <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                      <div className="p-2 bg-muted rounded-lg">
+                        <Clock className="w-5 h-5 text-muted-foreground" />
                       </div>
-                      <span className="text-sm font-medium text-yellow-700 dark:text-yellow-300">
+                      <span className="text-sm font-medium text-muted-foreground">
                         Pendentes
                       </span>
                     </div>
-                    <span className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
+                    <span className="text-lg font-bold text-foreground">
                       {metricas.pendentes}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                        <Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      <div className="p-2 bg-muted rounded-lg">
+                        <Calendar className="w-5 h-5 text-muted-foreground" />
                       </div>
-                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      <span className="text-sm font-medium text-muted-foreground">
                         Agendados
                       </span>
                     </div>
-                    <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                    <span className="text-lg font-bold text-foreground">
                       {metricas.agendados}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                        <Clock className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                      <div className="p-2 bg-muted rounded-lg">
+                        <Clock className="w-5 h-5 text-muted-foreground" />
                       </div>
-                      <span className="text-sm font-medium text-orange-700 dark:text-orange-300">
+                      <span className="text-sm font-medium text-muted-foreground">
                         Aguardando Aprovação
                       </span>
                     </div>
-                    <span className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                    <span className="text-lg font-bold text-foreground">
                       {metricas.aguardandoAprovacao}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                        <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      <div className="p-2 bg-muted rounded-lg">
+                        <CheckCircle className="w-5 h-5 text-muted-foreground" />
                       </div>
-                      <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                      <span className="text-sm font-medium text-muted-foreground">
                         Aprovados
                       </span>
                     </div>
-                    <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                    <span className="text-lg font-bold text-foreground">
                       {metricas.aprovados}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                        <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                      <div className="p-2 bg-muted rounded-lg">
+                        <AlertCircle className="w-5 h-5 text-muted-foreground" />
                       </div>
-                      <span className="text-sm font-medium text-red-700 dark:text-red-300">
+                      <span className="text-sm font-medium text-muted-foreground">
                         Erros
                       </span>
                     </div>
-                    <span className="text-lg font-bold text-red-600 dark:text-red-400">
+                    <span className="text-lg font-bold text-foreground">
                       {metricas.erros}
                     </span>
                   </div>
@@ -1990,7 +1990,8 @@ export default function AgendamentoPage() {
                     <Button
                       onClick={pagarPendentesInterDireto}
                       disabled={isProcessing || pagandoPixId !== null || metricas.pendentes === 0 || !credenciaisDisponiveis.inter || !barId}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:bg-gray-400"
+                      variant="outline"
+                      className="w-full"
                       title={!credenciaisDisponiveis.inter ? 'Credenciais Inter não configuradas' : 'Enviar PIX direto sem passar pelo NIBO'}
                     >
                       {pagandoPixId === 'direct' ? (
@@ -2028,7 +2029,8 @@ export default function AgendamentoPage() {
                     <Button
                       onClick={pagarAgendadosInter}
                       disabled={isProcessing || pagandoPixId !== null || metricas.agendados === 0 || !credenciaisDisponiveis.inter || !barId}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-400"
+                      variant="outline"
+                      className="w-full"
                       title={!credenciaisDisponiveis.inter ? 'Credenciais Inter não configuradas para este bar' : ''}
                     >
                       {pagandoPixId && pagandoPixId !== 'direct' ? (
@@ -2100,28 +2102,28 @@ export default function AgendamentoPage() {
               ) : (
               /* Tabs de Funcionalidades */
               <Tabs value={tabAtivo} onValueChange={setTabAtivo} className="space-y-6">
-                <TabsList className="grid w-full grid-cols-4 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                <TabsList className="grid w-full grid-cols-4 bg-muted/70 border border-border p-1 rounded-lg">
                   <TabsTrigger
                     value="manual"
-                    className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white dark:text-gray-300 rounded-md"
+                    className="data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 dark:text-gray-300 rounded-md"
                   >
                     Adicionar Manual
                   </TabsTrigger>
                   <TabsTrigger
                     value="automatico"
-                    className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white dark:text-gray-300 rounded-md"
+                    className="data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 dark:text-gray-300 rounded-md"
                   >
                     Agendamento Automático
                   </TabsTrigger>
                   <TabsTrigger
                     value="lista"
-                    className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white dark:text-gray-300 rounded-md"
+                    className="data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 dark:text-gray-300 rounded-md"
                   >
                     Lista de Pagamentos
                   </TabsTrigger>
                   <TabsTrigger
                     value="revisao"
-                    className="data-[state=active]:bg-white data-[state=active]:text-gray-900 dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white dark:text-gray-300 rounded-md"
+                    className="data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 dark:text-gray-300 rounded-md"
                   >
                     Revisão NIBO
                   </TabsTrigger>

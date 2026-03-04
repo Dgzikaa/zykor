@@ -714,8 +714,8 @@ export default function NPSPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-2 py-4 max-w-[98vw]">
         {/* Filtros */}
         <Card className="mb-6 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
           <CardHeader>
@@ -730,7 +730,7 @@ export default function NPSPage() {
                 onClick={sincronizarPlanilha}
                 disabled={sincronizando}
                 variant="outline"
-                className="border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-950"
+                className=""
                 leftIcon={<RefreshCcw className={`h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} />}
               >
                 {sincronizando ? 'Sincronizando...' : 'Sincronizar Planilha'}
@@ -740,7 +740,7 @@ export default function NPSPage() {
                   limparFormulario();
                   setModalFormulario(true);
                 }}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                variant="outline"
                 leftIcon={<Smile className="h-4 w-4" />}
               >
                 Nova Pesquisa
@@ -755,9 +755,9 @@ export default function NPSPage() {
               </Button>
             </div>
 
-            <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-              <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2">Sync Retroativo</h4>
-              <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">Sincronizar apenas registros dentro do período (para corrigir ou preencher dados antigos)</p>
+            <div className="mb-4 p-4 bg-muted/40 rounded-lg border border-border">
+              <h4 className="text-sm font-semibold text-foreground mb-2">Sync Retroativo</h4>
+              <p className="text-xs text-muted-foreground mb-3">Sincronizar apenas registros dentro do período (para corrigir ou preencher dados antigos)</p>
               <div className="flex flex-wrap items-end gap-3">
                 <div>
                   <Label className="text-xs">Data Início</Label>
@@ -767,10 +767,10 @@ export default function NPSPage() {
                   <Label className="text-xs">Data Fim</Label>
                   <Input type="date" value={retroativoFim} onChange={(e) => setRetroativoFim(e.target.value)} className="h-8 w-40 mt-1" />
                 </div>
-                <Button size="sm" variant="outline" disabled={syncRetroativo} onClick={() => sincronizarRetroativo('nps')} className="border-amber-600 text-amber-700">
+                <Button size="sm" variant="outline" disabled={syncRetroativo} onClick={() => sincronizarRetroativo('nps')}>
                   Sync NPS
                 </Button>
-                <Button size="sm" variant="outline" disabled={syncRetroativo} onClick={() => sincronizarRetroativo('nps-reservas')} className="border-amber-600 text-amber-700">
+                <Button size="sm" variant="outline" disabled={syncRetroativo} onClick={() => sincronizarRetroativo('nps-reservas')}>
                   Sync NPS Reservas
                 </Button>
               </div>
@@ -816,12 +816,12 @@ export default function NPSPage() {
 
         {/* Tabs NPS e Felicidade */}
         <Tabs defaultValue="felicidade" className="space-y-4">
-          <TabsList className="bg-gray-200 dark:bg-gray-700 flex-wrap h-auto">
-            <TabsTrigger value="felicidade" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600">
+          <TabsList className="bg-muted/70 border border-border flex-wrap h-auto">
+            <TabsTrigger value="felicidade" className="data-[state=active]:bg-muted data-[state=active]:border data-[state=active]:border-border/70 dark:data-[state=active]:bg-muted">
               <Smile className="w-4 h-4 mr-2" />
               Pesquisa da Felicidade
             </TabsTrigger>
-            <TabsTrigger value="categorizado" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600">
+            <TabsTrigger value="categorizado" className="data-[state=active]:bg-muted data-[state=active]:border data-[state=active]:border-border/70 dark:data-[state=active]:bg-muted">
               <Star className="w-4 h-4 mr-2" />
               NPS Categorizado
             </TabsTrigger>
@@ -927,23 +927,23 @@ export default function NPSPage() {
 
             <div className="flex-1 overflow-y-auto px-1 py-4 space-y-6">
               {/* Seletor de Tipo de Pesquisa */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-5 shadow-sm">
+              <div className="bg-muted/40 border border-border rounded-xl p-5 shadow-sm">
                 <Label className="text-base font-semibold text-gray-900 dark:text-white mb-3 block flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <BarChart3 className="w-5 h-5 text-muted-foreground" />
                   Tipo de Pesquisa *
                 </Label>
                 <Tabs value={tipoPesquisa} onValueChange={(v) => setTipoPesquisa(v as 'nps' | 'felicidade')}>
-                  <TabsList className="bg-white dark:bg-gray-700 w-full grid grid-cols-2 p-1 h-auto shadow-sm">
+                  <TabsList className="bg-muted/70 border border-border w-full grid grid-cols-2 p-1 h-auto shadow-sm">
                     <TabsTrigger 
                       value="felicidade" 
-                      className="data-[state=active]:bg-blue-600 data-[state=active]:text-white dark:data-[state=active]:bg-blue-500 py-3 px-4 rounded-lg transition-all"
+                      className="data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 py-3 px-4 rounded-lg transition-all"
                     >
                       <Smile className="w-5 h-5 mr-2" />
                       <span className="font-medium">Pesquisa da Felicidade</span>
                     </TabsTrigger>
                     <TabsTrigger 
                       value="nps" 
-                      className="data-[state=active]:bg-blue-600 data-[state=active]:text-white dark:data-[state=active]:bg-blue-500 py-3 px-4 rounded-lg transition-all"
+                      className="data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 py-3 px-4 rounded-lg transition-all"
                     >
                       <TrendingUp className="w-5 h-5 mr-2" />
                       <span className="font-medium">NPS</span>
@@ -1020,9 +1020,9 @@ export default function NPSPage() {
 
               {/* Perguntas - Felicidade */}
               {tipoPesquisa === 'felicidade' && (
-                <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-xl p-5">
+                <div className="bg-muted/40 border border-border rounded-xl p-5">
                   <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
-                    <Smile className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    <Smile className="w-5 h-5 text-muted-foreground" />
                     Perguntas da Pesquisa de Felicidade
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -1116,9 +1116,9 @@ export default function NPSPage() {
 
               {/* Perguntas - NPS */}
               {tipoPesquisa === 'nps' && (
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-5">
+                <div className="bg-muted/40 border border-border rounded-xl p-5">
                   <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
-                    <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <TrendingUp className="w-5 h-5 text-muted-foreground" />
                     Perguntas do NPS
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -1246,7 +1246,7 @@ export default function NPSPage() {
                 <Button
                   onClick={salvarPesquisa}
                   disabled={salvando || !formData.setor || !formData.funcionario_nome}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-primary-dark disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {salvando ? (
                     <>

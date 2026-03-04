@@ -1,0 +1,29 @@
+﻿===========================================
+ANÁLISE DA FUNÇÃO calculate_evento_metrics
+===========================================
+
+1. DEFINIÇÃO DOS ARRAYS PARA DRINKS (bar_id=4 - Deboche)
+=========================================================
+
+A função NÃO possui arrays específicos para bar_id=4.
+Ela usa a MESMA lógica para TODOS os bares.
+
+Arrays utilizados na Seção 5 (CONTAHUB ANALÍTICO):
+
+BEBIDAS (valor_bebidas):
+  loc_desc IN ('Chopp','Baldes','Pegue e Pague','PP','Venda Volante','Bar')
+
+COMIDAS (valor_comidas):
+  loc_desc IN ('Cozinha','Cozinha 1','Cozinha 2')
+
+DRINKS (valor_drinks):
+  loc_desc IN ('Preshh','Drinks','Drinks Autorais','Mexido','Shot e Dose','Batidos')
+
+OUTROS (valor_outros):
+  Tudo que NÃO está nas categorias acima
+
+---
+
+2. QUERY QUE CALCULA VALOR_DRINKS (Seção 5)
+============================================
+

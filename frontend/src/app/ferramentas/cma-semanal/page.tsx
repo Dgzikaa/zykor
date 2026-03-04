@@ -267,12 +267,13 @@ export default function CMASemanalPage() {
   const semanas = Array.from({ length: 53 }, (_, i) => i + 1);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-2 py-4 max-w-[98vw] space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <ChefHat className="w-8 h-8 text-amber-600" />
+            <ChefHat className="w-8 h-8 text-muted-foreground" />
             CMA - Custo de Alimentação de Funcionários
           </h1>
           <p className="text-muted-foreground mt-1">
@@ -373,7 +374,7 @@ export default function CMASemanalPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Calculator className="w-5 h-5 text-amber-600" />
+                <Calculator className="w-5 h-5 text-muted-foreground" />
                 Cálculo CMA
               </CardTitle>
               <CardDescription>
@@ -435,9 +436,9 @@ export default function CMASemanalPage() {
               <CardDescription>Custo total de alimentação dos funcionários</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="bg-amber-50 dark:bg-amber-950/20 p-6 rounded-lg border-2 border-amber-200 dark:border-amber-800">
+              <div className="bg-muted/40 p-6 rounded-lg border border-border">
                 <div className="text-sm text-muted-foreground mb-2">CMA Total</div>
-                <div className="text-4xl font-bold text-amber-600">
+                <div className="text-4xl font-bold text-foreground">
                   {formatarMoeda(dados.cma_total)}
                 </div>
               </div>
@@ -508,6 +509,7 @@ export default function CMASemanalPage() {
           </ul>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

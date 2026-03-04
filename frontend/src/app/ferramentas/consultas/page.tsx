@@ -292,12 +292,12 @@ export default function ConsultasPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-2 py-4 max-w-[98vw]">
         {/* Header */}
         <div className="mb-4 sm:mb-6">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-            <Search className="w-6 h-6 text-blue-600" />
+            <Search className="w-6 h-6 text-muted-foreground" />
             Consultas NIBO
           </h1>
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
@@ -322,7 +322,7 @@ export default function ConsultasPage() {
                 variant="outline"
                 size="sm"
                 onClick={handleExemploFiltro}
-                className="text-blue-600 border-blue-300 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-700 dark:hover:bg-blue-900/20"
+                className=""
               >
                 <Info className="w-4 h-4 mr-2" />
                 Exemplo
@@ -331,10 +331,10 @@ export default function ConsultasPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Explicação do filtro */}
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
+            <div className="bg-muted/40 border border-border rounded-lg p-3">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-amber-800 dark:text-amber-200">
+                <AlertTriangle className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-foreground">
                   <p className="font-medium mb-1">Como funciona:</p>
                   <p>Esta consulta busca lançamentos que foram <strong>criados</strong> após uma data específica, 
                   mas que têm <strong>data de competência</strong> anterior. Útil para identificar lançamentos 
@@ -348,7 +348,7 @@ export default function ConsultasPage() {
               {/* Data de Criação */}
               <div className="space-y-3">
                 <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-purple-500" />
+                  <Clock className="w-4 h-4 text-muted-foreground" />
                   Data de Criação (quando foi registrado)
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
@@ -380,7 +380,7 @@ export default function ConsultasPage() {
               {/* Data de Competência */}
               <div className="space-y-3">
                 <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-green-500" />
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
                   Data de Competência (período do lançamento)
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
@@ -413,7 +413,7 @@ export default function ConsultasPage() {
             {/* Filtro de Categoria (múltiplas) */}
             <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
               <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                <Filter className="w-4 h-4 text-orange-500" />
+                <Filter className="w-4 h-4 text-muted-foreground" />
                 Filtrar por Categoria (múltiplas)
               </h4>
               <div className="flex flex-col gap-2">
@@ -457,7 +457,7 @@ export default function ConsultasPage() {
                   </Button>
                 </div>
                 {categoriasSelecionadas.length > 0 && (
-                  <p className="text-xs text-orange-600 dark:text-orange-400">
+                  <p className="text-xs text-muted-foreground">
                     Filtrando por: {categoriasSelecionadas.join(', ')}
                   </p>
                 )}
@@ -490,7 +490,7 @@ export default function ConsultasPage() {
                     Desabilitado quando &quot;Competência após&quot; é preenchido
                   </p>
                 ) : (
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     Busca automática limitada a {parseFloat(mesesRetroativos) < 1 
                       ? `${Math.round(parseFloat(mesesRetroativos) * 4)} semana(s)` 
                       : `${mesesRetroativos} mês(es)`} antes da data de competência
@@ -504,7 +504,8 @@ export default function ConsultasPage() {
               <Button
                 onClick={handleBuscar}
                 disabled={loading || !criadoApos || !competenciaAntes}
-                className="bg-blue-600 hover:bg-blue-700 text-white flex-1 sm:flex-none"
+                variant="outline"
+                className="flex-1 sm:flex-none"
               >
                 {loading ? (
                   <>
@@ -523,7 +524,7 @@ export default function ConsultasPage() {
                 <Button
                   variant="outline"
                   onClick={handleExportCSV}
-                  className="text-green-600 border-green-300 hover:bg-green-50 dark:text-green-400 dark:border-green-700 dark:hover:bg-green-900/20"
+                  className=""
                 >
                   <Download className="w-4 h-4 mr-2" />
                   Exportar CSV
@@ -535,8 +536,8 @@ export default function ConsultasPage() {
 
         {/* Erro */}
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
+          <div className="bg-muted/40 border border-border rounded-lg p-4 mb-6">
+            <div className="flex items-center gap-2 text-foreground">
               <XCircle className="w-5 h-5" />
               <span className="font-medium">{error}</span>
             </div>
@@ -548,10 +549,10 @@ export default function ConsultasPage() {
           <div className="space-y-6">
             {/* Info sobre o limite aplicado */}
             {resultado.filtros.limiteAutoAplicado && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+              <div className="bg-muted/40 border border-border rounded-lg p-3">
                 <div className="flex items-start gap-2">
-                  <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-blue-800 dark:text-blue-200">
+                  <Info className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-foreground">
                     <p className="font-medium">Otimização aplicada</p>
                     <p>A busca foi limitada a <strong>{
                       resultado.filtros.mesesRetroativos < 1 
@@ -567,50 +568,50 @@ export default function ConsultasPage() {
 
             {/* Cards de Estatísticas */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg">
+              <Card className="card-dark border-border shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-blue-100 text-xs font-medium">Total Encontrado</p>
-                      <p className="text-2xl font-bold">{resultado.estatisticas.total}</p>
+                      <p className="text-muted-foreground text-xs font-medium">Total Encontrado</p>
+                      <p className="text-2xl font-bold text-foreground">{resultado.estatisticas.total}</p>
                     </div>
-                    <FileText className="w-8 h-8 text-blue-200" />
+                    <FileText className="w-8 h-8 text-muted-foreground" />
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white border-0 shadow-lg">
+              <Card className="card-dark border-border shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-red-100 text-xs font-medium">Valor Total</p>
-                      <p className="text-lg font-bold">{formatCurrency(resultado.estatisticas.valorTotal)}</p>
+                      <p className="text-muted-foreground text-xs font-medium">Valor Total</p>
+                      <p className="text-lg font-bold text-foreground">{formatCurrency(resultado.estatisticas.valorTotal)}</p>
                     </div>
-                    <DollarSign className="w-8 h-8 text-red-200" />
+                    <DollarSign className="w-8 h-8 text-muted-foreground" />
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0 shadow-lg">
+              <Card className="card-dark border-border shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-green-100 text-xs font-medium">Pagos</p>
-                      <p className="text-2xl font-bold">{resultado.estatisticas.totalPagos}</p>
+                      <p className="text-muted-foreground text-xs font-medium">Pagos</p>
+                      <p className="text-2xl font-bold text-foreground">{resultado.estatisticas.totalPagos}</p>
                     </div>
-                    <CheckCircle2 className="w-8 h-8 text-green-200" />
+                    <CheckCircle2 className="w-8 h-8 text-muted-foreground" />
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-0 shadow-lg">
+              <Card className="card-dark border-border shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-amber-100 text-xs font-medium">Pendentes</p>
-                      <p className="text-2xl font-bold">{resultado.estatisticas.totalPendentes}</p>
+                      <p className="text-muted-foreground text-xs font-medium">Pendentes</p>
+                      <p className="text-2xl font-bold text-foreground">{resultado.estatisticas.totalPendentes}</p>
                     </div>
-                    <Clock className="w-8 h-8 text-amber-200" />
+                    <Clock className="w-8 h-8 text-muted-foreground" />
                   </div>
                 </CardContent>
               </Card>

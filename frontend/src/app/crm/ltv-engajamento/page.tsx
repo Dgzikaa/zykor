@@ -28,6 +28,7 @@ import {
   CheckCircle2,
   Clock
 } from 'lucide-react';
+import { useBar } from '@/contexts/BarContext';
 
 interface ClienteLTV {
   telefone: string;
@@ -66,6 +67,7 @@ interface Stats {
 }
 
 export default function LTVEngajamentoPage() {
+  const { selectedBar } = useBar();
   const [clientes, setClientes] = useState<ClienteLTV[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,7 +81,7 @@ export default function LTVEngajamentoPage() {
   const fetchLTV = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/crm/ltv-engajamento?limite=5000');
+      const response = await fetch(`/api/crm/ltv-engajamento?limite=5000&bar_id=${selectedBar?.id}`);
       const result = await response.json();
 
       if (result.success) {
@@ -98,8 +100,9 @@ export default function LTVEngajamentoPage() {
   };
 
   useEffect(() => {
+    if (!selectedBar?.id) return;
     fetchLTV();
-  }, []);
+  }, [selectedBar?.id]);
 
   useEffect(() => {
     setPaginaAtual(1);
@@ -126,13 +129,13 @@ export default function LTVEngajamentoPage() {
   const getEngajamentoBadge = (nivel: string, score: number) => {
     switch (nivel) {
       case 'muito_alto':
-        return <Badge className="bg-green-600">⭐ {score} - Muito Alto</Badge>;
+        return <Badge variant="outline" className="bg-muted text-foreground border-border">⭐ {score} - Muito Alto</Badge>;
       case 'alto':
-        return <Badge className="bg-blue-600">🔥 {score} - Alto</Badge>;
+        return <Badge variant="outline" className="bg-muted text-foreground border-border">🔥 {score} - Alto</Badge>;
       case 'medio':
-        return <Badge className="bg-yellow-600">⚡ {score} - Médio</Badge>;
+        return <Badge variant="outline" className="bg-muted text-foreground border-border">⚡ {score} - Médio</Badge>;
       case 'baixo':
-        return <Badge className="bg-gray-600">💤 {score} - Baixo</Badge>;
+        return <Badge variant="outline" className="bg-muted text-foreground border-border">💤 {score} - Baixo</Badge>;
       default:
         return <Badge>-</Badge>;
     }
@@ -213,8 +216,8 @@ export default function LTVEngajamentoPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-2 py-4 max-w-[98vw]">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -241,7 +244,7 @@ export default function LTVEngajamentoPage() {
               <RefreshCcw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Atualizar
             </Button>
-            <Button onClick={exportarCSV} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button onClick={exportarCSV} variant="outline">
               <Download className="w-4 h-4 mr-2" />
               Exportar CSV
             </Button>
@@ -283,16 +286,16 @@ export default function LTVEngajamentoPage() {
               {/* LTV Projetado 12m */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 cursor-help">
+                  <Card className="bg-card border-border cursor-help">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
-                        <div className="text-xs text-green-600 dark:text-green-400 mb-1">LTV Projetado 12m</div>
-                        <HelpCircle className="w-3 h-3 text-green-400" />
+                        <div className="text-xs text-muted-foreground mb-1">LTV Projetado 12m</div>
+                        <HelpCircle className="w-3 h-3 text-muted-foreground" />
                       </div>
-                      <div className="text-xl font-bold text-green-700 dark:text-green-300">
+                      <div className="text-xl font-bold text-foreground">
                         {formatarMoeda(stats.ltv_total_projetado_12m)}
                       </div>
-                      <div className="text-xs text-green-600 dark:text-green-400">só confiáveis</div>
+                      <div className="text-xs text-muted-foreground">só confiáveis</div>
                     </CardContent>
                   </Card>
                 </TooltipTrigger>
@@ -306,13 +309,13 @@ export default function LTVEngajamentoPage() {
               {/* Ticket Médio Bar */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 cursor-help">
+                  <Card className="bg-card border-border cursor-help">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
-                        <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">Ticket Médio Bar</div>
-                        <HelpCircle className="w-3 h-3 text-blue-400" />
+                        <div className="text-xs text-muted-foreground mb-1">Ticket Médio Bar</div>
+                        <HelpCircle className="w-3 h-3 text-muted-foreground" />
                       </div>
-                      <div className="text-xl font-bold text-blue-700 dark:text-blue-300">
+                      <div className="text-xl font-bold text-foreground">
                         {formatarMoeda(stats.ticket_medio_bar)}
                       </div>
                     </CardContent>
@@ -351,16 +354,16 @@ export default function LTVEngajamentoPage() {
               {/* Clientes Preliminares */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 cursor-help">
+                  <Card className="bg-card border-border cursor-help">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
-                        <div className="text-xs text-orange-600 dark:text-orange-400 mb-1">Dados Preliminares</div>
-                        <AlertCircle className="w-3 h-3 text-orange-400" />
+                        <div className="text-xs text-muted-foreground mb-1">Dados Preliminares</div>
+                        <AlertCircle className="w-3 h-3 text-muted-foreground" />
                       </div>
-                      <div className="text-xl font-bold text-orange-700 dark:text-orange-300">
+                      <div className="text-xl font-bold text-foreground">
                         {stats.clientes_preliminares.toLocaleString('pt-BR')}
                       </div>
-                      <div className="text-xs text-orange-600 dark:text-orange-400">1-2 visitas</div>
+                      <div className="text-xs text-muted-foreground">1-2 visitas</div>
                     </CardContent>
                   </Card>
                 </TooltipTrigger>
@@ -374,13 +377,13 @@ export default function LTVEngajamentoPage() {
               {/* Total Clientes */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 cursor-help">
+                  <Card className="bg-card border-border cursor-help">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
-                        <div className="text-xs text-purple-600 dark:text-purple-400 mb-1">Total Clientes</div>
-                        <HelpCircle className="w-3 h-3 text-purple-400" />
+                        <div className="text-xs text-muted-foreground mb-1">Total Clientes</div>
+                        <HelpCircle className="w-3 h-3 text-muted-foreground" />
                       </div>
-                      <div className="text-xl font-bold text-purple-700 dark:text-purple-300">
+                      <div className="text-xl font-bold text-foreground">
                         {stats.total_clientes.toLocaleString('pt-BR')}
                       </div>
                     </CardContent>
@@ -420,7 +423,7 @@ export default function LTVEngajamentoPage() {
                     variant={filtroConfianca === 'confiaveis' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setFiltroConfianca('confiaveis')}
-                    className={filtroConfianca === 'confiaveis' ? 'bg-green-600 hover:bg-green-700' : ''}
+                    className={filtroConfianca === 'confiaveis' ? 'bg-muted text-foreground border border-border hover:bg-muted' : ''}
                   >
                     <CheckCircle2 className="w-3 h-3 mr-1" />
                     Confiáveis
@@ -429,7 +432,7 @@ export default function LTVEngajamentoPage() {
                     variant={filtroConfianca === 'preliminares' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setFiltroConfianca('preliminares')}
-                    className={filtroConfianca === 'preliminares' ? 'bg-orange-600 hover:bg-orange-700' : ''}
+                    className={filtroConfianca === 'preliminares' ? 'bg-muted text-foreground border border-border hover:bg-muted' : ''}
                   >
                     <Clock className="w-3 h-3 mr-1" />
                     Preliminares

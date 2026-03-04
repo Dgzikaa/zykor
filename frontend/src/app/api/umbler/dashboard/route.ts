@@ -129,17 +129,16 @@ export async function GET(request: NextRequest) {
     // Último sync
     const { data: ultimoSync } = await supabase
       .from('umbler_webhook_logs')
-      .select('received_at')
+      .select('created_at')
       .eq('bar_id', barId)
-      .eq('event_type', 'sync_incremental')
-      .order('received_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(1);
 
     return NextResponse.json({
       success: true,
       metricas: metricasData,
       top_contatos: topContatosList,
-      ultimo_sync: ultimoSync?.[0]?.received_at || null
+      ultimo_sync: ultimoSync?.[0]?.created_at || null
     });
 
   } catch (error) {

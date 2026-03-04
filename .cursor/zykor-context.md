@@ -3184,7 +3184,7 @@ module.exports = {
 
 ---
 
-**Última atualização**: 03/03/2026 15:30 BRT  
+**Última atualização**: 04/03/2026 16:20 BRT  
 **Próxima revisão**: Quando houver mudanças significativas no sistema
 
 **Mudanças nesta atualização**:
@@ -3197,6 +3197,55 @@ module.exports = {
 - ✅ **Seção Configurações** - Todas as variáveis de ambiente e configs
 - ✅ **Índice Navegável** - Links para todas as seções
 - ✅ **Pontos de Atenção** - Reorganizados em categorias (30 itens)
+
+---
+
+## ATUALIZAÇÕES OPERACIONAIS (04/03/2026)
+
+### Desempenho Semanal - Correções Canônicas
+
+- `desempenho_semanal` foi recalculado com foco em:
+  - ticket médio
+  - mix semanal por `categoria_mix` canônica
+  - tempos/atrasos com unidade correta para exibição
+  - stockout por categoria (`BEBIDA`, `DRINK`, `COMIDA`)
+  - Google reviews
+  - NPS via fonte agregada semanal
+- Ajuste crítico: campos de tempo passaram a ser tratados em minutos na camada semanal (evitando distorções de exibição).
+- Ajuste crítico: removido desconto duplicado de conta assinada no recálculo semanal (usa `real_r` canônico de `eventos_base`).
+
+### Mix Semanal - Regra de Carnaval
+
+- Regra oficial aplicada: excluir dias de Carnaval do mix semanal:
+  - `2026-02-13`
+  - `2026-02-14`
+  - `2026-02-15`
+  - `2026-02-16`
+  - `2026-02-17`
+- Base de mix semanal permanece `contahub_analitico` (sem considerar Yuzer/Sympla para composição de mix).
+
+### Automação de Semana Atual (Semana 10+)
+
+- A Edge Function `recalcular-desempenho-auto` agora:
+  - garante criação da linha da semana atual para bar 3 e 4 em `desempenho_semanal`
+  - recalcula parcial da semana com os dias já disponíveis
+- Objetivo: evitar ausência de semana nova no painel de desempenho.
+
+### Deploys e Monitoramento
+
+- `recalcular-desempenho-auto` publicado via MCP (versões atualizadas no dia 04/03/2026).
+- Job ativo de recálculo:
+  - `desempenho-auto-diario` (`cron.job` 301)
+- Job novo de saúde/alerta:
+  - `alerta-desempenho-auto-falha` (`cron.job` 316)
+  - schedule: `30 12 * * *` (09:30 BRT)
+  - função: `public.verificar_saude_desempenho_auto_alerta_discord()`
+- Alerta usa `enviar_alerta_discord_sistema_dedup` para evitar duplicação no mesmo dia.
+
+### NPS - Observação Importante
+
+- Cron de sync NPS (`google-sheets-sync-diario`) está executando com sucesso.
+- Semana sem valor de NPS no desempenho pode ocorrer por ausência de dados fonte em `nps` / `nps_reservas` / `nps_agregado_semanal` naquela janela semanal.
 
 **Objetivo Alcançado**: 
 - 🎯 Economizar tokens (não precisa mais listar tabelas)

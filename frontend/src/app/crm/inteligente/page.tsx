@@ -182,13 +182,13 @@ export default function CRMInteligentePage() {
 
   const getCorBadge = (cor: string) => {
     const cores: { [key: string]: string } = {
-      purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-      blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-      green: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      orange: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-      teal: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200',
-      gray: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-      indigo: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
+      purple: 'bg-muted text-foreground',
+      blue: 'bg-muted text-foreground',
+      green: 'bg-muted text-foreground',
+      orange: 'bg-muted text-foreground',
+      teal: 'bg-muted text-foreground',
+      gray: 'bg-muted text-foreground',
+      indigo: 'bg-muted text-foreground',
     };
     return cores[cor] || cores.gray;
   };
@@ -248,13 +248,13 @@ export default function CRMInteligentePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-2 py-4 max-w-[98vw]">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3 mb-2">
-            <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg">
-              <Sparkles className="h-6 w-6 text-white" />
+            <div className="p-2 bg-muted rounded-lg">
+              <Sparkles className="h-6 w-6 text-foreground" />
             </div>
             CRM Inteligente
           </h1>
@@ -263,19 +263,38 @@ export default function CRMInteligentePage() {
           </p>
         </div>
 
+        {loading && (
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            Carregando informações do CRM...
+          </div>
+        )}
+
         {/* Estatísticas */}
-        {stats && (
+        {loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
+            {[...Array(8)].map((_, i) => (
+              <Card key={i} className="border-gray-200 dark:border-gray-700">
+                <CardContent className="p-4 space-y-3">
+                  <Skeleton className="h-6 w-6 mx-auto rounded-full" />
+                  <Skeleton className="h-8 w-12 mx-auto" />
+                  <Skeleton className="h-3 w-16 mx-auto" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : stats ? (
           <TooltipProvider>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
               {/* VIP Champions */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-700 cursor-help">
+                  <Card className="bg-card border-border cursor-help">
                     <CardContent className="p-4">
                       <div className="flex flex-col items-center">
-                        <Crown className="w-8 h-8 text-purple-600 dark:text-purple-400 mb-2" />
-                        <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">{stats.vips}</p>
-                        <p className="text-xs text-purple-700 dark:text-purple-300 text-center">VIPs</p>
+                        <Crown className="w-8 h-8 text-muted-foreground mb-2" />
+                        <p className="text-2xl font-bold text-foreground">{stats.vips}</p>
+                        <p className="text-xs text-muted-foreground text-center">VIPs</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -289,12 +308,12 @@ export default function CRMInteligentePage() {
               {/* Fiéis */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-700 cursor-help">
+                  <Card className="bg-card border-border cursor-help">
                     <CardContent className="p-4">
                       <div className="flex flex-col items-center">
-                        <Star className="w-8 h-8 text-blue-600 dark:text-blue-400 mb-2" />
-                        <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{stats.fieis}</p>
-                        <p className="text-xs text-blue-700 dark:text-blue-300 text-center">Fiéis</p>
+                        <Star className="w-8 h-8 text-muted-foreground mb-2" />
+                        <p className="text-2xl font-bold text-foreground">{stats.fieis}</p>
+                        <p className="text-xs text-muted-foreground text-center">Fiéis</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -308,12 +327,12 @@ export default function CRMInteligentePage() {
               {/* Potencial */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-700 cursor-help">
+                  <Card className="bg-card border-border cursor-help">
                     <CardContent className="p-4">
                       <div className="flex flex-col items-center">
-                        <Zap className="w-8 h-8 text-green-600 dark:text-green-400 mb-2" />
-                        <p className="text-2xl font-bold text-green-900 dark:text-green-100">{stats.potencial}</p>
-                        <p className="text-xs text-green-700 dark:text-green-300 text-center">Potencial</p>
+                        <Zap className="w-8 h-8 text-muted-foreground mb-2" />
+                        <p className="text-2xl font-bold text-foreground">{stats.potencial}</p>
+                        <p className="text-xs text-muted-foreground text-center">Potencial</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -327,12 +346,12 @@ export default function CRMInteligentePage() {
               {/* Em Risco */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-700 cursor-help">
+                  <Card className="bg-card border-border cursor-help">
                     <CardContent className="p-4">
                       <div className="flex flex-col items-center">
-                        <AlertTriangle className="w-8 h-8 text-orange-600 dark:text-orange-400 mb-2" />
-                        <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{stats.em_risco}</p>
-                        <p className="text-xs text-orange-700 dark:text-orange-300 text-center">Em Risco</p>
+                        <AlertTriangle className="w-8 h-8 text-muted-foreground mb-2" />
+                        <p className="text-2xl font-bold text-foreground">{stats.em_risco}</p>
+                        <p className="text-xs text-muted-foreground text-center">Em Risco</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -346,12 +365,12 @@ export default function CRMInteligentePage() {
               {/* Novos */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-900/20 dark:to-teal-800/20 border-teal-200 dark:border-teal-700 cursor-help">
+                  <Card className="bg-card border-border cursor-help">
                     <CardContent className="p-4">
                       <div className="flex flex-col items-center">
-                        <Target className="w-8 h-8 text-teal-600 dark:text-teal-400 mb-2" />
-                        <p className="text-2xl font-bold text-teal-900 dark:text-teal-100">{stats.novos}</p>
-                        <p className="text-xs text-teal-700 dark:text-teal-300 text-center">Novos</p>
+                        <Target className="w-8 h-8 text-muted-foreground mb-2" />
+                        <p className="text-2xl font-bold text-foreground">{stats.novos}</p>
+                        <p className="text-xs text-muted-foreground text-center">Novos</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -365,12 +384,12 @@ export default function CRMInteligentePage() {
               {/* Regulares */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 border-indigo-200 dark:border-indigo-700 cursor-help">
+                  <Card className="bg-card border-border cursor-help">
                     <CardContent className="p-4">
                       <div className="flex flex-col items-center">
-                        <Activity className="w-8 h-8 text-indigo-600 dark:text-indigo-400 mb-2" />
-                        <p className="text-2xl font-bold text-indigo-900 dark:text-indigo-100">{stats.regulares}</p>
-                        <p className="text-xs text-indigo-700 dark:text-indigo-300 text-center">Regulares</p>
+                        <Activity className="w-8 h-8 text-muted-foreground mb-2" />
+                        <p className="text-2xl font-bold text-foreground">{stats.regulares}</p>
+                        <p className="text-xs text-muted-foreground text-center">Regulares</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -384,7 +403,7 @@ export default function CRMInteligentePage() {
               {/* Inativos */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Card className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/20 dark:to-gray-600/20 border-gray-200 dark:border-gray-600 cursor-help">
+                  <Card className="bg-card border-border cursor-help">
                     <CardContent className="p-4">
                       <div className="flex flex-col items-center">
                         <UserX className="w-8 h-8 text-gray-600 dark:text-gray-400 mb-2" />
@@ -401,7 +420,7 @@ export default function CRMInteligentePage() {
               </Tooltip>
 
               {/* Total (sem tooltip) */}
-              <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/20 dark:to-slate-600/20 border-slate-200 dark:border-slate-600">
+              <Card className="bg-card border-border">
                 <CardContent className="p-4">
                   <div className="flex flex-col items-center">
                     <Users className="w-8 h-8 text-slate-600 dark:text-slate-400 mb-2" />
@@ -412,7 +431,7 @@ export default function CRMInteligentePage() {
               </Card>
             </div>
           </TooltipProvider>
-        )}
+        ) : null}
 
         {/* Filtros e Ações */}
         <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 mb-6">
@@ -420,9 +439,13 @@ export default function CRMInteligentePage() {
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 flex-1">
                 <Tabs value={filtroSegmento} onValueChange={setFiltroSegmento} className="w-full">
-                  <TabsList className="bg-gray-100 dark:bg-gray-700 flex-wrap h-auto">
+                  <TabsList className="bg-muted/70 border border-border flex-wrap h-auto">
                     {segmentos.map(seg => (
-                      <TabsTrigger key={seg.value} value={seg.value} className="text-xs">
+                      <TabsTrigger
+                        key={seg.value}
+                        value={seg.value}
+                        className="text-xs data-[state=active]:bg-muted data-[state=active]:border data-[state=active]:border-border/70"
+                      >
                         <seg.icon className="w-3 h-3 mr-1" />
                         {seg.label}
                       </TabsTrigger>
@@ -491,7 +514,7 @@ export default function CRMInteligentePage() {
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <div className={`w-12 h-12 rounded-full bg-gradient-to-br from-${cliente.cor}-400 to-${cliente.cor}-600 flex items-center justify-center text-white font-bold text-lg`}>
+                          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-foreground font-bold text-lg">
                             {cliente.nome.charAt(0).toUpperCase()}
                           </div>
                           <div>
@@ -527,13 +550,13 @@ export default function CRMInteligentePage() {
                         </div>
                         <div>
                           <p className="text-xs text-gray-600 dark:text-gray-400">Gasto Total</p>
-                          <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                          <p className="text-lg font-bold text-foreground">
                             {formatCurrency(cliente.total_gasto)}
                           </p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-600 dark:text-gray-400">Ticket Médio</p>
-                          <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                          <p className="text-lg font-bold text-foreground">
                             {formatCurrency(cliente.ticket_medio)}
                           </p>
                         </div>
@@ -602,37 +625,37 @@ export default function CRMInteligentePage() {
               <div className="space-y-6">
                 {/* Scores RFM */}
                 <div className="grid grid-cols-3 gap-4">
-                  <Card className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700">
+                  <Card className="bg-card border-border">
                     <CardContent className="p-4 text-center">
-                      <p className="text-xs text-red-700 dark:text-red-300 mb-1">Recência</p>
-                      <p className="text-3xl font-bold text-red-600 dark:text-red-400">
+                      <p className="text-xs text-muted-foreground mb-1">Recência</p>
+                      <p className="text-3xl font-bold text-foreground">
                         {clienteSelecionado.r_score}
                       </p>
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         {clienteSelecionado.dias_desde_ultima_visita} dias
                       </p>
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700">
+                  <Card className="bg-card border-border">
                     <CardContent className="p-4 text-center">
-                      <p className="text-xs text-blue-700 dark:text-blue-300 mb-1">Frequência</p>
-                      <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                      <p className="text-xs text-muted-foreground mb-1">Frequência</p>
+                      <p className="text-3xl font-bold text-foreground">
                         {clienteSelecionado.f_score}
                       </p>
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         {clienteSelecionado.total_visitas} visitas
                       </p>
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700">
+                  <Card className="bg-card border-border">
                     <CardContent className="p-4 text-center">
-                      <p className="text-xs text-green-700 dark:text-green-300 mb-1">Monetário</p>
-                      <p className="text-3xl font-bold text-green-600 dark:text-green-400">
+                      <p className="text-xs text-muted-foreground mb-1">Monetário</p>
+                      <p className="text-3xl font-bold text-foreground">
                         {clienteSelecionado.m_score}
                       </p>
-                      <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         {formatCurrency(clienteSelecionado.total_gasto)}
                       </p>
                     </CardContent>
@@ -670,17 +693,17 @@ export default function CRMInteligentePage() {
                 {/* Ações Sugeridas */}
                 <div>
                   <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-purple-600" />
+                    <Sparkles className="w-5 h-5 text-muted-foreground" />
                     Ações Estratégicas Sugeridas
                   </h4>
                   <div className="space-y-2">
                     {clienteSelecionado.acoes_sugeridas.map((acao, index) => (
                       <div
                         key={index}
-                        className="flex items-start gap-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg"
+                        className="flex items-start gap-3 p-3 bg-muted/40 border border-border rounded-lg"
                       >
-                        <Target className="w-5 h-5 text-purple-600 dark:text-purple-400 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-purple-900 dark:text-purple-100">
+                        <Target className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-foreground">
                           {acao}
                         </p>
                       </div>
@@ -693,7 +716,8 @@ export default function CRMInteligentePage() {
                   <div className="flex gap-2">
                     <Button
                       onClick={() => window.open(`https://wa.me/55${clienteSelecionado.telefone?.replace(/\D/g, '')}`, '_blank')}
-                      className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                      variant="outline"
+                      className="flex-1"
                     >
                       <MessageCircle className="w-4 h-4 mr-2" />
                       Enviar WhatsApp

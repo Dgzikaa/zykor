@@ -1,8 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 
-export const dynamic = 'force-dynamic'
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const barIdParam = searchParams.get('bar_id');
+
+    if (!barIdParam) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
+
+    const barId = parseInt(barIdParam, 10);
+    if (Number.isNaN(barId)) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id inválido' },
+        { status: 400 }
+      );
+    }
+
+    const [{ data: umblerConfig }, { data: getinUnit }] = await Promise.all([
+      supabase
+        .from('umbler_config')
+        .select('id')
+        .eq('bar_id', barId)
+        .eq('ativo', true)
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('getin_units')
+        .select('id')
+        .eq('bar_id', barId)
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const integracoes = {
+      umbler: !!umblerConfig,
+      getin: !!getinUnit,
+    };
+
+    const faltantes = Object.entries(integracoes)
+      .filter(([, configurado]) => !configurado)
+      .map(([nome]) => nome);
+
+    return NextResponse.json({
+      success: true,
+      bar_id: barId,
+      integracoes,
+      possui_alguma_integracao: Object.values(integracoes).some(Boolean),
+      faltantes,
+    });
+  } catch (error: any) {
+    console.error('Erro ao verificar status de integrações:', error);
+    return NextResponse.json(
+      { success: false, error: error?.message || 'Erro interno' },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

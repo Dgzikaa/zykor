@@ -93,26 +93,12 @@ const defaultSidebarItems: SidebarItem[] = [
     ],
   },
   {
-    icon: MessageCircle,
-    label: 'CRM',
-    href: '/crm',
-    permission: 'gestao',
-    subItems: [
-      { icon: Send, label: 'Umbler Talk', href: '/crm/umbler', description: 'Conversas e Campanhas', permission: 'gestao' },
-      { icon: Sparkles, label: 'Segmentação RFM', href: '/crm/inteligente', permission: 'gestao' },
-      { icon: AlertTriangle, label: 'Predição Churn', href: '/crm/churn-prediction', permission: 'gestao' },
-      { icon: DollarSign, label: 'LTV e Engajamento', href: '/crm/ltv-engajamento', permission: 'gestao' },
-      { icon: Target, label: 'Padrões', href: '/crm/padroes-comportamento', permission: 'gestao' },
-    ],
-  },
-  {
     icon: Wrench,
     label: 'Ferramentas',
     href: '/ferramentas',
     permission: 'ferramentas',
     subItems: [
-      { icon: Package, label: 'Produção e Insumos', href: '/ferramentas/producao-insumos', permission: 'operacoes' },
-      { icon: Package, label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque', permission: 'operacoes' },
+      { icon: MessageCircle, label: 'CRM', href: '/ferramentas/crm', permission: 'gestao' },
       { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
       { icon: Users, label: 'NPS Funcionários', href: '/ferramentas/nps', permission: 'gestao' },
       { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
@@ -121,7 +107,6 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: Users, label: 'CMO - Mão de Obra', href: '/ferramentas/cmo', permission: 'gestao' },
       { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
       { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
-      { icon: PieChart, label: 'DRE', href: '/ferramentas/dre', permission: 'gestao' },
     ],
   },
   {
@@ -147,6 +132,9 @@ const defaultSidebarItems: SidebarItem[] = [
     href: '/extras',
     permission: 'home',
     subItems: [
+      { icon: Package, label: 'Produção e Insumos', href: '/ferramentas/producao-insumos', permission: 'operacoes' },
+      { icon: Package, label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque', permission: 'operacoes' },
+      { icon: PieChart, label: 'DRE', href: '/ferramentas/dre', permission: 'gestao' },
       { icon: Clock, label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
       { icon: Star, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },
       { icon: DollarSign, label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'gestao' },

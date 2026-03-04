@@ -54,6 +54,7 @@ import {
   Eye,
   Star
 } from 'lucide-react';
+import { useBar } from '@/contexts/BarContext';
 
 interface Metricas {
   total_conversas: number;
@@ -120,6 +121,14 @@ interface UmblerConfig {
     channel_name: string;
     phone_number: string;
   } | null;
+}
+
+interface IntegrationStatus {
+  integracoes: {
+    umbler: boolean;
+    getin: boolean;
+  };
+  faltantes: string[];
 }
 
 const SEGMENTOS = [
@@ -190,6 +199,9 @@ Bora matar a saudade? 🤗`,
 ];
 
 export default function UmblerPage() {
+  const { selectedBar } = useBar();
+  const currentBarId = selectedBar?.id;
+
   const [metricas, setMetricas] = useState<Metricas | null>(null);
   const [cruzamento, setCruzamento] = useState<CruzamentoDados | null>(null);
   const [topContatos, setTopContatos] = useState<TopContato[]>([]);
@@ -200,6 +212,7 @@ export default function UmblerPage() {
   // Estados para Campanhas
   const [campanhas, setCampanhas] = useState<Campanha[]>([]);
   const [umblerConfig, setUmblerConfig] = useState<UmblerConfig | null>(null);
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null);
   const [segmentosStats, setSegmentosStats] = useState<Record<string, number>>({});
   const [loadingCampanhas, setLoadingCampanhas] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
@@ -224,9 +237,10 @@ export default function UmblerPage() {
   const [npsEnviando, setNpsEnviando] = useState(false);
 
   const fetchMetricas = useCallback(async () => {
+    if (!currentBarId) return;
     setLoading(true);
     try {
-      const response = await fetch('/api/umbler/dashboard');
+      const response = await fetch(`/api/umbler/dashboard?bar_id=${currentBarId}`);
       const data = await response.json();
       
       if (data.success) {
@@ -239,12 +253,13 @@ export default function UmblerPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentBarId]);
 
   const fetchCruzamento = useCallback(async () => {
+    if (!currentBarId) return;
     setLoadingCruzamento(true);
     try {
-      const response = await fetch('/api/umbler/cruzamento-reservas');
+      const response = await fetch(`/api/umbler/cruzamento-reservas?bar_id=${currentBarId}`);
       const data = await response.json();
       
       if (data.success) {
@@ -255,19 +270,29 @@ export default function UmblerPage() {
     } finally {
       setLoadingCruzamento(false);
     }
-  }, []);
+  }, [currentBarId]);
 
   // Funções de Campanhas
   const fetchCampanhas = useCallback(async () => {
+    if (!currentBarId) return;
     setLoadingCampanhas(true);
     try {
-      const response = await fetch('/api/umbler/campanhas?bar_id=3');
+      const response = await fetch(`/api/umbler/campanhas?bar_id=${currentBarId}`);
       const result = await response.json();
       setCampanhas(result.campanhas || []);
 
-      const configResponse = await fetch('/api/umbler/config?bar_id=3');
+      const configResponse = await fetch(`/api/umbler/config?bar_id=${currentBarId}`);
       const configResult = await configResponse.json();
       setUmblerConfig(configResult);
+
+      const integrationResponse = await fetch(`/api/configuracoes/integracoes/status?bar_id=${currentBarId}`);
+      const integrationResult = await integrationResponse.json();
+      if (integrationResult.success) {
+        setIntegrationStatus({
+          integracoes: integrationResult.integracoes,
+          faltantes: integrationResult.faltantes || [],
+        });
+      }
 
       try {
         const segmentosResponse = await fetch('/api/crm/campanhas?stats=true');
@@ -283,7 +308,7 @@ export default function UmblerPage() {
     } finally {
       setLoadingCampanhas(false);
     }
-  }, []);
+  }, [currentBarId]);
 
   const totalClientesSelecionados = segmentosSelecionados.reduce(
     (sum, seg) => sum + (segmentosStats[seg] || 0), 
@@ -332,7 +357,8 @@ export default function UmblerPage() {
           template_custom: mensagemCustom || undefined,
           cupom_desconto: cupomDesconto,
           executar_agora: false,
-          limite_envios: limiteEnvios
+          limite_envios: limiteEnvios,
+          bar_id: currentBarId
         })
       });
 
@@ -362,7 +388,7 @@ export default function UmblerPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          bar_id: 3,
+          bar_id: currentBarId,
           nome,
           tipo: 'marketing',
           template_mensagem: templateContent,
@@ -415,20 +441,21 @@ export default function UmblerPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'rascunho': return <Badge className="bg-gray-500">📝 Rascunho</Badge>;
-      case 'agendada': return <Badge className="bg-blue-600">📅 Agendada</Badge>;
-      case 'em_execucao': return <Badge className="bg-yellow-600">⚡ Executando</Badge>;
-      case 'concluida': return <Badge className="bg-green-600">✅ Concluída</Badge>;
-      case 'cancelada': return <Badge className="bg-red-600">❌ Cancelada</Badge>;
+      case 'rascunho': return <Badge variant="outline" className="bg-muted text-foreground border-border">📝 Rascunho</Badge>;
+      case 'agendada': return <Badge variant="outline" className="bg-muted text-foreground border-border">📅 Agendada</Badge>;
+      case 'em_execucao': return <Badge variant="outline" className="bg-muted text-foreground border-border">⚡ Executando</Badge>;
+      case 'concluida': return <Badge variant="outline" className="bg-muted text-foreground border-border">✅ Concluída</Badge>;
+      case 'cancelada': return <Badge variant="outline" className="bg-muted text-foreground border-border">❌ Cancelada</Badge>;
       default: return <Badge>-</Badge>;
     }
   };
 
   useEffect(() => {
+    if (!currentBarId) return;
     fetchMetricas();
     fetchCruzamento();
     fetchCampanhas();
-  }, [fetchMetricas, fetchCruzamento, fetchCampanhas]);
+  }, [fetchMetricas, fetchCruzamento, fetchCampanhas, currentBarId]);
 
   const formatarData = (data: string | null): string => {
     if (!data) return '-';
@@ -457,15 +484,15 @@ export default function UmblerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-2 py-4 max-w-[98vw]">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl">
-                  <MessageCircle className="w-6 h-6 text-white" />
+                <div className="p-2 bg-muted rounded-xl">
+                  <MessageCircle className="w-6 h-6 text-foreground" />
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -495,6 +522,25 @@ export default function UmblerPage() {
           </div>
         </div>
 
+        {!!currentBarId && integrationStatus && integrationStatus.faltantes.length > 0 && (
+          <Card className="mb-6 bg-muted/40 border-border">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="font-medium text-foreground">
+                    Integrações não configuradas para este bar
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {integrationStatus.faltantes.map((nome) => nome.toUpperCase()).join(' e ')} não está configurado.
+                    Configure em Configurações para habilitar dados e funcionalidades completas.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Métricas Principais */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {loading ? (
@@ -508,49 +554,49 @@ export default function UmblerPage() {
             ))
           ) : metricas ? (
             <>
-              <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border-blue-200 dark:border-blue-800">
+              <Card className="bg-card border-border">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <MessageSquare className="w-4 h-4 text-blue-500" />
-                    <span className="text-sm text-blue-700 dark:text-blue-300">Total Conversas</span>
+                    <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Total Conversas</span>
                   </div>
-                  <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
+                  <p className="text-3xl font-bold text-foreground">
                     {metricas.total_conversas.toLocaleString('pt-BR')}
                   </p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border-purple-200 dark:border-purple-800">
+              <Card className="bg-card border-border">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Users className="w-4 h-4 text-purple-500" />
-                    <span className="text-sm text-purple-700 dark:text-purple-300">Contatos Únicos</span>
+                    <Users className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Contatos Únicos</span>
                   </div>
-                  <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
+                  <p className="text-3xl font-bold text-foreground">
                     {metricas.contatos_unicos.toLocaleString('pt-BR')}
                   </p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800">
+              <Card className="bg-card border-border">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Activity className="w-4 h-4 text-green-500" />
-                    <span className="text-sm text-green-700 dark:text-green-300">Total Mensagens</span>
+                    <Activity className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Total Mensagens</span>
                   </div>
-                  <p className="text-3xl font-bold text-green-900 dark:text-green-100">
+                  <p className="text-3xl font-bold text-foreground">
                     {metricas.total_mensagens.toLocaleString('pt-BR')}
                   </p>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border-orange-200 dark:border-orange-800">
+              <Card className="bg-card border-border">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Calendar className="w-4 h-4 text-orange-500" />
-                    <span className="text-sm text-orange-700 dark:text-orange-300">Período</span>
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Período</span>
                   </div>
-                  <p className="text-sm font-medium text-orange-900 dark:text-orange-100">
+                  <p className="text-sm font-medium text-foreground">
                     {formatarData(metricas.conversa_mais_antiga)}
                   </p>
-                  <p className="text-xs text-orange-600 dark:text-orange-400">
+                  <p className="text-xs text-muted-foreground">
                     até {formatarData(metricas.conversa_mais_recente)}
                   </p>
                 </CardContent>
@@ -560,24 +606,24 @@ export default function UmblerPage() {
         </div>
 
         <Tabs defaultValue="cruzamento" className="space-y-6">
-          <TabsList className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-            <TabsTrigger value="cruzamento" className="data-[state=active]:bg-green-100 dark:data-[state=active]:bg-green-900/30">
+          <TabsList className="bg-muted/70 border border-border">
+            <TabsTrigger value="cruzamento" className="data-[state=active]:bg-muted data-[state=active]:border data-[state=active]:border-border/70">
               <Target className="w-4 h-4 mr-2" />
               Cruzamento com Reservas
             </TabsTrigger>
-            <TabsTrigger value="contatos" className="data-[state=active]:bg-purple-100 dark:data-[state=active]:bg-purple-900/30">
+            <TabsTrigger value="contatos" className="data-[state=active]:bg-muted data-[state=active]:border data-[state=active]:border-border/70">
               <Users className="w-4 h-4 mr-2" />
               Top Contatos
             </TabsTrigger>
-            <TabsTrigger value="status" className="data-[state=active]:bg-blue-100 dark:data-[state=active]:bg-blue-900/30">
+            <TabsTrigger value="status" className="data-[state=active]:bg-muted data-[state=active]:border data-[state=active]:border-border/70">
               <PieChart className="w-4 h-4 mr-2" />
               Status das Conversas
             </TabsTrigger>
-            <TabsTrigger value="campanhas" className="data-[state=active]:bg-cyan-100 dark:data-[state=active]:bg-cyan-900/30">
+            <TabsTrigger value="campanhas" className="data-[state=active]:bg-muted data-[state=active]:border data-[state=active]:border-border/70">
               <Send className="w-4 h-4 mr-2" />
               Campanhas
             </TabsTrigger>
-            <TabsTrigger value="nps" className="data-[state=active]:bg-amber-100 dark:data-[state=active]:bg-amber-900/30">
+            <TabsTrigger value="nps" className="data-[state=active]:bg-muted data-[state=active]:border data-[state=active]:border-border/70">
               <Star className="w-4 h-4 mr-2" />
               Disparo NPS
             </TabsTrigger>
@@ -590,7 +636,7 @@ export default function UmblerPage() {
               <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                 <CardHeader>
                   <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-green-500" />
+                    <TrendingUp className="w-5 h-5 text-muted-foreground" />
                     Funil: WhatsApp → Reserva → Presença
                   </CardTitle>
                   <CardDescription className="text-gray-600 dark:text-gray-400">
@@ -608,16 +654,16 @@ export default function UmblerPage() {
                     <div className="space-y-4">
                       {/* Nível 1: Contatos */}
                       <div className="relative">
-                        <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-500">
+                        <div className="flex items-center justify-between p-4 bg-muted/40 rounded-lg border border-border">
                           <div className="flex items-center gap-3">
-                            <MessageCircle className="w-6 h-6 text-blue-500" />
+                            <MessageCircle className="w-6 h-6 text-muted-foreground" />
                             <div>
                               <p className="font-medium text-gray-900 dark:text-white">Conversaram no WhatsApp</p>
                               <p className="text-sm text-gray-500 dark:text-gray-400">Todos os contatos</p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                            <p className="text-2xl font-bold text-foreground">
                               {metricas.contatos_unicos.toLocaleString('pt-BR')}
                             </p>
                             <p className="text-sm text-gray-500">100%</p>
@@ -628,16 +674,16 @@ export default function UmblerPage() {
 
                       {/* Nível 2: Fizeram Reserva */}
                       <div className="relative">
-                        <div className="flex items-center justify-between p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border-l-4 border-purple-500">
+                        <div className="flex items-center justify-between p-4 bg-muted/40 rounded-lg border border-border">
                           <div className="flex items-center gap-3">
-                            <CalendarCheck className="w-6 h-6 text-purple-500" />
+                            <CalendarCheck className="w-6 h-6 text-muted-foreground" />
                             <div>
                               <p className="font-medium text-gray-900 dark:text-white">Fizeram Reserva</p>
                               <p className="text-sm text-gray-500 dark:text-gray-400">Reservaram pelo Getin</p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                            <p className="text-2xl font-bold text-foreground">
                               {cruzamento.contatos_conversaram_e_reservaram}
                             </p>
                             <p className="text-sm text-gray-500">{calcularTaxaConversao()}%</p>
@@ -648,16 +694,16 @@ export default function UmblerPage() {
 
                       {/* Nível 3: Compareceram */}
                       <div className="relative">
-                        <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border-l-4 border-green-500">
+                        <div className="flex items-center justify-between p-4 bg-muted/40 rounded-lg border border-border">
                           <div className="flex items-center gap-3">
-                            <CheckCircle className="w-6 h-6 text-green-500" />
+                            <CheckCircle className="w-6 h-6 text-muted-foreground" />
                             <div>
                               <p className="font-medium text-gray-900 dark:text-white">Compareceram</p>
                               <p className="text-sm text-gray-500 dark:text-gray-400">Status: Seated</p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                            <p className="text-2xl font-bold text-foreground">
                               {cruzamento.compareceram_seated}
                             </p>
                             <p className="text-sm text-gray-500">{calcularTaxaComparecimento()}% das reservas</p>
@@ -667,16 +713,16 @@ export default function UmblerPage() {
 
                       {/* Nível 3: No-Show */}
                       <div className="relative">
-                        <div className="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border-l-4 border-red-500">
+                        <div className="flex items-center justify-between p-4 bg-muted/40 rounded-lg border border-border">
                           <div className="flex items-center gap-3">
-                            <UserX className="w-6 h-6 text-red-500" />
+                            <UserX className="w-6 h-6 text-muted-foreground" />
                             <div>
                               <p className="font-medium text-gray-900 dark:text-white">No-Show</p>
                               <p className="text-sm text-gray-500 dark:text-gray-400">Não compareceram</p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                            <p className="text-2xl font-bold text-foreground">
                               {cruzamento.no_shows}
                             </p>
                             <p className="text-sm text-gray-500">{calcularTaxaNoShow()}% das reservas</p>
@@ -692,7 +738,7 @@ export default function UmblerPage() {
               <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                 <CardHeader>
                   <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-purple-500" />
+                    <BarChart3 className="w-5 h-5 text-muted-foreground" />
                     Detalhes das Reservas
                   </CardTitle>
                   <CardDescription className="text-gray-600 dark:text-gray-400">
@@ -712,40 +758,40 @@ export default function UmblerPage() {
                         <span className="text-gray-700 dark:text-gray-300">Total de Reservas</span>
                         <span className="font-bold text-gray-900 dark:text-white">{cruzamento.total_reservas}</span>
                       </div>
-                      <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                      <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg border border-border">
                         <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                          <span className="text-green-700 dark:text-green-300">Compareceram (Seated)</span>
+                          <CheckCircle className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-foreground">Compareceram (Seated)</span>
                         </div>
-                        <span className="font-bold text-green-600 dark:text-green-400">{cruzamento.compareceram_seated}</span>
+                        <span className="font-bold text-foreground">{cruzamento.compareceram_seated}</span>
                       </div>
-                      <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                      <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg border border-border">
                         <div className="flex items-center gap-2">
-                          <XCircle className="w-4 h-4 text-red-500" />
-                          <span className="text-red-700 dark:text-red-300">No-Show</span>
+                          <XCircle className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-foreground">No-Show</span>
                         </div>
-                        <span className="font-bold text-red-600 dark:text-red-400">{cruzamento.no_shows}</span>
+                        <span className="font-bold text-foreground">{cruzamento.no_shows}</span>
                       </div>
-                      <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg border border-border">
                         <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-blue-500" />
-                          <span className="text-blue-700 dark:text-blue-300">Confirmadas (Aguardando)</span>
+                          <Clock className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-foreground">Confirmadas (Aguardando)</span>
                         </div>
-                        <span className="font-bold text-blue-600 dark:text-blue-400">{cruzamento.confirmadas_aguardando}</span>
+                        <span className="font-bold text-foreground">{cruzamento.confirmadas_aguardando}</span>
                       </div>
-                      <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                      <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg border border-border">
                         <div className="flex items-center gap-2">
-                          <XCircle className="w-4 h-4 text-yellow-500" />
-                          <span className="text-yellow-700 dark:text-yellow-300">Canceladas (Usuário)</span>
+                          <XCircle className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-foreground">Canceladas (Usuário)</span>
                         </div>
-                        <span className="font-bold text-yellow-600 dark:text-yellow-400">{cruzamento.canceladas_usuario}</span>
+                        <span className="font-bold text-foreground">{cruzamento.canceladas_usuario}</span>
                       </div>
-                      <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                      <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg border border-border">
                         <div className="flex items-center gap-2">
-                          <XCircle className="w-4 h-4 text-orange-500" />
-                          <span className="text-orange-700 dark:text-orange-300">Canceladas (Atendente)</span>
+                          <XCircle className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-foreground">Canceladas (Atendente)</span>
                         </div>
-                        <span className="font-bold text-orange-600 dark:text-orange-400">{cruzamento.canceladas_agente}</span>
+                        <span className="font-bold text-foreground">{cruzamento.canceladas_agente}</span>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                         <div className="flex items-center gap-2">
@@ -761,11 +807,11 @@ export default function UmblerPage() {
             </div>
 
             {/* Insight Box */}
-            <Card className="mt-6 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800">
+            <Card className="mt-6 bg-muted/40 border-border">
               <CardContent className="p-6">
                 <div className="flex items-start gap-4">
-                  <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                    <Target className="w-6 h-6 text-green-600 dark:text-green-400" />
+                  <div className="p-3 bg-muted rounded-lg">
+                    <Target className="w-6 h-6 text-muted-foreground" />
                   </div>
                   <div className="flex-1">
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
@@ -952,7 +998,7 @@ export default function UmblerPage() {
                       <Button
                         variant="outline"
                         onClick={async () => {
-                          const res = await fetch(`/api/umbler/nps-disparo?bar_id=3&fonte=${npsFonte}&dias=${npsDias}&limite=${npsLimite}`);
+                          const res = await fetch(`/api/umbler/nps-disparo?bar_id=${currentBarId}&fonte=${npsFonte}&dias=${npsDias}&limite=${npsLimite}`);
                           const data = await res.json();
                           if (data.success) setNpsPreview({ total: data.total });
                         }}
@@ -974,7 +1020,7 @@ export default function UmblerPage() {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({
-                                bar_id: 3,
+                                bar_id: currentBarId,
                                 fonte: npsFonte,
                                 dias: npsDias,
                                 limite: npsLimite,
@@ -1022,7 +1068,7 @@ export default function UmblerPage() {
                 </div>
                 <Button 
                   onClick={() => setModalAberto(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  variant="outline"
                   disabled={!umblerConfig?.configurado}
                 >
                   <Plus className="w-4 h-4 mr-2" />
@@ -1032,15 +1078,15 @@ export default function UmblerPage() {
 
               {/* Alerta se Umbler não configurado */}
               {!loadingCampanhas && !umblerConfig?.configurado && (
-                <Card className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
+                <Card className="bg-muted/40 border-border">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
-                      <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+                      <AlertCircle className="w-6 h-6 text-muted-foreground" />
                       <div>
-                        <p className="font-medium text-yellow-800 dark:text-yellow-200">
+                        <p className="font-medium text-foreground">
                           Integração Umbler não configurada
                         </p>
-                        <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                        <p className="text-sm text-muted-foreground">
                           Configure as credenciais da Umbler Talk para habilitar o disparo em massa.
                         </p>
                       </div>
@@ -1063,42 +1109,42 @@ export default function UmblerPage() {
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+                  <Card className="bg-card border-border">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="text-sm text-green-600 dark:text-green-400">Concluídas</div>
-                          <div className="text-2xl font-bold text-green-700 dark:text-green-300">
+                          <div className="text-sm text-muted-foreground">Concluídas</div>
+                          <div className="text-2xl font-bold text-foreground">
                             {campanhas.filter(c => c.status === 'concluida').length}
                           </div>
                         </div>
-                        <CheckCircle className="w-6 h-6 text-green-600" />
+                        <CheckCircle className="w-6 h-6 text-muted-foreground" />
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                  <Card className="bg-card border-border">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="text-sm text-blue-600 dark:text-blue-400">Enviados</div>
-                          <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                          <div className="text-sm text-muted-foreground">Enviados</div>
+                          <div className="text-2xl font-bold text-foreground">
                             {campanhas.reduce((sum, c) => sum + (c.enviados || 0), 0)}
                           </div>
                         </div>
-                        <Send className="w-6 h-6 text-blue-600" />
+                        <Send className="w-6 h-6 text-muted-foreground" />
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+                  <Card className="bg-card border-border">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="text-sm text-red-600 dark:text-red-400">Erros</div>
-                          <div className="text-2xl font-bold text-red-700 dark:text-red-300">
+                          <div className="text-sm text-muted-foreground">Erros</div>
+                          <div className="text-2xl font-bold text-foreground">
                             {campanhas.reduce((sum, c) => sum + (c.erros || 0), 0)}
                           </div>
                         </div>
-                        <XCircle className="w-6 h-6 text-red-600" />
+                        <XCircle className="w-6 h-6 text-muted-foreground" />
                       </div>
                     </CardContent>
                   </Card>
@@ -1149,20 +1195,20 @@ export default function UmblerPage() {
                               <div className="font-bold">{campanha.total_destinatarios}</div>
                               <div className="text-xs text-gray-500">Total</div>
                             </div>
-                            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
-                              <div className="font-bold text-blue-600">{campanha.enviados}</div>
+                            <div className="p-2 bg-muted/40 rounded border border-border">
+                              <div className="font-bold text-foreground">{campanha.enviados}</div>
                               <div className="text-xs text-gray-500">Enviados</div>
                             </div>
-                            <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded">
-                              <div className="font-bold text-green-600">{campanha.entregues}</div>
+                            <div className="p-2 bg-muted/40 rounded border border-border">
+                              <div className="font-bold text-foreground">{campanha.entregues}</div>
                               <div className="text-xs text-gray-500">Entregues</div>
                             </div>
-                            <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded">
-                              <div className="font-bold text-purple-600">{campanha.respostas}</div>
+                            <div className="p-2 bg-muted/40 rounded border border-border">
+                              <div className="font-bold text-foreground">{campanha.respostas}</div>
                               <div className="text-xs text-gray-500">Respostas</div>
                             </div>
-                            <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded">
-                              <div className="font-bold text-red-600">{campanha.erros}</div>
+                            <div className="p-2 bg-muted/40 rounded border border-border">
+                              <div className="font-bold text-foreground">{campanha.erros}</div>
                               <div className="text-xs text-gray-500">Erros</div>
                             </div>
                           </div>

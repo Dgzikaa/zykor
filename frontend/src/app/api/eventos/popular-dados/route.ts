@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     // Buscar todos os eventos do bar
     const { data: eventos, error: eventosError } = await supabase
-      .from('eventos')
+      .from('eventos_base')
       .select('*')
       .eq('bar_id', barId)
       .order('data_evento')
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
 
       // Atualizar evento
       const { error: updateError } = await supabase
-        .from('eventos')
+        .from('eventos_base')
         .update(dadosAtualizados)
         .eq('id', evento.id)
 
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar eventos com dados de indicadores
     const { data: eventos, error } = await supabase
-      .from('eventos')
+      .from('eventos_base')
       .select('id, nome, data_evento, m1_r, te_plan, tb_plan, c_art, c_prod, percent_art_fat, atualizado_em')
       .eq('bar_id', barId)
       .order('data_evento', { ascending: false })

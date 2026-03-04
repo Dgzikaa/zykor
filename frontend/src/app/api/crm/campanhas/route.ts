@@ -367,9 +367,14 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: campanhas, error } = await query;
+    const tabelaCampanhasNaoExiste = (error as any)?.code === 'PGRST205';
 
-    if (error) {
+    if (error && !tabelaCampanhasNaoExiste) {
       throw error;
+    }
+
+    if (tabelaCampanhasNaoExiste) {
+      console.warn("Tabela 'crm_campanhas' não encontrada. Retornando lista vazia de campanhas.");
     }
 
     // Buscar templates do banco

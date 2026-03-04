@@ -14,27 +14,65 @@ const supabase = createClient(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId } = body;
+    const { userId, userAuthId, email } = body;
 
-    if (!userId) {
+    if (!userId && !userAuthId && !email) {
       return NextResponse.json(
-        { error: 'ID do usuário é obrigatório' },
+        { error: 'Identificador do usuário é obrigatório' },
         { status: 400 }
       );
     }
 
-    // 1. Buscar dados do usuário
-    console.log('🔍 Buscando usuário com ID:', userId);
-    const { data: usuario, error: fetchError } = await supabase
-      .from('usuarios_bar')
-      .select('id, user_id, email, nome, role')
-      .eq('id', userId)
-      .single();
+    // 1. Buscar dados do usuário no schema atual com fallback
+    const usuariosQuery = () =>
+      supabase.from('usuarios').select('id, auth_id, email, nome, role').limit(1);
 
-    if (usuario) {
-      console.log('✅ Usuário encontrado:', usuario.nome);
-      console.log('📧 Email do usuário:', usuario.email);
-      console.log('👤 User ID:', usuario.user_id);
+    let usuario: any = null;
+    let fetchError: any = null;
+
+    if (userId !== undefined && userId !== null) {
+      const rawUserId = String(userId).trim();
+      if (rawUserId) {
+        console.log('🔍 Tentando encontrar usuário por userId:', rawUserId);
+
+        if (/^\d+$/.test(rawUserId)) {
+          const byNumericId = await usuariosQuery().eq('id', Number(rawUserId));
+          usuario = byNumericId.data?.[0] || null;
+          fetchError = byNumericId.error;
+        }
+
+        if (!usuario) {
+          const byStringId = await usuariosQuery().eq('id', rawUserId);
+          usuario = byStringId.data?.[0] || null;
+          fetchError = byStringId.error;
+        }
+
+        if (!usuario) {
+          const byAuthId = await usuariosQuery().eq('auth_id', rawUserId);
+          usuario = byAuthId.data?.[0] || null;
+          fetchError = byAuthId.error;
+        }
+      }
+    }
+
+    if (!usuario && userAuthId) {
+      const rawAuthId = String(userAuthId).trim();
+      if (rawAuthId) {
+        console.log('🔍 Tentando encontrar usuário por auth_id:', rawAuthId);
+        const byAuthId = await usuariosQuery().eq('auth_id', rawAuthId);
+        usuario = byAuthId.data?.[0] || null;
+        fetchError = byAuthId.error;
+      }
+    }
+
+    if (!usuario && email) {
+      const normalizedEmail = normalizeEmail(String(email));
+      if (normalizedEmail) {
+        console.log('🔍 Tentando encontrar usuário por email:', normalizedEmail);
+        const byEmail = await usuariosQuery().eq('email', normalizedEmail);
+        usuario = byEmail.data?.[0] || null;
+        fetchError = byEmail.error;
+      }
     }
 
     if (fetchError || !usuario) {
@@ -44,7 +82,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!usuario.user_id) {
+    if (!usuario.auth_id) {
       return NextResponse.json(
         { error: 'Usuário não possui conta de autenticação vinculada' },
         { status: 400 }
@@ -55,13 +93,13 @@ export async function POST(request: NextRequest) {
     const senhaTemporaria = `Temp${Math.random().toString(36).substring(2, 8)}!`;
     
     console.log('🔑 Gerando senha temporária para:', usuario.email);
-    console.log('👤 User ID:', usuario.user_id);
+    console.log('👤 Auth ID:', usuario.auth_id);
     console.log('🔐 Senha temporária gerada:', senhaTemporaria);
     
     // 3. Atualizar senha no Supabase Auth
     console.log('🔄 Atualizando senha no Supabase Auth...');
     const { data: authData, error: authUpdateError } = await supabase.auth.admin.updateUserById(
-      usuario.user_id,
+      usuario.auth_id,
       { 
         password: senhaTemporaria,
         email_confirm: true, // Garantir que email está confirmado
@@ -97,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     // 4. Buscar email REAL do Auth (pode ser diferente do banco)
     console.log('🔍 Verificando email real no Supabase Auth...');
-    const { data: authUserCheck, error: authCheckError } = await supabase.auth.admin.getUserById(usuario.user_id);
+    const { data: authUserCheck } = await supabase.auth.admin.getUserById(usuario.auth_id);
     
     let emailParaLogin = normalizeEmail(usuario.email);
     if (authUserCheck?.user?.email) {
@@ -126,7 +164,7 @@ export async function POST(request: NextRequest) {
       console.error('❌ Erro do teste:', testError?.message);
       console.error('❌ Código do erro:', testError?.status);
       console.error('❌ Email usado no teste:', emailParaLogin);
-      console.error('❌ User ID:', usuario.user_id);
+      console.error('❌ Auth ID:', usuario.auth_id);
       
       // Retornar erro para o admin saber que não funcionou
       return NextResponse.json({
@@ -151,15 +189,14 @@ export async function POST(request: NextRequest) {
 
     // 5. Salvar token no banco e marcar que precisa redefinir senha
     const { error: updateError } = await supabase
-      .from('usuarios_bar')
+      .from('usuarios')
       .update({
         reset_token: resetToken,
         reset_token_expiry: resetTokenExpiry.toISOString(),
         senha_redefinida: false,
-        ultima_atividade: new Date().toISOString(),
-        atualizado_em: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
-      .eq('id', userId);
+      .eq('id', usuario.id);
 
     if (updateError) {
       console.error('❌ Erro ao salvar token de reset:', updateError);
@@ -167,9 +204,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Gerar URL de redefinição
-    // Em produção, SEMPRE usar o domínio oficial zykor.com.br
-    const baseUrl = process.env.NODE_ENV === 'development' 
-      ? 'http://localhost:3000' 
+    const requestUrl = new URL(request.url);
+    const baseUrl = process.env.NODE_ENV === 'development'
+      ? `${requestUrl.protocol}//${requestUrl.host}`
       : 'https://zykor.com.br';
     
     const resetLink = `${baseUrl}/usuarios/redefinir-senha?email=${encodeURIComponent(usuario.email)}&token=${resetToken}`;
@@ -179,8 +216,6 @@ export async function POST(request: NextRequest) {
     let emailError: string | null = null;
     
     try {
-      // Usar URL absoluta baseada no host da requisição para chamadas internas
-      const requestUrl = new URL(request.url);
       const internalBaseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
       
       const emailResponse = await fetch(`${internalBaseUrl}/api/emails/password-reset-link`, {

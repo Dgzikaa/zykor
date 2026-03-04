@@ -28,7 +28,7 @@ import {
   CreditCard,
   Building
 } from 'lucide-react';
-import { LoadingState } from '@/components/ui/loading-state';
+import { ConfiguracaoLoading } from '@/components/ui/unified-loading';
 import { useToast } from '@/hooks/use-toast';
 import PageHeader from '@/components/layouts/PageHeader';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -38,6 +38,7 @@ import { useRouter } from 'next/navigation';
 
 interface Usuario {
   id: number;
+  auth_id?: string;
   email: string;
   nome: string;
   role: string;
@@ -419,14 +420,18 @@ function UsuariosPage() {
     avisoEmail?: string; // Aviso se email for diferente
   }>({ open: false, email: '', nome: '', resetLink: '', expiresAt: '', emailSent: false, message: '' });
 
-  const handleResetPassword = async (userId: number) => {
+  const handleResetPassword = async (usuario: Usuario) => {
     if (!confirm('⚠️ Tem certeza que deseja resetar a senha deste usuário?\n\nUma nova senha temporária será gerada e você poderá compartilhá-la com o usuário.\n\nO sistema tentará enviar um email, mas mesmo se falhar, você terá a senha temporária para compartilhar.')) return;
 
     try {
       const response = await fetch('/api/configuracoes/usuarios/redefinir-senha', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({
+          userId: usuario.id,
+          userAuthId: usuario.auth_id,
+          email: usuario.email,
+        }),
       });
 
       const result = await response.json();
@@ -528,15 +533,7 @@ function UsuariosPage() {
 
   // Mostrar loading enquanto verifica permissões
   if (permissionsLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingState
-          title="Verificando permissões..."
-          subtitle="Validando acesso ao módulo"
-          icon={<Shield className="w-4 h-4" />}
-        />
-      </div>
-    );
+    return <ConfiguracaoLoading />;
   }
 
   // Bloquear acesso se não for admin
@@ -560,11 +557,7 @@ function UsuariosPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-[hsl(var(--muted-foreground))]">Carregando...</div>
-      </div>
-    );
+    return <ConfiguracaoLoading />;
   }
 
   return (
@@ -676,7 +669,7 @@ function UsuariosPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleResetPassword(u.id)}
+                  onClick={() => handleResetPassword(u)}
                   aria-label={`Redefinir senha do usuário ${u.nome}`}
                   title="Redefinir senha"
                   leftIcon={<Key className="w-4 h-4" />}
@@ -953,7 +946,7 @@ function UsuariosPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => handleResetPassword(editingUser.id)}
+                    onClick={() => handleResetPassword(editingUser)}
                     leftIcon={<Key className="w-4 h-4" />}
                   >
                     Redefinir Senha

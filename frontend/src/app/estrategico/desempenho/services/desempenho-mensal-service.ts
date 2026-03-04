@@ -56,7 +56,17 @@ async function getDadosMensais(
 
   const { data: eventosDiarios } = await query;
 
-  const dadosDiarios = agregarDadosDiarios(eventosDiarios || []);
+  // Stockout mensal canônico por categoria_mix (fonte: contahub_stockout)
+  const { data: stockoutMensal } = await supabase
+    .from('contahub_stockout')
+    .select('categoria_mix, prd_venda')
+    .eq('bar_id', barId)
+    .gte('data_consulta', dataInicio)
+    .lte('data_consulta', dataFim)
+    .eq('prd_ativo', 'S')
+    .in('categoria_mix', ['BEBIDA', 'DRINK', 'COMIDA']);
+
+  const dadosDiarios = agregarDadosDiarios(eventosDiarios || [], stockoutMensal || []);
 
   // 2. Dados semanais proporcionais
   const semanasComProporcao = calcularSemanasComProporcao(mes, ano);
@@ -280,7 +290,7 @@ function getWeekAndYear(date: Date) {
   return { semana, ano };
 }
 
-function agregarDadosDiarios(eventos: any[]) {
+function agregarDadosDiarios(eventos: any[], stockoutRows: any[]) {
   if (!eventos || eventos.length === 0) return {};
   
   const diasComFaturamento = eventos.filter(e => parseFloat(e.real_r) > 0);
@@ -336,6 +346,30 @@ function agregarDadosDiarios(eventos: any[]) {
     tempo_saida_cozinha: tmCoz,
     tempo_saida_bar: tmBar,
     perc_faturamento_ate_19h: percFat19,
+    ...agregarStockoutCategoriaMix(stockoutRows),
+  };
+}
+
+function agregarStockoutCategoriaMix(stockoutRows: any[]) {
+  const totalBebidas = stockoutRows.filter(r => r.categoria_mix === 'BEBIDA').length;
+  const totalDrinks = stockoutRows.filter(r => r.categoria_mix === 'DRINK').length;
+  const totalComidas = stockoutRows.filter(r => r.categoria_mix === 'COMIDA').length;
+
+  const soBebidas = stockoutRows.filter(r => r.categoria_mix === 'BEBIDA' && r.prd_venda === 'N').length;
+  const soDrinks = stockoutRows.filter(r => r.categoria_mix === 'DRINK' && r.prd_venda === 'N').length;
+  const soComidas = stockoutRows.filter(r => r.categoria_mix === 'COMIDA' && r.prd_venda === 'N').length;
+
+  const totalItens = totalBebidas + totalDrinks + totalComidas;
+  const totalStockout = soBebidas + soDrinks + soComidas;
+
+  return {
+    stockout_bar: soBebidas,
+    stockout_drinks: soDrinks,
+    stockout_comidas: soComidas,
+    stockout_bar_perc: totalBebidas > 0 ? (soBebidas / totalBebidas) * 100 : 0,
+    stockout_drinks_perc: totalDrinks > 0 ? (soDrinks / totalDrinks) * 100 : 0,
+    stockout_comidas_perc: totalComidas > 0 ? (soComidas / totalComidas) * 100 : 0,
+    percent_stockout: totalItens > 0 ? (totalStockout / totalItens) * 100 : 0,
   };
 }
 
@@ -418,13 +452,7 @@ function agregarDadosSemanaisProporcionais(
     cancelamentos: sumProp(desempenhoMap, 'cancelamentos'),
     // Nota: conta_assinada e descontos são calculados diretamente de contahub_pagamentos e contahub_periodo
     
-    // Stockout (quantidades arredondadas, percentuais com 1 casa decimal)
-    stockout_comidas: Math.round(sumProp(desempenhoMap, 'stockout_comidas')),
-    stockout_comidas_perc: Math.round(avgProp(desempenhoMap, 'stockout_comidas_perc') * 10) / 10,
-    stockout_drinks: Math.round(sumProp(desempenhoMap, 'stockout_drinks')),
-    stockout_drinks_perc: Math.round(avgProp(desempenhoMap, 'stockout_drinks_perc') * 10) / 10,
-    stockout_bar: Math.round(sumProp(desempenhoMap, 'stockout_bar')),
-    stockout_bar_perc: Math.round(avgProp(desempenhoMap, 'stockout_bar_perc') * 10) / 10,
+    // Stockout mensal agora vem do contahub_stockout (categoria_mix) no bloco diário
     
     // Atrasos (quantidades são soma arredondada, percentuais são média)
     qtde_itens_bar: Math.round(sumProp(desempenhoMap, 'qtde_itens_bar')),

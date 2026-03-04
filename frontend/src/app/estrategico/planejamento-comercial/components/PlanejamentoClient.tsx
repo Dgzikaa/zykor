@@ -319,6 +319,13 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
     return Math.round(valor).toString();
   };
 
+  const temDetalheFinanceiro = (evento: PlanejamentoData) => {
+    const contaHubLiquido = Number(evento.contahub_liquido || 0);
+    const yuzerLiquido = Number(evento.yuzer_liquido || 0);
+    const symplaLiquido = Number(evento.sympla_liquido || 0);
+    return contaHubLiquido > 0 || yuzerLiquido > 0 || symplaLiquido > 0;
+  };
+
   const meses = [
     { value: 1, label: 'Janeiro' }, { value: 2, label: 'Fevereiro' }, { value: 3, label: 'Março' },
     { value: 4, label: 'Abril' }, { value: 5, label: 'Maio' }, { value: 6, label: 'Junho' },
@@ -465,7 +472,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
 
                         {/* Grupo PRODUÇÃO */}
                         <th
-                          colSpan={gruposAbertos.producao ? 7 : 1}
+                          colSpan={gruposAbertos.producao ? 6 : 1}
                           className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('producao')}
                         >
@@ -584,21 +591,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                 </TooltipContent>
                               </Tooltip>
                             </th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasinho Coz</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasinho Bar</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className="cursor-help underline decoration-dotted">% Happy Hour</span>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-xs bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
-                                  <div className="text-xs space-y-1">
-                                    <p className="font-semibold">Produtos Happy Hour</p>
-                                    <p className="text-[hsl(var(--muted-foreground))]">Produtos do grupo Happy Hour / Total vendas</p>
-                                  </div>
-                                </TooltipContent>
-                              </Tooltip>
-                            </th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasão Coz</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasão Drinks</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Stockout</th>
                           </>
                         ) : (
@@ -638,7 +632,48 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             <td className={`px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))] sticky left-0 z-10 transition-colors ${linhaHighlight === idx ? 'bg-[hsl(var(--muted))]' : 'bg-[hsl(var(--background))] group-hover:bg-[hsl(var(--muted))]/30'}`} style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>{evento.data_curta}</td>
                             <td className={`px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] sticky left-[48px] z-10 transition-colors ${linhaHighlight === idx ? 'bg-[hsl(var(--muted))]' : 'bg-[hsl(var(--background))] group-hover:bg-[hsl(var(--muted))]/30'}`} style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
                             <td className={`px-2 py-1.5 text-left text-[11px] border-r-2 border-[hsl(var(--border))] sticky left-[86px] z-10 truncate transition-colors ${linhaHighlight === idx ? 'bg-[hsl(var(--muted))]' : 'bg-[hsl(var(--background))] group-hover:bg-[hsl(var(--muted))]/30'}`} style={{width: '140px', minWidth: '140px', maxWidth: '140px'}} title={evento.evento_nome || 'Sem atração'}>{evento.evento_nome || '-'}</td>
-                            <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}><span className={`font-semibold ${evento.real_vs_m1_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.real_receita > 0 ? formatarMoeda(evento.real_receita) : '-'}</span></td>
+                            <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}>
+                              {evento.real_receita > 0 ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className={`font-semibold cursor-help underline decoration-dotted ${evento.real_vs_m1_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                      {formatarMoeda(evento.real_receita)}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-sm bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
+                                    {temDetalheFinanceiro(evento) ? (
+                                      <div className="text-xs space-y-1">
+                                        <p><span className="font-semibold">Faturamento bruto ContaHub:</span> {formatarMoeda(evento.contahub_bruto || 0)}</p>
+                                        <p><span className="font-semibold">Conta assinada:</span> {formatarMoeda(evento.conta_assinada || 0)}</p>
+                                        <p><span className="font-semibold">Faturamento liquido ContaHub:</span> {formatarMoeda(evento.contahub_liquido || 0)}</p>
+                                        {(Number(evento.yuzer_liquido || 0) > 0 || Number(evento.yuzer_entrada || 0) > 0 || Number(evento.yuzer_bar || 0) > 0) && (
+                                          <>
+                                            <p><span className="font-semibold">Faturamento Yuzer entrada:</span> {formatarMoeda(evento.yuzer_entrada || 0)}</p>
+                                            <p><span className="font-semibold">Faturamento Yuzer bar:</span> {formatarMoeda(evento.yuzer_bar || 0)}</p>
+                                            <p><span className="font-semibold">Descontos Yuzer:</span> {formatarMoeda(evento.yuzer_descontos || 0)}</p>
+                                            <p><span className="font-semibold">Faturamento liquido Yuzer:</span> {formatarMoeda(evento.yuzer_liquido || 0)}</p>
+                                          </>
+                                        )}
+                                        {Number(evento.sympla_liquido || 0) > 0 && (
+                                          <p><span className="font-semibold">Faturamento liquido Sympla:</span> {formatarMoeda(evento.sympla_liquido || 0)}</p>
+                                        )}
+                                        <p className="pt-1 border-t border-[hsl(var(--border))]">
+                                          <span className="font-semibold">Faturamento total:</span> {formatarMoeda(evento.faturamento_total_detalhado || evento.real_receita || 0)}
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs">
+                                        <p><span className="font-semibold">Faturamento bruto ContaHub:</span> {formatarMoeda(evento.contahub_bruto || 0)}</p>
+                                        <p><span className="font-semibold">Conta assinada:</span> {formatarMoeda(evento.conta_assinada || 0)}</p>
+                                        <p><span className="font-semibold">Faturamento liquido ContaHub:</span> {formatarMoeda(evento.contahub_liquido || 0)}</p>
+                                      </div>
+                                    )}
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <span className={`font-semibold ${evento.real_vs_m1_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>-</span>
+                              )}
+                            </td>
                             <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
                             
                             {/* Grupo CLIENTES */}
@@ -684,9 +719,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_b > 0 ? formatarPercentual(evento.percent_b) : '-'}</td>
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_d > 0 ? formatarPercentual(evento.percent_d) : '-'}</td>
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_c > 0 ? formatarPercentual(evento.percent_c) : '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasinho_cozinha <= 10 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasinho_cozinha > 0 ? formatarContagem(evento.atrasinho_cozinha) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasinho_bar <= 50 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasinho_bar > 0 ? formatarContagem(evento.atrasinho_bar) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_happy_hour > 0 ? formatarPercentual(evento.percent_happy_hour) : '-'}</td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_cozinha <= 10 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_cozinha > 0 ? formatarContagem(evento.atrasao_cozinha) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_bar <= 50 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_bar > 0 ? formatarContagem(evento.atrasao_bar) : '-'}</span></td>
                                 <td className="px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_stockout <= 10 ? 'text-green-600 dark:text-green-400' : evento.percent_stockout <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_stockout > 0 ? formatarPercentual(evento.percent_stockout) : '-'}</span></td>
                               </>
                             ) : (

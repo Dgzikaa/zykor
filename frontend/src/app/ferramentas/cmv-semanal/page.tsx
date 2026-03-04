@@ -721,7 +721,7 @@ export default function CMVSemanalPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <LoadingState
           title="Carregando CMVs..."
           subtitle="Processando dados de custo de mercadoria vendida"
@@ -743,8 +743,8 @@ export default function CMVSemanalPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-2 py-4 max-w-[98vw]">
         {/* Filtros e Ações */}
         <Card className="card-dark mb-6">
           <CardHeader>
@@ -777,7 +777,7 @@ export default function CMVSemanalPage() {
               <Button
                 onClick={sincronizarTudo}
                 disabled={sincronizando}
-                className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white"
+                variant="outline"
                 leftIcon={sincronizando ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
               >
                 {sincronizando ? 'Atualizando...' : 'Atualizar Dados'}
@@ -785,14 +785,14 @@ export default function CMVSemanalPage() {
               <Button
                 onClick={processarSemanaAtual}
                 disabled={calculando}
-                className="bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white"
+                variant="outline"
                 leftIcon={calculando ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               >
                 {calculando ? 'Processando...' : 'Processar Semana Atual'}
               </Button>
               <Button
                 onClick={abrirModalAdicionar}
-                className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white"
+                variant="outline"
                 leftIcon={<Plus className="h-4 w-4" />}
               >
                 Adicionar CMV
@@ -845,15 +845,15 @@ export default function CMVSemanalPage() {
 
         {/* Aviso sobre filtro automático */}
         {cmvs.length === 0 && (
-          <Card className="card-dark mb-6 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
+          <Card className="card-dark mb-6 border-border bg-muted/40">
             <CardContent className="pt-6">
               <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                <Info className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                  <h4 className="font-semibold text-foreground mb-1">
                     Nenhum CMV com dados encontrado
                   </h4>
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                  <p className="text-sm text-muted-foreground">
                     Não há registros de CMV com dados preenchidos para o ano selecionado. 
                     Use o botão <strong>&quot;Atualizar Dados&quot;</strong> para sincronizar dados da planilha e NIBO, 
                     ou <strong>&quot;Processar Semana Atual&quot;</strong> para calcular o CMV da semana corrente.
@@ -1018,20 +1018,20 @@ export default function CMVSemanalPage() {
           loading={salvando}
         >
           {/* Botão de calcular automaticamente */}
-          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <div className="mb-6 p-4 bg-muted/40 rounded-lg border border-border">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  <h4 className="font-semibold text-blue-900 dark:text-blue-100">
+                  <Sparkles className="h-5 w-5 text-muted-foreground" />
+                  <h4 className="font-semibold text-foreground">
                     Preencher Dados Automaticamente
                   </h4>
                 </div>
-                <p className="text-sm text-blue-700 dark:text-blue-300">
+                <p className="text-sm text-muted-foreground">
                   Buscar dados de consumo dos sócios, compras do NIBO, faturamento do ContaHub e estoques automaticamente.
                 </p>
                 <div className="mt-3 flex items-center gap-2">
-                  <Label className="text-xs text-blue-600 dark:text-blue-400">Compras NIBO por:</Label>
+                  <Label className="text-xs text-muted-foreground">Compras NIBO por:</Label>
                   <Select value={criterioDataCompras} onValueChange={(v: 'competencia' | 'criacao') => setCriterioDataCompras(v)}>
                     <SelectTrigger className="w-[200px] h-8 text-xs">
                       <SelectValue />
@@ -1383,9 +1383,9 @@ export default function CMVSemanalPage() {
           </ModalSection>
 
           {/* Seção 8: Resultado do CMV */}
-          <div className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg border-2 border-blue-200 dark:border-blue-800">
+          <div className="p-6 bg-muted/40 rounded-lg border border-border">
             <div className="flex items-center gap-3 mb-4">
-              <Calculator className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              <Calculator className="h-6 w-6 text-muted-foreground" />
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                 Resultado do CMV Semanal
               </h3>
@@ -1411,7 +1411,7 @@ export default function CMVSemanalPage() {
               </div>
               <div className="p-4 bg-white dark:bg-gray-800 rounded-lg">
                 <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">CMV Teórico</p>
-                <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                <p className="text-xl font-bold text-foreground">
                   {formatarPercentual(formData.cmv_teorico_percentual || 0)}
                 </p>
               </div>
@@ -1432,7 +1432,7 @@ export default function CMVSemanalPage() {
             {/* Explicação da fórmula */}
             <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <div className="flex items-start gap-2">
-                <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                <Info className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
                 <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
                   <p><strong>CMV Real =</strong> (Estoque Inicial + Compras - Estoque Final) - (Consumos) - Bonificações</p>
                   <p><strong>CMV Limpo =</strong> (CMV Real / Faturamento CMVível) × 100</p>
