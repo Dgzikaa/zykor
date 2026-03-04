@@ -9,6 +9,7 @@ import { getAdminClient } from '@/lib/supabase-admin';
 import { generateToken } from '@/lib/auth/jwt';
 import { logAuditEvent } from '@/lib/auth/audit';
 import type { AuthenticatedUser } from '@/lib/auth/types';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,7 +106,29 @@ export async function POST(request: NextRequest) {
 
     // Verificar se precisa redefinir senha
     if (!usuarioPrincipal.senha_redefinida) {
-      const token = Buffer.from(`${usuarioPrincipal.email}:${Date.now()}`).toString('base64');
+      const token = crypto.randomUUID();
+      const tokenExpiry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+      // Persistir token no schema atual
+      await adminClient
+        .from('usuarios')
+        .update({
+          reset_token: token,
+          reset_token_expiry: tokenExpiry,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', usuarioPrincipal.id);
+
+      // Compatibilidade: tentar salvar também em usuarios_bar (schema legado)
+      await adminClient
+        .from('usuarios_bar')
+        .update({
+          reset_token: token,
+          reset_token_expiry: tokenExpiry,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq('email', usuarioPrincipal.email);
+
       const protocol = request.headers.get('x-forwarded-proto') || 'https';
       const host = request.headers.get('host') || request.headers.get('x-forwarded-host');
       const baseUrl = host?.includes('localhost') 

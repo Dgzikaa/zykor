@@ -12,6 +12,9 @@ const supabase = createClient(
 export async function POST(request: NextRequest) {
   try {
     const { email, novaSenha, token } = await request.json();
+    const emailNormalizado = String(email || '')
+      .toLowerCase()
+      .trim();
 
     console.log('🔐 Redefinindo senha para:', { email });
 
@@ -31,60 +34,64 @@ export async function POST(request: NextRequest) {
 
     // Buscar usuário pelo email e validar token
     console.log('🔍 Buscando usuário e validando token...');
-    console.log('📧 Email recebido:', email);
+    console.log('📧 Email recebido:', emailNormalizado);
     console.log('🔑 Token recebido:', token ? token.substring(0, 8) + '...' : 'vazio');
     
-    // Normalizar email para lowercase (consistente com login)
-    const emailNormalizado = email.toLowerCase().trim();
-    
-    // Primeiro, buscar usuário pelo email (sem token) para ver se existe
-    // Usar .limit(1) ao invés de .single() porque o mesmo email pode ter múltiplos registros (um por bar)
-    // Priorizar o registro que tem o reset_token definido
-    const { data: usuariosCheck, error: checkError } = await supabase
-      .from('usuarios_bar')
-      .select('id, email, reset_token, reset_token_expiry, user_id')
+    // 1) Priorizar schema atual: usuarios
+    const { data: usuariosData, error: usuariosError } = await supabase
+      .from('usuarios')
+      .select('id, auth_id, email, nome, reset_token, reset_token_expiry, ativo')
       .eq('email', emailNormalizado)
+      .eq('ativo', true)
+      .limit(1);
+
+    // 2) Fallback schema legado: usuarios_bar
+    const { data: usuariosBarData, error: usuariosBarError } = await supabase
+      .from('usuarios_bar')
+      .select('id, user_id, email, nome, reset_token, reset_token_expiry, ativo')
+      .eq('email', emailNormalizado)
+      .eq('ativo', true)
       .order('reset_token', { ascending: false, nullsFirst: false })
       .limit(1);
 
-    const usuarioCheck = usuariosCheck?.[0];
+    const usuarioAtual = usuariosData?.[0];
+    const usuarioLegado = usuariosBarData?.[0];
 
-    if (checkError || !usuarioCheck) {
+    if (
+      (usuariosError && !usuarioAtual) &&
+      (usuariosBarError && !usuarioLegado)
+    ) {
       console.error('❌ Usuário não encontrado com email:', emailNormalizado);
-      console.error('❌ Erro:', checkError);
       return NextResponse.json(
         { success: false, error: 'Usuário não encontrado' },
         { status: 404 }
       );
     }
 
-    console.log('✅ Usuário encontrado:', usuarioCheck.email);
-    console.log('🔑 Token no banco:', usuarioCheck.reset_token ? usuarioCheck.reset_token.substring(0, 8) + '...' : 'null');
-    console.log('🔑 Token recebido:', token ? token.substring(0, 8) + '...' : 'null');
+    const resetTokenBanco = usuarioAtual?.reset_token || usuarioLegado?.reset_token;
+    const resetTokenExpiryBanco =
+      usuarioAtual?.reset_token_expiry || usuarioLegado?.reset_token_expiry;
+    const authUserId = usuarioAtual?.auth_id || usuarioLegado?.user_id;
+
+    if (!authUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Usuário sem vínculo de autenticação' },
+        { status: 400 }
+      );
+    }
 
     // Verificar se o token corresponde
-    if (!usuarioCheck.reset_token || usuarioCheck.reset_token !== token) {
+    if (!resetTokenBanco || resetTokenBanco !== token) {
       console.error('❌ Token não corresponde ou não existe');
-      console.error('❌ Token esperado:', usuarioCheck.reset_token ? 'existe' : 'não existe');
-      console.error('❌ Token recebido:', token ? 'existe' : 'não existe');
       return NextResponse.json(
         { success: false, error: 'Token inválido. Solicite uma nova recuperação de senha.' },
         { status: 400 }
       );
     }
 
-    // Usar os dados do usuarioCheck que já temos
-    const usuarioData = {
-      user_id: usuarioCheck.user_id,
-      nome: '', // não precisamos do nome aqui
-      reset_token: usuarioCheck.reset_token,
-      reset_token_expiry: usuarioCheck.reset_token_expiry,
-      email: usuarioCheck.email
-    };
-
     // Verificar se o token não expirou
-    if (usuarioData.reset_token_expiry) {
-      const tokenExpiry = new Date(usuarioData.reset_token_expiry);
+    if (resetTokenExpiryBanco) {
+      const tokenExpiry = new Date(resetTokenExpiryBanco);
       if (tokenExpiry < new Date()) {
         return NextResponse.json(
           {
@@ -96,17 +103,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('✅ Usuário encontrado e token válido:', usuarioData.nome);
-    console.log('👤 User ID:', usuarioData.user_id);
-    console.log('📧 Email do usuário:', usuarioData.email);
+    console.log('✅ Usuário encontrado e token válido');
+    console.log('👤 User ID:', authUserId);
 
     // Atualizar senha no Supabase Auth
     console.log('🔑 Atualizando senha no Auth...');
     console.log('🔐 Nova senha (tamanho):', novaSenha.length, 'caracteres');
-    console.log('👤 User ID:', usuarioData.user_id);
+    console.log('👤 User ID:', authUserId);
     
     const { data: authData, error: authError } = await supabase.auth.admin.updateUserById(
-      usuarioData.user_id,
+      authUserId,
       {
         password: novaSenha,
         email_confirm: true,
@@ -136,8 +142,23 @@ export async function POST(request: NextRequest) {
     console.log('✅ User ID atualizado:', authData.user.id);
     console.log('✅ Email confirmado:', authData.user.email);
 
-    // Limpar token de reset e marcar que o usuário já redefiniu a senha
-    const { error: updateError } = await supabase
+    // Limpar token e marcar senha redefinida no schema atual
+    const { error: updateUsuariosError } = await supabase
+      .from('usuarios')
+      .update({
+        senha_redefinida: true,
+        reset_token: null,
+        reset_token_expiry: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('auth_id', authUserId);
+
+    if (updateUsuariosError) {
+      console.error('⚠️ Erro ao atualizar usuarios:', updateUsuariosError);
+    }
+
+    // Compatibilidade com schema legado
+    const { error: updateUsuariosBarError } = await supabase
       .from('usuarios_bar')
       .update({
         senha_redefinida: true,
@@ -145,13 +166,10 @@ export async function POST(request: NextRequest) {
         reset_token_expiry: null,
         atualizado_em: new Date().toISOString(),
       })
-      .eq('user_id', usuarioData.user_id);
+      .eq('user_id', authUserId);
 
-    if (updateError) {
-      console.error('⚠️ Erro ao atualizar flag no banco (mas senha já foi atualizada):', updateError);
-      // Não falhar, a senha já foi atualizada no Auth
-    } else {
-      console.log('✅ Flag senha_redefinida atualizada no banco');
+    if (updateUsuariosBarError) {
+      console.error('⚠️ Erro ao atualizar usuarios_bar:', updateUsuariosBarError);
     }
 
     return NextResponse.json({
