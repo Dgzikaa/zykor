@@ -3,42 +3,273 @@ import { getAdminClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
 
+function toIsoDate(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const payload = parts[1]
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(Math.ceil(parts[1].length / 4) * 4, '=');
+    const json = Buffer.from(payload, 'base64').toString('utf8');
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAnswersPage(
+  baseUrl: string,
+  token: string,
+  query: URLSearchParams
+): Promise<{ ok: boolean; status: number; data: any[]; total: number | null; raw: string }> {
+  const resp = await fetch(`${baseUrl}/api/answers?${query.toString()}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    cache: 'no-store',
+  });
+
+  const raw = await resp.text();
+  if (!resp.ok) {
+    return { ok: false, status: resp.status, data: [], total: null, raw };
+  }
+
+  let parsed: any = null;
+  try {
+    parsed = raw ? JSON.parse(raw) : {};
+  } catch {
+    parsed = {};
+  }
+
+  return {
+    ok: true,
+    status: resp.status,
+    data: Array.isArray(parsed?.data) ? parsed.data : [],
+    total: toNumber(parsed?.total),
+    raw,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await getAdminClient();
+
     // Obter parâmetros
     const body = await request.json().catch(() => ({}));
     const barId = Number(body.bar_id);
-    const daysBack = body.days_back || 7;
+    const daysBack = Math.max(1, Number(body.days_back) || 7);
     if (!barId || Number.isNaN(barId)) {
       return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
-    // Chamar Edge Function
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const hoje = new Date();
+    const inicio = new Date();
+    inicio.setDate(hoje.getDate() - daysBack);
+    const dateStart = toIsoDate(inicio);
+    const dateEnd = toIsoDate(hoje);
 
-    const response = await fetch(
-      `${supabaseUrl}/functions/v1/falae-nps-sync?bar_id=${barId}&days_back=${daysBack}`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const { data: credenciais, error: credError } = await supabase
+      .from('api_credentials')
+      .select('api_token, base_url, empresa_id')
+      .eq('bar_id', barId)
+      .eq('sistema', 'falae')
+      .eq('ativo', true)
+      .order('atualizado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Erro ao chamar Edge Function:', error);
+    if (credError) {
+      console.error('Erro ao buscar credenciais Falaê:', credError);
+      return NextResponse.json({ error: 'Erro ao buscar credenciais Falaê' }, { status: 500 });
+    }
+
+    if (!credenciais?.api_token) {
       return NextResponse.json(
-        { error: 'Erro ao sincronizar com Falaê', details: error },
-        { status: response.status }
+        { error: 'Credenciais Falaê não configuradas para este bar' },
+        { status: 404 }
       );
     }
 
-    const result = await response.json();
-    return NextResponse.json(result);
+    const jwtPayload = decodeJwtPayload(credenciais.api_token);
+    const companyId =
+      (typeof credenciais.empresa_id === 'string' && credenciais.empresa_id) ||
+      (typeof jwtPayload?.company_id === 'string' ? jwtPayload.company_id : null);
+
+    const baseUrl = credenciais.base_url || 'https://api-b2s.experienciab2s.com';
+    const limit = 50;
+    const respostasMap = new Map<string, any>();
+    const detalhes: Array<Record<string, unknown>> = [];
+    const enpsModes = [false, true];
+
+    for (const isEnps of enpsModes) {
+      let offset = 1;
+      let totalReportado: number | null = null;
+      let paginas = 0;
+      let erroNoModo = false;
+
+      while (true) {
+        paginas += 1;
+        const baseQuery = new URLSearchParams({
+          is_enps: String(isEnps),
+          date_start: dateStart,
+          date_end: dateEnd,
+          limit: String(limit),
+          offset: String(offset),
+        });
+
+        // Tenta primeiro formato estrito da doc; em seguida variação com companies_id
+        const tentativas = [baseQuery];
+        if (companyId) {
+          const withCompany = new URLSearchParams(baseQuery);
+          withCompany.set('companies_id', companyId);
+          tentativas.push(withCompany);
+        }
+
+        let pageResult: Awaited<ReturnType<typeof fetchAnswersPage>> | null = null;
+        for (const query of tentativas) {
+          const result = await fetchAnswersPage(baseUrl, credenciais.api_token, query);
+          if (result.ok) {
+            pageResult = result;
+            break;
+          }
+          pageResult = result;
+        }
+
+        if (!pageResult || !pageResult.ok) {
+          detalhes.push({
+            is_enps: isEnps,
+            pagina: paginas,
+            offset,
+            status: pageResult?.status || 500,
+            erro: true,
+          });
+          erroNoModo = true;
+          break;
+        }
+
+        const lote = pageResult.data;
+        if (pageResult.total !== null) totalReportado = pageResult.total;
+
+        for (const item of lote) {
+          const id = String(item?.id || '');
+          if (id) respostasMap.set(id, item);
+        }
+
+        if (lote.length < limit) break;
+        offset += 1; // A API do Falaê usa offset paginado (1, 2, 3...), não índice absoluto.
+        if (totalReportado !== null && offset > totalReportado) break;
+        if (offset >= 100) break;
+      }
+
+      detalhes.push({
+        is_enps: isEnps,
+        paginas,
+        total_reportado: totalReportado,
+        erro: erroNoModo,
+      });
+    }
+
+    // fallback: mantém comportamento antigo se API direta falhar totalmente
+    if (respostasMap.size === 0) {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const fallbackResp = await fetch(
+        `${supabaseUrl}/functions/v1/falae-nps-sync?bar_id=${barId}&days_back=${daysBack}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${supabaseAnonKey}`,
+            'Content-Type': 'application/json',
+          },
+          cache: 'no-store',
+        }
+      );
+      if (!fallbackResp.ok) {
+        const errorText = await fallbackResp.text();
+        return NextResponse.json(
+          { error: 'Erro ao sincronizar com Falaê', details: errorText, detalhes },
+          { status: fallbackResp.status }
+        );
+      }
+      const fallbackData = await fallbackResp.json();
+      return NextResponse.json({ ...fallbackData, fallback: true, detalhes });
+    }
+
+    const respostas = Array.from(respostasMap.values());
+    const rows = respostas.map((answer) => {
+      const search = answer?.search || {};
+      const client = answer?.client || {};
+      const consumption = answer?.consumption || {};
+      const page = answer?.page || {};
+      const company = answer?.company || {};
+
+      return {
+        bar_id: barId,
+        falae_id: String(answer?.id),
+        created_at: String(answer?.created_at || new Date().toISOString()),
+        nps: toNumber(answer?.nps) || 0,
+        discursive_question: answer?.discursive_question || null,
+        criterios: answer?.criteria || null,
+        search_id: search?.id || answer?.search_id || null,
+        search_name: search?.name || null,
+        client_id: client?.id || answer?.client_id || null,
+        client_name: client?.name || null,
+        client_email: client?.email || null,
+        client_phone: client?.phone || null,
+        consumption_id: consumption?.id || null,
+        order_id: consumption?.order_id || null,
+        raw_data: {
+          ...answer,
+          page,
+          company,
+        },
+        synced_at: new Date().toISOString(),
+      };
+    });
+
+    const { error: upsertError } = await supabase
+      .from('falae_respostas')
+      .upsert(rows, { onConflict: 'bar_id,falae_id' });
+
+    if (upsertError) {
+      console.error('Erro ao salvar respostas Falaê:', upsertError);
+      return NextResponse.json({ error: 'Erro ao persistir respostas' }, { status: 500 });
+    }
+
+    const promotores = rows.filter((r) => Number(r.nps) >= 9).length;
+    const detratores = rows.filter((r) => Number(r.nps) <= 6).length;
+    const npsPeriodo =
+      rows.length > 0 ? Math.round(((promotores - detratores) / rows.length) * 100) : null;
+
+    return NextResponse.json({
+      success: true,
+      bar_id: barId,
+      periodo: { inicio: dateStart, fim: dateEnd },
+      respostas: {
+        encontradas: respostas.length,
+        inseridas_atualizadas: rows.length,
+        erros: detalhes.filter((d) => d.erro).length,
+      },
+      nps_periodo: npsPeriodo,
+      detalhes,
+      synced_at: new Date().toISOString(),
+    });
 
   } catch (error) {
     console.error('Erro na API de sync Falaê:', error);
