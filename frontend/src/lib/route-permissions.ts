@@ -110,10 +110,10 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // ========================================
   // CONFIGURAÇÕES (Apenas Admin)
   // ========================================
-  { path: '/configuracoes/usuarios', adminOnly: true },
+  { path: '/configuracoes/administracao/usuarios', adminOnly: true },
+  { path: '/configuracoes/administracao/integracoes', adminOnly: true },
   { path: '/configuracoes/permissoes', adminOnly: true },
   { path: '/configuracoes/seguranca', adminOnly: true },
-  { path: '/configuracoes/integracoes', adminOnly: true },
   { path: '/configuracoes/whatsapp', adminOnly: true },
   { path: '/configuracoes/metas', adminOnly: true },
   { path: '/configuracoes/templates', adminOnly: true },

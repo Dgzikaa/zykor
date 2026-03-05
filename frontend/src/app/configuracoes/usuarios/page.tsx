@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { ConfiguracaoLoading } from '@/components/ui/unified-loading';
 import { useToast } from '@/hooks/use-toast';
-import PageHeader from '@/components/layouts/PageHeader';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { safeLocalStorage } from '@/lib/client-utils';
 import { DataTablePro } from '@/components/ui/datatable-pro';
@@ -72,6 +72,7 @@ const ROLES_OPCOES = [
 
 function UsuariosPage() {
   const router = useRouter();
+  const { setPageTitle } = usePageTitle();
   const { user: currentUser, refreshUserData, isRole, loading: permissionsLoading } = usePermissions();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [modulos, setModulos] = useState<Modulo[]>([]);
@@ -101,6 +102,11 @@ function UsuariosPage() {
   });
 
   const { toast } = useToast();
+
+  useEffect(() => {
+    setPageTitle('👤 Usuários');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   
   // 🔒 Verificar se é admin - apenas admins podem acessar esta página
   const isCurrentUserAdmin = isRole('admin');
@@ -590,13 +596,34 @@ function UsuariosPage() {
 
   return (
     <div className="flex-1 space-y-6 p-6">
-      {/* Header Section */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Usuários</h2>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">Gerencie usuários e suas permissões</p>
+      {/* Filtros */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[hsl(var(--muted-foreground))] w-4 h-4" />
+            <Input
+              placeholder="Buscar usuários..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <SelectTrigger className="w-48">
+              <Filter className="w-4 h-4 mr-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todas as funções</SelectItem>
+              {ROLES_OPCOES.map(role => (
+                <SelectItem key={role.value} value={role.value}>
+                  {role.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Button 
+        <Button
           onClick={() => {
             resetForm();
             setIsDialogOpen(true);
@@ -605,33 +632,6 @@ function UsuariosPage() {
         >
           Novo Usuário
         </Button>
-      </div>
-
-      {/* Filtros */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[hsl(var(--muted-foreground))] w-4 h-4" />
-          <Input
-            placeholder="Buscar usuários..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-48">
-            <Filter className="w-4 h-4 mr-2" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todas as funções</SelectItem>
-            {ROLES_OPCOES.map(role => (
-              <SelectItem key={role.value} value={role.value}>
-                {role.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Tabela */}

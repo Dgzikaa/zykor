@@ -108,6 +108,7 @@ export default function CMVSemanalVisualizarPage() {
 
   useEffect(() => {
     setPageTitle('📊 Visualização CMV Semanal');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   useEffect(() => {

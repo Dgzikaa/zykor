@@ -131,6 +131,7 @@ export default function ContagemEstoquePage() {
   // Definir título da página
   useEffect(() => {
     setPageTitle('📦 Contagem de Estoque');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   // Buscar áreas ao carregar ou trocar de bar

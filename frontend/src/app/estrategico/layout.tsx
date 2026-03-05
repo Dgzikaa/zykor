@@ -3,7 +3,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/hooks/usePermissions';
-import { usePageTitle } from '@/contexts/PageTitleContext';
 import { MinimalLayout } from '@/components/layouts/MinimalLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -22,14 +21,8 @@ interface EstrategicoLayoutProps {
 export default function EstrategicoLayout({ children }: EstrategicoLayoutProps) {
   const router = useRouter();
   const { isRole, loading } = usePermissions();
-  const { setPageTitle } = usePageTitle();
 
   const isAdmin = isRole('admin');
-
-  useEffect(() => {
-    setPageTitle('Estratégico');
-    return () => setPageTitle('');
-  }, [setPageTitle]);
 
   // Redirecionar se não for admin (após carregamento)
   useEffect(() => {

@@ -143,12 +143,9 @@ const defaultSidebarItems: SidebarItem[] = [
     color: 'text-gray-600 dark:text-gray-400',
     permission: 'configuracoes',
     subItems: [
-      { icon: Users, label: 'Usuários', href: '/configuracoes/usuarios', permission: 'configuracoes' },
-      { icon: ChefHat, label: 'Fichas Técnicas', href: '/configuracoes/fichas-tecnicas', permission: 'operacoes' },
-      { icon: CheckSquare, label: 'Checklists', href: '/configuracoes/checklists', permission: 'configuracoes' },
+      { icon: Users, label: 'Administração', href: '/configuracoes/administracao/usuarios', permission: 'configuracoes' },
       { icon: Target, label: 'Metas', href: '/configuracoes/metas', permission: 'configuracoes' },
       { icon: ChefHat, label: 'Teste de Produção', href: '/configuracoes/teste-producao', permission: 'operacoes' },
-      { icon: Calendar, label: 'Calendário Operacional', href: '/configuracoes/calendario-operacional', permission: 'operacoes' },
       { icon: FileSearch, label: 'Auditoria', href: '/configuracoes/auditoria', permission: 'configuracoes' },
       { icon: Target, label: 'Saúde dos Dados', href: '/configuracoes/saude-dados', permission: 'configuracoes' },
       { icon: Activity, label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },
@@ -168,6 +165,9 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: Sparkles, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },
       { icon: Ticket, label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'relatorios' },
       { icon: Megaphone, label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
+      { icon: ChefHat, label: 'Fichas Técnicas', href: '/extras/fichas-tecnicas', permission: 'operacoes' },
+      { icon: CheckSquare, label: 'Checklists', href: '/extras/checklists', permission: 'configuracoes' },
+      { icon: Calendar, label: 'Calendário Operacional', href: '/extras/calendario-operacional', permission: 'operacoes' },
     ],
   },
 ];

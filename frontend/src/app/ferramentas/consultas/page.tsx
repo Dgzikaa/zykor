@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,7 @@ import {
 import { LoadingState } from '@/components/ui/loading-state';
 import { toast } from 'sonner';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface LancamentoRetroativo {
   id: string;
@@ -101,6 +102,7 @@ const formatDateTime = (dateString: string | null) => {
 
 export default function ConsultasPage() {
   const { selectedBar, isLoading: barLoading } = useBar();
+  const { setPageTitle } = usePageTitle();
   
   // Estados dos filtros
   const [criadoApos, setCriadoApos] = useState('');
@@ -290,6 +292,11 @@ export default function ConsultasPage() {
     setCompetenciaApos('');
     toast.info('Filtro de exemplo aplicado: lançamentos criados após 15/01/2026 com competência antes de 01/01/2026');
   };
+
+  useEffect(() => {
+    setPageTitle('🔎 Consultas');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   return (
     <div className="min-h-screen bg-background">

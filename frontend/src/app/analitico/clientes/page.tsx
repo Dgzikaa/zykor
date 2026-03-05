@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import PageHeader from '@/components/layouts/PageHeader'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -16,6 +15,7 @@ import { Phone, Users, TrendingUp, MessageCircle, DollarSign, Target, Download, 
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { useBar } from '@/contexts/BarContext'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { AnimatedCounter, AnimatedCurrency } from '@/components/ui/animated-counter'
 
 interface Cliente {
@@ -185,7 +185,13 @@ export default function ClientesPage() {
   
   const { toast } = useToast()
   const { selectedBar } = useBar()
+  const { setPageTitle } = usePageTitle()
   const isApiCallingRef = useRef(false)
+
+  useEffect(() => {
+    setPageTitle('👥 Clientes')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   const diasSemana = [
     { value: 'todos', label: 'Todos os dias' },
@@ -904,21 +910,6 @@ export default function ClientesPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-2 py-4 max-w-[98vw]">
-        {/* Header compacto */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-              <div className="p-2 bg-muted rounded-lg">
-                <Users className="h-6 w-6 text-foreground" />
-              </div>
-              Análise de Clientes
-            </h1>
-            <p className="text-muted-foreground text-sm ml-11">
-              Insights detalhados dos seus clientes mais valiosos
-            </p>
-          </div>
-        </div>
-
         {/* Cards de Estatísticas */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
 

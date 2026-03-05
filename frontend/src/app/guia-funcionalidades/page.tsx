@@ -109,7 +109,7 @@ const funcionalidadesImplementadas = [
       {
         titulo: 'Fichas Técnicas',
         descricao: 'Gerenciar e atualizar fichas técnicas',
-        url: '/configuracoes/fichas-tecnicas',
+        url: '/extras/fichas-tecnicas',
         acesso: 'Sidebar > Configurações > Fichas Técnicas',
         status: 'completo'
       },

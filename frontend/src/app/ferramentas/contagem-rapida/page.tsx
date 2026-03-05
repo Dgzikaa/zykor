@@ -75,6 +75,7 @@ export default function ContagemRapidaPage() {
 
   useEffect(() => {
     setPageTitle('⚡ Contagem Rápida');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   useEffect(() => {

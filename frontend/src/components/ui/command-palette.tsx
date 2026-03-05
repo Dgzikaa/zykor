@@ -194,7 +194,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
         title: 'Fichas Técnicas',
         description: 'Gerenciar fichas técnicas e receitas',
         icon: ChefHat,
-        href: '/configuracoes/fichas-tecnicas',
+        href: '/extras/fichas-tecnicas',
         category: 'navigation',
         keywords: ['receita', 'produto', 'cardápio', 'comida', 'ficha técnica'],
       },

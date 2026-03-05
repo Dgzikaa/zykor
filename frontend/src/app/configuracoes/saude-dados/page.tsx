@@ -21,6 +21,7 @@ import {
   Lock
 } from 'lucide-react'
 import { LoadingState } from '@/components/ui/loading-state'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { format, parseISO, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -66,6 +67,7 @@ interface StatusSync {
 
 export default function SaudeDadosPage() {
   const router = useRouter()
+  const { setPageTitle } = usePageTitle()
   const [validacoes, setValidacoes] = useState<Validacao[]>([])
   const [alertas, setAlertas] = useState<Alerta[]>([])
   const [bloqueados, setBloqueados] = useState<DadoBloqueado[]>([])
@@ -95,6 +97,11 @@ export default function SaudeDadosPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  useEffect(() => {
+    setPageTitle('🩺 Saúde dos Dados')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   const executarValidacaoManual = async () => {
     try {
@@ -143,47 +150,34 @@ export default function SaudeDadosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              onClick={() => router.back()}
-              className="text-gray-600 dark:text-gray-400"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Voltar
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Activity className="w-6 h-6 text-green-500" />
-                Saúde dos Dados
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Monitoramento e validação da integridade dos dados
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button 
-              onClick={executarValidacaoManual}
-              disabled={executandoValidacao}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {executandoValidacao ? (
-                <RefreshCcw className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Shield className="w-4 h-4 mr-2" />
-              )}
-              Validar Agora
-            </Button>
-            <Button onClick={fetchData} disabled={loading} variant="outline">
-              <RefreshCcw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Atualizar
-            </Button>
-          </div>
+    <div className="min-h-[calc(100vh-8px)] bg-gray-50 dark:bg-gray-900">
+      <div className="container mx-auto px-2 py-1 pb-6 max-w-[98vw]">
+        <div className="space-y-4">
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => router.back()}
+            className="text-gray-600 dark:text-gray-400"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Voltar
+          </Button>
+          <Button
+            onClick={executarValidacaoManual}
+            disabled={executandoValidacao}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            {executandoValidacao ? (
+              <RefreshCcw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Shield className="w-4 h-4 mr-2" />
+            )}
+            Validar Agora
+          </Button>
+          <Button onClick={fetchData} disabled={loading} variant="outline">
+            <RefreshCcw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
         </div>
 
         {/* Cards de Status */}
@@ -478,6 +472,7 @@ export default function SaudeDadosPage() {
             </Card>
           </TabsContent>
         </Tabs>
+        </div>
       </div>
     </div>
   )

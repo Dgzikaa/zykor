@@ -139,8 +139,8 @@ export default function EventosComparativoPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-2 py-4 max-w-[98vw]">
         {/* Filtros */}
         <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 mb-6">
           <CardHeader>

@@ -454,6 +454,7 @@ export default function CMOUnificadoPage() {
 
   useEffect(() => {
     setPageTitle('Simulação de CMO');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   useEffect(() => {

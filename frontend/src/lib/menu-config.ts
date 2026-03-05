@@ -64,12 +64,9 @@ export const MENU_LATERAL_STRUCTURE: MenuSectionConfig[] = [
   {
     label: 'Configurações',
     subItems: [
-      { label: 'Usuários', href: '/configuracoes/usuarios' },
-      { label: 'Fichas Técnicas', href: '/configuracoes/fichas-tecnicas' },
-      { label: 'Checklists', href: '/configuracoes/checklists' },
+      { label: 'Administração', href: '/configuracoes/administracao/usuarios' },
       { label: 'Metas', href: '/configuracoes/metas' },
       { label: 'Teste de Produção', href: '/configuracoes/teste-producao' },
-      { label: 'Calendário Operacional', href: '/configuracoes/calendario-operacional' },
       { label: 'Auditoria', href: '/configuracoes/auditoria' },
       { label: 'Saúde dos Dados', href: '/configuracoes/saude-dados' },
       { label: 'Monitoramento', href: '/configuracoes/monitoramento' },
@@ -85,6 +82,9 @@ export const MENU_LATERAL_STRUCTURE: MenuSectionConfig[] = [
       { label: 'Retrospectiva 2025', href: '/retrospectiva-2025' },
       { label: 'Impacto Entrada', href: '/ferramentas/analise-couvert' },
       { label: 'Central Comercial', href: '/ferramentas/comercial' },
+      { label: 'Fichas Técnicas', href: '/extras/fichas-tecnicas' },
+      { label: 'Checklists', href: '/extras/checklists' },
+      { label: 'Calendário Operacional', href: '/extras/calendario-operacional' },
     ],
   },
 ];

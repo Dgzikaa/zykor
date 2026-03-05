@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -60,6 +61,7 @@ function formatCurrencyCompact(value: number): string {
 
 export default function FerramentasCRMPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const [loading, setLoading] = useState(true);
   const [reloadTick, setReloadTick] = useState(0);
   const [stats, setStats] = useState<DashboardStats>(INITIAL_STATS);
@@ -293,9 +295,14 @@ export default function FerramentasCRMPage() {
     [sourceLoading]
   );
 
+  useEffect(() => {
+    setPageTitle('💬 CRM');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   return (
     <div className="min-h-[calc(100vh-8px)] bg-background">
-      <div className="container mx-auto px-2 py-1 pb-6 max-w-[98vw] space-y-4">
+      <div className="container mx-auto px-2 py-4 pb-6 max-w-[98vw] space-y-4">
         <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
           <CardHeader className="pb-3">
             <CardTitle className="text-gray-900 dark:text-white">Hub de CRM</CardTitle>

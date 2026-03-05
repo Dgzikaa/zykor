@@ -428,6 +428,7 @@ export default function StockoutPage() {
   // Configurar título da página
   useEffect(() => {
     setPageTitle('📦 Controle de Stockout');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   // Carregar dados automaticamente quando o bar for selecionado ou mudar

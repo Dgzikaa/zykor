@@ -106,7 +106,8 @@ export default function CalendarioOperacionalPage() {
   useEffect(() => {
     setPageTitle('Calendário Operacional');
     carregarCalendario();
-  }, [mesAtual, anoAtual]);
+    return () => setPageTitle('');
+  }, [mesAtual, anoAtual, setPageTitle]);
 
   const carregarCalendario = async () => {
     setLoading(true);
@@ -381,7 +382,7 @@ export default function CalendarioOperacionalPage() {
                 </CardDescription>
               </div>
               <div className="flex gap-2">
-                <Link href="/configuracoes/calendario-operacional/analytics">
+                <Link href="/extras/calendario-operacional/analytics">
                   <Button variant="outline" size="sm" className="bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/30">
                     <BarChart3 className="w-4 h-4 mr-2" />
                     Analytics

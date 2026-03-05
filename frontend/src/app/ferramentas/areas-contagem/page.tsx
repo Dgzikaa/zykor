@@ -68,6 +68,7 @@ export default function AreasContagemPage() {
   useEffect(() => {
     setPageTitle('📍 Gerenciamento de Áreas');
     buscarAreas();
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   const buscarAreas = async () => {

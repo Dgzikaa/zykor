@@ -64,6 +64,7 @@ export default function FichasTecnicasPage() {
 
   useEffect(() => {
     setPageTitle('📋 Gestão de Fichas Técnicas');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   // Buscar receitas quando o filtro for "especifica"

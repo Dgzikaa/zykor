@@ -113,16 +113,30 @@ const ROUTE_MAPPINGS: Record<string, BreadcrumbItem> = {
   'usuarios': {
     id: 'usuarios',
     label: 'Usuários',
-    href: '/configuracoes/usuarios',
+    href: '/configuracoes/administracao/usuarios',
     icon: <Users className="w-4 h-4" />,
     description: 'Gerenciamento de usuários',
   },
   'checklists': {
     id: 'checklists',
     label: 'Checklists',
-    href: '/configuracoes/checklists',
+    href: '/extras/checklists',
     icon: <CheckCircle className="w-4 h-4" />,
     description: 'Gerenciamento de checklists',
+  },
+  'extras': {
+    id: 'extras',
+    label: 'Extras',
+    href: '/extras',
+    icon: <Star className="w-4 h-4" />,
+    description: 'Módulos extras do sistema',
+  },
+  'administracao': {
+    id: 'administracao',
+    label: 'Administração',
+    href: '/configuracoes/administracao/usuarios',
+    icon: <Settings className="w-4 h-4" />,
+    description: 'Gestão administrativa',
   },
   'relatorios': {
     id: 'relatorios',

@@ -6,6 +6,7 @@ import { ptBR } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
@@ -14,6 +15,7 @@ import {
   Database, Zap, Server, AlertTriangle, ArrowLeft 
 } from 'lucide-react';
 import { LoadingState } from '@/components/ui/loading-state';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import Link from 'next/link';
 
 interface HealthData {
@@ -57,6 +59,7 @@ interface CronExecution {
 }
 
 export default function MonitoramentoPage() {
+  const { setPageTitle } = usePageTitle();
   const [health, setHealth] = useState<HealthData | null>(null);
   const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
   const [executions, setExecutions] = useState<CronExecution[]>([]);
@@ -95,6 +98,11 @@ export default function MonitoramentoPage() {
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  useEffect(() => {
+    setPageTitle('📡 Monitoramento');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -146,46 +154,49 @@ export default function MonitoramentoPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <LoadingState
-          title="Carregando monitoramento..."
-          subtitle="Verificando status do sistema"
-          icon={<Activity className="w-4 h-4" />}
-        />
+      <div className="min-h-[calc(100vh-8px)] bg-gray-50 dark:bg-gray-900">
+        <div className="container mx-auto px-2 py-1 pb-6 max-w-[98vw] space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-72" />
+              <Skeleton className="h-4 w-96" />
+            </div>
+            <Skeleton className="h-9 w-28" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Skeleton className="h-28 w-full" />
+            <Skeleton className="h-28 w-full" />
+            <Skeleton className="h-28 w-full" />
+            <Skeleton className="h-28 w-full" />
+          </div>
+
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-[420px] w-full" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
+    <div className="min-h-[calc(100vh-8px)] bg-gray-50 dark:bg-gray-900">
+      <div className="container mx-auto px-2 py-1 pb-6 max-w-[98vw]">
+        <div className="space-y-4">
+          <div className="flex items-center justify-end gap-2">
             <Link href="/configuracoes">
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Voltar
               </Button>
             </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Activity className="h-6 w-6 text-blue-600" />
-                Monitoramento do Sistema
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Status em tempo real dos serviços e cron jobs
-              </p>
-            </div>
+            <Button onClick={fetchData} disabled={refreshing}>
+              {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Atualizar
+            </Button>
           </div>
-          <Button onClick={fetchData} disabled={refreshing}>
-            {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Atualizar
-          </Button>
-        </div>
 
-        {/* Status Geral */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          {/* Status Geral */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">Status Geral</CardTitle>
@@ -250,9 +261,9 @@ export default function MonitoramentoPage() {
           </Card>
         </div>
 
-        {/* Tabs para diferentes seções */}
-        <Tabs defaultValue="health" className="w-full">
-          <TabsList className="bg-gray-100 dark:bg-gray-700 mb-4">
+          {/* Tabs para diferentes seções */}
+          <Tabs defaultValue="health" className="w-full">
+            <TabsList className="bg-gray-100 dark:bg-gray-700 mb-4">
             <TabsTrigger value="health" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600">
               <Server className="h-4 w-4 mr-2" /> Health Checks
             </TabsTrigger>
@@ -264,8 +275,8 @@ export default function MonitoramentoPage() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="health">
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <TabsContent value="health">
+              <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <CardHeader>
                 <CardTitle className="text-gray-900 dark:text-white">Status dos Componentes</CardTitle>
                 <CardDescription className="text-gray-600 dark:text-gray-400">
@@ -308,8 +319,8 @@ export default function MonitoramentoPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="cron">
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <TabsContent value="cron">
+              <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <CardHeader>
                 <CardTitle className="text-gray-900 dark:text-white">Cron Jobs Configurados</CardTitle>
                 <CardDescription className="text-gray-600 dark:text-gray-400">
@@ -349,8 +360,8 @@ export default function MonitoramentoPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="executions">
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <TabsContent value="executions">
+              <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <CardHeader>
                 <CardTitle className="text-gray-900 dark:text-white">Execuções Recentes</CardTitle>
                 <CardDescription className="text-gray-600 dark:text-gray-400">
@@ -391,7 +402,8 @@ export default function MonitoramentoPage() {
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        </div>
       </div>
     </div>
   );

@@ -98,6 +98,7 @@ export default function TesteProducaoPage() {
 
   useEffect(() => {
     setPageTitle('🧪 Teste de Produção');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   useEffect(() => {

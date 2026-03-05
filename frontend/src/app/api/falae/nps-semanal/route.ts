@@ -38,7 +38,10 @@ export async function GET(request: NextRequest) {
     const supabase = await getAdminClient();
     
     const { searchParams } = new URL(request.url);
-    const barId = parseInt(searchParams.get('bar_id') || '3');
+    const barId = parseInt(searchParams.get('bar_id') || '', 10);
+    if (!barId || Number.isNaN(barId)) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
+    }
     const semana = searchParams.get('semana') ? parseInt(searchParams.get('semana')!) : null;
     const ano = searchParams.get('ano') ? parseInt(searchParams.get('ano')!) : null;
     

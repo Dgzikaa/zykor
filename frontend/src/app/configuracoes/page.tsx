@@ -102,10 +102,10 @@ export default function ConfiguracoesPage() {
   const configuracoes: ConfigItem[] = [
     // === PRINCIPAL ===
     {
-      title: 'Usuários',
-      description: 'Gerencie usuários e suas informações no sistema',
+      title: 'Administração',
+      description: 'Gerencie usuários e integrações do sistema',
       icon: Users,
-      href: '/configuracoes/usuarios',
+      href: '/configuracoes/administracao/usuarios',
       badge: 'Ativo',
       badgeColor: 'border-[hsl(var(--border))] text-[hsl(var(--foreground))]',
       iconBgColor: 'bg-[hsl(var(--muted))]',
@@ -113,7 +113,7 @@ export default function ConfiguracoesPage() {
       buttonBgColor: 'bg-[hsl(var(--muted))]',
       buttonBorderColor: 'border-[hsl(var(--border))]',
       buttonTextColor: 'text-[hsl(var(--foreground))]',
-      features: 'Cadastro • Edição • Permissões',
+      features: 'Usuários • Integrações • Permissões',
       category: 'principal'
     },
     {
@@ -191,58 +191,12 @@ export default function ConfiguracoesPage() {
       features: 'Faturamento • CMV • Indicadores',
       category: 'principal'
     },
-    {
-      title: 'Checklists',
-      description: 'Configure templates de checklists operacionais',
-      icon: ClipboardList,
-      href: '/configuracoes/checklists',
-      badge: 'Ativo',
-      badgeColor: 'border-teal-200 text-teal-700 dark:border-teal-700 dark:text-teal-300',
-      iconBgColor: 'bg-teal-100 dark:bg-teal-900/30',
-      iconTextColor: 'text-teal-600 dark:text-teal-400',
-      buttonBgColor: 'bg-teal-500/10 dark:bg-teal-900/20',
-      buttonBorderColor: 'border-teal-500 dark:border-teal-700',
-      buttonTextColor: 'text-teal-600 dark:text-teal-400',
-      features: 'Templates • Tarefas • Operacional',
-      category: 'principal'
-    },
-    {
-      title: 'Fichas Técnicas',
-      description: 'Gerencie fichas técnicas de produtos',
-      icon: ChefHat,
-      href: '/configuracoes/fichas-tecnicas',
-      badge: 'Ativo',
-      badgeColor: 'border-amber-200 text-amber-700 dark:border-amber-700 dark:text-amber-300',
-      iconBgColor: 'bg-amber-100 dark:bg-amber-900/30',
-      iconTextColor: 'text-amber-600 dark:text-amber-400',
-      buttonBgColor: 'bg-amber-500/10 dark:bg-amber-900/20',
-      buttonBorderColor: 'border-amber-500 dark:border-amber-700',
-      buttonTextColor: 'text-amber-600 dark:text-amber-400',
-      features: 'Receitas • Insumos • Custo',
-      category: 'principal'
-    },
-    {
-      title: 'Calendário Operacional',
-      description: 'Configure calendário e eventos operacionais',
-      icon: Calendar,
-      href: '/configuracoes/calendario-operacional',
-      badge: 'Ativo',
-      badgeColor: 'border-indigo-200 text-indigo-700 dark:border-indigo-700 dark:text-indigo-300',
-      iconBgColor: 'bg-indigo-100 dark:bg-indigo-900/30',
-      iconTextColor: 'text-indigo-600 dark:text-indigo-400',
-      buttonBgColor: 'bg-indigo-500/10 dark:bg-indigo-900/20',
-      buttonBorderColor: 'border-indigo-500 dark:border-indigo-700',
-      buttonTextColor: 'text-indigo-600 dark:text-indigo-400',
-      features: 'Eventos • Analytics • Histórico',
-      category: 'principal'
-    },
-
     // === INTEGRAÇÕES ===
     {
       title: 'Integrações',
       description: 'Configure integrações com sistemas externos',
       icon: Database,
-      href: '/configuracoes/integracoes',
+      href: '/configuracoes/administracao/integracoes',
       badge: `${stats.integracoes} Ativas`,
       badgeColor: 'border-violet-200 text-violet-700 dark:border-violet-700 dark:text-violet-300',
       iconBgColor: 'bg-violet-100 dark:bg-violet-900/30',

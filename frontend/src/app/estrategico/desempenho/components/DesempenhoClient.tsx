@@ -535,7 +535,8 @@ export function DesempenhoClient({
   }, [semanaAtualIdx]); // Re-run quando o índice mudar (ex: troca de visão ou dados carregados)
 
   useEffect(() => {
-    setPageTitle('Desempenho');
+    setPageTitle('📊 Desempenho');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   // Carregar metas

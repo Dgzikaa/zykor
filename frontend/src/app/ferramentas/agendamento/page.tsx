@@ -248,6 +248,11 @@ export default function AgendamentoPage() {
 
   const [tabAtivo, setTabAtivo] = useState('manual');
   useEffect(() => {
+    setPageTitle('📅 Agendamento');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
+  useEffect(() => {
     if (tabAtivo === 'revisao' && barId) carregarRevisaoNIBO(0);
   }, [tabAtivo, barId, carregarRevisaoNIBO]);
 
@@ -2261,39 +2266,17 @@ export default function AgendamentoPage() {
     <ProtectedRoute requiredModule="financeiro">
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-2 py-4 max-w-[98vw]">
-          {/* Header */}
-          <div className="mb-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-muted rounded-xl w-fit">
-                <Wrench className="w-6 h-6 text-foreground" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">
-                  Ferramenta de Agendamento
-                </h1>
-                <p className="text-muted-foreground">
-                  Gerencie agendamentos de pagamentos PIX com integração NIBO e Inter
-                </p>
-                {lastSave && (
-                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                    Último salvamento: {lastSave}
-                  </p>
-                )}
+          {/* Indicador de bar ativo - só mostra se tudo estiver ok */}
+          {barId && credenciaisDisponiveis.verificado && credenciaisDisponiveis.nibo && credenciaisDisponiveis.inter && (
+            <div className="mb-6 p-3 bg-muted/40 border border-border rounded-lg">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-foreground" />
+                <span className="text-sm text-foreground font-medium">
+                  Bar ativo: {barNome} - Credenciais NIBO e Inter configuradas
+                </span>
               </div>
             </div>
-
-            {/* Indicador de bar ativo - só mostra se tudo estiver ok */}
-            {barId && credenciaisDisponiveis.verificado && credenciaisDisponiveis.nibo && credenciaisDisponiveis.inter && (
-              <div className="mt-4 p-3 bg-muted/40 border border-border rounded-lg">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-foreground" />
-                  <span className="text-sm text-foreground font-medium">
-                    Bar ativo: {barNome} - Credenciais NIBO e Inter configuradas
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
 
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Sidebar com Métricas */}

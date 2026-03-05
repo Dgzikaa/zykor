@@ -78,7 +78,8 @@ export default function CalendarioAnalyticsPage() {
   useEffect(() => {
     setPageTitle('Analytics - Calendário Operacional');
     carregarAnalytics();
-  }, [anoSelecionado, mesSelecionado]);
+    return () => setPageTitle('');
+  }, [anoSelecionado, mesSelecionado, setPageTitle]);
 
   const carregarAnalytics = async () => {
     setLoading(true);
@@ -130,7 +131,7 @@ export default function CalendarioAnalyticsPage() {
       <div className="container mx-auto px-4 py-6">
         {/* Header */}
         <div className="mb-6">
-          <Link href="/configuracoes/calendario-operacional">
+          <Link href="/extras/calendario-operacional">
             <Button variant="ghost" size="sm" className="mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar para Calendário

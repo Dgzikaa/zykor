@@ -5,12 +5,13 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await getAdminClient();
-    
     // Obter parâmetros
     const body = await request.json().catch(() => ({}));
-    const barId = body.bar_id || 3;
+    const barId = Number(body.bar_id);
     const daysBack = body.days_back || 7;
+    if (!barId || Number.isNaN(barId)) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
+    }
 
     // Chamar Edge Function
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -51,9 +52,11 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const supabase = await getAdminClient();
-    
     const { searchParams } = new URL(request.url);
-    const barId = parseInt(searchParams.get('bar_id') || '3');
+    const barId = parseInt(searchParams.get('bar_id') || '', 10);
+    if (!barId || Number.isNaN(barId)) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
+    }
     const periodo = searchParams.get('periodo') || 'semana'; // semana, mes, trimestre
     
     // Calcular datas

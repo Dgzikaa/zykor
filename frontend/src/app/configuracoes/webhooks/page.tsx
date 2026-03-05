@@ -99,6 +99,7 @@ export default function WebhooksPage() {
 
   useEffect(() => {
     setPageTitle('Configuração de Webhooks');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   const carregarWebhooks = useCallback(async () => {

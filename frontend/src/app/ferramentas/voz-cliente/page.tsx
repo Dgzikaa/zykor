@@ -79,6 +79,7 @@ export default function VozClientePage() {
 
   useEffect(() => {
     setPageTitle('💬 Voz do Cliente');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   const buscarFeedbacks = useCallback(async () => {

@@ -710,6 +710,7 @@ export default function CMVSemanalPage() {
 
   useEffect(() => {
     setPageTitle('📊 CMV Semanal');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   useEffect(() => {

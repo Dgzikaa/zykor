@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Shield, Search, Download, Filter } from 'lucide-react';
-import PageHeader from '@/components/layouts/PageHeader';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 
 interface AuditLog {
@@ -22,6 +22,7 @@ interface AuditLog {
 }
 
 export default function AuditoriaPage() {
+  const { setPageTitle } = usePageTitle();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -33,6 +34,11 @@ export default function AuditoriaPage() {
   useEffect(() => {
     loadLogs();
   }, []);
+
+  useEffect(() => {
+    setPageTitle('🛡️ Auditoria');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const loadLogs = async () => {
     try {
@@ -72,13 +78,9 @@ export default function AuditoriaPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <PageHeader
-        title="Auditoria de Segurança"
-        description="Logs de todas as operações sensíveis do sistema"
-      />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-[calc(100vh-8px)] bg-gray-50 dark:bg-gray-900">
+      <div className="container mx-auto px-2 py-1 pb-6 max-w-[98vw]">
+        <div className="space-y-4">
         {/* Filtros */}
         <Card className="mb-6">
           <CardHeader>
@@ -198,6 +200,7 @@ export default function AuditoriaPage() {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );

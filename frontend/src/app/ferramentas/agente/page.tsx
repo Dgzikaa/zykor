@@ -298,6 +298,7 @@ export default function AgenteChatPage() {
 
   useEffect(() => {
     setPageTitle('🤖 Agente Zykor');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   useEffect(() => {

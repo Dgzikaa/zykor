@@ -73,6 +73,7 @@ export default function AnomaliasContagemPage() {
 
   useEffect(() => {
     setPageTitle('🔍 Anomalias de Contagem');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   useEffect(() => {

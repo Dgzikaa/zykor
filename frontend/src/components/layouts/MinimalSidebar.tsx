@@ -115,12 +115,9 @@ const defaultSidebarItems: SidebarItem[] = [
     href: '/configuracoes',
     permission: 'configuracoes',
     subItems: [
-      { icon: Users, label: 'Usuários', href: '/configuracoes/usuarios', permission: 'configuracoes' },
-      { icon: Receipt, label: 'Fichas Técnicas', href: '/configuracoes/fichas-tecnicas', permission: 'configuracoes' },
-      { icon: CheckSquare, label: 'Checklists', href: '/configuracoes/checklists', permission: 'configuracoes' },
+      { icon: Users, label: 'Administração', href: '/configuracoes/administracao/usuarios', permission: 'configuracoes' },
       { icon: Target, label: 'Metas', href: '/configuracoes/metas', permission: 'configuracoes' },
       { icon: Activity, label: 'Teste de Produção', href: '/configuracoes/teste-producao', permission: 'configuracoes' },
-      { icon: Calendar, label: 'Calendário Operacional', href: '/configuracoes/calendario-operacional', permission: 'configuracoes' },
       { icon: History, label: 'Auditoria', href: '/configuracoes/auditoria', permission: 'configuracoes' },
       { icon: Activity, label: 'Saúde dos Dados', href: '/configuracoes/saude-dados', permission: 'configuracoes' },
       { icon: Activity, label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },
@@ -139,6 +136,9 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: Star, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },
       { icon: DollarSign, label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'gestao' },
       { icon: Target, label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
+      { icon: Receipt, label: 'Fichas Técnicas', href: '/extras/fichas-tecnicas', permission: 'configuracoes' },
+      { icon: CheckSquare, label: 'Checklists', href: '/extras/checklists', permission: 'configuracoes' },
+      { icon: Calendar, label: 'Calendário Operacional', href: '/extras/calendario-operacional', permission: 'configuracoes' },
     ],
   },
 ];

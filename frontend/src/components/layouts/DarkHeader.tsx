@@ -35,7 +35,7 @@ const routeMapping: Record<
   '/operacoes': { name: 'Operações' },
   '/operacoes/checklists': { name: 'Checklists' },
   '/operacoes/checklists/checklists-funcionario': { name: 'Meus Checklists' },
-  '/configuracoes/fichas-tecnicas': { name: 'Fichas Técnicas' },
+  '/extras/fichas-tecnicas': { name: 'Fichas Técnicas' },
   '/ferramentas/terminal': { name: 'Terminal de Produção' },
 
   // Relatórios
@@ -73,9 +73,11 @@ const routeMapping: Record<
 
   // Configurações
   '/configuracoes': { name: 'Configurações' },
-  '/configuracoes/checklists': { name: 'Checklists' },
+  '/configuracoes/administracao': { name: 'Administração' },
+  '/extras/checklists': { name: 'Checklists' },
+  '/extras/calendario-operacional': { name: 'Calendário Operacional' },
   '/configuracoes/metas': { name: 'Metas' },
-  '/configuracoes/integracoes': { name: 'Integrações' },
+  '/configuracoes/administracao/integracoes': { name: 'Integrações' },
   '/configuracoes/seguranca': { name: 'Segurança' },
   '/configuracoes/whatsapp': { name: 'WhatsApp' },
   '/configuracoes/contahub-automatico': { name: 'ContaHub Auto' },

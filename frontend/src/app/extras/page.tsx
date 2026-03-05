@@ -13,7 +13,10 @@ import {
   Ticket,
   Megaphone,
   ArrowRight,
-  Star
+  Star,
+  ChefHat,
+  CheckSquare,
+  Calendar
 } from 'lucide-react';
 import Link from 'next/link';
 import PageHeader from '@/components/layouts/PageHeader';
@@ -97,6 +100,48 @@ export default function ExtrasPage() {
       buttonBorderColor: 'border-emerald-500 dark:border-emerald-700',
       buttonTextColor: 'text-emerald-600 dark:text-emerald-400',
       features: 'Feriados 2026 • Copa do Mundo • Oportunidades • Ações',
+    },
+    {
+      title: 'Fichas Técnicas',
+      description: 'Atualização e gestão das fichas técnicas de receitas',
+      icon: ChefHat,
+      href: '/extras/fichas-tecnicas',
+      badge: 'Operacional',
+      badgeColor: 'border-amber-200 text-amber-700 dark:border-amber-700 dark:text-amber-300',
+      iconBgColor: 'bg-amber-100 dark:bg-amber-900/30',
+      iconTextColor: 'text-amber-600 dark:text-amber-400',
+      buttonBgColor: 'bg-amber-500/10 dark:bg-amber-900/20',
+      buttonBorderColor: 'border-amber-500 dark:border-amber-700',
+      buttonTextColor: 'text-amber-600 dark:text-amber-400',
+      features: 'Receitas • Insumos • Custos',
+    },
+    {
+      title: 'Checklists',
+      description: 'Gerencie templates e configurações dos checklists',
+      icon: CheckSquare,
+      href: '/extras/checklists',
+      badge: 'Operacional',
+      badgeColor: 'border-teal-200 text-teal-700 dark:border-teal-700 dark:text-teal-300',
+      iconBgColor: 'bg-teal-100 dark:bg-teal-900/30',
+      iconTextColor: 'text-teal-600 dark:text-teal-400',
+      buttonBgColor: 'bg-teal-500/10 dark:bg-teal-900/20',
+      buttonBorderColor: 'border-teal-500 dark:border-teal-700',
+      buttonTextColor: 'text-teal-600 dark:text-teal-400',
+      features: 'Templates • Operação • Qualidade',
+    },
+    {
+      title: 'Calendário Operacional',
+      description: 'Planeje aberturas, fechamentos e consulte histórico',
+      icon: Calendar,
+      href: '/extras/calendario-operacional',
+      badge: 'Operacional',
+      badgeColor: 'border-indigo-200 text-indigo-700 dark:border-indigo-700 dark:text-indigo-300',
+      iconBgColor: 'bg-indigo-100 dark:bg-indigo-900/30',
+      iconTextColor: 'text-indigo-600 dark:text-indigo-400',
+      buttonBgColor: 'bg-indigo-500/10 dark:bg-indigo-900/20',
+      buttonBorderColor: 'border-indigo-500 dark:border-indigo-700',
+      buttonTextColor: 'text-indigo-600 dark:text-indigo-400',
+      features: 'Dias Abertos • Analytics • Histórico',
     },
   ];
 

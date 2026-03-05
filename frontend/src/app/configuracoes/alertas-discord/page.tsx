@@ -67,6 +67,7 @@ export default function AlertasDiscordPage() {
 
   useEffect(() => {
     setPageTitle('🔔 Alertas Discord');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   useEffect(() => {

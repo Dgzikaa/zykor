@@ -99,13 +99,13 @@ export function useInsightsNotifications(): UseInsightsNotificationsResult {
       'pagamentos': '/fp',
       
       // Operacional
-      'checklist': '/configuracoes/checklists',
-      'checklists': '/configuracoes/checklists',
-      'estoque': '/configuracoes/fichas-tecnicas',
+      'checklist': '/extras/checklists',
+      'checklists': '/extras/checklists',
+      'estoque': '/extras/fichas-tecnicas',
       
       // Pessoas
       'desempenho': '/estrategico/desempenho',
-      'aniversariantes': '/configuracoes/usuarios',
+      'aniversariantes': '/configuracoes/administracao/usuarios',
       
       // Reservas
       'reservas': '/ferramentas/calendario',

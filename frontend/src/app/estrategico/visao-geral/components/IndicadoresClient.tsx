@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { IndicadorCard } from '@/components/visao-geral/IndicadorCard';
 import { IndicadorRetencao } from '@/components/visao-geral/IndicadorRetencao';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -105,6 +106,7 @@ export function IndicadoresClient({
   trimestreAtual 
 }: IndicadoresClientProps) {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -128,6 +130,11 @@ export function IndicadoresClient({
   };
 
   const trimestreInfo = getTrimestreInfo(trimestreAtual);
+
+  useEffect(() => {
+    setPageTitle('📈 Visão Geral');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   // Navegação entre trimestres via URL
   const navegarTrimestre = (direcao: 'anterior' | 'proximo') => {

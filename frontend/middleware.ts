@@ -62,6 +62,13 @@ const PUBLIC_ROUTES = ['/login', '/auth', '/api'];
 
 // Rotas que devem ser ignoradas pelo middleware
 const IGNORED_ROUTES = ['/_next', '/favicon.ico', '/static'];
+const BLOCKED_ROUTES = [
+  '/configuracoes/usuarios',
+  '/configuracoes/integracoes',
+  '/configuracoes/fichas-tecnicas',
+  '/configuracoes/checklists',
+  '/configuracoes/calendario-operacional',
+];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -84,6 +91,15 @@ export async function middleware(request: NextRequest) {
   // Permitir rotas públicas
   if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
     return NextResponse.next();
+  }
+
+  // Bloquear rotas antigas removidas da navegação
+  if (
+    BLOCKED_ROUTES.some(
+      route => pathname === route || pathname.startsWith(`${route}/`)
+    )
+  ) {
+    return new NextResponse('Página removida', { status: 404 });
   }
 
   // Verificar autenticação

@@ -67,6 +67,7 @@ export default function NPSCategorizadoPage() {
 
   useEffect(() => {
     setPageTitle('⭐ NPS Categorizado');
+    return () => setPageTitle('');
   }, [setPageTitle]);
 
   useEffect(() => {

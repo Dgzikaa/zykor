@@ -2,9 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { usePageTitle } from '@/contexts/PageTitleContext';
 
 const CRM_TABS = [
   { label: 'Visão Geral', href: '/ferramentas/crm' },
@@ -17,11 +15,6 @@ const CRM_TABS = [
 
 export default function FerramentasCRMLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { setPageTitle } = usePageTitle();
-
-  useEffect(() => {
-    setPageTitle('CRM');
-  }, [setPageTitle]);
 
   return (
     <div className="space-y-3">

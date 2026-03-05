@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
-import PageHeader from '@/components/layouts/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { AnimatedCurrency } from '@/components/ui/animated-counter';
 import { cn } from '@/lib/utils';
 import {
@@ -55,6 +55,7 @@ const formatarPorcentagem = (valor: number | null | undefined): string => {
 
 export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoClientProps) {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(false);
@@ -117,6 +118,11 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     }
   }, [loading, mesAtualIdx]);
 
+  useEffect(() => {
+    setPageTitle('💰 Orçamentação');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const toggleSecao = (nome: string) => {
     setSecoesAbertas(prev => ({ ...prev, [nome]: !prev[nome] }));
   };
@@ -164,8 +170,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     <div className="h-[calc(100vh-80px)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
       <div className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div className="max-w-full mx-auto px-4 py-3">
-          <div className="flex items-center justify-between mb-3">
-            <PageHeader title="Orçamentação" description="" />
+          <div className="flex items-center justify-end mb-3">
             <div className="flex items-center gap-2">
               <div className="px-4 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg">
                 <span className="font-semibold text-gray-900 dark:text-white">

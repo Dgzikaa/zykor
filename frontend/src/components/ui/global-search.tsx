@@ -202,7 +202,7 @@ export function GlobalSearch({
       id: '2',
       title: 'Gerenciar Usuários',
       description: 'Adicionar, editar e remover usuários do sistema',
-      url: '/configuracoes/usuarios',
+      url: '/configuracoes/administracao/usuarios',
       category: SEARCH_CATEGORIES[1],
       icon: <Users className="w-4 h-4" />,
       tags: ['usuários', 'admin', 'permissões'],
