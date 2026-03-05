@@ -178,8 +178,9 @@ export async function GET(request: NextRequest) {
       return false;
     };
 
-    // CMV = apenas despesas (type=Debit). Receitas (type=Credit) devem ser excluídas.
-    const isFiltroCusto = categoriasLista?.some(c => normalizar(c).includes('custo')) ?? false;
+    // Filtro de categorias CMV
+    // NOTA: Removido filtro por type=Credit, pois transferências entre lojas (type=Credit)
+    // podem ter categoria de custo (ex: CUSTO COMIDA) e devem ser incluídas no CMV
 
     const lancamentosRetroativos = allSchedules.filter(schedule => {
       if (!schedule.createDate) return false;
@@ -189,16 +190,17 @@ export async function GET(request: NextRequest) {
       if (createDate < criadoAposDate) return false;
       if (criadoAntesDate && createDate > criadoAntesDate) return false;
 
-      // Ao filtrar CMV/custos: excluir receitas - só despesas (Debit)
-      const tipoSchedule = String(schedule.type || '').toLowerCase();
-      const tipoCategoria = String((schedule.category as any)?.type || '').toLowerCase();
-      if (isFiltroCusto) {
-        if (tipoSchedule === 'credit' || tipoCategoria === 'income' || tipoCategoria === 'receita') return false;
-      }
-
+      // Filtrar por categoria se especificado
       if (categoriasLista && categoriasLista.length > 0) {
         const categoriaNome = schedule.category?.name || '';
         if (!categoriasLista.some(cat => matchCategoria(categoriaNome, cat))) {
+          return false;
+        }
+        
+        // Ao filtrar por categorias de custo, excluir apenas se a categoria for explicitamente de receita
+        // NÃO excluir por type=Credit, pois transferências/entre lojas usam Credit mas são custos
+        const tipoCategoria = String((schedule.category as any)?.type || '').toLowerCase();
+        if (tipoCategoria === 'income' || tipoCategoria === 'receita') {
           return false;
         }
       }
