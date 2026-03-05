@@ -73,6 +73,33 @@ export async function GET(request: NextRequest) {
       console.error('Erro ao buscar marketing mensal:', marketingMensalError);
     }
 
+    // ========== PARTE 1.6: NPS Falaê diário agregado ==========
+    const { data: falaeNpsDiario, error: falaeNpsError } = await supabase
+      .from('nps_falae_diario')
+      .select('respostas_total, promotores, detratores, nps_media')
+      .eq('bar_id', barId)
+      .gte('data_referencia', dataInicio)
+      .lte('data_referencia', dataFim);
+
+    if (falaeNpsError) {
+      console.error('Erro ao buscar nps_falae_diario:', falaeNpsError);
+    }
+
+    const falaeRows = falaeNpsDiario || [];
+    const falaeTotalRespostas = falaeRows.reduce((sum, r) => sum + (Number(r.respostas_total) || 0), 0);
+    const falaePromotores = falaeRows.reduce((sum, r) => sum + (Number(r.promotores) || 0), 0);
+    const falaeDetratores = falaeRows.reduce((sum, r) => sum + (Number(r.detratores) || 0), 0);
+    const falaeMediaPonderada = falaeRows.reduce(
+      (sum, r) => sum + ((Number(r.nps_media) || 0) * (Number(r.respostas_total) || 0)),
+      0
+    );
+    const falaeNpsScore =
+      falaeTotalRespostas > 0
+        ? Math.round(((falaePromotores - falaeDetratores) / falaeTotalRespostas) * 100)
+        : null;
+    const falaeNpsMedia =
+      falaeTotalRespostas > 0 ? Math.round((falaeMediaPonderada / falaeTotalRespostas) * 10) / 10 : null;
+
     // ========== PARTE 2: Dados semanais proporcionais ==========
     // Identificar semanas que têm dias no mês e calcular proporção
     const semanasComProporcao = calcularSemanasComProporcao(mes, ano);
@@ -132,6 +159,11 @@ export async function GET(request: NextRequest) {
       ...dadosSemanais,
       // Dados diários sobrescrevem (são mais precisos para faturamento, clientes, mix, etc)
       ...dadosDiarios,
+      // NPS Falaê mensal derivado da tabela diária agregada
+      ...(falaeNpsScore !== null && { nps_geral: falaeNpsScore }),
+      falae_nps_score: falaeNpsScore,
+      falae_nps_media: falaeNpsMedia,
+      falae_respostas_total: falaeTotalRespostas,
       // Quantidade de dias com dados
       dias_com_dados: eventosDiarios?.filter(e => parseFloat(e.real_r) > 0).length || 0,
     };

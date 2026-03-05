@@ -125,13 +125,13 @@ async function getDadosMensais(
     p_data_fim: dataFim
   });
 
-  // 6. NPS Falaê: buscar respostas do mês
+  // 6. NPS Falaê diário agregado
   const falaeNpsPromise = supabase
-    .from('falae_respostas')
-    .select('nps')
+    .from('nps_falae_diario')
+    .select('respostas_total, promotores, detratores, nps_media')
     .eq('bar_id', barId)
-    .gte('created_at', dataInicio)
-    .lte('created_at', dataFim + 'T23:59:59');
+    .gte('data_referencia', dataInicio)
+    .lte('data_referencia', dataFim);
 
   // 7. Buscar dados de marketing mensal (preenchimento manual)
   const marketingMensalPromise = supabase
@@ -175,15 +175,19 @@ async function getDadosMensais(
   const clientesAtivos = clientesAtivosResult.error ? 0 : Number(clientesAtivosResult.data) || 0;
 
   // NPS Falaê: calcular score do mês
-  const falaeRespostas = falaeNpsResult.data || [];
+  const falaeDiario = falaeNpsResult.data || [];
   let falaeNpsScore: number | null = null;
   let falaeNpsMedia: number | null = null;
-  if (falaeRespostas.length > 0) {
-    const promotores = falaeRespostas.filter(r => r.nps >= 9).length;
-    const detratores = falaeRespostas.filter(r => r.nps <= 6).length;
-    const total = falaeRespostas.length;
+  const total = falaeDiario.reduce((sum, d) => sum + (Number(d.respostas_total) || 0), 0);
+  const promotores = falaeDiario.reduce((sum, d) => sum + (Number(d.promotores) || 0), 0);
+  const detratores = falaeDiario.reduce((sum, d) => sum + (Number(d.detratores) || 0), 0);
+  const somaMediaPonderada = falaeDiario.reduce(
+    (sum, d) => sum + ((Number(d.nps_media) || 0) * (Number(d.respostas_total) || 0)),
+    0
+  );
+  if (total > 0) {
     falaeNpsScore = Math.round(((promotores - detratores) / total) * 100);
-    falaeNpsMedia = Math.round((falaeRespostas.reduce((acc, r) => acc + r.nps, 0) / total) * 10) / 10;
+    falaeNpsMedia = Math.round((somaMediaPonderada / total) * 10) / 10;
   }
 
   const dadosSemanais = agregarDadosSemanaisProporcionais(semanasComProporcao, desempenhoMap, marketingMap);
@@ -260,7 +264,7 @@ async function getDadosMensais(
     // Adicionar campo específico para NPS Falaê
     falae_nps_score: falaeNpsScore,
     falae_nps_media: falaeNpsMedia,
-    falae_respostas_total: falaeRespostas.length,
+    falae_respostas_total: total,
   } as unknown as DadosSemana;
 }
 

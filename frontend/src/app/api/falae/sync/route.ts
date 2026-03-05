@@ -66,6 +66,81 @@ async function fetchAnswersPage(
   };
 }
 
+type DailyNpsRow = {
+  created_at: string;
+  nps: number;
+};
+
+async function upsertDailyNps(
+  supabase: any,
+  barId: number,
+  rows: DailyNpsRow[]
+): Promise<{ dias_atualizados: number; respostas_total: number }> {
+  if (!rows.length) {
+    return { dias_atualizados: 0, respostas_total: 0 };
+  }
+
+  const byDay = new Map<
+    string,
+    { total: number; promotores: number; neutros: number; detratores: number; somaNps: number }
+  >();
+
+  for (const row of rows) {
+    const day = String(row.created_at).slice(0, 10);
+    if (!day) continue;
+    if (!byDay.has(day)) {
+      byDay.set(day, { total: 0, promotores: 0, neutros: 0, detratores: 0, somaNps: 0 });
+    }
+    const bucket = byDay.get(day)!;
+    const nps = Number(row.nps) || 0;
+    bucket.total += 1;
+    bucket.somaNps += nps;
+    if (nps >= 9) bucket.promotores += 1;
+    else if (nps <= 6) bucket.detratores += 1;
+    else bucket.neutros += 1;
+  }
+
+  const now = new Date().toISOString();
+  const dailyRows = Array.from(byDay.entries()).map(([dataReferencia, v]) => ({
+    bar_id: barId,
+    data_referencia: dataReferencia,
+    respostas_total: v.total,
+    promotores: v.promotores,
+    neutros: v.neutros,
+    detratores: v.detratores,
+    nps_score: v.total > 0 ? Math.round(((v.promotores - v.detratores) / v.total) * 100) : null,
+    nps_media: v.total > 0 ? Math.round((v.somaNps / v.total) * 100) / 100 : null,
+    atualizado_em: now,
+  }));
+
+  const { error } = await supabase
+    .from('nps_falae_diario')
+    .upsert(dailyRows, { onConflict: 'bar_id,data_referencia' });
+
+  if (error) {
+    throw error;
+  }
+
+  return { dias_atualizados: dailyRows.length, respostas_total: rows.length };
+}
+
+async function upsertDailyNpsFromDatabase(
+  supabase: any,
+  barId: number,
+  dateStart: string,
+  dateEnd: string
+): Promise<{ dias_atualizados: number; respostas_total: number }> {
+  const { data, error } = await supabase
+    .from('falae_respostas')
+    .select('created_at, nps')
+    .eq('bar_id', barId)
+    .gte('created_at', `${dateStart}T00:00:00`)
+    .lte('created_at', `${dateEnd}T23:59:59`);
+
+  if (error) throw error;
+  return upsertDailyNps(supabase, barId, (data || []) as DailyNpsRow[]);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await getAdminClient();
@@ -208,7 +283,13 @@ export async function POST(request: NextRequest) {
         );
       }
       const fallbackData = await fallbackResp.json();
-      return NextResponse.json({ ...fallbackData, fallback: true, detalhes });
+      let npsDiario = { dias_atualizados: 0, respostas_total: 0 };
+      try {
+        npsDiario = await upsertDailyNpsFromDatabase(supabase, barId, dateStart, dateEnd);
+      } catch (npsError) {
+        console.error('Erro ao atualizar nps_falae_diario (fallback):', npsError);
+      }
+      return NextResponse.json({ ...fallbackData, fallback: true, detalhes, nps_diario: npsDiario });
     }
 
     const respostas = Array.from(respostasMap.values());
@@ -252,6 +333,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao persistir respostas' }, { status: 500 });
     }
 
+    let npsDiario = { dias_atualizados: 0, respostas_total: 0 };
+    try {
+      npsDiario = await upsertDailyNps(
+        supabase,
+        barId,
+        rows.map((r) => ({ created_at: r.created_at, nps: r.nps }))
+      );
+    } catch (npsError) {
+      console.error('Erro ao atualizar nps_falae_diario:', npsError);
+    }
+
     const promotores = rows.filter((r) => Number(r.nps) >= 9).length;
     const detratores = rows.filter((r) => Number(r.nps) <= 6).length;
     const npsPeriodo =
@@ -268,6 +360,7 @@ export async function POST(request: NextRequest) {
       },
       nps_periodo: npsPeriodo,
       detalhes,
+      nps_diario: npsDiario,
       synced_at: new Date().toISOString(),
     });
 
