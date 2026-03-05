@@ -8,6 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -21,7 +29,7 @@ import {
   Megaphone,
   BarChart3,
   Calendar,
-  RefreshCcw,
+  Target,
   ChevronDown,
   ChevronRight,
   Pencil,
@@ -141,7 +149,7 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         id: 'nps',
         label: 'NPS',
         metricas: [
-          { key: 'falae_nps_score', label: 'NPS Falaê', status: 'auto', fonte: 'Falaê', calculo: '% Promotores - % Detratores (pesquisa pós-visita)', formato: 'numero' },
+          { key: 'falae_nps_score', label: 'NPS Falaê', status: 'auto', fonte: 'Falaê', calculo: '% Promotores - % Detratores (pesquisa pós-visita)', formato: 'numero', temTooltipDetalhes: true },
           { key: 'nps_geral', label: 'NPS Geral', status: 'auto', fonte: 'NPS', calculo: '% Promotores - % Detratores', formato: 'numero' },
           { key: 'nps_reservas', label: 'NPS Reservas', status: 'auto', fonte: 'NPS', calculo: '% Promotores - % Detratores (com reserva)', formato: 'numero' },
         ]
@@ -422,6 +430,9 @@ export function DesempenhoClient({
   const [sincronizando, setSincronizando] = useState(false);
   const [semanaAtualIdx, setSemanaAtualIdx] = useState<number>(-1);
   const [metas, setMetas] = useState<MetasDesempenhoMap>({});
+  const [metasModalAberto, setMetasModalAberto] = useState(false);
+  const [salvandoMetas, setSalvandoMetas] = useState(false);
+  const [metasEditValues, setMetasEditValues] = useState<Record<string, string>>({});
   
   const [secoesAbertas, setSecoesAbertas] = useState<Record<string, boolean>>({
     guardrail: true,
@@ -458,9 +469,78 @@ export function DesempenhoClient({
   const [editando, setEditando] = useState<{ semanaId: number; campo: string } | null>(null);
   const [valorEdit, setValorEdit] = useState('');
   const [valoresLocais, setValoresLocais] = useState<Record<string, Record<string, number>>>({});
+  const [falaeDialog, setFalaeDialog] = useState<{
+    aberto: boolean;
+    periodo: string;
+    npsScore: number | null;
+    totalRespostas: number;
+    promotores: number;
+    neutros: number;
+    detratores: number;
+    avaliacoes: { nome: string; media: number; total: number }[];
+    comentarios: {
+      nps: number;
+      comentario: string;
+      data: string;
+      tipo: 'promotor' | 'neutro' | 'detrator';
+      avaliacoes?: { nome: string; nota: number }[];
+    }[];
+  }>({
+    aberto: false,
+    periodo: '',
+    npsScore: null,
+    totalRespostas: 0,
+    promotores: 0,
+    neutros: 0,
+    detratores: 0,
+    avaliacoes: [],
+    comentarios: [],
+  });
+  const [filtroComentarioFalae, setFiltroComentarioFalae] = useState<'todos' | 'detrator' | 'neutro' | 'promotor'>('todos');
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const semanaAtualRef = useRef<HTMLDivElement>(null);
+
+  const metasPorSecao = useMemo(() => {
+    const usedKeys = new Set<string>();
+    const secoes = SECOES.map((secao) => {
+      const grupos = secao.grupos
+        .map((grupo) => {
+          const metricas = grupo.metricas
+            .filter((metrica) => {
+              if (usedKeys.has(metrica.key)) return false;
+              usedKeys.add(metrica.key);
+              return true;
+            })
+            .map((metrica) => ({
+              key: metrica.key,
+              label: metrica.label,
+              formato: metrica.formato,
+              sufixo: metrica.sufixo,
+              inverso: metrica.inverso,
+            }));
+          return {
+            id: grupo.id,
+            label: grupo.label,
+            metricas,
+          };
+        })
+        .filter((g) => g.metricas.length > 0);
+
+      return {
+        id: secao.id,
+        titulo: secao.titulo,
+        grupos,
+      };
+    }).filter((s) => s.grupos.length > 0);
+
+    return secoes;
+  }, [SECOES]);
+
+  const metricasParaMetaFlat = useMemo(
+    () => metasPorSecao.flatMap((s) => s.grupos.flatMap((g) => g.metricas)),
+    [metasPorSecao]
+  );
 
   // Processar Initial Data (Adicionar semanas futuras)
   const semanasProcessadas = useMemo(() => {
@@ -579,6 +659,122 @@ export function DesempenhoClient({
       subtitulo: `${formatarDataCurta(item.data_inicio)} - ${formatarDataCurta(item.data_fim)}`
     };
   };
+
+  const abrirModalMetas = useCallback(() => {
+    const valoresIniciais: Record<string, string> = {};
+    metricasParaMetaFlat.forEach((m) => {
+      const valorAtual = metas[m.key]?.valor;
+      valoresIniciais[m.key] =
+        valorAtual !== null && valorAtual !== undefined && Number.isFinite(valorAtual)
+          ? String(valorAtual)
+          : '';
+    });
+    setMetasEditValues(valoresIniciais);
+    setMetasModalAberto(true);
+  }, [metricasParaMetaFlat, metas]);
+
+  const salvarMetasDesempenho = useCallback(async () => {
+    if (!selectedBar?.id) {
+      toast({ title: 'Erro', description: 'Selecione um bar para salvar metas', variant: 'destructive' });
+      return;
+    }
+
+    const metasPayload = metricasParaMetaFlat
+      .map((m) => {
+        const raw = (metasEditValues[m.key] || '').toString().trim();
+        if (!raw) return null;
+        const valor = Number(raw.replace(',', '.'));
+        if (!Number.isFinite(valor)) return null;
+        return {
+          metrica: m.key,
+          valor,
+          operador: metas[m.key]?.operador || (m.inverso ? '<=' : '>='),
+        };
+      })
+      .filter((m): m is { metrica: string; valor: number; operador: string } => !!m);
+
+    if (metasPayload.length === 0) {
+      toast({ title: 'Nada para salvar', description: 'Preencha ao menos uma meta válida.', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      setSalvandoMetas(true);
+      const response = await fetch('/api/estrategico/desempenho/metas', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bar_id: selectedBar.id,
+          periodo: visao,
+          metas: metasPayload,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Falha ao salvar metas');
+      }
+
+      setMetas(data?.metas || {});
+      setMetasModalAberto(false);
+      toast({ title: 'Metas salvas', description: `${metasPayload.length} metas atualizadas com sucesso.` });
+    } catch (error) {
+      toast({
+        title: 'Erro ao salvar metas',
+        description: error instanceof Error ? error.message : 'Falha ao salvar',
+        variant: 'destructive',
+      });
+    } finally {
+      setSalvandoMetas(false);
+    }
+  }, [selectedBar, visao, metricasParaMetaFlat, metasEditValues, metas, toast]);
+
+  const abrirDetalhesFalae = useCallback((semana: DadosSemana) => {
+    const avaliacoes = ((semana as any).falae_avaliacoes_detalhes || []) as Array<{ nome: string; media: number; total: number }>;
+    const comentarios = ((semana as any).falae_comentarios_detalhes || []) as Array<{
+      nps: number;
+      comentario: string;
+      data: string;
+      tipo: 'promotor' | 'neutro' | 'detrator';
+      avaliacoes?: { nome: string; nota: number }[];
+    }>;
+    const periodo = `${formatarDataCurta(semana.data_inicio)} - ${formatarDataCurta(semana.data_fim)}`;
+
+    setFalaeDialog({
+      aberto: true,
+      periodo,
+      npsScore: (semana as any).falae_nps_score ?? null,
+      totalRespostas: Number((semana as any).falae_respostas_total || 0),
+      promotores: Number((semana as any).falae_promotores_total || 0),
+      neutros: Number((semana as any).falae_neutros_total || 0),
+      detratores: Number((semana as any).falae_detratores_total || 0),
+      avaliacoes,
+      comentarios,
+    });
+    setFiltroComentarioFalae('todos');
+  }, []);
+
+  const comentariosFalaeOrdenadosFiltrados = useMemo(() => {
+    const ordemTipo = { detrator: 0, neutro: 1, promotor: 2 } as const;
+    const base = [...falaeDialog.comentarios].sort((a, b) => {
+      const ordem = ordemTipo[a.tipo] - ordemTipo[b.tipo];
+      if (ordem !== 0) return ordem;
+      return a.data < b.data ? 1 : -1;
+    });
+    if (filtroComentarioFalae === 'todos') return base;
+    return base.filter((c) => c.tipo === filtroComentarioFalae);
+  }, [falaeDialog.comentarios, filtroComentarioFalae]);
+
+  const contagemComentariosFalae = useMemo(() => {
+    const counts = { detrator: 0, neutro: 0, promotor: 0 };
+    for (const c of falaeDialog.comentarios) {
+      counts[c.tipo] += 1;
+    }
+    return {
+      ...counts,
+      todos: falaeDialog.comentarios.length,
+    };
+  }, [falaeDialog.comentarios]);
 
   // Função de atualização completa: NIBO + Planilha CMV + Refresh (FUNÇÃO UNIFICADA)
   const atualizarTudo = async () => {
@@ -769,6 +965,7 @@ export function DesempenhoClient({
   }
 
   return (
+    <>
     <div className="h-[calc(100vh-80px)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
@@ -805,9 +1002,9 @@ export function DesempenhoClient({
                  <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-amber-500" /><span className="text-gray-600 dark:text-gray-400">Verificar</span></div>
               </div>
               
-              <Button variant="outline" size="sm" onClick={atualizarTudo} disabled={loading || sincronizando} className="gap-2">
-                <RefreshCcw className={cn("h-4 w-4", sincronizando && "animate-spin")} />
-                {sincronizando ? 'Atualizando...' : 'Atualizar'}
+              <Button variant="outline" size="sm" onClick={abrirModalMetas} className="gap-2">
+                <Target className="h-4 w-4" />
+                Metas
               </Button>
             </div>
           </div>
@@ -1060,6 +1257,18 @@ export function DesempenhoClient({
                                                     {valorFormatado}
                                                   </span>
                                                 </GoogleReviewsTooltip>
+                                              ) : metrica.key === 'falae_nps_score' ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => abrirDetalhesFalae(semana)}
+                                                  className={cn(
+                                                    "text-xs text-center underline decoration-dotted hover:opacity-80 transition-opacity",
+                                                    getCorMeta(verificarMeta(valor, metrica.key, metas))
+                                                  )}
+                                                  title="Clique para ver médias por avaliação e comentários"
+                                                >
+                                                  {valorFormatado}
+                                                </button>
                                               ) : temDetalhes ? (
                                                 <TooltipProvider>
                                                   <Tooltip>
@@ -1185,5 +1394,181 @@ export function DesempenhoClient({
         </div>
       </div>
     </div>
+    <Dialog open={metasModalAberto} onOpenChange={setMetasModalAberto}>
+      <DialogContent className="max-w-6xl">
+        <DialogHeader>
+          <DialogTitle>Metas de Desempenho ({visao === 'semanal' ? 'Semanal' : 'Mensal'})</DialogTitle>
+          <DialogDescription>
+            Metas agrupadas por bloco do desempenho. Edite e salve quando quiser.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[70vh] overflow-y-auto px-1">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 py-2">
+            {metasPorSecao.map((secao) => (
+              <section key={secao.id} className="rounded-md border p-3 bg-gray-50 dark:bg-gray-800/60 space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{secao.titulo}</h3>
+                {secao.grupos.map((grupo) => (
+                  <div key={`${secao.id}-${grupo.id}`} className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-2.5 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{grupo.label}</p>
+                    {grupo.metricas.map((m) => (
+                      <div key={m.key} className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-2 items-center">
+                        <div>
+                          <p className="text-sm text-gray-900 dark:text-gray-100">{m.label} - Meta</p>
+                          <p className="text-[11px] text-gray-500">
+                            Atual: {metas[m.key] ? formatarValor(metas[m.key].valor, m.formato, m.sufixo) : '-'} • Op. {metas[m.key]?.operador || (m.inverso ? '<=' : '>=')}
+                          </p>
+                        </div>
+                        <Input
+                          value={metasEditValues[m.key] || ''}
+                          onChange={(e) =>
+                            setMetasEditValues((prev) => ({
+                              ...prev,
+                              [m.key]: e.target.value,
+                            }))
+                          }
+                          placeholder={`Ex: ${m.formato.includes('moeda') ? '103.00' : '95'}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </section>
+            ))}
+          </div>
+        </div>
+        <DialogFooter className="p-0 pt-2">
+          <Button type="button" variant="outline" onClick={() => setMetasModalAberto(false)} disabled={salvandoMetas}>
+            Cancelar
+          </Button>
+          <Button type="button" onClick={salvarMetasDesempenho} disabled={salvandoMetas}>
+            {salvandoMetas ? 'Salvando...' : 'Salvar Metas'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    <Dialog open={falaeDialog.aberto} onOpenChange={(aberto) => setFalaeDialog((prev) => ({ ...prev, aberto }))}>
+      <DialogContent className="max-w-5xl">
+        <DialogHeader>
+          <DialogTitle>Detalhes NPS Falaê</DialogTitle>
+          <DialogDescription>
+            Semana {falaeDialog.periodo} • NPS {falaeDialog.npsScore ?? '-'} • {falaeDialog.totalRespostas} respostas
+          </DialogDescription>
+        </DialogHeader>
+        <div className="p-4 pt-0 space-y-4 overflow-y-auto max-h-[70vh]">
+          <section className="rounded-md border p-3 bg-blue-50/60 dark:bg-blue-950/20">
+            <p className="text-sm font-semibold mb-1">Como o NPS é calculado</p>
+            <p className="text-xs text-gray-600 dark:text-gray-300">
+              O NPS usa somente a nota geral de 0 a 10:
+              <span className="font-medium"> Promotores ({falaeDialog.promotores})</span>,
+              <span className="font-medium"> Detratores ({falaeDialog.detratores})</span> e
+              <span className="font-medium"> Total ({falaeDialog.totalRespostas})</span>.
+            </p>
+            <p className="text-xs text-gray-700 dark:text-gray-200 mt-1">
+              Fórmula: (({falaeDialog.promotores} - {falaeDialog.detratores}) / {falaeDialog.totalRespostas || 1}) x 100 ={' '}
+              <span className="font-semibold">{falaeDialog.npsScore ?? '-'}</span>
+            </p>
+            <p className="text-[11px] text-gray-500 mt-1">
+              As notas de “Média por avaliação” (Música, Atendimento, etc.) são critérios de qualidade e não entram diretamente nessa fórmula.
+            </p>
+          </section>
+          <section className="rounded-md border p-3">
+            <p className="text-sm font-semibold mb-3">Média por avaliação</p>
+            {falaeDialog.avaliacoes.length === 0 ? (
+              <p className="text-sm text-gray-500">Sem avaliações detalhadas na semana.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {falaeDialog.avaliacoes.map((a) => (
+                  <div
+                    key={a.nome}
+                    className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-2.5 py-2"
+                  >
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{a.nome}</p>
+                    <p className="text-sm font-semibold">
+                      {a.media.toFixed(1).replace('.', ',')}/5 <span className="text-gray-500 font-normal">({a.total})</span>
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+          <section className="rounded-md border p-3">
+            <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-semibold">Comentários da semana</p>
+                <p className="text-xs text-gray-500">
+                  {falaeDialog.totalRespostas} respostas no total • {contagemComentariosFalae.todos} com comentário
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={filtroComentarioFalae === 'detrator' ? 'default' : 'outline'}
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setFiltroComentarioFalae('detrator')}
+                >
+                  Detratores ({contagemComentariosFalae.detrator} comentários)
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={filtroComentarioFalae === 'neutro' ? 'default' : 'outline'}
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setFiltroComentarioFalae('neutro')}
+                >
+                  Neutros ({contagemComentariosFalae.neutro} comentários)
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={filtroComentarioFalae === 'promotor' ? 'default' : 'outline'}
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setFiltroComentarioFalae('promotor')}
+                >
+                  Promotores ({contagemComentariosFalae.promotor} comentários)
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={filtroComentarioFalae === 'todos' ? 'default' : 'outline'}
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setFiltroComentarioFalae('todos')}
+                >
+                  Todos comentários ({contagemComentariosFalae.todos})
+                </Button>
+              </div>
+            </div>
+            {comentariosFalaeOrdenadosFiltrados.length === 0 ? (
+              <p className="text-sm text-gray-500">Sem comentários na semana.</p>
+            ) : (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                {comentariosFalaeOrdenadosFiltrados.map((c, idx) => (
+                  <div key={`${c.data}-${idx}`} className="rounded bg-gray-50 dark:bg-gray-800 p-2">
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                      <span>NPS {c.nps} • {c.tipo}</span>
+                      <span>{new Date(c.data).toLocaleString('pt-BR')}</span>
+                    </div>
+                    {!!c.avaliacoes?.length && (
+                      <div className="mb-1 flex flex-wrap gap-1">
+                        {c.avaliacoes.map((a, idxA) => (
+                          <span
+                            key={`${a.nome}-${idxA}`}
+                            className="inline-flex items-center rounded bg-white dark:bg-gray-700 px-1.5 py-0.5 text-[11px] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
+                          >
+                            {a.nome}: {a.nota.toFixed(1).replace('.', ',')}/5
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-sm">{c.comentario}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

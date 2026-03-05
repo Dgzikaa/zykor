@@ -39,6 +39,17 @@ export interface DadosSemana {
   falae_nps_score?: number | null;
   falae_nps_media?: number | null;
   falae_respostas_total?: number;
+  falae_promotores_total?: number;
+  falae_neutros_total?: number;
+  falae_detratores_total?: number;
+  falae_avaliacoes_detalhes?: { nome: string; media: number; total: number }[];
+  falae_comentarios_detalhes?: {
+    nps: number;
+    comentario: string;
+    data: string;
+    tipo: 'promotor' | 'neutro' | 'detrator';
+    avaliacoes?: { nome: string; nota: number }[];
+  }[];
   nota_felicidade_equipe: number;
   stockout_comidas: number;
   stockout_drinks: number;

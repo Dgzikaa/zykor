@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
     );
     const falaeNpsScore =
       falaeTotalRespostas > 0
-        ? Math.round(((falaePromotores - falaeDetratores) / falaeTotalRespostas) * 100)
+        ? Math.round((((falaePromotores - falaeDetratores) / falaeTotalRespostas) * 100) * 10) / 10
         : null;
     const falaeNpsMedia =
       falaeTotalRespostas > 0 ? Math.round((falaeMediaPonderada / falaeTotalRespostas) * 10) / 10 : null;

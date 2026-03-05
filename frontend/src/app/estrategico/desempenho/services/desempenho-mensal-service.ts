@@ -186,7 +186,7 @@ async function getDadosMensais(
     0
   );
   if (total > 0) {
-    falaeNpsScore = Math.round(((promotores - detratores) / total) * 100);
+    falaeNpsScore = Math.round((((promotores - detratores) / total) * 100) * 10) / 10;
     falaeNpsMedia = Math.round((somaMediaPonderada / total) * 10) / 10;
   }
 

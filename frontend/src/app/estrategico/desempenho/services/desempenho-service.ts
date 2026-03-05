@@ -114,6 +114,20 @@ export async function getSemanas(
 
   const contaAssinadaMap = new Map<string, number>();
   const descontosMap = new Map<string, any>();
+  const falaeNpsMap = new Map<string, { respostas: number; promotores: number; detratores: number; mediaPonderada: number }>();
+  const falaeDetalhesMap = new Map<
+    string,
+    {
+      criterios: Map<string, { soma: number; total: number }>;
+      comentarios: {
+        nps: number;
+        comentario: string;
+        data: string;
+        tipo: 'promotor' | 'neutro' | 'detrator';
+        avaliacoes: { nome: string; nota: number }[];
+      }[];
+    }
+  >();
 
   if (dataMin && dataMax) {
     // Conta Assinada
@@ -182,6 +196,105 @@ export async function getSemanas(
         const diaData = motivoData.por_dia.get(diaSemana);
         diaData.valor += valor;
         diaData.qtd += 1;
+      }
+    });
+
+    // NPS Falaê diário agregado -> semanal
+    const falaeDiario = await fetchAllPaginated<{
+      data_referencia: string;
+      respostas_total: number;
+      promotores: number;
+      detratores: number;
+      nps_media: number | null;
+    }>(
+      supabase,
+      'nps_falae_diario',
+      'data_referencia, respostas_total, promotores, detratores, nps_media',
+      [
+        { column: 'bar_id', operator: 'eq', value: barId },
+        { column: 'data_referencia', operator: 'gte', value: dataMin },
+        { column: 'data_referencia', operator: 'lte', value: dataMax },
+      ]
+    );
+
+    falaeDiario.forEach((d) => {
+      const data = new Date(`${d.data_referencia}T12:00:00`);
+      const { semana: numeroSemana, ano: anoSemana } = getWeekAndYear(data);
+      const key = `${anoSemana}-${numeroSemana}`;
+
+      if (!falaeNpsMap.has(key)) {
+        falaeNpsMap.set(key, { respostas: 0, promotores: 0, detratores: 0, mediaPonderada: 0 });
+      }
+
+      const cur = falaeNpsMap.get(key)!;
+      const respostas = Number(d.respostas_total) || 0;
+      cur.respostas += respostas;
+      cur.promotores += Number(d.promotores) || 0;
+      cur.detratores += Number(d.detratores) || 0;
+      cur.mediaPonderada += (Number(d.nps_media) || 0) * respostas;
+    });
+
+    // Detalhes Falaê por semana (médias por tema + comentários)
+    const falaeRespostas = await fetchAllPaginated<{
+      created_at: string;
+      nps: number;
+      criterios: any;
+      discursive_question: string | null;
+    }>(
+      supabase,
+      'falae_respostas',
+      'created_at, nps, criterios, discursive_question',
+      [
+        { column: 'bar_id', operator: 'eq', value: barId },
+        { column: 'created_at', operator: 'gte', value: `${dataMin}T00:00:00` },
+        { column: 'created_at', operator: 'lte', value: `${dataMax}T23:59:59` },
+      ]
+    );
+
+    falaeRespostas.forEach((r) => {
+      const data = new Date(String(r.created_at));
+      if (Number.isNaN(data.getTime())) return;
+      const { semana: numeroSemana, ano: anoSemana } = getWeekAndYear(data);
+      const key = `${anoSemana}-${numeroSemana}`;
+
+      if (!falaeDetalhesMap.has(key)) {
+        falaeDetalhesMap.set(key, {
+          criterios: new Map(),
+          comentarios: [],
+        });
+      }
+
+      const bucket = falaeDetalhesMap.get(key)!;
+      const criterios = Array.isArray(r.criterios) ? r.criterios : [];
+      const avaliacoesDaResposta: { nome: string; nota: number }[] = [];
+      criterios.forEach((c: any) => {
+        if (c?.type !== 'Rating') return;
+        const valor = typeof c?.name === 'number' ? c.name : parseFloat(String(c?.name ?? ''));
+        if (!Number.isFinite(valor)) return;
+        const nome = String(c?.nick || c?.title || c?.question || 'Geral').trim();
+        const nomeFinal = nome || 'Geral';
+        avaliacoesDaResposta.push({
+          nome: nomeFinal,
+          nota: Math.round(valor * 10) / 10,
+        });
+        if (!bucket.criterios.has(nomeFinal)) {
+          bucket.criterios.set(nomeFinal, { soma: 0, total: 0 });
+        }
+        const atual = bucket.criterios.get(nomeFinal)!;
+        atual.soma += valor;
+        atual.total += 1;
+      });
+
+      const comentario = String(r.discursive_question || '').trim();
+      if (comentario) {
+        const nps = Number(r.nps) || 0;
+        bucket.comentarios.push({
+          nps,
+          comentario,
+          data: String(r.created_at),
+          tipo: nps >= 9 ? 'promotor' : nps <= 6 ? 'detrator' : 'neutro',
+          avaliacoes: avaliacoesDaResposta,
+        });
       }
     });
   }
@@ -270,6 +383,42 @@ export async function getSemanas(
       ...(cmvLimpoCalculado !== null ? { cmv_limpo: cmvLimpoCalculado } : {}),
       // Sobrescrever CMV Global % calculado a partir do CMV R$ (se existir)
       ...(cmvGlobalCalculado !== null ? { cmv_global_real: cmvGlobalCalculado } : {}),
+      ...(falaeNpsMap.has(key)
+        ? (() => {
+            const falae = falaeNpsMap.get(key)!;
+            const detalhes = falaeDetalhesMap.get(key);
+            const score =
+              falae.respostas > 0
+                ? Math.round((((falae.promotores - falae.detratores) / falae.respostas) * 100) * 10) / 10
+                : null;
+            const media =
+              falae.respostas > 0
+                ? Math.round((falae.mediaPonderada / falae.respostas) * 10) / 10
+                : null;
+            return {
+              falae_nps_score: score,
+              falae_nps_media: media,
+              falae_respostas_total: falae.respostas,
+              falae_promotores_total: falae.promotores,
+              falae_neutros_total: Math.max(0, falae.respostas - falae.promotores - falae.detratores),
+              falae_detratores_total: falae.detratores,
+              falae_avaliacoes_detalhes: detalhes
+                ? Array.from(detalhes.criterios.entries())
+                    .map(([nome, v]) => ({
+                      nome,
+                      media: Math.round((v.soma / v.total) * 10) / 10,
+                      total: v.total,
+                    }))
+                    .sort((a, b) => b.total - a.total)
+                : [],
+              falae_comentarios_detalhes: detalhes
+                ? [...detalhes.comentarios]
+                    .sort((a, b) => (a.data < b.data ? 1 : -1))
+                    .slice(0, 30)
+                : [],
+            };
+          })()
+        : {}),
       ...(marketing ? {
         o_num_posts: marketing.o_num_posts,
         o_alcance: marketing.o_alcance,
@@ -303,6 +452,16 @@ function getWeekNumber(d: Date): number {
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+function getWeekAndYear(date: Date): { semana: number; ano: number } {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const semana = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  const ano = d.getUTCFullYear();
+  return { semana, ano };
 }
 
 function agruparMotivo(motivo: string): { categoria: string; exibicao: string } {
