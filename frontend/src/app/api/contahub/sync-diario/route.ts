@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAdminClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic'
 
-// IDs dos bares que devem ser sincronizados
-const BARES_ATIVOS = [3, 4]; // 3 = Ordinário Bar, 4 = Deboche Bar
+async function getBaresAtivosContaHub(): Promise<number[]> {
+  const supabase = await getAdminClient();
+  const { data, error } = await supabase
+    .from('api_credentials')
+    .select('bar_id')
+    .eq('sistema', 'contahub')
+    .eq('ativo', true)
+    .not('bar_id', 'is', null);
+
+  if (error) {
+    console.error('❌ Erro ao buscar bares ativos do ContaHub:', error);
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      (data || [])
+        .map((row: any) => Number(row.bar_id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    )
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,10 +36,21 @@ export async function GET(request: NextRequest) {
 
     console.log(`📅 Data alvo: ${targetDate}`);
 
+    const baresAtivos = await getBaresAtivosContaHub();
+    if (baresAtivos.length === 0) {
+      return NextResponse.json({
+        success: false,
+        message: 'Nenhum bar com credencial ContaHub ativa encontrado',
+        resultados: [],
+        timestamp: new Date().toISOString(),
+        cron_job: true
+      }, { status: 404 });
+    }
+
     const resultados: Array<{ bar_id: number; success: boolean; error?: string; result?: any }> = [];
 
     // Sincronizar cada bar
-    for (const barId of BARES_ATIVOS) {
+    for (const barId of baresAtivos) {
       console.log(`\n🍺 Sincronizando bar_id=${barId}...`);
       
       try {
@@ -53,11 +85,11 @@ export async function GET(request: NextRequest) {
     }
 
     const totalSucesso = resultados.filter(r => r.success).length;
-    console.log(`\n🎉 Sincronização diária concluída: ${totalSucesso}/${BARES_ATIVOS.length} bares sincronizados`);
+    console.log(`\n🎉 Sincronização diária concluída: ${totalSucesso}/${baresAtivos.length} bares sincronizados`);
 
     return NextResponse.json({
       success: totalSucesso > 0,
-      message: `Sincronização diária ContaHub executada para ${totalSucesso}/${BARES_ATIVOS.length} bares`,
+      message: `Sincronização diária ContaHub executada para ${totalSucesso}/${baresAtivos.length} bares`,
       resultados,
       timestamp: new Date().toISOString(),
       cron_job: true
@@ -85,8 +117,18 @@ export async function POST(request: NextRequest) {
     // Se não especificar data, usar ontem
     const targetDate = data_date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
-    // Se não especificar bar_id, sincronizar todos
-    const baresParaSincronizar = bar_id ? [bar_id] : BARES_ATIVOS;
+    // Se não especificar bar_id, sincronizar todos os bares ativos no banco
+    const baresAtivos = await getBaresAtivosContaHub();
+    const baresParaSincronizar = bar_id ? [Number(bar_id)] : baresAtivos;
+    if (baresParaSincronizar.length === 0) {
+      return NextResponse.json({
+        success: false,
+        message: 'Nenhum bar com credencial ContaHub ativa encontrado',
+        resultados: [],
+        timestamp: new Date().toISOString(),
+        cron_job: false
+      }, { status: 404 });
+    }
 
     console.log(`📅 Data alvo: ${targetDate}`);
     console.log(`🍺 Bares: ${baresParaSincronizar.join(', ')}`);

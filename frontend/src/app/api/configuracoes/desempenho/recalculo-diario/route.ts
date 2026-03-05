@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAdminClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,14 +47,77 @@ export async function GET(request: NextRequest) {
       }
     );
 
+    const resultados: {
+      desempenho?: any;
+      falae_reconciliacao?: {
+        total_bares: number;
+        sucesso: number;
+        resultados: Array<{ bar_id: number; success: boolean; status?: number; error?: string }>;
+      };
+    } = {};
+
     if (response.ok) {
       const result = await response.json();
       console.log('✅ Recálculo diário concluído com sucesso:', result);
+      resultados.desempenho = result;
+
+      // Etapa extra: reconciliar Falaê (hoje até D-7) para garantir consistência além do webhook
+      try {
+        const supabase = await getAdminClient();
+        const { data: barsRows, error: barsError } = await supabase
+          .from('api_credentials')
+          .select('bar_id')
+          .eq('sistema', 'falae')
+          .eq('ativo', true)
+          .not('bar_id', 'is', null);
+
+        if (barsError) {
+          console.log('⚠️ Erro ao buscar bares com Falaê ativo:', barsError.message);
+          resultados.falae_reconciliacao = { total_bares: 0, sucesso: 0, resultados: [] };
+        } else {
+          const barIds = Array.from(
+            new Set((barsRows || []).map((row: any) => Number(row.bar_id)).filter((id) => Number.isFinite(id) && id > 0))
+          );
+          const falaeResultados: Array<{ bar_id: number; success: boolean; status?: number; error?: string }> = [];
+
+          for (const barId of barIds) {
+            try {
+              const syncResp = await fetch(`${request.nextUrl.origin}/api/falae/sync`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bar_id: barId, days_back: 7 }),
+                cache: 'no-store',
+              });
+              const payload = await syncResp.json().catch(() => ({}));
+              falaeResultados.push({
+                bar_id: barId,
+                success: syncResp.ok,
+                status: syncResp.status,
+                error: syncResp.ok ? undefined : (payload?.error || 'Erro no sync Falaê'),
+              });
+            } catch (err) {
+              falaeResultados.push({
+                bar_id: barId,
+                success: false,
+                error: err instanceof Error ? err.message : 'Erro desconhecido',
+              });
+            }
+          }
+
+          resultados.falae_reconciliacao = {
+            total_bares: barIds.length,
+            sucesso: falaeResultados.filter((r) => r.success).length,
+            resultados: falaeResultados,
+          };
+        }
+      } catch (falaeErr) {
+        console.log('⚠️ Falha na reconciliação Falaê:', falaeErr);
+      }
 
       return NextResponse.json({
         success: true,
         message: 'Recálculo diário de desempenho concluído',
-        result,
+        result: resultados,
         timestamp: new Date().toISOString(),
       });
     } else {

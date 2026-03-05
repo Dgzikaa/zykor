@@ -302,7 +302,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const requestBody = await req.text();
     console.log('📊 Body recebido:', requestBody);
     
-    const { bar_id, data_date } = JSON.parse(requestBody || '{}');
+    const { bar_id, data_date, emp_id: empIdFromPayload, contahub_emp_id: contahubEmpIdFromPayload } = JSON.parse(requestBody || '{}');
     
     if (!bar_id || !data_date) {
       throw new Error('bar_id e data_date são obrigatórios');
@@ -323,20 +323,54 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Buscar configuração do bar e credenciais do ContaHub
+    // Resolver emp_id do ContaHub:
+    // 1) payload (emp_id/contahub_emp_id), 2) bares.config.contahub_emp_id, 3) api_credentials.empresa_id
+    let emp_id: string | null =
+      empIdFromPayload != null
+        ? String(empIdFromPayload)
+        : contahubEmpIdFromPayload != null
+        ? String(contahubEmpIdFromPayload)
+        : null;
+
     const { data: barConfig, error: barError } = await supabase
       .from('bares')
       .select('config')
       .eq('id', bar_id)
-      .single();
-    
-    if (barError || !barConfig) {
-      throw new Error(`Bar não encontrado: ${bar_id}`);
+      .maybeSingle();
+
+    if (barError) {
+      console.warn(`⚠️ Falha ao consultar bar ${bar_id} em bares:`, barError.message);
     }
-    
-    const emp_id = barConfig.config?.contahub_emp_id;
+
     if (!emp_id) {
-      throw new Error(`ContaHub emp_id não configurado para bar ${bar_id}`);
+      const fromBarConfig = barConfig?.config?.contahub_emp_id;
+      if (fromBarConfig != null) {
+        emp_id = String(fromBarConfig);
+      }
+    }
+
+    if (!emp_id) {
+      const { data: credComEmpresaId, error: credEmpError } = await supabase
+        .from('api_credentials')
+        .select('empresa_id')
+        .eq('bar_id', bar_id)
+        .eq('sistema', 'contahub')
+        .eq('ativo', true)
+        .order('atualizado_em', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (credEmpError) {
+        console.warn(`⚠️ Falha ao buscar empresa_id em api_credentials para bar ${bar_id}:`, credEmpError.message);
+      }
+
+      if (credComEmpresaId?.empresa_id != null) {
+        emp_id = String(credComEmpresaId.empresa_id);
+      }
+    }
+
+    if (!emp_id) {
+      throw new Error(`ContaHub emp_id não configurado para bar ${bar_id} (payload, bares.config e api_credentials.empresa_id)`);
     }
     
     console.log(`📌 Bar ID: ${bar_id}, ContaHub emp_id: ${emp_id}`);
