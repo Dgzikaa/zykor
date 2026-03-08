@@ -217,7 +217,7 @@ export async function GET(request: NextRequest) {
 
 // Função auxiliar para chamar a Edge Function
 async function processRawData(rawDataId: number): Promise<ProcessingResult> {
-  const edgeFunctionUrl = `${supabaseUrl}/functions/v1/contahub_processor`
+  const edgeFunctionUrl = `${supabaseUrl}/functions/v1/contahub-processor`
   
   const response = await fetch(edgeFunctionUrl, {
     method: 'POST',

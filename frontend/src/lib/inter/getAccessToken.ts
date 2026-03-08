@@ -8,6 +8,11 @@ type TokenCacheEntry = {
 
 const tokenCache = new Map<string, TokenCacheEntry>();
 
+export function clearInterTokenCache(): void {
+  tokenCache.clear();
+  console.log('🔐 Cache de tokens Inter limpo');
+}
+
 export async function getInterAccessToken(
   clientId: string,
   clientSecret: string,

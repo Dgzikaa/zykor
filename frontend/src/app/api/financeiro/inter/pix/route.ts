@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getInterAccessToken } from '@/lib/inter/getAccessToken';
+import { getInterAccessToken, clearInterTokenCache } from '@/lib/inter/getAccessToken';
 import { realizarPagamentoPixInter } from '@/lib/inter/pixPayment';
 
 export const dynamic = 'force-dynamic';
@@ -257,6 +257,14 @@ export async function POST(request: NextRequest) {
       // 1. Obter access_token via OAuth2 com mTLS
       console.log('[INTER-PIX] Obtendo access token...');
       const mtlsCredentials = await loadCredentialCertificates(credenciais.configuracoes);
+      
+      // Se o body tiver force_new_token, limpar cache primeiro
+      const forceNewToken = body.force_new_token;
+      if (forceNewToken) {
+        clearInterTokenCache();
+        console.log('[INTER-PIX] Cache de tokens limpo por solicitação');
+      }
+      
       const accessToken = await getInterAccessToken(
         clientId,
         clientSecret,

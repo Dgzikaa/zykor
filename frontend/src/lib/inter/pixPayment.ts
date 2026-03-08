@@ -21,10 +21,19 @@ export async function realizarPagamentoPixInter(
 
     // Carregar certificados PEM usando função centralizada
     const { cert, key } = mtlsCredentials || getInterCertificates();
+    
+    console.log('🔐 Certificados para pagamento:', {
+      certPresent: !!cert,
+      keyPresent: !!key,
+      certSize: cert?.length || 0,
+      keySize: key?.length || 0,
+      fromMtlsCredentials: !!mtlsCredentials
+    });
 
-    // Preparar payload (valor como string conforme Python)
+    // Preparar payload conforme documentação Inter Banking
+    // A documentação diz valor: number <double>
     const payload = {
-      valor: valor.toFixed(2), // Enviar como string
+      valor: Math.round(valor * 100) / 100, // número com 2 decimais
       descricao: descricao || 'Pagamento PIX',
       destinatario: {
         tipo: 'CHAVE',
@@ -32,34 +41,32 @@ export async function realizarPagamentoPixInter(
       },
     };
 
-    // Gerar ID idempotente único
-    const idempotenteId = crypto.randomUUID();
+    // Serializar payload para calcular Content-Length
+    const payloadStr = JSON.stringify(payload);
 
-    // Preparar headers (exato como Python)
-    const headers = {
-      Authorization: `Bearer ${token.trim()}`,
-      'Content-Type': 'application/json',
-      'x-conta-corrente': contaCorrente,
-      'x-id-idempotente': idempotenteId,
-    };
+    console.log('📦 Payload para PIX:', payloadStr);
 
-    console.log('📦 Payload para PIX:', JSON.stringify(payload));
-    console.log('🔐 Headers para PIX:', {
-      Authorization: `Bearer ${token.substring(0, 20)}...`,
-      'Content-Type': 'application/json',
-      'x-conta-corrente': contaCorrente,
-    });
-
-    // Configurar requisição HTTPS com mTLS (produção)
+    // Configurar requisição HTTPS com mTLS (exatamente como debug-auth)
     const options = {
       hostname: 'cdpj.partners.bancointer.com.br',
       port: 443,
       path: '/banking/v2/pix',
       method: 'POST',
-      headers: headers,
-      cert: cert,
-      key: key,
+      headers: {
+        Authorization: `Bearer ${token.trim()}`,
+        'Content-Type': 'application/json',
+        'x-conta-corrente': contaCorrente,
+        'x-id-idempotente': crypto.randomUUID(),
+        'Content-Length': Buffer.byteLength(payloadStr),
+      },
+      cert,
+      key,
     };
+    
+    console.log('🔐 Headers para PIX:', {
+      ...options.headers,
+      Authorization: `Bearer ${token.substring(0, 20)}...`,
+    });
 
     // Fazer requisição HTTPS
     const response = await new Promise<{ statusCode: number; body: string }>(
@@ -85,7 +92,7 @@ export async function realizarPagamentoPixInter(
           reject(error);
         });
 
-        request.write(JSON.stringify(payload));
+        request.write(payloadStr);
         request.end();
       }
     );
