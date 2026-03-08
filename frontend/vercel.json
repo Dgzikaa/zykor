@@ -1,4 +1,4 @@
-﻿{
+{
   "crons": [
     {
       "path": "/api/configuracoes/credenciais/nibo-sync-simple",
