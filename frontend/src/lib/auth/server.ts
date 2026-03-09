@@ -15,12 +15,14 @@ async function extractToken(request: NextRequest): Promise<string | null> {
   // 1. Tentar header Authorization
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
+    console.log('🔑 Token extraído do header Authorization');
     return authHeader.substring(7);
   }
   
   // 2. Tentar cookie auth_token
   const cookieToken = request.cookies.get('auth_token')?.value;
   if (cookieToken) {
+    console.log('🔑 Token extraído do cookie auth_token');
     return cookieToken;
   }
   
@@ -29,12 +31,17 @@ async function extractToken(request: NextRequest): Promise<string | null> {
   if (sgbUserCookie) {
     try {
       const userData = JSON.parse(decodeURIComponent(sgbUserCookie));
+      console.log('🔑 Token extraído do cookie sgb_user (fallback)');
       // Retornar como "token" para processamento
       return JSON.stringify(userData);
     } catch {
       // Ignorar erro
     }
   }
+  
+  // Log de todos os cookies recebidos para debug
+  const allCookies = request.cookies.getAll();
+  console.log('❌ Nenhum token encontrado. Cookies recebidos:', allCookies.map(c => c.name));
   
   return null;
 }
@@ -48,6 +55,8 @@ async function fetchUserFromDatabase(
 ): Promise<AuthenticatedUser | null> {
   const supabase = await getAdminClient();
   
+  console.log('🔍 fetchUserFromDatabase: Buscando auth_id =', auth_id);
+  
   // Buscar usuário
   const { data: usuario, error } = await supabase
     .from('usuarios')
@@ -57,8 +66,11 @@ async function fetchUserFromDatabase(
     .single();
   
   if (error || !usuario) {
+    console.log('❌ fetchUserFromDatabase: Erro ou usuário não encontrado', { error: error?.message, auth_id });
     return null;
   }
+  
+  console.log('✅ fetchUserFromDatabase: Usuário encontrado:', usuario.email);
   
   // Se bar_id não foi fornecido, buscar o primeiro bar do usuário
   let selectedBarId = bar_id;
@@ -112,21 +124,29 @@ export async function authenticateRequest(
     // 1. Extrair token
     const token = await extractToken(request);
     if (!token) {
+      console.log('❌ authenticateRequest: Nenhum token extraído');
       return null;
     }
     
     // 2. Tentar validar como JWT
     const decoded = validateToken(token);
     if (decoded) {
+      console.log('✅ Token JWT válido para:', decoded.email);
       // Token JWT válido - buscar dados atualizados do banco
       const user = await fetchUserFromDatabase(decoded.auth_id, decoded.bar_id);
+      if (!user) {
+        console.log('❌ Usuário não encontrado no banco para auth_id:', decoded.auth_id);
+      }
       return user;
     }
+    
+    console.log('⚠️ Token JWT inválido, tentando fallback JSON...');
     
     // 3. Fallback: tentar parsear como JSON (compatibilidade com sistema antigo)
     try {
       const userData = JSON.parse(token);
       if (userData.auth_id || userData.id) {
+        console.log('✅ Fallback JSON: encontrado auth_id/id');
         // Buscar dados atualizados do banco
         const user = await fetchUserFromDatabase(
           userData.auth_id || userData.id.toString(),
@@ -135,7 +155,7 @@ export async function authenticateRequest(
         return user;
       }
     } catch {
-      // Não é JSON válido
+      console.log('❌ Fallback JSON falhou - token não é JSON válido');
     }
     
     return null;

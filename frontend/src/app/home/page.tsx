@@ -42,6 +42,9 @@ interface QuickAction {
 }
 
 // Todos os módulos disponíveis
+// IMPORTANTE: As permissões devem bater com os IDs gerados em /lib/menu-config.ts
+// Padrão: {categoria}_{nome_slug} (ex: estrategico_visao_geral, ferramentas_crm)
+// Fallbacks genéricos: gestao, ferramentas, operacoes, relatorios, home, configuracoes, analitico, estrategico
 const allQuickActions: QuickAction[] = [
   {
     title: 'Visão Geral Estratégica',
@@ -50,7 +53,7 @@ const allQuickActions: QuickAction[] = [
     icon: BarChart3,
     color: 'from-blue-500 to-blue-600',
     badge: 'Principal',
-    permissions: ['todos', 'relatorios_visao_geral']
+    permissions: ['todos', 'estrategico_visao_geral', 'estrategico', 'gestao', 'home', 'dashboard']
   },
   {
     title: 'Desempenho',
@@ -58,7 +61,7 @@ const allQuickActions: QuickAction[] = [
     href: '/estrategico/desempenho',
     icon: Activity,
     color: 'from-green-500 to-green-600',
-    permissions: ['todos', 'gestao_desempenho']
+    permissions: ['todos', 'estrategico_desempenho', 'estrategico', 'gestao', 'desempenho', 'home']
   },
   {
     title: 'Agente IA',
@@ -67,7 +70,7 @@ const allQuickActions: QuickAction[] = [
     icon: MessageSquare,
     color: 'from-purple-500 to-pink-500',
     badge: 'Novo',
-    permissions: ['todos', 'ferramentas'] // Agente IA faz parte de ferramentas
+    permissions: ['todos', 'ferramentas', 'operacoes', 'home']
   },
   {
     title: 'Analítico',
@@ -75,7 +78,7 @@ const allQuickActions: QuickAction[] = [
     href: '/analitico',
     icon: PieChart,
     color: 'from-violet-500 to-purple-600',
-    permissions: ['todos', 'relatorios_eventos', 'relatorios_clientes', 'relatorios_clientes_ativos', 'gestao_crm']
+    permissions: ['todos', 'analitico_clientes', 'analitico_eventos', 'analitico', 'relatorios', 'home']
   },
   {
     title: 'Extras',
@@ -83,7 +86,7 @@ const allQuickActions: QuickAction[] = [
     href: '/extras',
     icon: Star,
     color: 'from-yellow-500 to-amber-500',
-    permissions: ['todos']
+    permissions: ['todos', 'extras', 'home', 'relatorios']
   },
   {
     title: 'Ferramentas',
@@ -91,7 +94,7 @@ const allQuickActions: QuickAction[] = [
     href: '/ferramentas',
     icon: Wrench,
     color: 'from-amber-500 to-orange-500',
-    permissions: ['todos', 'ferramentas', 'operacoes', 'operacoes_contagem_estoque', 'operacoes_contagem_rapida', 'gestao_calendario', 'financeiro_agendamento', 'gestao_stockout']
+    permissions: ['todos', 'ferramentas', 'operacoes', 'ferramentas_crm', 'ferramentas_cmv_semanal', 'ferramentas_cmo_mao_de_obra', 'ferramentas_stockout', 'home']
   },
   {
     title: 'Agendamento',
@@ -99,7 +102,7 @@ const allQuickActions: QuickAction[] = [
     href: '/ferramentas/agendamento',
     icon: CreditCard,
     color: 'from-emerald-500 to-teal-600',
-    permissions: ['todos', 'ferramentas', 'financeiro_agendamento']
+    permissions: ['todos', 'ferramentas_agendamento', 'ferramentas', 'operacoes', 'financeiro']
   },
   {
     title: 'Stockout',
@@ -107,7 +110,7 @@ const allQuickActions: QuickAction[] = [
     href: '/ferramentas/stockout',
     icon: Package,
     color: 'from-red-500 to-rose-600',
-    permissions: ['todos', 'ferramentas', 'gestao_stockout']
+    permissions: ['todos', 'ferramentas_stockout', 'ferramentas', 'operacoes']
   },
   {
     title: 'Configurações',
@@ -115,7 +118,7 @@ const allQuickActions: QuickAction[] = [
     href: '/configuracoes',
     icon: Settings,
     color: 'from-gray-500 to-gray-600',
-    permissions: ['todos', 'configuracoes_usuarios', 'configuracoes_fichas_tecnicas', 'configuracoes_checklists', 'configuracoes_metas']
+    permissions: ['todos', 'configuracoes_administracao', 'configuracoes_metas', 'configuracoes']
   }
 ];
 

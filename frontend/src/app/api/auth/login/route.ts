@@ -234,13 +234,21 @@ export async function POST(request: NextRequest) {
       session: authData.session, // Adicionar session para compatibilidade
     });
 
-    // Salvar token em cookie httpOnly
-    response.cookies.set('auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+    // Configurações de cookie
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
+      secure: isProduction,
+      sameSite: 'lax' as const,
       maxAge: 60 * 60 * 24 * 7, // 7 dias
       path: '/',
+    };
+
+    console.log('🍪 Configurando cookies:', { isProduction, cookieOptions });
+
+    // Salvar token em cookie httpOnly
+    response.cookies.set('auth_token', token, {
+      ...cookieOptions,
+      httpOnly: true,
     });
 
     // Manter cookie sgb_user para compatibilidade (temporário)
@@ -256,12 +264,11 @@ export async function POST(request: NextRequest) {
     };
 
     response.cookies.set('sgb_user', JSON.stringify(userCookie), {
+      ...cookieOptions,
       httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 60 * 24 * 7,
-      path: '/',
     });
+
+    console.log('✅ Cookies configurados com sucesso');
 
     return response;
   } catch (error: unknown) {

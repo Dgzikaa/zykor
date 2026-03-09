@@ -262,7 +262,7 @@ export const PUT = requireAdmin(async (request, user) => {
   try {
     const supabase = await getAdminClient();
     const body = await request.json();
-    const { id, email, nome, role, bar_id, bares_ids, modulos_permitidos, ativo, celular, telefone, cpf, data_nascimento, endereco, cep, cidade, estado } = body;
+    const { id, email, nome, role, bar_id, bares_ids, modulos_permitidos, ativo, celular, telefone, cpf, data_nascimento, endereco, cep, cidade, estado, senha_redefinida } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -340,6 +340,11 @@ export const PUT = requireAdmin(async (request, user) => {
       estado: estado || null,
       updated_at: new Date().toISOString(),
     };
+
+    // Se senha_redefinida foi enviado explicitamente, incluir na atualização
+    if (typeof senha_redefinida === 'boolean') {
+      updateData.senha_redefinida = senha_redefinida;
+    }
 
     const { data: usuario, error } = await supabase
       .from('usuarios')

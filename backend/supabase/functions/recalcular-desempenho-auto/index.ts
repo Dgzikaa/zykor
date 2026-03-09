@@ -92,26 +92,33 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     // Buscar todas as semanas que precisam ser recalculadas
-    // LÓGICA: Recalcular semana atual + últimas 3 semanas POR BAR
+    // LÓGICA: Recalcular semana atual + últimas semanas POR BAR
+    // Se recalcular_todas=true, busca TODAS as semanas do ano
+    const body = await req.json().catch(() => ({}))
+    const recalcularTodas = body.recalcular_todas === true
+    const anoParam = body.ano || anoAtual
+    
     const quarentaECincoDiasAtras = new Date(hoje)
     quarentaECincoDiasAtras.setDate(hoje.getDate() - 45)
+    const dataLimite = recalcularTodas ? '2025-01-01' : quarentaECincoDiasAtras.toISOString().split('T')[0]
+    const limiteSemanas = recalcularTodas ? 52 : 6
 
-    // Buscar 4 semanas para CADA bar (não 4 no total)
+    // Buscar semanas para CADA bar
     const { data: semanasBar3, error: semanasError3 } = await supabase
       .from('desempenho_semanal')
       .select('*')
       .eq('bar_id', 3)
-      .gte('data_fim', quarentaECincoDiasAtras.toISOString().split('T')[0])
+      .gte('data_fim', dataLimite)
       .order('data_fim', { ascending: false })
-      .limit(6)
+      .limit(limiteSemanas)
 
     const { data: semanasBar4, error: semanasError4 } = await supabase
       .from('desempenho_semanal')
       .select('*')
       .eq('bar_id', 4)
-      .gte('data_fim', quarentaECincoDiasAtras.toISOString().split('T')[0])
+      .gte('data_fim', dataLimite)
       .order('data_fim', { ascending: false })
-      .limit(6)
+      .limit(limiteSemanas)
 
     if (semanasError3 || semanasError4) {
       throw semanasError3 || semanasError4
@@ -230,7 +237,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         console.log(`🍺 Mix Semanal - Bebidas: ${percBebidasPonderado.toFixed(1)}%, Drinks: ${percDrinksPonderado.toFixed(1)}%, Comida: ${percComidaPonderado.toFixed(1)}%, Happy Hour: ${percHappyHourPonderado.toFixed(1)}%`)
 
-        // Tempos/atrasos por semana (gravar tempos em minutos para a UI)
+        // Tempos/atrasos por semana - AGREGAÇÃO DE eventos_base (fonte canônica)
+        // eventos_base já calcula corretamente via calculate_evento_metrics
+        const { data: eventosTempoData } = await supabase
+          .from('eventos_base')
+          .select('t_coz, t_bar, atrasinho_cozinha, atrasinho_bar, atrasao_cozinha, atrasao_bar')
+          .eq('bar_id', barId)
+          .gte('data_evento', startDate)
+          .lte('data_evento', endDate)
+          .eq('ativo', true)
+
+        const tempoSaidaCozinha = (eventosTempoData || []).length > 0
+          ? (eventosTempoData || []).reduce((sum, e) => sum + (parseFloat(e.t_coz) || 0), 0) / (eventosTempoData || []).length / 60
+          : 0
+        const tempoSaidaBar = (eventosTempoData || []).length > 0
+          ? (eventosTempoData || []).reduce((sum, e) => sum + (parseFloat(e.t_bar) || 0), 0) / (eventosTempoData || []).length / 60
+          : 0
+
+        const atrasinhosBar = (eventosTempoData || []).reduce((sum, e) => sum + (parseInt(e.atrasinho_bar) || 0), 0)
+        const atrasinhosCozinha = (eventosTempoData || []).reduce((sum, e) => sum + (parseInt(e.atrasinho_cozinha) || 0), 0)
+        const atrasoBar = (eventosTempoData || []).reduce((sum, e) => sum + (parseInt(e.atrasao_bar) || 0), 0)
+        const atrasoCozinha = (eventosTempoData || []).reduce((sum, e) => sum + (parseInt(e.atrasao_cozinha) || 0), 0)
+        
+        // Para atrasão (> threshold maior), usamos contahub_tempo diretamente
+        // Ordinário: t0_t3 > 1200s (>20min) para bar, t0_t2 > 1800s (>30min) para cozinha
         const { data: tempoRows } = await supabase
           .from('contahub_tempo')
           .select('loc_desc, t0_t2, t0_t3')
@@ -242,37 +272,36 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const barLocsDeboche = ['Bar', 'Salao']
         const cozinhaLocs = ['Cozinha', 'Cozinha 1', 'Cozinha 2']
 
-        const temposBarSeg: number[] = []
-        const temposCozinhaSeg: number[] = []
+        let atrasosBar = 0
+        let atrasosCozinha = 0
+        let qtdeItensBar = 0
+        let qtdeItensCozinha = 0
 
         for (const row of tempoRows || []) {
           const loc = row.loc_desc || ''
           if (barId === 3 && barLocsOrdinario.includes(loc)) {
-            const t = parseFloat(row.t0_t3)
-            if (!Number.isNaN(t) && t > 0) temposBarSeg.push(t)
+            const t = parseFloat(row.t0_t3) || 0
+            if (t > 0) {
+              qtdeItensBar++
+              if (t > 1200) atrasosBar++
+            }
           } else if (barId === 4 && barLocsDeboche.includes(loc)) {
-            const t = parseFloat(row.t0_t2)
-            if (!Number.isNaN(t) && t > 0) temposBarSeg.push(t)
+            const t = parseFloat(row.t0_t2) || 0
+            if (t > 0) {
+              qtdeItensBar++
+              if (t > 600) atrasosBar++
+            }
           }
 
           if (cozinhaLocs.includes(loc)) {
-            const t = parseFloat(row.t0_t2)
-            if (!Number.isNaN(t) && t > 0) temposCozinhaSeg.push(t)
+            const t = parseFloat(row.t0_t2) || 0
+            if (t > 0) {
+              qtdeItensCozinha++
+              if (t > 1800) atrasosCozinha++
+            }
           }
         }
 
-        const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0
-        const tempoSaidaBar = avg(temposBarSeg) / 60
-        const tempoSaidaCozinha = avg(temposCozinhaSeg) / 60
-
-        const qtdeItensBar = temposBarSeg.length
-        const qtdeItensCozinha = temposCozinhaSeg.length
-        const atrasinhosBar = temposBarSeg.filter(t => t > 300 && t <= 600).length
-        const atrasoBar = temposBarSeg.filter(t => t > 600 && t <= 1200).length
-        const atrasosBar = temposBarSeg.filter(t => t > 1200).length
-        const atrasinhosCozinha = temposCozinhaSeg.filter(t => t > 900 && t <= 1200).length
-        const atrasoCozinha = temposCozinhaSeg.filter(t => t > 1200 && t <= 1800).length
-        const atrasosCozinha = temposCozinhaSeg.filter(t => t > 1800).length
         const atrasosBarPerc = qtdeItensBar > 0 ? (atrasosBar / qtdeItensBar) * 100 : 0
         const atrasosCozinhaPerc = qtdeItensCozinha > 0 ? (atrasosCozinha / qtdeItensCozinha) * 100 : 0
 
@@ -306,6 +335,59 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const npsReservas = npsAgregado?.nps_reservas ?? null
 
         console.log(`🎫 Mesas: ${mesasTotais}/${mesasPresentes} | Pessoas: ${reservasTotais}/${reservasPresentes}`)
+
+        // % Faturamento até 19h e após 22h (usando contahub_fatporhora)
+        const { data: fatHoraRows } = await supabase
+          .from('contahub_fatporhora')
+          .select('hora, valor')
+          .eq('bar_id', barId)
+          .gte('vd_dtgerencial', startDate)
+          .lte('vd_dtgerencial', endDate)
+
+        let fatAte19h = 0
+        let fatApos22h = 0
+        let fatTotalHora = 0
+        for (const row of fatHoraRows || []) {
+          const hora = parseInt(row.hora) || 0
+          const valor = parseFloat(row.valor) || 0
+          fatTotalHora += valor
+          if (hora < 19) fatAte19h += valor
+          if (hora >= 22) fatApos22h += valor
+        }
+        const percFatAte19h = fatTotalHora > 0 ? (fatAte19h / fatTotalHora) * 100 : null
+        const percFatApos22h = fatTotalHora > 0 ? (fatApos22h / fatTotalHora) * 100 : 0
+
+        console.log(`⏰ Fat até 19h: ${percFatAte19h?.toFixed(1)}%, após 22h: ${percFatApos22h.toFixed(1)}%`)
+
+        // Qui+Sab+Dom (usando contahub_pagamentos)
+        const { data: pagamentosRows } = await supabase
+          .from('contahub_pagamentos')
+          .select('dt_gerencial, valor')
+          .eq('bar_id', barId)
+          .gte('dt_gerencial', startDate)
+          .lte('dt_gerencial', endDate)
+
+        let quiSabDom = 0
+        for (const row of pagamentosRows || []) {
+          const d = new Date(row.dt_gerencial)
+          const dia = d.getUTCDay()
+          if (dia === 4 || dia === 5 || dia === 6 || dia === 0) {
+            quiSabDom += parseFloat(row.valor) || 0
+          }
+        }
+
+        console.log(`📅 Qui+Sab+Dom: R$ ${quiSabDom.toFixed(2)}`)
+
+        // Cancelamentos (usando contahub_cancelamentos)
+        const { data: cancelRows } = await supabase
+          .from('contahub_cancelamentos')
+          .select('custototal')
+          .eq('bar_id', barId)
+          .gte('data', startDate)
+          .lte('data', endDate)
+
+        const cancelamentos = (cancelRows || []).reduce((sum, r) => sum + (parseFloat(r.custototal) || 0), 0)
+        console.log(`❌ Cancelamentos: R$ ${cancelamentos.toFixed(2)}`)
 
         // Atualizar no banco
         const { error: updateError } = await supabase
@@ -350,6 +432,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
             media_avaliacoes_google: mediaGoogle,
             nps_geral: npsGeral,
             nps_reservas: npsReservas,
+            perc_faturamento_ate_19h: percFatAte19h,
+            perc_faturamento_apos_22h: percFatApos22h,
+            qui_sab_dom: quiSabDom,
+            cancelamentos: cancelamentos,
             updated_at: new Date().toISOString(),
           })
           .eq('id', semana.id)
