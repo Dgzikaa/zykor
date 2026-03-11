@@ -199,119 +199,88 @@ Deno.serve(async (req: Request): Promise<Response> => {
         console.log(`👥 Clientes: ${clientesAtendidos}`)
         console.log(`🎫 Ticket Médio: R$ ${ticketMedio.toFixed(2)}`)
 
-        // Mix semanal canônico por categoria_mix (não usa ponderação por real_r para evitar influência Yuzer/Sympla)
-        const { data: mixRows } = await supabase
-          .from('contahub_analitico')
-          .select('valorfinal, categoria_mix, grp_desc')
-          .eq('bar_id', barId)
-          .gte('trn_dtgerencial', startDate)
-          .lte('trn_dtgerencial', endDate)
-          .in('tipo', ['venda integral', 'com desconto', '100% desconto'])
-          // Regra canônica: semanas de Carnaval não entram no mix semanal
-          .neq('trn_dtgerencial', '2026-02-13')
-          .neq('trn_dtgerencial', '2026-02-14')
-          .neq('trn_dtgerencial', '2026-02-15')
-          .neq('trn_dtgerencial', '2026-02-16')
-          .neq('trn_dtgerencial', '2026-02-17')
-          .not('categoria_mix', 'is', null)
+        // Mix semanal canônico - usar função RPC para evitar limite de 1000 registros do Supabase
+        const { data: mixResult } = await supabase
+          .rpc('calcular_mix_vendas', {
+            p_bar_id: barId,
+            p_data_inicio: startDate,
+            p_data_fim: endDate
+          })
 
         let percBebidasPonderado = 0
         let percDrinksPonderado = 0
         let percComidaPonderado = 0
         let percHappyHourPonderado = 0
 
-        if (mixRows && mixRows.length > 0) {
-          const totalVendas = mixRows.reduce((sum, row) => sum + (parseFloat(row.valorfinal) || 0), 0)
-          if (totalVendas > 0) {
-            const bebidas = mixRows.reduce((sum, row) => sum + (row.categoria_mix === 'BEBIDA' ? (parseFloat(row.valorfinal) || 0) : 0), 0)
-            const drinks = mixRows.reduce((sum, row) => sum + (row.categoria_mix === 'DRINK' ? (parseFloat(row.valorfinal) || 0) : 0), 0)
-            const comidas = mixRows.reduce((sum, row) => sum + (row.categoria_mix === 'COMIDA' ? (parseFloat(row.valorfinal) || 0) : 0), 0)
-            const happyHour = mixRows.reduce((sum, row) => sum + (row.grp_desc === 'Happy Hour' ? (parseFloat(row.valorfinal) || 0) : 0), 0)
-
-            percBebidasPonderado = (bebidas / totalVendas) * 100
-            percDrinksPonderado = (drinks / totalVendas) * 100
-            percComidaPonderado = (comidas / totalVendas) * 100
-            percHappyHourPonderado = (happyHour / totalVendas) * 100
-          }
+        if (mixResult && mixResult.length > 0) {
+          const mix = mixResult[0]
+          percBebidasPonderado = parseFloat(mix.perc_bebidas) || 0
+          percDrinksPonderado = parseFloat(mix.perc_drinks) || 0
+          percComidaPonderado = parseFloat(mix.perc_comidas) || 0
+          percHappyHourPonderado = parseFloat(mix.perc_happy_hour) || 0
         }
 
         console.log(`🍺 Mix Semanal - Bebidas: ${percBebidasPonderado.toFixed(1)}%, Drinks: ${percDrinksPonderado.toFixed(1)}%, Comida: ${percComidaPonderado.toFixed(1)}%, Happy Hour: ${percHappyHourPonderado.toFixed(1)}%`)
 
-        // Tempos/atrasos por semana - AGREGAÇÃO DE eventos_base (fonte canônica)
-        // eventos_base já calcula corretamente via calculate_evento_metrics
+        // Tempos de saída - usar função RPC (contahub_tempo) igual à planilha
+        // Bar: média t0_t3 de DRINK / 60
+        // Cozinha: média t0_t2 de COMIDA / 60
+        const { data: tempoSaidaResult } = await supabase
+          .rpc('calcular_tempo_saida', {
+            p_bar_id: barId,
+            p_data_inicio: startDate,
+            p_data_fim: endDate
+          })
+
+        const tempoSaidaBar = tempoSaidaResult?.[0]?.tempo_bar_minutos || 0
+        const tempoSaidaCozinha = tempoSaidaResult?.[0]?.tempo_cozinha_minutos || 0
+
+        // Atrasinhos - ainda vem de eventos_base (agregado por evento)
         const { data: eventosTempoData } = await supabase
           .from('eventos_base')
-          .select('t_coz, t_bar, atrasinho_cozinha, atrasinho_bar, atrasao_cozinha, atrasao_bar')
+          .select('atrasinho_cozinha, atrasinho_bar, atrasao_cozinha, atrasao_bar')
           .eq('bar_id', barId)
           .gte('data_evento', startDate)
           .lte('data_evento', endDate)
           .eq('ativo', true)
-
-        const tempoSaidaCozinha = (eventosTempoData || []).length > 0
-          ? (eventosTempoData || []).reduce((sum, e) => sum + (parseFloat(e.t_coz) || 0), 0) / (eventosTempoData || []).length / 60
-          : 0
-        const tempoSaidaBar = (eventosTempoData || []).length > 0
-          ? (eventosTempoData || []).reduce((sum, e) => sum + (parseFloat(e.t_bar) || 0), 0) / (eventosTempoData || []).length / 60
-          : 0
 
         const atrasinhosBar = (eventosTempoData || []).reduce((sum, e) => sum + (parseInt(e.atrasinho_bar) || 0), 0)
         const atrasinhosCozinha = (eventosTempoData || []).reduce((sum, e) => sum + (parseInt(e.atrasinho_cozinha) || 0), 0)
         const atrasoBar = (eventosTempoData || []).reduce((sum, e) => sum + (parseInt(e.atrasao_bar) || 0), 0)
         const atrasoCozinha = (eventosTempoData || []).reduce((sum, e) => sum + (parseInt(e.atrasao_cozinha) || 0), 0)
         
-        // Para atrasão (> threshold maior), usamos contahub_tempo diretamente
-        // Ordinário: t0_t3 > 1200s (>20min) para bar, t0_t2 > 1800s (>30min) para cozinha
-        const { data: tempoRows } = await supabase
-          .from('contahub_tempo')
-          .select('loc_desc, t0_t2, t0_t3')
-          .eq('bar_id', barId)
-          .gte('data', startDate)
-          .lte('data', endDate)
-
-        const barLocsOrdinario = ['Preshh', 'Montados', 'Mexido', 'Drinks', 'Drinks Autorais', 'Shot e Dose', 'Batidos']
-        const barLocsDeboche = ['Bar', 'Salao']
-        const cozinhaLocs = ['Cozinha', 'Cozinha 1', 'Cozinha 2']
+        // Atrasos - usar função RPC para evitar limite de 1000 registros
+        // Thresholds: Bar (Ordinário t0_t3 > 1200, Deboche t0_t2 > 600), Cozinha (t0_t2 > 1200)
+        const { data: atrasosResult } = await supabase
+          .rpc('calcular_atrasos_tempo', {
+            p_bar_id: barId,
+            p_data_inicio: startDate,
+            p_data_fim: endDate
+          })
 
         let atrasosBar = 0
         let atrasosCozinha = 0
         let qtdeItensBar = 0
         let qtdeItensCozinha = 0
 
-        for (const row of tempoRows || []) {
-          const loc = row.loc_desc || ''
-          if (barId === 3 && barLocsOrdinario.includes(loc)) {
-            const t = parseFloat(row.t0_t3) || 0
-            if (t > 0) {
-              qtdeItensBar++
-              if (t > 1200) atrasosBar++
-            }
-          } else if (barId === 4 && barLocsDeboche.includes(loc)) {
-            const t = parseFloat(row.t0_t2) || 0
-            if (t > 0) {
-              qtdeItensBar++
-              if (t > 600) atrasosBar++
-            }
-          }
-
-          if (cozinhaLocs.includes(loc)) {
-            const t = parseFloat(row.t0_t2) || 0
-            if (t > 0) {
-              qtdeItensCozinha++
-              if (t > 1800) atrasosCozinha++
-            }
-          }
+        if (atrasosResult && atrasosResult.length > 0) {
+          const atrasos = atrasosResult[0]
+          qtdeItensBar = atrasos.qtde_itens_bar || 0
+          qtdeItensCozinha = atrasos.qtde_itens_cozinha || 0
+          atrasosBar = atrasos.atrasos_bar || 0
+          atrasosCozinha = atrasos.atrasos_cozinha || 0
         }
 
         const atrasosBarPerc = qtdeItensBar > 0 ? (atrasosBar / qtdeItensBar) * 100 : 0
         const atrasosCozinhaPerc = qtdeItensCozinha > 0 ? (atrasosCozinha / qtdeItensCozinha) * 100 : 0
 
-        // Google Reviews semanal
+        // Google Reviews semanal - usar função RPC para filtrar por data local (São Paulo)
         const { data: googleRows } = await supabase
-          .from('google_reviews')
-          .select('stars')
-          .eq('bar_id', barId)
-          .gte('published_at_date', startDate)
-          .lte('published_at_date', endDate)
+          .rpc('get_google_reviews_stars_by_date', {
+            p_bar_id: barId,
+            p_data_inicio: startDate,
+            p_data_fim: endDate
+          })
 
         const avaliacoes5 = (googleRows || []).filter(g => Number(g.stars) === 5).length
         const mediaGoogle = (googleRows && googleRows.length > 0)
@@ -333,6 +302,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         const npsGeral = npsAgregado?.nps_geral ?? null
         const npsReservas = npsAgregado?.nps_reservas ?? null
+        
+        // NPS por pesquisa (Falaê: NPS Digital, Salão)
+        const { data: npsPorPesquisa, error: npsPorPesquisaError } = await supabase
+          .rpc('calcular_nps_semanal_por_pesquisa', {
+            p_bar_id: barId,
+            p_data_inicio: startDate,
+            p_data_fim: endDate
+          })
+        
+        if (npsPorPesquisaError) {
+          console.error('Erro ao buscar NPS por pesquisa:', npsPorPesquisaError)
+        }
+        
+        const npsDigitalData = (npsPorPesquisa || []).find((p: any) => p.search_name === 'NPS Digital')
+        const npsSalaoData = (npsPorPesquisa || []).find((p: any) => p.search_name === 'Salão')
+        
+        const npsDigital = npsDigitalData?.nps_score ?? null
+        const npsSalao = npsSalaoData?.nps_score ?? null
+        const npsDigitalRespostas = npsDigitalData?.total_respostas ?? 0
+        const npsSalaoRespostas = npsSalaoData?.total_respostas ?? 0
+        const npsReservasRespostas = 0 // TODO: Implementar quando houver pesquisa de reservas no Falaê
+        
+        console.log(`📊 NPS Digital: ${npsDigital ?? 'N/A'} (${npsDigitalRespostas} respostas), Salão: ${npsSalao ?? 'N/A'} (${npsSalaoRespostas} respostas)`)
 
         console.log(`🎫 Mesas: ${mesasTotais}/${mesasPresentes} | Pessoas: ${reservasTotais}/${reservasPresentes}`)
 
@@ -359,24 +351,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         console.log(`⏰ Fat até 19h: ${percFatAte19h?.toFixed(1)}%, após 22h: ${percFatApos22h.toFixed(1)}%`)
 
-        // Qui+Sab+Dom (usando contahub_pagamentos)
-        const { data: pagamentosRows } = await supabase
-          .from('contahub_pagamentos')
-          .select('dt_gerencial, valor')
+        // Faturamento por dia da semana (usando contahub_analitico)
+        // Ordinário: Qui+Sab+Dom | Deboche: Ter+Qua+Qui e Sex+Sab
+        const { data: fatDiasRows } = await supabase
+          .from('contahub_analitico')
+          .select('trn_dtgerencial, valorfinal')
           .eq('bar_id', barId)
-          .gte('dt_gerencial', startDate)
-          .lte('dt_gerencial', endDate)
+          .gte('trn_dtgerencial', startDate)
+          .lte('trn_dtgerencial', endDate)
 
         let quiSabDom = 0
-        for (const row of pagamentosRows || []) {
-          const d = new Date(row.dt_gerencial)
-          const dia = d.getUTCDay()
+        let terQuaQui = 0
+        let sexSab = 0
+        for (const row of fatDiasRows || []) {
+          const d = new Date(row.trn_dtgerencial)
+          const dia = d.getUTCDay() // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sab
+          const valor = parseFloat(row.valorfinal) || 0
+          
+          // Ordinário: Qui(4), Sex(5), Sab(6), Dom(0)
           if (dia === 4 || dia === 5 || dia === 6 || dia === 0) {
-            quiSabDom += parseFloat(row.valor) || 0
+            quiSabDom += valor
+          }
+          // Deboche: Ter(2), Qua(3), Qui(4)
+          if (dia === 2 || dia === 3 || dia === 4) {
+            terQuaQui += valor
+          }
+          // Deboche: Sex(5), Sab(6)
+          if (dia === 5 || dia === 6) {
+            sexSab += valor
           }
         }
 
-        console.log(`📅 Qui+Sab+Dom: R$ ${quiSabDom.toFixed(2)}`)
+        console.log(`📅 Qui+Sab+Dom: R$ ${quiSabDom.toFixed(2)} | Ter+Qua+Qui: R$ ${terQuaQui.toFixed(2)} | Sex+Sab: R$ ${sexSab.toFixed(2)}`)
 
         // Cancelamentos (usando contahub_cancelamentos)
         const { data: cancelRows } = await supabase
@@ -432,9 +438,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
             media_avaliacoes_google: mediaGoogle,
             nps_geral: npsGeral,
             nps_reservas: npsReservas,
+            nps_digital: npsDigital,
+            nps_salao: npsSalao,
+            nps_digital_respostas: npsDigitalRespostas,
+            nps_salao_respostas: npsSalaoRespostas,
+            nps_reservas_respostas: npsReservasRespostas,
             perc_faturamento_ate_19h: percFatAte19h,
             perc_faturamento_apos_22h: percFatApos22h,
             qui_sab_dom: quiSabDom,
+            ter_qua_qui: terQuaQui,
+            sex_sab: sexSab,
             cancelamentos: cancelamentos,
             updated_at: new Date().toISOString(),
           })

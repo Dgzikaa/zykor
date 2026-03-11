@@ -46,7 +46,6 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { DadosSemana, SecaoConfig, GrupoMetricas, MetricaConfig, TipoAgregacao, MetasDesempenhoMap } from '../types';
-import { GoogleReviewsTooltip } from './GoogleReviewsTooltip';
 
 // ============================================================================
 // CONFIGURAÇÃO UI (SECOES, ETC)
@@ -70,7 +69,7 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         id: 'faturamento',
         label: 'Faturamento Total',
         metricas: [
-          { key: 'faturamento_total', label: 'Faturamento Total', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Soma de real_r + (te_real × cl_real) de todos os eventos da semana', formato: 'moeda' },
+          { key: 'faturamento_total', label: 'Faturamento Total', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Faturamento bruto - Conta Assinada', formato: 'moeda', temTooltipFaturamento: true },
           { key: 'faturamento_entrada', label: 'Fat. Couvert', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Soma de (te_real × cl_real) de todos os eventos', formato: 'moeda', indentado: true },
           { key: 'faturamento_bar', label: 'Fat. Bar', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Soma de real_r de todos os eventos', formato: 'moeda', indentado: true },
           { key: 'faturamento_cmovivel', label: 'Fat. CMvível', status: 'auto', fonte: 'Calculado', calculo: 'Bar - Repique', formato: 'moeda', indentado: true },
@@ -99,8 +98,8 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         id: 'custos',
         label: 'Custos',
         metricas: [
-          { key: 'cmo', label: 'CMO %', status: 'auto', fonte: 'Simulação CMO Travada', calculo: 'CMO Total / Faturamento × 100', formato: 'percentual', inverso: true },
-          { key: 'custo_atracao_faturamento', label: 'Atração/Fat.', status: 'auto', fonte: 'NIBO', calculo: 'Atrações / Faturamento', formato: 'percentual', inverso: true },
+          { key: 'cmo', label: 'CMO %', status: 'manual', fonte: 'Simulação CMO (manual)', calculo: 'CMO Total / Faturamento × 100 (inserido manualmente até automatização)', formato: 'percentual', inverso: true, editavel: true },
+          { key: 'custo_atracao_faturamento', label: 'Atração/Fat.', status: 'auto', fonte: 'eventos_base (c_art)', calculo: 'Soma c_art eventos / Faturamento × 100', formato: 'percentual', inverso: true },
         ]
       }
     ]
@@ -149,16 +148,10 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         id: 'nps',
         label: 'NPS',
         metricas: [
-          { key: 'falae_nps_score', label: 'NPS Falaê', status: 'auto', fonte: 'Falaê', calculo: '% Promotores - % Detratores (pesquisa pós-visita)', formato: 'numero', temTooltipDetalhes: true },
-          { key: 'nps_geral', label: 'NPS Geral', status: 'auto', fonte: 'NPS', calculo: '% Promotores - % Detratores', formato: 'numero' },
-          { key: 'nps_reservas', label: 'NPS Reservas', status: 'auto', fonte: 'NPS', calculo: '% Promotores - % Detratores (com reserva)', formato: 'numero' },
-        ]
-      },
-      {
-        id: 'equipe',
-        label: 'Equipe',
-        metricas: [
-          { key: 'nota_felicidade_equipe', label: 'Felicidade Equipe', status: 'manual', fonte: 'Pesquisa', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'nps_digital', label: 'NPS Digital', status: 'auto', fonte: 'Falaê (pesquisa = NPS Digital)', calculo: '% Promotores - % Detratores (link randômico pós-visita)', formato: 'numero', temTooltipDetalhes: true, respostasKey: 'nps_digital_respostas' },
+          { key: 'nps_salao', label: 'NPS Salão', status: 'auto', fonte: 'Falaê (pesquisa = Salão)', calculo: '% Promotores - % Detratores (pesquisa presencial no salão)', formato: 'numero', temTooltipDetalhes: true, respostasKey: 'nps_salao_respostas' },
+          { key: 'nps_reservas', label: 'NPS Reservas', status: 'manual', fonte: 'GetIn (aguardando API)', calculo: '% Promotores - % Detratores (avaliação sobre reservas)', formato: 'numero', editavel: true },
+          { key: 'nota_felicidade_equipe', label: 'NPS Felicidade', status: 'manual', fonte: 'Planilha Equipe (Andreia)', calculo: 'Pesquisa de felicidade da equipe', formato: 'numero', editavel: true },
         ]
       }
     ]
@@ -187,7 +180,6 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
           { key: 'perc_bebidas', label: '% Bebidas', status: 'auto', fonte: 'eventos_base', calculo: 'Calculado por categoria_mix canônica (BEBIDA)', formato: 'percentual' },
           { key: 'perc_drinks', label: '% Drinks', status: 'auto', fonte: 'eventos_base', calculo: 'Calculado por categoria_mix canônica (DRINK)', formato: 'percentual' },
           { key: 'perc_comida', label: '% Comida', status: 'auto', fonte: 'eventos_base', calculo: 'Calculado por categoria_mix canônica (COMIDA)', formato: 'percentual' },
-          { key: 'perc_happy_hour', label: '% Happy Hour', status: 'auto', fonte: 'eventos_base', calculo: 'Produtos do grupo Happy Hour / Total vendas', formato: 'percentual' },
         ]
       },
       {
@@ -230,6 +222,7 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
           ...(barId === 4 ? [
             { key: 'ter_qua_qui', label: 'TER+QUA+QUI', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Soma real_r terça/quarta/quinta', formato: 'moeda' as const },
             { key: 'sex_sab', label: 'SEX+SÁB', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Soma real_r sexta/sábado', formato: 'moeda' as const },
+            { key: 'perc_happy_hour', label: '% PROMO HH', status: 'auto' as const, fonte: 'contahub_analitico', calculo: 'grp_desc=Happy Hour / Total vendas', formato: 'percentual' as const },
           ] : [
             { key: 'qui_sab_dom', label: 'QUI+SÁB+DOM', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Soma real_r', formato: 'moeda' as const },
           ]),
@@ -498,6 +491,40 @@ export function DesempenhoClient({
   });
   const [filtroComentarioFalae, setFiltroComentarioFalae] = useState<'todos' | 'detrator' | 'neutro' | 'promotor'>('todos');
   
+  // Estado do modal de Google Reviews
+  const [googleReviewsDialog, setGoogleReviewsDialog] = useState<{
+    aberto: boolean;
+    loading: boolean;
+    periodo: string;
+    dataInicio: string;
+    dataFim: string;
+    total: number;
+    media: number;
+    distribuicao: Record<number, number>;
+    porDia: { data: string; diaSemana: string; total: number; media: number; distribuicao: Record<number, number> }[];
+    elogios: string[];
+    criticas: string[];
+    reviewsPositivas: { nome: string; stars: number; texto: string; data: string; tipo: string }[];
+    reviewsNegativas: { nome: string; stars: number; texto: string; data: string; tipo: string }[];
+    reviewsNeutras: { nome: string; stars: number; texto: string; data: string; tipo: string }[];
+  }>({
+    aberto: false,
+    loading: false,
+    periodo: '',
+    dataInicio: '',
+    dataFim: '',
+    total: 0,
+    media: 0,
+    distribuicao: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    porDia: [],
+    elogios: [],
+    criticas: [],
+    reviewsPositivas: [],
+    reviewsNegativas: [],
+    reviewsNeutras: [],
+  });
+  const [filtroReviewGoogle, setFiltroReviewGoogle] = useState<'todos' | 'positivo' | 'neutro' | 'negativo'>('todos');
+  
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const semanaAtualRef = useRef<HTMLDivElement>(null);
 
@@ -753,6 +780,68 @@ export function DesempenhoClient({
     });
     setFiltroComentarioFalae('todos');
   }, []);
+
+  const abrirDetalhesGoogleReviews = useCallback(async (semana: DadosSemana) => {
+    const periodo = `${formatarDataCurta(semana.data_inicio)} - ${formatarDataCurta(semana.data_fim)}`;
+    
+    setGoogleReviewsDialog(prev => ({
+      ...prev,
+      aberto: true,
+      loading: true,
+      periodo,
+      dataInicio: semana.data_inicio,
+      dataFim: semana.data_fim,
+    }));
+    setFiltroReviewGoogle('todos');
+
+    try {
+      const response = await fetch(
+        `/api/google-reviews/detailed-summary?bar_id=${barId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}`
+      );
+      const data = await response.json();
+      
+      if (data.success && data.summary) {
+        setGoogleReviewsDialog(prev => ({
+          ...prev,
+          loading: false,
+          total: data.summary.total,
+          media: data.summary.media,
+          distribuicao: data.summary.distribuicao,
+          porDia: data.summary.porDia,
+          elogios: data.summary.elogios,
+          criticas: data.summary.criticas,
+          reviewsPositivas: data.summary.reviewsPositivas,
+          reviewsNegativas: data.summary.reviewsNegativas,
+          reviewsNeutras: data.summary.reviewsNeutras,
+        }));
+      } else {
+        setGoogleReviewsDialog(prev => ({ ...prev, loading: false }));
+      }
+    } catch (error) {
+      console.error('Erro ao buscar detalhes Google Reviews:', error);
+      setGoogleReviewsDialog(prev => ({ ...prev, loading: false }));
+    }
+  }, [barId]);
+
+  const reviewsGoogleFiltradas = useMemo(() => {
+    if (filtroReviewGoogle === 'todos') {
+      return [
+        ...googleReviewsDialog.reviewsNegativas,
+        ...googleReviewsDialog.reviewsNeutras,
+        ...googleReviewsDialog.reviewsPositivas,
+      ];
+    }
+    if (filtroReviewGoogle === 'positivo') return googleReviewsDialog.reviewsPositivas;
+    if (filtroReviewGoogle === 'negativo') return googleReviewsDialog.reviewsNegativas;
+    return googleReviewsDialog.reviewsNeutras;
+  }, [googleReviewsDialog, filtroReviewGoogle]);
+
+  const contagemReviewsGoogle = useMemo(() => ({
+    positivo: googleReviewsDialog.reviewsPositivas.length,
+    neutro: googleReviewsDialog.reviewsNeutras.length,
+    negativo: googleReviewsDialog.reviewsNegativas.length,
+    todos: googleReviewsDialog.reviewsPositivas.length + googleReviewsDialog.reviewsNeutras.length + googleReviewsDialog.reviewsNegativas.length,
+  }), [googleReviewsDialog]);
 
   const comentariosFalaeOrdenadosFiltrados = useMemo(() => {
     const ordemTipo = { detrator: 0, neutro: 1, promotor: 2 } as const;
@@ -1169,33 +1258,51 @@ export function DesempenhoClient({
                                                     <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => setEditando(null)}><X className="h-3 w-3 text-red-600" /></Button>
                                                   </div>
                                                 </div>
-                                             ) : (
-                                               <TooltipProvider>
-                                                 <Tooltip>
-                                                   <TooltipTrigger asChild>
-                                                     <span className={cn("text-xs font-medium text-center cursor-help", getCorMeta(verificarMeta(valorPrincipal, metricaPrincipal.key, metas)))}>{valorPrincipalFormatado}</span>
-                                                   </TooltipTrigger>
-                                                   <TooltipContent side="top" className={cn("max-w-xs p-3", STATUS_COLORS[metricaPrincipal.status].bg)}>
-                                                     <div className="space-y-1">
-                                                       <p className="font-semibold text-sm">{metricaPrincipal.label}</p>
-                                                       <p className="text-xs"><strong>Fonte:</strong> {metricaPrincipal.fonte}</p>
-                                                       <p className="text-xs"><strong>Cálculo:</strong> {metricaPrincipal.calculo}</p>
-                                                       {metas[metricaPrincipal.key] && (
-                                                         <p className="text-xs mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-                                                           <strong>Meta {visao === 'semanal' ? 'Semanal' : 'Mensal'}:</strong> {formatarValor(metas[metricaPrincipal.key].valor, metricaPrincipal.formato, metricaPrincipal.sufixo)}
-                                                         </p>
-                                                       )}
-                                                       <div className="flex items-center gap-1 mt-1">
-                                                         <div className={cn("w-2 h-2 rounded-full", STATUS_COLORS[metricaPrincipal.status].dot)} />
-                                                         <span className={cn("text-xs", STATUS_COLORS[metricaPrincipal.status].text)}>
-                                                           {metricaPrincipal.status === 'auto' ? 'Automático' : metricaPrincipal.status === 'manual' ? 'Manual' : 'Não confiável'}
-                                                         </span>
-                                                       </div>
-                                                     </div>
-                                                   </TooltipContent>
-                                                 </Tooltip>
-                                               </TooltipProvider>
-                                             )
+                                            ) : (
+                                              <TooltipProvider>
+                                                <Tooltip>
+                                                  <TooltipTrigger asChild>
+                                                    <span className={cn("text-xs font-medium text-center cursor-help", getCorMeta(verificarMeta(valorPrincipal, metricaPrincipal.key, metas)))}>{valorPrincipalFormatado}</span>
+                                                  </TooltipTrigger>
+                                                  <TooltipContent side="top" className={cn("max-w-xs p-3", STATUS_COLORS[metricaPrincipal.status].bg)}>
+                                                    <div className="space-y-1">
+                                                      <p className="font-semibold text-sm">{metricaPrincipal.label}</p>
+                                                      <p className="text-xs"><strong>Fonte:</strong> {metricaPrincipal.fonte}</p>
+                                                      <p className="text-xs"><strong>Cálculo:</strong> {metricaPrincipal.calculo}</p>
+                                                      {metricaPrincipal.key === 'faturamento_total' && (() => {
+                                                        const contaAssinada = getValorComOverride(semana, 'conta_assinada_valor') || 0;
+                                                        const faturamentoTotal = valorPrincipal || 0;
+                                                        const faturamentoBruto = faturamentoTotal + contaAssinada;
+                                                        return (
+                                                          <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600 space-y-1">
+                                                            <p className="text-xs">
+                                                              <strong>Fat. Bruto:</strong> {formatarValor(faturamentoBruto, 'moeda')}
+                                                            </p>
+                                                            <p className="text-xs text-red-600 dark:text-red-400">
+                                                              <strong>(-) Conta Assinada:</strong> {formatarValor(contaAssinada, 'moeda')}
+                                                            </p>
+                                                            <p className="text-xs font-semibold">
+                                                              <strong>= Fat. Total:</strong> {formatarValor(faturamentoTotal, 'moeda')}
+                                                            </p>
+                                                          </div>
+                                                        );
+                                                      })()}
+                                                      {metas[metricaPrincipal.key] && (
+                                                        <p className="text-xs mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                                          <strong>Meta {visao === 'semanal' ? 'Semanal' : 'Mensal'}:</strong> {formatarValor(metas[metricaPrincipal.key].valor, metricaPrincipal.formato, metricaPrincipal.sufixo)}
+                                                        </p>
+                                                      )}
+                                                      <div className="flex items-center gap-1 mt-1">
+                                                        <div className={cn("w-2 h-2 rounded-full", STATUS_COLORS[metricaPrincipal.status].dot)} />
+                                                        <span className={cn("text-xs", STATUS_COLORS[metricaPrincipal.status].text)}>
+                                                          {metricaPrincipal.status === 'auto' ? 'Automático' : metricaPrincipal.status === 'manual' ? 'Manual' : 'Não confiável'}
+                                                        </span>
+                                                      </div>
+                                                    </div>
+                                                  </TooltipContent>
+                                                </Tooltip>
+                                              </TooltipProvider>
+                                            )
                                           ) : (
                                             <TooltipProvider>
                                               <Tooltip>
@@ -1224,8 +1331,15 @@ export function DesempenhoClient({
                                         const valorPercentualKey = metrica.percentualKey ? getValorComOverride(semana, metrica.percentualKey) : null;
                                         const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
                                        let valorFormatado = metrica.formato === 'reservas' ? (valor !== null && valor !== undefined ? `${Math.round(valor)}/${valorPessoas !== null && valorPessoas !== undefined ? Math.round(valorPessoas) : '-'}` : '-') : formatarValor(valor, metrica.formato, metrica.sufixo);
-                                       if (metrica.keyPercentual && valorPercentual !== null && valorPercentual !== undefined && typeof valorPercentual === 'number' && valor !== null && valor !== undefined) valorFormatado = `${formatarValor(valor, 'numero')} (${valorPercentual.toFixed(1)}%)`;
-                                       // Formato moeda_com_percentual: R$ 27.520 (3,5%)
+                                      if (metrica.keyPercentual && valorPercentual !== null && valorPercentual !== undefined && typeof valorPercentual === 'number' && valor !== null && valor !== undefined) valorFormatado = `${formatarValor(valor, 'numero')} (${valorPercentual.toFixed(1)}%)`;
+                                      // Mostrar número de respostas ao lado do NPS (ex: "80 (40)")
+                                      if (metrica.respostasKey && valor !== null && valor !== undefined) {
+                                        const respostas = getValorComOverride(semana, metrica.respostasKey);
+                                        if (respostas !== null && respostas !== undefined && typeof respostas === 'number' && respostas > 0) {
+                                          valorFormatado = `${formatarValor(valor, metrica.formato, metrica.sufixo)} (${respostas})`;
+                                        }
+                                      }
+                                      // Formato moeda_com_percentual: R$ 27.520 (3,5%)
                                        if (metrica.formato === 'moeda_com_percentual' && valor !== null && valor !== undefined) {
                                          const moedaFormatada = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(valor);
                                          if (valorPercentualKey !== null && valorPercentualKey !== undefined && typeof valorPercentualKey === 'number') {
@@ -1248,15 +1362,63 @@ export function DesempenhoClient({
                                                   </div>
                                                 </div>
                                               ) : temTooltipGoogle && semana.data_inicio && semana.data_fim ? (
-                                                <GoogleReviewsTooltip
-                                                  barId={barId}
-                                                  dataInicio={semana.data_inicio}
-                                                  dataFim={semana.data_fim}
+                                                <button
+                                                  type="button"
+                                                  onClick={() => abrirDetalhesGoogleReviews(semana)}
+                                                  className={cn(
+                                                    "text-xs text-center underline decoration-dotted hover:opacity-80 transition-opacity",
+                                                    getCorMeta(verificarMeta(valor, metrica.key, metas))
+                                                  )}
+                                                  title="Clique para ver detalhes das avaliações"
                                                 >
-                                                  <span className={cn("text-xs text-center", getCorMeta(verificarMeta(valor, metrica.key, metas)))}>
-                                                    {valorFormatado}
-                                                  </span>
-                                                </GoogleReviewsTooltip>
+                                                  {valorFormatado}
+                                                </button>
+                                              ) : (metrica as any).temTooltipFaturamento ? (
+                                                <TooltipProvider>
+                                                  <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                      <span className={cn("text-xs text-center cursor-help", getCorMeta(verificarMeta(valor, metrica.key, metas)))}>
+                                                        {valorFormatado}
+                                                      </span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="top" className={cn("max-w-xs p-3", STATUS_COLORS[metrica.status].bg)}>
+                                                      <div className="space-y-1">
+                                                        <p className="font-semibold text-sm">{metrica.label}</p>
+                                                        <p className="text-xs"><strong>Fonte:</strong> {metrica.fonte}</p>
+                                                        <p className="text-xs"><strong>Cálculo:</strong> {metrica.calculo}</p>
+                                                        {(() => {
+                                                          const contaAssinada = getValorComOverride(semana, 'conta_assinada_valor') || 0;
+                                                          const faturamentoTotal = valor || 0;
+                                                          const faturamentoBruto = faturamentoTotal + contaAssinada;
+                                                          return (
+                                                            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600 space-y-1">
+                                                              <p className="text-xs">
+                                                                <strong>Fat. Bruto:</strong> {formatarValor(faturamentoBruto, 'moeda')}
+                                                              </p>
+                                                              <p className="text-xs text-red-600 dark:text-red-400">
+                                                                <strong>(-) Conta Assinada:</strong> {formatarValor(contaAssinada, 'moeda')}
+                                                              </p>
+                                                              <p className="text-xs font-semibold">
+                                                                <strong>= Fat. Total:</strong> {formatarValor(faturamentoTotal, 'moeda')}
+                                                              </p>
+                                                            </div>
+                                                          );
+                                                        })()}
+                                                        {metas[metrica.key] && (
+                                                          <p className="text-xs mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                                            <strong>Meta {visao === 'semanal' ? 'Semanal' : 'Mensal'}:</strong> {formatarValor(metas[metrica.key].valor, metrica.formato, metrica.sufixo)}
+                                                          </p>
+                                                        )}
+                                                        <div className="flex items-center gap-1 mt-1">
+                                                          <div className={cn("w-2 h-2 rounded-full", STATUS_COLORS[metrica.status].dot)} />
+                                                          <span className={cn("text-xs", STATUS_COLORS[metrica.status].text)}>
+                                                            {metrica.status === 'auto' ? 'Automático' : metrica.status === 'manual' ? 'Manual' : 'Não confiável'}
+                                                          </span>
+                                                        </div>
+                                                      </div>
+                                                    </TooltipContent>
+                                                  </Tooltip>
+                                                </TooltipProvider>
                                               ) : metrica.key === 'falae_nps_score' ? (
                                                 <button
                                                   type="button"
@@ -1567,6 +1729,187 @@ export function DesempenhoClient({
             )}
           </section>
         </div>
+      </DialogContent>
+    </Dialog>
+    
+    {/* Modal Google Reviews Detalhado */}
+    <Dialog open={googleReviewsDialog.aberto} onOpenChange={(aberto) => setGoogleReviewsDialog(prev => ({ ...prev, aberto }))}>
+      <DialogContent className="max-w-5xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Star className="w-5 h-5 fill-yellow-500 text-yellow-500" />
+            Detalhes Google Reviews
+          </DialogTitle>
+          <DialogDescription>
+            Semana {googleReviewsDialog.periodo} • Média {googleReviewsDialog.media.toFixed(2).replace('.', ',')} • {googleReviewsDialog.total} avaliações
+          </DialogDescription>
+        </DialogHeader>
+        
+        {googleReviewsDialog.loading ? (
+          <div className="flex items-center justify-center p-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500"></div>
+            <span className="ml-3 text-gray-500">Carregando detalhes...</span>
+          </div>
+        ) : (
+          <div className="p-4 pt-0 space-y-4 overflow-y-auto max-h-[70vh]">
+            {/* Resumo Geral */}
+            <section className="rounded-md border p-3 bg-yellow-50/60 dark:bg-yellow-950/20">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-yellow-600">{googleReviewsDialog.media.toFixed(2).replace('.', ',')}</p>
+                    <p className="text-xs text-gray-500">Média</p>
+                  </div>
+                  <div className="space-y-0.5">
+                    {[5, 4, 3, 2, 1].map(star => (
+                      <div key={star} className="flex items-center gap-1">
+                        <span className="text-xs w-3">{star}</span>
+                        <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                        <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-yellow-500 rounded-full" 
+                            style={{ width: `${googleReviewsDialog.total > 0 ? (googleReviewsDialog.distribuicao[star] / googleReviewsDialog.total) * 100 : 0}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-500 w-8">{googleReviewsDialog.distribuicao[star]}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="text-center md:text-right">
+                  <p className="text-2xl font-bold">{googleReviewsDialog.total}</p>
+                  <p className="text-xs text-gray-500">Total de avaliações</p>
+                </div>
+              </div>
+            </section>
+
+            {/* Avaliações por Dia */}
+            {googleReviewsDialog.porDia.length > 0 && (
+              <section className="rounded-md border p-3">
+                <p className="text-sm font-semibold mb-3">Avaliações por dia</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
+                  {googleReviewsDialog.porDia.map((dia) => (
+                    <div 
+                      key={dia.data} 
+                      className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2 text-center"
+                    >
+                      <p className="text-xs text-gray-500">{dia.diaSemana}</p>
+                      <p className="text-xs font-medium">{dia.data}</p>
+                      <p className="text-lg font-bold text-yellow-600">{dia.total}</p>
+                      <p className="text-xs text-gray-500">⭐ {dia.media.toFixed(2).replace('.', ',')}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Percepção do Cliente */}
+            {(googleReviewsDialog.elogios.length > 0 || googleReviewsDialog.criticas.length > 0) && (
+              <section className="rounded-md border p-3">
+                <p className="text-sm font-semibold mb-3">Percepção do Cliente</p>
+                <div className="space-y-2">
+                  {googleReviewsDialog.elogios.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-green-600 font-medium text-xs flex-shrink-0">✓ Elogios:</span>
+                      <p className="text-xs text-gray-600 dark:text-gray-300">
+                        {googleReviewsDialog.elogios.join(', ')}
+                      </p>
+                    </div>
+                  )}
+                  {googleReviewsDialog.criticas.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-orange-600 font-medium text-xs flex-shrink-0">⚠ Atenção:</span>
+                      <p className="text-xs text-gray-600 dark:text-gray-300">
+                        {googleReviewsDialog.criticas.join(', ')}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Avaliações com Comentários */}
+            <section className="rounded-md border p-3">
+              <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold">Avaliações com comentários</p>
+                  <p className="text-xs text-gray-500">
+                    {contagemReviewsGoogle.todos} avaliações com texto
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={filtroReviewGoogle === 'negativo' ? 'default' : 'outline'}
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setFiltroReviewGoogle('negativo')}
+                  >
+                    ⭐ 1-2 ({contagemReviewsGoogle.negativo})
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={filtroReviewGoogle === 'neutro' ? 'default' : 'outline'}
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setFiltroReviewGoogle('neutro')}
+                  >
+                    ⭐ 3 ({contagemReviewsGoogle.neutro})
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={filtroReviewGoogle === 'positivo' ? 'default' : 'outline'}
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setFiltroReviewGoogle('positivo')}
+                  >
+                    ⭐ 4-5 ({contagemReviewsGoogle.positivo})
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={filtroReviewGoogle === 'todos' ? 'default' : 'outline'}
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setFiltroReviewGoogle('todos')}
+                  >
+                    Todos ({contagemReviewsGoogle.todos})
+                  </Button>
+                </div>
+              </div>
+              {reviewsGoogleFiltradas.length === 0 ? (
+                <p className="text-sm text-gray-500">Sem avaliações com comentário nesta categoria.</p>
+              ) : (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+                  {reviewsGoogleFiltradas.map((review, idx) => (
+                    <div 
+                      key={`${review.data}-${idx}`} 
+                      className={cn(
+                        "rounded p-2",
+                        review.tipo === 'negativo' ? 'bg-red-50 dark:bg-red-950/30' :
+                        review.tipo === 'neutro' ? 'bg-yellow-50 dark:bg-yellow-950/30' :
+                        'bg-green-50 dark:bg-green-950/30'
+                      )}
+                    >
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-medium">{review.nome}</span>
+                        <span className="text-gray-500">{review.data}</span>
+                      </div>
+                      <div className="flex items-center gap-0.5 mb-1">
+                        {Array.from({ length: review.stars }).map((_, i) => (
+                          <Star key={i} className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                        ))}
+                        {Array.from({ length: 5 - review.stars }).map((_, i) => (
+                          <Star key={i} className="w-3 h-3 text-gray-300" />
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-700 dark:text-gray-300 line-clamp-3">{review.texto}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
     </>

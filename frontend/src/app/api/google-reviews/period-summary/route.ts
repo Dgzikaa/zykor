@@ -42,18 +42,13 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Buscar reviews do período
-    // Converter para timestamp completo para garantir comparação correta
-    const dataInicioTs = `${dataInicio}T00:00:00`;
-    const dataFimTs = `${dataFim}T23:59:59`;
-    
+    // Buscar reviews do período usando função RPC que filtra por data local
     const { data: reviews, error } = await supabase
-      .from('google_reviews')
-      .select('reviewer_name, stars, text, published_at_date')
-      .eq('bar_id', barId)
-      .gte('published_at_date', dataInicioTs)
-      .lte('published_at_date', dataFimTs)
-      .order('published_at_date', { ascending: false });
+      .rpc('get_google_reviews_by_date', {
+        p_bar_id: barId,
+        p_data_inicio: dataInicio,
+        p_data_fim: dataFim
+      });
 
     if (error) {
       console.error('Erro ao buscar reviews:', error);

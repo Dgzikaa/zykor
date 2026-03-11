@@ -621,5 +621,66 @@ A migração para a API Zig representa um **salto de qualidade** no controle e g
 
 ---
 
+## 🧪 Testes Realizados (09/03/2026)
+
+### Endpoints Testados - Resultados
+
+| Endpoint | Status | Observação |
+|----------|--------|------------|
+| `/erp/lojas` | ✅ OK | 2 lojas (ORDINARIO + DEBOCHE) |
+| `/erp/saida-produtos` | ✅ OK | 4 registros de teste |
+| `/erp/compradores` | ✅ OK | 1 registro |
+| `/erp/faturamento` | ✅ OK | 19 métodos de pagamento |
+| `/erp/faturamento/detalhesMaquinaIntegrada` | ✅ OK | Vazio (sem dados cartão) |
+| `/erp/invoice` | ❌ ERRO 500 | Aguardando correção Zig |
+| `/erp/checkins` | ❌ ERRO 500 | Aguardando correção Zig |
+| `/erp/recharges` | ✅ OK | 2 recargas |
+| `/cashback/give` | ⏸️ Não testado | POST - precisa sandbox |
+
+### Endpoints NÃO Documentados (Descobertos)
+
+| Endpoint | Status | Estrutura |
+|----------|--------|-----------|
+| `/erp/discounts` | ✅ OK | Descontos aplicados |
+| `/erp/refunds` | ✅ OK | Estornos com products[], reason, author |
+| `/erp/events` | ✅ OK | Eventos com id, name, beginAt, peopleCapacity |
+
+### Campos Extras Descobertos (não na documentação)
+
+**saida-produtos:**
+- `eventName`, `source`, `barId`, `barName`, `obs`, `kindId`, `systemProduct`, `isRefunded`
+
+**compradores:**
+- `userGender`, `userBirthdate`, `isPaid`, `paymentType`, `terminal`, `date`, `chipNfc`
+
+**recharges:**
+- `barId`, `barName`
+
+### ⚠️ GAPS Identificados - Perguntas Enviadas à Zig
+
+1. **Contagem de pessoas por comanda** - Não encontrado
+2. **Custo dos produtos (CMV)** - Não encontrado
+3. **Estoque de produtos** - Não encontrado
+4. **Tempos de produção/entrega** - Não encontrado
+5. **Taxas de cartão** - Não encontrado
+6. **Erro 500 em checkins e invoice** - Aguardando
+7. **Loja DEBOCHE retornando 400** - Aguardando
+8. **Documentação endpoints não documentados** - Aguardando
+
+### Mapeamento ContaHub → Zig
+
+| Tabela ContaHub | Endpoint Zig | Cobertura |
+|-----------------|--------------|-----------|
+| `contahub_periodo` | `/erp/compradores` | 🟡 Parcial (sem pessoas) |
+| `contahub_pagamentos` | `/erp/faturamento` | 🟡 Parcial (sem taxas) |
+| `contahub_analitico` | `/erp/saida-produtos` | 🟡 Parcial (sem custo) |
+| `contahub_tempo` | ❌ Não existe | 🔴 Sem equivalente |
+| `contahub_fatporhora` | Calcular de saida-produtos | 🟢 Possível |
+| `contahub_stockout` | ❌ Não existe | 🔴 Sem equivalente |
+| `contahub_vendas` | `/erp/saida-produtos` | 🟢 OK |
+| `contahub_cancelamentos` | `/erp/refunds` | 🟢 OK |
+
+---
+
 *Documento criado em: Março 2026*  
-*Última atualização: Março 2026*
+*Última atualização: 09/03/2026*

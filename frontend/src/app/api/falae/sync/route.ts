@@ -208,23 +208,9 @@ export async function POST(request: NextRequest) {
           offset: String(offset),
         });
 
-        // Tenta primeiro formato estrito da doc; em seguida variação com companies_id
-        const tentativas = [baseQuery];
-        if (companyId) {
-          const withCompany = new URLSearchParams(baseQuery);
-          withCompany.set('companies_id', companyId);
-          tentativas.push(withCompany);
-        }
-
+        // Tenta SEM companies_id (o token JWT já contém a empresa)
         let pageResult: Awaited<ReturnType<typeof fetchAnswersPage>> | null = null;
-        for (const query of tentativas) {
-          const result = await fetchAnswersPage(baseUrl, credenciais.api_token, query);
-          if (result.ok) {
-            pageResult = result;
-            break;
-          }
-          pageResult = result;
-        }
+        pageResult = await fetchAnswersPage(baseUrl, credenciais.api_token, baseQuery);
 
         if (!pageResult || !pageResult.ok) {
           detalhes.push({
@@ -233,6 +219,7 @@ export async function POST(request: NextRequest) {
             offset,
             status: pageResult?.status || 500,
             erro: true,
+            raw_error: pageResult?.raw?.substring(0, 500),
           });
           erroNoModo = true;
           break;
@@ -260,36 +247,24 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // fallback: mantém comportamento antigo se API direta falhar totalmente
+    // Se não encontrou respostas, retorna sucesso com 0 respostas (não é erro)
     if (respostasMap.size === 0) {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      const fallbackResp = await fetch(
-        `${supabaseUrl}/functions/v1/falae-nps-sync?bar_id=${barId}&days_back=${daysBack}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${supabaseAnonKey}`,
-            'Content-Type': 'application/json',
-          },
-          cache: 'no-store',
-        }
-      );
-      if (!fallbackResp.ok) {
-        const errorText = await fallbackResp.text();
-        return NextResponse.json(
-          { error: 'Erro ao sincronizar com Falaê', details: errorText, detalhes },
-          { status: fallbackResp.status }
-        );
-      }
-      const fallbackData = await fallbackResp.json();
-      let npsDiario = { dias_atualizados: 0, respostas_total: 0 };
-      try {
-        npsDiario = await upsertDailyNpsFromDatabase(supabase, barId, dateStart, dateEnd);
-      } catch (npsError) {
-        console.error('Erro ao atualizar nps_falae_diario (fallback):', npsError);
-      }
-      return NextResponse.json({ ...fallbackData, fallback: true, detalhes, nps_diario: npsDiario });
+      return NextResponse.json({
+        success: true,
+        bar_id: barId,
+        periodo: { inicio: dateStart, fim: dateEnd },
+        respostas: {
+          encontradas: 0,
+          inseridas_atualizadas: 0,
+          erros: 0,
+        },
+        nps_periodo: null,
+        detalhes,
+        nps_diario: { dias_atualizados: 0, respostas_total: 0 },
+        nps_diario_pesquisa: { rows_affected: 0 },
+        synced_at: new Date().toISOString(),
+        message: 'Nenhuma resposta encontrada no período',
+      });
     }
 
     const respostas = Array.from(respostasMap.values());
@@ -344,6 +319,25 @@ export async function POST(request: NextRequest) {
       console.error('Erro ao atualizar nps_falae_diario:', npsError);
     }
 
+    // Atualizar NPS diário por pesquisa (nova tabela separada por search_name)
+    let npsDiarioPesquisa = { rows_affected: 0 };
+    try {
+      const { data: rpcResult, error: rpcError } = await supabase
+        .rpc('recalcular_nps_diario_pesquisa', {
+          p_bar_id: barId,
+          p_data_inicio: dateStart,
+          p_data_fim: dateEnd,
+        });
+      
+      if (rpcError) {
+        console.error('Erro ao atualizar nps_falae_diario_pesquisa:', rpcError);
+      } else {
+        npsDiarioPesquisa.rows_affected = rpcResult || 0;
+      }
+    } catch (npsError) {
+      console.error('Erro ao atualizar nps_falae_diario_pesquisa:', npsError);
+    }
+
     const promotores = rows.filter((r) => Number(r.nps) >= 9).length;
     const detratores = rows.filter((r) => Number(r.nps) <= 6).length;
     const npsPeriodo =
@@ -361,6 +355,7 @@ export async function POST(request: NextRequest) {
       nps_periodo: npsPeriodo,
       detalhes,
       nps_diario: npsDiario,
+      nps_diario_pesquisa: npsDiarioPesquisa,
       synced_at: new Date().toISOString(),
     });
 

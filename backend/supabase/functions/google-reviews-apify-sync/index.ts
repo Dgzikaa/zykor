@@ -99,6 +99,11 @@ serve(async (req) => {
           // Executar nova coleta no Apify
           console.log(`Iniciando nova coleta para ${barConfig.name}...`)
           
+          // Calcular data de início - buscar reviews dos últimos 14 dias para garantir cobertura
+          // Sem limite de maxReviews para trazer TODAS as reviews do período
+          const startDate = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          console.log(`Buscando TODAS as reviews desde ${startDate} para ${barConfig.name} (sem limite)`)
+          
           const runResponse = await fetch(
             `https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=${apifyToken}`,
             {
@@ -108,10 +113,10 @@ serve(async (req) => {
                 startUrls: [{
                   url: `https://www.google.com/maps/place/?q=place_id:${barConfig.placeId}`
                 }],
-                maxReviews: 100,
+                maxReviews: 9999,
                 language: 'pt-BR',
                 reviewsSort: 'newest',
-                reviewsStartDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                reviewsStartDate: startDate
               })
             }
           )

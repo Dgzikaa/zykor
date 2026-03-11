@@ -36,6 +36,11 @@ export interface DadosSemana {
   media_avaliacoes_google: number;
   nps_geral: number;
   nps_reservas: number;
+  nps_digital?: number | null;
+  nps_salao?: number | null;
+  nps_digital_respostas?: number;
+  nps_salao_respostas?: number;
+  nps_reservas_respostas?: number;
   falae_nps_score?: number | null;
   falae_nps_media?: number | null;
   falae_respostas_total?: number;
@@ -134,8 +139,10 @@ export interface MetricaConfig {
   indentado?: boolean;
   temTooltipDetalhes?: boolean;
   temTooltipGoogle?: boolean;
+  temTooltipFaturamento?: boolean;
   keyPercentual?: string;
   detalhesKey?: string;
+  respostasKey?: string;
 }
 
 export type TipoAgregacao = 'media' | 'soma' | 'fixa' | 'campo';

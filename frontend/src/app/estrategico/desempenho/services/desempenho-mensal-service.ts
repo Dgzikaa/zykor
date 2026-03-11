@@ -447,6 +447,11 @@ function agregarDadosSemanaisProporcionais(
     media_avaliacoes_google: Math.round(avgProp(desempenhoMap, 'media_avaliacoes_google') * 100) / 100,
     nps_geral: Math.round(avgProp(desempenhoMap, 'nps_geral')),
     nps_reservas: Math.round(avgProp(desempenhoMap, 'nps_reservas')),
+    nps_digital: Math.round(avgProp(desempenhoMap, 'nps_digital')),
+    nps_salao: Math.round(avgProp(desempenhoMap, 'nps_salao')),
+    nps_digital_respostas: Math.round(sumProp(desempenhoMap, 'nps_digital_respostas')),
+    nps_salao_respostas: Math.round(sumProp(desempenhoMap, 'nps_salao_respostas')),
+    nps_reservas_respostas: Math.round(sumProp(desempenhoMap, 'nps_reservas_respostas')),
     nota_felicidade_equipe: Math.round(avgProp(desempenhoMap, 'nota_felicidade_equipe') * 100) / 100,
     
     // Vendas
