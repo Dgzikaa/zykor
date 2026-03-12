@@ -156,3 +156,92 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
+
+// PATCH - Edição individual de meta com histórico
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const barId = Number(body?.bar_id);
+    const periodo = String(body?.periodo || 'semanal');
+    const metrica = String(body?.metrica || '');
+    const valorNovo = Number(body?.valor);
+    const operador = body?.operador ? String(body.operador) : undefined;
+    const alteradoPor = body?.alterado_por ? String(body.alterado_por) : 'Sistema';
+
+    if (!barId || Number.isNaN(barId)) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
+    }
+
+    if (!metrica.trim()) {
+      return NextResponse.json({ error: 'metrica é obrigatória' }, { status: 400 });
+    }
+
+    if (!Number.isFinite(valorNovo)) {
+      return NextResponse.json({ error: 'valor inválido' }, { status: 400 });
+    }
+
+    const supabase = createServerClient();
+
+    // Buscar meta atual para registrar valor anterior
+    const { data: metaAtual } = await supabase
+      .from('metas_desempenho')
+      .select('id, valor_meta')
+      .eq('bar_id', barId)
+      .eq('periodo', periodo)
+      .eq('metrica', metrica)
+      .maybeSingle();
+
+    const valorAnterior = metaAtual?.valor_meta ?? null;
+    const metaId = metaAtual?.id ?? null;
+
+    // Upsert da meta
+    const dadosMeta: Record<string, unknown> = {
+      bar_id: barId,
+      periodo,
+      metrica: metrica.trim(),
+      valor_meta: valorNovo,
+      updated_at: new Date().toISOString(),
+    };
+    if (operador) {
+      dadosMeta.operador = operador;
+    }
+
+    const { data: metaSalva, error: upsertError } = await supabase
+      .from('metas_desempenho')
+      .upsert(dadosMeta, { onConflict: 'bar_id,periodo,metrica' })
+      .select('id')
+      .single();
+
+    if (upsertError) {
+      console.error('Erro ao salvar meta:', upsertError);
+      return NextResponse.json({ error: 'Erro ao salvar meta' }, { status: 500 });
+    }
+
+    // Registrar histórico
+    const { error: historicoError } = await supabase
+      .from('metas_desempenho_historico')
+      .insert({
+        meta_id: metaSalva?.id || metaId,
+        bar_id: barId,
+        metrica: metrica.trim(),
+        periodo,
+        valor_anterior: valorAnterior,
+        valor_novo: valorNovo,
+        alterado_por: alteradoPor,
+      });
+
+    if (historicoError) {
+      console.error('Erro ao registrar histórico (não crítico):', historicoError);
+    }
+
+    return NextResponse.json({
+      success: true,
+      metrica,
+      valor_anterior: valorAnterior,
+      valor_novo: valorNovo,
+    });
+  } catch (error) {
+    console.error('Erro ao editar meta (PATCH):', error);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+  }
+}

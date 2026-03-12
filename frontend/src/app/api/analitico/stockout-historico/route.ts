@@ -48,64 +48,8 @@ async function fetchAllDataWithBuilder(queryBuilder: () => any) {
   return allData;
 }
 
-// Função auxiliar para aplicar filtros base (locais e prefixos a ignorar)
-// IMPORTANTE: Deve ser idêntica à função em stockout/route.ts
-const aplicarFiltrosBase = (query: any) => {
-  // LOCAIS A IGNORAR PERMANENTEMENTE
-  query = query
-    .neq('loc_desc', 'Pegue e Pague')
-    .neq('loc_desc', 'Venda Volante')
-    .not('loc_desc', 'is', null); // Excluir "Sem local definido"
-  
-  // PRODUTOS COM PREFIXOS A IGNORAR (usando % em ambos os lados para pegar espaços)
-  query = query
-    .not('prd_desc', 'ilike', '%[HH]%')  // Happy Hour (com ou sem espaços)
-    .not('prd_desc', 'ilike', '%[PP]%')  // Pegue Pague
-    .not('prd_desc', 'ilike', '%[DD]%')  // Dose Dupla
-    .not('prd_desc', 'ilike', '%[IN]%'); // Insumos
-  
-  // PRODUTOS HAPPY HOUR (excluir independente do formato)
-  // Esses produtos não devem entrar no stockout pois às 20h já não estão mais disponíveis
-  query = query
-    .not('prd_desc', 'ilike', '%Happy Hour%')
-    .not('prd_desc', 'ilike', '%HappyHour%')
-    .not('prd_desc', 'ilike', '%Happy-Hour%')
-    .not('prd_desc', 'ilike', '% HH')       // Produtos que terminam com " HH" (ex: Debochinho HH)
-    .not('prd_desc', 'ilike', '% HH %');    // Produtos com " HH " no meio
-  
-  // GRUPOS A IGNORAR (excluir pelo grupo, não apenas pelo nome)
-  // Produtos podem pertencer a grupos específicos sem ter o nome do grupo no nome do produto
-  // IMPORTANTE: Usar exatamente como está no ContaHub (case-sensitive)
-  query = query
-    .not('raw_data->>grp_desc', 'eq', 'Happy Hour')
-    .not('raw_data->>grp_desc', 'eq', 'Chegadeira')
-    .not('raw_data->>grp_desc', 'eq', 'Dose dupla')
-    .not('raw_data->>grp_desc', 'eq', 'Dose Dupla')
-    .not('raw_data->>grp_desc', 'eq', 'Dose dupla!')
-    .not('raw_data->>grp_desc', 'eq', 'Dose Dupla!')
-    .not('raw_data->>grp_desc', 'eq', 'Dose dupla sem álcool')
-    .not('raw_data->>grp_desc', 'eq', 'Dose Dupla sem álcool')
-    .not('raw_data->>grp_desc', 'eq', 'Grupo adicional')
-    .not('raw_data->>grp_desc', 'eq', 'Grupo Adicional')
-    .not('raw_data->>grp_desc', 'eq', 'Insumos')
-    .not('raw_data->>grp_desc', 'eq', 'Promo chivas')
-    .not('raw_data->>grp_desc', 'eq', 'Promo Chivas')
-    .not('raw_data->>grp_desc', 'eq', 'Uso interno')
-    .not('raw_data->>grp_desc', 'eq', 'Uso Interno');
-  
-  // PRODUTOS DOSE DUPLA (excluir - são variações que não devem contar no stockout)
-  // Inclui "Dose Dulpa" que é um typo comum
-  query = query
-    .not('prd_desc', 'ilike', '%Dose Dupla%')
-    .not('prd_desc', 'ilike', '%Dose Dulpa%');
-  
-  // CATEGORIAS A IGNORAR (por descrição do produto)
-  query = query
-    .not('prd_desc', 'ilike', '%Balde%')     // Baldes
-    .not('prd_desc', 'ilike', '%Garrafa%');  // Garrafas
-  
-  return query;
-};
+// NOTA: Os filtros agora são aplicados pela view contahub_stockout_filtrado
+// que é a fonte canônica para todos os cálculos de stockout
 
 interface AnaliseStockoutHistorico {
   periodo: {
@@ -201,39 +145,8 @@ function getInicioFimSemana(data: string): { inicio: string; fim: string } {
   };
 }
 
-// Locais - IDÊNTICO ao Desempenho (desempenho-semanal-auto locaisComidasStockout, locaisDrinksStockout, locaisBarStockout)
-// Bar = Bar+Baldes+Shot e Dose+Chopp | Comidas = Cozinha 1+Cozinha 2 | Drinks = Batidos+Montados+Mexido+Preshh
-
-function normalizarLocal(locDesc: string | null, barId: number): string {
-  if (!locDesc) return 'Sem local definido';
-  
-  const loc = locDesc.trim();
-  
-  // Ordinário (bar_id = 3) - IDÊNTICO ao Desempenho (usa loc.includes(l) como no desempenho-semanal-auto)
-  if (barId === 3) {
-    const locaisComidas = ['Cozinha 1', 'Cozinha 2'];
-    const locaisDrinks = ['Batidos', 'Montados', 'Mexido', 'Preshh'];
-    const locaisBar = ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'];
-    if (locaisComidas.some(l => loc.includes(l))) return 'Comidas';
-    if (locaisDrinks.some(l => loc.includes(l))) return 'Drinks';
-    if (locaisBar.some(l => loc.includes(l))) return 'Bar';
-  }
-  
-  if (barId === 4) {
-    if (['Cozinha', 'Cozinha 2'].some(l => loc.includes(l))) return 'Comidas';
-    if (['Bar', 'Baldes', 'Shot e Dose', 'Chopp'].some(l => loc.includes(l))) return 'Bar';
-    if (['Batidos', 'Montados', 'Mexido', 'Preshh'].some(l => loc.includes(l))) return 'Drinks';
-  }
-  
-  return loc;
-}
-
-// Função para obter o local normalizado (usa o loc_desc diretamente)
-// Mantida para compatibilidade - use normalizarLocal quando tiver bar_id disponível
-function obterLocal(locDesc: string | null): string {
-  if (!locDesc) return 'Sem local definido';
-  return locDesc.trim();
-}
+// NOTA: A normalização de locais agora é feita pela view contahub_stockout_filtrado
+// que inclui a coluna categoria_local já normalizada por bar
 
 export async function POST(request: NextRequest) {
   try {
@@ -257,18 +170,15 @@ export async function POST(request: NextRequest) {
 
     // ⚡ QueryBuilder: função que cria uma nova query a cada chamada
     // Isso é necessário porque o Supabase não permite reutilizar queries com .range()
+    // IMPORTANTE: Usar view contahub_stockout_filtrado para garantir mesmos filtros do desempenho
     const createQuery = () => {
       let query = supabase
-        .from('contahub_stockout')
-        .select('data_consulta, prd_ativo, prd_venda, loc_desc, prd_desc')
-        .eq('prd_ativo', 'S') // Apenas produtos ativos
+        .from('contahub_stockout_filtrado')
+        .select('data_consulta, prd_venda, loc_desc, prd_desc, categoria_local')
         .gte('data_consulta', data_inicio)
         .lte('data_consulta', data_fim)
         .eq('bar_id', bar_id)
         .order('data_consulta', { ascending: true });
-
-      // Aplicar filtros base
-      query = aplicarFiltrosBase(query);
 
       // Aplicar filtros adicionais do usuário se existirem
       if (filtros.length > 0) {
@@ -441,7 +351,7 @@ export async function POST(request: NextRequest) {
 
     const dadosPorCategoria = new Map<string, StatsCategoria>();
     dadosValidosFiltrados.forEach(item => {
-      const categoria = normalizarLocal(item.loc_desc, bar_id);
+      const categoria = item.categoria_local || 'Sem local definido';
       const dataConsulta = item.data_consulta;
       
       if (!dadosPorCategoria.has(categoria)) {
@@ -504,33 +414,21 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Calcular por local - MÉDIA DOS PERCENTUAIS DIÁRIOS (igual Desempenho, que é a referência)
+    // Calcular por local - AGREGADO TOTAL (soma stockouts / soma produtos)
+    // Isso é igual ao cálculo do Desempenho Semanal (RPC calcular_stockout_semanal)
     const analisePorLocal = Array.from(dadosPorCategoria.entries())
-      .filter(([local]) => local !== 'Sem local definido') // Remover locais sem definição
+      .filter(([local]) => local !== 'Sem local definido')
       .map(([local, stats]) => {
-        const totalDiasAnalise = historicoDiario.length;
-        const mediaTotalProdutos = Math.round(stats.total_produtos / totalDiasAnalise);
-        const mediaDisponiveis = Math.round(stats.disponiveis / totalDiasAnalise);
-        const mediaIndisponiveis = Math.round(stats.indisponiveis / totalDiasAnalise);
-        
-        let somaPercDiarial = 0;
-        let diasComDados = 0;
-        stats.produtos_por_dia.forEach((dia) => {
-          const totalDia = dia.disponiveis.size + dia.indisponiveis.size;
-          if (totalDia > 0) {
-            somaPercDiarial += (dia.indisponiveis.size / totalDia) * 100;
-            diasComDados++;
-          }
-        });
-        const percentualStockout = diasComDados > 0 ? 
-          (somaPercDiarial / diasComDados).toFixed(2) : 
-          (mediaTotalProdutos > 0 ? ((mediaIndisponiveis / mediaTotalProdutos) * 100).toFixed(2) : '0.00');
+        // AGREGADO TOTAL: soma de todos os stockouts / soma de todos os produtos do período
+        const percentualStockout = stats.total_produtos > 0 
+          ? ((stats.indisponiveis / stats.total_produtos) * 100).toFixed(2) 
+          : '0.00';
         
         return {
-          local: local, // Usar o nome do local diretamente
-          total_produtos: mediaTotalProdutos,
-          produtos_disponiveis: mediaDisponiveis,
-          produtos_indisponiveis: mediaIndisponiveis,
+          local: local,
+          total_produtos: stats.total_produtos,
+          produtos_disponiveis: stats.disponiveis,
+          produtos_indisponiveis: stats.indisponiveis,
           percentual_stockout: `${percentualStockout}%`,
           percentual_disponibilidade: `${(100 - parseFloat(percentualStockout)).toFixed(2)}%`,
           produtos_detalhados: {
@@ -552,12 +450,13 @@ export async function POST(request: NextRequest) {
     console.log(`📍 Análise por local/categoria: ${analisePorLocal.length} categorias processadas`);
     console.log(`📅 Total de dias processados: ${historicoDiario.length}`);
 
-    // Resumo geral
+    // Resumo geral - AGREGADO TOTAL (soma stockouts / soma produtos)
     const totalDias = historicoDiario.length;
-    const somaStockout = historicoDiario.reduce((sum, dia) => 
-      sum + parseFloat(dia.percentual_stockout.replace('%', '')), 0
-    );
-    const mediaStockout = totalDias > 0 ? (somaStockout / totalDias).toFixed(2) : '0.00';
+    const totalProdutosPeriodo = historicoDiario.reduce((sum, dia) => sum + dia.total_produtos_ativos, 0);
+    const totalStockoutPeriodo = historicoDiario.reduce((sum, dia) => sum + dia.produtos_stockout, 0);
+    const mediaStockout = totalProdutosPeriodo > 0 
+      ? ((totalStockoutPeriodo / totalProdutosPeriodo) * 100).toFixed(2) 
+      : '0.00';
 
     const resultado: AnaliseStockoutHistorico = {
       periodo: {

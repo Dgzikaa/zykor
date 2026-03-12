@@ -7,31 +7,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Função para normalizar locais - agrupa locais por categoria
-function normalizarLocal(locDesc: string | null, barId: number): string {
-  if (!locDesc) return 'Sem local definido';
-  
-  const loc = locDesc.trim();
-  
-  // Ordinário (bar_id = 3) - IDÊNTICO ao Desempenho (usa loc.includes(l) como no desempenho-semanal-auto)
-  if (barId === 3) {
-    const locaisComidas = ['Cozinha 1', 'Cozinha 2'];
-    const locaisDrinks = ['Batidos', 'Montados', 'Mexido', 'Preshh'];
-    const locaisBar = ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'];
-    if (locaisComidas.some(l => loc.includes(l))) return 'Comidas';
-    if (locaisDrinks.some(l => loc.includes(l))) return 'Drinks';
-    if (locaisBar.some(l => loc.includes(l))) return 'Bar';
-  }
-  
-  // Deboche (bar_id = 4)
-  if (barId === 4) {
-    if (['Cozinha', 'Cozinha 2'].some(l => loc.includes(l))) return 'Comidas';
-    if (['Bar', 'Baldes', 'Shot e Dose', 'Chopp'].some(l => loc.includes(l))) return 'Bar';
-    if (['Batidos', 'Montados', 'Mexido', 'Preshh'].some(l => loc.includes(l))) return 'Drinks';
-  }
-  
-  return loc;
-}
+// NOTA: A normalização de locais agora é feita pela view contahub_stockout_filtrado
+// que inclui a coluna categoria_local já normalizada por bar
 
 export async function POST(request: NextRequest) {
   try {
@@ -89,78 +66,16 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ Bar aberto em ${data_selecionada}: ${statusDia.motivo} (fonte: ${statusDia.fonte})`);
 
+    // IMPORTANTE: Usar a view contahub_stockout_filtrado que já tem todos os filtros aplicados
+    // Isso garante que os valores sejam idênticos ao desempenho semanal (função RPC calcular_stockout_semanal)
+    // A view inclui: filtros de locais, prefixos, grupos (via JSONB), e categoria_local normalizada
 
-    // Função auxiliar para aplicar filtros base (locais e prefixos a ignorar)
-    const aplicarFiltrosBase = (query: any) => {
-      // LOCAIS A IGNORAR PERMANENTEMENTE
-      query = query
-        .neq('loc_desc', 'Pegue e Pague')
-        .neq('loc_desc', 'Venda Volante')
-        .neq('loc_desc', 'Baldes') // Produtos do local Baldes não devem aparecer
-        .not('loc_desc', 'is', null); // Excluir "Sem local definido"
-      
-      // PRODUTOS COM PREFIXOS A IGNORAR (usando % em ambos os lados para pegar espaços)
-      query = query
-        .not('prd_desc', 'ilike', '%[HH]%')  // Happy Hour (com ou sem espaços)
-        .not('prd_desc', 'ilike', '%[PP]%')  // Pegue Pague
-        .not('prd_desc', 'ilike', '%[DD]%')  // Dose Dupla
-        .not('prd_desc', 'ilike', '%[IN]%'); // Insumos
-      
-      // PRODUTOS HAPPY HOUR (excluir independente do formato)
-      // Esses produtos não devem entrar no stockout pois às 20h já não estão mais disponíveis
-      query = query
-        .not('prd_desc', 'ilike', '%Happy Hour%')
-        .not('prd_desc', 'ilike', '%HappyHour%')
-        .not('prd_desc', 'ilike', '%Happy-Hour%')
-        .not('prd_desc', 'ilike', '% HH')       // Produtos que terminam com " HH" (ex: Debochinho HH)
-        .not('prd_desc', 'ilike', '% HH %');    // Produtos com " HH " no meio
-      
-      // GRUPOS A IGNORAR (excluir pelo grupo, não apenas pelo nome)
-      // Produtos podem pertencer a grupos específicos sem ter o nome do grupo no nome do produto
-      // IMPORTANTE: Usar exatamente como está no ContaHub (case-sensitive)
-      query = query
-        .not('raw_data->>grp_desc', 'eq', 'Baldes')
-        .not('raw_data->>grp_desc', 'eq', 'Happy Hour')
-        .not('raw_data->>grp_desc', 'eq', 'Chegadeira')
-        .not('raw_data->>grp_desc', 'eq', 'Dose dupla')
-        .not('raw_data->>grp_desc', 'eq', 'Dose Dupla')
-        .not('raw_data->>grp_desc', 'eq', 'Dose dupla!')
-        .not('raw_data->>grp_desc', 'eq', 'Dose Dupla!')
-        .not('raw_data->>grp_desc', 'eq', 'Dose dupla sem álcool')
-        .not('raw_data->>grp_desc', 'eq', 'Dose Dupla sem álcool')
-        .not('raw_data->>grp_desc', 'eq', 'Grupo adicional')
-        .not('raw_data->>grp_desc', 'eq', 'Grupo Adicional')
-        .not('raw_data->>grp_desc', 'eq', 'Insumos')
-        .not('raw_data->>grp_desc', 'eq', 'Promo chivas')
-        .not('raw_data->>grp_desc', 'eq', 'Promo Chivas')
-        .not('raw_data->>grp_desc', 'eq', 'Uso interno')
-        .not('raw_data->>grp_desc', 'eq', 'Uso Interno')
-        .not('raw_data->>grp_desc', 'eq', 'Pegue e Pague');
-      
-      // PRODUTOS DOSE DUPLA (excluir - são variações que não devem contar no stockout)
-      // Inclui "Dose Dulpa" que é um typo comum
-      query = query
-        .not('prd_desc', 'ilike', '%Dose Dupla%')
-        .not('prd_desc', 'ilike', '%Dose Dulpa%');
-      
-      // CATEGORIAS A IGNORAR (por descrição do produto)
-      query = query
-        .not('prd_desc', 'ilike', '%Balde%')     // Baldes
-        .not('prd_desc', 'ilike', '%Garrafa%');  // Garrafas
-      
-      return query;
-    };
-
-    // 1. Estatísticas gerais - NOVA LÓGICA: apenas produtos ativos='S' e venda='N'
+    // 1. Estatísticas gerais
     let query = supabase
-      .from('contahub_stockout')
-      .select('prd_ativo, prd_venda')
+      .from('contahub_stockout_filtrado')
+      .select('prd_venda')
       .eq('data_consulta', data_selecionada)
-      .eq('bar_id', bar_id) // Filtrar por bar selecionado
-      .eq('prd_ativo', 'S'); // Apenas produtos ativos
-
-    // Aplicar filtros base
-    query = aplicarFiltrosBase(query);
+      .eq('bar_id', bar_id);
 
     // Aplicar filtros adicionais do usuário se existirem
     if (filtros.length > 0) {
@@ -188,16 +103,12 @@ export async function POST(request: NextRequest) {
 
     console.log(`📈 Total: ${totalProdutosAtivos}, Disponíveis: ${countProdutosDisponiveis}, Stockout: ${countProdutosStockout}, %: ${percentualStockout}%`);
 
-    // 2. Análise por local de produção - NOVA LÓGICA: apenas produtos ativos
+    // 2. Análise por local de produção - usando categoria_local da view
     let queryLocais = supabase
-      .from('contahub_stockout')
-      .select('loc_desc, prd_ativo, prd_venda')
+      .from('contahub_stockout_filtrado')
+      .select('categoria_local, prd_venda')
       .eq('data_consulta', data_selecionada)
-      .eq('bar_id', bar_id) // Filtrar por bar selecionado
-      .eq('prd_ativo', 'S'); // Apenas produtos ativos
-
-    // Aplicar filtros base
-    queryLocais = aplicarFiltrosBase(queryLocais);
+      .eq('bar_id', bar_id);
 
     // Aplicar filtros adicionais do usuário se existirem
     if (filtros.length > 0) {
@@ -214,20 +125,19 @@ export async function POST(request: NextRequest) {
       throw new Error('Erro ao buscar dados por local');
     }
 
-    // Processar dados por local com NOVA LÓGICA
-    // Usa normalizarLocal para agrupar locais (ex: Cozinha + Cozinha 2 = Cozinha no Deboche)
+    // Processar dados por categoria_local (já normalizado pela view)
     const locaisMap = new Map();
     dadosLocais?.forEach(item => {
-      const local = normalizarLocal(item.loc_desc, bar_id);
+      const local = item.categoria_local || 'Sem local definido';
       if (!locaisMap.has(local)) {
         locaisMap.set(local, { total: 0, disponiveis: 0, stockout: 0 });
       }
       const stats = locaisMap.get(local);
-      stats.total++; // Total de produtos ativos neste local
+      stats.total++;
       if (item.prd_venda === 'S') {
-        stats.disponiveis++; // Ativos E venda='S'
+        stats.disponiveis++;
       } else if (item.prd_venda === 'N') {
-        stats.stockout++; // Ativos E venda='N' = STOCKOUT
+        stats.stockout++;
       }
     });
 
@@ -239,19 +149,15 @@ export async function POST(request: NextRequest) {
       perc_stockout: stats.total > 0 ? parseFloat(((stats.stockout / stats.total) * 100).toFixed(1)) : 0
     })).sort((a, b) => b.perc_stockout - a.perc_stockout || b.total_produtos - a.total_produtos);
 
-    // 3. Produtos em stockout (todos) - NOVA LÓGICA: ativos='S' E venda='N'
+    // 3. Produtos em stockout (todos)
     let queryIndisponiveis = supabase
-      .from('contahub_stockout')
-      .select('prd_desc, loc_desc, prd_precovenda, prd_estoque, prd_controlaestoque, prd_validaestoquevenda')
+      .from('contahub_stockout_filtrado')
+      .select('prd_desc, loc_desc, categoria_local, prd_precovenda, prd_estoque, prd_controlaestoque, prd_validaestoquevenda')
       .eq('data_consulta', data_selecionada)
-      .eq('bar_id', bar_id) // Filtrar por bar selecionado
-      .eq('prd_ativo', 'S') // Apenas produtos ativos
-      .eq('prd_venda', 'N') // E que não estão à venda = STOCKOUT
-      .order('loc_desc')
+      .eq('bar_id', bar_id)
+      .eq('prd_venda', 'N')
+      .order('categoria_local')
       .order('prd_desc');
-
-    // Aplicar filtros base
-    queryIndisponiveis = aplicarFiltrosBase(queryIndisponiveis);
 
     // Aplicar filtros adicionais do usuário se existirem
     if (filtros.length > 0) {
@@ -264,19 +170,15 @@ export async function POST(request: NextRequest) {
 
     const { data: listaProdutosIndisponiveis, error: errorIndisponiveis } = await queryIndisponiveis;
 
-    // 4. Produtos disponíveis (todos) - NOVA LÓGICA: ativos='S' E venda='S'
+    // 4. Produtos disponíveis (todos)
     let queryDisponiveis = supabase
-      .from('contahub_stockout')
-      .select('prd_desc, loc_desc, prd_precovenda, prd_estoque')
+      .from('contahub_stockout_filtrado')
+      .select('prd_desc, loc_desc, categoria_local, prd_precovenda, prd_estoque')
       .eq('data_consulta', data_selecionada)
-      .eq('bar_id', bar_id) // Filtrar por bar selecionado
-      .eq('prd_ativo', 'S') // Apenas produtos ativos
-      .eq('prd_venda', 'S') // E que estão à venda = DISPONÍVEIS
-      .order('loc_desc')
+      .eq('bar_id', bar_id)
+      .eq('prd_venda', 'S')
+      .order('categoria_local')
       .order('prd_desc');
-
-    // Aplicar filtros base
-    queryDisponiveis = aplicarFiltrosBase(queryDisponiveis);
 
     // Aplicar filtros adicionais do usuário se existirem
     if (filtros.length > 0) {

@@ -525,6 +525,21 @@ export function DesempenhoClient({
   });
   const [filtroReviewGoogle, setFiltroReviewGoogle] = useState<'todos' | 'positivo' | 'neutro' | 'negativo'>('todos');
   
+  // Estado do modal de edição individual de meta
+  const [editMetaDialog, setEditMetaDialog] = useState<{
+    aberto: boolean;
+    metrica: MetricaConfig | null;
+    valorAtual: number | null;
+    valorNovo: string;
+    salvando: boolean;
+  }>({
+    aberto: false,
+    metrica: null,
+    valorAtual: null,
+    valorNovo: '',
+    salvando: false,
+  });
+  
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const semanaAtualRef = useRef<HTMLDivElement>(null);
 
@@ -755,6 +770,81 @@ export function DesempenhoClient({
       setSalvandoMetas(false);
     }
   }, [selectedBar, visao, metricasParaMetaFlat, metasEditValues, metas, toast]);
+
+  // Abrir modal de edição individual de meta
+  const abrirEditMeta = useCallback((metrica: MetricaConfig) => {
+    const valorAtual = metas[metrica.key]?.valor ?? null;
+    setEditMetaDialog({
+      aberto: true,
+      metrica,
+      valorAtual,
+      valorNovo: valorAtual !== null ? String(valorAtual) : '',
+      salvando: false,
+    });
+  }, [metas]);
+
+  // Salvar meta individual com histórico
+  const salvarMetaIndividual = useCallback(async () => {
+    if (!selectedBar?.id || !editMetaDialog.metrica) return;
+
+    const valorNovo = Number(editMetaDialog.valorNovo.replace(',', '.'));
+    if (!Number.isFinite(valorNovo)) {
+      toast({ title: 'Valor inválido', description: 'Digite um número válido', variant: 'destructive' });
+      return;
+    }
+
+    setEditMetaDialog(prev => ({ ...prev, salvando: true }));
+
+    try {
+      const response = await fetch('/api/estrategico/desempenho/metas', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bar_id: selectedBar.id,
+          periodo: visao,
+          metrica: editMetaDialog.metrica.key,
+          valor: valorNovo,
+          operador: metas[editMetaDialog.metrica.key]?.operador || (editMetaDialog.metrica.inverso ? '<=' : '>='),
+          alterado_por: user?.nome || user?.email || 'Usuário',
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Falha ao salvar meta');
+      }
+
+      // Atualizar metas localmente
+      setMetas(prev => ({
+        ...prev,
+        [editMetaDialog.metrica!.key]: {
+          valor: valorNovo,
+          operador: prev[editMetaDialog.metrica!.key]?.operador || (editMetaDialog.metrica!.inverso ? '<=' : '>='),
+        },
+      }));
+
+      setEditMetaDialog({ aberto: false, metrica: null, valorAtual: null, valorNovo: '', salvando: false });
+      
+      const valorAnteriorFormatado = data.valor_anterior !== null 
+        ? formatarValor(data.valor_anterior, editMetaDialog.metrica.formato, editMetaDialog.metrica.sufixo)
+        : 'não definido';
+      const valorNovoFormatado = formatarValor(valorNovo, editMetaDialog.metrica.formato, editMetaDialog.metrica.sufixo);
+      
+      toast({ 
+        title: 'Meta atualizada', 
+        description: `${editMetaDialog.metrica.label}: ${valorAnteriorFormatado} → ${valorNovoFormatado}` 
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro ao salvar meta',
+        description: error instanceof Error ? error.message : 'Falha ao salvar',
+        variant: 'destructive',
+      });
+    } finally {
+      setEditMetaDialog(prev => ({ ...prev, salvando: false }));
+    }
+  }, [selectedBar, visao, editMetaDialog, metas, user, toast]);
 
   const abrirDetalhesFalae = useCallback((semana: DadosSemana) => {
     const avaliacoes = ((semana as any).falae_avaliacoes_detalhes || []) as Array<{ nome: string; media: number; total: number }>;
@@ -1102,12 +1192,14 @@ export function DesempenhoClient({
 
       {/* Conteúdo */}
       <div ref={scrollContainerRef} className="flex-1 overflow-auto smooth-scroll">
-        <div className="flex" style={{ minWidth: 'max-content' }}>
-          {/* Coluna Fixa */}
-          <div className="sticky left-0 z-20 flex-shrink-0 w-[200px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md">
-            <div className="h-[72px] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center sticky top-0 z-30">
-              <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 text-center">INDICADOR</span>
-            </div>
+        <div className="flex" style={{ minWidth: 'fit-content' }}>
+          {/* Colunas Fixas (Indicador + Metas) - largura fixa de 272px */}
+          <div className="sticky left-0 z-20 flex flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md" style={{ minWidth: '272px', width: '272px' }}>
+            {/* Coluna Indicador */}
+            <div className="w-[200px] border-r border-gray-200 dark:border-gray-700">
+              <div className="h-[72px] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center sticky top-0 z-30">
+                <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 text-center">INDICADOR</span>
+              </div>
             {SECOES.map(secao => (
               <div key={secao.id} className="virtualized-section">
                 <div className={cn("flex items-center gap-2 px-3 cursor-pointer", secao.cor)} style={{ height: '40px' }} onClick={() => toggleSecao(secao.id)}>
@@ -1183,19 +1275,78 @@ export function DesempenhoClient({
                                      </div>
                                    </div>
                                  </TooltipContent>
-                              </Tooltip>
-                           </TooltipProvider>
-                         ))}
-                      </div>
-                   )
-                })}
+                             </Tooltip>
+                          </TooltipProvider>
+                        ))}
+                     </div>
+                  )
+               })}
+             </div>
+           ))}
+            </div>
+
+            {/* Coluna Metas */}
+            <div className="w-[72px] border-l border-amber-200 dark:border-amber-800/50">
+              <div className="h-[72px] border-b border-gray-200 dark:border-gray-700 bg-gradient-to-b from-amber-100 to-amber-50 dark:from-amber-900/40 dark:to-amber-900/20 flex items-center justify-center sticky top-0 z-30">
+                <div className="flex flex-col items-center">
+                  <Target className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 mb-0.5" />
+                  <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Meta</span>
+                </div>
               </div>
-            ))}
+              {SECOES.map(secao => (
+                <div key={`metas-${secao.id}`}>
+                  {/* Header da seção */}
+                  <div className={cn("flex items-center justify-center", secao.cor)} style={{ height: '40px' }} />
+                  {secoesAbertas[secao.id] && secao.grupos.map(grupo => {
+                    const hierarquico = isGrupoHierarquico(grupo);
+                    const grupoSimples = isGrupoSimples(grupo);
+                    const metricasParaMostrar = hierarquico ? grupo.metricas.slice(1) : grupo.metricas;
+                    const mostrarHeaderGrupo = !grupoSimples && (hierarquico || !!grupo.agregacao);
+                    return (
+                      <div key={`metas-${grupo.id}`}>
+                        {mostrarHeaderGrupo && (
+                          <div 
+                            className="flex items-center justify-center bg-amber-50/50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-800/30 hover:bg-amber-100/70 dark:hover:bg-amber-800/20 transition-colors cursor-pointer group" 
+                            style={{ height: '36px' }}
+                            onClick={() => hierarquico && grupo.metricas[0] && abrirEditMeta(grupo.metricas[0])}
+                            title={hierarquico && grupo.metricas[0] ? `Clique para editar meta de ${grupo.metricas[0].label}` : undefined}
+                          >
+                            {hierarquico && grupo.metricas[0] && metas[grupo.metricas[0].key] ? (
+                              <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 truncate px-1 group-hover:underline">
+                                {formatarValor(metas[grupo.metricas[0].key].valor, grupo.metricas[0].formato, grupo.metricas[0].sufixo)}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-amber-300 dark:text-amber-700 group-hover:text-amber-500">{hierarquico ? '+' : '-'}</span>
+                            )}
+                          </div>
+                        )}
+                        {(!mostrarHeaderGrupo || secoesNaoColapsaveis.includes(secao.id) || gruposAbertos[`${secao.id}-${grupo.id}`]) && metricasParaMostrar.map((metrica) => (
+                          <div 
+                            key={`meta-${metrica.key}`} 
+                            className="flex items-center justify-center border-b border-amber-100/50 dark:border-amber-800/20 bg-amber-50/20 dark:bg-amber-900/5 hover:bg-amber-200/60 dark:hover:bg-amber-800/30 transition-colors cursor-pointer group" 
+                            style={{ height: '32px' }}
+                            onClick={() => abrirEditMeta(metrica)}
+                            title={`Clique para editar meta de ${metrica.label}`}
+                          >
+                            {metas[metrica.key] ? (
+                              <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400 truncate px-1 group-hover:underline">
+                                {formatarValor(metas[metrica.key].valor, metrica.formato, metrica.sufixo)}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-amber-300 dark:text-amber-700 group-hover:text-amber-500">+</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Área das Semanas */}
-          <div className="flex-1">
-             <div className="inline-flex" style={{ minWidth: 'max-content' }}>
+          {/* Área das Semanas - inline-flex para manter largura natural */}
+          <div className="flex-shrink-0 inline-flex">
                {semanasProcessadas.map((semana, idx) => {
                  const isAtual = idx === semanaAtualIdx;
                  return (
@@ -1551,7 +1702,6 @@ export function DesempenhoClient({
                    </div>
                  );
                })}
-             </div>
           </div>
         </div>
       </div>
@@ -1910,6 +2060,79 @@ export function DesempenhoClient({
             </section>
           </div>
         )}
+      </DialogContent>
+    </Dialog>
+    
+    {/* Modal de Edição Individual de Meta */}
+    <Dialog open={editMetaDialog.aberto} onOpenChange={(aberto) => !editMetaDialog.salvando && setEditMetaDialog(prev => ({ ...prev, aberto }))}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Target className="w-5 h-5 text-amber-600" />
+            Editar Meta
+          </DialogTitle>
+          <DialogDescription>
+            {editMetaDialog.metrica?.label}
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Valor atual:</span>
+            <span className="font-medium">
+              {editMetaDialog.valorAtual !== null 
+                ? formatarValor(editMetaDialog.valorAtual, editMetaDialog.metrica?.formato || 'numero', editMetaDialog.metrica?.sufixo)
+                : <span className="text-gray-400 italic">não definido</span>
+              }
+            </span>
+          </div>
+          
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Novo valor:</label>
+            <Input
+              type="text"
+              placeholder={editMetaDialog.metrica?.formato?.includes('moeda') ? 'Ex: 420000' : editMetaDialog.metrica?.formato?.includes('percentual') ? 'Ex: 29' : 'Digite o valor'}
+              value={editMetaDialog.valorNovo}
+              onChange={(e) => setEditMetaDialog(prev => ({ ...prev, valorNovo: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !editMetaDialog.salvando) {
+                  salvarMetaIndividual();
+                }
+              }}
+              autoFocus
+              className="text-lg font-medium"
+            />
+            <p className="text-xs text-gray-500">
+              {editMetaDialog.metrica?.formato?.includes('moeda') && 'Digite apenas números (ex: 420000 para R$ 420.000)'}
+              {editMetaDialog.metrica?.formato?.includes('percentual') && 'Digite apenas números (ex: 29 para 29%)'}
+              {!editMetaDialog.metrica?.formato?.includes('moeda') && !editMetaDialog.metrica?.formato?.includes('percentual') && 'Digite o valor numérico'}
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 dark:bg-gray-800 rounded p-2">
+            <Pencil className="w-3 h-3" />
+            <span>Alterações são registradas no histórico automaticamente</span>
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={() => setEditMetaDialog({ aberto: false, metrica: null, valorAtual: null, valorNovo: '', salvando: false })}
+            disabled={editMetaDialog.salvando}
+          >
+            Cancelar
+          </Button>
+          <Button 
+            type="button" 
+            onClick={salvarMetaIndividual} 
+            disabled={editMetaDialog.salvando || !editMetaDialog.valorNovo.trim()}
+            className="bg-amber-600 hover:bg-amber-700"
+          >
+            {editMetaDialog.salvando ? 'Salvando...' : 'Salvar Meta'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
     </>
