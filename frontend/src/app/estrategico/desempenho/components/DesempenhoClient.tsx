@@ -198,8 +198,6 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         metricas: [
           { key: 'atrasinhos_bar', label: 'Atrasinho Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 >4 e <8 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes' },
           { key: 'atrasinhos_cozinha', label: 'Atrasinho Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 >15 e <20 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes' },
-          { key: 'atraso_bar', label: 'Atraso Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 >8 e <10 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atraso_detalhes' },
-          { key: 'atraso_cozinha', label: 'Atraso Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 >20 e <30 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atraso_detalhes' },
           { key: 'atrasos_bar', label: 'Atrasão Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 > 20 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_bar_perc' },
           { key: 'atrasos_cozinha', label: 'Atrasão Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 > 30 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_cozinha_perc' },
         ]
