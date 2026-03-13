@@ -573,7 +573,7 @@ export default function StockoutPage() {
       4: { // Deboche
         'Comidas': ['Cozinha', 'Cozinha 2'],
         'Bar': ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'],
-        'Drinks': ['Batidos', 'Montados', 'Mexido', 'Preshh'],
+        'Drinks': ['Batidos', 'Montados', 'Mexido', 'Preshh', 'Salao'],
       }
     };
     
