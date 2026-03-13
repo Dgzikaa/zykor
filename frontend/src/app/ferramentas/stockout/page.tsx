@@ -570,10 +570,10 @@ export default function StockoutPage() {
         'Drinks': ['Batidos', 'Montados', 'Mexido', 'Preshh'],
         'Bar': ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'],
       },
-      4: { // Deboche
+      4: { // Deboche - Salao=Bar(Bebidas), Bar=Drinks, Cozinha=Comidas
         'Comidas': ['Cozinha', 'Cozinha 2'],
-        'Bar': ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'],
-        'Drinks': ['Batidos', 'Montados', 'Mexido', 'Preshh', 'Salao'],
+        'Bar': ['Salao'],           // Salao = Bebidas/Bar
+        'Drinks': ['Bar'],          // Bar = Drinks
       }
     };
     
