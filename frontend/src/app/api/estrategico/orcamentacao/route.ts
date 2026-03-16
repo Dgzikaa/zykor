@@ -379,7 +379,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { bar_id, ano, mes, categoria_nome, subcategoria, valor_planejado, valor_realizado, observacoes, tipo } = body;
+    const { bar_id, ano, mes, categoria_nome, subcategoria, valor_planejado, valor_projetado, valor_realizado, observacoes, tipo } = body;
 
     if (!bar_id || !ano || !categoria_nome) {
       return NextResponse.json(
@@ -405,6 +405,11 @@ export async function POST(request: Request) {
     // Adicionar valor planejado se fornecido
     if (valor_planejado !== undefined) {
       dadosUpsert.valor_planejado = Number(valor_planejado) || 0;
+    }
+
+    // Adicionar valor projetado se fornecido
+    if (valor_projetado !== undefined) {
+      dadosUpsert.valor_projetado = Number(valor_projetado) || 0;
     }
 
     // Adicionar valor realizado se fornecido

@@ -93,6 +93,7 @@ interface CMVSemanal {
   compras_custo_bebidas: number;
   compras_custo_drinks: number;
   compras_custo_outros: number;
+  compras_alimentacao?: number;
   
   // Contas Especiais
   total_consumo_socios: number;
@@ -259,9 +260,10 @@ const SECOES: SecaoConfig[] = [
       },
       {
         id: 'compras_alimentacao',
-        label: '(+) Compras Alimentação',
+        label: '(+) Compras',
         metricas: [
-          { key: 'compras_alimentacao', label: 'Compras Alimentação', status: 'auto', fonte: 'NIBO', calculo: 'categoria_nome = Alimentação', formato: 'moeda', drilldown: true },
+          { key: 'compras_alimentacao_total', label: 'TOTAL', status: 'calculado', fonte: 'NIBO', calculo: 'Alimentação', formato: 'moeda' },
+          { key: 'compras_alimentacao', label: 'Alimentação', status: 'auto', fonte: 'NIBO', calculo: 'categoria_nome = Alimentação', formato: 'moeda', drilldown: true },
         ]
       },
       {
@@ -667,10 +669,14 @@ export default function CMVSemanalTabelaPage() {
     }
     // Compras = soma dos sub-itens
     if (key === 'compras_periodo') {
-      return (semana.compras_custo_comida || 0) + 
-             (semana.compras_custo_drinks || 0) + 
-             (semana.compras_custo_bebidas || 0) + 
+      return (semana.compras_custo_comida || 0) +
+             (semana.compras_custo_drinks || 0) +
+             (semana.compras_custo_bebidas || 0) +
              (semana.compras_custo_outros || 0);
+    }
+    // CMA - Compras Alimentação Total (igual ao valor de alimentação)
+    if (key === 'compras_alimentacao_total') {
+      return semana.compras_alimentacao || 0;
     }
     // Consumações = soma dos sub-itens × 0.35 (CMV do consumo)
     // 4 categorias: Sócios, Funcionários, Clientes, Artistas

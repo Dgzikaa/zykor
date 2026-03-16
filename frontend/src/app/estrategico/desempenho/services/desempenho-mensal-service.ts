@@ -466,7 +466,9 @@ function agregarDadosSemanaisProporcionais(
     // Atrasos (quantidades são soma arredondada, percentuais são média)
     qtde_itens_bar: Math.round(sumProp(desempenhoMap, 'qtde_itens_bar')),
     atrasinhos_bar: Math.round(sumProp(desempenhoMap, 'atrasinhos_bar')),
+    atrasinhos_bar_perc: Math.round(avgProp(desempenhoMap, 'atrasinhos_bar_perc') * 10) / 10,
     atrasinhos_cozinha: Math.round(sumProp(desempenhoMap, 'atrasinhos_cozinha')),
+    atrasinhos_cozinha_perc: Math.round(avgProp(desempenhoMap, 'atrasinhos_cozinha_perc') * 10) / 10,
     atraso_bar: Math.round(sumProp(desempenhoMap, 'atraso_bar')),
     atraso_cozinha: Math.round(sumProp(desempenhoMap, 'atraso_cozinha')),
     atrasos_bar: Math.round(sumProp(desempenhoMap, 'atrasos_bar')),

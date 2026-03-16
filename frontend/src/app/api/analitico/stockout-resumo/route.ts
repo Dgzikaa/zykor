@@ -7,61 +7,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Função auxiliar para aplicar filtros base (locais e prefixos a ignorar)
-// IMPORTANTE: Idêntica ao Desempenho e stockout - Shot e Dose está em Bar, não ignorar
-const aplicarFiltrosBase = (query: any) => {
-  // LOCAIS A IGNORAR PERMANENTEMENTE
-  query = query
-    .neq('loc_desc', 'Pegue e Pague')
-    .neq('loc_desc', 'Venda Volante')
-    .not('loc_desc', 'is', null); // Excluir "Sem local definido"
-  
-  // PRODUTOS COM PREFIXOS A IGNORAR (usando % em ambos os lados para pegar espaços)
-  query = query
-    .not('prd_desc', 'ilike', '%[HH]%')  // Happy Hour (com ou sem espaços)
-    .not('prd_desc', 'ilike', '%[PP]%')  // Pegue Pague
-    .not('prd_desc', 'ilike', '%[DD]%')  // Dose Dupla
-    .not('prd_desc', 'ilike', '%[IN]%'); // Insumos
-  
-  // PRODUTOS HAPPY HOUR (excluir independente do formato)
-  query = query
-    .not('prd_desc', 'ilike', '%Happy Hour%')
-    .not('prd_desc', 'ilike', '%HappyHour%')
-    .not('prd_desc', 'ilike', '%Happy-Hour%')
-    .not('prd_desc', 'ilike', '% HH')       // Produtos que terminam com " HH"
-    .not('prd_desc', 'ilike', '% HH %');    // Produtos com " HH " no meio
-  
-  // GRUPOS A IGNORAR (excluir pelo grupo, não apenas pelo nome)
-  // IMPORTANTE: Usar exatamente como está no ContaHub (case-sensitive)
-  query = query
-    .not('raw_data->>grp_desc', 'eq', 'Happy Hour')
-    .not('raw_data->>grp_desc', 'eq', 'Chegadeira')
-    .not('raw_data->>grp_desc', 'eq', 'Dose dupla')
-    .not('raw_data->>grp_desc', 'eq', 'Dose Dupla')
-    .not('raw_data->>grp_desc', 'eq', 'Dose dupla!')
-    .not('raw_data->>grp_desc', 'eq', 'Dose Dupla!')
-    .not('raw_data->>grp_desc', 'eq', 'Dose dupla sem álcool')
-    .not('raw_data->>grp_desc', 'eq', 'Dose Dupla sem álcool')
-    .not('raw_data->>grp_desc', 'eq', 'Grupo adicional')
-    .not('raw_data->>grp_desc', 'eq', 'Grupo Adicional')
-    .not('raw_data->>grp_desc', 'eq', 'Insumos')
-    .not('raw_data->>grp_desc', 'eq', 'Promo chivas')
-    .not('raw_data->>grp_desc', 'eq', 'Promo Chivas')
-    .not('raw_data->>grp_desc', 'eq', 'Uso interno')
-    .not('raw_data->>grp_desc', 'eq', 'Uso Interno');
-  
-  // PRODUTOS DOSE DUPLA (excluir - são variações que não devem contar no stockout)
-  query = query
-    .not('prd_desc', 'ilike', '%Dose Dupla%')
-    .not('prd_desc', 'ilike', '%Dose Dulpa%');
-  
-  // CATEGORIAS A IGNORAR (por descrição do produto) - alinhado com stockout/route.ts
-  query = query
-    .not('prd_desc', 'ilike', '%Balde%')     // Baldes
-    .not('prd_desc', 'ilike', '%Garrafa%');  // Garrafas
-  
-  return query;
-};
+// NOTA: Os filtros agora são aplicados pela view contahub_stockout_filtrado
+// que é a fonte canônica para todos os cálculos de stockout
 
 export async function GET(request: NextRequest) {
   try {
@@ -84,18 +31,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Buscar dados de stockout com NOVA LÓGICA: apenas produtos ativos='S'
-    let query = supabase
-      .from('contahub_stockout')
-      .select('prd_ativo, prd_venda')
+    // Buscar dados de stockout da view filtrada
+    const { data: dadosStockout, error } = await supabase
+      .from('contahub_stockout_filtrado')
+      .select('prd_venda')
       .eq('data_consulta', data_selecionada)
-      .eq('bar_id', bar_id)
-      .eq('prd_ativo', 'S'); // Apenas produtos ativos
-
-    // Aplicar filtros base
-    query = aplicarFiltrosBase(query);
-
-    const { data: dadosStockout, error } = await query;
+      .eq('bar_id', bar_id);
 
     if (error) {
       console.error('Erro ao buscar dados de stockout:', error);
@@ -151,19 +92,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Buscar dados históricos com NOVA LÓGICA: apenas produtos ativos='S'
-    let queryHistorico = supabase
-      .from('contahub_stockout')
-      .select('data_consulta, prd_ativo, prd_venda')
-      .eq('prd_ativo', 'S') // Apenas produtos ativos
+    // Buscar dados históricos da view filtrada
+    const { data: dadosHistoricos, error } = await supabase
+      .from('contahub_stockout_filtrado')
+      .select('data_consulta, prd_venda')
       .gte('data_consulta', data_inicio)
       .lte('data_consulta', data_fim)
       .eq('bar_id', bar_id);
-
-    // Aplicar filtros base
-    queryHistorico = aplicarFiltrosBase(queryHistorico);
-
-    const { data: dadosHistoricos, error } = await queryHistorico;
 
     if (error) {
       console.error('Erro ao buscar dados históricos:', error);

@@ -144,7 +144,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         // Fonte canônica semanal: eventos_base (sem descontar conta_assinada novamente)
         const { data: eventosData } = await supabase
           .from('eventos_base')
-          .select('real_r, cl_real, m1_r, res_tot, res_p, num_mesas_tot, num_mesas_presentes, faturamento_entrada, faturamento_bar, c_art')
+          .select('real_r, cl_real, m1_r, res_tot, res_p, num_mesas_tot, num_mesas_presentes, faturamento_entrada, faturamento_bar')
           .eq('bar_id', barId)
           .gte('data_evento', startDate)
           .lte('data_evento', endDate)
@@ -162,40 +162,65 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const reservasPresentes = (eventosData || []).reduce((sum, item) => sum + (parseInt(item.res_p) || 0), 0)
         const mesasTotais = (eventosData || []).reduce((sum, item) => sum + (parseInt(item.num_mesas_tot) || 0), 0)
         const mesasPresentes = (eventosData || []).reduce((sum, item) => sum + (parseInt(item.num_mesas_presentes) || 0), 0)
-        const custoAtracao = (eventosData || []).reduce((sum, item) => sum + (parseFloat(item.c_art) || 0), 0)
+
+        // CUSTO ATRAÇÃO: Buscar diretamente do NIBO com categorias específicas por bar
+        // Ordinário (bar_id=3): 'Atrações Programação', 'Produção Eventos'
+        // Deboche (bar_id=4): 'Atrações/Eventos'
+        const categoriasAtracao = barId === 3 
+          ? ['Atrações Programação', 'Produção Eventos']
+          : ['Atrações/Eventos']
+        
+        const { data: niboAtracaoData } = await supabase
+          .from('nibo_agendamentos')
+          .select('valor')
+          .eq('bar_id', barId)
+          .eq('tipo', 'despesa')
+          .eq('deletado', false)
+          .in('categoria_nome', categoriasAtracao)
+          .gte('data_competencia', startDate)
+          .lte('data_competencia', endDate)
+
+        const custoAtracao = (niboAtracaoData || []).reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0)
         const custoAtracaoFaturamento = faturamentoTotal > 0 ? (custoAtracao / faturamentoTotal) * 100 : 0
         
         console.log(`💰 Faturamento Total (real_r): R$ ${faturamentoTotal.toFixed(2)} (${eventosData?.length || 0} dias)`)
+        console.log(`🎭 Custo Atração (NIBO): R$ ${custoAtracao.toFixed(2)} | % Fat: ${custoAtracaoFaturamento.toFixed(2)}%`)
 
-        // Stockout semanal centralizado por categoria_mix (sem hardcoded de loc_desc)
-        const { data: stockoutSemanalData, error: stockoutSemanalError } = await supabase
-          .from('contahub_stockout')
-          .select('categoria_mix, prd_venda')
-          .eq('bar_id', barId)
-          .gte('data_consulta', startDate)
-          .lte('data_consulta', endDate)
-          .eq('prd_ativo', 'S')
-          .in('categoria_mix', ['BEBIDA', 'DRINK', 'COMIDA'])
+        // Stockout semanal - usar função RPC que aplica filtros idênticos à ferramenta de stockout
+        // Retorna: Bar, Comidas, Drinks (Ordinário) ou Bar, Comidas, Salao (Deboche)
+        // Mapeamento: Bar → stockout_bar, Comidas → stockout_comidas, Drinks/Salao → stockout_drinks
+        const { data: stockoutResult, error: stockoutSemanalError } = await supabase
+          .rpc('calcular_stockout_semanal', {
+            p_bar_id: barId,
+            p_data_inicio: startDate,
+            p_data_fim: endDate
+          })
 
         if (stockoutSemanalError) {
           throw stockoutSemanalError
         }
 
-        const totalBebidas = (stockoutSemanalData || []).filter(item => item.categoria_mix === 'BEBIDA').length
-        const stockoutBebidasCount = (stockoutSemanalData || []).filter(item => item.categoria_mix === 'BEBIDA' && item.prd_venda === 'N').length
-        const stockoutBebidasPerc = totalBebidas > 0 ? (stockoutBebidasCount / totalBebidas) * 100 : 0
+        // Mapear resultados para as colunas do desempenho
+        // Bar → stockout_bar, Comidas → stockout_comidas, Drinks/Salao → stockout_drinks
+        const stockoutBar = (stockoutResult || []).find((s: any) => s.categoria === 'Bar')
+        const stockoutComidas = (stockoutResult || []).find((s: any) => s.categoria === 'Comidas')
+        const stockoutDrinks = (stockoutResult || []).find((s: any) => s.categoria === 'Drinks' || s.categoria === 'Salao')
 
-        const totalDrinks = (stockoutSemanalData || []).filter(item => item.categoria_mix === 'DRINK').length
-        const stockoutDrinksCount = (stockoutSemanalData || []).filter(item => item.categoria_mix === 'DRINK' && item.prd_venda === 'N').length
-        const stockoutDrinksPerc = totalDrinks > 0 ? (stockoutDrinksCount / totalDrinks) * 100 : 0
+        const stockoutBebidasCount = stockoutBar?.produtos_stockout || 0
+        const totalBebidas = stockoutBar?.total_produtos || 0
+        const stockoutBebidasPerc = stockoutBar?.percentual_stockout || 0
 
-        const totalComidas = (stockoutSemanalData || []).filter(item => item.categoria_mix === 'COMIDA').length
-        const stockoutComidasCount = (stockoutSemanalData || []).filter(item => item.categoria_mix === 'COMIDA' && item.prd_venda === 'N').length
-        const stockoutComidasPerc = totalComidas > 0 ? (stockoutComidasCount / totalComidas) * 100 : 0
+        const stockoutDrinksCount = stockoutDrinks?.produtos_stockout || 0
+        const totalDrinks = stockoutDrinks?.total_produtos || 0
+        const stockoutDrinksPerc = stockoutDrinks?.percentual_stockout || 0
 
-        console.log(`🍺 Bebidas: ${stockoutBebidasCount}/${totalBebidas} = ${stockoutBebidasPerc.toFixed(2)}%`)
-        console.log(`🍹 Drinks: ${stockoutDrinksCount}/${totalDrinks} = ${stockoutDrinksPerc.toFixed(2)}%`)
-        console.log(`🍽️ Comidas: ${stockoutComidasCount}/${totalComidas} = ${stockoutComidasPerc.toFixed(2)}%`)
+        const stockoutComidasCount = stockoutComidas?.produtos_stockout || 0
+        const totalComidas = stockoutComidas?.total_produtos || 0
+        const stockoutComidasPerc = stockoutComidas?.percentual_stockout || 0
+
+        console.log(`🍺 Bar: ${stockoutBebidasCount}/${totalBebidas} = ${stockoutBebidasPerc}%`)
+        console.log(`🍹 Drinks/Salao: ${stockoutDrinksCount}/${totalDrinks} = ${stockoutDrinksPerc}%`)
+        console.log(`🍽️ Comidas: ${stockoutComidasCount}/${totalComidas} = ${stockoutComidasPerc}%`)
         console.log(`👥 Clientes: ${clientesAtendidos}`)
         console.log(`🎫 Ticket Médio: R$ ${ticketMedio.toFixed(2)}`)
 
@@ -273,6 +298,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         const atrasosBarPerc = qtdeItensBar > 0 ? (atrasosBar / qtdeItensBar) * 100 : 0
         const atrasosCozinhaPerc = qtdeItensCozinha > 0 ? (atrasosCozinha / qtdeItensCozinha) * 100 : 0
+        const atrasinhosBarPerc = qtdeItensBar > 0 ? (atrasinhosBar / qtdeItensBar) * 100 : 0
+        const atrasinhosCozinhaPerc = qtdeItensCozinha > 0 ? (atrasinhosCozinha / qtdeItensCozinha) * 100 : 0
 
         // Google Reviews semanal - usar função RPC para filtrar por data local (São Paulo)
         const { data: googleRows } = await supabase
@@ -395,6 +422,66 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const cancelamentos = (cancelRows || []).reduce((sum, r) => sum + (parseFloat(r.custototal) || 0), 0)
         console.log(`❌ Cancelamentos: R$ ${cancelamentos.toFixed(2)}`)
 
+        // =============================================
+        // CLIENTES ATIVOS (base ativa 90 dias) + % NOVOS
+        // =============================================
+        console.log(`⭐ Calculando Clientes Ativos e % Novos...`)
+        
+        // Datas para período anterior (semana anterior)
+        const dataInicioAtual = new Date(startDate + 'T00:00:00')
+        const dataFimAtual = new Date(endDate + 'T00:00:00')
+        const dataInicioAnterior = new Date(dataInicioAtual)
+        dataInicioAnterior.setDate(dataInicioAtual.getDate() - 7)
+        const dataFimAnterior = new Date(dataFimAtual)
+        dataFimAnterior.setDate(dataFimAtual.getDate() - 7)
+        
+        const inicioAnteriorStr = dataInicioAnterior.toISOString().split('T')[0]
+        const fimAnteriorStr = dataFimAnterior.toISOString().split('T')[0]
+
+        let percClientesNovos: number | null = null
+        let clientesAtivosCalculado: number | null = null
+
+        // Chamar stored procedure para métricas de clientes (% novos)
+        const { data: metricas, error: metricasError } = await supabase.rpc('calcular_metricas_clientes', {
+          p_bar_id: barId,
+          p_data_inicio_atual: startDate,
+          p_data_fim_atual: endDate,
+          p_data_inicio_anterior: inicioAnteriorStr,
+          p_data_fim_anterior: fimAnteriorStr
+        })
+
+        if (!metricasError && metricas && metricas[0]) {
+          const resultado = metricas[0]
+          const totalClientes = Number(resultado.total_atual) || 0
+          const novosClientes = Number(resultado.novos_atual) || 0
+          
+          // Calcular percentual de novos
+          percClientesNovos = totalClientes > 0 ? (novosClientes / totalClientes) * 100 : 0
+          console.log(`🆕 % Clientes Novos: ${percClientesNovos.toFixed(2)}% (${novosClientes}/${totalClientes})`)
+        } else if (metricasError) {
+          console.error(`❌ Erro ao calcular métricas de clientes:`, metricasError.message)
+        }
+
+        // Calcular 90 dias antes do fim do período para base ativa
+        const dataRef = new Date(endDate + 'T00:00:00')
+        const data90DiasAtras = new Date(dataRef)
+        data90DiasAtras.setDate(dataRef.getDate() - 90)
+        const data90DiasAtrasStr = data90DiasAtras.toISOString().split('T')[0]
+
+        // Usar get_count_base_ativa (mesma lógica da API /relatorios/clientes-ativos)
+        const { data: resultBaseAtiva, error: errorBaseAtiva } = await supabase.rpc('get_count_base_ativa', {
+          p_bar_id: barId,
+          p_data_inicio: data90DiasAtrasStr,
+          p_data_fim: endDate
+        })
+
+        if (!errorBaseAtiva && resultBaseAtiva !== null) {
+          clientesAtivosCalculado = Number(resultBaseAtiva) || 0
+          console.log(`⭐ Clientes Ativos (90d): ${clientesAtivosCalculado}`)
+        } else if (errorBaseAtiva) {
+          console.error('❌ Erro ao calcular base ativa:', errorBaseAtiva.message)
+        }
+
         // Atualizar no banco
         const { error: updateError } = await supabase
           .from('desempenho_semanal')
@@ -427,7 +514,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
             qtde_itens_bar: qtdeItensBar,
             qtde_itens_cozinha: qtdeItensCozinha,
             atrasinhos_bar: atrasinhosBar,
+            atrasinhos_bar_perc: atrasinhosBarPerc,
             atrasinhos_cozinha: atrasinhosCozinha,
+            atrasinhos_cozinha_perc: atrasinhosCozinhaPerc,
             atraso_bar: atrasoBar,
             atraso_cozinha: atrasoCozinha,
             atrasos_bar: atrasosBar,
@@ -449,6 +538,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
             ter_qua_qui: terQuaQui,
             sex_sab: sexSab,
             cancelamentos: cancelamentos,
+            // Clientes Ativos e % Novos (calculados via RPC)
+            ...(percClientesNovos !== null ? { perc_clientes_novos: parseFloat(percClientesNovos.toFixed(2)) } : {}),
+            ...(clientesAtivosCalculado !== null ? { clientes_ativos: clientesAtivosCalculado } : {}),
             updated_at: new Date().toISOString(),
           })
           .eq('id', semana.id)

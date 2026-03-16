@@ -433,7 +433,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
 
                         {/* Grupo CLIENTES */}
                         <th
-                          colSpan={gruposAbertos.clientes ? 5 : 1}
+                          colSpan={gruposAbertos.clientes ? 4 : 1}
                           className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('clientes')}
                         >
@@ -446,7 +446,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         
                         {/* Grupo TICKET */}
                         <th
-                          colSpan={gruposAbertos.ticket ? 5 : 1}
+                          colSpan={gruposAbertos.ticket ? 3 : 1}
                           className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('ticket')}
                         >
@@ -472,7 +472,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
 
                         {/* Grupo PRODUÇÃO */}
                         <th
-                          colSpan={gruposAbertos.producao ? 6 : 1}
+                          colSpan={gruposAbertos.producao ? 7 : 1}
                           className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('producao')}
                         >
@@ -501,8 +501,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Clientes Planejado</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Clientes Reais</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Reservas Total</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Reservas Presentes</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Lotação Máxima</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Reservas Presentes</th>
                           </>
                         ) : (
                           <th className="border-r-2 border-[hsl(var(--border))]"></th>
@@ -511,9 +510,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         {/* Subcolunas TICKET */}
                         {gruposAbertos.ticket ? (
                           <>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Entrada Planejado</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Entrada Real</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Bar Planejado</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Bar Real</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Ticket Médio</th>
                           </>
@@ -525,7 +522,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         {gruposAbertos.artistico ? (
                           <>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Custo Artístico</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Custo Produção</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>$ Couvert</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Art/Fat</th>
                           </>
                         ) : (
@@ -593,7 +590,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             </th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasão Coz</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasão Drinks</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Stockout</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Stockout Drinks</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Stockout Comidas</th>
                           </>
                         ) : (
                           <th className="border-r-2 border-[hsl(var(--border))]"></th>
@@ -682,8 +680,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.clientes_plan || '-'}</td>
                                 <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.ci_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.clientes_real || '-'}</span></td>
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.res_tot || '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.res_p || '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.lot_max || '-'}</td>
+                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.res_p || '-'}</td>
                               </>
                             ) : (
                               <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] " style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
@@ -692,9 +689,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             {/* Grupo TICKET */}
                             {gruposAbertos.ticket ? (
                               <>
-                                <td className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.te_plan > 0 ? formatarMoeda(evento.te_plan) : '-'}</td>
                                 <td className="px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.te_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.te_real > 0 ? formatarMoeda(evento.te_real) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.tb_plan > 0 ? formatarMoeda(evento.tb_plan) : '-'}</td>
                                 <td className="px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.tb_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.tb_real > 0 ? formatarMoeda(evento.tb_real) : '-'}</span></td>
                                 <td className="px-2 py-1.5 text-right text-[11px] border-r-2 border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.t_medio_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_medio > 0 ? formatarMoeda(evento.t_medio) : '-'}</span></td>
                               </>
@@ -706,7 +701,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             {gruposAbertos.artistico ? (
                               <>
                                 <td className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_art > 0 ? formatarMoeda(evento.c_art) : '-'}</td>
-                                <td className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_prod > 0 ? formatarMoeda(evento.c_prod) : '-'}</td>
+                                <td className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.faturamento_couvert > 0 ? formatarMoeda(evento.faturamento_couvert) : '-'}</td>
                                 <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_art_fat_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_art_fat > 0 ? formatarPercentual(evento.percent_art_fat) : '-'}</span></td>
                               </>
                             ) : (
@@ -721,7 +716,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                 <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_c > 0 ? formatarPercentual(evento.percent_c) : '-'}</td>
                                 <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_cozinha <= 10 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_cozinha > 0 ? formatarContagem(evento.atrasao_cozinha) : '-'}</span></td>
                                 <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_bar <= 50 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_bar > 0 ? formatarContagem(evento.atrasao_bar) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_stockout <= 10 ? 'text-green-600 dark:text-green-400' : evento.percent_stockout <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_stockout > 0 ? formatarPercentual(evento.percent_stockout) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_drinks_perc <= 10 ? 'text-green-600 dark:text-green-400' : evento.stockout_drinks_perc <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_drinks_perc > 0 ? formatarPercentual(evento.stockout_drinks_perc) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_comidas_perc <= 10 ? 'text-green-600 dark:text-green-400' : evento.stockout_comidas_perc <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_comidas_perc > 0 ? formatarPercentual(evento.stockout_comidas_perc) : '-'}</span></td>
                               </>
                             ) : (
                               <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>

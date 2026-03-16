@@ -29,7 +29,8 @@ interface NiboSyncRequest {
 }
 
 interface NiboScheduleItem {
-  id: string;
+  id?: string;
+  scheduleId?: string;
   value: number;
   paidValue?: number;
   dueDate: string;
@@ -80,11 +81,10 @@ async function fetchNiboSchedules(
   let skip = 0;
   const top = 500;
 
-  console.log(`📥 Buscando ${tipo}s de ${formatDate(dataInicio)} até ${formatDate(dataFim)}...`);
+  console.log(`📥 Buscando todos os ${tipo}s (schedules)...`);
 
   while (true) {
-    const filter = `dueDate ge ${formatDate(dataInicio)} and dueDate le ${formatDate(dataFim)}`;
-    const url = `${NIBO_BASE_URL}/${endpoint}?apitoken=${apiToken}&$orderby=dueDate&$skip=${skip}&$top=${top}&$filter=${encodeURIComponent(filter)}`;
+    const url = `${NIBO_BASE_URL}/${endpoint}?apitoken=${apiToken}&$orderby=dueDate&$skip=${skip}&$top=${top}`;
 
     const response = await fetch(url, {
       headers: {
@@ -117,7 +117,115 @@ async function fetchNiboSchedules(
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
 
-  return allItems;
+  console.log(`📥 Total ${tipo}s baixados: ${allItems.length}`);
+
+  // Filtrar por accrualDate (data de competência) internamente
+  const startStr = formatDate(dataInicio);
+  const endStr = formatDate(dataFim);
+  
+  const filteredItems = allItems.filter((item) => {
+    const accrualDate = item.accrualDate ? item.accrualDate.split('T')[0] : null;
+    if (!accrualDate) return false;
+    return accrualDate >= startStr && accrualDate <= endStr;
+  });
+
+  console.log(`📥 ${tipo}s filtrados por competência (${startStr} a ${endStr}): ${filteredItems.length}`);
+
+  return filteredItems;
+}
+
+// Buscar do endpoint /receipts (contas JÁ recebidas - entries efetivados)
+// Diferente de /schedules/credit que são agendamentos de crédito
+async function fetchNiboReceipts(
+  apiToken: string,
+  dataInicio: Date,
+  dataFim: Date
+): Promise<NiboScheduleItem[]> {
+  const allItems: NiboScheduleItem[] = [];
+  let skip = 0;
+  const top = 500;
+
+  console.log(`📥 Buscando receipts (contas recebidas)...`);
+
+  while (true) {
+    const url = `${NIBO_BASE_URL}/receipts?apitoken=${apiToken}&$orderby=accrualDate&$skip=${skip}&$top=${top}`;
+
+    const response = await fetch(url, {
+      headers: {
+        'accept': 'application/json',
+        'ApiToken': apiToken,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Erro NIBO receipts ${response.status}:`, errorText);
+      // Não lançar erro, apenas retornar vazio se falhar
+      return [];
+    }
+
+    const data = await response.json();
+    const items = data.items || data.value || [];
+
+    if (items.length === 0) {
+      break;
+    }
+
+    // Normalizar estrutura do receipt para ficar igual ao schedule
+    const normalizedItems = items.map((item: any) => ({
+      scheduleId: item.scheduleId || item.entryId,
+      id: item.entryId,
+      value: item.value,
+      dueDate: item.date,
+      paymentDate: item.date,
+      accrualDate: item.accrualDate,
+      description: item.description || item.identifier,
+      categories: item.category ? [{
+        categoryId: item.category.id,
+        categoryName: item.category.name,
+        value: item.value
+      }] : item.categories?.map((c: any) => ({
+        categoryId: c.categoryId,
+        categoryName: c.categoryName,
+        value: c.value
+      })),
+      stakeholder: item.stakeholder ? {
+        id: item.stakeholder.id,
+        name: item.stakeholder.name,
+        type: 'Customer'
+      } : undefined,
+      bankAccount: item.account ? {
+        id: item.account.id,
+        name: item.account.name
+      } : undefined,
+    }));
+
+    allItems.push(...normalizedItems);
+    console.log(`  ✓ ${items.length} receipts (total: ${allItems.length})`);
+
+    if (items.length < top) {
+      break;
+    }
+
+    skip += top;
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+
+  console.log(`📥 Total receipts baixados: ${allItems.length}`);
+
+  // Filtrar por accrualDate (data de competência) internamente
+  const startStr = formatDate(dataInicio);
+  const endStr = formatDate(dataFim);
+  
+  const filteredItems = allItems.filter((item) => {
+    const accrualDate = item.accrualDate ? item.accrualDate.split('T')[0] : null;
+    if (!accrualDate) return false;
+    return accrualDate >= startStr && accrualDate <= endStr;
+  });
+
+  console.log(`📥 Receipts filtrados por competência (${startStr} a ${endStr}): ${filteredItems.length}`);
+
+  return filteredItems;
 }
 
 function normalizarAgendamento(item: NiboScheduleItem, tipo: string, barId: number, barNome: string) {
@@ -125,7 +233,7 @@ function normalizarAgendamento(item: NiboScheduleItem, tipo: string, barId: numb
   const centroCusto = item.costCenters?.[0] || {};
 
   return {
-    nibo_id: item.id,
+    nibo_id: item.scheduleId || item.id || null,
     bar_id: barId,
     bar_nome: barNome,
     tipo: tipo,
@@ -228,26 +336,52 @@ serve(async (req) => {
 
     console.log(`📅 Período: ${formatDate(dataInicio)} até ${formatDate(dataFim)}`);
 
-    // Buscar despesas e receitas
-    const [despesas, receitas] = await Promise.all([
+    // Buscar despesas, receitas (schedules) e receipts (contas já recebidas)
+    const [despesas, receitasSchedules, receipts] = await Promise.all([
       fetchNiboSchedules(credencial.api_token, 'despesa', dataInicio, dataFim),
       fetchNiboSchedules(credencial.api_token, 'receita', dataInicio, dataFim),
+      fetchNiboReceipts(credencial.api_token, dataInicio, dataFim),
     ]);
 
-    console.log(`✅ Despesas: ${despesas.length}, Receitas: ${receitas.length}`);
+    console.log(`✅ Despesas: ${despesas.length}, Receitas (schedules): ${receitasSchedules.length}, Receipts: ${receipts.length}`);
+    
+    // Combinar receitas de schedules/credit com receipts
+    // Usar Set para evitar duplicatas baseado no scheduleId
+    const receitasMap = new Map<string, NiboScheduleItem>();
+    
+    // Primeiro adicionar schedules/credit
+    for (const r of receitasSchedules) {
+      const key = r.scheduleId || r.id || '';
+      if (key) receitasMap.set(key, r);
+    }
+    
+    // Depois adicionar receipts (sobrescreve se já existir, pois receipt é mais atualizado)
+    for (const r of receipts) {
+      const key = r.scheduleId || r.id || '';
+      if (key) receitasMap.set(key, r);
+    }
+    
+    const receitas = Array.from(receitasMap.values());
+    console.log(`✅ Receitas combinadas (sem duplicatas): ${receitas.length}`);
 
     // Normalizar dados
     const despesasNormalizadas = despesas.map((d) => normalizarAgendamento(d, 'despesa', barId, barNome));
     const receitasNormalizadas = receitas.map((r) => normalizarAgendamento(r, 'receita', barId, barNome));
     const todosAgendamentos = [...despesasNormalizadas, ...receitasNormalizadas];
 
-    // Inserir em lotes
+    // Separar registros com e sem nibo_id
+    const comNiboId = todosAgendamentos.filter((a) => a.nibo_id);
+    const semNiboId = todosAgendamentos.filter((a) => !a.nibo_id);
+
+    console.log(`📊 Com nibo_id: ${comNiboId.length}, Sem nibo_id: ${semNiboId.length}`);
+
     let inseridos = 0;
     let atualizados = 0;
     const batchSize = 100;
 
-    for (let i = 0; i < todosAgendamentos.length; i += batchSize) {
-      const batch = todosAgendamentos.slice(i, i + batchSize);
+    // Processar registros COM nibo_id usando upsert normal
+    for (let i = 0; i < comNiboId.length; i += batchSize) {
+      const batch = comNiboId.slice(i, i + batchSize);
 
       const { error: upsertError } = await supabase
         .from('nibo_agendamentos')
@@ -260,13 +394,50 @@ serve(async (req) => {
         console.error(`❌ Erro no lote ${Math.floor(i / batchSize) + 1}:`, upsertError.message);
       } else {
         inseridos += batch.length;
-        console.log(`✅ Lote ${Math.floor(i / batchSize) + 1} processado`);
+        console.log(`✅ Lote ${Math.floor(i / batchSize) + 1} processado (com nibo_id)`);
       }
 
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
-    console.log(`✅ Sincronização concluída: ${inseridos} registros processados`);
+    // Processar registros SEM nibo_id: verificar se já existe antes de inserir
+    for (const registro of semNiboId) {
+      const { data: existente } = await supabase
+        .from('nibo_agendamentos')
+        .select('id')
+        .eq('bar_id', registro.bar_id)
+        .eq('tipo', registro.tipo)
+        .eq('data_vencimento', registro.data_vencimento)
+        .eq('valor', registro.valor)
+        .eq('stakeholder_id', registro.stakeholder_id)
+        .ilike('descricao', registro.descricao?.substring(0, 100) || '')
+        .is('nibo_id', null)
+        .limit(1);
+
+      if (existente && existente.length > 0) {
+        // Atualizar registro existente
+        const { error: updateError } = await supabase
+          .from('nibo_agendamentos')
+          .update({
+            ...registro,
+            atualizado_em: new Date().toISOString(),
+          })
+          .eq('id', existente[0].id);
+
+        if (!updateError) {
+          atualizados++;
+        }
+      } else {
+        // Inserir novo registro
+        const { error: insertError } = await supabase.from('nibo_agendamentos').insert(registro);
+
+        if (!insertError) {
+          inseridos++;
+        }
+      }
+    }
+
+    console.log(`✅ Sincronização concluída: ${inseridos} inseridos, ${atualizados} atualizados`);
 
     return new Response(
       JSON.stringify({
@@ -280,9 +451,14 @@ serve(async (req) => {
         },
         resultados: {
           despesas: despesas.length,
-          receitas: receitas.length,
+          receitas_schedules: receitasSchedules.length,
+          receipts: receipts.length,
+          receitas_combinadas: receitas.length,
           total: todosAgendamentos.length,
-          processados: inseridos,
+          comNiboId: comNiboId.length,
+          semNiboId: semNiboId.length,
+          inseridos,
+          atualizados,
         },
         timestamp: new Date().toISOString(),
       }),

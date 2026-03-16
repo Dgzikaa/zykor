@@ -74,7 +74,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     return secoes;
   });
 
-  const [editando, setEditando] = useState<{ mes: number; ano: number; subcategoria: string } | null>(null);
+  const [editando, setEditando] = useState<{ mes: number; ano: number; subcategoria: string; campo: 'planejado' | 'projetado' } | null>(null);
   const [valorEdit, setValorEdit] = useState('');
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -133,19 +133,26 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     if (isNaN(numValue)) { setEditando(null); return; }
 
     try {
+      const body: Record<string, any> = {
+        bar_id: selectedBar.id,
+        ano: editando.ano,
+        mes: editando.mes,
+        categoria_nome: editando.subcategoria,
+      };
+      
+      if (editando.campo === 'planejado') {
+        body.valor_planejado = numValue;
+      } else {
+        body.valor_projetado = numValue;
+      }
+
       const response = await fetch('/api/estrategico/orcamentacao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bar_id: selectedBar.id,
-          ano: editando.ano,
-          mes: editando.mes,
-          categoria_nome: editando.subcategoria,
-          valor_planejado: numValue,
-        }),
+        body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error('Erro ao salvar');
-      toast({ title: 'Salvo!', description: 'Valor planejado atualizado' });
+      toast({ title: 'Salvo!', description: `Valor ${editando.campo} atualizado` });
       setEditando(null);
       carregarDados();
     } catch (error) {
@@ -252,28 +259,43 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                       <div key={categoria.nome}>
                         <div className={cn(categoria.cor, "opacity-20")} style={{ height: '32px' }} />
                         {secoesAbertas[categoria.nome] && categoria.subcategorias.map(sub => {
-                          const isEdit = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome;
+                          const isEditPlan = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'planejado';
+                          const isEditProj = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'projetado';
                           return (
                             <div key={sub.nome} className={cn("relative flex items-center justify-between px-1 border-b border-gray-100 dark:border-gray-700 group", isMesAtual ? "bg-emerald-50/50" : "bg-white dark:bg-gray-800")} style={{ height: '28px' }}>
+                              {/* PLANEJADO - editável */}
                               <div className="flex-1 flex items-center justify-center">
-                                {isEdit ? (
+                                {isEditPlan ? (
                                   <div className="flex items-center gap-0.5">
-                                    <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                                    <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" autoFocus onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
                                     <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
                                     <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
                                   </div>
                                 ) : (
-                                  <div className="flex items-center gap-0.5 cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome }); setValorEdit(sub.planejado.toString()); }}>
+                                  <div className="flex items-center gap-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'planejado' }); setValorEdit(sub.planejado.toString()); }}>
                                     <span className="text-[9px] font-medium text-blue-600">{sub.isPercentage ? formatarPorcentagem(sub.planejado) : formatarMoeda(sub.planejado)}</span>
                                     <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
                                   </div>
                                 )}
                               </div>
                               <div className="w-px h-3 bg-gray-200" />
+                              {/* PROJETADO - editável */}
                               <div className="flex-1 flex items-center justify-center">
-                                <span className={cn("text-[9px] font-medium", sub.projecao > 0 ? "text-green-600" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.projecao) : formatarMoeda(sub.projecao)}</span>
+                                {isEditProj ? (
+                                  <div className="flex items-center gap-0.5">
+                                    <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" autoFocus onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                                    <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
+                                    <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-0.5 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'projetado' }); setValorEdit(sub.projecao.toString()); }}>
+                                    <span className={cn("text-[9px] font-medium", sub.projecao > 0 ? "text-green-600" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.projecao) : formatarMoeda(sub.projecao)}</span>
+                                    <Pencil className="h-2 w-2 text-green-400 opacity-0 group-hover:opacity-100" />
+                                  </div>
+                                )}
                               </div>
                               <div className="w-px h-3 bg-gray-200" />
+                              {/* REALIZADO - somente leitura (vem do NIBO) */}
                               <div className="flex-1 flex items-center justify-center">
                                 <span className={cn("text-[9px] font-medium", sub.realizado > 0 ? "text-gray-900 dark:text-white" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sub.realizado)}</span>
                               </div>

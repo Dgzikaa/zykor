@@ -499,48 +499,10 @@ export async function GET(request: Request) {
         Number(item.ano) === Number(ano) && Number(item.mes) === Number(mes)
       ) || [];
 
-      // Calcular receita total para percentuais (usando todos os lançamentos)
-      let receitaTotalProjecao = 0;
-      let receitaTotalRealizado = 0;
+      // Buscar faturamento do mês (eventos_base) - fonte de receita REALIZADA
+      const faturamentoReal = faturamentoRealMap.get(`${ano}-${mes}`) || { realizado: 0, meta: 0 };
 
-      niboTodosMes.forEach(item => {
-        if (!item.categoria_nome || item.categoria_nome.trim() === '') return;
-        const valor = Math.abs(parseFloat(item.valor) || 0);
-        if (['Receita de Eventos', 'Stone Crédito', 'Stone Débito', 'Stone Pix', 'Dinheiro', 'Pix Direto na Conta', 'RECEITA BRUTA'].includes(item.categoria_nome)) {
-          receitaTotalProjecao += valor;
-        }
-      });
-
-      niboPagosMes.forEach(item => {
-        if (!item.categoria_nome || item.categoria_nome.trim() === '') return;
-        const valor = Math.abs(parseFloat(item.valor) || 0);
-        if (['Receita de Eventos', 'Stone Crédito', 'Stone Débito', 'Stone Pix', 'Dinheiro', 'Pix Direto na Conta', 'RECEITA BRUTA'].includes(item.categoria_nome)) {
-          receitaTotalRealizado += valor;
-        }
-      });
-
-      manuaisMes.forEach(item => {
-        if (item.categoria_macro === 'Receita') {
-          const valor = Math.abs(parseFloat(item.valor) || 0);
-          receitaTotalProjecao += valor;
-          receitaTotalRealizado += valor;
-        }
-      });
-
-      // Calcular valores por categoria - PROJEÇÃO (todos os lançamentos)
-      const valoresProjecao = new Map<string, number>();
-      niboTodosMes.forEach(item => {
-        if (!item.categoria_nome || item.categoria_nome.trim() === '') return;
-        const valor = Math.abs(parseFloat(item.valor) || 0);
-        const categoriaNormalizada = CATEGORIAS_MAP.get(item.categoria_nome) || item.categoria_nome;
-        
-        if (!valoresProjecao.has(categoriaNormalizada)) {
-          valoresProjecao.set(categoriaNormalizada, 0);
-        }
-        valoresProjecao.set(categoriaNormalizada, valoresProjecao.get(categoriaNormalizada)! + valor);
-      });
-
-      // Calcular valores por categoria - REALIZADO (apenas pagos)
+      // REALIZADO de despesas = NIBO (apenas status=Pago)
       const valoresRealizado = new Map<string, number>();
       niboPagosMes.forEach(item => {
         if (!item.categoria_nome || item.categoria_nome.trim() === '') return;
@@ -553,7 +515,7 @@ export async function GET(request: Request) {
         valoresRealizado.set(categoriaNormalizada, valoresRealizado.get(categoriaNormalizada)! + valor);
       });
 
-      // Adicionar manuais a ambos
+      // Adicionar lançamentos manuais ao realizado
       manuaisMes.forEach(item => {
         if (!item.categoria) return;
         const valor = Math.abs(parseFloat(item.valor) || 0);
@@ -562,11 +524,6 @@ export async function GET(request: Request) {
         if (!CATEGORIAS_MAP.has(item.categoria) && item.categoria_macro) {
           categoriaNormalizada = CATEGORIAS_MAP.get(item.categoria_macro) || item.categoria_macro;
         }
-        
-        if (!valoresProjecao.has(categoriaNormalizada)) {
-          valoresProjecao.set(categoriaNormalizada, 0);
-        }
-        valoresProjecao.set(categoriaNormalizada, valoresProjecao.get(categoriaNormalizada)! + valor);
 
         if (!valoresRealizado.has(categoriaNormalizada)) {
           valoresRealizado.set(categoriaNormalizada, 0);
@@ -574,68 +531,40 @@ export async function GET(request: Request) {
         valoresRealizado.set(categoriaNormalizada, valoresRealizado.get(categoriaNormalizada)! + valor);
       });
 
-      // Buscar faturamento real do mês (eventos_base) ANTES de converter percentuais
-      const faturamentoReal = faturamentoRealMap.get(`${ano}-${mes}`) || { realizado: 0, meta: 0 };
-      
-      // Usar receita dos eventos para cálculo de percentuais (mais confiável que NIBO)
-      const receitaBaseParaPercentuais = faturamentoReal.realizado > 0 
-        ? faturamentoReal.realizado 
-        : receitaTotalRealizado;
-
-      // Converter para percentuais onde necessário (exceto CMV - usamos o valor calculado)
-      CATEGORIAS_PERCENTUAIS.forEach(categoria => {
-        // Pular CMV - usamos o valor da tabela cmv_semanal
-        if (categoria === 'CMV') return;
-        
-        if (valoresProjecao.has(categoria) && receitaTotalProjecao > 0) {
-          const valorAbsoluto = valoresProjecao.get(categoria)!;
-          const porcentagem = (valorAbsoluto / receitaTotalProjecao) * 100;
-          valoresProjecao.set(categoria, porcentagem);
-        }
-        if (valoresRealizado.has(categoria) && receitaBaseParaPercentuais > 0) {
-          const valorAbsoluto = valoresRealizado.get(categoria)!;
-          const porcentagem = (valorAbsoluto / receitaBaseParaPercentuais) * 100;
-          valoresRealizado.set(categoria, porcentagem);
-        }
-      });
-
-      // Usar CMV da tabela cmv_semanal (valor correto!)
-      valoresProjecao.set('CMV', cmvMensal.cmvPercentual);
-      valoresRealizado.set('CMV', cmvMensal.cmvPercentual);
-
-      // Atribuir receita total aos mapas para exibição na subcategoria RECEITA BRUTA
-      valoresProjecao.set('RECEITA BRUTA', receitaTotalProjecao);
-      valoresRealizado.set('RECEITA BRUTA', receitaTotalRealizado);
+      // Receita realizada = eventos_base.real_r
+      const receitaTotalRealizado = faturamentoReal.realizado;
 
       // Montar estrutura de categorias com valores
+      // PLANEJADO e PROJETADO = tabela orcamentacao (input manual)
+      // REALIZADO = NIBO (despesas) ou eventos_base (receita)
       const categorias = ESTRUTURA_CATEGORIAS.map(cat => ({
         nome: cat.nome,
         cor: cat.cor,
         tipo: cat.tipo,
         subcategorias: cat.subcategorias.map(subNome => {
-          const planejado = planejadosMes.find(p => p.categoria_nome === subNome);
-          let projecao = valoresProjecao.get(subNome) || 0;
-          let realizado = valoresRealizado.get(subNome) || 0;
+          const orcamento = planejadosMes.find(p => p.categoria_nome === subNome);
           const isPercentage = CATEGORIAS_PERCENTUAIS.includes(subNome);
-
-          // Para RECEITA BRUTA, usar dados dos eventos
-          let planejadoValor = Number(planejado?.valor_planejado) || 0;
           
+          // PLANEJADO e PROJETADO = tabela orcamentacao
+          let planejadoValor = Number(orcamento?.valor_planejado) || 0;
+          let projetadoValor = Number(orcamento?.valor_projetado) || 0;
+          
+          // REALIZADO = NIBO para despesas, eventos_base para receita
+          let realizadoValor = 0;
           if (subNome === 'RECEITA BRUTA') {
-            // Realizado = soma de real_r + sympla + yuzer de todos os eventos do mês
-            realizado = faturamentoReal.realizado;
-            
-            // Planejado = se não houver na tabela orcamentacao, usar Meta M1 dos eventos
-            if (planejadoValor === 0 && faturamentoReal.meta > 0) {
-              planejadoValor = faturamentoReal.meta;
-            }
+            realizadoValor = faturamentoReal.realizado;
+          } else if (subNome === 'CMV') {
+            // CMV realizado usa percentual da tabela cmv_semanal
+            realizadoValor = cmvMensal.cmvPercentual;
+          } else {
+            realizadoValor = valoresRealizado.get(subNome) || 0;
           }
 
           return {
             nome: subNome,
             planejado: planejadoValor,
-            projecao: projecao,
-            realizado: realizado,
+            projecao: projetadoValor,
+            realizado: realizadoValor,
             isPercentage: isPercentage
           };
         })
@@ -649,19 +578,11 @@ export async function GET(request: Request) {
       let despesas_projecao = 0;
       let despesas_realizado = 0;
 
-      // Buscar receita planejada (tabela orcamentacao ou Meta M1 dos eventos)
-      const receitaPlanejadaDb = planejadosMes.find(p => p.categoria_nome === 'RECEITA BRUTA');
-      receita_planejado = Number(receitaPlanejadaDb?.valor_planejado) || 0;
-      
-      // Se não houver planejado na tabela, usar Meta M1 dos eventos
-      if (receita_planejado === 0 && faturamentoReal.meta > 0) {
-        receita_planejado = faturamentoReal.meta;
-      }
-
+      // Somar valores das categorias
       categorias.forEach(cat => {
         cat.subcategorias.forEach(sub => {
           if (cat.tipo === 'receita') {
-            receita_planejado += sub.nome === 'RECEITA BRUTA' ? 0 : sub.planejado; // Evitar duplicar (já contamos acima)
+            receita_planejado += sub.planejado;
             receita_projecao += sub.projecao;
             receita_realizado += sub.realizado;
           } else {

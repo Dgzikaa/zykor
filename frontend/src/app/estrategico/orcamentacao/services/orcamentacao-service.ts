@@ -379,34 +379,37 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     const categorias = ESTRUTURA_CATEGORIAS.map(cat => ({
       nome: cat.nome, cor: cat.cor, tipo: cat.tipo,
       subcategorias: cat.subcategorias.map(sub => {
-        const planObj = planejadosMes.find(p => p.categoria_nome === sub);
-        let plan = Number(planObj?.valor_planejado) || 0;
-        let proj = valProj.get(sub) || 0, real = valReal.get(sub) || 0;
+        const orcamento = planejadosMes.find(p => p.categoria_nome === sub);
+        // PLANEJADO e PROJETADO = tabela orcamentacao (100% manual)
+        let plan = Number(orcamento?.valor_planejado) || 0;
+        let proj = Number(orcamento?.valor_projetado) || 0;
+        // REALIZADO = NIBO para despesas, eventos_base para receita
+        let real = valReal.get(sub) || 0;
         if (sub === 'RECEITA BRUTA') {
           real = fatReal.realizado;
-          if (plan === 0 && fatReal.meta > 0) plan = fatReal.meta;
+        } else if (sub === 'CMV') {
+          real = cmvMensal.cmvPercentual;
         }
         return { nome: sub, planejado: plan, projecao: proj, realizado: real, isPercentage: CATEGORIAS_PERCENTUAIS.includes(sub) };
       })
     }));
 
-    const receitaPlanejadaDb = planejadosMes.find(p => p.categoria_nome === 'RECEITA BRUTA');
-    let recPlanTot = Number(receitaPlanejadaDb?.valor_planejado) || 0;
-    if (recPlanTot === 0 && fatReal.meta > 0) recPlanTot = fatReal.meta;
-
-    let recProjTot = 0, recRealTot = 0, desPlanTot = 0, desProjTot = 0, desRealTot = 0;
+    let recPlanTot = 0, recProjTot = 0, recRealTot = 0, desPlanTot = 0, desProjTot = 0, desRealTot = 0;
     categorias.forEach(cat => {
       cat.subcategorias.forEach(sub => {
         if (cat.tipo === 'receita') {
-          recPlanTot += sub.nome === 'RECEITA BRUTA' ? 0 : sub.planejado;
-          recProjTot += sub.projecao; recRealTot += sub.realizado;
+          recPlanTot += sub.planejado;
+          recProjTot += sub.projecao;
+          recRealTot += sub.realizado;
         } else {
           if (sub.isPercentage) {
             desPlanTot += (sub.planejado / 100) * recPlanTot;
             desProjTot += (sub.projecao / 100) * recProjTot;
             desRealTot += (sub.realizado / 100) * recRealTot;
           } else {
-            desPlanTot += sub.planejado; desProjTot += sub.projecao; desRealTot += sub.realizado;
+            desPlanTot += sub.planejado;
+            desProjTot += sub.projecao;
+            desRealTot += sub.realizado;
           }
         }
       });

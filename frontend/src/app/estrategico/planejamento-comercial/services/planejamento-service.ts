@@ -58,8 +58,13 @@ export interface PlanejamentoData {
   atrasao_bar: number;
   fat_19h: number;
   
-  // Stockout
+  // Stockout separado por área
   percent_stockout: number;
+  stockout_drinks_perc: number;
+  stockout_comidas_perc: number;
+  
+  // Couvert
+  faturamento_couvert: number;
   
   // Segmentação de clientes
   percent_clientes_novos: number | null;
@@ -126,6 +131,9 @@ export async function getPlanejamentoComercial(
         percent_c,
         percent_happy_hour,
         percent_stockout,
+        stockout_drinks_perc,
+        stockout_comidas_perc,
+        faturamento_couvert,
         t_coz,
         t_bar,
         atrasinho_cozinha,
@@ -275,6 +283,9 @@ export async function getPlanejamentoComercial(
         fat_19h: evento.fat_19h_percent || 0,
         
         percent_stockout: evento.percent_stockout || 0,
+        stockout_drinks_perc: evento.stockout_drinks_perc || 0,
+        stockout_comidas_perc: evento.stockout_comidas_perc || 0,
+        faturamento_couvert: evento.faturamento_couvert || 0,
         
         percent_clientes_novos: percClientesNovos,
         clientes_ativos: clientesAtivos,
