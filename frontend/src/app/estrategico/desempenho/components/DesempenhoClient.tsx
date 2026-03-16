@@ -196,8 +196,8 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         label: 'Atrasos',
         agregacao: { tipo: 'soma', formato: 'numero' },
         metricas: [
-          { key: 'atrasinhos_bar', label: 'Atrasinho Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 >4 e <8 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes' },
-          { key: 'atrasinhos_cozinha', label: 'Atrasinho Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 >15 e <20 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes' },
+          { key: 'atrasinhos_bar', label: 'Atrasinho Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 >4 e <8 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes', keyPercentual: 'atrasinhos_bar_perc' },
+          { key: 'atrasinhos_cozinha', label: 'Atrasinho Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 >15 e <20 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes', keyPercentual: 'atrasinhos_cozinha_perc' },
           { key: 'atrasos_bar', label: 'Atrasão Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 > 20 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_bar_perc' },
           { key: 'atrasos_cozinha', label: 'Atrasão Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 > 30 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_cozinha_perc' },
         ]
@@ -239,21 +239,48 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
     grupos: [
       {
         id: 'organico',
-        label: 'Marketing Orgânico',
+        label: '[O] Orgânico',
         metricas: [
-          { key: 'o_num_posts', label: 'Nº Posts', status: 'manual', fonte: 'Marketing', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'o_alcance', label: 'Alcance Orgânico', status: 'manual', fonte: 'Marketing', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'o_engajamento', label: 'Engajamento %', status: 'manual', fonte: 'Marketing', calculo: 'Manual', formato: 'percentual', editavel: true },
+          { key: 'o_num_posts', label: 'Nº de Posts', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'o_alcance', label: 'Alcance', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'o_interacao', label: 'Interação', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'o_compartilhamento', label: 'Compartilhamento', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'o_engajamento', label: 'Engajamento', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'percentual', editavel: true },
+          { key: 'o_num_stories', label: 'Nº Stories', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'o_visu_stories', label: 'Visu Stories', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
         ]
       },
       {
-        id: 'pago',
-        label: 'Marketing Pago',
+        id: 'meta_ads',
+        label: '[M] Meta Ads',
         metricas: [
-          { key: 'm_valor_investido', label: 'Investido Ads', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda', editavel: true },
-          { key: 'm_alcance', label: 'Alcance Pago', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'm_cliques', label: 'Cliques Ads', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'm_ctr', label: 'CTR', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'percentual', editavel: true },
+          { key: 'm_valor_investido', label: 'Valor Investido', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda', editavel: true },
+          { key: 'm_alcance', label: 'Alcance', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'm_frequencia', label: 'Frequência', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'decimal', editavel: true },
+          { key: 'm_cpm', label: 'CPM (Custo por Visu)', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda_decimal', editavel: true },
+          { key: 'm_cliques', label: 'Cliques', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'm_ctr', label: 'CTR (Taxa de Clique)', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'percentual', editavel: true },
+          { key: 'm_cpc', label: 'Custo por Clique', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda_decimal', editavel: true },
+          { key: 'm_conversas_iniciadas', label: 'Conversas Iniciadas', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
+        ]
+      },
+      {
+        id: 'gmn',
+        label: '[GMN] Google Meu Negócio',
+        metricas: [
+          { key: 'gmn_total_visualizacoes', label: 'Total de Visualizações', status: 'manual', fonte: 'Google Meu Negócio', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'gmn_total_acoes', label: 'Total de Ações', status: 'manual', fonte: 'Google Meu Negócio', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'gmn_solicitacoes_rotas', label: 'Rotas', status: 'manual', fonte: 'Google Meu Negócio', calculo: 'Manual', formato: 'numero', editavel: true },
+        ]
+      },
+      {
+        id: 'gads',
+        label: '[GADs] Google Ads',
+        metricas: [
+          { key: 'g_valor_investido', label: 'Valor Investido', status: 'manual', fonte: 'Google Ads', calculo: 'Manual', formato: 'moeda', editavel: true },
+          { key: 'g_impressoes', label: 'Total de Impressões', status: 'manual', fonte: 'Google Ads', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'g_cliques', label: 'Total de Cliques', status: 'manual', fonte: 'Google Ads', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'g_ctr', label: 'CTR', status: 'manual', fonte: 'Google Ads', calculo: 'Manual', formato: 'percentual', editavel: true },
         ]
       }
     ]

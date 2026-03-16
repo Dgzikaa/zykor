@@ -82,7 +82,9 @@ export interface DadosSemana {
   cancelamentos?: number;
   cancelamentos_detalhes?: { dia_semana: string; data?: string; valor: number }[];
   atrasinhos_bar?: number;
+  atrasinhos_bar_perc?: number;
   atrasinhos_cozinha?: number;
+  atrasinhos_cozinha_perc?: number;
   atrasinhos_detalhes?: { dia_semana: string; atrasinhos_bar: number; atrasinhos_cozinha: number; atraso_bar: number; atraso_cozinha: number }[];
   atraso_bar?: number;
   atraso_cozinha?: number;
@@ -100,8 +102,26 @@ export interface DadosSemana {
   m_cpm: number;
   m_cliques: number;
   m_ctr: number;
-  m_custo_por_clique: number;
+  m_cpc: number;
   m_conversas_iniciadas: number;
+  // Google Meu Negócio
+  gmn_total_visualizacoes: number;
+  gmn_total_acoes: number;
+  gmn_solicitacoes_rotas: number;
+  gmn_visu_pesquisa?: number;
+  gmn_visu_maps?: number;
+  gmn_cliques_website?: number;
+  gmn_ligacoes?: number;
+  gmn_menu_views?: number;
+  // Google Ads
+  g_valor_investido: number;
+  g_impressoes: number;
+  g_cliques: number;
+  g_ctr: number;
+  g_cpc?: number;
+  g_solicitacoes_rotas?: number;
+  g_ligacoes?: number;
+  g_click_reservas?: number;
   quebra_utensilios?: number;
   bonificacoes_contratos?: number;
   nota_producao_bar?: number;
