@@ -1,30 +1,22 @@
 /**
- * 📊 SYNC CMV SHEETS
+ * 📊 SYNC CMV SHEETS - Versão 6.0
  * 
- * Edge Function para sincronizar dados do CMV Semanal da planilha Google Sheets.
+ * Edge Function para sincronizar dados do CMV Semanal usando Google Sheets API
+ * com mapeamento FIXO de linhas baseado na estrutura real da planilha.
  * 
- * A planilha tem formato HORIZONTAL:
- * - Cada COLUNA é uma semana (Semana 51, 52, 01, 02, ...)
- * - Cada LINHA é uma métrica (Estoque Inicial, Compras, Estoque Final, etc.)
+ * Suporta estruturas diferentes por bar:
+ * - Deboche (bar_id=4): linhas começam na 3
+ * - Ordinário (bar_id=3): linhas têm offset diferente
  * 
- * Dados sincronizados (NÃO vêm do NIBO):
- * - Estoque Inicial/Final (total e por categoria)
- * - Consumos (Sócios, Benefícios, RH, Artista)
- * - CMV Teórico (%)
- * - Bonificações
- * - Seção Alimentação (CMA)
+ * v6.0: Lê CMV Real diretamente da planilha (linha 15) ao invés de calcular.
+ *       A fórmula do Sheets é: =(BF4+BF5-BF6)-SOMA(BF7;BF8;BF9;BF10;BF11;BF12)+BF14+BF13
+ *       Também lê consumos das linhas 7-11 (já com fator 35% aplicado).
  * 
- * Dados NÃO sincronizados (vêm de outras fontes):
- * - Compras (vêm do NIBO via cmv-semanal-auto)
- * - Faturamento (vem de desempenho_semanal)
- * 
- * @version 1.0.0
- * @date 2026-03-12
+ * @version 6.0.0
+ * @date 2026-03-16
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { read, utils } from 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm'
-import { getGoogleAccessToken, downloadDriveFileAsExcel } from '../_shared/google-auth.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -37,67 +29,216 @@ interface SyncRequest {
   ano?: number
   semana?: number
   todas_semanas?: boolean
+  debug?: boolean
 }
 
-interface BarConfig {
-  bar_id: number
-  nome: string
-  cmv_spreadsheet_id: string | null
+// ====== MAPEAMENTO DE LINHAS POR BAR ======
+// IMPORTANTE: Índices são 0-based (linha 4 do Excel = índice 3)
+// A fórmula do Sheets é: =(BF4+BF5-BF6)-SOMA(BF7;BF8;BF9;BF10;BF11;BF12)+BF14+BF13
+const ROW_MAP_DEBOCHE = {
+  // Dados principais (seção superior da planilha)
+  estoque_inicial: 3,      // Linha 4: Estoque Inicial
+  compras: 4,              // Linha 5: Compras
+  estoque_final: 5,        // Linha 6: Estoque Final
+  consumo_socios: 6,       // Linha 7: Consumo Sócios (usado na fórmula CMV)
+  consumo_beneficios: 7,   // Linha 8: Consumo Benefícios
+  consumo_rh_operacao: 8,  // Linha 9: Consumo RH Operação
+  consumo_rh_escritorio: 9,// Linha 10: Consumo RH Escritório
+  consumo_artista: 10,     // Linha 11: Consumo Artista
+  outros_ajustes: 11,      // Linha 12: Outros Ajustes
+  bonificacao_contrato: 12,// Linha 13: Bonificações Contrato
+  outras_bonificacoes: 13, // Linha 14: Outras Bonificações/Ajustes
+  cmv_real_planilha: 14,   // Linha 15: CMV Real (R$) calculado
+  cmv_teorico_pct: 16,     // Linha 17: CMV Teórico (%)
+  // Estoques detalhados
+  estoque_inicial_cozinha: 23,
+  estoque_inicial_bebidas: 24,
+  estoque_inicial_drinks: 25,
+  estoque_final_cozinha: 29,
+  estoque_final_bebidas: 30,
+  estoque_final_drinks: 31,
+  // Contas especiais (valores brutos - usado para relatórios, não para CMV)
+  total_consumo_socios: 55,
+  mesa_beneficios_cliente: 56,
+  mesa_banda_dj: 57,
+  mesa_rh_operacao: 59,
+  mesa_rh_escritorio: 60,
+  // Alimentação
+  estoque_inicial_funcionarios: 65,
+  compras_alimentacao: 66,
+  estoque_final_funcionarios: 67,
 }
 
-interface SemanaData {
-  semana: number
-  periodo?: string
-  // Estoques totais
-  estoque_inicial?: number
-  estoque_final?: number
-  // Estoques por categoria
-  estoque_inicial_cozinha?: number
-  estoque_inicial_bebidas?: number
-  estoque_inicial_drinks?: number
-  estoque_final_cozinha?: number
-  estoque_final_bebidas?: number
-  estoque_final_drinks?: number
-  // Consumos
-  total_consumo_socios?: number
-  mesa_beneficios_cliente?: number
-  consumo_rh?: number
-  mesa_banda_dj?: number
-  // Ajustes
-  ajuste_bonificacoes?: number
-  outros_ajustes?: number
-  bonificacao_contrato_anual?: number
-  // Percentuais
-  cmv_teorico_percentual?: number
-  // CMA - Alimentação
-  estoque_inicial_funcionarios?: number
-  estoque_final_funcionarios?: number
+const ROW_MAP_ORDINARIO = {
+  // Dados principais
+  estoque_inicial: 3,
+  compras: 4,
+  estoque_final: 5,
+  consumo_socios: 6,
+  consumo_beneficios: 7,
+  consumo_rh_operacao: 8,
+  consumo_rh_escritorio: 9,
+  consumo_artista: 10,
+  outros_ajustes: 11,
+  bonificacao_contrato: 12,
+  outras_bonificacoes: 12,
+  cmv_real_planilha: 13,
+  cmv_teorico_pct: 15,
+  // Estoques detalhados
+  estoque_inicial_cozinha: 22,
+  estoque_inicial_bebidas: 23,
+  estoque_inicial_drinks: 24,
+  estoque_final_cozinha: 28,
+  estoque_final_bebidas: 29,
+  estoque_final_drinks: 30,
+  // Contas especiais
+  total_consumo_socios: 54,
+  mesa_beneficios_cliente: 55,
+  mesa_banda_dj: 56,
+  mesa_rh_operacao: 58,
+  mesa_rh_escritorio: 59,
+  // Alimentação
+  estoque_inicial_funcionarios: 67,
+  compras_alimentacao: 68,
+  estoque_final_funcionarios: 69,
 }
 
-// Função auxiliar para parsear valores monetários da planilha
+function getRowMap(barId: number) {
+  return barId === 3 ? ROW_MAP_ORDINARIO : ROW_MAP_DEBOCHE
+}
+
+// ====== AUTENTICAÇÃO GOOGLE ======
+
+function getCredentials(): { client_email: string; private_key: string } {
+  const serviceAccountKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY')
+  if (!serviceAccountKey) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY não configurada')
+  }
+  const credentials = JSON.parse(serviceAccountKey)
+  return {
+    client_email: credentials.client_email,
+    private_key: credentials.private_key
+  }
+}
+
+async function getGoogleAccessToken(): Promise<string> {
+  const CREDENTIALS = getCredentials()
+  const encoder = new TextEncoder()
+  const now = Math.floor(Date.now() / 1000)
+  const scopes = 'https://www.googleapis.com/auth/spreadsheets.readonly'
+  
+  const header = { alg: 'RS256', typ: 'JWT' }
+  const payload = {
+    iss: CREDENTIALS.client_email,
+    sub: CREDENTIALS.client_email,
+    scope: scopes,
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600
+  }
+
+  const pemHeader = '-----BEGIN PRIVATE KEY-----'
+  const pemFooter = '-----END PRIVATE KEY-----'
+  const pemContents = CREDENTIALS.private_key
+    .replace(pemHeader, '')
+    .replace(pemFooter, '')
+    .replace(/\s/g, '')
+  
+  const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0))
+  
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    binaryDer,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+
+  const headerB64 = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const payloadB64 = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const signatureInput = `${headerB64}.${payloadB64}`
+  
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    cryptoKey,
+    encoder.encode(signatureInput)
+  )
+  
+  const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+  
+  const jwt = `${headerB64}.${payloadB64}.${signatureB64}`
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }).toString(),
+  })
+
+  const data = await response.json()
+  if (data.error) {
+    throw new Error(`Google Auth Error: ${data.error_description || data.error}`)
+  }
+  
+  return data.access_token
+}
+
+// ====== GOOGLE SHEETS API ======
+
+async function getSheetData(spreadsheetId: string, range: string, accessToken: string): Promise<any[][]> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE`
+  
+  const response = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Erro ao buscar planilha: ${response.status} - ${errorText}`)
+  }
+
+  const data = await response.json()
+  return data.values || []
+}
+
+async function listSheets(spreadsheetId: string, accessToken: string): Promise<string[]> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`
+  
+  const response = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Erro ao listar abas: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return data.sheets?.map((s: any) => s.properties?.title).filter(Boolean) || []
+}
+
+// ====== HELPERS DE PARSING ======
+
 function parseMonetario(val: any): number {
   if (val === null || val === undefined || val === '' || val === '-') return 0
+  if (typeof val === 'number') return val
   
   const str = String(val).trim()
-  
-  // Remover "R$" e espaços
   let cleaned = str.replace(/R\$\s*/gi, '').replace(/\s/g, '')
   
-  // Tratar formato brasileiro (1.234,56) vs americano (1,234.56)
   if (cleaned.includes(',') && cleaned.includes('.')) {
-    // Se tem ambos, verificar qual é separador de milhares
     const lastComma = cleaned.lastIndexOf(',')
     const lastDot = cleaned.lastIndexOf('.')
-    
     if (lastComma > lastDot) {
-      // Formato BR: 1.234,56
       cleaned = cleaned.replace(/\./g, '').replace(',', '.')
     } else {
-      // Formato US: 1,234.56
       cleaned = cleaned.replace(/,/g, '')
     }
   } else if (cleaned.includes(',')) {
-    // Apenas vírgula - formato BR
     cleaned = cleaned.replace(',', '.')
   }
   
@@ -105,21 +246,41 @@ function parseMonetario(val: any): number {
   return isNaN(num) ? 0 : num
 }
 
-// Função auxiliar para parsear percentuais
 function parsePercentual(val: any): number {
   if (val === null || val === undefined || val === '' || val === '-') return 0
+  if (typeof val === 'number') return val < 1 ? val * 100 : val
   
   const str = String(val).trim().replace('%', '').replace(',', '.')
   const num = parseFloat(str)
   return isNaN(num) ? 0 : num
 }
 
-// Extrair número da semana do header (ex: "Semana 51" -> 51)
 function extrairNumeroSemana(header: string): number | null {
   if (!header) return null
   const match = String(header).match(/semana\s*(\d+)/i)
   return match ? parseInt(match[1]) : null
 }
+
+function extrairAnoDeData(dataStr: string | number): number | null {
+  if (dataStr === null || dataStr === undefined || dataStr === '') return null
+  
+  // Se for número (serial date do Excel), converter
+  if (typeof dataStr === 'number') {
+    // Excel serial date: dias desde 1900-01-01 (com bug do leap year 1900)
+    const excelEpoch = new Date(1899, 11, 30) // 30/12/1899
+    const date = new Date(excelEpoch.getTime() + dataStr * 24 * 60 * 60 * 1000)
+    return date.getFullYear()
+  }
+  
+  // Formato DD/MM/YYYY
+  const match = String(dataStr).match(/(\d{2})\/(\d{2})\/(\d{4})/)
+  if (match) {
+    return parseInt(match[3])
+  }
+  return null
+}
+
+// ====== LÓGICA PRINCIPAL ======
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -128,17 +289,14 @@ serve(async (req) => {
 
   try {
     const body: SyncRequest = await req.json().catch(() => ({}))
-    const { bar_id, ano, semana, todas_semanas = true } = body
+    const { bar_id, ano, semana, todas_semanas = true, debug = false } = body
 
-    const anoAtual = ano || new Date().getFullYear()
-    
-    console.log('📊 Sync CMV Sheets - Iniciando', { bar_id, ano: anoAtual, semana, todas_semanas })
+    console.log('📊 Sync CMV Sheets v5.0 - Iniciando', { bar_id, ano, semana, todas_semanas })
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, serviceKey)
 
-    // 1. Buscar configurações dos bares
     const baresQuery = supabase
       .from('api_credentials')
       .select('bar_id, configuracoes')
@@ -155,7 +313,6 @@ serve(async (req) => {
       throw new Error(`Erro ao buscar credenciais: ${errCred.message}`)
     }
 
-    // Buscar nomes dos bares
     const { data: bares } = await supabase
       .from('bares')
       .select('id, nome')
@@ -163,8 +320,7 @@ serve(async (req) => {
 
     const baresMap = new Map(bares?.map(b => [b.id, b.nome]) || [])
 
-    // Filtrar bares que têm cmv_spreadsheet_id
-    const baresConfig: BarConfig[] = credenciais
+    const baresConfig = credenciais
       ?.map(c => ({
         bar_id: c.bar_id,
         nome: baresMap.get(c.bar_id) || `Bar ${c.bar_id}`,
@@ -174,71 +330,47 @@ serve(async (req) => {
 
     if (baresConfig.length === 0) {
       return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Nenhum bar com cmv_spreadsheet_id configurado',
-          message: 'Configure cmv_spreadsheet_id em api_credentials.configuracoes'
-        }),
+        JSON.stringify({ success: false, error: 'Nenhum bar com cmv_spreadsheet_id configurado' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     console.log(`🏪 Processando ${baresConfig.length} bar(es)`)
 
-    // 2. Obter access token do Google
     const accessToken = await getGoogleAccessToken()
-
     const resultadosPorBar: any[] = []
 
     for (const barConfig of baresConfig) {
       console.log(`\n🍺 Processando: ${barConfig.nome} (bar_id=${barConfig.bar_id})`)
-      console.log(`📋 Planilha: ${barConfig.cmv_spreadsheet_id}`)
+      
+      const ROW_MAP = getRowMap(barConfig.bar_id)
 
       try {
-        // 3. Baixar planilha
-        const arrayBuffer = await downloadDriveFileAsExcel(barConfig.cmv_spreadsheet_id!, accessToken)
-        console.log(`✅ Planilha baixada (${(arrayBuffer.byteLength / 1024).toFixed(2)} KB)`)
-
-        const workbook = read(new Uint8Array(arrayBuffer), { type: 'array' })
+        const sheets = await listSheets(barConfig.cmv_spreadsheet_id!, accessToken)
+        console.log(`📑 Abas encontradas: ${sheets.join(', ')}`)
         
-        // 4. Encontrar aba CMV Semanal
-        const abasCMV = workbook.SheetNames.filter((name: string) => 
+        let targetSheet = sheets.find((name: string) => 
           name.toLowerCase().includes('cmv') && name.toLowerCase().includes('semanal')
         )
-        
-        let targetSheetName = abasCMV[0]
-        if (!targetSheetName) {
-          // Tentar outras variações
-          targetSheetName = workbook.SheetNames.find((name: string) => 
-            name.toLowerCase().includes('cmv') || 
-            name.toLowerCase().includes('semanal')
+        if (!targetSheet) {
+          targetSheet = sheets.find((name: string) => 
+            name.toLowerCase().includes('cmv') || name.toLowerCase().includes('semanal')
           )
         }
-        
-        if (!targetSheetName) {
-          console.warn(`⚠️ Aba CMV não encontrada em ${barConfig.nome}. Abas disponíveis: ${workbook.SheetNames.join(', ')}`)
-          resultadosPorBar.push({
-            bar_id: barConfig.bar_id,
-            bar_nome: barConfig.nome,
-            success: false,
-            error: `Aba CMV não encontrada. Abas: ${workbook.SheetNames.join(', ')}`
-          })
-          continue
+        if (!targetSheet) {
+          targetSheet = sheets[0]
         }
-
-        console.log(`📑 Usando aba: "${targetSheetName}"`)
         
-        const sheet = workbook.Sheets[targetSheetName]
-        const jsonData = utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false }) as any[][]
-
-        // 5. Identificar estrutura da planilha (horizontal)
-        // Linha 0 ou 1: Headers com nomes das semanas
-        // Coluna 0: Nomes das métricas
+        console.log(`📋 Usando aba: "${targetSheet}"`)
         
-        // Encontrar linha de headers (primeira linha que tem "Semana" em alguma célula)
+        const range = `'${targetSheet}'!A1:CZ80`
+        const rows = await getSheetData(barConfig.cmv_spreadsheet_id!, range, accessToken)
+        
+        console.log(`📊 ${rows.length} linhas carregadas`)
+        
         let headerRowIndex = -1
-        for (let i = 0; i < Math.min(5, jsonData.length); i++) {
-          const row = jsonData[i]
+        for (let i = 0; i < Math.min(5, rows.length); i++) {
+          const row = rows[i] || []
           if (row.some((cell: any) => String(cell).toLowerCase().includes('semana'))) {
             headerRowIndex = i
             break
@@ -246,395 +378,237 @@ serve(async (req) => {
         }
 
         if (headerRowIndex === -1) {
-          console.warn(`⚠️ Header de semanas não encontrado em ${barConfig.nome}`)
-          resultadosPorBar.push({
-            bar_id: barConfig.bar_id,
-            bar_nome: barConfig.nome,
-            success: false,
-            error: 'Header de semanas não encontrado na planilha'
-          })
+          console.warn(`⚠️ Header de semanas não encontrado`)
+          resultadosPorBar.push({ bar_id: barConfig.bar_id, bar_nome: barConfig.nome, success: false, error: 'Header não encontrado' })
           continue
         }
 
-        const headers = jsonData[headerRowIndex]
-        console.log(`📅 Headers encontrados na linha ${headerRowIndex + 1}`)
-
-        // Mapear colunas para semanas
-        const colunaParaSemana: Map<number, number> = new Map()
+        const headers = rows[headerRowIndex] || []
+        const dateRow = rows[headerRowIndex + 1] || [] // Linha de datas (DD/MM/YYYY)
+        
+        // Mapeia coluna -> {semana, ano}
+        const colunaSemanaAno: Map<number, {semana: number, ano: number}> = new Map()
         for (let col = 1; col < headers.length; col++) {
-          const numSemana = extrairNumeroSemana(headers[col])
-          if (numSemana !== null) {
-            colunaParaSemana.set(col, numSemana)
+          const numSemana = extrairNumeroSemana(String(headers[col] || ''))
+          const anoColuna = extrairAnoDeData(dateRow[col])
+          
+          if (numSemana !== null && anoColuna !== null) {
+            colunaSemanaAno.set(col, { semana: numSemana, ano: anoColuna })
           }
         }
 
-        console.log(`📊 ${colunaParaSemana.size} semanas identificadas`)
+        console.log(`📅 ${colunaSemanaAno.size} semanas identificadas com ano`)
 
-        // 6. Mapear linhas para métricas
-        // Estrutura da planilha CMV Semanal (baseado nas planilhas Ordinário e Deboche):
-        // Linhas 4-21: Métricas principais (Estoque Inicial/Final total, Consumos, CMV Teórico, etc.)
-        // Linhas 23-27: Seção ESTOQUE INICIAL detalhado (Cozinha, Bebidas, Drinks, TOTAL)
-        // Linhas 29-33: Seção ESTOQUE FINAL detalhado (Cozinha, Bebidas, Drinks, TOTAL)
-        // Linhas 54+: CONTAS ESPECIAIS (valores absolutos das mesas)
-        // Linhas 65+: Saída Alimentação (Estoque Inicial/Final funcionários)
-        
-        const metricasPorLinha: Map<string, number> = new Map()
-        
-        // Estado para rastrear seções
-        let currentSection = 'main' // main, estoque_inicial_det, estoque_final_det, compras, contas_especiais, alimentacao
-        
-        for (let row = headerRowIndex + 1; row < jsonData.length; row++) {
-          const rawLabel = String(jsonData[row][0] || '')
-          const label = rawLabel.toLowerCase().trim()
-          
-          // Skip linhas vazias ou só com números (anos)
-          if (!label || /^\d{4}$/.test(label)) continue
-          
-          // Detectar mudança de seção
-          if (label === 'estoque inicial' && currentSection === 'main') {
-            // Primeira ocorrência na seção principal = estoque total
-            metricasPorLinha.set('estoque_inicial', row)
-            continue
-          }
-          
-          if (label === 'estoque final' && currentSection === 'main') {
-            metricasPorLinha.set('estoque_final', row)
-            continue
-          }
-          
-          // Seções detalhadas (título em maiúsculas ou específico)
-          if (rawLabel.toUpperCase() === 'ESTOQUE INICIAL' || label === 'estoque inicial' && !metricasPorLinha.has('estoque_inicial_cozinha')) {
-            currentSection = 'estoque_inicial_det'
-            continue
-          }
-          
-          if (rawLabel.toUpperCase() === 'ESTOQUE FINAL' || label === 'estoque final' && metricasPorLinha.has('estoque_inicial_drinks')) {
-            currentSection = 'estoque_final_det'
-            continue
-          }
-          
-          if (rawLabel.toUpperCase() === 'COMPRAS' || label === 'compras') {
-            currentSection = 'compras'
-            continue
-          }
-          
-          if (label.includes('contas especiais')) {
-            currentSection = 'contas_especiais'
-            continue
-          }
-          
-          if (label.includes('saída alimentação') || (label.includes('alimentação') && currentSection !== 'main')) {
-            currentSection = 'alimentacao'
-            continue
-          }
-          
-          // Mapear métricas por seção
-          switch (currentSection) {
-            case 'main':
-              // Consumos (valores já calculados com %)
-              if (label.includes('consumo') && label.includes('sócio')) {
-                metricasPorLinha.set('consumo_socios_pct', row)
-              } else if (label.includes('consumo') && label.includes('benefício')) {
-                metricasPorLinha.set('consumo_beneficios_pct', row)
-              } else if (label.includes('consumo') && label.includes('rh') && label.includes('operação')) {
-                metricasPorLinha.set('consumo_rh_operacao_pct', row)
-              } else if (label.includes('consumo') && label.includes('rh') && label.includes('escritório')) {
-                metricasPorLinha.set('consumo_rh_escritorio_pct', row)
-              } else if (label.includes('consumo') && label.includes('artista')) {
-                metricasPorLinha.set('consumo_artista_pct', row)
-              } else if (label.includes('outros ajustes')) {
-                metricasPorLinha.set('outros_ajustes', row)
-              } else if (label.includes('ajuste') && label.includes('bonifica')) {
-                metricasPorLinha.set('ajuste_bonificacoes', row)
-              } else if (label.includes('cmv') && label.includes('teórico')) {
-                metricasPorLinha.set('cmv_teorico_percentual', row)
-              } else if (label.includes('giro') && label.includes('estoque')) {
-                // Giro de estoque - skip, é calculado
-              }
-              break
-              
-            case 'estoque_inicial_det':
-              if (label.includes('cozinha')) {
-                metricasPorLinha.set('estoque_inicial_cozinha', row)
-              } else if (label.includes('bebida') || label.includes('tabacaria')) {
-                metricasPorLinha.set('estoque_inicial_bebidas', row)
-              } else if (label.includes('drink')) {
-                metricasPorLinha.set('estoque_inicial_drinks', row)
-              } else if (label === 'total') {
-                metricasPorLinha.set('estoque_inicial_total', row)
-              }
-              break
-              
-            case 'estoque_final_det':
-              if (label.includes('cozinha')) {
-                metricasPorLinha.set('estoque_final_cozinha', row)
-              } else if (label.includes('bebida') || label.includes('tabacaria')) {
-                metricasPorLinha.set('estoque_final_bebidas', row)
-              } else if (label.includes('drink')) {
-                metricasPorLinha.set('estoque_final_drinks', row)
-              } else if (label === 'total') {
-                metricasPorLinha.set('estoque_final_total', row)
-              }
-              break
-              
-            case 'compras':
-              // Compras vêm do NIBO, não sincronizamos daqui
-              break
-              
-            case 'contas_especiais':
-              // Valores absolutos das mesas (antes de aplicar %)
-              if (label.includes('consumo') && label.includes('sócio')) {
-                metricasPorLinha.set('total_consumo_socios', row)
-              } else if (label.includes('mesa') && label.includes('benefício')) {
-                metricasPorLinha.set('mesa_beneficios_cliente', row)
-              } else if (label.includes('mesa') && (label.includes('banda') || label.includes('dj'))) {
-                metricasPorLinha.set('mesa_banda_dj', row)
-              } else if (label.includes('mesa') && label.includes('rh') && label.includes('operação')) {
-                metricasPorLinha.set('mesa_rh_operacao', row)
-              } else if (label.includes('mesa') && label.includes('rh') && label.includes('escritório')) {
-                metricasPorLinha.set('mesa_rh_escritorio', row)
-              }
-              break
-              
-            case 'alimentacao':
-              if (label.includes('estoque inicial')) {
-                metricasPorLinha.set('estoque_inicial_funcionarios', row)
-              } else if (label.includes('estoque final')) {
-                metricasPorLinha.set('estoque_final_funcionarios', row)
-              }
-              // Compras alimentação vêm do NIBO
-              break
-          }
-          
-          // Bonificações (podem aparecer em qualquer lugar)
-          if (label.includes('bonificaç') && label.includes('contrato')) {
-            metricasPorLinha.set('bonificacao_contrato_anual', row)
-          } else if (label.includes('outras bonificaç')) {
-            metricasPorLinha.set('outras_bonificacoes', row)
-          }
-        }
-
-        console.log(`📋 Métricas mapeadas (${metricasPorLinha.size} campos):`, Object.fromEntries(metricasPorLinha))
-
-        // 7. Extrair dados por semana
-        const dadosPorSemana: Map<number, SemanaData> = new Map()
-
-        for (const [col, numSemana] of colunaParaSemana) {
-          // Filtrar por semana específica se solicitado
-          if (semana && !todas_semanas && numSemana !== semana) {
-            continue
-          }
-
-          const dados: SemanaData = { semana: numSemana }
-
-          // Extrair cada métrica
-          for (const [metrica, row] of metricasPorLinha) {
-            const valor = jsonData[row]?.[col]
-            
-            // Percentuais
-            if (metrica === 'cmv_teorico_percentual') {
-              dados.cmv_teorico_percentual = parsePercentual(valor)
-              continue
-            }
-            
-            // Estoques totais (da seção principal ou do TOTAL da seção detalhada)
-            if (metrica === 'estoque_inicial' || metrica === 'estoque_inicial_total') {
-              const v = parseMonetario(valor)
-              if (v > 0) dados.estoque_inicial = v
-              continue
-            }
-            if (metrica === 'estoque_final' || metrica === 'estoque_final_total') {
-              const v = parseMonetario(valor)
-              if (v > 0) dados.estoque_final = v
-              continue
-            }
-            
-            // Estoques por categoria
-            if (metrica === 'estoque_inicial_cozinha') {
-              dados.estoque_inicial_cozinha = parseMonetario(valor)
-              continue
-            }
-            if (metrica === 'estoque_inicial_bebidas') {
-              dados.estoque_inicial_bebidas = parseMonetario(valor)
-              continue
-            }
-            if (metrica === 'estoque_inicial_drinks') {
-              dados.estoque_inicial_drinks = parseMonetario(valor)
-              continue
-            }
-            if (metrica === 'estoque_final_cozinha') {
-              dados.estoque_final_cozinha = parseMonetario(valor)
-              continue
-            }
-            if (metrica === 'estoque_final_bebidas') {
-              dados.estoque_final_bebidas = parseMonetario(valor)
-              continue
-            }
-            if (metrica === 'estoque_final_drinks') {
-              dados.estoque_final_drinks = parseMonetario(valor)
-              continue
-            }
-            
-            // Consumos - da seção CONTAS ESPECIAIS (valores absolutos)
-            if (metrica === 'total_consumo_socios') {
-              dados.total_consumo_socios = parseMonetario(valor)
-              continue
-            }
-            if (metrica === 'mesa_beneficios_cliente') {
-              dados.mesa_beneficios_cliente = parseMonetario(valor)
-              continue
-            }
-            if (metrica === 'mesa_banda_dj') {
-              dados.mesa_banda_dj = parseMonetario(valor)
-              continue
-            }
-            if (metrica === 'mesa_rh_operacao') {
-              dados.consumo_rh = (dados.consumo_rh || 0) + parseMonetario(valor)
-              continue
-            }
-            if (metrica === 'mesa_rh_escritorio') {
-              dados.consumo_rh = (dados.consumo_rh || 0) + parseMonetario(valor)
-              continue
-            }
-            
-            // Bonificações
-            if (metrica === 'bonificacao_contrato_anual') {
-              dados.bonificacao_contrato_anual = parseMonetario(valor)
-              continue
-            }
-            if (metrica === 'ajuste_bonificacoes') {
-              dados.ajuste_bonificacoes = parseMonetario(valor)
-              continue
-            }
-            if (metrica === 'outros_ajustes' || metrica === 'outras_bonificacoes') {
-              dados.outros_ajustes = parseMonetario(valor)
-              continue
-            }
-            
-            // CMA - Alimentação funcionários
-            if (metrica === 'estoque_inicial_funcionarios') {
-              dados.estoque_inicial_funcionarios = parseMonetario(valor)
-              continue
-            }
-            if (metrica === 'estoque_final_funcionarios') {
-              dados.estoque_final_funcionarios = parseMonetario(valor)
-              continue
-            }
-          }
-
-          // Só adicionar se tem algum dado útil
-          const temDados = dados.estoque_inicial || dados.estoque_final || 
-                          dados.estoque_inicial_cozinha || dados.estoque_final_cozinha ||
-                          dados.total_consumo_socios || dados.cmv_teorico_percentual
-
-          if (temDados) {
-            dadosPorSemana.set(numSemana, dados)
-          }
-        }
-
-        console.log(`📊 ${dadosPorSemana.size} semanas com dados extraídos`)
-
-        // 8. Atualizar banco de dados
         let semanasAtualizadas = 0
         let semanasErro = 0
 
-        for (const [numSemana, dados] of dadosPorSemana) {
-          // Verificar se a semana existe no cmv_semanal
+        for (const [col, info] of colunaSemanaAno) {
+          const { semana: numSemana, ano: anoColuna } = info
+          
+          // Se um ano específico foi solicitado, filtrar
+          if (ano && anoColuna !== ano) continue
+          if (semana && !todas_semanas && numSemana !== semana) continue
+
+          const updateData: any = { updated_at: new Date().toISOString() }
+          let temDados = false
+
+          // Estoques totais
+          const estoqueInicialVal = rows[ROW_MAP.estoque_inicial]?.[col]
+          if (estoqueInicialVal !== undefined) {
+            const v = parseMonetario(estoqueInicialVal)
+            if (v > 0) { updateData.estoque_inicial = v; temDados = true }
+          }
+          
+          const estoqueFinalVal = rows[ROW_MAP.estoque_final]?.[col]
+          if (estoqueFinalVal !== undefined) {
+            const v = parseMonetario(estoqueFinalVal)
+            if (v > 0) { updateData.estoque_final = v; temDados = true }
+          }
+          
+          // CMV Teórico
+          const cmvTeoricoVal = rows[ROW_MAP.cmv_teorico_pct]?.[col]
+          if (cmvTeoricoVal !== undefined) {
+            const v = parsePercentual(cmvTeoricoVal)
+            if (v > 0) { updateData.cmv_teorico_percentual = v; temDados = true }
+          }
+          
+          // Bonificações
+          const bonifContratoVal = rows[ROW_MAP.bonificacao_contrato]?.[col]
+          if (bonifContratoVal !== undefined) {
+            const v = parseMonetario(bonifContratoVal)
+            if (v > 0) { updateData.bonificacao_contrato_anual = v; temDados = true }
+          }
+          
+          const outrasBonifVal = rows[ROW_MAP.outras_bonificacoes]?.[col]
+          if (outrasBonifVal !== undefined) {
+            const v = parseMonetario(outrasBonifVal)
+            if (v > 0) { updateData.ajuste_bonificacoes = v; temDados = true }
+          }
+          
+          const outrosAjustesVal = rows[ROW_MAP.outros_ajustes]?.[col]
+          if (outrosAjustesVal !== undefined) {
+            const v = parseMonetario(outrosAjustesVal)
+            if (v > 0) { updateData.outros_ajustes = v; temDados = true }
+          }
+          
+          // ESTOQUE INICIAL detalhado
+          const estIniCozinhaVal = rows[ROW_MAP.estoque_inicial_cozinha]?.[col]
+          if (estIniCozinhaVal !== undefined) {
+            const v = parseMonetario(estIniCozinhaVal)
+            if (v > 0) { updateData.estoque_inicial_cozinha = v; temDados = true }
+          }
+          
+          const estIniBebidasVal = rows[ROW_MAP.estoque_inicial_bebidas]?.[col]
+          if (estIniBebidasVal !== undefined) {
+            const v = parseMonetario(estIniBebidasVal)
+            if (v > 0) { updateData.estoque_inicial_bebidas = v; temDados = true }
+          }
+          
+          const estIniDrinksVal = rows[ROW_MAP.estoque_inicial_drinks]?.[col]
+          if (estIniDrinksVal !== undefined) {
+            const v = parseMonetario(estIniDrinksVal)
+            if (v > 0) { updateData.estoque_inicial_drinks = v; temDados = true }
+          }
+          
+          // ESTOQUE FINAL detalhado
+          const estFimCozinhaVal = rows[ROW_MAP.estoque_final_cozinha]?.[col]
+          if (estFimCozinhaVal !== undefined) {
+            const v = parseMonetario(estFimCozinhaVal)
+            if (v > 0) { updateData.estoque_final_cozinha = v; temDados = true }
+          }
+          
+          const estFimBebidasVal = rows[ROW_MAP.estoque_final_bebidas]?.[col]
+          if (estFimBebidasVal !== undefined) {
+            const v = parseMonetario(estFimBebidasVal)
+            if (v > 0) { updateData.estoque_final_bebidas = v; temDados = true }
+          }
+          
+          const estFimDrinksVal = rows[ROW_MAP.estoque_final_drinks]?.[col]
+          if (estFimDrinksVal !== undefined) {
+            const v = parseMonetario(estFimDrinksVal)
+            if (v > 0) { updateData.estoque_final_drinks = v; temDados = true }
+          }
+          
+          // CONSUMOS (linhas 7-11 - usados na fórmula CMV)
+          // Esses valores já têm o fator 35% aplicado na planilha
+          const consumoSociosVal = rows[ROW_MAP.consumo_socios]?.[col]
+          if (consumoSociosVal !== undefined) {
+            const v = parseMonetario(consumoSociosVal)
+            updateData.consumo_socios = v
+            temDados = true
+          }
+          
+          const consumoBenefVal = rows[ROW_MAP.consumo_beneficios]?.[col]
+          if (consumoBenefVal !== undefined) {
+            const v = parseMonetario(consumoBenefVal)
+            updateData.consumo_beneficios = v
+            temDados = true
+          }
+          
+          const consumoRhOpVal = rows[ROW_MAP.consumo_rh_operacao]?.[col]
+          const consumoRhEscVal = rows[ROW_MAP.consumo_rh_escritorio]?.[col]
+          const rhOp = parseMonetario(consumoRhOpVal)
+          const rhEsc = parseMonetario(consumoRhEscVal)
+          updateData.consumo_rh = rhOp + rhEsc
+          temDados = true
+          
+          const consumoArtistaVal = rows[ROW_MAP.consumo_artista]?.[col]
+          if (consumoArtistaVal !== undefined) {
+            const v = parseMonetario(consumoArtistaVal)
+            updateData.consumo_artista = v
+            temDados = true
+          }
+          
+          // CMV Real calculado pela planilha (linha 15)
+          const cmvRealPlanilhaVal = rows[ROW_MAP.cmv_real_planilha]?.[col]
+          if (cmvRealPlanilhaVal !== undefined) {
+            const v = parseMonetario(cmvRealPlanilhaVal)
+            if (v !== 0) { 
+              updateData.cmv_real = v
+              temDados = true 
+            }
+          }
+          
+          // CONTAS ESPECIAIS (linhas 55-60 - valores brutos para relatórios)
+          const totalConsumoSociosVal = rows[ROW_MAP.total_consumo_socios]?.[col]
+          if (totalConsumoSociosVal !== undefined) {
+            const v = parseMonetario(totalConsumoSociosVal)
+            if (v > 0) { updateData.total_consumo_socios = v; temDados = true }
+          }
+          
+          const mesaBenefVal = rows[ROW_MAP.mesa_beneficios_cliente]?.[col]
+          if (mesaBenefVal !== undefined) {
+            const v = parseMonetario(mesaBenefVal)
+            if (v > 0) { updateData.mesa_beneficios_cliente = v; temDados = true }
+          }
+          
+          const mesaBandaVal = rows[ROW_MAP.mesa_banda_dj]?.[col]
+          if (mesaBandaVal !== undefined) {
+            const v = parseMonetario(mesaBandaVal)
+            if (v > 0) { updateData.mesa_banda_dj = v; temDados = true }
+          }
+          
+          // SAÍDA ALIMENTAÇÃO (funcionários)
+          const estIniFuncVal = rows[ROW_MAP.estoque_inicial_funcionarios]?.[col]
+          if (estIniFuncVal !== undefined) {
+            const v = parseMonetario(estIniFuncVal)
+            updateData.estoque_inicial_funcionarios = v
+            temDados = true
+          }
+          
+          const estFimFuncVal = rows[ROW_MAP.estoque_final_funcionarios]?.[col]
+          if (estFimFuncVal !== undefined) {
+            const v = parseMonetario(estFimFuncVal)
+            updateData.estoque_final_funcionarios = v
+            temDados = true
+          }
+
+          if (!temDados) continue
+
           const { data: existente } = await supabase
             .from('cmv_semanal')
             .select('id')
             .eq('bar_id', barConfig.bar_id)
-            .eq('ano', anoAtual)
+            .eq('ano', anoColuna)
             .eq('semana', numSemana)
             .single()
 
-          // Preparar update (só campos da planilha, não sobrescrever dados do NIBO)
-          const updateData: any = {
-            updated_at: new Date().toISOString()
-          }
-
-          // Estoques totais
-          if (dados.estoque_inicial !== undefined && dados.estoque_inicial > 0) {
-            updateData.estoque_inicial = dados.estoque_inicial
-          }
-          if (dados.estoque_final !== undefined && dados.estoque_final > 0) {
-            updateData.estoque_final = dados.estoque_final
-          }
-          
-          // Estoques por categoria
-          if (dados.estoque_inicial_cozinha !== undefined && dados.estoque_inicial_cozinha > 0) {
-            updateData.estoque_inicial_cozinha = dados.estoque_inicial_cozinha
-          }
-          if (dados.estoque_inicial_bebidas !== undefined && dados.estoque_inicial_bebidas > 0) {
-            updateData.estoque_inicial_bebidas = dados.estoque_inicial_bebidas
-          }
-          if (dados.estoque_inicial_drinks !== undefined && dados.estoque_inicial_drinks > 0) {
-            updateData.estoque_inicial_drinks = dados.estoque_inicial_drinks
-          }
-          if (dados.estoque_final_cozinha !== undefined && dados.estoque_final_cozinha > 0) {
-            updateData.estoque_final_cozinha = dados.estoque_final_cozinha
-          }
-          if (dados.estoque_final_bebidas !== undefined && dados.estoque_final_bebidas > 0) {
-            updateData.estoque_final_bebidas = dados.estoque_final_bebidas
-          }
-          if (dados.estoque_final_drinks !== undefined && dados.estoque_final_drinks > 0) {
-            updateData.estoque_final_drinks = dados.estoque_final_drinks
-          }
-          
-          // Consumos (valores da planilha são os totais das contas especiais)
-          if (dados.total_consumo_socios !== undefined) {
-            updateData.total_consumo_socios = dados.total_consumo_socios
-          }
-          if (dados.mesa_beneficios_cliente !== undefined) {
-            updateData.mesa_beneficios_cliente = dados.mesa_beneficios_cliente
-          }
-          if (dados.consumo_rh !== undefined) {
-            updateData.consumo_rh = dados.consumo_rh
-          }
-          if (dados.mesa_banda_dj !== undefined) {
-            updateData.mesa_banda_dj = dados.mesa_banda_dj
-          }
-          
-          // Bonificações
-          if (dados.bonificacao_contrato_anual !== undefined && dados.bonificacao_contrato_anual > 0) {
-            updateData.bonificacao_contrato_anual = dados.bonificacao_contrato_anual
-          }
-          if (dados.ajuste_bonificacoes !== undefined) {
-            updateData.ajuste_bonificacoes = dados.ajuste_bonificacoes
-          }
-          if (dados.outros_ajustes !== undefined) {
-            updateData.outros_ajustes = dados.outros_ajustes
-          }
-          
-          // Percentuais
-          if (dados.cmv_teorico_percentual !== undefined && dados.cmv_teorico_percentual > 0) {
-            updateData.cmv_teorico_percentual = dados.cmv_teorico_percentual
-          }
-          
-          // CMA - Alimentação funcionários
-          if (dados.estoque_inicial_funcionarios !== undefined) {
-            updateData.estoque_inicial_funcionarios = dados.estoque_inicial_funcionarios
-          }
-          if (dados.estoque_final_funcionarios !== undefined) {
-            updateData.estoque_final_funcionarios = dados.estoque_final_funcionarios
-          }
-
           if (existente) {
-            // Update
             const { error: updateError } = await supabase
               .from('cmv_semanal')
               .update(updateData)
               .eq('id', existente.id)
 
             if (updateError) {
-              console.error(`❌ Erro ao atualizar semana ${numSemana}:`, updateError)
+              console.error(`❌ Erro ${anoColuna}/S${numSemana}:`, updateError.message)
               semanasErro++
             } else {
+              if (debug) {
+                console.log(`✅ ${anoColuna}/S${numSemana}:`, JSON.stringify(updateData))
+              }
               semanasAtualizadas++
             }
           } else {
-            // A semana não existe - cmv-semanal-auto deve criá-la primeiro
-            console.log(`⚠️ Semana ${numSemana} não existe no banco - será criada pelo cmv-semanal-auto`)
+            // Criar o registro se não existir
+            const insertData = {
+              bar_id: barConfig.bar_id,
+              ano: anoColuna,
+              semana: numSemana,
+              ...updateData
+            }
+            const { error: insertError } = await supabase
+              .from('cmv_semanal')
+              .insert(insertData)
+            
+            if (insertError) {
+              console.error(`❌ Erro criar ${anoColuna}/S${numSemana}:`, insertError.message)
+              semanasErro++
+            } else {
+              if (debug) {
+                console.log(`➕ Criado ${anoColuna}/S${numSemana}`)
+              }
+              semanasAtualizadas++
+            }
           }
         }
 
@@ -644,53 +618,33 @@ serve(async (req) => {
           bar_id: barConfig.bar_id,
           bar_nome: barConfig.nome,
           success: true,
-          semanas_encontradas: dadosPorSemana.size,
           semanas_atualizadas: semanasAtualizadas,
-          semanas_erro: semanasErro,
-          metricas_mapeadas: Array.from(metricasPorLinha.keys())
+          semanas_erro: semanasErro
         })
 
       } catch (barError: any) {
-        console.error(`❌ Erro ao processar ${barConfig.nome}:`, barError)
-        resultadosPorBar.push({
-          bar_id: barConfig.bar_id,
-          bar_nome: barConfig.nome,
-          success: false,
-          error: barError.message
-        })
+        console.error(`❌ Erro ${barConfig.nome}:`, barError.message)
+        resultadosPorBar.push({ bar_id: barConfig.bar_id, bar_nome: barConfig.nome, success: false, error: barError.message })
       }
     }
 
-    const totalAtualizadas = resultadosPorBar
-      .filter(r => r.success)
-      .reduce((acc, r) => acc + (r.semanas_atualizadas || 0), 0)
+    const totalAtualizadas = resultadosPorBar.filter(r => r.success).reduce((acc, r) => acc + (r.semanas_atualizadas || 0), 0)
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `CMV Sheets sincronizado: ${resultadosPorBar.length} bar(es), ${totalAtualizadas} semanas atualizadas`,
+        message: `CMV Sheets v5.0 sincronizado: ${totalAtualizadas} semanas atualizadas`,
         resultados_por_bar: resultadosPorBar,
         timestamp: new Date().toISOString()
       }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error: any) {
-    console.error('❌ Erro ao sincronizar CMV Sheets:', error)
-    
+    console.error('❌ Erro:', error.message)
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message || 'Erro desconhecido',
-        timestamp: new Date().toISOString()
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })

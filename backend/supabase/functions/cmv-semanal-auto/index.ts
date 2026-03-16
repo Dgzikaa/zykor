@@ -69,9 +69,10 @@ serve(async (req) => {
       console.log(`\n🍺 Processando bar_id: ${barId}`);
 
       // 1. Buscar todas as semanas do desempenho_semanal
+      // Inclui couvert_atracoes e comissao para calcular faturamento líquido
       let queryDesempenho = supabase
         .from('desempenho_semanal')
-        .select('numero_semana, ano, data_inicio, data_fim, faturamento_total')
+        .select('numero_semana, ano, data_inicio, data_fim, faturamento_total, couvert_atracoes, comissao')
         .eq('bar_id', barId)
         .eq('ano', anoAtual)
         .order('numero_semana', { ascending: true });
@@ -148,6 +149,10 @@ serve(async (req) => {
       for (const sem of semanasDesempenho || []) {
         const numeroSemana = sem.numero_semana;
         const faturamentoBruto = sem.faturamento_total || 0;
+        const comissao = (sem as any).comissao || 0;
+        // Faturamento Líquido = Faturamento Total - Comissão (NÃO desconta couvert)
+        // Usado para cálculo do CMV Limpo %
+        const faturamentoLiquido = faturamentoBruto - comissao;
         
         // Calcular datas da semana se não existirem
         let dataInicio = sem.data_inicio;
@@ -272,18 +277,24 @@ serve(async (req) => {
           // Evitar CMV negativo
           if (cmvReal < 0) cmvReal = 0;
           
-          // CMV % = CMV Real / Faturamento * 100
+          // CMV % (bruto) = CMV Real / Faturamento Bruto * 100
           if (faturamentoBruto > 0) {
             cmvPercentual = (cmvReal / faturamentoBruto) * 100;
-            cmvLimpoPercentual = cmvPercentual; // Mesmo cálculo por enquanto
           }
           
-          console.log(`  💰 CMV Real calculado: R$ ${cmvReal.toFixed(2)} (${cmvPercentual?.toFixed(1) || 0}%)`);
+          // CMV Limpo % = CMV Real / Faturamento LÍQUIDO * 100
+          // Faturamento Líquido = Bruto - Comissão (NÃO desconta couvert)
+          if (faturamentoLiquido > 0) {
+            cmvLimpoPercentual = (cmvReal / faturamentoLiquido) * 100;
+          }
+          
+          console.log(`  💰 CMV Real: R$ ${cmvReal.toFixed(2)} | CMV Bruto: ${cmvPercentual?.toFixed(1) || 0}% | CMV Limpo: ${cmvLimpoPercentual?.toFixed(1) || 0}%`);
         }
 
         // 9. Montar objeto de update
         const updateData: any = {
           vendas_brutas: faturamentoBruto,
+          vendas_liquidas: faturamentoLiquido,
           faturamento_bruto: faturamentoBruto,
           // CMV - Total de compras (sem alimentação)
           compras_periodo: comprasCmvTotal,
@@ -346,7 +357,7 @@ serve(async (req) => {
           status: 'ok'
         });
 
-        console.log(`✅ Semana ${numeroSemana}: Fat. R$ ${faturamentoBruto.toFixed(2)}, Compras CMV R$ ${comprasCmvTotal.toFixed(2)}, CMV Real R$ ${(cmvReal || 0).toFixed(2)}`);
+        console.log(`✅ Semana ${numeroSemana}: Fat. Bruto R$ ${faturamentoBruto.toFixed(2)}, Líquido R$ ${faturamentoLiquido.toFixed(2)}, CMV Real R$ ${(cmvReal || 0).toFixed(2)}`);
       }
     }
 

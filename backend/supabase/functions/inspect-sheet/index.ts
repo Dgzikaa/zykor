@@ -52,6 +52,7 @@ serve(async (req) => {
     const dataComparar = url.searchParams.get('data') // ex: 2026-03-09
     const abaName = url.searchParams.get('aba') || 'INSUMOS'
     const maxRows = parseInt(url.searchParams.get('linhas') || '10')
+    const useCmvSheet = url.searchParams.get('cmv') === 'true' // usar cmv_spreadsheet_id
 
     // Buscar spreadsheet_id do bar
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -65,11 +66,13 @@ serve(async (req) => {
       .eq('sistema', 'google_sheets')
       .single()
 
-    const spreadsheetId = cred?.configuracoes?.spreadsheet_id
+    const spreadsheetId = useCmvSheet 
+      ? cred?.configuracoes?.cmv_spreadsheet_id 
+      : cred?.configuracoes?.spreadsheet_id
     if (!spreadsheetId) {
       return new Response(JSON.stringify({
         success: false,
-        error: `Spreadsheet não configurado para bar_id ${barId}`
+        error: `Spreadsheet não configurado para bar_id ${barId} (${useCmvSheet ? 'cmv_spreadsheet_id' : 'spreadsheet_id'})`
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 

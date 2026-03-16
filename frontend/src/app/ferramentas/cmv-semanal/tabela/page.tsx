@@ -93,7 +93,11 @@ interface CMVSemanal {
   compras_custo_bebidas: number;
   compras_custo_drinks: number;
   compras_custo_outros: number;
-  compras_alimentacao?: number;
+  compras_alimentacao: number;
+  
+  // CMA - Alimentação Funcionários
+  estoque_inicial_funcionarios: number;
+  estoque_final_funcionarios: number;
   
   // Contas Especiais
   total_consumo_socios: number;
@@ -162,7 +166,7 @@ const SECOES: SecaoConfig[] = [
         semCollapse: true,
         metricas: [
           { key: 'vendas_brutas', label: 'Faturamento Bruto', status: 'auto', fonte: 'ContaHub', calculo: 'SUM(valor) excluindo Conta Assinada', formato: 'moeda', drilldown: true },
-          { key: 'vendas_liquidas', label: 'Faturamento Limpo', status: 'calculado', fonte: 'ContaHub', calculo: 'SUM(liquido) excluindo Conta Assinada', formato: 'moeda', drilldown: true },
+          { key: 'vendas_liquidas', label: 'Faturamento Líquido', status: 'calculado', fonte: 'Calculado', calculo: 'Fat. Bruto - Comissão', formato: 'moeda' },
         ]
       }
     ]
@@ -239,7 +243,7 @@ const SECOES: SecaoConfig[] = [
         metricas: [
           { key: 'cmv_real', label: 'CMV R$', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial + Compras - Est.Final - Consumos - Bonificações', formato: 'moeda' },
           { key: 'cmv_percentual', label: 'CMV Real (%)', status: 'calculado', fonte: 'Calculado', calculo: 'CMV R$ / Faturamento Bruto × 100', formato: 'percentual' },
-          { key: 'cmv_limpo_percentual', label: 'CMV Limpo (%)', status: 'calculado', fonte: 'Calculado', calculo: '(CMV R$ / Fat. CMVível) × 100', formato: 'percentual' },
+          { key: 'cmv_limpo_percentual', label: 'CMV Limpo (%)', status: 'calculado', fonte: 'Calculado', calculo: '(CMV R$ / Fat. Líquido) × 100', formato: 'percentual' },
           { key: 'cmv_teorico_percentual', label: 'CMV Teórico/Meta (%)', status: 'manual', fonte: 'Planilha', calculo: 'Valor meta definido', formato: 'percentual' },
         ]
       }
@@ -252,32 +256,13 @@ const SECOES: SecaoConfig[] = [
     cor: 'bg-amber-600',
     grupos: [
       {
-        id: 'estoque_inicial_func',
-        label: 'Estoque Inicial (F)',
-        metricas: [
-          { key: 'estoque_inicial_funcionarios', label: 'Estoque Inicial Funcionários', status: 'auto', fonte: 'Contagem Estoque', calculo: 'HORTIFRUTI (F) + MERCADO (F) + PROTEÍNA (F)', formato: 'moeda' },
-        ]
-      },
-      {
-        id: 'compras_alimentacao',
-        label: '(+) Compras',
-        metricas: [
-          { key: 'compras_alimentacao_total', label: 'TOTAL', status: 'calculado', fonte: 'NIBO', calculo: 'Alimentação', formato: 'moeda' },
-          { key: 'compras_alimentacao', label: 'Alimentação', status: 'auto', fonte: 'NIBO', calculo: 'categoria_nome = Alimentação', formato: 'moeda', drilldown: true },
-        ]
-      },
-      {
-        id: 'estoque_final_func',
-        label: '(-) Estoque Final (F)',
-        metricas: [
-          { key: 'estoque_final_funcionarios', label: 'Estoque Final Funcionários', status: 'auto', fonte: 'Contagem Estoque', calculo: 'HORTIFRUTI (F) + MERCADO (F) + PROTEÍNA (F)', formato: 'moeda' },
-        ]
-      },
-      {
         id: 'cma_resultado',
         label: 'Resultado CMA',
         semCollapse: true,
         metricas: [
+          { key: 'estoque_inicial_funcionarios', label: 'Estoque Inicial (F)', status: 'auto', fonte: 'Contagem Estoque', calculo: 'HORTIFRUTI (F) + MERCADO (F) + PROTEÍNA (F)', formato: 'moeda' },
+          { key: 'compras_alimentacao', label: '(+) Compras', status: 'auto', fonte: 'NIBO', calculo: 'categoria_nome = Alimentação', formato: 'moeda', drilldown: true },
+          { key: 'estoque_final_funcionarios', label: '(-) Estoque Final (F)', status: 'auto', fonte: 'Contagem Estoque', calculo: 'HORTIFRUTI (F) + MERCADO (F) + PROTEÍNA (F)', formato: 'moeda' },
           { key: 'cma_total', label: 'CMA Total', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial (F) + Compras Alimentação - Est.Final (F)', formato: 'moeda' },
         ]
       }
@@ -674,9 +659,11 @@ export default function CMVSemanalTabelaPage() {
              (semana.compras_custo_bebidas || 0) +
              (semana.compras_custo_outros || 0);
     }
-    // CMA - Compras Alimentação Total (igual ao valor de alimentação)
-    if (key === 'compras_alimentacao_total') {
-      return semana.compras_alimentacao || 0;
+    // CMA Total = Estoque Inicial (F) + Compras Alimentação - Estoque Final (F)
+    if (key === 'cma_total') {
+      return (semana.estoque_inicial_funcionarios || 0) + 
+             (semana.compras_alimentacao || 0) - 
+             (semana.estoque_final_funcionarios || 0);
     }
     // Consumações = soma dos sub-itens × 0.35 (CMV do consumo)
     // 4 categorias: Sócios, Funcionários, Clientes, Artistas
@@ -779,16 +766,23 @@ export default function CMVSemanalTabelaPage() {
         }];
       case 'cmv_limpo_percentual': {
         const cmvReal = semana.cmv_real || 0;
-        const fatCmvivel = semana.faturamento_cmvivel || 1;
+        const fatLiquido = semana.vendas_liquidas || 1;
         return [
           { label: 'CMV Real', valor: cmvReal },
-          { label: '÷ Fat. CMVível', valor: fatCmvivel },
-          { label: '× 100', valor: (cmvReal / fatCmvivel) * 100, formula: `(${formatarValor(cmvReal, 'moeda')} ÷ ${formatarValor(fatCmvivel, 'moeda')}) × 100` },
+          { label: '÷ Fat. Líquido', valor: fatLiquido },
+          { label: '× 100', valor: (cmvReal / fatLiquido) * 100, formula: `(${formatarValor(cmvReal, 'moeda')} ÷ ${formatarValor(fatLiquido, 'moeda')}) × 100` },
         ];
       }
       case 'cmv_teorico_percentual':
         return [
           { label: 'Meta CMV', valor: semana.cmv_teorico_percentual || 0, formula: 'Valor teórico/meta definido' },
+        ];
+      // CMA Total
+      case 'cma_total':
+        return [
+          { label: 'Estoque Inicial (F)', valor: semana.estoque_inicial_funcionarios || 0 },
+          { label: '(+) Compras Alimentação', valor: semana.compras_alimentacao || 0 },
+          { label: '(-) Estoque Final (F)', valor: -(semana.estoque_final_funcionarios || 0) },
         ];
       default:
         return null;

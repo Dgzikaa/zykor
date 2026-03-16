@@ -422,6 +422,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const cancelamentos = (cancelRows || []).reduce((sum, r) => sum + (parseFloat(r.custototal) || 0), 0)
         console.log(`❌ Cancelamentos: R$ ${cancelamentos.toFixed(2)}`)
 
+        // Couvert e Comissão (vr_repique) - usando contahub_periodo
+        const { data: couvertComissaoRows } = await supabase
+          .from('contahub_periodo')
+          .select('vr_couvert, vr_repique')
+          .eq('bar_id', barId)
+          .gte('dt_gerencial', startDate)
+          .lte('dt_gerencial', endDate)
+
+        const couvertAtracoes = (couvertComissaoRows || []).reduce((sum, r) => sum + (parseFloat(r.vr_couvert) || 0), 0)
+        const comissaoCartao = (couvertComissaoRows || []).reduce((sum, r) => sum + (parseFloat(r.vr_repique) || 0), 0)
+        console.log(`🎫 Couvert: R$ ${couvertAtracoes.toFixed(2)} | Comissão: R$ ${comissaoCartao.toFixed(2)}`)
+
         // =============================================
         // CLIENTES ATIVOS (base ativa 90 dias) + % NOVOS
         // =============================================
@@ -538,6 +550,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
             ter_qua_qui: terQuaQui,
             sex_sab: sexSab,
             cancelamentos: cancelamentos,
+            // Couvert e Comissão (de contahub_periodo)
+            couvert_atracoes: couvertAtracoes,
+            comissao: comissaoCartao,
             // Clientes Ativos e % Novos (calculados via RPC)
             ...(percClientesNovos !== null ? { perc_clientes_novos: parseFloat(percClientesNovos.toFixed(2)) } : {}),
             ...(clientesAtivosCalculado !== null ? { clientes_ativos: clientesAtivosCalculado } : {}),
