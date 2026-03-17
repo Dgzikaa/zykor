@@ -108,6 +108,108 @@ export async function GET(request: NextRequest) {
     const ultimoDia = new Date(ano, mes, 0).getDate();
     const dataFim = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
 
+    // NOVA LÓGICA: Buscar dados diretamente da tabela cmv_mensal (sincronizada da planilha)
+    const { data: cmvMensal, error: errMensal } = await supabase
+      .from('cmv_mensal')
+      .select('*')
+      .eq('bar_id', barId)
+      .eq('ano', ano)
+      .eq('mes', mes)
+      .single();
+
+    // Se tiver dados na tabela cmv_mensal, usar diretamente
+    if (cmvMensal && !errMensal) {
+      // Calcular semanas para informação
+      const semanasComProporcao = calcularSemanasComProporcao(mes, ano);
+      const primeiroDiaMes = new Date(ano, mes - 1, 1);
+      const { semana: semanaInicial, ano: anoInicial } = getWeekAndYear(primeiroDiaMes);
+      const primeiroDiaMesSeguinte = new Date(ano, mes, 1);
+      const { semana: semanaFinal, ano: anoFinal } = getWeekAndYear(primeiroDiaMesSeguinte);
+
+      // Mapear campos da tabela cmv_mensal para o formato esperado
+      const dadosMensais = {
+        vendas_brutas: parseFloat(String(cmvMensal.faturamento_total || 0)),
+        vendas_liquidas: parseFloat(String(cmvMensal.faturamento_cmvivel || 0)),
+        faturamento_cmvivel: parseFloat(String(cmvMensal.faturamento_cmvivel || 0)),
+        estoque_inicial: parseFloat(String(cmvMensal.estoque_inicial || 0)),
+        estoque_inicial_cozinha: 0,
+        estoque_inicial_bebidas: 0,
+        estoque_inicial_drinks: 0,
+        compras_periodo: parseFloat(String(cmvMensal.compras || 0)),
+        compras_custo_comida: 0,
+        compras_custo_bebidas: 0,
+        compras_custo_drinks: 0,
+        compras_custo_outros: 0,
+        estoque_final: parseFloat(String(cmvMensal.estoque_final || 0)),
+        estoque_final_cozinha: 0,
+        estoque_final_bebidas: 0,
+        estoque_final_drinks: 0,
+        total_consumo_socios: parseFloat(String(cmvMensal.consumo_socios || 0)) / 0.35, // Reverter o fator 35%
+        mesa_beneficios_cliente: parseFloat(String(cmvMensal.consumo_beneficios || 0)) / 0.35,
+        mesa_banda_dj: parseFloat(String(cmvMensal.consumo_artista || 0)) / 0.35,
+        mesa_adm_casa: (parseFloat(String(cmvMensal.consumo_rh_operacao || 0)) + parseFloat(String(cmvMensal.consumo_rh_escritorio || 0))) / 0.35,
+        consumo_socios: parseFloat(String(cmvMensal.consumo_socios || 0)),
+        consumo_beneficios: parseFloat(String(cmvMensal.consumo_beneficios || 0)),
+        consumo_rh: parseFloat(String(cmvMensal.consumo_rh_operacao || 0)) + parseFloat(String(cmvMensal.consumo_rh_escritorio || 0)),
+        consumo_artista: parseFloat(String(cmvMensal.consumo_artista || 0)),
+        outros_ajustes: parseFloat(String(cmvMensal.outros_ajustes || 0)),
+        ajuste_bonificacoes: parseFloat(String(cmvMensal.ajuste_bonificacoes || 0)),
+        bonificacao_contrato_anual: 0,
+        bonificacao_cashback_mensal: 0,
+        cmv_real: parseFloat(String(cmvMensal.cmv_real || 0)),
+        cmv_limpo_percentual: parseFloat(String(cmvMensal.cmv_limpo_percentual || 0)),
+        cmv_teorico_percentual: parseFloat(String(cmvMensal.cmv_teorico_percentual || 0)),
+        gap: parseFloat(String(cmvMensal.gap || 0)),
+        estoque_inicial_funcionarios: parseFloat(String(cmvMensal.estoque_inicial_funcionarios || 0)),
+        compras_alimentacao: parseFloat(String(cmvMensal.compras_alimentacao || 0)),
+        estoque_final_funcionarios: parseFloat(String(cmvMensal.estoque_final_funcionarios || 0)),
+        cma_total: parseFloat(String(cmvMensal.cma_total || 0)),
+      };
+
+      const resultado = {
+        ...dadosMensais,
+        mes,
+        ano,
+        bar_id: barId,
+        numero_semana: mes,
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        id: `${ano}-${mes}`,
+      };
+
+      return NextResponse.json({
+        success: true,
+        mes: resultado,
+        periodo: { dataInicio, dataFim },
+        semanasIncluidas: semanasComProporcao.map(s => `${s.anoISO}-S${s.semana} (${Math.round(s.proporcao * 100)}%)`),
+        fonte: 'cmv_mensal',
+        estoqueInfo: {
+          inicial: {
+            data: `${String(mes).padStart(2, '0')}/01/${ano}`,
+            semana: `${anoInicial}-S${semanaInicial}`,
+            valores: {
+              total: dadosMensais.estoque_inicial,
+              cozinha: 0,
+              bebidas: 0,
+              drinks: 0
+            }
+          },
+          final: {
+            data: `01/${String(mes + 1).padStart(2, '0')}/${mes === 12 ? ano + 1 : ano}`,
+            semana: `${anoFinal}-S${semanaFinal}`,
+            valores: {
+              total: dadosMensais.estoque_final,
+              cozinha: 0,
+              bebidas: 0,
+              drinks: 0
+            }
+          }
+        },
+        parametros: { mes, ano, barId }
+      });
+    }
+
+    // FALLBACK: Se não tiver dados na cmv_mensal, usar a lógica antiga de agregação das semanas
     // Calcular semanas com proporção de dias no mês
     const semanasComProporcao = calcularSemanasComProporcao(mes, ano);
     

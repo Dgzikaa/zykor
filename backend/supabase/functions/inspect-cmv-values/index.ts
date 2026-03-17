@@ -104,6 +104,21 @@ async function getSheetData(spreadsheetId: string, range: string, accessToken: s
   return data.values || []
 }
 
+async function listSheets(spreadsheetId: string, accessToken: string): Promise<string[]> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`
+  
+  const response = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Erro ao listar abas: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return data.sheets?.map((s: any) => s.properties?.title).filter(Boolean) || []
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -112,7 +127,8 @@ serve(async (req) => {
   try {
     const url = new URL(req.url)
     const barId = parseInt(url.searchParams.get('bar_id') || '4')
-    const col = url.searchParams.get('col') || 'BL' // Semana 11
+    const aba = url.searchParams.get('aba') || 'CMV Mensal'
+    const linhas = parseInt(url.searchParams.get('linhas') || '30')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -135,20 +151,42 @@ serve(async (req) => {
 
     const accessToken = await getGoogleAccessToken()
     
-    // Buscar valores específicos
-    const range = `'CMV Semanal'!${col}1:${col}70`
-    const rows = await getSheetData(spreadsheetId, range, accessToken)
+    // Listar abas disponíveis
+    const abas = await listSheets(spreadsheetId, accessToken)
     
-    const values = rows.map((row, idx) => ({
-      row: idx + 1,
-      value: row[0]
-    })).filter(v => v.value !== undefined && v.value !== '')
+    // Buscar dados da aba especificada
+    const range = `'${aba}'!A1:Z${linhas}`
+    let rows: any[][] = []
+    let abaEncontrada = false
+    
+    try {
+      rows = await getSheetData(spreadsheetId, range, accessToken)
+      abaEncontrada = true
+    } catch (e) {
+      // Aba não encontrada, retornar lista de abas
+    }
+    
+    // Formatar dados para visualização
+    const dadosFormatados = rows.map((row, idx) => {
+      const linha: Record<string, any> = { _linha: idx + 1 }
+      row.forEach((cell, colIdx) => {
+        const colLetter = String.fromCharCode(65 + colIdx) // A, B, C...
+        if (cell !== undefined && cell !== null && cell !== '') {
+          linha[colLetter] = cell
+        }
+      })
+      return linha
+    }).filter(l => Object.keys(l).length > 1) // Filtrar linhas vazias
 
     return new Response(JSON.stringify({
       success: true,
       bar_id: barId,
-      coluna: col,
-      values,
+      spreadsheet_id: spreadsheetId,
+      abas_disponiveis: abas,
+      aba_consultada: aba,
+      aba_encontrada: abaEncontrada,
+      total_linhas: rows.length,
+      dados: dadosFormatados,
       timestamp: new Date().toISOString()
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
