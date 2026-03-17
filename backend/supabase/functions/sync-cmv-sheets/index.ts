@@ -363,7 +363,8 @@ serve(async (req) => {
         
         console.log(`📋 Usando aba: "${targetSheet}"`)
         
-        const range = `'${targetSheet}'!A1:CZ80`
+        // Range expandido para incluir mais colunas (até GZ = ~208 colunas)
+        const range = `'${targetSheet}'!A1:GZ80`
         const rows = await getSheetData(barConfig.cmv_spreadsheet_id!, range, accessToken)
         
         console.log(`📊 ${rows.length} linhas carregadas`)
@@ -398,9 +399,14 @@ serve(async (req) => {
         }
 
         console.log(`📅 ${colunaSemanaAno.size} semanas identificadas com ano`)
+        console.log(`📊 Total de colunas na planilha: ${headers.length}`)
 
         let semanasAtualizadas = 0
         let semanasErro = 0
+        
+        // Debug: mostrar algumas semanas identificadas
+        const debugSemanas = Array.from(colunaSemanaAno.entries()).slice(0, 5)
+        console.log(`🔍 Primeiras 5 semanas: ${JSON.stringify(debugSemanas)}`)
 
         for (const [col, info] of colunaSemanaAno) {
           const { semana: numSemana, ano: anoColuna } = info
@@ -412,17 +418,40 @@ serve(async (req) => {
           const updateData: any = { updated_at: new Date().toISOString() }
           let temDados = false
 
-          // Estoques totais
+          // Estoques totais - IMPORTANTE: aceitar valores >= 0 (não só > 0)
           const estoqueInicialVal = rows[ROW_MAP.estoque_inicial]?.[col]
-          if (estoqueInicialVal !== undefined) {
-            const v = parseMonetario(estoqueInicialVal)
-            if (v > 0) { updateData.estoque_inicial = v; temDados = true }
+          const estoqueInicialNum = parseMonetario(estoqueInicialVal)
+          
+          // Debug para primeiras semanas
+          if (debug && numSemana <= 3) {
+            console.log(`🔍 S${numSemana}/${anoColuna} col=${col}: estoque_inicial raw=${estoqueInicialVal}, parsed=${estoqueInicialNum}`)
           }
           
+          if (estoqueInicialVal !== undefined && estoqueInicialNum >= 0) {
+            updateData.estoque_inicial = estoqueInicialNum
+            temDados = true
+          }
+          
+          // Estoque Final - aceitar valores >= 0
           const estoqueFinalVal = rows[ROW_MAP.estoque_final]?.[col]
-          if (estoqueFinalVal !== undefined) {
-            const v = parseMonetario(estoqueFinalVal)
-            if (v > 0) { updateData.estoque_final = v; temDados = true }
+          const estoqueFinalNum = parseMonetario(estoqueFinalVal)
+          if (estoqueFinalVal !== undefined && estoqueFinalNum >= 0) {
+            updateData.estoque_final = estoqueFinalNum
+            temDados = true
+          }
+          
+          // COMPRAS do período (linha 5) - FALTAVA!
+          const comprasVal = rows[ROW_MAP.compras]?.[col]
+          const comprasNum = parseMonetario(comprasVal)
+          
+          // Debug para primeiras semanas
+          if (debug && numSemana <= 3) {
+            console.log(`🔍 S${numSemana}/${anoColuna}: compras raw=${comprasVal}, parsed=${comprasNum}`)
+          }
+          
+          if (comprasVal !== undefined && comprasNum >= 0) {
+            updateData.compras_periodo = comprasNum
+            temDados = true
           }
           
           // CMV Teórico
@@ -556,6 +585,14 @@ serve(async (req) => {
             temDados = true
           }
           
+          // Compras Alimentação (funcionários)
+          const comprasAlimVal = rows[ROW_MAP.compras_alimentacao]?.[col]
+          if (comprasAlimVal !== undefined) {
+            const v = parseMonetario(comprasAlimVal)
+            updateData.compras_alimentacao = v
+            temDados = true
+          }
+
           const estFimFuncVal = rows[ROW_MAP.estoque_final_funcionarios]?.[col]
           if (estFimFuncVal !== undefined) {
             const v = parseMonetario(estFimFuncVal)

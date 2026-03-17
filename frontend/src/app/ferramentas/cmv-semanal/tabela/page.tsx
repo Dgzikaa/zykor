@@ -640,24 +640,28 @@ export default function CMVSemanalTabelaPage() {
     if (key === 'giro_estoque') {
       return calcularGiroEstoque(semana);
     }
-    // Estoque Inicial = soma dos sub-itens
+    // Estoque Inicial = soma dos sub-itens OU valor total do banco (da planilha)
     if (key === 'estoque_inicial') {
-      return (semana.estoque_inicial_cozinha || 0) + 
+      const somaDetalhados = (semana.estoque_inicial_cozinha || 0) + 
              (semana.estoque_inicial_drinks || 0) + 
              (semana.estoque_inicial_bebidas || 0);
+      // Se tiver detalhados, usar soma; senão usar o total da planilha
+      return somaDetalhados > 0 ? somaDetalhados : (semana.estoque_inicial || 0);
     }
-    // Estoque Final = soma dos sub-itens
+    // Estoque Final = soma dos sub-itens OU valor total do banco (da planilha)
     if (key === 'estoque_final') {
-      return (semana.estoque_final_cozinha || 0) + 
+      const somaDetalhados = (semana.estoque_final_cozinha || 0) + 
              (semana.estoque_final_drinks || 0) + 
              (semana.estoque_final_bebidas || 0);
+      return somaDetalhados > 0 ? somaDetalhados : (semana.estoque_final || 0);
     }
-    // Compras = soma dos sub-itens
+    // Compras = soma dos sub-itens OU valor total do banco (da planilha/NIBO)
     if (key === 'compras_periodo') {
-      return (semana.compras_custo_comida || 0) +
+      const somaDetalhados = (semana.compras_custo_comida || 0) +
              (semana.compras_custo_drinks || 0) +
              (semana.compras_custo_bebidas || 0) +
              (semana.compras_custo_outros || 0);
+      return somaDetalhados > 0 ? somaDetalhados : (semana.compras_periodo || 0);
     }
     // CMA Total = Estoque Inicial (F) + Compras Alimentação - Estoque Final (F)
     if (key === 'cma_total') {
@@ -710,25 +714,40 @@ export default function CMVSemanalTabelaPage() {
   // Gerar detalhes para tooltip do valor
   const getDetalhesTooltip = (semana: CMVSemanal, key: string): { label: string; valor: number; formula?: string }[] | null => {
     switch (key) {
-      case 'estoque_inicial':
-        return [
-          { label: 'Cozinha', valor: semana.estoque_inicial_cozinha || 0 },
-          { label: 'Drinks', valor: semana.estoque_inicial_drinks || 0 },
-          { label: 'Bebidas', valor: semana.estoque_inicial_bebidas || 0 },
-        ];
-      case 'estoque_final':
-        return [
-          { label: 'Cozinha', valor: semana.estoque_final_cozinha || 0 },
-          { label: 'Drinks', valor: semana.estoque_final_drinks || 0 },
-          { label: 'Bebidas', valor: semana.estoque_final_bebidas || 0 },
-        ];
-      case 'compras_periodo':
-        return [
-          { label: 'Cozinha', valor: semana.compras_custo_comida || 0 },
-          { label: 'Drinks', valor: semana.compras_custo_drinks || 0 },
-          { label: 'Bebidas', valor: semana.compras_custo_bebidas || 0 },
-          { label: 'Outros', valor: semana.compras_custo_outros || 0 },
-        ];
+      case 'estoque_inicial': {
+        const somaDetalhados = (semana.estoque_inicial_cozinha || 0) + (semana.estoque_inicial_drinks || 0) + (semana.estoque_inicial_bebidas || 0);
+        if (somaDetalhados > 0) {
+          return [
+            { label: 'Cozinha', valor: semana.estoque_inicial_cozinha || 0 },
+            { label: 'Drinks', valor: semana.estoque_inicial_drinks || 0 },
+            { label: 'Bebidas', valor: semana.estoque_inicial_bebidas || 0 },
+          ];
+        }
+        return [{ label: 'Total (Planilha)', valor: semana.estoque_inicial || 0 }];
+      }
+      case 'estoque_final': {
+        const somaDetalhados = (semana.estoque_final_cozinha || 0) + (semana.estoque_final_drinks || 0) + (semana.estoque_final_bebidas || 0);
+        if (somaDetalhados > 0) {
+          return [
+            { label: 'Cozinha', valor: semana.estoque_final_cozinha || 0 },
+            { label: 'Drinks', valor: semana.estoque_final_drinks || 0 },
+            { label: 'Bebidas', valor: semana.estoque_final_bebidas || 0 },
+          ];
+        }
+        return [{ label: 'Total (Planilha)', valor: semana.estoque_final || 0 }];
+      }
+      case 'compras_periodo': {
+        const somaDetalhados = (semana.compras_custo_comida || 0) + (semana.compras_custo_drinks || 0) + (semana.compras_custo_bebidas || 0) + (semana.compras_custo_outros || 0);
+        if (somaDetalhados > 0) {
+          return [
+            { label: 'Cozinha', valor: semana.compras_custo_comida || 0 },
+            { label: 'Drinks', valor: semana.compras_custo_drinks || 0 },
+            { label: 'Bebidas', valor: semana.compras_custo_bebidas || 0 },
+            { label: 'Outros', valor: semana.compras_custo_outros || 0 },
+          ];
+        }
+        return [{ label: 'Total (Planilha)', valor: semana.compras_periodo || 0 }];
+      }
       case 'total_consumos':
         // 4 categorias: Sócios, Funcionários, Clientes, Artistas
         return [
@@ -744,9 +763,15 @@ export default function CMVSemanalTabelaPage() {
         ];
       // RESULTADOS - Tooltips com cálculos detalhados
       case 'cmv_real': {
-        const estoqueInicial = (semana.estoque_inicial_cozinha || 0) + (semana.estoque_inicial_drinks || 0) + (semana.estoque_inicial_bebidas || 0);
-        const compras = (semana.compras_custo_comida || 0) + (semana.compras_custo_drinks || 0) + (semana.compras_custo_bebidas || 0) + (semana.compras_custo_outros || 0);
-        const estoqueFinal = (semana.estoque_final_cozinha || 0) + (semana.estoque_final_drinks || 0) + (semana.estoque_final_bebidas || 0);
+        // Usar soma dos detalhados ou total da planilha
+        const estIniDetalhado = (semana.estoque_inicial_cozinha || 0) + (semana.estoque_inicial_drinks || 0) + (semana.estoque_inicial_bebidas || 0);
+        const estoqueInicial = estIniDetalhado > 0 ? estIniDetalhado : (semana.estoque_inicial || 0);
+        
+        const comprasDetalhado = (semana.compras_custo_comida || 0) + (semana.compras_custo_drinks || 0) + (semana.compras_custo_bebidas || 0) + (semana.compras_custo_outros || 0);
+        const compras = comprasDetalhado > 0 ? comprasDetalhado : (semana.compras_periodo || 0);
+        
+        const estFimDetalhado = (semana.estoque_final_cozinha || 0) + (semana.estoque_final_drinks || 0) + (semana.estoque_final_bebidas || 0);
+        const estoqueFinal = estFimDetalhado > 0 ? estFimDetalhado : (semana.estoque_final || 0);
         // 4 categorias: Sócios, Funcionários, Clientes, Artistas
         const consumosTotal = ((semana.total_consumo_socios || 0) * 0.35) + ((semana.mesa_adm_casa || 0) * 0.35) + ((semana.mesa_beneficios_cliente || 0) * 0.35) + ((semana.mesa_banda_dj || 0) * 0.35);
         const bonificacoes = (semana.bonificacao_contrato_anual || 0) + (semana.bonificacao_cashback_mensal || 0);
