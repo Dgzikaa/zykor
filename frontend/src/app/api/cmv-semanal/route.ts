@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     }
     const barId = parseInt(barIdParam);
 
+    // Buscar CMV semanal
     let query = supabase
       .from('cmv_semanal')
       .select('*')
@@ -54,18 +55,51 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Buscar comissão e couvert do desempenho_semanal para enriquecer os dados
+    const semanas = data?.map(d => d.semana) || [];
+    const anos = [...new Set(data?.map(d => d.ano) || [])];
+    
+    let desempenhoMap: Record<string, { comissao: number; couvert_atracoes: number }> = {};
+    
+    if (semanas.length > 0) {
+      const { data: desempenhoData } = await supabase
+        .from('desempenho_semanal')
+        .select('numero_semana, ano, comissao, couvert_atracoes')
+        .eq('bar_id', barId)
+        .in('ano', anos)
+        .in('numero_semana', semanas);
+      
+      desempenhoData?.forEach(d => {
+        desempenhoMap[`${d.ano}-${d.numero_semana}`] = {
+          comissao: d.comissao || 0,
+          couvert_atracoes: d.couvert_atracoes || 0
+        };
+      });
+    }
+
+    // Enriquecer dados do CMV com comissão e couvert
+    const dataEnriquecida = data?.map(item => {
+      const key = `${item.ano}-${item.semana}`;
+      const desempenho = desempenhoMap[key] || { comissao: 0, couvert_atracoes: 0 };
+      return {
+        ...item,
+        comissao: desempenho.comissao,
+        couvert_atracoes: desempenho.couvert_atracoes
+      };
+    }) || [];
+
     // Calcular estatísticas
-    const totalRegistros = data?.length || 0;
+    const totalRegistros = dataEnriquecida.length;
     const cmvMedio = totalRegistros > 0
-      ? data!.reduce((sum, item) => sum + ((item as any).cmv_limpo_percentual ?? (item as any).cmv_percentual ?? 0), 0) / totalRegistros
+      ? dataEnriquecida.reduce((sum, item) => sum + ((item as any).cmv_limpo_percentual ?? (item as any).cmv_percentual ?? 0), 0) / totalRegistros
       : 0;
     const vendasTotais = totalRegistros > 0
-      ? data!.reduce((sum, item) => sum + (item.vendas_liquidas || 0), 0)
+      ? dataEnriquecida.reduce((sum, item) => sum + (item.vendas_liquidas || 0), 0)
       : 0;
 
     return NextResponse.json({
       success: true,
-      data: data || [],
+      data: dataEnriquecida,
       meta: {
         total_registros: totalRegistros,
         cmv_medio: parseFloat(cmvMedio.toFixed(2)),

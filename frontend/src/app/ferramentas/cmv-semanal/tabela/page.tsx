@@ -54,6 +54,8 @@ interface CMVSemanal {
   vendas_brutas: number;
   vendas_liquidas: number;
   faturamento_cmvivel: number;
+  comissao?: number;
+  couvert_atracoes?: number;
   
   // Estoque e Compras
   estoque_inicial: number;
@@ -747,6 +749,26 @@ export default function CMVSemanalTabelaPage() {
           ];
         }
         return [{ label: 'Total (Planilha)', valor: semana.compras_periodo || 0 }];
+      }
+      case 'vendas_liquidas': {
+        const bruto = semana.vendas_brutas || 0;
+        const comissao = semana.comissao || 0;
+        const couvert = semana.couvert_atracoes || 0;
+        // Se não temos os campos detalhados, calcular a diferença
+        const diferencaTotal = bruto - (semana.vendas_liquidas || 0);
+        if (comissao > 0 || couvert > 0) {
+          return [
+            { label: 'Faturamento Bruto', valor: bruto },
+            { label: '(-) Comissão', valor: -comissao },
+            { label: '(-) Couvert', valor: -couvert },
+          ];
+        } else if (diferencaTotal > 0) {
+          return [
+            { label: 'Faturamento Bruto', valor: bruto },
+            { label: '(-) Comissão + Couvert', valor: -diferencaTotal },
+          ];
+        }
+        return null;
       }
       case 'total_consumos':
         // 4 categorias: Sócios, Funcionários, Clientes, Artistas
