@@ -703,7 +703,13 @@ export default function CMVSemanalTabelaPage() {
       const fatBruto = semana.vendas_brutas || 0;
       return fatBruto > 0 ? (cmvReal / fatBruto) * 100 : 0;
     }
-    return (semana as any)[key] ?? null;
+    // CMV Limpo (%) - já vem calculado do banco
+    if (key === 'cmv_limpo_percentual') {
+      const valor = semana.cmv_limpo_percentual;
+      return valor ? parseFloat(String(valor)) : 0;
+    }
+    const valor = (semana as any)[key];
+    return valor !== undefined && valor !== null ? (typeof valor === 'string' ? parseFloat(valor) : valor) : null;
   };
 
   // Cor do gap
