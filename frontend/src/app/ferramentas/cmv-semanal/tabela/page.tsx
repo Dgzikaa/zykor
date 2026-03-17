@@ -527,16 +527,16 @@ export default function CMVSemanalTabelaPage() {
     }
   }, [visao]);
 
-  // Scroll para semana atual
+  // Scroll para semana atual (posicionar no final, mostrando semanas mais recentes)
   useEffect(() => {
     if (!loading && scrollContainerRef.current && semanaAtualRef.current) {
       const container = scrollContainerRef.current;
       const element = semanaAtualRef.current;
-      const containerWidth = container.offsetWidth;
       const elementLeft = element.offsetLeft;
       const elementWidth = element.offsetWidth;
       
-      container.scrollLeft = elementLeft - (containerWidth * 0.6) + (elementWidth / 2);
+      // Posicionar a semana atual mais à direita (no final visível)
+      container.scrollLeft = elementLeft - 100 + elementWidth;
     }
   }, [loading, semanaAtualIdx]);
 
@@ -928,7 +928,7 @@ export default function CMVSemanalTabelaPage() {
         <div className="flex" style={{ minWidth: 'max-content' }}>
           
           {/* Coluna fixa - Labels */}
-          <div className="sticky left-0 z-20 flex-shrink-0 w-[220px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md">
+          <div className="sticky left-0 z-20 flex-shrink-0 w-[280px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md">
             {/* Header vazio */}
             <div className="h-[60px] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center sticky top-0 z-30">
               <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">INDICADOR</span>
