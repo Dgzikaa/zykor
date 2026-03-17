@@ -391,12 +391,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
         let terQuaQui = 0
         let sexSab = 0
         for (const row of fatDiasRows || []) {
-          const d = new Date(row.trn_dtgerencial)
+          // Forçar interpretação como UTC para evitar problemas de timezone
+          const d = new Date(row.trn_dtgerencial + 'T12:00:00Z')
           const dia = d.getUTCDay() // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sab
           const valor = parseFloat(row.valorfinal) || 0
           
-          // Ordinário: Qui(4), Sex(5), Sab(6), Dom(0)
-          if (dia === 4 || dia === 5 || dia === 6 || dia === 0) {
+          // Ordinário: Qui(4), Sab(6), Dom(0) - NÃO inclui Sexta(5)
+          if (dia === 4 || dia === 6 || dia === 0) {
             quiSabDom += valor
           }
           // Deboche: Ter(2), Qua(3), Qui(4)

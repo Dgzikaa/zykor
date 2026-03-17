@@ -166,7 +166,7 @@ const SECOES: SecaoConfig[] = [
         semCollapse: true,
         metricas: [
           { key: 'vendas_brutas', label: 'Faturamento Bruto', status: 'auto', fonte: 'ContaHub', calculo: 'SUM(valor) excluindo Conta Assinada', formato: 'moeda', drilldown: true },
-          { key: 'vendas_liquidas', label: 'Faturamento Líquido', status: 'calculado', fonte: 'Calculado', calculo: 'Fat. Bruto - Comissão', formato: 'moeda' },
+          { key: 'vendas_liquidas', label: 'Faturamento Limpo', status: 'calculado', fonte: 'Calculado', calculo: 'Fat. Bruto - Comissão - Couvert', formato: 'moeda' },
         ]
       }
     ]

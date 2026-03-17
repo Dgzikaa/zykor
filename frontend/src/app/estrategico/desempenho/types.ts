@@ -79,6 +79,8 @@ export interface DadosSemana {
   perc_faturamento_ate_19h: number;
   perc_faturamento_apos_22h?: number;
   qui_sab_dom: number;
+  ter_qua_qui?: number;
+  sex_sab?: number;
   cancelamentos?: number;
   cancelamentos_detalhes?: { dia_semana: string; data?: string; valor: number }[];
   atrasinhos_bar?: number;

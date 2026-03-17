@@ -150,9 +150,10 @@ serve(async (req) => {
         const numeroSemana = sem.numero_semana;
         const faturamentoBruto = sem.faturamento_total || 0;
         const comissao = (sem as any).comissao || 0;
-        // Faturamento Líquido = Faturamento Total - Comissão (NÃO desconta couvert)
+        const couvert = (sem as any).couvert_atracoes || 0;
+        // Faturamento Limpo = Faturamento Total - Comissão - Couvert
         // Usado para cálculo do CMV Limpo %
-        const faturamentoLiquido = faturamentoBruto - comissao;
+        const faturamentoLimpo = faturamentoBruto - comissao - couvert;
         
         // Calcular datas da semana se não existirem
         let dataInicio = sem.data_inicio;
@@ -282,10 +283,10 @@ serve(async (req) => {
             cmvPercentual = (cmvReal / faturamentoBruto) * 100;
           }
           
-          // CMV Limpo % = CMV Real / Faturamento LÍQUIDO * 100
-          // Faturamento Líquido = Bruto - Comissão (NÃO desconta couvert)
-          if (faturamentoLiquido > 0) {
-            cmvLimpoPercentual = (cmvReal / faturamentoLiquido) * 100;
+          // CMV Limpo % = CMV Real / Faturamento LIMPO * 100
+          // Faturamento Limpo = Bruto - Comissão - Couvert
+          if (faturamentoLimpo > 0) {
+            cmvLimpoPercentual = (cmvReal / faturamentoLimpo) * 100;
           }
           
           console.log(`  💰 CMV Real: R$ ${cmvReal.toFixed(2)} | CMV Bruto: ${cmvPercentual?.toFixed(1) || 0}% | CMV Limpo: ${cmvLimpoPercentual?.toFixed(1) || 0}%`);
@@ -294,7 +295,7 @@ serve(async (req) => {
         // 9. Montar objeto de update
         const updateData: any = {
           vendas_brutas: faturamentoBruto,
-          vendas_liquidas: faturamentoLiquido,
+          vendas_liquidas: faturamentoLimpo,
           faturamento_bruto: faturamentoBruto,
           // CMV - Total de compras (sem alimentação)
           compras_periodo: comprasCmvTotal,
@@ -357,7 +358,7 @@ serve(async (req) => {
           status: 'ok'
         });
 
-        console.log(`✅ Semana ${numeroSemana}: Fat. Bruto R$ ${faturamentoBruto.toFixed(2)}, Líquido R$ ${faturamentoLiquido.toFixed(2)}, CMV Real R$ ${(cmvReal || 0).toFixed(2)}`);
+        console.log(`✅ Semana ${numeroSemana}: Fat. Bruto R$ ${faturamentoBruto.toFixed(2)}, Limpo R$ ${faturamentoLimpo.toFixed(2)}, CMV Real R$ ${(cmvReal || 0).toFixed(2)}`);
       }
     }
 
