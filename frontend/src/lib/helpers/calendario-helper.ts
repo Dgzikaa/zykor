@@ -90,13 +90,29 @@ export async function verificarBarAberto(
       return resultado;
     }
 
-    // 2º PRIORIDADE: Para datas passadas, verificar movimento no ContaHub
     // Criar data garantindo interpretação correta (sem timezone issues)
     const [ano, mes, dia] = data.split('-').map(Number);
     const dataVerificacao = new Date(Date.UTC(ano, mes - 1, dia, 12, 0, 0));
+    const diaSemana = dataVerificacao.getUTCDay();
+    const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
+    // 2º PRIORIDADE: Verificar dia de fechamento FIXO por bar
+    // DEBOCHE (bar_id=4): Fecha às SEGUNDAS-FEIRAS - SEMPRE, independente de movimento
+    // Isso tem prioridade sobre movimento porque o bar NÃO abre segundas
+    if (barId === 4 && diaSemana === 1) {
+      console.log(`🚫 Deboche fechado: ${data} é segunda-feira`);
+      const resultado = {
+        aberto: false,
+        motivo: 'Segunda-feira (Deboche não abre)',
+        fonte: 'padrao' as const
+      };
+      statusCache.set(cacheKey, { data: resultado, timestamp: Date.now() });
+      return resultado;
+    }
+
+    // 3º PRIORIDADE: Para datas passadas, verificar movimento no ContaHub
     if (dataVerificacao < hoje) {
       // Data no passado - verificar movimento no ContaHub Analítico
       const { data: movimento, error: errorMovimento } = await supabase
@@ -130,36 +146,18 @@ export async function verificarBarAberto(
       }
     }
 
-    // 3º PRIORIDADE: Usar padrão semanal
-    const diaSemana = dataVerificacao.getUTCDay();
-    const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-    
+    // 4º PRIORIDADE: Usar padrão semanal (dia normal de funcionamento)
     let resultado: StatusDia;
     
-    // LÓGICA ESPECÍFICA POR BAR
-    if (barId === 4) {
-      // DEBOCHE: Fecha às segundas-feiras
-      if (diaSemana === 1) {
-        resultado = {
-          aberto: false,
-          motivo: 'Segunda-feira (Deboche fechado)',
-          fonte: 'padrao'
-        };
-      } else {
-        resultado = {
-          aberto: true,
-          motivo: `${diasSemana[diaSemana]} (dia normal de funcionamento)`,
-          fonte: 'padrao'
-        };
-      }
-    } else {
-      // ORDINÁRIO: Abre TODOS OS DIAS (sem dia de fechamento padrão)
-      resultado = {
-        aberto: true,
-        motivo: `${diasSemana[diaSemana]} (dia normal de funcionamento)`,
-        fonte: 'padrao'
-      };
-    }
+    // Para este ponto, já sabemos que:
+    // - Não há registro manual
+    // - Não é dia de fechamento fixo (Deboche segunda já foi tratado acima)
+    // - Não há movimento detectado (ou é data futura)
+    resultado = {
+      aberto: true,
+      motivo: `${diasSemana[diaSemana]} (dia normal de funcionamento)`,
+      fonte: 'padrao'
+    };
 
     // Salvar no cache
     statusCache.set(cacheKey, { data: resultado, timestamp: Date.now() });
@@ -251,7 +249,18 @@ export async function verificarMultiplasDatas(
       const dataVerificacao = new Date(Date.UTC(ano, mes - 1, dia, 12, 0, 0));
       const diaSemana = dataVerificacao.getUTCDay();
 
-      // 2º - Movimento (só para passado)
+      // 2º - Dia de fechamento FIXO por bar (tem prioridade sobre movimento)
+      // DEBOCHE (bar_id=4): Fecha às SEGUNDAS-FEIRAS - SEMPRE
+      if (barId === 4 && diaSemana === 1) {
+        resultado.set(data, {
+          aberto: false,
+          motivo: 'Segunda-feira (Deboche não abre)',
+          fonte: 'padrao'
+        });
+        continue;
+      }
+
+      // 3º - Movimento (só para passado)
       if (dataVerificacao < hoje) {
         const movimento = movimentacoesMap.get(data) || 0;
         const temMovimento = movimento > 0;
@@ -264,31 +273,13 @@ export async function verificarMultiplasDatas(
         continue;
       }
 
-      // 3º - Padrão semanal
-      // LÓGICA ESPECÍFICA POR BAR
-      if (barId === 4) {
-        // DEBOCHE: Fecha às segundas-feiras
-        if (diaSemana === 1) {
-          resultado.set(data, {
-            aberto: false,
-            motivo: 'Segunda-feira (Deboche fechado)',
-            fonte: 'padrao'
-          });
-        } else {
-          resultado.set(data, {
-            aberto: true,
-            motivo: 'Dia normal de funcionamento',
-            fonte: 'padrao'
-          });
-        }
-      } else {
-        // ORDINÁRIO: Abre TODOS OS DIAS (sem dia de fechamento padrão)
-        resultado.set(data, {
-          aberto: true,
-          motivo: 'Dia normal de funcionamento',
-          fonte: 'padrao'
-        });
-      }
+      // 4º - Padrão semanal (dia normal de funcionamento)
+      // Chegou aqui = não é dia de fechamento fixo e não tem movimento
+      resultado.set(data, {
+        aberto: true,
+        motivo: 'Dia normal de funcionamento',
+        fonte: 'padrao'
+      });
     }
 
     return resultado;
