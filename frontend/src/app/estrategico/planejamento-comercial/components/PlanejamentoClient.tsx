@@ -107,12 +107,35 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
   const [filtroMes, setFiltroMes] = useState(serverMes);
   const [filtroAno, setFiltroAno] = useState(serverAno);
   const [linhaHighlight, setLinhaHighlight] = useState<number | null>(null);
+  const [colunaHighlight, setColunaHighlight] = useState<string | null>(null);
+  const [editandoReservas, setEditandoReservas] = useState<{id: number, campo: 'res_tot' | 'res_p'} | null>(null);
+  const [valorReservaTemp, setValorReservaTemp] = useState<string>('');
   
   useEffect(() => {
     setDados(initialData);
     setFiltroMes(serverMes);
     setFiltroAno(serverAno);
   }, [initialData, serverMes, serverAno]);
+  
+  // Salvar reserva inline (Deboche)
+  const salvarReservaInline = async (eventoId: number, campo: 'res_tot' | 'res_p', valor: number) => {
+    try {
+      const response = await apiCall(`/api/eventos/${eventoId}/update`, {
+        method: 'POST',
+        body: JSON.stringify({ [campo]: valor }),
+      });
+      
+      if (response.success) {
+        setDados(prev => prev.map(e => 
+          e.evento_id === eventoId ? { ...e, [campo]: valor } : e
+        ));
+      }
+    } catch (error) {
+      console.error('Erro ao salvar reserva:', error);
+    }
+    setEditandoReservas(null);
+    setValorReservaTemp('');
+  };
   
   const [modalOpen, setModalOpen] = useState(false);
   const [modoEdicao, setModoEdicao] = useState(false); 
@@ -491,9 +514,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         {/* Colunas Fixas */}
                         <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-0 bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>Data</th>
                         <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[48px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>Dia</th>
-                        <th className="px-2 py-2 text-left text-[11px] font-semibold border-r-2 border-[hsl(var(--border))] sticky left-[86px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '140px', minWidth: '140px', maxWidth: '140px'}}>Artista</th>
-                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}>Receita Real</th>
-                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))]" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}>Meta M1</th>
+                        <th className="px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[86px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '140px', minWidth: '140px', maxWidth: '140px'}}>Artista</th>
+                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[226px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Receita Real</th>
+                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Meta M1</th>
                         
                         {/* Subcolunas CLIENTES */}
                         {gruposAbertos.clientes ? (
@@ -617,20 +640,25 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                           return (
                           <tr
                             key={evento.evento_id} 
-                            onClick={() => setLinhaHighlight(idx)}
+                            onClick={() => { setLinhaHighlight(idx); setColunaHighlight(null); }}
                             className={`group cursor-pointer transition-colors ${
                               isNewWeek ? 'border-t-4 border-[hsl(var(--border))]' : ''
                             } ${
                               linhaHighlight === idx
-                                ? 'bg-[hsl(var(--muted))]'
-                                : 'hover:bg-[hsl(var(--muted))]/30'
+                                ? 'bg-blue-100 dark:bg-blue-900/40 ring-1 ring-blue-400/50 ring-inset'
+                                : 'hover:bg-blue-50/50 dark:hover:bg-blue-900/20'
                             }`}
                           >
-                            {/* Colunas Fixas */}
-                            <td className={`px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))] sticky left-0 z-10 transition-colors ${linhaHighlight === idx ? 'bg-[hsl(var(--muted))]' : 'bg-[hsl(var(--background))] group-hover:bg-[hsl(var(--muted))]/30'}`} style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>{evento.data_curta}</td>
-                            <td className={`px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] sticky left-[48px] z-10 transition-colors ${linhaHighlight === idx ? 'bg-[hsl(var(--muted))]' : 'bg-[hsl(var(--background))] group-hover:bg-[hsl(var(--muted))]/30'}`} style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
-                            <td className={`px-2 py-1.5 text-left text-[11px] border-r-2 border-[hsl(var(--border))] sticky left-[86px] z-10 truncate transition-colors ${linhaHighlight === idx ? 'bg-[hsl(var(--muted))]' : 'bg-[hsl(var(--background))] group-hover:bg-[hsl(var(--muted))]/30'}`} style={{width: '140px', minWidth: '140px', maxWidth: '140px'}} title={evento.evento_nome || 'Sem atração'}>{evento.evento_nome || '-'}</td>
-                            <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}>
+                            {/* Colunas Fixas (Data, Dia, Artista, Receita Real) */}
+                            <td className={`px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))] sticky left-0 z-10 transition-colors ${linhaHighlight === idx ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-[hsl(var(--background))] group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/20'}`} style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>{evento.data_curta}</td>
+                            <td className={`px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] sticky left-[48px] z-10 transition-colors ${linhaHighlight === idx ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-[hsl(var(--background))] group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/20'}`} style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
+                            <td className={`px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))] sticky left-[86px] z-10 truncate transition-colors ${linhaHighlight === idx ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-[hsl(var(--background))] group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/20'}`} style={{width: '140px', minWidth: '140px', maxWidth: '140px'}} title={evento.evento_nome || 'Sem atração'}>{evento.evento_nome || '-'}</td>
+                            <td 
+                              onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('real_receita'); }}
+                              className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] sticky left-[226px] z-10 transition-colors cursor-pointer ${
+                                linhaHighlight === idx ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-[hsl(var(--background))] group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/20'
+                              } ${colunaHighlight === 'real_receita' ? 'ring-2 ring-inset ring-blue-500/50' : ''}`} 
+                              style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>
                               {evento.real_receita > 0 ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -672,15 +700,78 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                 <span className={`font-semibold ${evento.real_vs_m1_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>-</span>
                               )}
                             </td>
-                            <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '130px', minWidth: '130px', maxWidth: '130px'}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
+                            <td 
+                              onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('m1_receita'); }}
+                              className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-900/20 ${colunaHighlight === 'm1_receita' ? 'ring-2 ring-inset ring-blue-500/50 bg-blue-50 dark:bg-blue-900/30' : ''}`} 
+                              style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
                             
                             {/* Grupo CLIENTES */}
                             {gruposAbertos.clientes ? (
                               <>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.clientes_plan || '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.ci_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.clientes_real || '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.res_tot || '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.res_p || '-'}</td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('clientes_plan'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-900/20 ${colunaHighlight === 'clientes_plan' ? 'ring-2 ring-inset ring-blue-500/50 bg-blue-50 dark:bg-blue-900/30' : ''}`} 
+                                  style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.clientes_plan || '-'}</td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('clientes_real'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-900/20 ${colunaHighlight === 'clientes_real' ? 'ring-2 ring-inset ring-blue-500/50 bg-blue-50 dark:bg-blue-900/30' : ''}`} 
+                                  style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.ci_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.clientes_real || '-'}</span></td>
+                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>
+                                  {selectedBar?.id === 4 ? (
+                                    editandoReservas?.id === evento.evento_id && editandoReservas?.campo === 'res_tot' ? (
+                                      <input
+                                        type="number"
+                                        className="w-16 px-1 py-0.5 text-center text-[11px] border rounded bg-[hsl(var(--background))]"
+                                        value={valorReservaTemp}
+                                        onChange={(e) => setValorReservaTemp(e.target.value)}
+                                        onBlur={() => salvarReservaInline(evento.evento_id, 'res_tot', parseInt(valorReservaTemp) || 0)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') salvarReservaInline(evento.evento_id, 'res_tot', parseInt(valorReservaTemp) || 0);
+                                          if (e.key === 'Escape') { setEditandoReservas(null); setValorReservaTemp(''); }
+                                        }}
+                                        autoFocus
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    ) : (
+                                      <span 
+                                        className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/40 px-2 py-0.5 rounded"
+                                        onClick={(e) => { e.stopPropagation(); setEditandoReservas({id: evento.evento_id, campo: 'res_tot'}); setValorReservaTemp(String(evento.res_tot || 0)); }}
+                                      >
+                                        {evento.res_tot || '-'}
+                                      </span>
+                                    )
+                                  ) : (
+                                    evento.res_tot || '-'
+                                  )}
+                                </td>
+                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>
+                                  {selectedBar?.id === 4 ? (
+                                    editandoReservas?.id === evento.evento_id && editandoReservas?.campo === 'res_p' ? (
+                                      <input
+                                        type="number"
+                                        className="w-16 px-1 py-0.5 text-center text-[11px] border rounded bg-[hsl(var(--background))]"
+                                        value={valorReservaTemp}
+                                        onChange={(e) => setValorReservaTemp(e.target.value)}
+                                        onBlur={() => salvarReservaInline(evento.evento_id, 'res_p', parseInt(valorReservaTemp) || 0)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') salvarReservaInline(evento.evento_id, 'res_p', parseInt(valorReservaTemp) || 0);
+                                          if (e.key === 'Escape') { setEditandoReservas(null); setValorReservaTemp(''); }
+                                        }}
+                                        autoFocus
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    ) : (
+                                      <span 
+                                        className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/40 px-2 py-0.5 rounded"
+                                        onClick={(e) => { e.stopPropagation(); setEditandoReservas({id: evento.evento_id, campo: 'res_p'}); setValorReservaTemp(String(evento.res_p || 0)); }}
+                                      >
+                                        {evento.res_p || '-'}
+                                      </span>
+                                    )
+                                  ) : (
+                                    evento.res_p || '-'
+                                  )}
+                                </td>
                               </>
                             ) : (
                               <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] " style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>

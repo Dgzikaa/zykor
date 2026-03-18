@@ -38,7 +38,9 @@ import {
   Table2,
   Factory,
   UserCog,
-  Calculator
+  Calculator,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
@@ -206,10 +208,10 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         label: 'Atrasos',
         agregacao: { tipo: 'soma', formato: 'numero' },
         metricas: [
-          { key: 'atrasinhos_bar', label: 'Atrasinho Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 >4 e <8 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes', keyPercentual: 'atrasinhos_bar_perc' },
-          { key: 'atrasinhos_cozinha', label: 'Atrasinho Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 >15 e <20 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes', keyPercentual: 'atrasinhos_cozinha_perc' },
-          { key: 'atrasos_bar', label: 'Atrasão Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 > 20 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_bar_perc' },
-          { key: 'atrasos_cozinha', label: 'Atrasão Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 > 30 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_cozinha_perc' },
+          { key: 'atrasinhos_bar', label: 'Atrasinho Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 > 5 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes', keyPercentual: 'atrasinhos_bar_perc' },
+          { key: 'atrasinhos_cozinha', label: 'Atrasinho Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 > 15 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, detalhesKey: 'atrasinhos_detalhes', keyPercentual: 'atrasinhos_cozinha_perc' },
+          { key: 'atrasos_bar', label: 'Atrasão Drinks', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t3 > 10 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_bar_perc' },
+          { key: 'atrasos_cozinha', label: 'Atrasão Comida', status: 'auto', fonte: 'contahub_tempo', calculo: 't0_t2 > 20 min', formato: 'numero', inverso: true, temTooltipDetalhes: true, keyPercentual: 'atrasos_cozinha_perc' },
         ]
       }
     ]
@@ -1453,7 +1455,27 @@ export function DesempenhoClient({
                                               <TooltipProvider>
                                                 <Tooltip>
                                                   <TooltipTrigger asChild>
-                                                    <span className={cn("text-xs font-medium text-center cursor-help", getCorMeta(verificarMeta(valorPrincipal, metricaPrincipal.key, metas)))}>{valorPrincipalFormatado}</span>
+                                                    <div className="flex items-center justify-center gap-1">
+                                                      <span className={cn("text-xs font-medium text-center cursor-help", getCorMeta(verificarMeta(valorPrincipal, metricaPrincipal.key, metas)))}>{valorPrincipalFormatado}</span>
+                                                      {metricaPrincipal.key === 'faturamento_total' && visao === 'semanal' && (() => {
+                                                        const metaSemanal = getValorComOverride(semana, 'meta_semanal') || 0;
+                                                        const faturamentoTotal = valorPrincipal || 0;
+                                                        if (metaSemanal > 0 && faturamentoTotal > 0) {
+                                                          const percentualAtingido = Math.round((faturamentoTotal / metaSemanal) * 100);
+                                                          const acimaMeta = percentualAtingido >= 100;
+                                                          return (
+                                                            <span className={cn(
+                                                              "text-[10px] font-bold px-1 py-0.5 rounded flex items-center gap-0.5",
+                                                              acimaMeta ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                                                            )}>
+                                                              {acimaMeta ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
+                                                              {percentualAtingido}%
+                                                            </span>
+                                                          );
+                                                        }
+                                                        return null;
+                                                      })()}
+                                                    </div>
                                                   </TooltipTrigger>
                                                   <TooltipContent side="top" className={cn("max-w-xs p-3", STATUS_COLORS[metricaPrincipal.status].bg)}>
                                                     <div className="space-y-1">
@@ -1464,6 +1486,8 @@ export function DesempenhoClient({
                                                         const contaAssinada = getValorComOverride(semana, 'conta_assinada_valor') || 0;
                                                         const faturamentoTotal = valorPrincipal || 0;
                                                         const faturamentoBruto = faturamentoTotal + contaAssinada;
+                                                        const metaSemanal = visao === 'semanal' ? (getValorComOverride(semana, 'meta_semanal') || 0) : 0;
+                                                        const percentualAtingido = metaSemanal > 0 ? Math.round((faturamentoTotal / metaSemanal) * 100) : 0;
                                                         return (
                                                           <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600 space-y-1">
                                                             <p className="text-xs">
@@ -1475,12 +1499,22 @@ export function DesempenhoClient({
                                                             <p className="text-xs font-semibold">
                                                               <strong>= Fat. Total:</strong> {formatarValor(faturamentoTotal, 'moeda')}
                                                             </p>
+                                                            {visao === 'semanal' && metaSemanal > 0 && (
+                                                              <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                                                <p className="text-xs">
+                                                                  <strong>Meta Semanal (Soma M1):</strong> {formatarValor(metaSemanal, 'moeda')}
+                                                                </p>
+                                                                <p className={cn("text-xs font-bold", percentualAtingido >= 100 ? "text-green-600" : "text-red-600")}>
+                                                                  <strong>Atingido:</strong> {percentualAtingido}% {percentualAtingido >= 100 ? '✓' : ''}
+                                                                </p>
+                                                              </div>
+                                                            )}
                                                           </div>
                                                         );
                                                       })()}
-                                                      {metas[metricaPrincipal.key] && (
+                                                      {metas[metricaPrincipal.key] && visao !== 'semanal' && (
                                                         <p className="text-xs mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-                                                          <strong>Meta {visao === 'semanal' ? 'Semanal' : 'Mensal'}:</strong> {formatarValor(metas[metricaPrincipal.key].valor, metricaPrincipal.formato, metricaPrincipal.sufixo)}
+                                                          <strong>Meta Mensal:</strong> {formatarValor(metas[metricaPrincipal.key].valor, metricaPrincipal.formato, metricaPrincipal.sufixo)}
                                                         </p>
                                                       )}
                                                       <div className="flex items-center gap-1 mt-1">

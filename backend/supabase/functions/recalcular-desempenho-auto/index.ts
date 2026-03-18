@@ -144,7 +144,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         // Fonte canônica semanal: eventos_base (sem descontar conta_assinada novamente)
         const { data: eventosData } = await supabase
           .from('eventos_base')
-          .select('real_r, cl_real, m1_r, res_tot, res_p, num_mesas_tot, num_mesas_presentes, faturamento_entrada, faturamento_bar')
+          .select('data_evento, real_r, cl_real, m1_r, res_tot, res_p, num_mesas_tot, num_mesas_presentes, faturamento_entrada, faturamento_bar')
           .eq('bar_id', barId)
           .gte('data_evento', startDate)
           .lte('data_evento', endDate)
@@ -378,23 +378,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         console.log(`⏰ Fat até 19h: ${percFatAte19h?.toFixed(1)}%, após 22h: ${percFatApos22h.toFixed(1)}%`)
 
-        // Faturamento por dia da semana (usando contahub_analitico)
+        // Faturamento por dia da semana (usando eventos_base.real_r - valor consolidado por dia)
         // Ordinário: Qui+Sab+Dom | Deboche: Ter+Qua+Qui e Sex+Sab
-        const { data: fatDiasRows } = await supabase
-          .from('contahub_analitico')
-          .select('trn_dtgerencial, valorfinal')
-          .eq('bar_id', barId)
-          .gte('trn_dtgerencial', startDate)
-          .lte('trn_dtgerencial', endDate)
-
+        // CORRIGIDO: Antes usava contahub_analitico.valorfinal que soma múltiplos registros por transação
         let quiSabDom = 0
         let terQuaQui = 0
         let sexSab = 0
-        for (const row of fatDiasRows || []) {
-          // Forçar interpretação como UTC para evitar problemas de timezone
-          const d = new Date(row.trn_dtgerencial + 'T12:00:00Z')
+        for (const evento of eventosData || []) {
+          // Usar data_evento do próprio eventosData (já carregado no início)
+          // eventosData já está filtrado por bar_id, data_evento e ativo=true
+          const dataEvento = (evento as any).data_evento
+          if (!dataEvento) continue
+          
+          const d = new Date(dataEvento + 'T12:00:00Z')
           const dia = d.getUTCDay() // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sab
-          const valor = parseFloat(row.valorfinal) || 0
+          const valor = parseFloat((evento as any).real_r) || 0
           
           // Ordinário: Qui(4), Sab(6), Dom(0) - NÃO inclui Sexta(5)
           if (dia === 4 || dia === 6 || dia === 0) {
