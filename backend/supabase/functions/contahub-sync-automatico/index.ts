@@ -247,6 +247,21 @@ async function fetchPeriodoComDivisao(
   );
 }
 
+// Função para buscar CANCELAMENTOS com divisão quando a query for muito grande
+// Query ID 22 = Cancelamentos (baseado no padrão ContaHub)
+async function fetchCancelamentosComDivisao(
+  baseUrl: string, 
+  dataDate: string, 
+  empId: string, 
+  sessionToken: string,
+  generateTimestamp: () => string
+): Promise<any> {
+  return fetchComDivisaoPorLocal(
+    baseUrl, dataDate, empId, sessionToken, generateTimestamp,
+    22, 'cancelamentos', ''
+  );
+}
+
 // Função para salvar JSON bruto (SEM PROCESSAMENTO)
 async function saveRawDataOnly(supabase: any, dataType: string, rawData: any, dataDate: string, barId: number = 3) {
   console.log(`💾 Salvando JSON bruto para ${dataType}...`);
@@ -408,7 +423,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // 1. COLETA E ARMAZENAMENTO DE JSON BRUTO
     console.log('\n📊 FASE 1: Coletando e salvando JSONs brutos...');
     
-    const dataTypes = ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'vendas'];
+    const dataTypes = ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'vendas', 'cancelamentos'];
     
     // Converter data para formato ContaHub (DD.MM.YYYY)
     const contahubDate = toContaHubDateFormat(data_date);
@@ -610,6 +625,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
             results.collected.push(vendasResult);
             console.log(`✅ vendas: JSON bruto salvo (${vendasResult.record_count} registros)`);
             continue; // Já processou, pular o loop normal
+            
+          case 'cancelamentos':
+            // Usar função com divisão para evitar erro "Resultado muito grande"
+            try {
+              const cancelamentosData = await fetchCancelamentosComDivisao(
+                contahubBaseUrl, data_date, emp_id, sessionToken, generateDynamicTimestamp
+              );
+              const saveResultCancel = await saveRawDataOnly(supabase, 'cancelamentos', cancelamentosData, data_date, bar_id);
+              results.collected.push(saveResultCancel);
+              console.log(`✅ cancelamentos: JSON bruto salvo (${saveResultCancel.record_count} registros)`);
+            } catch (cancelError) {
+              console.error(`❌ Erro ao buscar cancelamentos:`, cancelError);
+              results.errors.push({ 
+                phase: 'collection', 
+                data_type: 'cancelamentos', 
+                error: cancelError instanceof Error ? cancelError.message : String(cancelError) 
+              });
+            }
+            continue;
             
           default:
             throw new Error(`Tipo de dados não suportado: ${dataType}`);
