@@ -317,13 +317,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const requestBody = await req.text();
     console.log('📊 Body recebido:', requestBody);
     
-    const { bar_id, data_date, emp_id: empIdFromPayload, contahub_emp_id: contahubEmpIdFromPayload } = JSON.parse(requestBody || '{}');
+    const { 
+      bar_id, 
+      data_date, 
+      data_inicio,  // Para backfill: data inicial do range
+      data_fim,     // Para backfill: data final do range
+      only_cancelamentos, // Se true, busca apenas cancelamentos (para backfill rápido)
+      emp_id: empIdFromPayload, 
+      contahub_emp_id: contahubEmpIdFromPayload 
+    } = JSON.parse(requestBody || '{}');
     
-    if (!bar_id || !data_date) {
-      throw new Error('bar_id e data_date são obrigatórios');
+    // Se tem data_inicio e data_fim, é um backfill de range
+    if (data_inicio && data_fim && only_cancelamentos) {
+      console.log(`🔄 Modo BACKFILL: Buscando cancelamentos de ${data_inicio} a ${data_fim} para bar_id=${bar_id}`);
+      // Será tratado abaixo
+    } else if (!bar_id || !data_date) {
+      throw new Error('bar_id e data_date são obrigatórios (ou data_inicio/data_fim para backfill)');
     }
     
-    console.log(`🎯 Processando dados para bar_id=${bar_id}, data=${data_date}`);
+    console.log(`🎯 Processando dados para bar_id=${bar_id}, data=${data_date || `${data_inicio} a ${data_fim}`}`);
     
     // Enviar notificação de início
     await sendDiscordNotification(`🚀 **Iniciando sincronização ContaHub**\n\n📊 **Dados:** ${data_date}\n🍺 **Bar ID:** ${bar_id}\n⏰ **Início:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`);
@@ -420,7 +432,57 @@ Deno.serve(async (req: Request): Promise<Response> => {
       errors: [] as any[]
     };
     
-    // 1. COLETA E ARMAZENAMENTO DE JSON BRUTO
+    // MODO BACKFILL: Buscar apenas cancelamentos para um range de datas
+    if (data_inicio && data_fim && only_cancelamentos) {
+      console.log(`\n🔄 MODO BACKFILL CANCELAMENTOS: ${data_inicio} a ${data_fim}`);
+      
+      const startDate = new Date(data_inicio);
+      const endDate = new Date(data_fim);
+      let currentDate = startDate;
+      let totalDias = 0;
+      let totalRegistros = 0;
+      
+      while (currentDate <= endDate) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        try {
+          console.log(`📅 Buscando cancelamentos para ${dateStr}...`);
+          const cancelamentosData = await fetchCancelamentosComDivisao(
+            contahubBaseUrl, dateStr, emp_id, sessionToken, generateDynamicTimestamp
+          );
+          const saveResult = await saveRawDataOnly(supabase, 'cancelamentos', cancelamentosData, dateStr, bar_id);
+          totalRegistros += saveResult.record_count;
+          totalDias++;
+          console.log(`✅ ${dateStr}: ${saveResult.record_count} cancelamentos`);
+          
+          // Pequeno delay para não sobrecarregar
+          await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (error) {
+          console.error(`❌ Erro em ${dateStr}:`, error);
+          results.errors.push({ date: dateStr, error: String(error) });
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      const summary = {
+        bar_id,
+        mode: 'backfill_cancelamentos',
+        data_inicio,
+        data_fim,
+        total_dias: totalDias,
+        total_registros: totalRegistros,
+        errors: results.errors.length,
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log('📊 Backfill concluído:', JSON.stringify(summary));
+      
+      return new Response(JSON.stringify(summary), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      });
+    }
+    
+    // 1. COLETA E ARMAZENAMENTO DE JSON BRUTO (modo normal)
     console.log('\n📊 FASE 1: Coletando e salvando JSONs brutos...');
     
     const dataTypes = ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'vendas', 'cancelamentos'];
