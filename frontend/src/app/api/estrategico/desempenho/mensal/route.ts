@@ -469,6 +469,8 @@ function agregarDadosSemanaisProporcionais(
     venda_balcao: somaProportional('venda_balcao'),
     couvert_atracoes: somaProportional('couvert_atracoes'),
     qui_sab_dom: somaProportional('qui_sab_dom'),
+    ter_qua_qui: somaProportional('ter_qua_qui'),
+    sex_sab: somaProportional('sex_sab'),
     
     // Marketing Orgânico (100% MANUAL - não usar proporção)
     o_num_posts: marketingMensal?.o_num_posts || 0,

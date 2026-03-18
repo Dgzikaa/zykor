@@ -89,7 +89,12 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         id: 'ticket',
         label: 'Ticket Médio',
         metricas: [
-          { key: 'ticket_medio', label: 'Ticket Médio', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Faturamento Total / Público Total', formato: 'moeda_decimal' },
+          // Deboche usa Ticket Médio manual (Stone) em vez do automático (ContaHub)
+          ...(barId === 4 ? [
+            { key: 'ticket_medio', label: 'Ticket Médio', status: 'manual' as const, fonte: 'Stone (manual)', calculo: 'Inserido manualmente da Stone', formato: 'moeda_decimal' as const, editavel: true },
+          ] : [
+            { key: 'ticket_medio', label: 'Ticket Médio', status: 'auto' as const, fonte: 'eventos_base (consolidado)', calculo: 'Faturamento Total / Público Total', formato: 'moeda_decimal' as const },
+          ]),
           { key: 'tm_entrada', label: 'TM Entrada', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Fat. Entrada / Público Total', formato: 'moeda_decimal', indentado: true },
           { key: 'tm_bar', label: 'TM Bar', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Fat. Bar / Público Total', formato: 'moeda_decimal', indentado: true },
         ]
@@ -114,9 +119,14 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         id: 'volume',
         label: 'Volume',
         metricas: [
-          { key: 'clientes_ativos', label: 'Clientes Ativos', status: 'auto', fonte: 'ContaHub', calculo: 'Clientes únicos com 2+ visitas nos últimos 90 dias (até o último dia do período)', formato: 'numero' },
+          // Clientes Ativos e % Novos Clientes ocultos para Deboche (bar_id=4) até implementar Zig
+          ...(barId !== 4 ? [
+            { key: 'clientes_ativos', label: 'Clientes Ativos', status: 'auto' as const, fonte: 'ContaHub', calculo: 'Clientes únicos com 2+ visitas nos últimos 90 dias (até o último dia do período)', formato: 'numero' as const },
+          ] : []),
           { key: 'clientes_atendidos', label: 'Visitas', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Soma de clientes_real de todos os eventos (Sympla + Yuzer + ContaHub)', formato: 'numero' },
-          { key: 'perc_clientes_novos', label: '% Novos Clientes', status: 'auto', fonte: 'Stored Procedure', calculo: 'Clientes novos / Total de visitas', formato: 'percentual' },
+          ...(barId !== 4 ? [
+            { key: 'perc_clientes_novos', label: '% Novos Clientes', status: 'auto' as const, fonte: 'Stored Procedure', calculo: 'Clientes novos / Total de visitas', formato: 'percentual' as const },
+          ] : []),
         ]
       },
       {
@@ -224,6 +234,11 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
           ] : [
             { key: 'qui_sab_dom', label: 'QUI+SÁB+DOM', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Soma real_r', formato: 'moeda' as const },
           ]),
+          // Couvert Total e Atrações/Eventos para comparação (Deboche)
+          ...(barId === 4 ? [
+            { key: 'couvert_atracoes', label: 'Couvert Total R$', status: 'auto' as const, fonte: 'contahub_periodo', calculo: 'Soma vr_couvert', formato: 'moeda' as const },
+            { key: 'atracoes_eventos', label: 'Atrações/Eventos', status: 'auto' as const, fonte: 'NIBO', calculo: 'Categoria Atrações/Eventos', formato: 'moeda' as const },
+          ] : []),
           { key: 'conta_assinada_valor', label: 'Conta Assinada', status: 'auto' as const, fonte: 'contahub_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda_com_percentual' as const, percentualKey: 'conta_assinada_perc' },
           { key: 'descontos_valor', label: 'Descontos', status: 'auto' as const, fonte: 'contahub_periodo', calculo: 'Soma vr_desconto', formato: 'moeda_com_percentual' as const, percentualKey: 'descontos_perc', temTooltipDetalhes: true },
           { key: 'cancelamentos', label: 'Cancelamentos', status: 'auto' as const, fonte: 'contahub_cancelamentos', calculo: 'Soma custototal', formato: 'moeda' as const, temTooltipDetalhes: true, detalhesKey: 'cancelamentos_detalhes' },
