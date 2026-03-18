@@ -236,14 +236,14 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
           ] : [
             { key: 'qui_sab_dom', label: 'QUI+SÁB+DOM', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Soma real_r', formato: 'moeda' as const },
           ]),
-          // Couvert Total e Atrações/Eventos para comparação (Deboche)
-          ...(barId === 4 ? [
-            { key: 'couvert_atracoes', label: 'Couvert Total R$', status: 'auto' as const, fonte: 'contahub_periodo', calculo: 'Soma vr_couvert', formato: 'moeda' as const },
-            { key: 'atracoes_eventos', label: 'Atrações/Eventos', status: 'auto' as const, fonte: 'NIBO', calculo: 'Categoria Atrações/Eventos', formato: 'moeda' as const },
-          ] : []),
           { key: 'conta_assinada_valor', label: 'Conta Assinada', status: 'auto' as const, fonte: 'contahub_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda_com_percentual' as const, percentualKey: 'conta_assinada_perc' },
           { key: 'descontos_valor', label: 'Descontos', status: 'auto' as const, fonte: 'contahub_periodo', calculo: 'Soma vr_desconto', formato: 'moeda_com_percentual' as const, percentualKey: 'descontos_perc', temTooltipDetalhes: true },
           { key: 'cancelamentos', label: 'Cancelamentos', status: 'auto' as const, fonte: 'contahub_cancelamentos', calculo: 'Soma custototal', formato: 'moeda' as const, temTooltipDetalhes: true, detalhesKey: 'cancelamentos_detalhes' },
+          // Couvert Total e Atrações/Eventos para comparação (Deboche) - APÓS Cancelamentos
+          ...(barId === 4 ? [
+            { key: 'couvert_atracoes', label: 'Couvert Total R$', status: 'auto' as const, fonte: 'contahub_periodo', calculo: 'Soma vr_couvert', formato: 'moeda' as const },
+            { key: 'atracoes_eventos', label: 'Atrações/Eventos R$', status: 'auto' as const, fonte: 'NIBO', calculo: 'Soma c_art eventos_base', formato: 'moeda' as const },
+          ] : []),
         ]
       }
     ]

@@ -144,7 +144,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         // Fonte canônica semanal: eventos_base (sem descontar conta_assinada novamente)
         const { data: eventosData } = await supabase
           .from('eventos_base')
-          .select('data_evento, real_r, cl_real, m1_r, res_tot, res_p, num_mesas_tot, num_mesas_presentes, faturamento_entrada, faturamento_bar')
+          .select('data_evento, real_r, cl_real, m1_r, res_tot, res_p, num_mesas_tot, num_mesas_presentes, faturamento_entrada, faturamento_bar, c_art')
           .eq('bar_id', barId)
           .gte('data_evento', startDate)
           .lte('data_evento', endDate)
@@ -433,6 +433,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const comissaoCartao = (couvertComissaoRows || []).reduce((sum, r) => sum + (parseFloat(r.vr_repique) || 0), 0)
         console.log(`🎫 Couvert: R$ ${couvertAtracoes.toFixed(2)} | Comissão: R$ ${comissaoCartao.toFixed(2)}`)
 
+        // Atrações/Eventos = custoAtracao (já calculado do NIBO)
+        // Isso já é a soma de todas as despesas de Atrações/Eventos do período
+        const atracoesEventos = custoAtracao
+        console.log(`🎭 Atrações/Eventos (NIBO): R$ ${atracoesEventos.toFixed(2)}`)
+
         // =============================================
         // CLIENTES ATIVOS (base ativa 90 dias) + % NOVOS
         // =============================================
@@ -549,9 +554,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
             ter_qua_qui: terQuaQui,
             sex_sab: sexSab,
             cancelamentos: cancelamentos,
-            // Couvert e Comissão (de contahub_periodo)
+            // Couvert, Comissão e Atrações/Eventos
             couvert_atracoes: couvertAtracoes,
             comissao: comissaoCartao,
+            atracoes_eventos: atracoesEventos,
             // Clientes Ativos e % Novos (calculados via RPC)
             ...(percClientesNovos !== null ? { perc_clientes_novos: parseFloat(percClientesNovos.toFixed(2)) } : {}),
             ...(clientesAtivosCalculado !== null ? { clientes_ativos: clientesAtivosCalculado } : {}),
