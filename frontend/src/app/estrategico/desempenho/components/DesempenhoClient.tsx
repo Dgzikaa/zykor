@@ -1235,8 +1235,8 @@ export function DesempenhoClient({
       {/* Conteúdo */}
       <div ref={scrollContainerRef} className="flex-1 overflow-auto smooth-scroll">
         <div className="flex" style={{ minWidth: 'fit-content' }}>
-          {/* Colunas Fixas (Indicador + Metas) - largura fixa de 272px */}
-          <div className="sticky left-0 z-20 flex flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md" style={{ minWidth: '272px', width: '272px' }}>
+          {/* Colunas Fixas (Indicador + Metas na visão mensal) */}
+          <div className="sticky left-0 z-20 flex flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md" style={{ minWidth: visao === 'semanal' ? '200px' : '272px', width: visao === 'semanal' ? '200px' : '272px' }}>
             {/* Coluna Indicador */}
             <div className="w-[200px] border-r border-gray-200 dark:border-gray-700">
               <div className="h-[72px] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center sticky top-0 z-30">
@@ -1327,64 +1327,66 @@ export function DesempenhoClient({
            ))}
             </div>
 
-            {/* Coluna Metas */}
-            <div className="w-[72px] border-l border-amber-200 dark:border-amber-800/50">
-              <div className="h-[72px] border-b border-gray-200 dark:border-gray-700 bg-gradient-to-b from-amber-100 to-amber-50 dark:from-amber-900/40 dark:to-amber-900/20 flex items-center justify-center sticky top-0 z-30">
-                <div className="flex flex-col items-center">
-                  <Target className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 mb-0.5" />
-                  <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Meta</span>
+            {/* Coluna Metas - apenas na visão mensal (na semanal, a meta é dinâmica por semana) */}
+            {visao !== 'semanal' && (
+              <div className="w-[72px] border-l border-amber-200 dark:border-amber-800/50">
+                <div className="h-[72px] border-b border-gray-200 dark:border-gray-700 bg-gradient-to-b from-amber-100 to-amber-50 dark:from-amber-900/40 dark:to-amber-900/20 flex items-center justify-center sticky top-0 z-30">
+                  <div className="flex flex-col items-center">
+                    <Target className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 mb-0.5" />
+                    <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Meta</span>
+                  </div>
                 </div>
+                {SECOES.map(secao => (
+                  <div key={`metas-${secao.id}`}>
+                    {/* Header da seção */}
+                    <div className={cn("flex items-center justify-center", secao.cor)} style={{ height: '40px' }} />
+                    {secoesAbertas[secao.id] && secao.grupos.map(grupo => {
+                      const hierarquico = isGrupoHierarquico(grupo);
+                      const grupoSimples = isGrupoSimples(grupo);
+                      const metricasParaMostrar = hierarquico ? grupo.metricas.slice(1) : grupo.metricas;
+                      const mostrarHeaderGrupo = !grupoSimples && (hierarquico || !!grupo.agregacao);
+                      return (
+                        <div key={`metas-${grupo.id}`}>
+                          {mostrarHeaderGrupo && (
+                            <div 
+                              className="flex items-center justify-center bg-amber-50/50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-800/30 hover:bg-amber-100/70 dark:hover:bg-amber-800/20 transition-colors cursor-pointer group" 
+                              style={{ height: '36px' }}
+                              onClick={() => hierarquico && grupo.metricas[0] && abrirEditMeta(grupo.metricas[0])}
+                              title={hierarquico && grupo.metricas[0] ? `Clique para editar meta de ${grupo.metricas[0].label}` : undefined}
+                            >
+                              {hierarquico && grupo.metricas[0] && metas[grupo.metricas[0].key] ? (
+                                <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 truncate px-1 group-hover:underline">
+                                  {formatarValor(metas[grupo.metricas[0].key].valor, grupo.metricas[0].formato, grupo.metricas[0].sufixo)}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-amber-300 dark:text-amber-700 group-hover:text-amber-500">{hierarquico ? '+' : '-'}</span>
+                              )}
+                            </div>
+                          )}
+                          {(!mostrarHeaderGrupo || secoesNaoColapsaveis.includes(secao.id) || gruposAbertos[`${secao.id}-${grupo.id}`]) && metricasParaMostrar.map((metrica) => (
+                            <div 
+                              key={`meta-${metrica.key}`} 
+                              className="flex items-center justify-center border-b border-amber-100/50 dark:border-amber-800/20 bg-amber-50/20 dark:bg-amber-900/5 hover:bg-amber-200/60 dark:hover:bg-amber-800/30 transition-colors cursor-pointer group" 
+                              style={{ height: '32px' }}
+                              onClick={() => abrirEditMeta(metrica)}
+                              title={`Clique para editar meta de ${metrica.label}`}
+                            >
+                              {metas[metrica.key] ? (
+                                <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400 truncate px-1 group-hover:underline">
+                                  {formatarValor(metas[metrica.key].valor, metrica.formato, metrica.sufixo)}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-amber-300 dark:text-amber-700 group-hover:text-amber-500">+</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
               </div>
-              {SECOES.map(secao => (
-                <div key={`metas-${secao.id}`}>
-                  {/* Header da seção */}
-                  <div className={cn("flex items-center justify-center", secao.cor)} style={{ height: '40px' }} />
-                  {secoesAbertas[secao.id] && secao.grupos.map(grupo => {
-                    const hierarquico = isGrupoHierarquico(grupo);
-                    const grupoSimples = isGrupoSimples(grupo);
-                    const metricasParaMostrar = hierarquico ? grupo.metricas.slice(1) : grupo.metricas;
-                    const mostrarHeaderGrupo = !grupoSimples && (hierarquico || !!grupo.agregacao);
-                    return (
-                      <div key={`metas-${grupo.id}`}>
-                        {mostrarHeaderGrupo && (
-                          <div 
-                            className="flex items-center justify-center bg-amber-50/50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-800/30 hover:bg-amber-100/70 dark:hover:bg-amber-800/20 transition-colors cursor-pointer group" 
-                            style={{ height: '36px' }}
-                            onClick={() => hierarquico && grupo.metricas[0] && abrirEditMeta(grupo.metricas[0])}
-                            title={hierarquico && grupo.metricas[0] ? `Clique para editar meta de ${grupo.metricas[0].label}` : undefined}
-                          >
-                            {hierarquico && grupo.metricas[0] && metas[grupo.metricas[0].key] ? (
-                              <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 truncate px-1 group-hover:underline">
-                                {formatarValor(metas[grupo.metricas[0].key].valor, grupo.metricas[0].formato, grupo.metricas[0].sufixo)}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-amber-300 dark:text-amber-700 group-hover:text-amber-500">{hierarquico ? '+' : '-'}</span>
-                            )}
-                          </div>
-                        )}
-                        {(!mostrarHeaderGrupo || secoesNaoColapsaveis.includes(secao.id) || gruposAbertos[`${secao.id}-${grupo.id}`]) && metricasParaMostrar.map((metrica) => (
-                          <div 
-                            key={`meta-${metrica.key}`} 
-                            className="flex items-center justify-center border-b border-amber-100/50 dark:border-amber-800/20 bg-amber-50/20 dark:bg-amber-900/5 hover:bg-amber-200/60 dark:hover:bg-amber-800/30 transition-colors cursor-pointer group" 
-                            style={{ height: '32px' }}
-                            onClick={() => abrirEditMeta(metrica)}
-                            title={`Clique para editar meta de ${metrica.label}`}
-                          >
-                            {metas[metrica.key] ? (
-                              <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400 truncate px-1 group-hover:underline">
-                                {formatarValor(metas[metrica.key].valor, metrica.formato, metrica.sufixo)}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-amber-300 dark:text-amber-700 group-hover:text-amber-500">+</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
+            )}
           </div>
 
           {/* Área das Semanas - inline-flex para manter largura natural */}
