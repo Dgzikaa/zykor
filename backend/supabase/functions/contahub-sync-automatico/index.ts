@@ -248,7 +248,7 @@ async function fetchPeriodoComDivisao(
 }
 
 // Função para buscar CANCELAMENTOS com divisão quando a query for muito grande
-// Query ID 22 = Cancelamentos (baseado no padrão ContaHub)
+// Query ID 57 = Cancelamentos (confirmado via ContaHub)
 async function fetchCancelamentosComDivisao(
   baseUrl: string, 
   dataDate: string, 
@@ -258,7 +258,7 @@ async function fetchCancelamentosComDivisao(
 ): Promise<any> {
   return fetchComDivisaoPorLocal(
     baseUrl, dataDate, empId, sessionToken, generateTimestamp,
-    22, 'cancelamentos', ''
+    57, 'cancelamentos', '&comanda='
   );
 }
 
