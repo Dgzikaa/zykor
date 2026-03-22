@@ -11,8 +11,6 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🚀 API Recalcular Eventos Base - Iniciado');
-
     // Autenticação
     const user = await authenticateUser(request);
     if (!user) {
@@ -27,21 +25,11 @@ export async function POST(request: NextRequest) {
       forcar_todos = false 
     } = body;
 
-    console.log(`📅 Parâmetros recebidos:`, {
-      data_inicio,
-      data_fim,
-      evento_ids,
-      forcar_todos,
-      bar_id: user.bar_id
-    });
-
     let totalRecalculados = 0;
     let eventosProcessados: any[] = [];
 
     if (evento_ids && Array.isArray(evento_ids)) {
       // Recalcular eventos específicos
-      console.log(`🎯 Recalculando ${evento_ids.length} eventos específicos`);
-      
       for (const eventoId of evento_ids) {
         try {
           const { error } = await supabase.rpc('calculate_evento_metrics', { 
@@ -61,8 +49,6 @@ export async function POST(request: NextRequest) {
             if (eventoAtualizado) {
               eventosProcessados.push(eventoAtualizado);
             }
-            
-            console.log(`✅ Evento ${eventoId} recalculado com sucesso`);
           } else {
             console.error(`❌ Erro ao recalcular evento ${eventoId}:`, error);
           }
@@ -74,8 +60,7 @@ export async function POST(request: NextRequest) {
     } else if (data_inicio) {
       // Recalcular período específico
       const dataFim = data_fim || data_inicio;
-      console.log(`📅 Recalculando período: ${data_inicio} a ${dataFim}`);
-      
+
       const { data, error } = await supabase.rpc('recalcular_eventos_periodo', {
         data_inicio,
         data_fim: dataFim
@@ -83,8 +68,7 @@ export async function POST(request: NextRequest) {
       
       if (!error) {
         totalRecalculados = data || 0;
-        console.log(`✅ ${totalRecalculados} eventos recalculados no período`);
-        
+
         // Buscar eventos recalculados
         const { data: eventosRecalculados } = await supabase
           .from('eventos_base')
@@ -102,16 +86,13 @@ export async function POST(request: NextRequest) {
       
     } else if (forcar_todos) {
       // Recalcular todos os eventos pendentes
-      console.log('🔄 Recalculando todos os eventos pendentes');
-      
       const { data, error } = await supabase.rpc('recalcular_eventos_pendentes', { 
         limite: 100 
       });
       
       if (!error) {
         totalRecalculados = data || 0;
-        console.log(`✅ ${totalRecalculados} eventos pendentes recalculados`);
-        
+
         // Buscar eventos recalculados recentemente
         const { data: eventosRecalculados } = await supabase
           .from('eventos_base')
@@ -128,8 +109,6 @@ export async function POST(request: NextRequest) {
       
     } else {
       // Recalcular apenas eventos que precisam de recálculo
-      console.log('🔄 Recalculando eventos marcados como pendentes');
-      
       // Buscar eventos que precisam de recálculo
       const { data: eventosPendentes, error: errorPendentes } = await supabase
         .from('eventos_base')
@@ -142,9 +121,7 @@ export async function POST(request: NextRequest) {
       if (errorPendentes) {
         throw new Error(`Erro ao buscar eventos pendentes: ${errorPendentes.message}`);
       }
-      
-      console.log(`📊 Encontrados ${eventosPendentes?.length || 0} eventos pendentes`);
-      
+
       if (eventosPendentes && eventosPendentes.length > 0) {
         for (const evento of eventosPendentes) {
           try {
@@ -165,8 +142,6 @@ export async function POST(request: NextRequest) {
               if (eventoAtualizado) {
                 eventosProcessados.push(eventoAtualizado);
               }
-              
-              console.log(`✅ Evento ${evento.id} (${evento.nome}) recalculado`);
             } else {
               console.error(`❌ Erro ao recalcular evento ${evento.id}:`, error);
             }
@@ -176,8 +151,6 @@ export async function POST(request: NextRequest) {
         }
       }
     }
-
-    console.log(`🎉 Recálculo concluído: ${totalRecalculados} eventos processados`);
 
     return NextResponse.json({
       success: true,

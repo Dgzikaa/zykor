@@ -852,10 +852,7 @@ export async function POST() {
       );
     }
 
-    console.log('🔄 Iniciando limpeza e importação de atrações...');
-
     // 1. Limpar todos os eventos existentes do Bar Ordinário
-    console.log('🗑️ Removendo eventos existentes...');
     const { error: deleteError } = await supabase
       .from('eventos_base')
       .delete()
@@ -870,10 +867,7 @@ export async function POST() {
       });
     }
 
-    console.log('✅ Eventos existentes removidos com sucesso');
-
     // 2. Inserir novos eventos
-    console.log('📝 Inserindo novos eventos...');
     const eventosParaInserir = attractionsData.map((item: AttractionItem) => ({
       bar_id: 1,
       nome: item.evento,
@@ -900,10 +894,6 @@ export async function POST() {
         details: insertError,
       });
     }
-
-    console.log(
-      `✅ ${insertedEvents?.length} novos eventos inseridos com sucesso`
-    );
 
     return NextResponse.json({
       success: true,

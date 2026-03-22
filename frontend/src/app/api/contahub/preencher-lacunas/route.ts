@@ -17,8 +17,6 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const body: FillGapsRequest = await request.json()
 
-    console.log('🔄 [API] Preenchendo lacunas para:', body.data_type)
-
     const dataType = body.data_type
     if (!body.bar_id) {
       return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
@@ -41,9 +39,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    console.log(`📊 [API] Encontradas ${allMissingDates.length} datas faltantes para ${dataType}`)
-    console.log(`🎯 [API] Primeira lacuna: ${allMissingDates[0]}, Última: ${allMissingDates[allMissingDates.length - 1]}`)
-
     // Processar em lotes sequenciais (não repetir datas já processadas)
     const datesToProcess = allMissingDates.slice(0, batchSize)
     let collectedCount = 0
@@ -51,8 +46,6 @@ export async function POST(request: NextRequest) {
 
     for (const date of datesToProcess) {
       try {
-        console.log(`🔍 [API] Coletando ${dataType} para ${date}`)
-
         // Coletar dados para esta data específica
         const collectionResult = await collectDataForSpecificDate(dataType, date, barId)
         
@@ -82,12 +75,7 @@ export async function POST(request: NextRequest) {
           const processResult = await processRawData(supabase, rawData.id)
           if (processResult.success) {
             processedCount++
-            console.log(`✅ [API] ${date}: ${collectionResult.record_count} registros coletados e processados`)
-          } else {
-            console.log(`⚠️ [API] ${date}: coletado mas erro no processamento`)
           }
-        } else {
-          console.log(`⏭️ [API] ${date}: sem dados disponíveis`)
         }
 
         // Pequena pausa
@@ -103,9 +91,6 @@ export async function POST(request: NextRequest) {
     const totalDays = 200 // 31/01 até 18/08 = 200 dias
     const completedDays = totalDays - remainingGaps.length
     const coveragePercentage = Math.round((completedDays / totalDays) * 100)
-
-    console.log(`🎉 [API] Preenchimento concluído: ${collectedCount} coletados, ${processedCount} processados`)
-    console.log(`📈 [API] Cobertura ${dataType}: ${coveragePercentage}% (${completedDays}/${totalDays} dias)`)
 
     const isComplete = remainingGaps.length === 0
     const nextBatchStart = remainingGaps.length > 0 ? remainingGaps[0] : null
@@ -204,9 +189,7 @@ async function getMissingDatesForType(
 
     // Encontrar datas faltantes
     const missingDates = allDates.filter(date => !existingDates.includes(date))
-    
-    console.log(`📊 [getMissingDates] ${dataType}: ${existingDates.length} existentes, ${missingDates.length} faltantes`)
-    
+
     return missingDates
 
   } catch (error) {
@@ -217,8 +200,6 @@ async function getMissingDatesForType(
 
 async function collectDataForSpecificDate(dataType: string, date: string, barId: number) {
   try {
-    console.log(`📡 [collectData] Coletando ${dataType} para ${date}`)
-    
     // Simular coleta de dados específicos para a data
     const dayOfWeek = new Date(date).getDay()
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6

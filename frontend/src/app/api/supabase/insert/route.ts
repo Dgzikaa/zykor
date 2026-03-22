@@ -23,8 +23,6 @@ export async function POST(request: NextRequest) {
       criado_em: new Date().toISOString()
     }
 
-    console.log(`Inserindo na tabela ${table}:`, data)
-
     return NextResponse.json({
       success: true,
       result: resultado,

@@ -79,7 +79,7 @@ export default function CMVSemanalVisualizarPage() {
 
       const response = await fetch(`/api/cmv-semanal?${params}`, {
         headers: {
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+          'x-selected-bar-id': String(selectedBar?.id || '')
         }
       });
 

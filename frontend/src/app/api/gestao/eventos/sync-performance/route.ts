@@ -13,9 +13,6 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-    console.log('🔄 Sincronizando dados de performance...');
-
-    // Criar cliente Supabase
 
     const {
       data_evento,
@@ -64,8 +61,6 @@ export async function POST(request: NextRequest) {
         ja_sincronizado: true,
       });
     }
-
-    console.log(`🔄 Sincronizando dados para ${data_evento} - Bar ${bar_id}`);
 
     // Buscar dados de vendas do dia
     const [periodoResponse, pagamentosResponse, symplaResponse] =
@@ -154,16 +149,6 @@ export async function POST(request: NextRequest) {
       evento.capacidade_estimada && publico_real > 0
         ? (publico_real / evento.capacidade_estimada) * 100
         : null;
-
-    console.log(`📊 Dados calculados:`, {
-      publico_real,
-      faturamento_liquido,
-      receita_couvert,
-      receita_ingressos,
-      receita_bar,
-      ticket_medio,
-      taxa_ocupacao,
-    });
 
     // Atualizar o evento com os dados de performance
     const { data: eventoAtualizado, error: updateError } = await supabase

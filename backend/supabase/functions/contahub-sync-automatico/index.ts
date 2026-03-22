@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { heartbeatStart, heartbeatEnd, heartbeatError } from "../_shared/heartbeat.ts";
 
 console.log("📊 ContaHub Sync - Coleta de Dados (Processamento via pg_cron)");
 
@@ -313,6 +314,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // 💓 Heartbeat: variáveis no escopo externo para acesso no catch
+  let heartbeatId: number | null = null;
+  let startTime: number = Date.now();
+
   try {
     const requestBody = await req.text();
     console.log('📊 Body recebido:', requestBody);
@@ -349,6 +354,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // 💓 Heartbeat: registrar início da execução
+    const hbResult = await heartbeatStart(
+      supabase,
+      'contahub-sync-automatico',
+      bar_id || null,
+      data_inicio && data_fim ? 'backfill' : 'sync',
+      'pgcron'
+    );
+    heartbeatId = hbResult.heartbeatId;
+    startTime = hbResult.startTime;
     
     // Resolver emp_id do ContaHub:
     // 1) payload (emp_id/contahub_emp_id), 2) bares.config.contahub_emp_id, 3) api_credentials.empresa_id
@@ -801,6 +817,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.error('❌ Erro ao enviar notificação Discord ContaHub:', discordError);
     }
     
+    // 💓 Heartbeat: registrar sucesso
+    await heartbeatEnd(
+      supabase,
+      heartbeatId,
+      summary.error_count === 0 ? 'success' : 'partial',
+      startTime,
+      summary.total_records_collected,
+      { 
+        collected_count: summary.collected_count,
+        error_count: summary.error_count,
+        data_date: summary.data_date
+      }
+    );
+    
     return new Response(JSON.stringify({
       success: true,
       message: 'ContaHub coleta concluída - processamento iniciado',
@@ -817,6 +847,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
   } catch (error) {
     console.error('❌ Erro geral:', error);
+    
+    // 💓 Heartbeat: registrar erro (precisa recriar supabase client se falhou antes)
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL');
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      if (supabaseUrl && supabaseServiceKey) {
+        const supabaseForError = createClient(supabaseUrl, supabaseServiceKey);
+        await heartbeatError(supabaseForError, heartbeatId, startTime, error instanceof Error ? error : String(error));
+      }
+    } catch (hbErr) {
+      console.warn('⚠️ Erro ao registrar heartbeat de erro:', hbErr);
+    }
     
     // Enviar notificação de erro crítico
     const errorMessage = `❌ **Erro crítico na sincronização ContaHub**\n\n⏰ **Tempo:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n🔥 **Erro:** ${error instanceof Error ? error.message : String(error)}`;

@@ -15,29 +15,34 @@ export interface UserAuth {
 
 /**
  * Função para extrair dados de autenticação do usuário
- * Lê os dados reais do usuário do cookie/header
+ * Lê os dados reais do usuário do cookie (JWT) e o bar_id do header x-selected-bar-id
  */
 export async function getUserAuth(
   request?: NextRequest
 ): Promise<UserAuth | null> {
   try {
     let userData: string | null = null;
+    let selectedBarId: number | null = null;
 
     if (request) {
-      // Se temos o request, usar headers diretamente
-      userData = request.headers.get('x-user-data');
+      // Pegar bar_id do header x-selected-bar-id
+      const barIdHeader = request.headers.get('x-selected-bar-id');
+      if (barIdHeader) {
+        selectedBarId = parseInt(barIdHeader, 10) || null;
+      }
 
-      // Fallback: tentar pegar do cookie se não tem header
-      if (!userData) {
-        const cookieValue = request.cookies.get('sgb_user')?.value;
-        if (cookieValue) {
-          userData = cookieValue;
-        }
+      // Tentar pegar dados do usuário do cookie
+      const cookieValue = request.cookies.get('sgb_user')?.value;
+      if (cookieValue) {
+        userData = cookieValue;
       }
     } else {
       // Usar o headers() do Next.js
       const headersList = await headers();
-      userData = headersList.get('x-user-data');
+      const barIdHeader = headersList.get('x-selected-bar-id');
+      if (barIdHeader) {
+        selectedBarId = parseInt(barIdHeader, 10) || null;
+      }
     }
 
     if (!userData) {
@@ -53,13 +58,14 @@ export async function getUserAuth(
     }
 
     // Normalizar dados para garantir compatibilidade
+    // Usar bar_id do header x-selected-bar-id se disponível, senão do cookie
     const user: UserAuth = {
       id: parsedUser.id,
       user_id: parsedUser.user_id || parsedUser.id.toString(),
       email: parsedUser.email,
       nome: parsedUser.nome || parsedUser.email,
       role: parsedUser.role || parsedUser.permissao || 'funcionario',
-      bar_id: parsedUser.bar_id, // bar_id obrigatório - não usar fallback
+      bar_id: selectedBarId || parsedUser.bar_id,
       permissao: parsedUser.role || parsedUser.permissao || 'funcionario',
       modulos_permitidos: parsedUser.modulos_permitidos || [],
       ativo: parsedUser.ativo !== false,

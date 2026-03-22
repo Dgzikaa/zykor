@@ -19,11 +19,6 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos em millisegundos
 
 export async function GET(request: NextRequest) {
   try {
-    // Log apenas em desenvolvimento
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🚀 API Desempenho - Buscando dados de performance');
-    }
-
     // Autenticação
     const user = await authenticateUser(request);
     if (!user) {
@@ -41,16 +36,8 @@ export async function GET(request: NextRequest) {
     
     // const cached = performanceCache.get(cacheKey);
     // if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
-    //   if (process.env.NODE_ENV === 'development') {
-    //     console.log('📦 Dados retornados do cache');
-    //   }
     //   return NextResponse.json(cached.data);
     // }
-
-    // Log apenas em desenvolvimento
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`📅 Buscando dados de desempenho para ${mes}/${ano} - Bar ID: ${user.bar_id}`);
-    }
 
     // Buscar eventos básicos de todo o ano
     const { data: eventos, error: eventosError } = await supabase
@@ -86,7 +73,6 @@ export async function GET(request: NextRequest) {
 
     // ⚡ FILTRAR DIAS FECHADOS
     const eventosFiltrados = await filtrarDiasAbertos(eventos || [], 'data_evento', user.bar_id);
-    console.log(`📅 Eventos filtrados: ${eventos?.length || 0} → ${eventosFiltrados.length} (removidos ${(eventos?.length || 0) - eventosFiltrados.length} dias fechados)`);
 
     // Função para buscar dados agregados (RPC aggregate_by_date não existe - usar fallback direto)
     const fetchAggregatedData = async (table: string, dateColumn: string, aggregateColumn: string, _aggregateFunction = 'sum') => {
@@ -112,20 +98,20 @@ export async function GET(request: NextRequest) {
       return data || [];
     };
 
-    // Função para buscar dados do ContaHub (agregação será feita no código)
+    // Função para buscar dados do faturamento_pagamentos (agregação será feita no código)
     const fetchContaHubData = async () => {
       const { data, error } = await supabase
-        .from('contahub_pagamentos')
-        .select('dt_gerencial, liquido')
-        .gte('dt_gerencial', `${ano}-01-01`)
-        .lt('dt_gerencial', `${ano + 1}-01-01`)
+        .from('faturamento_pagamentos')
+        .select('data_pagamento, valor_liquido')
+        .gte('data_pagamento', `${ano}-01-01`)
+        .lt('data_pagamento', `${ano + 1}-01-01`)
         .neq('meio', 'Conta Assinada')  // Excluir consumo de sócios
         .eq('bar_id', user.bar_id)
         .limit(10000)
-        .order('dt_gerencial');
+        .order('data_pagamento');
 
       if (error) {
-        console.error('❌ Erro ao buscar dados do ContaHub:', error);
+        console.error('❌ Erro ao buscar dados do faturamento_pagamentos:', error);
         return [];
       }
 
@@ -139,11 +125,6 @@ export async function GET(request: NextRequest) {
       fetchAllDataFallback('sympla_resumo', 'data_evento, total_liquido', 'data_evento'), 
       fetchContaHubData()
     ]);
-
-    // Logs básicos apenas em desenvolvimento
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`📊 Dados carregados - Yuzer: ${yuzerData.length}, Sympla: ${symplaData.length}, ContaHub: ${contahubData.length}`);
-    }
 
     // Criar mapas agregados (somar valores por data)
     const yuzerMap = new Map();
@@ -162,8 +143,8 @@ export async function GET(request: NextRequest) {
 
     const contahubMap = new Map();
     contahubData?.forEach(item => {
-      const data = item.dt_gerencial;
-      const valor = item.liquido || 0;
+      const data = item.data_pagamento;
+      const valor = item.valor_liquido || 0;
       contahubMap.set(data, (contahubMap.get(data) || 0) + valor);
     });
 
@@ -183,20 +164,20 @@ export async function GET(request: NextRequest) {
       getinMap.set(data, (getinMap.get(data) || 0) + 1);
     });
 
-    // Buscar dados do ContaHub Período para couvert (com paginação) - usar vr_couvert específico
-    let contahubPeriodoData: { dt_gerencial: any; vr_couvert: any; }[] = [];
+    // Buscar dados de visitas para couvert (com paginação) - usar valor_couvert
+    let contahubPeriodoData: { data_visita: any; valor_couvert: any; }[] = [];
     let page = 0;
     const pageSize = 1000;
     let hasMore = true;
 
     while (hasMore) {
       const { data: pageData } = await supabase
-        .from('contahub_periodo')
-        .select('dt_gerencial, vr_couvert')
-        .gte('dt_gerencial', `${ano}-01-01`)
-        .lt('dt_gerencial', `${ano + 1}-01-01`)
+        .from('visitas')
+        .select('data_visita, valor_couvert')
+        .gte('data_visita', `${ano}-01-01`)
+        .lt('data_visita', `${ano + 1}-01-01`)
         .eq('bar_id', user.bar_id)
-        .order('dt_gerencial')
+        .order('data_visita')
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (pageData && pageData.length > 0) {
@@ -208,38 +189,38 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Remover duplicatas dos dados do ContaHub Período
-    const contahubPeriodoUnicos: { dt_gerencial: any; vr_couvert: any; }[] = [];
+    // Remover duplicatas dos dados de visitas
+    const contahubPeriodoUnicos: { data_visita: any; valor_couvert: any; }[] = [];
     const chavesVistas = new Set();
     
     contahubPeriodoData?.forEach(item => {
       // Criar chave única baseada em campos que não deveriam se repetir
-      const chave = `${item.dt_gerencial}`;
+      const chave = `${item.data_visita}`;
       // Para período, vamos apenas somar os valores por data (não há problema de duplicata real aqui)
       contahubPeriodoUnicos.push(item);
     });
 
     const contahubCouvertMap = new Map();
     contahubPeriodoUnicos.forEach(item => {
-      const data = item.dt_gerencial;
-      const valor = item.vr_couvert || 0;
+      const data = item.data_visita;
+      const valor = item.valor_couvert || 0;
       contahubCouvertMap.set(data, (contahubCouvertMap.get(data) || 0) + valor);
     });
 
-    // Buscar dados do ContaHub para calcular clientes ativos (2+ visitas) - com paginação
-    let contahubClientesData: { cli_fone: any; dt_gerencial: any; }[] = [];
+    // Buscar dados de visitas para calcular clientes ativos (2+ visitas) - com paginação
+    let contahubClientesData: { cliente_fone: any; data_visita: any; }[] = [];
     page = 0;
     hasMore = true;
 
     while (hasMore) {
       const { data: pageData } = await supabase
-        .from('contahub_periodo')
-        .select('cli_fone, dt_gerencial')
+        .from('visitas')
+        .select('cliente_fone, data_visita')
         .eq('bar_id', user.bar_id)
-        .gte('dt_gerencial', `${ano}-01-01`)
-        .lt('dt_gerencial', `${ano + 1}-01-01`)
-        .not('cli_fone', 'is', null)
-        .order('dt_gerencial')
+        .gte('data_visita', `${ano}-01-01`)
+        .lt('data_visita', `${ano + 1}-01-01`)
+        .not('cliente_fone', 'is', null)
+        .order('data_visita')
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (pageData && pageData.length > 0) {
@@ -295,10 +276,6 @@ export async function GET(request: NextRequest) {
     // Debug específico removido para reduzir logs desnecessários
 
     if (!eventosFiltrados || eventosFiltrados.length === 0) {
-      // Log apenas em modo verbose
-      if (process.env.NEXT_PUBLIC_VERBOSE_LOGS === 'true') {
-        console.log('⚠️ Nenhum evento encontrado para o período');
-      }
       return NextResponse.json({ 
         success: true,
         mes: mes,
@@ -306,11 +283,6 @@ export async function GET(request: NextRequest) {
         eventos: [],
         total_eventos: 0
       });
-    }
-
-    // Log apenas em desenvolvimento
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`✅ ${eventosFiltrados.length} eventos encontrados`);
     }
 
     // Função para calcular número da semana ISO (corrigida)
@@ -373,7 +345,6 @@ export async function GET(request: NextRequest) {
       if (!semana) {
         const dataEvento = new Date(evento.data_evento + 'T12:00:00Z');
         semana = getWeekNumber(dataEvento);
-        console.log(`📅 Calculando semana para ${evento.data_evento}: semana ${semana}`);
       }
       
       if (!semanaMap.has(semana)) {
@@ -501,30 +472,22 @@ export async function GET(request: NextRequest) {
         return false;
       });
 
-    // Debug: Verificar se chegou até aqui
-    console.log(`🔍 Iniciando cálculo de Couvert e CMO para ${semanasConsolidadas.length} semanas`);
-    console.log(`🔍 Semana atual calculada: ${semanaAtual}`);
-    console.log(`🔍 Semanas encontradas: ${Array.from(semanaMap.keys()).sort((a, b) => b - a).join(', ')}`);
-    console.log(`🔍 Total contahubPeriodoData: ${contahubPeriodoData?.length || 0} registros`);
-    console.log(`🔍 Total contahubClientesData: ${contahubClientesData?.length || 0} registros`);
-    console.log(`🔍 Total niboData: ${niboData?.length || 0} registros`);
-
     // 🔧 CORREÇÃO: Buscar dados históricos de clientes (3 meses antes do período)
     // para calcular clientes ativos corretamente
-    let contahubClientesHistoricoData: { cli_fone: any; dt_gerencial: any; }[] = [];
+    let contahubClientesHistoricoData: { cliente_fone: any; data_visita: any; }[] = [];
     page = 0;
     hasMore = true;
     const data3MesesAntes = new Date(ano - 1, 0, 1); // Buscar desde o início do ano anterior
 
     while (hasMore) {
       const { data: pageData } = await supabase
-        .from('contahub_periodo')
-        .select('cli_fone, dt_gerencial')
+        .from('visitas')
+        .select('cliente_fone, data_visita')
         .eq('bar_id', user.bar_id)
-        .gte('dt_gerencial', data3MesesAntes.toISOString().split('T')[0])
-        .lt('dt_gerencial', `${ano}-01-01`)
-        .not('cli_fone', 'is', null)
-        .order('dt_gerencial')
+        .gte('data_visita', data3MesesAntes.toISOString().split('T')[0])
+        .lt('data_visita', `${ano}-01-01`)
+        .not('cliente_fone', 'is', null)
+        .order('data_visita')
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (pageData && pageData.length > 0) {
@@ -557,15 +520,15 @@ export async function GET(request: NextRequest) {
       // Clientes que visitaram na semana atual
       const clientesDaSemana = new Set(
         todosClientesData
-          .filter(item => item.dt_gerencial >= inicioSemanaStr && item.dt_gerencial <= fimSemanaStr)
-          .map(item => item.cli_fone)
+          .filter(item => item.data_visita >= inicioSemanaStr && item.data_visita <= fimSemanaStr)
+          .map(item => item.cliente_fone)
       );
       
       // Clientes que visitaram nos 3 meses anteriores (antes do início da semana)
       const clientes3MesesAnteriores = new Set(
         todosClientesData
-          .filter(item => item.dt_gerencial >= data3MesesAtrasStr && item.dt_gerencial < inicioSemanaStr)
-          .map(item => item.cli_fone)
+          .filter(item => item.data_visita >= data3MesesAtrasStr && item.data_visita < inicioSemanaStr)
+          .map(item => item.cliente_fone)
       );
       
       // Clientes ativos = interseção (visitaram na semana E nos 3 meses anteriores)
@@ -582,40 +545,13 @@ export async function GET(request: NextRequest) {
       let couvertSemana = 0;
       
       const periodosCouvertDaSemana = contahubPeriodoData?.filter(item => {
-        return item.dt_gerencial >= inicioSemanaStr && item.dt_gerencial <= fimSemanaStr;
+        return item.data_visita >= inicioSemanaStr && item.data_visita <= fimSemanaStr;
       }) || [];
       
       periodosCouvertDaSemana.forEach(item => {
-        couvertSemana += item.vr_couvert || 0;
+        couvertSemana += item.valor_couvert || 0;
       });
-      
-      // Debug log (sempre ativo para investigação)
-      if (semana.semana === 35) {
-        console.log(`🔍 Semana ${semana.semana} - Período calculado:`, {
-          inicioSemana: inicioSemana.toISOString(),
-          fimSemana: fimSemana.toISOString(),
-          inicioSemanaStr,
-          fimSemanaStr
-        });
-        
-        // Verificar alguns registros de contahub_periodo para debug
-        const amostraPeriodo = contahubPeriodoData?.slice(0, 5).map(item => ({
-          dt_gerencial: item.dt_gerencial,
-          vr_couvert: item.vr_couvert
-        })) || [];
-        
-        console.log(`🔍 Semana ${semana.semana} - Couvert:`, {
-          registrosPeriodo: periodosCouvertDaSemana.length,
-          couvertTotal: couvertSemana,
-          totalContahubPeriodo: contahubPeriodoData?.length || 0,
-          amostraPeriodo,
-          primeiros3Registros: periodosCouvertDaSemana.slice(0, 3).map(item => ({
-            dt_gerencial: item.dt_gerencial,
-            vr_couvert: item.vr_couvert
-          }))
-        });
-      }
-      
+
       semana.faturamento_couvert = couvertSemana;
       semana.faturamento_bar = semana.faturamento_total - couvertSemana;
       
@@ -658,35 +594,7 @@ export async function GET(request: NextRequest) {
         
         cmoSemana = totalCmoMes * proporcao;
       }
-      
-      // Debug log (sempre ativo para investigação)
-      if (semana.semana === 35 || semana.semana === 31) {
-        const totalCmoMes = agendamentosDaSemana.reduce((sum, item) => sum + (item.valor || 0), 0);
-        const diasSemanaNoMes = Math.min(7, fimSemana.getDate() - Math.max(1, inicioSemana.getDate()) + 1);
-        const diasTotalMes = new Date(anoInicio, mesInicio, 0).getDate();
-        const proporcao = diasSemanaNoMes / diasTotalMes;
-        
-        console.log(`🔍 Semana ${semana.semana} - CMO:`, {
-          mesInicio,
-          anoInicio,
-          mesFim,
-          anoFim,
-          inicioSemana: inicioSemana.toISOString().split('T')[0],
-          fimSemana: fimSemana.toISOString().split('T')[0],
-          agendamentosEncontrados: agendamentosDaSemana.length,
-          totalCmoMes,
-          diasSemanaNoMes,
-          diasTotalMes,
-          proporcao,
-          cmoSemana,
-          primeiros3Agendamentos: agendamentosDaSemana.slice(0, 3).map(item => ({
-            data_competencia: item.data_competencia,
-            valor: item.valor,
-            categoria_nome: (item as any).categoria_nome
-          }))
-        });
-      }
-      
+
       semana.cmo_valor = cmoSemana;
     });
 

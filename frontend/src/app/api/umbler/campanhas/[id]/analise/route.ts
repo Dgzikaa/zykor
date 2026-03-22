@@ -138,8 +138,6 @@ export async function GET(
     const dataInicioReserva = dataInicio || campanha.created_at?.split('T')[0];
     const dataFimReserva = dataFim || new Date().toISOString().split('T')[0];
 
-    console.log(`📊 Análise campanha ${campanhaId}: disparo em ${timestampDisparo}`);
-
     const { data: reservas } = await supabase
       .from('getin_reservas')
       .select('customer_phone, status, reservation_date, no_show, created_at')
@@ -172,14 +170,14 @@ export async function GET(
       }
     });
 
-    // 6. Buscar visitas no ContaHub (pessoas que foram ao bar)
+    // 6. Buscar visitas (pessoas que foram ao bar)
     const { data: visitas } = await supabase
-      .from('contahub_periodo')
-      .select('cli_fone, dt_gerencial, vr_pagamentos, pessoas')
+      .from('visitas')
+      .select('cliente_fone, data_visita, valor_pagamentos, pessoas')
       .eq('bar_id', barId)
-      .gte('dt_gerencial', dataInicioReserva)
-      .lte('dt_gerencial', dataFimReserva)
-      .not('cli_fone', 'is', null)
+      .gte('data_visita', dataInicioReserva)
+      .lte('data_visita', dataFimReserva)
+      .not('cliente_fone', 'is', null)
       .gt('pessoas', 0);
 
     // Mapear visitas por telefone normalizado
@@ -189,21 +187,21 @@ export async function GET(
     }>();
 
     (visitas || []).forEach(v => {
-      if (!v.cli_fone) return;
-      const normalized = v.cli_fone.replace(/\D/g, '').slice(-11);
+      if (!v.cliente_fone) return;
+      const normalized = v.cliente_fone.replace(/\D/g, '').slice(-11);
       if (telefonesParaBusca.includes(normalized)) {
         const existing = visitasPorTelefone.get(normalized);
-        const valorAtual = v.vr_pagamentos || 0;
+        const valorAtual = v.valor_pagamentos || 0;
         if (!existing) {
           visitasPorTelefone.set(normalized, {
-            data: v.dt_gerencial || '',
+            data: v.data_visita || '',
             valor: valorAtual
           });
         } else {
           // Somar valores se já existe
           existing.valor += valorAtual;
-          if (v.dt_gerencial && v.dt_gerencial > (existing.data || '')) {
-            existing.data = v.dt_gerencial;
+          if (v.data_visita && v.data_visita > (existing.data || '')) {
+            existing.data = v.data_visita;
           }
         }
       }

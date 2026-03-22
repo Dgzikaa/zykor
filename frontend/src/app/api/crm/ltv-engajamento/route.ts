@@ -25,7 +25,6 @@ function getCached(key: string) {
   
   if (entry.version !== CACHE_VERSION) {
     cache.delete(key);
-    console.log(`🔄 Cache LTV invalidado (versão ${entry.version} → ${CACHE_VERSION})`);
     return null;
   }
   
@@ -86,11 +85,7 @@ async function fetchAllData(tableName: string, columns: string, filters: any = {
     }
     
     allData.push(...data);
-    
-    if (allData.length % 10000 === 0 || data.length < limit) {
-      console.log(`  ✓ ${tableName}: ${allData.length} registros carregados`);
-    }
-    
+
     if (data.length < limit) {
       break;
     }
@@ -238,8 +233,6 @@ export async function GET(request: NextRequest) {
     }
     const barId = parseInt(barIdParam);
 
-    console.log(`🔍 API LTV Engajamento v4 - telefone: ${telefone}, limite: ${limite}, bar_id: ${barId}`);
-
     if (telefone) {
       return await calcularLTVCliente(telefone, barId);
     } else {
@@ -258,38 +251,38 @@ export async function GET(request: NextRequest) {
 async function calcularLTVCliente(telefone: string, barId: number = 3) {
   const telefoneNorm = normalizarTelefone(telefone) || telefone;
   
-  // Buscar dados do ContaHub APENAS
-  const { data: contahubData } = await supabase
-    .from('contahub_periodo')
-    .select('cli_nome, cli_fone, dt_gerencial, vr_couvert, vr_pagamentos')
+  // Buscar dados de visitas
+  const { data: visitasClienteData } = await supabase
+    .from('visitas')
+    .select('cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos')
     .eq('bar_id', barId)
-    .ilike('cli_fone', `%${telefoneNorm}%`)
-    .order('dt_gerencial', { ascending: true });
+    .ilike('cliente_fone', `%${telefoneNorm}%`)
+    .order('data_visita', { ascending: true });
 
-  if (!contahubData?.length) {
-    throw new Error('Cliente não encontrado no ContaHub');
+  if (!visitasClienteData?.length) {
+    throw new Error('Cliente não encontrado');
   }
 
   // Buscar ticket médio do bar para referência
   const { data: ticketBarData } = await supabase
-    .from('contahub_periodo')
-    .select('vr_couvert, vr_pagamentos')
+    .from('visitas')
+    .select('valor_couvert, valor_pagamentos')
     .eq('bar_id', barId)
     .limit(10000);
 
   const ticketMedioBar = ticketBarData && ticketBarData.length > 0
-    ? ticketBarData.reduce((sum, item) => sum + (item.vr_couvert || 0) + (item.vr_pagamentos || 0), 0) / ticketBarData.length
+    ? ticketBarData.reduce((sum, item) => sum + (item.valor_couvert || 0) + (item.valor_pagamentos || 0), 0) / ticketBarData.length
     : 150; // Fallback
 
   // Consolidar visitas
   const visitas: Array<{ data: Date; valor: number }> = [];
   let nomeCliente = 'Cliente';
 
-  contahubData.forEach(v => {
-    const valor = (v.vr_couvert || 0) + (v.vr_pagamentos || 0);
-    visitas.push({ data: new Date(v.dt_gerencial), valor });
+  visitasClienteData.forEach(v => {
+    const valor = (v.valor_couvert || 0) + (v.valor_pagamentos || 0);
+    visitas.push({ data: new Date(v.data_visita), valor });
     if (!nomeCliente || nomeCliente === 'Cliente') {
-      nomeCliente = v.cli_nome || 'Cliente';
+      nomeCliente = v.cliente_nome || 'Cliente';
     }
   });
 
@@ -428,8 +421,6 @@ async function calcularLTVTodosClientes(limite: number, barId: number = 3) {
   const cached = getCached(cacheKey);
 
   if (cached) {
-    console.log(`⚡ Cache HIT: Usando dados de LTV em cache (${cached.resultados.length} clientes)`);
-    
     return NextResponse.json({
       success: true,
       data: cached.resultados.slice(0, limite),
@@ -439,21 +430,17 @@ async function calcularLTVTodosClientes(limite: number, barId: number = 3) {
     });
   }
 
-  console.log(`🔍 Cache MISS: Processando dados de LTV do ContaHub (v4 - com confiança)...`);
-
-  // Buscar dados do ContaHub
-  console.log(`📊 Buscando dados do ContaHub para bar ${barId}...`);
-  const contahubDataRaw = await fetchAllData(
-    'contahub_periodo',
-    'cli_nome, cli_fone, dt_gerencial, vr_couvert, vr_pagamentos',
+  // Buscar dados de visitas
+  const visitasDataRaw = await fetchAllData(
+    'visitas',
+    'cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos',
     { eq_bar_id: barId }
   );
 
-  const contahubData = contahubDataRaw.filter(item => 
-    item.cli_fone && item.cli_fone.trim() !== '' && 
-    item.cli_nome && item.cli_nome.trim() !== ''
+  const visitasDataAll = visitasDataRaw.filter(item => 
+    item.cliente_fone && item.cliente_fone.trim() !== '' && 
+    item.cliente_nome && item.cliente_nome.trim() !== ''
   );
-  console.log(`💳 ContaHub: ${contahubData.length} registros válidos`);
 
   // Consolidar por telefone
   const clientesMap = new Map<string, {
@@ -462,26 +449,24 @@ async function calcularLTVTodosClientes(limite: number, barId: number = 3) {
     visitas: Array<{ data: Date; valor: number }>;
   }>();
 
-  for (const item of contahubData) {
-    const telefoneNorm = normalizarTelefone(item.cli_fone);
+  for (const item of visitasDataAll) {
+    const telefoneNorm = normalizarTelefone(item.cliente_fone);
     if (!telefoneNorm) continue;
 
     if (!clientesMap.has(telefoneNorm)) {
       clientesMap.set(telefoneNorm, {
         telefone: telefoneNorm,
-        nome: item.cli_nome || 'Cliente',
+        nome: item.cliente_nome || 'Cliente',
         visitas: []
       });
     }
 
-    const valor = (item.vr_couvert || 0) + (item.vr_pagamentos || 0);
+    const valor = (item.valor_couvert || 0) + (item.valor_pagamentos || 0);
     clientesMap.get(telefoneNorm)!.visitas.push({
-      data: new Date(item.dt_gerencial),
+      data: new Date(item.data_visita),
       valor
     });
   }
-
-  console.log(`👥 Total de clientes únicos: ${clientesMap.size}`);
 
   // CALCULAR TICKET MÉDIO DO BAR (baseado em clientes com 3+ visitas)
   let somaTicketsConfiaveis = 0;
@@ -499,8 +484,6 @@ async function calcularLTVTodosClientes(limite: number, barId: number = 3) {
   const ticketMedioBar = countTicketsConfiaveis > 0 
     ? somaTicketsConfiaveis / countTicketsConfiaveis 
     : 150; // Fallback
-
-  console.log(`🎫 Ticket médio do bar (${countTicketsConfiaveis} clientes confiáveis): R$ ${Math.round(ticketMedioBar)}`);
 
   // Calcular LTV para cada cliente
   const resultados: ClienteLTV[] = [];
@@ -628,10 +611,6 @@ async function calcularLTVTodosClientes(limite: number, barId: number = 3) {
 
   // Ordenar por LTV ATUAL (não projetado) - mais realista
   resultados.sort((a, b) => b.ltv_atual - a.ltv_atual);
-
-  console.log(`✅ LTV calculado: ${resultados.length} clientes`);
-  console.log(`   📊 Dados confiáveis (3+ visitas): ${resultados.filter(r => !r.dados_preliminares).length}`);
-  console.log(`   📋 Dados preliminares (1-2 visitas): ${resultados.filter(r => r.dados_preliminares).length}`);
 
   // Estatísticas (projeções só de clientes confiáveis)
   const clientesConfiaveis = resultados.filter(r => !r.dados_preliminares);

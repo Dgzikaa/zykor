@@ -100,7 +100,7 @@ const providers: WhatsAppProvider[] = [
       'Oficial',
       'Templates aprovados',
       'Business features',
-      'Windsor.ai integration',
+      'API Meta integration',
     ],
   },
   {

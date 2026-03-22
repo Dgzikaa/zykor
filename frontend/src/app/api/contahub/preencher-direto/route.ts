@@ -11,8 +11,15 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const body = await request.json()
     
-    const { dates, data_type = 'analitico', bar_id = 3 } = body
-    
+    const { dates, data_type = 'analitico', bar_id } = body
+
+    if (!bar_id) {
+      return NextResponse.json({
+        success: false,
+        error: 'bar_id é obrigatório'
+      }, { status: 400 })
+    }
+
     if (!dates || !Array.isArray(dates)) {
       return NextResponse.json({
         success: false,
@@ -20,15 +27,11 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log(`🔄 [API] Preenchendo ${dates.length} datas específicas para ${data_type}`)
-
     let processedCount = 0
     const results: any[] = []
 
     for (const date of dates) {
       try {
-        console.log(`🔍 [API] Processando ${date}`)
-
         // Verificar se já existe (baseado no tipo de dados)
         let tableName = ''
         let dateField = ''
@@ -66,7 +69,6 @@ export async function POST(request: NextRequest) {
           .limit(1)
 
         if (existing && existing.length > 0) {
-          console.log(`⏭️ [API] ${date} já existe, pulando`)
           results.push({ date, status: 'exists', records: 0 })
           continue
         }
@@ -248,8 +250,6 @@ export async function POST(request: NextRequest) {
           status: 'success', 
           records: processResult.inserted_records || recordCount 
         })
-        
-        console.log(`✅ [API] ${date}: ${processResult.inserted_records || recordCount} registros inseridos`)
 
         // Pequena pausa
         await new Promise(resolve => setTimeout(resolve, 100))
@@ -263,8 +263,6 @@ export async function POST(request: NextRequest) {
         })
       }
     }
-
-    console.log(`🎉 [API] Concluído: ${processedCount}/${dates.length} datas processadas`)
 
     return NextResponse.json({
       success: true,

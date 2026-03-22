@@ -11,6 +11,62 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// =====================================================
+// ONDA 2C: Buscar dias de operação do banco
+// SEM FALLBACK: Se não encontrar, retornar erro 500
+// =====================================================
+interface BarOperacao {
+  opera_segunda: boolean;
+  opera_terca: boolean;
+  opera_quarta: boolean;
+  opera_quinta: boolean;
+  opera_sexta: boolean;
+  opera_sabado: boolean;
+  opera_domingo: boolean;
+}
+
+let cachedOperacao: Record<number, BarOperacao> = {};
+let cacheTimestamp: Record<number, number> = {};
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
+async function getBarOperacao(barId: number): Promise<BarOperacao | null> {
+  const agora = Date.now();
+  
+  if (cachedOperacao[barId] && (agora - (cacheTimestamp[barId] || 0)) < CACHE_TTL_MS) {
+    return cachedOperacao[barId];
+  }
+  
+  const { data, error } = await supabase
+    .from('bares_config')
+    .select('opera_segunda, opera_terca, opera_quarta, opera_quinta, opera_sexta, opera_sabado, opera_domingo')
+    .eq('bar_id', barId)
+    .single();
+  
+  if (error || !data) {
+    console.error(`❌ [ERRO CONFIG] Dias de operação não encontrados para bar ${barId}. Configure bares_config.`);
+    return null;
+  }
+  
+  cachedOperacao[barId] = data;
+  cacheTimestamp[barId] = agora;
+  return data;
+}
+
+// Verifica se o bar opera no dia da semana especificado
+// dow: 0=Domingo, 1=Segunda, 2=Terça, 3=Quarta, 4=Quinta, 5=Sexta, 6=Sábado
+function barOperaNoDia(operacao: BarOperacao, dow: number): boolean {
+  switch (dow) {
+    case 0: return operacao.opera_domingo;
+    case 1: return operacao.opera_segunda;
+    case 2: return operacao.opera_terca;
+    case 3: return operacao.opera_quarta;
+    case 4: return operacao.opera_quinta;
+    case 5: return operacao.opera_sexta;
+    case 6: return operacao.opera_sabado;
+    default: return true;
+  }
+}
+
 interface PlanejamentoDataFinal {
   evento_id: number;
   data_evento: string;
@@ -76,8 +132,6 @@ interface PlanejamentoDataFinal {
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🚀 API Planejamento Comercial - Estrutura Única Otimizada');
-
     // Autenticação
     const user = await authenticateUser(request);
     if (!user) {
@@ -89,13 +143,9 @@ export async function GET(request: NextRequest) {
     const mes = parseInt(searchParams.get('mes') || (new Date().getMonth() + 1).toString());
     const ano = parseInt(searchParams.get('ano') || new Date().getFullYear().toString());
 
-    console.log(`📅 Buscando dados para ${mes}/${ano} - Bar ID: ${user.bar_id}`);
-
     // Calcular período - ser mais específico para evitar dados de outros meses
     const dataInicio = `${ano}-${mes.toString().padStart(2, '0')}-01`;
     const dataFinalConsulta = mes === 12 ? `${ano + 1}-01-01` : `${ano}-${(mes + 1).toString().padStart(2, '0')}-01`;
-    console.log(`🔍 Período calculado: ${dataInicio} (>=) até ${dataFinalConsulta} (<) - Mês ${mes}/${ano}`);
-    console.log(`🔍 Query Supabase: data_evento >= '${dataInicio}' AND data_evento < '${dataFinalConsulta}'`);
 
     // Buscar dados APENAS da tabela eventos_base (com todos os cálculos)
     const { data: eventos, error } = await supabase
@@ -151,43 +201,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao buscar dados' }, { status: 500 });
     }
 
-    console.log(`📊 Eventos encontrados: ${eventos?.length || 0}`);
-    if (eventos && eventos.length > 0) {
-      console.log(`🔍 Primeira data: ${eventos[0].data_evento}, Última data: ${eventos[eventos.length - 1].data_evento}`);
+    // ONDA 2C: Buscar dias de operação do banco - erro se não configurado
+    const operacaoBar = await getBarOperacao(user.bar_id);
+    if (!operacaoBar) {
+      return NextResponse.json(
+        { error: `Configuração ausente: dias de operação para bar ${user.bar_id}. Configure bares_config.` },
+        { status: 500 }
+      );
     }
 
     // Filtro adicional para garantir apenas eventos do mês correto (evitar problemas de timezone)
-    // E remover segundas-feiras do Deboche (bar fechado)
+    // E remover dias em que o bar não opera (via bares_config)
     const eventosFiltrados = eventos?.filter(evento => {
       const dataEvento = new Date(evento.data_evento + 'T00:00:00Z');
       const mesEvento = dataEvento.getUTCMonth() + 1;
       const anoEvento = dataEvento.getUTCFullYear();
       const isCorrectMonth = mesEvento === mes && anoEvento === ano;
       
-      // Remover segundas-feiras APENAS do Deboche (bar_id = 4)
+      // ONDA 2C: Verificar se o bar opera nesse dia (via bares_config)
       const dow = dataEvento.getUTCDay();
-      const isSegundaDeboche = dow === 1 && user.bar_id === 4;
-      
-      console.log(`📅 Evento: ${evento.data_evento} (${evento.nome}) - DOW: ${dow}, Bar ID: ${user.bar_id}, É segunda do Deboche? ${isSegundaDeboche}`);
-      
-      if (!isCorrectMonth) {
-        console.log(`⚠️ Evento fora do período: ${evento.data_evento} (${evento.nome}) - Mês: ${mesEvento}, Ano: ${anoEvento}`);
-      }
-      
-      if (isSegundaDeboche) {
-        console.log(`⚠️ Segunda-feira do Deboche removida: ${evento.data_evento} (${evento.nome}) - DOW: ${dow}`);
-      }
-      
-      return isCorrectMonth && !isSegundaDeboche;
+      const barOpera = barOperaNoDia(operacaoBar, dow);
+
+      return isCorrectMonth && barOpera;
     }) || [];
 
-    console.log(`📊 Eventos após filtro adicional: ${eventosFiltrados.length}`);
-    if (eventosFiltrados.length > 0) {
-      console.log(`🔍 Primeira data filtrada: ${eventosFiltrados[0].data_evento}, Última data filtrada: ${eventosFiltrados[eventosFiltrados.length - 1].data_evento}`);
-    }
-
     if (eventosFiltrados.length === 0) {
-      console.log('⚠️ Nenhum evento encontrado para o período após filtro');
       return NextResponse.json({ 
         success: true,
         data: [],
@@ -201,8 +239,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    console.log(`✅ ${eventosFiltrados.length} eventos encontrados após filtro`);
-
     // Verificar se há eventos que precisam de recálculo
     // NOVA LÓGICA: Só recalcular se não há valores salvos manualmente (versao_calculo != 999)
     const eventosParaRecalcular = eventosFiltrados.filter(e => 
@@ -212,30 +248,18 @@ export async function GET(request: NextRequest) {
     );
     
     if (eventosParaRecalcular.length > 0) {
-      console.log(`🔄 ${eventosParaRecalcular.length} eventos precisam de recálculo (excluindo editados manualmente)`);
-      
       // Trigger recálculo assíncrono usando a função completa
       for (const evento of eventosParaRecalcular) {
         supabase.rpc('calculate_evento_metrics', { evento_id: evento.id })
           .then((result) => {
             if (result.error) {
               console.error(`❌ Erro ao recalcular evento ${evento.id}:`, result.error);
-            } else {
-              console.log(`✅ Evento ${evento.id} recalculado com função completa`);
             }
           });
       }
     }
 
-    // Log de eventos com valores editados manualmente
-    const eventosEditadosManualmente = eventosFiltrados.filter(e => e.versao_calculo === 999);
-    if (eventosEditadosManualmente.length > 0) {
-      console.log(`📝 ${eventosEditadosManualmente.length} eventos com valores editados manualmente (não serão recalculados)`);
-    }
-
     // 📊 Calcular métricas de segmentação para cada evento (em paralelo)
-    console.log('📊 Calculando métricas de segmentação de clientes...');
-    
     // Processar dados para o formato esperado pelo frontend
     const dadosProcessados: PlanejamentoDataFinal[] = await Promise.all(eventosFiltrados.map(async (evento) => {
       // Forçar timezone UTC para evitar problemas de fuso horário
@@ -367,8 +391,6 @@ export async function GET(request: NextRequest) {
         fat_19h_green: fat19hGreen
       };
     }));
-
-    console.log(`📊 Dados processados: ${dadosProcessados.length} registros`);
 
     return NextResponse.json({
       success: true,

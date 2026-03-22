@@ -15,8 +15,6 @@ export async function GET(request: NextRequest) {
     const ativo = searchParams.get('ativo') !== 'false'; // default: true
     const somentePagamento = searchParams.get('somente_pagamento') === 'true';
 
-    console.log(`[NIBO-CATEGORIAS] Buscando categorias, bar_id=${barId}, ativo=${ativo}`);
-
     // Validar bar_id - OBRIGATÓRIO para separar dados por bar
     if (!barId) {
       return NextResponse.json({

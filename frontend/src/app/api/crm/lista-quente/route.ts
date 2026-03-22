@@ -123,7 +123,7 @@ function normalizarTelefone(telefone: string | null): string {
 
 // Função para extrair nome
 function extrairNome(registro: any): string {
-  const nome = registro.cli_nome || '';
+  const nome = registro.cliente_nome || '';
   if (!nome || nome.trim() === '') return '';
   return nome.trim()
     .toLowerCase()
@@ -192,10 +192,7 @@ export async function GET(request: NextRequest) {
       temTelefone: searchParams.get('tem_telefone') === 'true' ? true : (searchParams.get('tem_telefone') === 'false' ? false : undefined),
       mesAniversario: searchParams.get('mes_aniversario') ? parseInt(searchParams.get('mes_aniversario')!) : undefined,
     };
-    
-    console.log(`🔥 Lista Quente - Bar: ${barId}`);
-    console.log(`📊 Critérios aplicados:`, JSON.stringify(criterios, null, 2));
-    
+
     // Calcular data limite
     const hoje = new Date();
     const dataLimite = new Date(hoje);
@@ -205,16 +202,14 @@ export async function GET(request: NextRequest) {
     // Buscar todos os registros com dados completos
     const todosRegistros = await fetchAllData(
       supabase,
-      'contahub_periodo',
-      'cli_nome, cli_email, cli_fone, cli_fone_norm, cli_dtnasc, dt_gerencial, vr_couvert, vr_pagamentos, pessoas',
+      'visitas',
+      'cliente_nome, cliente_email, cliente_fone, data_visita, valor_couvert, valor_pagamentos, pessoas',
       {
         'eq_bar_id': barId,
-        'gte_dt_gerencial': dataLimiteStr
+        'gte_data_visita': dataLimiteStr
       }
     );
-    
-    console.log(`📊 Total de registros encontrados: ${todosRegistros.length}`);
-    
+
     // Mapear clientes únicos por telefone normalizado OU por nome (para quem não tem telefone)
     const clientesMap = new Map<string, ClienteProcessado>();
     let registrosSemIdentificador = 0;
@@ -222,8 +217,8 @@ export async function GET(request: NextRequest) {
     let registrosSemTelefone = 0;
     
     todosRegistros.forEach(registro => {
-      const telefoneNorm = registro.cli_fone_norm || normalizarTelefone(registro.cli_fone);
-      const nomeRegistro = (registro.cli_nome || '').trim().toLowerCase();
+      const telefoneNorm = normalizarTelefone(registro.cliente_fone);
+      const nomeRegistro = (registro.cliente_nome || '').trim().toLowerCase();
       
       // Usar telefone como chave principal, ou nome normalizado como fallback
       let chaveCliente = '';
@@ -241,16 +236,16 @@ export async function GET(request: NextRequest) {
       }
       
       const nome = extrairNome(registro);
-      const email = registro.cli_email || '';
-      const telefone = registro.cli_fone || '';
-      const entrada = parseFloat(registro.vr_couvert || 0);
-      const pagamentos = parseFloat(registro.vr_pagamentos || 0);
+      const email = registro.cliente_email || '';
+      const telefone = registro.cliente_fone || '';
+      const entrada = parseFloat(registro.valor_couvert || 0);
+      const pagamentos = parseFloat(registro.valor_pagamentos || 0);
       const consumo = pagamentos - entrada;
       const pessoas = parseFloat(registro.pessoas || 1);
-      const dataVisita = new Date(registro.dt_gerencial + 'T12:00:00Z');
+      const dataVisita = new Date(registro.data_visita + 'T12:00:00Z');
       
-      // Processar data de nascimento
-      const dataNascimento = registro.cli_dtnasc ? new Date(registro.cli_dtnasc + 'T12:00:00Z') : null;
+      // Data de nascimento não está disponível na tabela visitas
+      const dataNascimento: Date | null = null;
       
       if (!clientesMap.has(chaveCliente)) {
         clientesMap.set(chaveCliente, {
@@ -319,12 +314,7 @@ export async function GET(request: NextRequest) {
         cliente.percentualConsumo = cliente.totalGasto > 0 ? (cliente.totalConsumo / cliente.totalGasto) * 100 : 0;
       }
     });
-    
-    console.log(`👥 Clientes únicos encontrados: ${clientesMap.size}`);
-    console.log(`   - Registros com telefone: ${registrosComTelefone}`);
-    console.log(`   - Registros sem telefone (usando nome): ${registrosSemTelefone}`);
-    console.log(`   - Registros ignorados (sem identificador): ${registrosSemIdentificador}`);
-    
+
     // Aplicar todos os filtros
     let clientesFiltrados = Array.from(clientesMap.values());
     
@@ -423,14 +413,8 @@ export async function GET(request: NextRequest) {
         const mesAniversario = new Date(c.dataAniversario).getMonth() + 1; // getMonth() retorna 0-11
         return mesAniversario === criterios.mesAniversario;
       });
-      console.log(`🎂 Filtro aniversário mês ${criterios.mesAniversario}: ${clientesFiltrados.length} clientes`);
     }
-    
-    console.log(`✅ Clientes após filtros: ${clientesFiltrados.length}`);
-    console.log(`   - Com telefone válido: ${clientesFiltrados.filter(c => c.telefone && c.telefone.length >= 8).length}`);
-    console.log(`   - Com email válido: ${clientesFiltrados.filter(c => c.email && c.email.includes('@')).length}`);
-    console.log(`   - Critérios: janela=${criterios.diasJanela}d, minVisitas=${criterios.minVisitasTotal}`);
-    
+
     // Se foi especificado um dia da semana, filtrar por ele
     if (criterios.diaSemana) {
       const diaNormalizado = criterios.diaSemana.toLowerCase()

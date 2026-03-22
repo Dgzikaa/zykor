@@ -90,12 +90,9 @@ function getSupabaseClient(): SupabaseClient {
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 Iniciando monitoramento automático de segurança...');
-
     // Verificar se é uma requisição de cron válida
     const authHeader = request.headers.get('authorization');
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      console.log('❌ Acesso negado - token inválido');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -167,7 +164,6 @@ export async function GET(request: NextRequest) {
       system_events_generated: 3,
     };
 
-    console.log('✅ Monitoramento de segurança concluído:', result);
     return NextResponse.json(result);
   } catch (error) {
     console.error('❌ Erro no monitoramento de segurança:', error);
@@ -362,7 +358,6 @@ async function calculateDailyMetrics(supabase: SupabaseClient) {
     updated_at: new Date().toISOString(),
   });
 
-  console.log('📊 Métricas diárias salvas:', metrics);
 }
 
 // Funções auxiliares

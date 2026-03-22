@@ -199,10 +199,6 @@ export async function POST(request: NextRequest) {
         await processarEnvioBrowser(supabase, notificacao);
       }
 
-      console.log(
-        `📢 Notificação criada: ${data.modulo}/${data.categoria} - ${data.titulo}`
-      );
-
       return NextResponse.json({
         success: true,
         message: 'Notificação criada com sucesso',
@@ -469,7 +465,6 @@ async function processarEnvioBrowser(
       tempo_resposta_ms: 0,
     });
 
-    console.log(`📱 Notificação enviada via browser: ${notificacao.id}`);
   } catch (error: unknown) {
     console.error('Erro ao processar envio browser:', error);
 

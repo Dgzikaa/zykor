@@ -7,7 +7,6 @@ import { useBar } from '@/contexts/BarContext';
 interface MenuBadges {
   checklist: number;
   producao: number;
-  windsor: number;
   marketing: number;
   configuracoes: number;
   notifications: number;
@@ -34,7 +33,6 @@ const BadgesContext = createContext<BadgesContextType | undefined>(undefined);
 const initialBadges: MenuBadges = {
   checklist: 0,
   producao: 0,
-  windsor: 0,
   marketing: 0,
   configuracoes: 0,
   notifications: 0,

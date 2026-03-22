@@ -23,16 +23,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Telefone é obrigatório' }, { status: 400 })
     }
 
-    // Obter bar_id do header
-    const barIdHeader = request.headers.get('x-user-data')
+    // Obter bar_id do header x-selected-bar-id
+    const barIdHeader = request.headers.get('x-selected-bar-id')
     let barIdFilter: number | null = null
     if (barIdHeader) {
-      try {
-        const parsed = JSON.parse(barIdHeader)
-        if (parsed?.bar_id) barIdFilter = parseInt(String(parsed.bar_id))
-      } catch (error) {
-        console.warn('Erro ao parsear barIdHeader:', error)
-      }
+      barIdFilter = parseInt(barIdHeader, 10) || null
     }
 
     // Aplicar filtro de bar_id sempre (padrão bar_id = 3 se não especificado)
@@ -76,18 +71,15 @@ export async function GET(request: NextRequest) {
     }
     
     const listaVariacoes = Array.from(variacoesTelefone)
-    console.log(`🔍 Buscando visitas para telefone: ${telefone}`)
-    console.log(`📱 Variações de busca: ${listaVariacoes.join(', ')}`)
-
     // Buscar diretamente por todas as variações do telefone usando OR
     let query = supabase
-      .from('contahub_periodo')
-      .select('cli_nome, cli_fone, dt_gerencial, vr_couvert, vr_pagamentos')
+      .from('visitas')
+      .select('cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos')
       .eq('bar_id', finalBarId)
-      .order('dt_gerencial', { ascending: false })
+      .order('data_visita', { ascending: false })
 
     // Aplicar filtro OR para todas as variações do telefone
-    const orConditions = listaVariacoes.map(variacao => `cli_fone.eq.${variacao}`).join(',')
+    const orConditions = listaVariacoes.map(variacao => `cliente_fone.eq.${variacao}`).join(',')
     query = query.or(orConditions)
 
     const { data, error } = await query
@@ -98,37 +90,31 @@ export async function GET(request: NextRequest) {
     }
 
     const visitasCliente = data || []
-    console.log(`✅ Total de visitas encontradas: ${visitasCliente.length}`)
-
     // ⚡ FILTRAR DIAS FECHADOS usando calendário operacional
-    const visitasValidas = await filtrarDiasAbertos(visitasCliente, 'dt_gerencial', finalBarId)
+    const visitasValidas = await filtrarDiasAbertos(visitasCliente, 'data_visita', finalBarId)
 
     const visitas = visitasValidas.map(registro => {
-      const couvert = parseFloat(registro.vr_couvert || '0') || 0
-      const pagamentos = parseFloat(registro.vr_pagamentos || '0') || 0
+      const couvert = parseFloat(registro.valor_couvert || '0') || 0
+      const pagamentos = parseFloat(registro.valor_pagamentos || '0') || 0
       const consumo = pagamentos - couvert
 
 
 
       return {
-        data: registro.dt_gerencial, // Manter exatamente como vem do banco
+        data: registro.data_visita, // Manter exatamente como vem do banco
         couvert,
         consumo,
         total: pagamentos
       }
     })
     
-    console.log(`📊 Visitas filtradas: ${visitasCliente.length} → ${visitasValidas.length} (removidos ${visitasCliente.length - visitasValidas.length} dias fechados)`)
-
     // Calcular dia da semana mais frequentado (usando apenas visitas válidas)
     const diasSemanaCount = new Map<number, number>()
     const diasSemanaLabels = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
     
-    console.log(`🔍 Analisando ${visitasValidas.length} visitas válidas para calcular dia destaque...`)
-    
     visitasValidas.forEach(registro => {
       // CORREÇÃO: Usar UTC para evitar problemas de timezone
-      const data = new Date(registro.dt_gerencial + 'T12:00:00Z') // Meio-dia UTC
+      const data = new Date(registro.data_visita + 'T12:00:00Z') // Meio-dia UTC
       const diaSemana = data.getUTCDay() // 0=domingo, 1=segunda, etc.
       
               diasSemanaCount.set(diaSemana, (diasSemanaCount.get(diaSemana) || 0) + 1)
@@ -138,23 +124,19 @@ export async function GET(request: NextRequest) {
     let diaDestaque = 'Não definido'
     let maxVisitas = 0
     
-    console.log(`📊 Contagem por dia da semana:`)
     diasSemanaCount.forEach((count, dia) => {
-      console.log(`   ${diasSemanaLabels[dia]}: ${count} visitas`)
       if (count > maxVisitas) {
         maxVisitas = count
         diaDestaque = diasSemanaLabels[dia]
       }
     })
     
-    console.log(`🏆 Dia destaque: ${diaDestaque} (${maxVisitas} visitas)`)
-
     return NextResponse.json({
       visitas,
       total_visitas: visitas.length,
       dia_destaque: diaDestaque,
       cliente: {
-        nome: visitasValidas[0]?.cli_nome || visitasCliente[0]?.cli_nome || 'Cliente',
+        nome: visitasValidas[0]?.cliente_nome || visitasCliente[0]?.cliente_nome || 'Cliente',
         telefone: telefone
       }
     })

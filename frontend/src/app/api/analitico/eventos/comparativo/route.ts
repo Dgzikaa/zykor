@@ -25,8 +25,7 @@ export async function GET(request: NextRequest) {
     const data2 = searchParams.get('data2');
     const filtroCouvert = searchParams.get('filtro_couvert') || 'todos'; // todos, com_entrada, sem_entrada
 
-    console.log(`📊 Comparativo de Eventos: ${tipo} | Data1: ${data1} | Data2: ${data2} | Filtro: ${filtroCouvert}`);
-
+    
     // Calcular intervalos baseado no tipo
     let periodo1Inicio: string, periodo1Fim: string;
     let periodo2Inicio: string, periodo2Fim: string;
@@ -117,9 +116,7 @@ export async function GET(request: NextRequest) {
       periodo2Fim = data2 || data1;
     }
 
-    console.log(`📅 Período 1: ${periodo1Inicio} a ${periodo1Fim}`);
-    console.log(`📅 Período 2: ${periodo2Inicio} a ${periodo2Fim}`);
-
+        
     // Buscar eventos do período 1
     let query1 = supabase
       .from('eventos_base')
@@ -248,8 +245,7 @@ export async function GET(request: NextRequest) {
       comparacao
     };
 
-    console.log(`✅ Comparativo gerado: ${eventosFiltrados1.length} eventos (P1) vs ${eventosFiltrados2.length} eventos (P2)`);
-
+    
     return NextResponse.json({
       success: true,
       data: resultado

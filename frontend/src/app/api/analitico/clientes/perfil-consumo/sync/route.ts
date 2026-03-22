@@ -54,7 +54,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`🚀 Iniciando sync de perfil de consumo para bar_id=${barId}`)
     const startTime = Date.now()
 
     // 1. Buscar clientes com telefone identificado que têm consumo
@@ -65,22 +64,19 @@ export async function POST(request: NextRequest) {
 
     // Se a função não existir, criar ela primeiro
     if (clientesError?.message?.includes('does not exist')) {
-      console.log('📝 Função RPC não existe, executando query direta...')
-      
-      // Query direta para buscar clientes com consumo identificado
+      // Query direta para buscar clientes com consumo identificado (migrado para visitas)
       const { data: perfisRaw, error: perfisError } = await supabase
-        .from('contahub_vendas')
+        .from('visitas')
         .select(`
-          cli_fone,
-          cli_nome,
-          cli_email,
-          dt_gerencial,
-          vd_mesadesc
+          cliente_fone,
+          cliente_nome,
+          data_visita,
+          id
         `)
         .eq('bar_id', barId)
-        .not('cli_fone', 'is', null)
-        .neq('cli_fone', '')
-        .order('cli_fone')
+        .not('cliente_fone', 'is', null)
+        .neq('cliente_fone', '')
+        .order('cliente_fone')
 
       if (perfisError) {
         console.error('❌ Erro ao buscar clientes:', perfisError)
@@ -92,54 +88,51 @@ export async function POST(request: NextRequest) {
         telefone: string
         nome: string
         email: string | null
-        comandas: Set<string>
+        visitaIds: Set<string>
         datas: Set<string>
       }>()
 
       for (const row of perfisRaw || []) {
-        const telefone = normalizarTelefone(row.cli_fone)
+        const telefone = normalizarTelefone(row.cliente_fone)
         if (!telefone) continue
 
         if (!clientesMap.has(telefone)) {
           clientesMap.set(telefone, {
             telefone,
-            nome: row.cli_nome || 'Cliente',
-            email: row.cli_email || null,
-            comandas: new Set(),
+            nome: row.cliente_nome || 'Cliente',
+            email: null,
+            visitaIds: new Set(),
             datas: new Set()
           })
         }
 
         const cliente = clientesMap.get(telefone)!
-        if (row.vd_mesadesc) cliente.comandas.add(row.vd_mesadesc)
-        if (row.dt_gerencial) cliente.datas.add(row.dt_gerencial)
+        if (row.id) cliente.visitaIds.add(row.id.toString())
+        if (row.data_visita) cliente.datas.add(row.data_visita)
         
         // Atualizar nome se for mais completo
-        if (row.cli_nome && row.cli_nome.length > cliente.nome.length) {
-          cliente.nome = row.cli_nome
+        if (row.cliente_nome && row.cliente_nome.length > cliente.nome.length) {
+          cliente.nome = row.cliente_nome
         }
       }
-
-      console.log(`📊 ${clientesMap.size} clientes únicos encontrados`)
 
       // 2. Para cada cliente, buscar o consumo detalhado
       const perfisProcessados: PerfilCliente[] = []
       let processados = 0
 
       for (const [telefone, cliente] of clientesMap.entries()) {
-        if (cliente.comandas.size === 0) continue
+        if (cliente.visitaIds.size === 0) continue
 
-        // Buscar consumo para as comandas deste cliente
-        const comandasArray = Array.from(cliente.comandas)
+        // Buscar consumo para as visitas deste cliente
+        const visitaIdsArray = Array.from(cliente.visitaIds)
         const datasArray = Array.from(cliente.datas)
 
-        // Buscar itens consumidos nessas comandas/datas
+        // Buscar itens consumidos nessas comandas/datas (migrado para vendas_item)
         const { data: itensConsumo, error: itensError } = await supabase
-          .from('contahub_analitico')
-          .select('prd_desc, grp_desc, qtd, valorfinal, trn_dtgerencial')
+          .from('vendas_item')
+          .select('produto_desc, grupo_desc, quantidade, valor, data_venda')
           .eq('bar_id', barId)
-          .in('comandaorigem', comandasArray)
-          .in('trn_dtgerencial', datasArray)
+          .in('data_venda', datasArray)
 
         if (itensError) {
           console.warn(`⚠️ Erro ao buscar itens para ${telefone}:`, itensError)
@@ -158,10 +151,10 @@ export async function POST(request: NextRequest) {
         const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
         for (const item of itensConsumo) {
-          const produto = item.prd_desc || 'Produto'
-          const categoria = item.grp_desc || 'Outros'
-          const qtd = parseFloat(item.qtd) || 0
-          const valor = parseFloat(item.valorfinal) || 0
+          const produto = item.produto_desc || 'Produto'
+          const categoria = item.grupo_desc || 'Outros'
+          const qtd = parseFloat(item.quantidade) || 0
+          const valor = parseFloat(item.valor) || 0
 
           // Ignorar insumos (produtos com [IN])
           if (produto.startsWith('[IN]') || produto.startsWith('[PD]') || produto.startsWith('[DD]')) continue
@@ -187,8 +180,8 @@ export async function POST(request: NextRequest) {
           c.valor += valor
 
           // Dias da semana
-          if (item.trn_dtgerencial) {
-            const data = new Date(item.trn_dtgerencial + 'T12:00:00Z')
+          if (item.data_venda) {
+            const data = new Date(item.data_venda + 'T12:00:00Z')
             const dia = diasSemana[data.getUTCDay()]
             diasMap.set(dia, (diasMap.get(dia) || 0) + 1)
           }
@@ -288,11 +281,8 @@ export async function POST(request: NextRequest) {
 
         // Log de progresso
         if (processados % 100 === 0) {
-          console.log(`📈 Processados ${processados}/${clientesMap.size} clientes...`)
-        }
+          }
       }
-
-      console.log(`✅ ${perfisProcessados.length} perfis processados`)
 
       // 3. Upsert dos perfis no banco
       if (perfisProcessados.length > 0) {
@@ -334,12 +324,9 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        console.log(`💾 ${inseridos} perfis salvos no banco`)
-      }
+        }
 
       const tempoMs = Date.now() - startTime
-      console.log(`🎉 Sync concluído em ${tempoMs}ms`)
-
       return NextResponse.json({
         success: true,
         clientes_processados: perfisProcessados.length,
@@ -348,8 +335,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Se chegou aqui, a função RPC existe
-    console.log(`✅ ${clientesComConsumo?.length || 0} clientes encontrados via RPC`)
-    
     return NextResponse.json({
       success: true,
       clientes_processados: clientesComConsumo?.length || 0

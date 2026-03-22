@@ -157,16 +157,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[INTER-PIX] Recebendo solicitação de PIX:', {
-      valor,
-      destinatario,
-      agendamento_id,
-      chave,
-      data_pagamento,
-      bar_id,
-      inter_credencial_id
-    });
-
     // Validações
     if (!chave || !valor) {
       return NextResponse.json(
@@ -199,8 +189,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[INTER-PIX] Tipo de chave identificado:', tipoChave);
-
     // Buscar credenciais do Inter
     const credentialId = Number.isFinite(Number(inter_credencial_id))
       ? Number(inter_credencial_id)
@@ -218,8 +206,6 @@ export async function POST(request: NextRequest) {
     // ============================================================
     // MODO PRODUÇÃO - Chamada real à API do Inter
     // ============================================================
-    
-    console.log('[INTER-PIX] Credenciais encontradas, preparando chamada à API Inter');
 
     // Extrair credenciais
     const clientId = credenciais.client_id;
@@ -241,8 +227,6 @@ export async function POST(request: NextRequest) {
         null,
     };
 
-    console.log('[INTER-PIX] Credencial selecionada:', credencialDebug);
-
     if (!clientId || !clientSecret || !contaCorrente) {
       return NextResponse.json(
         { success: false, error: 'Credenciais Inter incompletas (client_id/client_secret/conta_corrente)' },
@@ -250,19 +234,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[INTER-PIX] Client ID:', clientId.substring(0, 8) + '...');
-    console.log('[INTER-PIX] Conta Corrente:', contaCorrente);
-
     try {
       // 1. Obter access_token via OAuth2 com mTLS
-      console.log('[INTER-PIX] Obtendo access token...');
       const mtlsCredentials = await loadCredentialCertificates(credenciais.configuracoes);
       
       // Se o body tiver force_new_token, limpar cache primeiro
       const forceNewToken = body.force_new_token;
       if (forceNewToken) {
         clearInterTokenCache();
-        console.log('[INTER-PIX] Cache de tokens limpo por solicitação');
       }
       
       const accessToken = await getInterAccessToken(
@@ -271,10 +250,8 @@ export async function POST(request: NextRequest) {
         'pagamento-pix.write',
         mtlsCredentials || undefined
       );
-      console.log('[INTER-PIX] Access token obtido com sucesso');
 
       // 2. Realizar pagamento PIX
-      console.log('[INTER-PIX] Realizando pagamento PIX...');
       const resultadoPix = await realizarPagamentoPixInter({
         token: accessToken,
         contaCorrente: contaCorrente,
@@ -314,8 +291,6 @@ export async function POST(request: NextRequest) {
       const codigoSolicitacao = resultadoPix.data?.codigoSolicitacao || 
                                  resultadoPix.data?.endToEndId || 
                                  `PIX_${Date.now()}`;
-      
-      console.log('[INTER-PIX] PIX enviado com sucesso:', codigoSolicitacao);
 
       // Salvar no banco pix_enviados
       const { error: insertError } = await supabase.from('pix_enviados').insert({
@@ -353,8 +328,6 @@ export async function POST(request: NextRequest) {
 
         if (updateError) {
           console.error('[INTER-PIX] Erro ao atualizar agendamento:', updateError);
-        } else {
-          console.log('[INTER-PIX] Agendamento atualizado com código:', codigoSolicitacao);
         }
       }
 

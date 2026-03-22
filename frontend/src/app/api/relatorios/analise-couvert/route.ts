@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase-admin'
 
 // Datas de início da entrada obrigatória
@@ -9,24 +9,24 @@ const DATAS_ENTRADA = {
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
-  console.log('🎯 API /api/relatorios/analise-couvert chamada!')
+export async function GET(request: NextRequest) {
   try {
     const supabase = await getAdminClient()
     if (!supabase) {
       console.error('❌ Erro: Cliente Supabase não inicializado')
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Erro ao conectar com banco de dados' 
+      return NextResponse.json({
+        success: false,
+        error: 'Erro ao conectar com banco de dados'
       }, { status: 500 })
     }
-    
-    console.log('✅ Cliente Supabase inicializado')
-    const barId = 3
+
+    const barIdParam = request.nextUrl.searchParams.get('bar_id')
+    const barId = barIdParam ? parseInt(barIdParam, 10) : null
+    if (!barId) return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 })
     
     const startTime = Date.now()
 
-    // Buscar apenas quartas e sextas usando paginação
+    // Buscar apenas quartas e sextas usando paginação (tabela visitas)
     const vendasData: any[] = []
     const pageSize = 1000
     let hasMore = true
@@ -34,12 +34,12 @@ export async function GET() {
 
     while (hasMore) {
       const { data: vendas, error: vendasError } = await supabase
-        .from('contahub_vendas')
-        .select('vd_hrabertura, cli_fone, vd_cpf, vd_vrcheio, vd_vrdescontos')
+        .from('visitas')
+        .select('hora_abertura, cliente_fone, valor_pagamentos, valor_couvert')
         .eq('bar_id', barId)
-        .gte('vd_hrabertura', '2025-09-01')
-        .gt('vd_vrcheio', 0)
-        .order('vd_hrabertura', { ascending: true })
+        .gte('data_visita', '2025-09-01')
+        .gt('valor_pagamentos', 0)
+        .order('data_visita', { ascending: true })
         .range(page * pageSize, (page + 1) * pageSize - 1)
       
       if (vendasError) {
@@ -52,15 +52,21 @@ export async function GET() {
 
       const vendasPagina = (vendas || []) as any[]
       
-      // Filtrar apenas quartas (3) e sextas (5) para economizar memória
-      const vendasFiltradas = vendasPagina.filter(v => {
-        const diaSemana = new Date(v.vd_hrabertura).getDay()
-        return diaSemana === 3 || diaSemana === 5
-      })
+      // Mapear campos para compatibilidade e filtrar quartas (3) e sextas (5)
+      const vendasFiltradas = vendasPagina
+        .map(v => ({
+          vd_hrabertura: v.hora_abertura || v.data_visita,
+          cli_fone: v.cliente_fone,
+          vd_cpf: null,
+          vd_vrcheio: v.valor_pagamentos,
+          vd_vrdescontos: (parseFloat(v.valor_pagamentos) || 0) - (parseFloat(v.valor_couvert) || 0) > 0 ? 0 : 0
+        }))
+        .filter(v => {
+          const diaSemana = new Date(v.vd_hrabertura).getDay()
+          return diaSemana === 3 || diaSemana === 5
+        })
       
       vendasData.push(...vendasFiltradas)
-      
-      console.log(`📄 Página ${page + 1}: ${vendasPagina.length} vendas, ${vendasFiltradas.length} quartas/sextas`)
       
       hasMore = vendasPagina.length === pageSize
       page++
@@ -71,8 +77,6 @@ export async function GET() {
         break
       }
     }
-    
-    console.log(`📊 Total de vendas carregadas: ${vendasData.length} (quartas e sextas)`)
 
     // Função helper para obter identificador único do cliente
     const getClienteId = (venda: any) => {
@@ -117,17 +121,10 @@ export async function GET() {
     // Filtrar por dia da semana
     const vendasQuartas = vendasData.filter(v => new Date(v.vd_hrabertura).getDay() === 3)
     const vendasSextas = vendasData.filter(v => new Date(v.vd_hrabertura).getDay() === 5)
-    console.log(`📅 Quartas: ${vendasQuartas.length}, Sextas: ${vendasSextas.length}`)
 
     // Processar quartas
     const quartasAntes = vendasQuartas.filter(v => v.vd_hrabertura.substring(0, 10) < DATAS_ENTRADA.quarta)
     const quartasDepois = vendasQuartas.filter(v => v.vd_hrabertura.substring(0, 10) >= DATAS_ENTRADA.quarta)
-    console.log(`🔵 Quartas ANTES: ${quartasAntes.length}, DEPOIS: ${quartasDepois.length}`)
-    console.log(`📅 Data de corte: ${DATAS_ENTRADA.quarta}`)
-    if (vendasQuartas.length > 0) {
-      console.log(`📅 Primeira venda quarta: ${vendasQuartas[0].vd_hrabertura}`)
-      console.log(`📅 Última venda quarta: ${vendasQuartas[vendasQuartas.length - 1].vd_hrabertura}`)
-    }
     const metricsQuartasAntes = calcularMetricas(quartasAntes)
     const metricsQuartasDepois = calcularMetricas(quartasDepois)
     
@@ -186,8 +183,6 @@ export async function GET() {
     }).length
 
     const tempoMs = Date.now() - startTime
-
-    console.log(`📊 Métricas Quartas DEPOIS:`, metricsQuartasDepois)
 
     // Gerar dados de evolução semanal (por data)
     const gerarEvolucao = (vendas: any[]) => {

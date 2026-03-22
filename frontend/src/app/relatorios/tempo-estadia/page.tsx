@@ -84,7 +84,7 @@ export default function TempoEstadiaPage() {
       try {
         const response = await fetch('/api/relatorios/tempo-estadia', {
           headers: {
-            'x-user-data': JSON.stringify({ bar_id: selectedBar.id })
+            'x-selected-bar-id': String(selectedBar.id)
           }
         })
         

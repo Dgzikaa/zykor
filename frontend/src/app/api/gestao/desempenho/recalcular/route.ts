@@ -40,8 +40,7 @@ async function fetchAllData(supabase: any, tableName: string, columns: string, f
     
     from += limit;
   }
-  
-  console.log(`📊 ${tableName}: ${allData.length} registros total`);
+
   return allData;
 }
 
@@ -60,9 +59,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { semana_id, recalcular_todas = false } = body;
     
-    const barId = request.headers.get('x-user-data')
-      ? JSON.parse(request.headers.get('x-user-data') || '{}').bar_id
-      : null;
+    const barIdHeader = request.headers.get('x-selected-bar-id');
+    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
 
     if (!barId) {
       return NextResponse.json(
@@ -76,11 +74,6 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
-
-    console.log('🔄 Iniciando recálculo automático...');
-    console.log('Bar ID:', barId);
-    console.log('Semana específica:', semana_id);
-    console.log('Recalcular todas:', recalcular_todas);
 
     // Buscar semanas para recalcular
     let semanasQuery = supabase
@@ -101,26 +94,20 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log(`📊 Recalculando ${semanas.length} semana(s)`);
-
     const semanasAtualizadas = [];
 
     for (const semana of semanas) {
-      console.log(`\n📅 Processando Semana ${semana.numero_semana} (${semana.data_inicio} - ${semana.data_fim})`);
-      
       const startDate = semana.data_inicio;
       const endDate = semana.data_fim;
 
       // =============================================
       // 1. FATURAMENTO TOTAL (ContaHub + Yuzer + Sympla)
       // =============================================
-      
-      console.log('💰 Calculando Faturamento Total...');
-      
+
       const [contahubData, yuzerData, symplaData] = await Promise.all([
-        fetchAllData(supabase, 'contahub_pagamentos', 'liquido', {
-          'gte_dt_gerencial': startDate,
-          'lte_dt_gerencial': endDate,
+        fetchAllData(supabase, 'faturamento_pagamentos', 'valor_liquido', {
+          'gte_data_pagamento': startDate,
+          'lte_data_pagamento': endDate,
           'eq_bar_id': barId
         }),
         fetchAllData(supabase, 'yuzer_pagamento', 'valor_liquido', {
@@ -134,24 +121,16 @@ export async function POST(request: Request) {
         })
       ]);
 
-      const faturamentoContahub = contahubData?.reduce((sum, item) => sum + (parseFloat(item.liquido) || 0), 0) || 0;
+      const faturamentoContahub = contahubData?.reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0) || 0;
       const faturamentoYuzer = yuzerData?.reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0) || 0;
       const faturamenteSympla = symplaData?.reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0) || 0;
       
       const faturamentoTotal = faturamentoContahub + faturamentoYuzer + faturamenteSympla;
 
-      console.log(`💰 Faturamento Calculado:`);
-      console.log(`  - ContaHub: R$ ${faturamentoContahub.toFixed(2)}`);
-      console.log(`  - Yuzer: R$ ${faturamentoYuzer.toFixed(2)}`);
-      console.log(`  - Sympla: R$ ${faturamenteSympla.toFixed(2)}`);
-      console.log(`  - TOTAL: R$ ${faturamentoTotal.toFixed(2)}`);
-
       // =============================================
       // 2. ATRAÇÃO/FATURAMENTO % (Custos de Atração)
       // =============================================
-      
-      console.log('🎭 Calculando Atração/Faturamento...');
-      
+
       const atracaoData = await fetchAllData(supabase, 'nibo_agendamentos', 'valor, categoria_nome', {
         'gte_data_competencia': startDate,
         'lte_data_competencia': endDate
@@ -174,16 +153,10 @@ export async function POST(request: Request) {
 
       const atracaoFaturamentoPercent = faturamentoTotal > 0 ? (custoAtracao / faturamentoTotal) * 100 : 0;
 
-      console.log(`🎭 Atração/Faturamento:`);
-      console.log(`  - Custo Atração: R$ ${custoAtracao.toFixed(2)}`);
-      console.log(`  - % Faturamento: ${atracaoFaturamentoPercent.toFixed(1)}%`);
-
       // =============================================
       // 3. CMO (CUSTO DE MÃO DE OBRA) - AUTOMÁTICO
       // =============================================
-      
-      console.log('👷 Calculando CMO (Custo de Mão de Obra)...');
-      
+
       // Calcular CMO proporcional ao mês
       // Salários/VT/Provisões têm data_competencia no dia 15 do mês
       // Freelancers têm data_competencia no dia do evento
@@ -220,16 +193,8 @@ export async function POST(request: Request) {
           { categoria: 'Alimentação (CMA)', quantidade: 1, total: cmoTravado.cma_alimentacao || 0 },
           { categoria: 'Pro Labore', quantidade: 1, total: cmoTravado.pro_labore_semanal || 0 }
         );
-
-        console.log(`👷 CMO da Simulação Travada (Semana ${semana.numero_semana}/${anoInicio}):`);
-        custosCMODetalhados.forEach(item => {
-          console.log(`  - ${item.categoria}: R$ ${item.total.toFixed(2)}`);
-        });
-        console.log(`  - TOTAL CMO: R$ ${custoTotalCMO.toFixed(2)}`);
       } else {
         // Fallback: Calcular pelo NIBO (método antigo) se não houver simulação travada
-        console.log(`⚠️ Nenhuma simulação CMO travada encontrada para Semana ${semana.numero_semana}/${anoInicio}. Usando cálculo pelo NIBO.`);
-        
         const mesFimStr = `${anoFim}-${(mesFim + 1).toString().padStart(2, '0')}-01`;
         
         const cmoData = await fetchAllData(supabase, 'nibo_agendamentos', 'valor, categoria_nome, data_competencia', {
@@ -293,30 +258,19 @@ export async function POST(request: Request) {
           custosCMODetalhados.push({ categoria, quantidade: itens.length, total });
           custoTotalCMO += total;
         }
-
-        console.log(`👷 CMO Calculado por categoria (NIBO):`);
-        custosCMODetalhados.forEach(item => {
-          if (item.quantidade > 0 || item.total > 0) {
-            console.log(`  - ${item.categoria}: ${item.quantidade} itens = R$ ${item.total.toFixed(2)}`);
-          }
-        });
-        console.log(`  - TOTAL CMO: R$ ${custoTotalCMO.toFixed(2)}`);
       }
-      
+
       // Calcular CMO percentual
       const cmoPercentual = faturamentoTotal > 0 ? (custoTotalCMO / faturamentoTotal) * 100 : 0;
-      console.log(`  - CMO %: ${cmoPercentual.toFixed(1)}%`);
 
       // =============================================
       // 4. CLIENTES ATENDIDOS
       // =============================================
-      
-      console.log('👥 Calculando Clientes Atendidos...');
-      
+
       const [contahubPessoas, yuzerProdutos, symplaParticipantes] = await Promise.all([
-        fetchAllData(supabase, 'contahub_periodo', 'pessoas', {
-          'gte_dt_gerencial': startDate,
-          'lte_dt_gerencial': endDate,
+        fetchAllData(supabase, 'visitas', 'pessoas', {
+          'gte_data_visita': startDate,
+          'lte_data_visita': endDate,
           'eq_bar_id': barId
         }),
         fetchAllData(supabase, 'yuzer_produtos', 'quantidade, produto_nome', {
@@ -344,24 +298,16 @@ export async function POST(request: Request) {
       
       const clientesAtendidos = pessoasContahub + pessoasYuzer + pessoasSympla;
 
-      console.log(`👥 Clientes Atendidos:`);
-      console.log(`  - ContaHub: ${pessoasContahub}`);
-      console.log(`  - Yuzer: ${pessoasYuzer}`);
-      console.log(`  - Sympla: ${pessoasSympla}`);
-      console.log(`  - TOTAL: ${clientesAtendidos}`);
-
       // =============================================
       // 5. TICKET MÉDIO
       // =============================================
-      
+
       const ticketMedio = clientesAtendidos > 0 ? faturamentoTotal / clientesAtendidos : 0;
-      console.log(`🎯 Ticket Médio: R$ ${ticketMedio.toFixed(2)}`);
 
       // =============================================
       // 6. % CLIENTES NOVOS (usando stored procedure)
       // =============================================
-      console.log(`🆕 Calculando % Clientes Novos...`);
-      
+
       // Calcular período anterior para comparação (semana anterior)
       const dataInicio = new Date(startDate + 'T00:00:00');
       const dataFim = new Date(endDate + 'T00:00:00');
@@ -392,9 +338,6 @@ export async function POST(request: Request) {
         
         // Calcular percentual de novos
         percClientesNovos = totalClientes > 0 ? (novosClientes / totalClientes) * 100 : 0;
-        
-        console.log(`🆕 Total Clientes: ${totalClientes}, Novos: ${novosClientes}`);
-        console.log(`🆕 % Clientes Novos: ${percClientesNovos.toFixed(2)}%`);
       } else {
         console.error(`❌ Erro ao calcular métricas de clientes:`, metricasError);
       }
@@ -402,8 +345,7 @@ export async function POST(request: Request) {
       // =============================================
       // 7. CLIENTES ATIVOS (base ativa 90 dias)
       // =============================================
-      console.log(`⭐ Calculando Clientes Ativos (base ativa 90d)...`);
-      
+
       // Calcular 90 dias antes do fim do período
       const dataRef = new Date(endDate + 'T00:00:00');
       const data90DiasAtras = new Date(dataRef);
@@ -424,13 +366,9 @@ export async function POST(request: Request) {
         clientesAtivosCalculado = 0;
       }
 
-      console.log(`⭐ Clientes Ativos (90d): ${clientesAtivosCalculado}`);
-
       // =============================================
       // 8. ATUALIZAR REGISTRO NO BANCO
       // =============================================
-      
-      console.log('💾 Atualizando registro no banco...');
 
       const dadosAtualizados = {
         // CAMPOS AUTOMÁTICOS (conforme planilha Excel)
@@ -478,10 +416,7 @@ export async function POST(request: Request) {
       }
 
       (semanasAtualizadas as any).push(atualizada);
-      console.log(`✅ Semana ${semana.numero_semana} atualizada com sucesso!`);
     }
-
-    console.log(`\n🎉 Recálculo concluído! ${semanasAtualizadas.length} semana(s) atualizada(s).`);
 
     return NextResponse.json({
       success: true,

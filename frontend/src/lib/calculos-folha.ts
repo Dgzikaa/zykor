@@ -1,7 +1,19 @@
 /**
  * Biblioteca de cálculos de folha de pagamento
  * Baseado na planilha "Cálculo Salários ORDINÁRIO"
+ * 
+ * Os percentuais de encargos (FGTS, INSS) são configuráveis via bar_regras_negocio
  */
+
+export interface ConfigEncargos {
+  fgts_percentual: number;       // Padrão: 8 (%)
+  inss_patronal_percentual: number; // Padrão: 20 (%)
+}
+
+export const CONFIG_ENCARGOS_PADRAO: ConfigEncargos = {
+  fgts_percentual: 8,
+  inss_patronal_percentual: 20,
+};
 
 export interface DadosFuncionario {
   nome: string;
@@ -51,8 +63,13 @@ export interface ResultadoCalculo {
 
 /**
  * Calcula o custo total de um funcionário
+ * @param dados - Dados do funcionário
+ * @param config - Configuração de encargos (opcional, usa padrão se não informado)
  */
-export function calcularCustoFuncionario(dados: DadosFuncionario): ResultadoCalculo {
+export function calcularCustoFuncionario(
+  dados: DadosFuncionario,
+  config: ConfigEncargos = CONFIG_ENCARGOS_PADRAO
+): ResultadoCalculo {
   const { tipo_contratacao, salario_bruto, vale_transporte, adicional, adicional_aviso_previo, dias_trabalhados } = dados;
   
   // Proporção da semana (7 dias de 30)
@@ -92,7 +109,7 @@ export function calcularCustoFuncionario(dados: DadosFuncionario): ResultadoCalc
     };
   }
   
-  // CLT: Cálculo completo com encargos
+  // CLT: Cálculo completo com encargos (usando config parametrizada)
   
   // 1. Salário Líquido = Salário Bruto (sem descontos nessa simulação simplificada)
   const salarioLiquido = salario_bruto;
@@ -103,11 +120,11 @@ export function calcularCustoFuncionario(dados: DadosFuncionario): ResultadoCalc
   // 3. Aviso Prévio
   const avisoPrevio = adicional_aviso_previo;
   
-  // 4. FGTS (8% sobre salário bruto)
-  const fgts = salario_bruto * 0.08;
+  // 4. FGTS (percentual configurável via bar_regras_negocio)
+  const fgts = salario_bruto * (config.fgts_percentual / 100);
   
-  // 5. INSS Patronal (20% sobre salário bruto - simplificado)
-  const inssEmpresa = salario_bruto * 0.20;
+  // 5. INSS Patronal (percentual configurável via bar_regras_negocio)
+  const inssEmpresa = salario_bruto * (config.inss_patronal_percentual / 100);
   
   // 6. Produtividade (assumindo R$ 5,00 fixo conforme planilha)
   const produtividade = 5.00;
@@ -152,15 +169,20 @@ export function calcularCustoFuncionario(dados: DadosFuncionario): ResultadoCalc
 
 /**
  * Calcula o custo total de uma lista de funcionários
+ * @param funcionarios - Lista de funcionários
+ * @param config - Configuração de encargos (opcional, usa padrão se não informado)
  */
-export function calcularCustoTotalFolha(funcionarios: DadosFuncionario[]): {
+export function calcularCustoTotalFolha(
+  funcionarios: DadosFuncionario[],
+  config: ConfigEncargos = CONFIG_ENCARGOS_PADRAO
+): {
   custoTotal: number;
   custoSemanal: number;
   detalhePorFuncionario: Array<DadosFuncionario & ResultadoCalculo>;
 } {
   const resultados = funcionarios.map(func => ({
     ...func,
-    ...calcularCustoFuncionario(func),
+    ...calcularCustoFuncionario(func, config),
   }));
   
   const custoTotal = resultados.reduce((sum, r) => sum + r.custo_total, 0);

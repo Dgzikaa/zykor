@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 
 // Interfaces para tipagem adequada
@@ -59,10 +59,7 @@ export const dynamic = 'force-dynamic';
 // FUNÇÃO COMPLETAMENTE NOVA PARA FORÇAR RECOMPILAÇÃO
 async function getDashboardSemanalCorrigido(request: NextRequest) {
   const VERSAO_DOMINGO_CORRIGIDA = 'V5_FINAL_' + Date.now();
-  console.log(
-    `🔥🔥🔥 NOVA FUNÇÃO DOMINGO CORRIGIDA: ${VERSAO_DOMINGO_CORRIGIDA} 🔥🔥🔥`
-  );
-
+  
   try {
     const supabase = await getSupabaseClient();
     
@@ -86,12 +83,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
       );
     }
 
-    console.log('📊 Dashboard Semanal - Parâmetros:', {
-      bar_id,
-      data_inicio,
-      data_fim,
-    });
-
+    
     // Gerar array de datas da semana
     const inicioSemana = new Date(data_inicio + 'T00:00:00');
     const diasSemana: Array<{
@@ -153,8 +145,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
         }
       }
 
-      console.log(`💳 TOTAL PAGAMENTOS ENCONTRADOS: ${todosPagamentos.length}`);
-      return todosPagamentos;
+            return todosPagamentos;
     };
 
     // Buscar dados em paralelo
@@ -184,12 +175,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
     const sympla = symplaResult as any;
     const periodo = periodoResult as any;
 
-    console.log('📊 Dados encontrados (PAGINAÇÃO):', {
-      pagamentos: pagamentos.length,
-      sympla: sympla.length,
-      periodo: periodo.length,
-    });
-
+    
     // BUSCAR DADOS YUZER (igual ao dashboard diário) + COM PAGINAÇÃO
     const buscarTodosYuzerBar = async () => {
       let todosYuzerBar: YuzerData[] = [];
@@ -227,8 +213,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
         }
       }
 
-      console.log(`🍺 TOTAL YUZER BAR ENCONTRADOS: ${todosYuzerBar.length}`);
-      return todosYuzerBar;
+            return todosYuzerBar;
     };
 
     const buscarTodosYuzerIngressos = async () => {
@@ -267,8 +252,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
         }
       }
 
-      console.log(`🎫 TOTAL YUZER INGRESSOS ENCONTRADOS: ${todosYuzerIngressos.length}`);
-      return todosYuzerIngressos;
+            return todosYuzerIngressos;
     };
 
     const [yuzerBar, yuzerIngresso] = await Promise.all([
@@ -276,14 +260,10 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
       buscarTodosYuzerIngressos(),
     ]);
 
-    console.log('📊 Dados Yuzer detalhados (PAGINAÇÃO):', {
-      yuzerBar: yuzerBar.length,
-      yuzerIngresso: yuzerIngresso.length,
-    });
-
+    
     // Processar faturamento de TODAS as fontes (igual ao diário)
     // 1. ContaHub (pagamentos filtrados)
-    const faturamento_contahub_real = pagamentos.reduce(
+    const faturamento_periodo_real = pagamentos.reduce(
       (sum: number, item: PagamentoData) => {
         return sum + (parseFloat(item.liquido) || 0);
       },
@@ -322,34 +302,19 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
       0
     );
 
-    console.log('💰 Faturamentos detalhados (igual ao diário):', {
-      contahub_real: faturamento_contahub_real,
-      bilheteria: faturamento_bilheteria,
-      yuzer_bar: faturamento_yuzer_bar,
-      yuzer_ingressos: faturamento_yuzer_ingressos,
-      couvert_periodo: couvert_real_periodo,
-    });
-
+    
     // TOTAIS CONSOLIDADOS (igual ao diário)
     const faturamento_bar_sem_couvert =
-      faturamento_contahub_real -
+      faturamento_periodo_real -
       couvert_real_periodo +
       faturamento_bilheteria;
     const bar_total = faturamento_bar_sem_couvert + faturamento_yuzer_bar;
     const couvert_total = couvert_real_periodo + faturamento_yuzer_ingressos;
     const faturamento_total = bar_total + couvert_total;
 
-    console.log('💰 Faturamento CONSOLIDADO IGUAL AO DIÁRIO:', {
-      bar_total: bar_total,
-      couvert_total: couvert_total,
-      faturamento_total: faturamento_total,
-    });
-
+    
     // **CORREÇÃO IGUAL AO DIÁRIO: Usar pessoas_diario_corrigido quando possível**
-    console.log(
-      '👥 Buscando clientes na tabela pessoas_diario_corrigido para cada dia da semana...'
-    );
-
+    
     let clientes_pessoas_diario_total = 0;
     const diasSemanaArray: string[] = [];
     for (
@@ -371,25 +336,17 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
         if (pessoasData) {
           clientes_pessoas_diario_total +=
             pessoasData.total_pessoas_bruto || 0;
-          console.log(
-            `👥 ${dia}: pessoas_diario_corrigido = ${pessoasData.total_pessoas_bruto || 0}`
-          );
-        } else {
-          console.log(`⚠️ ${dia}: sem dados em pessoas_diario_corrigido`);
-        }
+                  } else {
+                  }
       } catch (error) {
-        console.log(
-          `❌ Erro ao buscar ${dia} em pessoas_diario_corrigido:`,
-          error
-        );
-      }
+              }
     }
 
     // Calcular clientes do ContaHub
     const periodo_com_pagamento = periodo.filter(
       (item: PeriodoData) => parseFloat(item.vr_pagamentos || '0') > 0
     );
-    const clientes_contahub_periodo = periodo_com_pagamento.length; // CONTAR registros, não somar pessoas
+    const clientes_periodo_total = periodo_com_pagamento.length;
 
     // Clientes Yuzer (apenas ingressos)
     const pedidos_unicos_yuzer_ingresso = [
@@ -398,19 +355,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
     const clientes_yuzer = pedidos_unicos_yuzer_ingresso.length;
 
     // Buscar TODAS as visitas Sympla do período COM PAGINAÇÃO
-    console.log(
-      '🔍 Buscando TODAS as visitas_clientes Sympla do período COM PAGINAÇÃO...'
-    );
-    console.log('📋 RESUMO PERÍODO (antes de filtrar):', {
-      total_registros: periodo.length,
-      amostra_5_primeiros: periodo.slice(0, 5).map((p: PeriodoData) => ({
-        dt_gerencial: p.dt_gerencial,
-        pessoas: p.pessoas,
-        vr_pagamentos: p.vr_pagamentos,
-        cli_cel: p.cli_cel?.slice(0, 4) + '***',
-      })),
-    });
-
+        
     const buscarTodasVisitasSympa = async () => {
       let todasVisitas: VisitaSymplaData[] = [];
       let offset = 0;
@@ -447,10 +392,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
         }
       }
 
-      console.log(
-        `👥 TOTAL VISITAS SYMPLA ENCONTRADAS: ${todasVisitas.length}`
-      );
-      return todasVisitas;
+            return todasVisitas;
     };
 
     const todasVisitasSymplaData = await buscarTodasVisitasSympa();
@@ -463,40 +405,21 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
     );
 
     // **LÓGICA FINAL IGUAL AO DIÁRIO: Usar pessoas_diario_corrigido como base**
-    let clientes_contahub = clientes_contahub_periodo; // Valor padrão
+    let clientes_periodo = clientes_periodo_total;
     let clientesSource = 'periodo_com_pagamento';
 
     if (clientes_pessoas_diario_total > 0) {
-      // **CORREÇÃO IGUAL AO DIÁRIO: usar pessoas_diario_corrigido COMO BASE e somar Yuzer + Sympla**
-      clientes_contahub = clientes_pessoas_diario_total;
+      clientes_periodo = clientes_pessoas_diario_total;
       clientesSource = 'pessoas_diario_corrigido + yuzer + sympla';
-      console.log(
-        `👥 Usando pessoas_diario_corrigido como base: ${clientes_pessoas_diario_total} + ${clientes_yuzer} (Yuzer) + ${clientes_visitas_sympla} (Sympla)`
-      );
-    } else {
-      // Usar dados do período
-      clientes_contahub = clientes_contahub_periodo;
+          } else {
+      clientes_periodo = clientes_periodo_total;
       clientesSource = 'periodo_com_pagamento';
-      console.log(
-        `👥 Usando período com pagamento: ${clientes_contahub_periodo}`
-      );
-    }
+          }
 
-    // **SOMA IGUAL AO DIÁRIO: base + yuzer + sympla**
     const clientes_total =
-      clientes_contahub + clientes_yuzer + clientes_visitas_sympla;
+      clientes_periodo + clientes_yuzer + clientes_visitas_sympla;
 
-    console.log('👥 Clientes detalhados (CORRIGIDO - IGUAL AO DIÁRIO):', {
-      periodo_total_registros: periodo.length,
-      periodo_com_pagamento_registros: periodo_com_pagamento.length,
-      pessoas_diario_corrigido_total: clientes_pessoas_diario_total,
-      contahub_pessoas: clientes_contahub,
-      yuzer_ingressos_pedidos_unicos: clientes_yuzer,
-      visitas_sympla_soma_pessoas: clientes_visitas_sympla,
-      total: clientes_total,
-      fonte_clientes: clientesSource,
-    });
-
+    
     // Distribuir nos dias da semana
     for (const dia of diasSemana) {
       // Distribuir faturamento por dia
@@ -519,7 +442,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
         (v: VisitaSymplaData) => v.data_visita === dia.data
       );
 
-      const faturamento_contahub_dia = pagamentos_dia.reduce(
+      const faturamento_periodo_dia = pagamentos_dia.reduce(
         (sum: number, item: PagamentoData) => sum + (parseFloat(item.liquido) || 0),
         0
       );
@@ -545,7 +468,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
       );
 
       const bar_total_dia =
-        faturamento_contahub_dia -
+        faturamento_periodo_dia -
         couvert_periodo_dia +
         faturamento_bilheteria_dia +
         faturamento_yuzer_bar_dia;
@@ -559,13 +482,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
       let clientesSourceDia = 'periodo_com_pagamento';
 
       // **CORREÇÃO IGUAL AO DIÁRIO: Buscar pessoas_diario_corrigido primeiro**
-      console.log(
-        `🔥🔥🔥 DISTRIBUINDO CLIENTES INDIVIDUALMENTE - DIA: ${dia.data} (${dia.dia}) 🔥🔥🔥`
-      );
-      console.log(
-        `👥 🔍 BUSCANDO PESSOAS_DIARIO_CORRIGIDO PARA ${dia.data} (${dia.dia})...`
-      );
-      try {
+                  try {
         const { data: pessoasDataDia } = await supabase
           .from('pessoas_diario_corrigido')
           .select('total_pessoas_bruto')
@@ -576,42 +493,25 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
           clientes_pessoas_diario_dia =
             pessoasDataDia.total_pessoas_bruto || 0;
           clientesSourceDia = 'pessoas_diario_corrigido';
-          console.log(
-            `👥 ${dia.data} - Pessoas diário corrigido: ${clientes_pessoas_diario_dia}`
-          );
-        } else {
-          console.log(
-            `⚠️ ${dia.data} - Nenhum dado encontrado na tabela pessoas_diario_corrigido`
-          );
-        }
+                  } else {
+                  }
       } catch (error) {
-        console.log(
-          `❌ ${dia.data} - Erro ao buscar clientes pessoas_diario_corrigido:`,
-          error
-        );
-      }
+              }
 
       // **LÓGICA FINAL IGUAL AO DIÁRIO**
       const periodo_com_pagamento_dia = periodo_dia.filter(
         (item: PeriodoData) => parseFloat(item.vr_pagamentos || '0') > 0
       );
-      const clientes_contahub_dia = periodo_com_pagamento_dia.length; // Dados do período
+      const clientes_periodo_dia = periodo_com_pagamento_dia.length;
 
       if (clientes_pessoas_diario_dia > 0) {
         // Se há dados consolidados, usar eles COMO BASE
         clientes_base_dia = clientes_pessoas_diario_dia;
         clientesSourceDia = 'pessoas_diario_corrigido + yuzer + sympla';
-        console.log(
-          `👥 ${dia.data} - Usando pessoas_diario_corrigido como base: ${clientes_pessoas_diario_dia}`
-        );
-      } else {
-        // Usar dados do período com pagamento
-        clientes_base_dia = clientes_contahub_dia;
+              } else {
+        clientes_base_dia = clientes_periodo_dia;
         clientesSourceDia = 'periodo_com_pagamento';
-        console.log(
-          `👥 ${dia.data} - Usando período com pagamento: ${clientes_contahub_dia}`
-        );
-      }
+              }
 
       // Yuzer ingressos do dia
       const pedidos_unicos_yuzer_ingresso_dia = [
@@ -632,16 +532,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
         clientes_base_dia + clientes_yuzer_dia + clientes_visitas_sympla_dia;
 
       // Log detalhado para debug
-      console.log(
-        `👥 ${dia.dia} (${dia.data}) - CLIENTES FINAL (${clientesSourceDia}): ${dia.clientes}`
-      );
-      console.log(
-        `   💎 pessoas_diario_corrigido: ${clientes_pessoas_diario_dia}`
-      );
-      console.log(`   🏢 base_dia: ${clientes_base_dia}`);
-      console.log(`   🎫 yuzer_dia: ${clientes_yuzer_dia}`);
-      console.log(`   🎪 sympla_dia: ${clientes_visitas_sympla_dia}`);
-
+                              
       // Calcular ticket médio
       dia.ticketMedio = dia.clientes > 0 ? dia.faturamento / dia.clientes : 0;
     }
@@ -649,10 +540,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
     // Log dos resultados por dia
     diasSemana.forEach(dia => {
       if (dia.faturamento > 0 || dia.clientes > 0) {
-        console.log(
-          `📅 ${dia.dia} (${dia.data}): R$ ${dia.faturamento.toFixed(2)}, ${dia.clientes} pessoas`
-        );
-      }
+              }
     });
 
     const totalFaturamento = diasSemana.reduce(
@@ -664,12 +552,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
       0
     );
 
-    console.log('✅ Totais da semana (CORRIGIDOS):', {
-      faturamento: totalFaturamento,
-      clientes: totalClientes,
-      ticketMedio: totalClientes > 0 ? totalFaturamento / totalClientes : 0,
-    });
-
+    
     const response = NextResponse.json({
       success: true,
       dados: diasSemana,
@@ -690,7 +573,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
       debug_clientes: {
         periodo_total_registros: periodo.length,
         periodo_com_pagamento_registros: periodo_com_pagamento.length,
-        contahub_pessoas: clientes_contahub,
+        total_pessoas: clientes_periodo,
         yuzer_ingressos_pedidos_unicos: clientes_yuzer,
         visitas_sympla_soma_pessoas: clientes_visitas_sympla,
         total_calculado: clientes_total,

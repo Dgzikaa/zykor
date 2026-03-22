@@ -56,10 +56,7 @@ async function fetchAllData(supabase: any, tableName: string, columns: string, f
     
     from += limit;
   }
-  
-  if (iterations > 1) {
-    console.log(`📊 ${tableName}: ${allData.length} registros (${iterations} página(s))`);
-  }
+
   return allData;
 }
 
@@ -176,15 +173,6 @@ export async function GET(request: NextRequest) {
       label = `Semana ${semanaAtual} (${inicioSemanaAtual.toLocaleDateString('pt-BR')} - ${fimSemanaAtual.toLocaleDateString('pt-BR')})`;
     }
 
-    console.log(`📊 Buscando clientes ativos - Período: ${periodo}`);
-    console.log(`🏢 Bar ID: ${barId}`);
-    console.log(`📅 Atual: ${inicioAtual} a ${fimAtual}`);
-    console.log(`📅 Comparando com: ${inicioAnterior} a ${fimAnterior}`);
-    if (periodo === 'dia') {
-      const diaSemana = new Date(inicioAtual + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long' });
-      console.log(`📆 Comparação: ${diaSemana} vs ${diaSemana} da semana anterior`);
-    }
-
     // 🔒 DADOS FIXOS: Para SEMANAS PASSADAS, buscar dados salvos da tabela desempenho_semanal
     if (periodo === 'semana') {
       const hoje = new Date();
@@ -193,8 +181,6 @@ export async function GET(request: NextRequest) {
       
       // Se a semana já terminou (domingo já passou), buscar dados fixos
       if (fimSemanaDate < hoje) {
-        console.log(`🔒 Semana passada - buscando dados FIXOS da tabela desempenho_semanal`);
-        
         // Buscar dados fixos da semana atual e anterior
         const { data: dadosSemana, error: errorSemana } = await supabase
           .from('desempenho_semanal')
@@ -210,8 +196,6 @@ export async function GET(request: NextRequest) {
 
           // Se temos dados fixos de % Novos e Clientes Ativos, usar eles
           if (semanaAtualData && semanaAtualData.perc_clientes_novos !== null && semanaAtualData.clientes_ativos !== null) {
-            console.log(`✅ Dados FIXOS encontrados: % Novos = ${semanaAtualData.perc_clientes_novos}, Clientes Ativos = ${semanaAtualData.clientes_ativos}`);
-            
             // Ainda precisamos calcular os totais de clientes (que não mudam)
             const { data: metricas } = await supabase.rpc('calcular_metricas_clientes', {
               p_bar_id: barId,
@@ -339,13 +323,10 @@ export async function GET(request: NextRequest) {
             }
           }
         }
-        console.log(`⚠️ Dados fixos não encontrados, calculando em tempo real...`);
       }
     }
 
     // ⚡ SUPER OTIMIZAÇÃO: Uma única query SQL que calcula tudo
-    const startTime = Date.now();
-    
     const { data: metricas, error: errorMetricas } = await supabase.rpc('calcular_metricas_clientes', {
       p_bar_id: barId,
       p_data_inicio_atual: inicioAtual,
@@ -367,16 +348,9 @@ export async function GET(request: NextRequest) {
     const novosClientesAnterior = Number(resultado.novos_anterior);
     const clientesRetornantesAnterior = Number(resultado.retornantes_anterior);
 
-    const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.log(`⚡ Query única SQL otimizada: ${elapsedTime}s`);
-    console.log(`👥 Total clientes período atual: ${totalClientesAtual}`);
-    console.log(`🆕 Novos: ${novosClientes}, 🔄 Retornantes: ${clientesRetornantes}`);
-
     // ⚡ CLIENTES ATIVOS - Lógica diferente por período:
     // - DIA: Quantos dos clientes do dia são ativos (têm 2+ visitas em 90d)
     // - SEMANA/MÊS: Base total de clientes ativos (evolução da base, janela de 90d que avança)
-    const startTime2 = Date.now();
-    
     // Calcular 90 dias antes do fim do período
     const dataRef = new Date(fimAtual + 'T00:00:00');
     const data90DiasAtras = new Date(dataRef);
@@ -394,8 +368,6 @@ export async function GET(request: NextRequest) {
 
     if (periodo === 'dia') {
       // DIA: Quantos dos clientes do dia são ativos
-      console.log(`📅 Calculando clientes ativos DO DIA...`);
-      
       const { data: ativosData, error: errorAtivos } = await supabase.rpc('calcular_clientes_ativos_periodo', {
         p_bar_id: barId,
         p_data_inicio_periodo: inicioAtual,
@@ -414,7 +386,6 @@ export async function GET(request: NextRequest) {
         clientesAtivos = Number(ativosData);
       } else {
         clientesAtivos = clientesRetornantes;
-        console.log(`⚠️ Usando retornantes como fallback para clientes ativos`);
       }
       
       if (!errorAtivosAnterior && ativosAnteriorData !== null) {
@@ -425,8 +396,6 @@ export async function GET(request: NextRequest) {
     } else {
       // SEMANA/MÊS: Base total de clientes ativos (evolução da base)
       // Janela de 90 dias que termina no fim do período
-      console.log(`📊 Calculando BASE ATIVA total (evolução)...`);
-      
       const [resultBaseAtiva, resultBaseAtivaAnterior] = await Promise.all([
         supabase.rpc('get_count_base_ativa', {
           p_bar_id: barId,
@@ -443,9 +412,6 @@ export async function GET(request: NextRequest) {
       clientesAtivos = Number(resultBaseAtiva.data || 0);
       clientesAtivosAnterior = Number(resultBaseAtivaAnterior.data || 0);
     }
-
-    const elapsedTime2 = ((Date.now() - startTime2) / 1000).toFixed(2);
-    console.log(`⚡ Clientes ativos calculados: ${elapsedTime2}s - Atual: ${clientesAtivos}, Anterior: ${clientesAtivosAnterior}`)
 
     // 8. CALCULAR VARIAÇÕES
     const variacaoTotal = totalClientesAnterior > 0 
@@ -579,11 +545,6 @@ export async function GET(request: NextRequest) {
         descricao: `Redução de ${Math.abs(variacaoAtivos).toFixed(1)}% nos clientes ativos. Priorize reengajamento de clientes.`
       });
     }
-
-    console.log(`✅ Período ${periodo}: ${totalClientesAtual} clientes`);
-    console.log(`👤 Novos: ${novosClientes} (${percentualNovos.toFixed(1)}%)`);
-    console.log(`🔄 Retornantes: ${clientesRetornantes} (${percentualRetornantes.toFixed(1)}%)`);
-    console.log(`⭐ Ativos: ${clientesAtivos} (anterior: ${clientesAtivosAnterior})`);
 
     return NextResponse.json({
       success: true,

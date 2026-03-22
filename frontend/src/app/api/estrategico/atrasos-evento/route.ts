@@ -15,8 +15,6 @@ const LIMITE_ATRASO_BAR = 600;      // 10 minutos
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🚀 API Atrasos Evento');
-
     // Autenticação
     const user = await authenticateUser(request);
     if (!user) {
@@ -33,13 +31,11 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log(`📅 Buscando atrasos para data: ${data} - Bar ID: ${user.bar_id}`);
-
-    // Buscar dados de tempo do ContaHub
+    // Buscar dados de tempo de produção
     const { data: tempoDados, error: tempoError } = await supabase
-      .from('contahub_tempo')
+      .from('tempos_producao')
       .select('categoria, t1_t3')
-      .eq('dia', data)
+      .eq('data_producao', data)
       .eq('bar_id', user.bar_id)
       .not('t1_t3', 'is', null);
 
@@ -59,9 +55,6 @@ export async function GET(request: NextRequest) {
     const atrasosBar = tempoDados?.filter(
       item => item.categoria === 'drink' && parseFloat(item.t1_t3) > LIMITE_ATRASO_BAR
     ).length || 0;
-
-    console.log(`🍳 Atrasos Cozinha (>20min): ${atrasosCozinha}`);
-    console.log(`🍺 Atrasos Bar (>10min): ${atrasosBar}`);
 
     return NextResponse.json({
       success: true,

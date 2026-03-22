@@ -180,10 +180,6 @@ export async function PUT(
       );
     }
 
-    console.log(
-      `📱 Notificação atualizada: ${notificationId} - ${data.status}`
-    );
-
     return NextResponse.json({
       success: true,
       message: 'Notificação atualizada com sucesso',
@@ -276,10 +272,6 @@ export async function DELETE(
         { status: 500 }
       );
     }
-
-    console.log(
-      `🗑️ Notificação excluída: ${notificationId} - ${notificacao.titulo}`
-    );
 
     return NextResponse.json({
       success: true,
@@ -388,10 +380,6 @@ async function marcarTodasComoLidas(
     );
   }
 
-  console.log(
-    `📱 ${count} notificações marcadas como lidas para usuário ${user.auth_id}`
-  );
-
   return NextResponse.json({
     success: true,
     message: `${count} notificações marcadas como lidas`,
@@ -429,10 +417,6 @@ async function limparNotificacoesAntigas(
       { status: 500 }
     );
   }
-
-  console.log(
-    `🧹 ${count} notificações antigas removidas para usuário ${user.auth_id}`
-  );
 
   return NextResponse.json({
     success: true,

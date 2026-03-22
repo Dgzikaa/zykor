@@ -15,16 +15,11 @@ export async function GET(request: NextRequest) {
     
     const supabase = await getAdminClient()
 
-    // Buscar bar_id do header
-    const barIdHeader = request.headers.get('x-user-data')
+    // Buscar bar_id do header x-selected-bar-id
+    const barIdHeader = request.headers.get('x-selected-bar-id')
     let barIdFilter: number | null = null
     if (barIdHeader) {
-      try {
-        const parsed = JSON.parse(barIdHeader)
-        if (parsed?.bar_id) barIdFilter = parseInt(String(parsed.bar_id))
-      } catch (error) {
-        console.warn('Erro ao parsear barIdHeader:', error)
-      }
+      barIdFilter = parseInt(barIdHeader, 10) || null
     }
 
     // Obter filtros da URL
@@ -47,9 +42,7 @@ export async function GET(request: NextRequest) {
     }
 
     const startTime = Date.now()
-    console.log(`🚀 API Clientes: bar_id=${barIdFilter}, filtro_dia=${diaSemanaFiltro || 'todos'}, busca="${buscaCliente}" (página ${page}, limit ${limit})`)
-      
-      let query = supabase
+    let query = supabase
         .from('cliente_estatisticas')
         .select('*', { count: 'exact' })
         .eq('bar_id', barIdFilter)
@@ -69,8 +62,6 @@ export async function GET(request: NextRequest) {
         // Fallback para método antigo se cache falhar
       } else if (clientesCache && clientesCache.length > 0) {
         const tempoMs = Date.now() - startTime
-        console.log(`✅ Cache: ${clientesCache.length} clientes em ${tempoMs}ms`)
-
         // Formatar resposta
         const clientesFormatados = clientesCache.map(c => ({
           identificador_principal: c.telefone,
@@ -107,7 +98,6 @@ export async function GET(request: NextRequest) {
         let totalConsumo = 0
         
         if (statsError) {
-          console.log('RPC não existe, usando query direta com paginação...')
           // Fallback: buscar contagem total
           const { count } = await supabase
             .from('cliente_estatisticas')
@@ -172,7 +162,6 @@ export async function GET(request: NextRequest) {
           }
         })
       } else {
-        console.log('⚠️ Cache vazio - executando sync automático...')
         // Cache vazio - disparar sync (não bloquear resposta)
         fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/sync-cliente-estatisticas`, {
           method: 'POST',
@@ -185,8 +174,6 @@ export async function GET(request: NextRequest) {
       }
 
     // ========== FALLBACK: MÉTODO ANTIGO (para filtros por dia da semana) ==========
-    console.log('🔄 Usando método tradicional (filtro por dia)...')
-    
     const pageSize = 1000
     let offset = 0
     let totalLinhas = 0
@@ -201,16 +188,15 @@ export async function GET(request: NextRequest) {
       iterations++
       
       if (Date.now() - startTime > MAX_PROCESSING_TIME) {
-        console.log(`⏰ TIMEOUT após ${iterations} páginas`)
         break
       }
       
       const { data, error } = await supabase
-        .from('contahub_periodo')
-        .select('cli_nome, cli_fone, dt_gerencial, vr_couvert, vr_pagamentos')
+        .from('visitas')
+        .select('cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos')
         .eq('bar_id', barIdFilter)
-        .not('cli_fone', 'is', null)
-        .neq('cli_fone', '')
+        .not('cliente_fone', 'is', null)
+        .neq('cliente_fone', '')
         .range(offset, offset + pageSize - 1)
       
       if (error) {
@@ -221,7 +207,7 @@ export async function GET(request: NextRequest) {
       if (!data || data.length === 0) break
       
       for (const r of data) {
-        const rawFone = (r.cli_fone || '').toString().trim()
+        const rawFone = (r.cliente_fone || '').toString().trim()
         if (!rawFone) continue
         
         let fone = rawFone.replace(/\D/g, '')
@@ -235,8 +221,8 @@ export async function GET(request: NextRequest) {
         mapTotal.set(fone, (mapTotal.get(fone) || 0) + 1)
         
         // Aplicar filtro de dia da semana
-        const dataGerencial = new Date(r.dt_gerencial + 'T12:00:00Z')
-        const diaSemanaData = dataGerencial.getUTCDay()
+        const dataVisita = new Date(r.data_visita + 'T12:00:00Z')
+        const diaSemanaData = dataVisita.getUTCDay()
         
         if (diaSemanaFiltro && diaSemanaFiltro !== 'todos') {
           if (diaSemanaData.toString() !== diaSemanaFiltro) continue
@@ -244,10 +230,10 @@ export async function GET(request: NextRequest) {
         
         totalLinhas++
         
-        const nome = (r.cli_nome || '').toString().trim() || 'Sem nome'
-        const ultima = r.dt_gerencial as string
-        const vrCouvert = parseFloat(r.vr_couvert || '0') || 0
-        const vrPagamentos = parseFloat(r.vr_pagamentos || '0') || 0
+        const nome = (r.cliente_nome || '').toString().trim() || 'Sem nome'
+        const ultima = r.data_visita as string
+        const vrCouvert = parseFloat(r.valor_couvert || '0') || 0
+        const vrPagamentos = parseFloat(r.valor_pagamentos || '0') || 0
         const vrConsumo = vrPagamentos - vrCouvert
 
         const prev = map.get(fone)
@@ -274,7 +260,7 @@ export async function GET(request: NextRequest) {
       await new Promise(resolve => setTimeout(resolve, 50))
     }
 
-    // Buscar tempos de estadia
+    // Buscar tempos de estadia (migrado para visitas)
     const temposPorTelefone = new Map<string, number[]>()
     let tempoOffset = 0
     let tempoIterations = 0
@@ -283,11 +269,11 @@ export async function GET(request: NextRequest) {
       tempoIterations++
       
       const { data: vendas, error: vendasError } = await supabase
-        .from('contahub_vendas')
-        .select('cli_fone, tempo_estadia_minutos')
+        .from('visitas')
+        .select('cliente_fone, tempo_estadia_minutos')
         .eq('bar_id', barIdFilter)
-        .not('cli_fone', 'is', null)
-        .neq('cli_fone', '')
+        .not('cliente_fone', 'is', null)
+        .neq('cliente_fone', '')
         .gt('tempo_estadia_minutos', 0)
         .lt('tempo_estadia_minutos', 720)
         .range(tempoOffset, tempoOffset + 999)
@@ -295,7 +281,7 @@ export async function GET(request: NextRequest) {
       if (vendasError || !vendas || vendas.length === 0) break
       
       for (const v of vendas) {
-        let foneVenda = (v.cli_fone || '').toString().replace(/\D/g, '')
+        let foneVenda = (v.cliente_fone || '').toString().replace(/\D/g, '')
         if (!foneVenda) continue
         
         if (foneVenda.length === 10) {
@@ -360,8 +346,6 @@ export async function GET(request: NextRequest) {
     const totalGastoGlobal = Array.from(map.values()).reduce((sum, c) => sum + c.totalGasto, 0)
 
     const tempoMs = Date.now() - startTime
-    console.log(`✅ Método tradicional: ${clientes.length} clientes em ${tempoMs}ms`)
-
     return NextResponse.json({
       clientes: clientesFormatados,
       estatisticas: {

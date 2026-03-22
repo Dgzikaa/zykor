@@ -5,7 +5,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { AuthenticatedUser } from './types';
 import { authenticateRequest, validateBarAccess } from './server';
-import { logAuditEvent } from './audit';
 
 /**
  * Wrapper simplificado para APIs que precisam de autenticação e bar_id
@@ -60,44 +59,6 @@ export function withAuth(
     }
 
     return handler(request, user, bar_id);
-  };
-}
-
-/**
- * Wrapper para APIs que precisam de autenticação e logging automático
- */
-export function withAuthAndLog(
-  action: string,
-  resource: string,
-  handler: (
-    request: NextRequest,
-    user: AuthenticatedUser
-  ) => Promise<Response>
-) {
-  return async (request: NextRequest, ...args: any[]) => {
-    const user = await authenticateRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Não autorizado', code: 'AUTH_REQUIRED' },
-        { status: 401 }
-      );
-    }
-
-    // Executar handler
-    const response = await handler(request, user);
-
-    // Logar se foi bem-sucedido (status 200-299)
-    if (response.status >= 200 && response.status < 300) {
-      await logAuditEvent({
-        user_id: user.id,
-        action,
-        resource,
-        ip_address: request.headers.get('x-forwarded-for') || undefined,
-        user_agent: request.headers.get('user-agent') || undefined,
-      });
-    }
-
-    return response;
   };
 }
 

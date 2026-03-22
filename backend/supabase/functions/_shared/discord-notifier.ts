@@ -48,7 +48,7 @@ export const DiscordColors = {
 } as const;
 
 /**
- * Obter webhook URL do Discord
+ * Obter webhook URL do Discord via variáveis de ambiente
  */
 function getDiscordWebhookUrl(tipo: 'alertas' | 'agentes' | 'sync' | 'geral' = 'geral'): string {
   const webhookMap = {
@@ -65,6 +65,45 @@ function getDiscordWebhookUrl(tipo: 'alertas' | 'agentes' | 'sync' | 'geral' = '
   }
   
   return webhook;
+}
+
+/**
+ * Obter webhook URL do Discord via banco de dados
+ * Fallback para variáveis de ambiente se não encontrar no banco
+ */
+export async function getDiscordWebhookFromDb(
+  supabase: any,
+  tipo: string,
+  barId?: number
+): Promise<string | null> {
+  try {
+    let query = supabase
+      .from('discord_webhooks')
+      .select('webhook_url')
+      .eq('tipo', tipo)
+      .eq('ativo', true);
+    
+    if (barId) {
+      query = query.eq('bar_id', barId);
+    }
+    
+    const { data, error } = await query.single();
+    
+    if (error || !data?.webhook_url) {
+      const envMap: Record<string, string | undefined> = {
+        alertas: Deno.env.get('DISCORD_WEBHOOK_ALERTAS'),
+        agentes: Deno.env.get('DISCORD_WEBHOOK_AGENTES'),
+        sync: Deno.env.get('DISCORD_WEBHOOK_SYNC'),
+        geral: Deno.env.get('DISCORD_WEBHOOK_URL'),
+      };
+      return envMap[tipo] || envMap.geral || null;
+    }
+    
+    return data.webhook_url;
+  } catch (err) {
+    console.error(`⚠️ Erro ao buscar webhook do tipo ${tipo}:`, err);
+    return null;
+  }
 }
 
 /**

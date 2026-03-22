@@ -17,10 +17,10 @@ export async function GET(request: NextRequest) {
     // Buscar status dos diferentes sistemas
     const syncStatus: Array<{sistema: string; ultima_sync: string; status: string; registros: number; erros: number}> = []
 
-    // ContaHub
+    // ContaHub (faturamento_pagamentos)
     const { data: contahubData } = await supabase
-      .from('contahub_pagamentos')
-      .select('dt_gerencial, created_at')
+      .from('faturamento_pagamentos')
+      .select('data_pagamento, created_at')
       .order('created_at', { ascending: false })
       .limit(1)
 

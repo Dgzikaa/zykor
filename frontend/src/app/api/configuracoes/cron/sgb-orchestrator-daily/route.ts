@@ -4,12 +4,9 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🌅 Cron diário SGB iniciado');
-
     // Verificar se é uma requisição de cron válida
     const authHeader = request.headers.get('authorization');
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      console.log('❌ Acesso negado - token inválido');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -25,7 +22,6 @@ export async function GET(request: NextRequest) {
     };
 
     // 1. Disparar o orchestrator final que vai iniciar o ciclo de 15 minutos
-    console.log('📊 Etapa 1: Disparando orchestrator de sincronizações...');
     const orchestratorResponse = await fetch(
       `${supabaseUrl}/functions/v1/sgb-orchestrator-final`,
       {
@@ -43,15 +39,12 @@ export async function GET(request: NextRequest) {
 
     if (orchestratorResponse.ok) {
       resultados.orchestrator = await orchestratorResponse.json();
-      console.log('✅ Orchestrator diário disparado com sucesso');
     } else {
       const errorText = await orchestratorResponse.text();
-      console.log('⚠️ Erro no orchestrator:', orchestratorResponse.status, errorText);
       resultados.orchestrator = { error: errorText, status: orchestratorResponse.status };
     }
 
     // 2. Disparar recálculo de desempenho (após sincronizações)
-    console.log('📊 Etapa 2: Disparando recálculo de desempenho...');
     const desempenhoResponse = await fetch(
       `${supabaseUrl}/functions/v1/desempenho-semanal-auto`,
       {
@@ -69,14 +62,10 @@ export async function GET(request: NextRequest) {
 
     if (desempenhoResponse.ok) {
       resultados.desempenho = await desempenhoResponse.json();
-      console.log('✅ Recálculo de desempenho concluído');
     } else {
       const errorText = await desempenhoResponse.text();
-      console.log('⚠️ Erro no recálculo de desempenho:', desempenhoResponse.status, errorText);
       resultados.desempenho = { error: errorText, status: desempenhoResponse.status };
     }
-
-    console.log('🎉 Cron diário SGB concluído');
 
     return NextResponse.json({
       success: true,

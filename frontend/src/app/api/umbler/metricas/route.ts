@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
       .from('umbler_conversas')
       .select('*', { count: 'exact', head: true })
       .eq('bar_id', parseInt(barId))
-      .not('cliente_contahub_id', 'is', null)
+      .not('cliente_id', 'is', null)
       .gte('created_at', dataInicioStr);
 
     const taxaCorrelacao = totalConversas && totalConversas > 0

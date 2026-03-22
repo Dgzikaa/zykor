@@ -28,8 +28,7 @@ interface LoginFailureLog {
 }
 
 // Função temporária para log de falha
-async function logLoginFailure(data: LoginFailureLog) {
-  console.log('❌ Login failed:', data);
+async function logLoginFailure(_data: LoginFailureLog) {
   // TODO: Implementar log real
 }
 
@@ -38,8 +37,6 @@ async function logLoginFailure(data: LoginFailureLog) {
 // ========================================
 
 export async function POST(request: NextRequest) {
-  console.log('🚀 API de login iniciada');
-
   // Capturar informações do cliente para logging
   const forwarded = request.headers.get('x-forwarded-for');
   const clientIp = forwarded
@@ -49,32 +46,11 @@ export async function POST(request: NextRequest) {
   const sessionId =
     request.headers.get('x-session-id') || `session_${Date.now()}`;
 
-  // Verificar variáveis de ambiente logo no início
-  console.log('🔍 Verificando variáveis de ambiente...');
-  console.log(
-    'SUPABASE_URL:',
-    process.env.NEXT_PUBLIC_SUPABASE_URL ? 'OK' : 'FALTANDO'
-  );
-  console.log(
-    'ANON_KEY:',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'OK' : 'FALTANDO'
-  );
-  console.log(
-    'SERVICE_ROLE_KEY:',
-    process.env.SUPABASE_SERVICE_ROLE_KEY ? 'OK' : 'FALTANDO'
-  );
-  console.log(
-    'SERVICE_ROLE_KEY_ALT:',
-    process.env.SERVICE_ROLE_KEY ? 'OK' : 'FALTANDO'
-  );
-
   try {
     const { email, password, senha } = await request.json();
 
     // Aceitar tanto 'password' quanto 'senha' para compatibilidade
     const userPassword = password || senha;
-
-    console.log('🔐 Tentativa de login:', { email });
 
     if (!email || !userPassword) {
       await logLoginFailure({
@@ -90,8 +66,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    console.log('🔑 Iniciando autenticação com Supabase Auth...');
 
     // Obter cliente administrativo
     let adminClient;
@@ -111,8 +85,6 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    console.log('🔍 Tentando autenticar usuário...');
-
     // Tentar autenticar com Supabase Auth
     const { data: authData, error: authError } =
       await authClient.auth.signInWithPassword({
@@ -121,8 +93,6 @@ export async function POST(request: NextRequest) {
       });
 
     if (authError || !authData.user) {
-      console.log('❌ Falha na autenticação:', authError?.message);
-
       await logLoginFailure({
         email,
         reason: authError?.message || 'Usuário não encontrado',
@@ -137,18 +107,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('✅ Autenticação bem-sucedida. User ID:', authData.user.id);
-    console.log('📊 Buscando dados do usuário na tabela usuarios...');
-
     // Buscar dados do usuário na tabela usuarios
     const { data: usuarios, error: dbError } = await adminClient
       .from('usuarios')
       .select('*')
       .eq('auth_id', authData.user.id)
       .eq('ativo', true);
-
-    console.log('🔍 Query executada - Auth ID:', authData.user.id);
-    console.log('🔍 Usuários encontrados:', usuarios?.length || 0);
 
     // Se não encontrou usuário ativo, tentar buscar qualquer usuário com esse auth_id
     if (!usuarios || usuarios.length === 0) {
@@ -157,27 +121,11 @@ export async function POST(request: NextRequest) {
         .select('*')
         .eq('auth_id', authData.user.id);
 
-      console.log(
-        '🔍 Todos os usuários (incluindo inativos):',
-        todosUsuarios?.length || 0
-      );
-      if (todosUsuarios && todosUsuarios.length > 0) {
-        console.log('🔍 Usuário encontrado mas inativo:', todosUsuarios[0]);
-      }
-
       // Também tentar buscar por email
       const { data: usuariosPorEmail } = await adminClient
         .from('usuarios')
         .select('*')
         .eq('email', email);
-
-      console.log(
-        '🔍 Usuários encontrados por email:',
-        usuariosPorEmail?.length || 0
-      );
-      if (usuariosPorEmail && usuariosPorEmail.length > 0) {
-        console.log('🔍 Usuário por email:', usuariosPorEmail[0]);
-      }
     }
 
     if (dbError) {
@@ -190,8 +138,6 @@ export async function POST(request: NextRequest) {
 
     let usuariosAtivos = usuarios;
     if (!usuariosAtivos || usuariosAtivos.length === 0) {
-      console.log('❌ Usuário não encontrado na tabela usuarios');
-
       // Verificar se existe usuário por email mas com auth_id diferente
       const { data: usuariosPorEmail } = await adminClient
         .from('usuarios')
@@ -200,9 +146,6 @@ export async function POST(request: NextRequest) {
 
       if (usuariosPorEmail && usuariosPorEmail.length > 0) {
         const usuarioExistente = usuariosPorEmail[0];
-        console.log('🔧 Detectado auth_id desatualizado. Corrigindo...');
-        console.log('🔧 ID antigo:', usuarioExistente.auth_id);
-        console.log('🔧 ID novo:', authData.user.id);
 
         // Atualizar o auth_id na tabela para corresponder ao Supabase Auth
         const { error: updateError } = await adminClient
@@ -217,8 +160,6 @@ export async function POST(request: NextRequest) {
             { status: 500 }
           );
         }
-
-        console.log('✅ Auth_id atualizado com sucesso!');
 
         // Buscar novamente o usuário com o ID atualizado
         const { data: usuariosAtualizados, error: newDbError } =
@@ -239,7 +180,6 @@ export async function POST(request: NextRequest) {
         if (usuariosAtualizados && usuariosAtualizados.length > 0) {
           // Continuar com o fluxo normal usando os dados atualizados
           usuariosAtivos = usuariosAtualizados;
-          console.log('✅ Login continuando com dados atualizados');
         }
       }
 
@@ -260,17 +200,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('✅ Usuário encontrado:', usuariosAtivos[0].nome);
-
     // Montar dados do usuário
     const usuarioPrincipal = usuariosAtivos[0];
 
     // Verificar se precisa redefinir senha (primeiro acesso)
     if (!usuarioPrincipal.senha_redefinida) {
-      console.log(
-        '🔑 Primeiro acesso detectado - redirecionando para redefinição de senha'
-      );
-
       // Gerar token para redefinição
       const token = Buffer.from(
         `${usuarioPrincipal.email}:${Date.now()}`
@@ -306,7 +240,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar bares do usuário através da tabela usuarios_bares
-    console.log('🔍 Buscando bares do usuário...');
     const { data: usuariosBares, error: baresError } = await adminClient
       .from('usuarios_bares')
       .select('bar_id')
@@ -317,7 +250,6 @@ export async function POST(request: NextRequest) {
     }
 
     const barIds = usuariosBares?.map((ub: { bar_id: number }) => ub.bar_id) || [];
-    console.log('🔍 Bar IDs encontrados:', barIds);
 
     // Buscar dados completos dos bares (incluindo nome)
     const { data: barsData, error: barsDataError } = await adminClient
@@ -330,8 +262,6 @@ export async function POST(request: NextRequest) {
       console.error('❌ Erro ao buscar dados dos bares:', barsDataError);
     }
 
-    console.log('✅ Dados dos bares encontrados:', barsData?.length || 0);
-
     // Criar array de bares com permissões do usuário
     const baresComNome = barsData?.map((bar: { id: number; nome: string }) => ({
       bar_id: bar.id,
@@ -340,8 +270,6 @@ export async function POST(request: NextRequest) {
       role: usuarioPrincipal.role,
       modulos_permitidos: usuarioPrincipal.modulos_permitidos,
     })) || [];
-
-    console.log('🔍 Buscando credenciais de APIs...');
 
     // Buscar credenciais de APIs
     const credenciaisPromises = baresComNome.map(
@@ -360,11 +288,6 @@ export async function POST(request: NextRequest) {
     );
 
     const credenciaisPorBar = await Promise.all(credenciaisPromises);
-    console.log(
-      '✅ Credenciais encontradas para',
-      credenciaisPorBar.length,
-      'bares'
-    );
 
     // Fazer logout do authClient (não queremos manter sessão no servidor)
     await authClient.auth.signOut();
@@ -377,8 +300,6 @@ export async function POST(request: NextRequest) {
         credenciais_apis: credenciaisPorBar,
       },
     };
-
-    console.log('🎉 LOGIN BEM-SUCEDIDO para:', usuarioPrincipal.nome);
 
     // Criar resposta com cookie para o middleware
     const nextResponse = NextResponse.json(response);

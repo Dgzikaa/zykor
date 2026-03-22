@@ -31,7 +31,14 @@ function normalizePhone(phone: string): string {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const barId = parseInt(searchParams.get('bar_id') || '3');
+    const barIdParam = searchParams.get('bar_id');
+    if (!barIdParam) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
+    const barId = parseInt(barIdParam);
     const fonte = searchParams.get('fonte') || 'conversas'; // 'conversas' | 'reservas'
     const dias = parseInt(searchParams.get('dias') || '7');
     const limite = parseInt(searchParams.get('limite') || '100');
@@ -112,7 +119,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      bar_id = 3,
+      bar_id,
       fonte = 'conversas',
       dias = 7,
       limite = 50,
@@ -121,6 +128,13 @@ export async function POST(request: NextRequest) {
       destinatarios: destinatariosBody,
       executar_agora = true
     } = body;
+
+    if (!bar_id) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
 
     const barId = parseInt(String(bar_id));
 

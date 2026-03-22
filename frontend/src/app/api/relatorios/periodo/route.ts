@@ -30,26 +30,28 @@ export async function GET(request: NextRequest) {
     const localizacao = searchParams.get('localizacao');
     const limit = parseInt(searchParams.get('limit') || '1000');
 
-    console.log(`📅 Relatório de Período solicitado para bar ${bar_id}`);
+    // Cast supabase para any para contornar tipos ainda não atualizados
+    const sb = supabase as any;
 
-    let query = supabase
-      .from('contahub_periodo')
+    // MIGRADO: visitas (domain table)
+    let query = sb
+      .from('visitas')
       .select('*')
       .eq('bar_id', parseInt(bar_id))
       .limit(limit);
 
     // Aplicar filtros
     if (data_inicio) {
-      query = query.gte('dt_gerencial', data_inicio);
+      query = query.gte('data_visita', data_inicio);
     }
     if (data_fim) {
-      query = query.lte('dt_gerencial', data_fim);
+      query = query.lte('data_visita', data_fim);
     }
     if (tipo_venda) {
-      query = query.ilike('tipovenda', `%${tipo_venda}%`);
+      query = query.ilike('tipo_venda', `%${tipo_venda}%`);
     }
     if (localizacao) {
-      query = query.ilike('vd_localizacao', `%${localizacao}%`);
+      query = query.ilike('localizacao', `%${localizacao}%`);
     }
 
     const { data: dataBruto, error } = await query;
@@ -62,28 +64,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // ⚡ FILTRAR DIAS FECHADOS
-    const data = await filtrarDiasAbertos(dataBruto || [], 'dt_gerencial', parseInt(bar_id));
-    console.log(`📅 Dados filtrados: ${dataBruto?.length || 0} → ${data.length} (removidos ${(dataBruto?.length || 0) - data.length} dias fechados)`);
+    // ✅ FILTRAR DIAS FECHADOS
+    const data = await filtrarDiasAbertos(dataBruto || [], 'data_visita', parseInt(bar_id));
 
-    // Calcular estatísticas
+    // Calcular estatísticas - usando colunas da domain table
     const estatisticas = {
       total_registros: data?.length || 0,
-      total_pessoas: data?.reduce((sum, item) => sum + (item.pessoas || 0), 0) || 0,
-      total_pagamentos: data?.reduce((sum, item) => sum + (item.vr_pagamentos || 0), 0) || 0,
-      total_couvert: data?.reduce((sum, item) => sum + (item.vr_couvert || 0), 0) || 0,
-      total_taxa: data?.reduce((sum, item) => sum + ((item.vr_pagamentos || 0) * 0.03), 0) || 0,
-      total_desconto: data?.reduce((sum, item) => sum + (item.vr_desconto || 0), 0) || 0,
+      total_pessoas: data?.reduce((sum: number, item: any) => sum + (item.pessoas || 0), 0) || 0,
+      total_pagamentos: data?.reduce((sum: number, item: any) => sum + (item.valor_pagamentos || 0), 0) || 0,
+      total_couvert: data?.reduce((sum: number, item: any) => sum + (item.valor_couvert || 0), 0) || 0,
+      total_taxa: data?.reduce((sum: number, item: any) => sum + ((item.valor_pagamentos || 0) * 0.03), 0) || 0,
+      total_desconto: data?.reduce((sum: number, item: any) => sum + (item.valor_desconto || 0), 0) || 0,
       total_acrescimo: 0,
-      total_geral: data?.reduce((sum, item) => sum + ((item.vr_pagamentos || 0) + (item.vr_couvert || 0)), 0) || 0,
-      dias_unicos: [...new Set(data?.map(item => item.dt_gerencial).filter(Boolean))].length,
-      tipos_venda_unicos: [...new Set(data?.map(item => item.tipovenda).filter(Boolean))].length,
-      localizacoes_unicas: [...new Set(data?.map(item => item.vd_localizacao).filter(Boolean))].length
+      total_geral: data?.reduce((sum: number, item: any) => sum + ((item.valor_pagamentos || 0) + (item.valor_couvert || 0)), 0) || 0,
+      dias_unicos: [...new Set(data?.map((item: any) => item.data_visita).filter(Boolean))].length,
+      tipos_venda_unicos: [...new Set(data?.map((item: any) => item.tipo_venda).filter(Boolean))].length,
+      localizacoes_unicas: [...new Set(data?.map((item: any) => item.localizacao).filter(Boolean))].length
     };
 
     // Faturamento por dia
-    const faturamentoPorDia = data?.reduce((acc, item) => {
-      const dia = item.dt_gerencial || 'Sem data';
+    const faturamentoPorDia = data?.reduce((acc: any, item: any) => {
+      const dia = item.data_visita || 'Sem data';
       if (!acc[dia]) {
         acc[dia] = { 
           pagamentos: 0, 
@@ -92,8 +93,8 @@ export async function GET(request: NextRequest) {
           transacoes: 0 
         };
       }
-      acc[dia].pagamentos += item.vr_pagamentos || 0;
-      acc[dia].couvert += item.vr_couvert || 0;
+      acc[dia].pagamentos += item.valor_pagamentos || 0;
+      acc[dia].couvert += item.valor_couvert || 0;
       acc[dia].pessoas += item.pessoas || 0;
       acc[dia].transacoes += 1;
       return acc;
@@ -112,20 +113,20 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => new Date(a.dia).getTime() - new Date(b.dia).getTime());
 
     // Top localizações por faturamento
-    const localizacoesPorValor = data?.reduce((acc, item) => {
-      const localizacao = item.vd_localizacao || 'Sem localização';
-      if (!acc[localizacao]) {
-        acc[localizacao] = { valor: 0, pessoas: 0, transacoes: 0 };
+    const localizacoesPorValor = data?.reduce((acc: any, item: any) => {
+      const localizacaoItem = item.localizacao || 'Sem localização';
+      if (!acc[localizacaoItem]) {
+        acc[localizacaoItem] = { valor: 0, pessoas: 0, transacoes: 0 };
       }
-      acc[localizacao].valor += item.vr_pagamentos || 0;
-      acc[localizacao].pessoas += item.pessoas || 0;
-      acc[localizacao].transacoes += 1;
+      acc[localizacaoItem].valor += item.valor_pagamentos || 0;
+      acc[localizacaoItem].pessoas += item.pessoas || 0;
+      acc[localizacaoItem].transacoes += 1;
       return acc;
     }, {} as Record<string, { valor: number; pessoas: number; transacoes: number }>);
 
     const topLocalizacoes = Object.entries(localizacoesPorValor || {})
-      .map(([localizacao, stats]) => ({
-        localizacao,
+      .map(([localizacaoNome, stats]) => ({
+        localizacao: localizacaoNome,
         valor_total: (stats as { valor: number; pessoas: number; transacoes: number }).valor,
         total_pessoas: (stats as { valor: number; pessoas: number; transacoes: number }).pessoas,
         total_transacoes: (stats as { valor: number; pessoas: number; transacoes: number }).transacoes
@@ -157,4 +158,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

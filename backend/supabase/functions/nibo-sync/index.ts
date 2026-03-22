@@ -12,6 +12,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -273,6 +274,10 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // 💓 Heartbeat: variáveis no escopo externo para acesso no catch
+  let heartbeatId: number | null = null;
+  let startTime: number = Date.now();
+
   try {
     console.log('🚀 NIBO Sync - Iniciando sincronização');
 
@@ -286,6 +291,11 @@ serve(async (req) => {
     if (!barId) {
       throw new Error('barId é obrigatório');
     }
+
+    // 💓 Heartbeat: registrar início da execução
+    const hbResult = await heartbeatStart(supabase, 'nibo-sync', barId, sync_mode, 'pgcron');
+    heartbeatId = hbResult.heartbeatId;
+    startTime = hbResult.startTime;
 
     console.log(`📊 Bar ID: ${barId}, Modo: ${sync_mode}`);
 
@@ -439,6 +449,22 @@ serve(async (req) => {
 
     console.log(`✅ Sincronização concluída: ${inseridos} inseridos, ${atualizados} atualizados`);
 
+    // 💓 Heartbeat: registrar sucesso
+    await heartbeatEnd(
+      supabase,
+      heartbeatId,
+      'success',
+      startTime,
+      inseridos + atualizados,
+      {
+        despesas: despesas.length,
+        receitas: receitas.length,
+        inseridos,
+        atualizados,
+        periodo: { inicio: formatDate(dataInicio), fim: formatDate(dataFim) }
+      }
+    );
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -468,6 +494,16 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error('❌ Erro na sincronização NIBO:', error);
+
+    // 💓 Heartbeat: registrar erro
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabaseForError = createClient(supabaseUrl, supabaseKey);
+      await heartbeatError(supabaseForError, heartbeatId, startTime, error instanceof Error ? error : String(error));
+    } catch (hbErr) {
+      console.warn('⚠️ Erro ao registrar heartbeat de erro:', hbErr);
+    }
 
     return new Response(
       JSON.stringify({

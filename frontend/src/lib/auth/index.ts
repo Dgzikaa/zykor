@@ -8,7 +8,6 @@ export type {
   AuthenticatedUser,
   AuthToken,
   AuthResponse,
-  AuditEvent,
 } from './types';
 
 // JWT
@@ -48,28 +47,10 @@ export {
   permissionErrorResponse,
 } from './server';
 
-// Auditoria
-export {
-  logAuditEvent,
-  getAuditLogs,
-} from './audit';
-
 // API Wrappers
 export {
   withAuth,
-  withAuthAndLog,
   extractBarId,
   normalizeModulos,
   canModifyUser,
 } from './api-wrapper';
-
-// Monitoring
-export type { SecurityAlert } from './monitoring';
-export {
-  logSecurityAlert,
-  checkFailedLogins,
-  checkUnauthorizedAccess,
-  monitorPermissionChange,
-  monitorSensitiveDataAccess,
-  getSecurityAlertsSummary,
-} from './monitoring';

@@ -3,19 +3,16 @@ import { Resend } from 'resend'
 
 export const dynamic = 'force-dynamic'
 
-// Verificar se a chave da API está disponível
-const RESEND_API_KEY = process.env.RESEND_API_KEY || 'dummy-key'
-const resend = new Resend(RESEND_API_KEY)
-
 export async function POST(request: NextRequest) {
   try {
-    // Verificar se a API está configurada
-    if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 'dummy-key') {
+    if (!process.env.RESEND_API_KEY) {
       return NextResponse.json(
         { error: 'Serviço de email não configurado' },
         { status: 503 }
       )
     }
+
+    const resend = new Resend(process.env.RESEND_API_KEY)
 
     const { to, memberName, amount, cardUrl } = await request.json()
 
@@ -114,8 +111,6 @@ export async function POST(request: NextRequest) {
       subject: '🎉 Pagamento Confirmado - Bem-vindo ao VIP!',
       html: htmlContent
     })
-
-    console.log('📧 Email enviado com sucesso:', result)
 
     return NextResponse.json({
       success: true,

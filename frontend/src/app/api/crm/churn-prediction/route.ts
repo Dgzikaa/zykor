@@ -17,7 +17,7 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
-const CACHE_VERSION = 2; // v2: Usando contahub_periodo com telefone
+const CACHE_VERSION = 3; // v3: Usando tabela visitas
 
 function getCached(key: string) {
   const entry = cache.get(key);
@@ -25,7 +25,6 @@ function getCached(key: string) {
   
   if (entry.version !== CACHE_VERSION) {
     cache.delete(key);
-    console.log(`🔄 Cache churn invalidado (versão ${entry.version} → ${CACHE_VERSION})`);
     return null;
   }
   
@@ -85,11 +84,7 @@ async function fetchAllData(tableName: string, columns: string, filters: any = {
     }
     
     allData.push(...data);
-    
-    if (allData.length % 10000 === 0 || data.length < limit) {
-      console.log(`  ✓ ${tableName}: ${allData.length} registros carregados`);
-    }
-    
+
     if (data.length < limit) {
       break;
     }
@@ -271,12 +266,9 @@ export async function GET(request: NextRequest) {
     let stats: any = null;
 
     if (cached) {
-      console.log(`⚡ Cache HIT: Usando dados de churn em cache (${cached.clientes.length} clientes)`);
       clientesChurn = cached.clientes;
       stats = cached.stats;
     } else {
-      console.log(`🔍 Cache MISS: Processando dados de churn do ContaHub...`);
-
       // Calcular datas
       const hoje = new Date();
       const data30DiasAtras = new Date(hoje);
@@ -284,20 +276,18 @@ export async function GET(request: NextRequest) {
       const data60DiasAtras = new Date(hoje);
       data60DiasAtras.setDate(data60DiasAtras.getDate() - 60);
 
-      // Buscar TODOS os dados do ContaHub (usando contahub_periodo que tem telefone)
-      const contahubDataRaw = await fetchAllData(
-        'contahub_periodo',
-        'cli_nome, cli_fone, dt_gerencial, vr_couvert, vr_pagamentos',
+      // Buscar TODOS os dados de visitas
+      const visitasDataRaw = await fetchAllData(
+        'visitas',
+        'cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos',
         { eq_bar_id: barId }
       );
 
       // Filtrar clientes válidos
-      const contahubData = contahubDataRaw.filter(item => 
-        item.cli_fone && item.cli_fone.trim() !== '' && 
-        item.cli_nome && item.cli_nome.trim() !== ''
+      const visitasData = visitasDataRaw.filter(item => 
+        item.cliente_fone && item.cliente_fone.trim() !== '' && 
+        item.cliente_nome && item.cliente_nome.trim() !== ''
       );
-
-      console.log(`💳 ContaHub: ${contahubData.length} registros válidos (de ${contahubDataRaw.length} totais)`);
 
       // Processar dados - agrupar por TELEFONE
       const clientesMap = new Map<string, {
@@ -308,9 +298,9 @@ export async function GET(request: NextRequest) {
         totalGasto: number;
       }>();
 
-      for (const item of contahubData) {
-        const nome = item.cli_nome?.trim();
-        const rawFone = item.cli_fone?.toString().trim();
+      for (const item of visitasData) {
+        const nome = item.cliente_nome?.trim();
+        const rawFone = item.cliente_fone?.toString().trim();
         
         if (!nome || !rawFone || nome === 'MESA' || nome === 'SEM NOME' || nome === 'BALCAO') continue;
 
@@ -330,20 +320,18 @@ export async function GET(request: NextRequest) {
         const cliente = clientesMap.get(fone)!;
         cliente.totalVisitas++;
         
-        const vrCouvert = parseFloat(item.vr_couvert || '0') || 0;
-        const vrPagamentos = parseFloat(item.vr_pagamentos || '0') || 0;
+        const vrCouvert = parseFloat(item.valor_couvert || '0') || 0;
+        const vrPagamentos = parseFloat(item.valor_pagamentos || '0') || 0;
         const vrConsumo = vrPagamentos - vrCouvert;
         cliente.totalGasto += vrConsumo;
 
-        if (item.dt_gerencial) {
+        if (item.data_visita) {
           cliente.visitas.push({
-            data: new Date(item.dt_gerencial),
+            data: new Date(item.data_visita),
             valor: vrConsumo
           });
         }
       }
-
-      console.log(`👥 Total de clientes únicos: ${clientesMap.size}`);
 
       // Calcular métricas de churn para cada cliente
       for (const [telefone, dados] of clientesMap.entries()) {
@@ -430,7 +418,6 @@ export async function GET(request: NextRequest) {
 
       // Salvar no cache
       setCache(cacheKey, { clientes: clientesChurn, stats });
-      console.log(`💾 Cache SAVED: ${clientesChurn.length} clientes de churn processados`);
     }
 
     // Filtrar por nível de risco
@@ -446,8 +433,6 @@ export async function GET(request: NextRequest) {
     const endIndex = startIndex + limit;
     const clientesPaginados = clientesFiltrados.slice(startIndex, endIndex);
 
-    console.log(`✅ Churn: ${clientesPaginados.length} de ${totalClientes} clientes (página ${page}/${totalPages})`);
-
     return NextResponse.json({
       success: true,
       data: clientesPaginados,
@@ -459,7 +444,7 @@ export async function GET(request: NextRequest) {
         totalPages,
         hasMore: page < totalPages
       },
-      fonte: 'contahub_periodo'
+      fonte: 'visitas'
     });
 
   } catch (error: any) {

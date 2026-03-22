@@ -1,4 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+﻿import { SupabaseClient } from '@supabase/supabase-js';
 
 export interface IndicadorMensal {
   mes: string;
@@ -75,18 +75,17 @@ export async function getIndicadoresMensais(
     });
   }
 
-  // Otimização: Buscar todo o histórico de clientes do bar UMA VEZ para calcular novos clientes
-  // em vez de repetir para cada mês do loop.
-  const todosClientesData = await fetchAllPaginated<{cli_fone: string, dt_gerencial: string}>(
-    supabase, 'contahub_periodo', 'cli_fone, dt_gerencial', 
-    (q) => q.eq('bar_id', barId).not('cli_fone', 'is', null).order('dt_gerencial', { ascending: true })
+  // Otimização: Buscar todo o histórico de clientes do bar UMA VEZ - MIGRADO: visitas (domain table)
+  const todosClientesData = await fetchAllPaginated<{cliente_fone: string, data_visita: string}>(
+    supabase, 'visitas', 'cliente_fone, data_visita', 
+    (q) => q.eq('bar_id', barId).not('cliente_fone', 'is', null).order('data_visita', { ascending: true })
   );
 
   const primeiraVisitaMap = new Map<string, string>();
   todosClientesData.forEach(row => {
-    const fone = (row.cli_fone || '').toString().trim();
+    const fone = (row.cliente_fone || '').toString().trim();
     if (fone && !primeiraVisitaMap.has(fone)) {
-      primeiraVisitaMap.set(fone, row.dt_gerencial);
+      primeiraVisitaMap.set(fone, row.data_visita);
     }
   });
 
@@ -97,23 +96,23 @@ export async function getIndicadoresMensais(
     const inicioMes = `${mesInfo.mes}-01`;
     const fimMes = new Date(parseInt(ano), parseInt(mes), 0).toISOString().split('T')[0];
 
-    // Faturamento paralelo
-    const [contahubBatch, yuzerBatch, symplaBatch] = await Promise.all([
-      fetchAllPaginated<any>(supabase, 'contahub_pagamentos', 'liquido, meio', 
-        (q) => q.eq('bar_id', barId).gte('dt_gerencial', inicioMes).lte('dt_gerencial', fimMes).neq('meio', 'Conta Assinada')),
+    // Faturamento paralelo - MIGRADO: faturamento_pagamentos (domain table)
+    const [faturamentoPagBatch, yuzerBatch, symplaBatch] = await Promise.all([
+      fetchAllPaginated<any>(supabase, 'faturamento_pagamentos', 'valor_liquido, meio', 
+        (q) => q.eq('bar_id', barId).gte('data_pagamento', inicioMes).lte('data_pagamento', fimMes).neq('meio', 'Conta Assinada')),
       supabase.from('yuzer_pagamento').select('valor_liquido').eq('bar_id', barId).gte('data_evento', inicioMes).lte('data_evento', fimMes),
       supabase.from('sympla_pedidos').select('valor_liquido').gte('data_pedido', inicioMes).lte('data_pedido', fimMes)
     ]);
 
-    const fatTotal = (contahubBatch.reduce((s, i) => s + (parseFloat(i.liquido) || 0), 0)) +
+    const fatTotal = (faturamentoPagBatch.reduce((s, i) => s + (parseFloat(i.valor_liquido) || 0), 0)) +
                      (yuzerBatch.data?.reduce((s, i) => s + (parseFloat(i.valor_liquido) || 0), 0) || 0) +
                      (symplaBatch.data?.reduce((s, i) => s + (parseFloat(i.valor_liquido) || 0), 0) || 0);
 
-    // Clientes do mês
-    const clientesDoMesData = await fetchAllPaginated<any>(supabase, 'contahub_periodo', 'cli_fone, pessoas', 
-      (q) => q.eq('bar_id', barId).gte('dt_gerencial', inicioMes).lte('dt_gerencial', fimMes).not('cli_fone', 'is', null));
+    // Clientes do mês - MIGRADO: visitas (domain table)
+    const clientesDoMesData = await fetchAllPaginated<any>(supabase, 'visitas', 'cliente_fone, pessoas', 
+      (q) => q.eq('bar_id', barId).gte('data_visita', inicioMes).lte('data_visita', fimMes).not('cliente_fone', 'is', null));
     
-    const clientesUnicosSet = new Set(clientesDoMesData.map(r => r.cli_fone.toString().trim()));
+    const clientesUnicosSet = new Set(clientesDoMesData.map(r => r.cliente_fone.toString().trim()));
     const clientesTotais = clientesUnicosSet.size;
     const totalPessoas = clientesDoMesData.reduce((s, i) => s + (parseInt(i.pessoas) || 0), 0);
 
@@ -123,14 +122,14 @@ export async function getIndicadoresMensais(
       if (pVisita && pVisita >= inicioMes && pVisita <= fimMes) novosClientes++;
     });
 
-    // Clientes Ativos (90 dias antes deste mês)
+    // Clientes Ativos (90 dias antes deste mês) - MIGRADO: visitas (domain table)
     const data90d = new Date(inicioMes); data90d.setDate(data90d.getDate() - 90);
     const data90dStr = data90d.toISOString().split('T')[0];
     const fimAntStr = new Date(new Date(inicioMes).getTime() - 86400000).toISOString().split('T')[0];
 
-    const hist90d = await fetchAllPaginated<any>(supabase, 'contahub_periodo', 'cli_fone',
-      (q) => q.eq('bar_id', barId).gte('dt_gerencial', data90dStr).lte('dt_gerencial', fimAntStr).not('cli_fone', 'is', null));
-    const set90d = new Set(hist90d.map(r => r.cli_fone.toString().trim()));
+    const hist90d = await fetchAllPaginated<any>(supabase, 'visitas', 'cliente_fone',
+      (q) => q.eq('bar_id', barId).gte('data_visita', data90dStr).lte('data_visita', fimAntStr).not('cliente_fone', 'is', null));
+    const set90d = new Set(hist90d.map(r => r.cliente_fone.toString().trim()));
     
     let clientesAtivos = 0;
     clientesUnicosSet.forEach(c => { if (set90d.has(c)) clientesAtivos++; });
@@ -176,7 +175,7 @@ export async function getIndicadoresMensais(
         clientesTotais: calcVar(ind.clientesTotais, ant.clientesTotais),
         novosClientes: calcVar(ind.novosClientes, ant.novosClientes),
         clientesAtivos: calcVar(ind.clientesAtivos, ant.clientesAtivos),
-        percentualNovos: calcVar(ind.percentualNovos, ant.percentualAtivos), // fix variacao percentuais se necessario
+        percentualNovos: calcVar(ind.percentualNovos, ant.percentualAtivos),
         cmoTotal: calcVar(ind.cmoTotal, ant.cmoTotal),
         percentualArtistico: calcVar(ind.percentualArtistico, ant.percentualArtistico),
         ticketMedio: calcVar(ind.ticketMedio, ant.ticketMedio),

@@ -1,0 +1,43 @@
+﻿-- View: getin_reservas
+-- Alias para getin_reservations com campos renomeados
+-- Mantido para compatibilidade
+
+CREATE OR REPLACE VIEW public.getin_reservas AS
+SELECT id,
+    reservation_id,
+    unit_id,
+    unit_name,
+    sector_id,
+    sector_name,
+    bar_id,
+    customer_name,
+    customer_email,
+    customer_phone,
+    reservation_date,
+    reservation_time,
+    people,
+    status,
+    discount,
+    no_show,
+    no_show_tax,
+    no_show_hours,
+    no_show_eligible,
+    confirmation_sent,
+    nps_answered,
+    nps_url,
+    info,
+    unit_cover_image,
+    unit_profile_image,
+    unit_full_address,
+    unit_zipcode,
+    unit_cuisine_name,
+    unit_city_name,
+    unit_coordinates_lat,
+    unit_coordinates_lng,
+    raw_data,
+    created_at,
+    updated_at,
+    customer_phone AS phone,
+    customer_name AS name,
+    reservation_date::text AS date
+FROM getin_reservations;

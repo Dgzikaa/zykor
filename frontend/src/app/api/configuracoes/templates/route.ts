@@ -494,8 +494,6 @@ export async function POST(request: NextRequest) {
 
     // Verificar se é uma solicitação para instalar templates predefinidos
     if (body.action === 'install_predefined') {
-      console.log('📦 Instalando templates predefinidos...');
-
       const templatesParaInstalar: any[] = [];
 
       for (const template of TEMPLATES_PREDEFINIDOS) {
@@ -531,10 +529,6 @@ export async function POST(request: NextRequest) {
             { status: 500 }
           );
         }
-
-        console.log(
-          `✅ ${novosTemplates.length} templates predefinidos instalados`
-        );
 
         return NextResponse.json({
           success: true,
@@ -626,8 +620,6 @@ export async function POST(request: NextRequest) {
         }
       }
     }
-
-    console.log('✅ Template criado:', template.nome);
 
     return NextResponse.json(
       {
@@ -755,8 +747,6 @@ export async function DELETE(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log('✅ Template deletado:', template.nome);
 
     return NextResponse.json({
       success: true,

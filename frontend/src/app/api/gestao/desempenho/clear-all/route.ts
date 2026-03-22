@@ -5,9 +5,8 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
-    const barId = request.headers.get('x-user-data')
-      ? JSON.parse(request.headers.get('x-user-data') || '{}').bar_id
-      : null;
+    const barIdHeader = request.headers.get('x-selected-bar-id');
+    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
 
     if (!barId) {
       return NextResponse.json(

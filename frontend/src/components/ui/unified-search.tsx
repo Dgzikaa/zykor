@@ -236,23 +236,11 @@ export default function UnifiedSearch({
       category: 'feature',
       icon: Layers,
       href: '/configuracoes/administracao/integracoes',
-      keywords: ['integrações', 'apis', 'conexões', 'windsor'],
+      keywords: ['integrações', 'apis', 'conexões'],
       priority: 65,
     },
 
     // Ações
-    {
-      id: 'sync-windsor',
-      title: 'Sincronizar Windsor.ai',
-      description: 'Forçar sincronização com Windsor.ai',
-      category: 'action',
-      icon: RefreshCw,
-      action: () => {
-        console.log('Sincronizando Windsor.ai...');
-      },
-      keywords: ['sincronizar', 'windsor', 'refresh', 'atualizar'],
-      priority: 60,
-    },
     {
       id: 'backup-dados',
       title: 'Backup de Dados',

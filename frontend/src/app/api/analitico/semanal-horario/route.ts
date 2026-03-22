@@ -95,9 +95,7 @@ export async function GET(request: NextRequest) {
     const mesesSelecionados = meses.split(',');
     const diaSemanaNum = diaSemana === 'todos' ? null : parseInt(diaSemana);
     
-    console.log(`🔍 Buscando dados de horário para ${diaSemana === 'todos' ? 'TODOS OS DIAS' : NOMES_DIAS[parseInt(diaSemana)]} nos meses:`, mesesSelecionados);
-    console.log(`🎯 Modo de comparação: ${modo}`);
-    
+            
     // Para cada mês selecionado, encontrar todas as ocorrências do dia da semana
     const datasParaBuscar: string[] = [];
     
@@ -109,8 +107,7 @@ export async function GET(request: NextRequest) {
         const primeiroDiaMes = new Date(ano, mes - 1, 1);
         const ultimoDiaMes = new Date(ano, mes, 0);
         
-        console.log(`📅 Processando TODOS OS DIAS de ${mesAno}: ${primeiroDiaMes.toISOString().split('T')[0]} a ${ultimoDiaMes.toISOString().split('T')[0]}`);
-        
+                
         for (let dia = 1; dia <= ultimoDiaMes.getDate(); dia++) {
           const dataFormatada = `${ano}-${mes.toString().padStart(2, '0')}-${dia.toString().padStart(2, '0')}`;
           datasParaBuscar.push(dataFormatada);
@@ -120,20 +117,17 @@ export async function GET(request: NextRequest) {
         const primeiroDiaMes = new Date(ano, mes - 1, 1);
         const ultimoDiaMes = new Date(ano, mes, 0);
         
-        console.log(`📅 Processando ${mesAno}: ${primeiroDiaMes.toISOString().split('T')[0]} a ${ultimoDiaMes.toISOString().split('T')[0]}`);
-        
+                
         // Encontrar a primeira ocorrência do dia da semana no mês
         let dataAtual = new Date(primeiroDiaMes);
         const diasParaAvancar = (diaSemanaNum! - dataAtual.getDay() + 7) % 7;
         dataAtual.setDate(dataAtual.getDate() + diasParaAvancar);
         
-        console.log(`🔍 Primeira ${NOMES_DIAS[diaSemanaNum!]} de ${mesAno}: ${dataAtual.toISOString().split('T')[0]} (dia da semana: ${dataAtual.getDay()})`);
-        
+                
         // Adicionar todas as ocorrências do dia da semana no mês
         while (dataAtual.getMonth() === mes - 1) {
           const dataFormatada = dataAtual.toISOString().split('T')[0];
-          console.log(`➕ Adicionando ${NOMES_DIAS[diaSemanaNum!]}: ${dataFormatada} (dia da semana: ${dataAtual.getDay()})`);
-          datasParaBuscar.push(dataFormatada);
+                    datasParaBuscar.push(dataFormatada);
           dataAtual.setDate(dataAtual.getDate() + 7); // Próxima semana
         }
       }
@@ -142,8 +136,7 @@ export async function GET(request: NextRequest) {
     // Ordenar datas (mais recente primeiro)
     datasParaBuscar.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
     
-    console.log(`🔍 Datas encontradas para ${diaSemana === 'todos' ? 'TODOS OS DIAS' : NOMES_DIAS[diaSemanaNum!]}:`, datasParaBuscar);
-
+    
     // ⚡ FILTRAR DIAS FECHADOS
     const statusDias = await verificarMultiplasDatas(datasParaBuscar, barIdNum);
     const datasAberto = datasParaBuscar.filter(data => {
@@ -151,8 +144,7 @@ export async function GET(request: NextRequest) {
       return status?.aberto !== false;
     });
     
-    console.log(`📅 Dias abertos: ${datasAberto.length}/${datasParaBuscar.length}`);
-
+    
     // Buscar dados de faturamento por hora para cada data
     const dadosPorSemana: { [data: string]: { [hora: number]: number } } = {};
     const datasComDados: string[] = [];
@@ -163,41 +155,26 @@ export async function GET(request: NextRequest) {
     if (diaSemana === 'todos') {
       if (modo === 'mes_x_mes') {
         // 🎯 MODO MÊS X MÊS: Buscar dados de todos os meses selecionados
-        console.log(`🎯 MODO MÊS X MÊS: Buscando dados de todos os meses selecionados`);
-        console.log(`🔍 DEBUG: datasParaBuscar total: ${datasParaBuscar.length}`);
-        console.log(`🔍 DEBUG: Primeiras 10 datas:`, datasParaBuscar.slice(0, 10));
-        
         datasParaProcessar = datasAberto.slice(0, 60); // Aumentar para 60 datas (apenas abertos)
-        console.log(`🚀 OTIMIZAÇÃO MÊS X MÊS: Processando ${datasParaProcessar.length} de ${datasParaBuscar.length} datas`);
-        console.log(`🔍 DEBUG: Datas que serão processadas:`, datasParaProcessar.slice(0, 10));
       } else {
         // 🎯 MODO INDIVIDUAL: Apenas últimos 5 dias
-        console.log(`🎯 MODO INDIVIDUAL: Limitando para últimos 5 dias`);
-        
         const hoje = new Date();
         const dataLimite = new Date();
         dataLimite.setDate(hoje.getDate() - 7);
-        
+
         datasParaProcessar = datasParaBuscar.filter(data => {
           const dataObj = new Date(data + 'T12:00:00');
           return dataObj >= dataLimite && dataObj <= hoje;
         }).slice(0, 5); // MÁXIMO 5 DATAS
-        
-        console.log(`🚀 OTIMIZAÇÃO INDIVIDUAL: Processando apenas ${datasParaProcessar.length} datas dos últimos 7 dias`);
       }
     } else {
       // Para dias específicos, MÁXIMO 8 datas
       const LIMITE_CRITICO = 8;
       datasParaProcessar = datasParaBuscar.slice(0, LIMITE_CRITICO);
-      console.log(`🚀 OTIMIZAÇÃO: Limitando ${diaSemana} para apenas ${datasParaProcessar.length} datas`);
     }
-    
-    console.log(`🚀 OTIMIZAÇÃO: Limitando processamento de ${datasParaBuscar.length} para ${datasParaProcessar.length} datas mais recentes`);
-    console.log(`🎯 Datas que serão processadas:`, datasParaProcessar);
 
     // 🚀 OTIMIZAÇÃO CRÍTICA: Buscar apenas dados essenciais com timeout
-    console.log(`📊 Buscando dados essenciais para ${datasParaProcessar.length} datas`);
-    
+
     // Promise com timeout para cada query
     const queryWithTimeout = async (queryPromise: PromiseLike<any>, name: string) => {
       const timeout = new Promise((_, reject) => 
@@ -213,27 +190,27 @@ export async function GET(request: NextRequest) {
     try {
       // Buscar apenas dados de período (mais essencial)
       const periodoQuery = supabase
-        .from('contahub_periodo')
-        .select('dt_gerencial, vr_pagamentos')
-        .in('dt_gerencial', datasParaProcessar)
+        .from('visitas')
+        .select('data_visita, valor_pagamentos')
+        .in('data_visita', datasParaProcessar)
         .eq('bar_id', barIdNum)
         .limit(50);
 
-      const periodoResult = await queryWithTimeout(periodoQuery, 'contahub_periodo');
+      const periodoResult = await queryWithTimeout(periodoQuery, 'visitas');
       dadosPeriodoData = periodoResult.data || [];
 
       // Se há dados de período, buscar faturamento por hora
       if (dadosPeriodoData.length > 0) {
         const fatHoraQuery = supabase
-          .from('contahub_fatporhora')
-          .select('vd_dtgerencial, hora, valor')
-          .in('vd_dtgerencial', datasParaProcessar)
+          .from('faturamento_hora')
+          .select('data_venda, hora, valor')
+          .in('data_venda', datasParaProcessar)
           .eq('bar_id', barIdNum)
           .gte('hora', 17)
           .lte('hora', 26)
           .limit(200);
 
-        const fatHoraResult = await queryWithTimeout(fatHoraQuery, 'contahub_fatporhora');
+        const fatHoraResult = await queryWithTimeout(fatHoraQuery, 'faturamento_hora');
         faturamentoDiaData = fatHoraResult.data || [];
       }
 
@@ -254,40 +231,19 @@ export async function GET(request: NextRequest) {
       console.warn('⚠️ Timeout em alguma query, continuando com dados parciais:', error);
     }
 
-    console.log(`📊 DADOS OBTIDOS:`, {
-      periodo: dadosPeriodoData.length,
-      faturamentoHora: faturamentoDiaData.length,
-      eventos: eventosData.length
-    });
-
+    
     // Criar mapa de eventos por data para acesso rápido
     const eventosPorData = new Map<string, any>();
     eventosData.forEach(evento => {
       eventosPorData.set(evento.data_evento, evento);
     });
 
-    // 🔍 DEBUG: Verificar dados encontrados
-    console.log(`📊 DADOS ENCONTRADOS:`, {
-      eventos: eventosData?.length || 0,
-      faturamentoPorHora: faturamentoDiaData?.length || 0,
-      dadosPeriodo: dadosPeriodoData?.length || 0,
-      datasParaProcessar: datasParaProcessar.length
-    });
-    
-    if (dadosPeriodoData && dadosPeriodoData.length > 0) {
-      console.log(`📊 AMOSTRA DADOS PERÍODO:`, dadosPeriodoData.slice(0, 3));
-    }
-    
-    if (faturamentoDiaData && faturamentoDiaData.length > 0) {
-      console.log(`📊 AMOSTRA FATURAMENTO POR HORA:`, faturamentoDiaData.slice(0, 5));
-    }
-
     // Criar mapas para acesso rápido
     const faturamentoPorData = new Map<string, any[]>();
     const periodosPorData = new Map<string, any[]>();
 
     (faturamentoDiaData || []).forEach(item => {
-      const data = item.vd_dtgerencial;
+      const data = item.data_venda;
       if (!faturamentoPorData.has(data)) {
         faturamentoPorData.set(data, []);
       }
@@ -295,7 +251,7 @@ export async function GET(request: NextRequest) {
     });
 
     (dadosPeriodoData || []).forEach(item => {
-      const data = item.dt_gerencial;
+      const data = item.data_visita;
       if (!periodosPorData.has(data)) {
         periodosPorData.set(data, []);
       }
@@ -303,43 +259,28 @@ export async function GET(request: NextRequest) {
     });
 
     for (const data of datasParaProcessar) {
-      console.log(`📊 Processando faturamento por hora para ${data}`);
-
+      
       // 🔍 PRIMEIRO: Buscar dados do evento (já carregado em batch)
       const eventoData = eventosPorData.get(data);
 
-      console.log(`📋 Evento encontrado para ${data}:`, eventoData);
-
+      
       // Buscar dados já carregados em batch
       const faturamentoDia = faturamentoPorData.get(data)?.filter(item => item.hora >= 17 && item.hora <= 23) || [];
       const faturamentoMadrugada = faturamentoPorData.get(data)?.filter(item => item.hora >= 24 && item.hora <= 26) || [];
       const dadosPeriodo = periodosPorData.get(data) || [];
 
-      // 🔧 ESTRUTURA CORRETA: vr_pagamentos = VALOR TOTAL DE FATURAMENTO DO DIA
-      const totalPagamentos = dadosPeriodo?.reduce((sum, item) => sum + (parseFloat(item.vr_pagamentos) || 0), 0) || 0;
-      const totalProdutosPeriodo = dadosPeriodo?.reduce((sum, item) => sum + (parseFloat(item.vr_produtos) || 0), 0) || 0;
-      const totalCouvert = dadosPeriodo?.reduce((sum, item) => sum + (parseFloat(item.vr_couvert) || 0), 0) || 0;
-      const totalRepique = dadosPeriodo?.reduce((sum, item) => sum + (parseFloat(item.vr_repique) || 0), 0) || 0;
-      const totalDescontos = dadosPeriodo?.reduce((sum, item) => sum + (parseFloat(item.vr_desconto) || 0), 0) || 0;
+      // 🔧 ESTRUTURA CORRETA: valor_pagamentos = VALOR TOTAL DE FATURAMENTO DO DIA
+      const totalPagamentos = dadosPeriodo?.reduce((sum, item) => sum + (parseFloat(item.valor_pagamentos) || 0), 0) || 0;
+      const totalProdutosPeriodo = dadosPeriodo?.reduce((sum, item) => sum + (parseFloat(item.valor_produtos) || 0), 0) || 0;
+      const totalCouvert = dadosPeriodo?.reduce((sum, item) => sum + (parseFloat(item.valor_couvert) || 0), 0) || 0;
+      const totalRepique = dadosPeriodo?.reduce((sum, item) => sum + (parseFloat(item.valor_repique) || 0), 0) || 0;
+      const totalDescontos = dadosPeriodo?.reduce((sum, item) => sum + (parseFloat(item.valor_desconto) || 0), 0) || 0;
       
       // ✅ USAR APENAS vr_pagamentos (que JÁ É O TOTAL)
       const faturamentoTotalDia = totalPagamentos;
       
-      console.log(`📊 DADOS PERÍODO ${data}:`, {
-        registros: dadosPeriodo?.length || 0,
-        totalPagamentos: `R$ ${totalPagamentos.toLocaleString('pt-BR')}`,
-        totalProdutos: `R$ ${totalProdutosPeriodo.toLocaleString('pt-BR')}`,
-        faturamentoTotalDia: `R$ ${faturamentoTotalDia.toLocaleString('pt-BR')}`
-      });
+            
       
-      console.log(`📊 ESTRUTURA CORRETA ${data}:`, {
-        vr_pagamentos_TOTAL: `R$ ${totalPagamentos.toLocaleString('pt-BR')}`,
-        vr_produtos: `R$ ${totalProdutosPeriodo.toLocaleString('pt-BR')}`,
-        vr_couvert: `R$ ${totalCouvert.toLocaleString('pt-BR')}`,
-        vr_repique: `R$ ${totalRepique.toLocaleString('pt-BR')}`,
-        vr_desconto: `R$ ${totalDescontos.toLocaleString('pt-BR')}`
-      });
-
       // 🔧 NOVA LÓGICA: Usar vr_pagamentos como total e distribuir proporcionalmente
       const faturamentoPorHora: { [hora: number]: number } = {};
       
@@ -385,16 +326,10 @@ export async function GET(request: NextRequest) {
 
       // Verificar se há dados significativos
       let totalDia = Object.values(faturamentoPorHora).reduce((sum, val) => sum + val, 0);
-      console.log(`💰 ${data}: vr_pagamentos (TOTAL): R$ ${faturamentoTotalDia.toLocaleString('pt-BR')}`);
-      console.log(`💰 ${data}: Produtos por hora: R$ ${totalProdutosPorHora.toLocaleString('pt-BR')}`);
-      console.log(`💰 ${data}: Faturamento distribuído por hora:`, faturamentoPorHora);
-      console.log(`💰 ${data}: Total calculado: R$ ${totalDia.toLocaleString('pt-BR')}`);
-      console.log(`🔍 DEBUG ${data}: Evento real_r: R$ ${eventoData?.real_r || 0}, ContaHub vr_pagamentos: R$ ${faturamentoTotalDia.toLocaleString('pt-BR')}`);
-      
+                                    
       // 🔧 CORREÇÃO CRÍTICA: Se há dados do ContaHub mas totalDia está zero, usar faturamentoTotalDia
       if (totalDia === 0 && faturamentoTotalDia > 0) {
-        console.log(`🔧 CORREÇÃO: totalDia estava zero mas há dados do ContaHub. Usando faturamentoTotalDia: R$ ${faturamentoTotalDia.toLocaleString('pt-BR')}`);
-        
+                
         // Distribuir pelos horários principais (19h-23h)
         const horariosDistribuicao = [19, 20, 21, 22, 23];
         const valorPorHora = faturamentoTotalDia / horariosDistribuicao.length;
@@ -404,8 +339,7 @@ export async function GET(request: NextRequest) {
         });
         
         totalDia = faturamentoTotalDia;
-        console.log(`✅ CORREÇÃO APLICADA ${data}: R$ ${totalDia.toLocaleString('pt-BR')} distribuído em ${horariosDistribuicao.length} horas`);
-      }
+              }
       
       // 🔧 CORREÇÃO: Verificar se há duplicação entre evento e ContaHub
       if (eventoData && parseFloat(eventoData.real_r) > 0) {
@@ -415,26 +349,12 @@ export async function GET(request: NextRequest) {
         const diferenca = Math.abs(eventoValor - totalDia);
         const percentualDiferenca = totalDia > 0 ? (diferenca / totalDia) * 100 : 100;
         
-        console.log(`🔍 ANÁLISE DUPLICAÇÃO ${data}:`, {
-          evento: `R$ ${eventoValor.toLocaleString('pt-BR')}`,
-          contahub: `R$ ${totalDia.toLocaleString('pt-BR')}`,
-          diferenca: `R$ ${diferenca.toLocaleString('pt-BR')}`,
-          percentualDiferenca: `${percentualDiferenca.toFixed(1)}%`
-        });
-        
+                
         // 🔧 CORREÇÃO: Detectar e corrigir duplicação sistemática
         // O real_r do evento pode já incluir produtos, causando duplicação
-        console.log(`⚠️ ANÁLISE DUPLICAÇÃO ${data}:`, {
-          contahubProdutosPorHora: `R$ ${totalProdutosPorHora.toLocaleString('pt-BR')}`,
-          contahubVrPagamentos: `R$ ${faturamentoTotalDia.toLocaleString('pt-BR')}`,
-          contahubDistribuido: `R$ ${totalDia.toLocaleString('pt-BR')}`,
-          eventoRealR: `R$ ${eventoValor.toLocaleString('pt-BR')}`,
-          razaoEvento_ContaHub: (eventoValor / totalDia).toFixed(2)
-        });
-        
+                
         // ✅ LÓGICA CORRIGIDA: Agora usando vr_pagamentos como total (sem duplicação)
-        console.log(`✅ ESTRUTURA CORRETA ${data}: Total baseado em vr_pagamentos R$ ${totalDia.toLocaleString('pt-BR')}`);
-      }
+              }
       
       // 🔄 INTEGRAÇÃO: Sempre somar dados do Yuzer/Sympla quando disponíveis (meses históricos)
       if (eventoData) {
@@ -444,12 +364,7 @@ export async function GET(request: NextRequest) {
         
         // Se há dados de ingressos, somar ao faturamento existente
         if (faturamentoIngressos > 0) {
-          console.log(`🎫 INGRESSOS: Adicionando dados históricos para ${data}:`, {
-            yuzer: `R$ ${faturamentoYuzer.toLocaleString('pt-BR')}`,
-            sympla: `R$ ${faturamenteSympla.toLocaleString('pt-BR')}`,
-            totalIngressos: `R$ ${faturamentoIngressos.toLocaleString('pt-BR')}`
-          });
-          
+                    
           // Se já há dados por hora, distribuir ingressos proporcionalmente
           if (totalDia > 0) {
             Object.keys(faturamentoPorHora).forEach(horaStr => {
@@ -460,19 +375,13 @@ export async function GET(request: NextRequest) {
               faturamentoPorHora[hora] = faturamentoHora + ingressosHora;
             });
             totalDia += faturamentoIngressos;
-            console.log(`✅ INTEGRADO ${data}: R$ ${totalDia.toLocaleString('pt-BR')} (ContaHub + Ingressos)`);
-          } else {
+                      } else {
             // Se não há dados por hora, usar fallback completo
             const faturamentoBar = parseFloat(eventoData.real_r) || 0;
             const faturamentoTotalEvento = faturamentoBar + faturamentoIngressos;
             
             if (faturamentoTotalEvento > 0) {
-              console.log(`🔄 FALLBACK COMPLETO: Usando dados completos do evento para ${data}:`, {
-                bar: `R$ ${faturamentoBar.toLocaleString('pt-BR')}`,
-                ingressos: `R$ ${faturamentoIngressos.toLocaleString('pt-BR')}`,
-                total: `R$ ${faturamentoTotalEvento.toLocaleString('pt-BR')}`
-              });
-              
+                            
               // Distribuir pelos horários principais (19h-23h)
               const horariosDistribuicao = [19, 20, 21, 22, 23];
               const valorPorHora = faturamentoTotalEvento / horariosDistribuicao.length;
@@ -482,16 +391,14 @@ export async function GET(request: NextRequest) {
               });
               
               totalDia = faturamentoTotalEvento;
-              console.log(`✅ EVENTO COMPLETO ${data}: R$ ${totalDia.toLocaleString('pt-BR')} distribuído em ${horariosDistribuicao.length} horas`);
-            }
+                          }
           }
         } else if (totalDia === 0) {
           // Fallback apenas com dados do bar se não há dados de ingressos nem ContaHub
           const faturamentoBar = parseFloat(eventoData.real_r) || 0;
           
           if (faturamentoBar > 0) {
-            console.log(`🔄 FALLBACK BAR: Usando apenas dados do bar para ${data}: R$ ${faturamentoBar.toLocaleString('pt-BR')}`);
-            
+                        
             // Distribuir pelos horários principais (19h-23h)
             const horariosDistribuicao = [19, 20, 21, 22, 23];
             const valorPorHora = faturamentoBar / horariosDistribuicao.length;
@@ -501,37 +408,22 @@ export async function GET(request: NextRequest) {
             });
             
             totalDia = faturamentoBar;
-            console.log(`✅ EVENTO BAR ${data}: R$ ${totalDia.toLocaleString('pt-BR')} distribuído em ${horariosDistribuicao.length} horas`);
-          }
+                      }
         }
       }
       
       if (totalDia > 0) {
         dadosPorSemana[data] = faturamentoPorHora;
         datasComDados.push(data);
-        console.log(`✅ ${data}: R$ ${totalDia.toLocaleString('pt-BR')} em ${Object.keys(faturamentoPorHora).length} horas`);
-      }
+              }
     }
 
-    console.log(`🎯 RESULTADO FINAL - Datas com dados encontradas:`, datasComDados);
-    console.log(`📅 Detalhes das datas:`, datasComDados.map(data => {
-      const date = new Date(data + 'T12:00:00');
-      return `${data} (${NOMES_DIAS[date.getDay()]})`;
-    }));
-
+        
     if (datasComDados.length === 0) {
-      console.log(`❌ NENHUM DADO ENCONTRADO - Debug:`, {
-        diaSemana,
-        mesesSelecionados,
-        datasParaProcessar: datasParaProcessar.length,
-        datasParaBuscar: datasParaBuscar.length,
-        barId: barIdNum
-      });
-      
+            
       // Se é "todos os dias" e não encontrou dados, tentar com range maior
       if (diaSemana === 'todos') {
-        console.log(`🔄 FALLBACK: Tentando com range maior para "todos os dias"`);
-        
+                
         // Buscar nos últimos 60 dias
         const hoje = new Date();
         const dataLimiteFallback = new Date();
@@ -542,8 +434,7 @@ export async function GET(request: NextRequest) {
           return dataObj >= dataLimiteFallback;
         }).slice(0, 30);
         
-        console.log(`🔄 FALLBACK: Processando ${datasParaProcessarFallback.length} datas dos últimos 60 dias`);
-        
+                
         if (datasParaProcessarFallback.length > 0) {
           // Tentar novamente com range maior
           datasParaProcessar = datasParaProcessarFallback;
@@ -551,17 +442,16 @@ export async function GET(request: NextRequest) {
           // Reprocessar com dados ampliados (simplificado)
           for (const data of datasParaProcessar.slice(0, 5)) { // Apenas 5 datas para não dar timeout
             const { data: dadosPeriodoFallback } = await supabase
-              .from('contahub_periodo')
-              .select('dt_gerencial, vr_pagamentos')
-              .eq('dt_gerencial', data)
+              .from('visitas')
+              .select('data_visita, valor_pagamentos')
+              .eq('data_visita', data)
               .eq('bar_id', barIdNum);
             
             if (dadosPeriodoFallback && dadosPeriodoFallback.length > 0) {
-              const totalPagamentos = dadosPeriodoFallback.reduce((sum, item) => sum + (parseFloat(item.vr_pagamentos) || 0), 0);
+              const totalPagamentos = dadosPeriodoFallback.reduce((sum, item) => sum + (parseFloat(item.valor_pagamentos) || 0), 0);
               
               if (totalPagamentos > 0) {
-                console.log(`✅ FALLBACK: Encontrou dados para ${data}: R$ ${totalPagamentos.toLocaleString('pt-BR')}`);
-                datasComDados.push(data);
+                                datasComDados.push(data);
                 
                 // Criar dados básicos para o horário
                 const faturamentoPorHora: { [hora: number]: number } = {};
@@ -596,24 +486,23 @@ export async function GET(request: NextRequest) {
     
     if (datasComDados.length <= 3) {
       try {
-        console.log(`📊 Buscando produtos para ${datasComDados.length} datas`);
-        
+                
         // Excluir categorias de compras/estoque
         const produtosQuery = supabase
-          .from('contahub_analitico')
-          .select('trn_dtgerencial, prd_desc, qtd, valorfinal, grp_desc')
-          .in('trn_dtgerencial', datasComDados)
+          .from('vendas_item')
+          .select('data_venda, produto_desc, quantidade, valor, grupo_desc')
+          .in('data_venda', datasComDados)
           .eq('bar_id', barIdNum)
-          .not('grp_desc', 'in', '("Mercadorias- Compras","Insumos","Uso Interno")')
-          .order('valorfinal', { ascending: false })
+          .not('grupo_desc', 'in', '("Mercadorias- Compras","Insumos","Uso Interno")')
+          .order('valor', { ascending: false })
           .limit(100);
 
-        const produtosResult = await queryWithTimeout(produtosQuery, 'contahub_analitico');
+        const produtosResult = await queryWithTimeout(produtosQuery, 'vendas_item');
         const produtosData = produtosResult.data || [];
 
-        // Criar mapa de produtos por data
+        // Criar mapa de produtos por data (mapear campos para compatibilidade)
         produtosData.forEach(produto => {
-          const data = produto.trn_dtgerencial;
+          const data = produto.data_venda;
           if (!produtosPorData.has(data)) {
             produtosPorData.set(data, []);
           }
@@ -622,15 +511,12 @@ export async function GET(request: NextRequest) {
       } catch (error) {
         console.warn('⚠️ Timeout ao buscar produtos, continuando sem dados de produtos:', error);
       }
-    } else {
-      console.log(`🚀 OTIMIZAÇÃO: Pulando busca de produtos (${datasComDados.length} datas, muito pesado)`);
     }
 
     const resumoPorData: ResumoPorData[] = [];
     
     for (const data of datasComDados) {
-      console.log(`📊 Processando produtos para ${data}`);
-      
+            
       // Buscar produtos já carregados em batch
       const produtosDia = produtosPorData.get(data) || [];
 
@@ -640,9 +526,9 @@ export async function GET(request: NextRequest) {
       let totalValorProdutos = 0;
 
       (produtosDia || []).forEach(item => {
-        const produto = item.prd_desc;
-        const qtd = parseFloat(item.qtd) || 0;
-        const valor = parseFloat(item.valorfinal) || 0;
+        const produto = item.produto_desc || item.prd_desc;
+        const qtd = parseFloat(item.quantidade || item.qtd) || 0;
+        const valor = parseFloat(item.valor || item.valorfinal) || 0;
         
         totalProdutosVendidos += qtd;
         totalValorProdutos += valor;
@@ -703,8 +589,7 @@ export async function GET(request: NextRequest) {
     // Ordenar datas (mais recente primeiro)
     datasComDados.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
-    console.log(`📈 Processando dados para ${datasComDados.length} datas:`, datasComDados);
-
+    
     // Criar estrutura de dados por hora (17h às 3h - igual ao resumo)
     const horariosParaAnalise = [17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3];
     const dadosHorarios: HorarioSemanalData[] = [];
@@ -740,8 +625,7 @@ export async function GET(request: NextRequest) {
         });
       });
 
-      console.log(`📊 Dados agrupados por mês (MÉDIA por dia da semana):`, Object.keys(dadosPorMes));
-
+      
       // 🎯 CORREÇÃO: Calcular MÉDIA por hora para cada mês (em vez de soma)
       horariosParaAnalise.forEach(hora => {
         const mediasDosMeses: number[] = [];
@@ -785,8 +669,7 @@ export async function GET(request: NextRequest) {
       });
     } else {
       // Modo Individual: Usar TODAS as datas encontradas
-      console.log(`📊 Modo Individual - Usando ${datasComDados.length} datas encontradas:`, datasComDados);
-
+      
       horariosParaAnalise.forEach(hora => {
         // Criar objeto com todas as datas e seus valores para esta hora
         const todasDatasHora: { [data: string]: number } = {};
@@ -894,13 +777,7 @@ export async function GET(request: NextRequest) {
     const totaisValidos = totaisPorData.filter(t => t > 0);
     media_total_4_semanas = totaisValidos.length > 0 ? totaisValidos.reduce((sum, val) => sum + val, 0) / totaisValidos.length : 0;
     
-    console.log(`🔧 CORREÇÃO - "Mais Recente" baseado em data específica:`, {
-      dataRecente: datasComDados[0],
-      valorRecente: `R$ ${total_faturamento_atual.toLocaleString('pt-BR')}`,
-      ultimasQuatroDatas: ultimasQuatroDatas,
-      totaisPorData: totaisPorData.map(t => `R$ ${t.toLocaleString('pt-BR')}`)
-    });
-
+    
     // 🔧 CORREÇÃO: Horário de pico SEMPRE baseado na data mais recente
     let horario_pico_atual = 20;  // Default mais realista
     let horario_pico_media = 20;
@@ -960,14 +837,7 @@ export async function GET(request: NextRequest) {
         horario_pico_media = horarioMaisFrequente;
       }
       
-      console.log(`🔧 CORREÇÃO - Horários de pico:`, {
-        dataRecente: dataRecente,
-        horarioPicoAtual: `${horario_pico_atual}h`,
-        ultimasQuatroDatas: ultimasQuatroDatas,
-        horariosPico: horariosPico.map(h => `${h}h`),
-        horarioPicoMedio: `${horario_pico_media}h`
-      });
-    }
+          }
 
     // Calcular crescimentos
     const crescimento_vs_semana_anterior = total_faturamento_semana1 > 0 
@@ -994,18 +864,11 @@ export async function GET(request: NextRequest) {
       data_semana3: datasComDados[3] || ''
     };
 
-    console.log(`📊 Estatísticas calculadas:`, {
-      atual: `R$ ${total_faturamento_atual.toLocaleString('pt-BR')}`,
-      media: `R$ ${media_total_4_semanas.toLocaleString('pt-BR')}`,
-      crescimento_vs_anterior: `${crescimento_vs_semana_anterior.toFixed(1)}%`,
-      horario_pico: `${horario_pico_atual}h`
-    });
-
+    
     // Criar dados para gráfico de valor total por dia da semana (modo Mês x Mês)
     const dadosValorTotal: any[] = [];
     
-    console.log(`🎯 Criando dados valor total - Modo: ${modo}, Meses: ${mesesSelecionados.length}`);
-    
+        
     if (modo === 'mes_x_mes' && mesesSelecionados.length >= 2) {
       const nomesMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const diasSemanaLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -1016,9 +879,7 @@ export async function GET(request: NextRequest) {
         // Agrupar dados por mês e dia da semana
         const dadosPorMesEDia: { [mes: string]: { [diaSemana: number]: number } } = {};
         
-        console.log(`🔍 DEBUG GRÁFICO: Processando ${datasComDados.length} datas com dados`);
-        console.log(`🔍 DEBUG GRÁFICO: datasComDados:`, datasComDados.slice(0, 5));
-        
+                        
         datasComDados.forEach(data => {
           const [ano, mes, dia] = data.split('-');
           const mesCompleto = `${ano}-${mes}`;
@@ -1026,8 +887,7 @@ export async function GET(request: NextRequest) {
           const diaSemanaNum = dataObj.getDay();
           const totalData = Object.values(dadosPorSemana[data] || {}).reduce((sum, valor) => sum + valor, 0);
           
-          console.log(`🔍 DEBUG: ${data} (${mesCompleto}) - Dia ${diaSemanaNum} - Total: R$ ${totalData.toLocaleString('pt-BR')}`);
-          
+                    
           if (totalData > 0) {
             if (!dadosPorMesEDia[mesCompleto]) {
               dadosPorMesEDia[mesCompleto] = {};
@@ -1039,8 +899,7 @@ export async function GET(request: NextRequest) {
           }
         });
         
-        console.log(`🔍 DEBUG GRÁFICO: dadosPorMesEDia final:`, dadosPorMesEDia);
-        
+                
         // Criar estrutura para o gráfico (um ponto por mês, com dados de todos os dias da semana)
         mesesSelecionados.forEach((mesCompleto, index) => {
           const [ano, mes] = mesCompleto.split('-');
@@ -1067,8 +926,7 @@ export async function GET(request: NextRequest) {
           dadosValorTotal.push(dadosMes);
         });
         
-        console.log(`📊 Dados valor total NOVO LAYOUT criados:`, dadosValorTotal);
-      } else {
+              } else {
         // 🎯 CORREÇÃO: Calcular MÉDIA por dia da semana específico (não soma)
         const dadosPorMesEMedia: { [mes: string]: { valores: number[], count: number } } = {};
         
@@ -1139,8 +997,7 @@ export async function GET(request: NextRequest) {
           }
         });
         
-        console.log(`📊 Dados valor total MENSAL criados:`, dadosValorTotal);
-      }
+              }
     } else if (modo === 'individual' && datasComDados.length > 0) {
       // MODO INDIVIDUAL: Cada sexta-feira individual com cores por mês
       const diasSemanaLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -1171,8 +1028,7 @@ export async function GET(request: NextRequest) {
       // Ordenar por data (mais antiga primeiro)
       dadosValorTotal.sort((a, b) => new Date(a.data_completa).getTime() - new Date(b.data_completa).getTime());
       
-      console.log(`📊 Dados valor total INDIVIDUAL criados:`, dadosValorTotal);
-    }
+          }
 
     return NextResponse.json({
       success: true,

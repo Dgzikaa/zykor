@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { createCacheHeaders } from '@/lib/api-cache';
 import { requireAdmin } from '@/lib/auth/server';
-import { logAuditEvent } from '@/lib/auth/audit';
 
 // Cache de 5 minutos para lista de bares (muda pouco)
 // Nota: revalidate precisa ser valor literal, não pode usar constante
@@ -83,20 +82,6 @@ export const GET = requireAdmin(async (request, user) => {
       })
     );
 
-    console.log(
-      `✅ Encontrados ${data.length} bares na tabela 'bar':`,
-      data.map((b: BarMapped) => b.nome)
-    );
-
-    // Logar acesso
-    await logAuditEvent({
-      user_id: user.id,
-      action: 'LIST_BARS',
-      resource: 'bares',
-      ip_address: request.headers.get('x-forwarded-for') || undefined,
-      user_agent: request.headers.get('user-agent') || undefined,
-    });
-
     return NextResponse.json({
       success: true,
       bars: data,
@@ -169,19 +154,6 @@ export const POST = requireAdmin(async (request, user) => {
     // Criar configurações padrão para o bar nas tabelas relacionadas
     await createDefaultConfigurations(data.id);
 
-    console.log(`✅ Novo bar criado: ${nome} (ID: ${data.id})`);
-
-    // Logar criação
-    await logAuditEvent({
-      user_id: user.id,
-      action: 'CREATE_BAR',
-      resource: 'bares',
-      resource_id: data.id.toString(),
-      changes: { nome, endereco, telefone, cnpj, email },
-      ip_address: request.headers.get('x-forwarded-for') || undefined,
-      user_agent: request.headers.get('user-agent') || undefined,
-    });
-
     return NextResponse.json({
       success: true,
       data: data,
@@ -242,7 +214,6 @@ async function createDefaultConfigurations(barId: number) {
     ];
 
     await Promise.all(configurationsPromises);
-    console.log(`✅ Configurações padrão criadas para bar ${barId}`);
   } catch (error) {
     console.warn('⚠️ Erro ao criar configurações padrão:', error);
     // Não falhar o processo principal por isso
@@ -300,17 +271,6 @@ export const PUT = requireAdmin(async (request, user) => {
     if (error) {
       throw error;
     }
-
-    // Logar atualização
-    await logAuditEvent({
-      user_id: user.id,
-      action: 'UPDATE_BAR',
-      resource: 'bares',
-      resource_id: id.toString(),
-      changes: updates,
-      ip_address: request.headers.get('x-forwarded-for') || undefined,
-      user_agent: request.headers.get('user-agent') || undefined,
-    });
 
     return NextResponse.json({
       success: true,
@@ -377,19 +337,6 @@ export const DELETE = requireAdmin(async (request, user) => {
     if (error) {
       throw error;
     }
-
-    console.log(`🗑️ Bar deletado: ${bar.nome} (ID: ${id})`);
-
-    // Logar exclusão
-    await logAuditEvent({
-      user_id: user.id,
-      action: 'DELETE_BAR',
-      resource: 'bares',
-      resource_id: id,
-      changes: { deleted_bar: { nome: bar.nome } },
-      ip_address: request.headers.get('x-forwarded-for') || undefined,
-      user_agent: request.headers.get('user-agent') || undefined,
-    });
 
     return NextResponse.json({
       success: true,

@@ -46,15 +46,6 @@ export async function POST(request: NextRequest) {
       motivoRejeicao,
     } = body;
 
-    console.log('🔔 Webhook Inter recebido:', {
-      codigoSolicitacao,
-      status,
-      dataHora,
-      valor,
-      descricao,
-      destinatario,
-    });
-
     // Validar dados obrigatórios
     if (!codigoSolicitacao || !status || !dataHora) {
       console.error('❌ Dados obrigatórios ausentes no webhook');
@@ -90,7 +81,6 @@ export async function POST(request: NextRequest) {
     }
 
     const pagamento: PagamentoAgendamento = pagamentos[0];
-    console.log('📋 Pagamento encontrado:', pagamento);
 
     // Atualizar status do pagamento baseado na resposta do Inter
     let novoStatus: string;
@@ -173,7 +163,6 @@ export async function POST(request: NextRequest) {
       console.error('❌ Erro ao enviar notificação Discord:', discordError);
     }
 
-    console.log('✅ Webhook processado com sucesso');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('❌ Erro interno no webhook:', error);

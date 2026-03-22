@@ -33,10 +33,6 @@ export async function GET(request: NextRequest) {
     const mesAtualStr = `${dataAtual.getFullYear()}-${(dataAtual.getMonth() + 1).toString().padStart(2, '0')}`;
     const mesAnteriorStr = `${mesAnterior.getFullYear()}-${(mesAnterior.getMonth() + 1).toString().padStart(2, '0')}`;
 
-    console.log(`🔍 Calculando novos clientes para bar ${barIdNum}:`);
-    console.log(`📅 Mês atual: ${mesAtualStr}`);
-    console.log(`📅 Mês anterior: ${mesAnteriorStr}`);
-
     // Query para calcular novos clientes por mês
     const { data: novosClientesData, error: novosClientesError } = await supabase.rpc('calcular_novos_clientes_por_mes', {
       p_bar_id: barIdNum,
@@ -47,16 +43,14 @@ export async function GET(request: NextRequest) {
     // Se a função RPC não existir (calcular_novos_clientes_por_mes), usar fallback direto
     // Nota: execute_sql não existe no banco - usar exec_sql/execute_raw_sql ou query direta
     if (novosClientesError && novosClientesError.code === '42883') {
-      console.log('⚠️ Função RPC calcular_novos_clientes_por_mes não encontrada, usando query direta');
-      
-      // Fallback: query direta via Supabase
+      // Fallback: query direta via Supabase (tabela visitas)
         const { data: fallbackData, error: fallbackError } = await supabase
-          .from('contahub_periodo')
-          .select('cli_fone, dt_gerencial')
+          .from('visitas')
+          .select('cliente_fone, data_visita')
           .eq('bar_id', barIdNum)
-          .not('cli_fone', 'is', null)
-          .gte('dt_gerencial', `${mesAnteriorStr}-01`)
-          .lte('dt_gerencial', `${mesAtualStr}-31`);
+          .not('cliente_fone', 'is', null)
+          .gte('data_visita', `${mesAnteriorStr}-01`)
+          .lte('data_visita', `${mesAtualStr}-31`);
 
         if (fallbackError) {
           throw fallbackError;
@@ -66,8 +60,8 @@ export async function GET(request: NextRequest) {
         const clientesPrimeiraVisita = new Map<string, string>();
         
         fallbackData?.forEach(registro => {
-          const fone = registro.cli_fone;
-          const data = registro.dt_gerencial;
+          const fone = registro.cliente_fone;
+          const data = registro.data_visita;
           
           if (!clientesPrimeiraVisita.has(fone) || data < clientesPrimeiraVisita.get(fone)!) {
             clientesPrimeiraVisita.set(fone, data);

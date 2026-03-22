@@ -26,8 +26,6 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log(`[NIBO-CENTROS-CUSTO] Buscando centros de custo para bar_id=${barId}`);
-
     // Primeiro, buscar credenciais do NIBO para este bar
     const { data: credencial, error: credError } = await supabase
       .from('api_credentials')
@@ -38,8 +36,6 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (credError || !credencial?.api_token) {
-      console.log('[NIBO-CENTROS-CUSTO] Credenciais não encontradas, retornando centros de custo do banco');
-      
       // Fallback: buscar centros de custo únicos da tabela nibo_agendamentos
       const { data: centrosAgendamentos, error: centrosError } = await supabase
         .from('nibo_agendamentos')
@@ -103,8 +99,6 @@ export async function GET(request: NextRequest) {
         ativo: item.isActive !== false,
         bar_id: parseInt(barId)
       }));
-
-      console.log(`[NIBO-CENTROS-CUSTO] ${centrosCusto.length} centros de custo encontrados via API NIBO`);
 
       // Salvar/atualizar centros de custo na tabela local para cache
       for (const centro of centrosCusto) {

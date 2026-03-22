@@ -36,8 +36,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`📦 Bulk Update: ${datas.length} dias para status "${status}"`);
-
     const resultados: any[] = [];
     const historico: any[] = [];
 

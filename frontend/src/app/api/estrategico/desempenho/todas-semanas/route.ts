@@ -59,17 +59,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const ano = searchParams.get('ano'); // opcional - se não passar, busca todos
     
-    // Obter bar_id do header
-    const userDataHeader = request.headers.get('x-user-data');
-    let barId = 3; // Default
+    // Obter bar_id do header x-selected-bar-id
+    const barIdHeader = request.headers.get('x-selected-bar-id');
+    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
     
-    if (userDataHeader) {
-      try {
-        const userData = JSON.parse(decodeURIComponent(userDataHeader));
-        if (userData.bar_id) barId = userData.bar_id;
-      } catch (e) {
-        console.warn('Erro ao parsear user data:', e);
-      }
+    if (!barId) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
     // Buscar todas as semanas do bar, ordenadas por ano e semana
@@ -130,39 +125,39 @@ export async function GET(request: NextRequest) {
     
     if (dataMin && dataMax) {
       // Conta Assinada - buscar com paginação
-      const pagamentos = await fetchAllPaginated<{ dt_gerencial: string; valor: number }>(
+      const pagamentos = await fetchAllPaginated<{ data_pagamento: string; valor_bruto: number }>(
         supabase,
-        'contahub_pagamentos',
-        'dt_gerencial, valor',
+        'faturamento_pagamentos',
+        'data_pagamento, valor_bruto',
         [
           { column: 'bar_id', operator: 'eq', value: barId },
           { column: 'meio', operator: 'eq', value: 'Conta Assinada' },
-          { column: 'dt_gerencial', operator: 'gte', value: dataMin },
-          { column: 'dt_gerencial', operator: 'lte', value: dataMax },
+          { column: 'data_pagamento', operator: 'gte', value: dataMin },
+          { column: 'data_pagamento', operator: 'lte', value: dataMax },
         ]
       );
 
       // Agrupar por semana
       pagamentos.forEach(p => {
         const semana = semanas?.find(s => 
-          p.dt_gerencial >= s.data_inicio && p.dt_gerencial <= s.data_fim
+          p.data_pagamento >= s.data_inicio && p.data_pagamento <= s.data_fim
         );
         if (semana) {
           const key = `${semana.ano}-${semana.numero_semana}`;
-          contaAssinadaMap.set(key, (contaAssinadaMap.get(key) || 0) + Number(p.valor || 0));
+          contaAssinadaMap.set(key, (contaAssinadaMap.get(key) || 0) + Number(p.valor_bruto || 0));
         }
       });
 
-      // Descontos de contahub_periodo - buscar com paginação
-      const descontos = await fetchAllPaginated<{ dt_gerencial: string; vr_desconto: number; motivo: string }>(
+      // Descontos de visitas - buscar com paginação
+      const descontos = await fetchAllPaginated<{ data_visita: string; valor_desconto: number; motivo_desconto: string }>(
         supabase,
-        'contahub_periodo',
-        'dt_gerencial, vr_desconto, motivo',
+        'visitas',
+        'data_visita, valor_desconto, motivo_desconto',
         [
           { column: 'bar_id', operator: 'eq', value: barId },
-          { column: 'vr_desconto', operator: 'gt', value: 0 },
-          { column: 'dt_gerencial', operator: 'gte', value: dataMin },
-          { column: 'dt_gerencial', operator: 'lte', value: dataMax },
+          { column: 'valor_desconto', operator: 'gt', value: 0 },
+          { column: 'data_visita', operator: 'gte', value: dataMin },
+          { column: 'data_visita', operator: 'lte', value: dataMax },
         ]
       );
 
@@ -203,18 +198,18 @@ export async function GET(request: NextRequest) {
       // Agrupar por semana, por motivo (case-insensitive + agrupamento inteligente) e por dia da semana
       descontos?.forEach(d => {
         const semana = semanas?.find(s => 
-          d.dt_gerencial >= s.data_inicio && d.dt_gerencial <= s.data_fim
+          d.data_visita >= s.data_inicio && d.data_visita <= s.data_fim
         );
         if (semana) {
           const key = `${semana.ano}-${semana.numero_semana}`;
-          const valorDesconto = Number(d.vr_desconto || 0);
-          const motivoOriginal = d.motivo || 'Sem motivo';
+          const valorDesconto = Number(d.valor_desconto || 0);
+          const motivoOriginal = d.motivo_desconto || 'Sem motivo';
           
           // Agrupar motivo inteligentemente
           const { categoria: motivoNormalizado, exibicao: motivoExibicao } = agruparMotivo(motivoOriginal);
           
           // Dia da semana
-          const data = new Date(d.dt_gerencial + 'T00:00:00');
+          const data = new Date(d.data_visita + 'T00:00:00');
           const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
           const diaSemana = diasSemana[data.getDay()];
           

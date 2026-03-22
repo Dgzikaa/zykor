@@ -256,7 +256,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { bar_id: barId, permissao, usuario_id } = JSON.parse(request.headers.get('x-user-data') || '{}');
+    const barIdHeader = request.headers.get('x-selected-bar-id');
+    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
+    // TODO: Obter permissão e usuario_id do JWT/cookie quando implementado
+    const permissao = 'admin';
+    const usuario_id = null;
 
     // Verificar permissões
     if (!['financeiro', 'admin'].includes(permissao)) {
@@ -290,7 +294,7 @@ export async function POST(request: NextRequest) {
     const contato = await getOrCreateContact(
       bar_id,
       validatedData.destinatario,
-      usuario_id
+      usuario_id || undefined
     );
 
     if (!contato) {

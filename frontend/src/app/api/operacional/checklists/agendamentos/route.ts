@@ -236,11 +236,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Log da criação
-    console.log(
-      `✅ Agendamento criado: ${novoAgendamento.titulo} para checklist ${checklist.nome}`
-    );
-
     return NextResponse.json(
       {
         success: true,

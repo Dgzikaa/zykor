@@ -120,9 +120,6 @@ async function registrarWebhook(
       let responseBody = '';
       response.on('data', chunk => (responseBody += chunk));
       response.on('end', () => {
-        console.log('[INTER-WEBHOOK] Status:', response.statusCode);
-        console.log('[INTER-WEBHOOK] Resposta:', responseBody);
-
         if (response.statusCode === 204) {
           resolve({ success: true });
         } else if (response.statusCode === 200) {
@@ -222,8 +219,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[INTER-WEBHOOK] Registrando webhook para bar:', bar_id);
-
     // Buscar credenciais
     const credenciais = await getInterCredentials(bar_id);
     
@@ -246,12 +241,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. Obter token com scope webhook.write
-    console.log('[INTER-WEBHOOK] Obtendo token...');
     const accessToken = await getAccessToken(clientId, clientSecret);
-    console.log('[INTER-WEBHOOK] Token obtido');
 
     // 2. Registrar webhook
-    console.log('[INTER-WEBHOOK] Registrando webhook...');
     const resultado = await registrarWebhook(
       accessToken,
       chave_pix,

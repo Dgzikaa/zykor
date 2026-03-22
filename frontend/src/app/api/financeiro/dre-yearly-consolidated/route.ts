@@ -29,8 +29,6 @@ export async function GET(request: NextRequest) {
     const ano = searchParams.get('year') || new Date().getFullYear().toString();
     const barId = searchParams.get('bar_id');
 
-    console.log(`[DRE-YEARLY] Buscando dados consolidados: ano=${ano}, bar_id=${barId}`);
-
     // Buscar dados da view_dre para o ano inteiro
     const { data: dreData, error: dreError } = await supabase
       .from('view_dre')

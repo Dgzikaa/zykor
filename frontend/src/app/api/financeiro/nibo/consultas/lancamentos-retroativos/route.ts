@@ -39,9 +39,6 @@ export async function GET(request: NextRequest) {
     const mesesRetroativos = parseFloat(searchParams.get('meses_retroativos') || '3'); // Limite de meses (0.25 = 1 semana, 0.5 = 2 semanas, 1 = 1 mês)
     const categorias = searchParams.get('categorias'); // Filtro de categorias (separadas por vírgula)
 
-    console.log(`[NIBO-CONSULTAS] Buscando lançamentos retroativos, bar_id=${barId}`);
-    console.log(`[NIBO-CONSULTAS] Filtros: criado_apos=${criadoApos}, competencia_antes=${competenciaAntes}, categorias=${categorias}`);
-
     if (!criadoApos || !competenciaAntes) {
       return NextResponse.json(
         { 
@@ -74,11 +71,6 @@ export async function GET(request: NextRequest) {
       
       competenciaApos = limiteInferior.toISOString().split('T')[0];
       limiteAplicado = true;
-      
-      const periodoLabel = mesesRetroativos < 1 
-        ? `${Math.round(mesesRetroativos * 4)} semana(s)` 
-        : `${mesesRetroativos} mês(es)`;
-      console.log(`[NIBO-CONSULTAS] OTIMIZAÇÃO: Aplicado limite de ${periodoLabel} (${diasParaSubtrair} dias). competencia_apos=${competenciaApos}`);
     }
 
     // Buscar schedules da API NIBO com paginação PARALELA para máxima velocidade
@@ -89,8 +81,6 @@ export async function GET(request: NextRequest) {
 
     // Montar filtro OData para competência - SEMPRE com limite inferior
     const odataFilter = `accrualDate lt ${competenciaAntes}T00:00:00Z and accrualDate ge ${competenciaApos}T00:00:00Z`;
-
-    console.log(`[NIBO-CONSULTAS] Filtro OData: ${odataFilter}`);
 
     // Função para buscar uma página específica
     const fetchPage = async (skip: number): Promise<any[]> => {
@@ -132,22 +122,17 @@ export async function GET(request: NextRequest) {
         batchPromises.push(fetchPage(skip));
       }
 
-      console.log(`[NIBO-CONSULTAS] Buscando ${batchPromises.length} páginas em paralelo (${pageCount + 1}-${pageCount + batchPromises.length})...`);
-      
       // Executar todas as requisições em paralelo
       const results = await Promise.all(batchPromises);
       
       // Processar resultados
-      let totalItemsInBatch = 0;
       for (const items of results) {
         if (items.length > 0) {
           allSchedules.push(...items);
-          totalItemsInBatch += items.length;
         }
       }
 
       pageCount += batchPromises.length;
-      console.log(`[NIBO-CONSULTAS] Batch concluído: ${totalItemsInBatch} registros (total: ${allSchedules.length})`);
 
       // Verificar se deve continuar (se alguma página veio vazia ou incompleta)
       const lastResult = results[results.length - 1];
@@ -155,8 +140,6 @@ export async function GET(request: NextRequest) {
         hasMore = false;
       }
     }
-
-    console.log(`[NIBO-CONSULTAS] Total de registros da API: ${allSchedules.length} (${pageCount} páginas)`);
 
     // Filtrar por createDate (data de criação) e categorias no código
     // A API NIBO pode não suportar filtro por createDate no OData
@@ -207,10 +190,6 @@ export async function GET(request: NextRequest) {
 
       return true;
     });
-    
-    console.log(`[NIBO-CONSULTAS] Filtro categorias: ${categoriasLista?.length || 0} categorias`);
-
-    console.log(`[NIBO-CONSULTAS] Lançamentos retroativos encontrados: ${lancamentosRetroativos.length}`);
 
     // Formatar dados para resposta
     const resultado = lancamentosRetroativos.map(schedule => ({

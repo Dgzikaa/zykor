@@ -10,7 +10,8 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await getAdminClient()
-    const barId = user.bar_id || 3
+    const barId = user.bar_id
+    if (!barId) return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 })
 
     // Executar validação para ontem
     const { data, error } = await supabase.rpc('executar_validacao_diaria', {

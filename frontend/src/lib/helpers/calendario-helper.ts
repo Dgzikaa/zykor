@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+﻿import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,16 +11,64 @@ export interface StatusDia {
   fonte: 'manual' | 'movimento' | 'padrao';
 }
 
-// ⚡ CACHE EM MEMÓRIA PARA PERFORMANCE
+interface BarOperacao {
+  opera_segunda: boolean;
+  opera_terca: boolean;
+  opera_quarta: boolean;
+  opera_quinta: boolean;
+  opera_sexta: boolean;
+  opera_sabado: boolean;
+  opera_domingo: boolean;
+}
+
+let cachedOperacao: Record<number, BarOperacao> = {};
+let operacaoCacheTimestamp: Record<number, number> = {};
+
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
+
+async function getBarOperacao(barId: number): Promise<BarOperacao | null> {
+  const agora = Date.now();
+  
+  if (cachedOperacao[barId] && (agora - (operacaoCacheTimestamp[barId] || 0)) < CACHE_DURATION) {
+    return cachedOperacao[barId];
+  }
+  
+  const { data, error } = await supabase
+    .from('bares_config')
+    .select('opera_segunda, opera_terca, opera_quarta, opera_quinta, opera_sexta, opera_sabado, opera_domingo')
+    .eq('bar_id', barId)
+    .single();
+  
+  if (error || !data) {
+    console.error(`❌ [ERRO CONFIG] Dias de operação não encontrados para bar ${barId}. Configure bares_config.`);
+    return null;
+  }
+  
+  cachedOperacao[barId] = data;
+  operacaoCacheTimestamp[barId] = agora;
+  return data;
+}
+
+function barOperaNoDia(operacao: BarOperacao, diaSemana: number): boolean {
+  switch (diaSemana) {
+    case 0: return operacao.opera_domingo;
+    case 1: return operacao.opera_segunda;
+    case 2: return operacao.opera_terca;
+    case 3: return operacao.opera_quarta;
+    case 4: return operacao.opera_quinta;
+    case 5: return operacao.opera_sexta;
+    case 6: return operacao.opera_sabado;
+    default: return true;
+  }
+}
+
 interface CacheEntry {
   data: StatusDia;
   timestamp: number;
 }
 
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 const statusCache = new Map<string, CacheEntry>();
 
-// Limpar cache periodicamente
 if (typeof setInterval !== 'undefined') {
   setInterval(() => {
     const now = Date.now();
@@ -29,35 +77,19 @@ if (typeof setInterval !== 'undefined') {
         statusCache.delete(key);
       }
     }
-  }, 60 * 1000); // Limpar a cada minuto
+  }, 60 * 1000);
 }
 
-/**
- * Limpa o cache (útil após mudanças no calendário)
- */
 export function limparCacheCalendario() {
   statusCache.clear();
   console.log('🗑️ Cache do calendário limpo');
 }
 
-/**
- * Verifica se o bar está aberto em uma determinada data
- * 
- * LÓGICA DE PRIORIDADE:
- * 1º - Verifica calendário_operacional (registro manual)
- * 2º - Para datas passadas: verifica movimento no ContaHub
- * 3º - Para datas futuras: usa padrão semanal (seg/ter fechado)
- * 
- * @param data - Data no formato YYYY-MM-DD
- * @param barId - ID do bar (padrão: 3)
- * @returns StatusDia com informações sobre o status do dia
- */
 export async function verificarBarAberto(
   data: string,
-  barId: number = 3
+  barId: number
 ): Promise<StatusDia> {
   try {
-    // ⚡ VERIFICAR CACHE PRIMEIRO
     const cacheKey = `${data}-${barId}`;
     const cached = statusCache.get(cacheKey);
     
@@ -65,7 +97,6 @@ export async function verificarBarAberto(
       return cached.data;
     }
 
-    // 1º PRIORIDADE: Verificar se existe registro manual no calendário
     const { data: registro, error: errorRegistro } = await supabase
       .from('calendario_operacional')
       .select('status, motivo')
@@ -78,19 +109,17 @@ export async function verificarBarAberto(
     }
 
     if (registro) {
-      console.log(`📅 Calendário manual: ${data} = ${registro.status}`);
+      console.log(`📊 Calendário manual: ${data} = ${registro.status}`);
       const resultado = {
         aberto: registro.status === 'aberto',
         motivo: registro.motivo || `Definido manualmente como ${registro.status}`,
         fonte: 'manual' as const
       };
       
-      // Salvar no cache
       statusCache.set(cacheKey, { data: resultado, timestamp: Date.now() });
       return resultado;
     }
 
-    // Criar data garantindo interpretação correta (sem timezone issues)
     const [ano, mes, dia] = data.split('-').map(Number);
     const dataVerificacao = new Date(Date.UTC(ano, mes - 1, dia, 12, 0, 0));
     const diaSemana = dataVerificacao.getUTCDay();
@@ -98,27 +127,34 @@ export async function verificarBarAberto(
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
-    // 2º PRIORIDADE: Verificar dia de fechamento FIXO por bar
-    // DEBOCHE (bar_id=4): Fecha às SEGUNDAS-FEIRAS - SEMPRE, independente de movimento
-    // Isso tem prioridade sobre movimento porque o bar NÃO abre segundas
-    if (barId === 4 && diaSemana === 1) {
-      console.log(`🚫 Deboche fechado: ${data} é segunda-feira`);
+    const operacaoBar = await getBarOperacao(barId);
+    if (!operacaoBar) {
+      console.error(`❌ [calendario] Assumindo fechado por falta de config para bar ${barId}`);
+      return {
+        aberto: false,
+        motivo: 'Erro ao verificar configuração do bar',
+        fonte: 'padrao'
+      };
+    }
+    const barOpera = barOperaNoDia(operacaoBar, diaSemana);
+    
+    if (!barOpera) {
+      console.log(`🚫 Bar ${barId} fechado: ${data} (${diasSemana[diaSemana]})`);
       const resultado = {
         aberto: false,
-        motivo: 'Segunda-feira (Deboche não abre)',
+        motivo: `${diasSemana[diaSemana]} (bar não opera)`,
         fonte: 'padrao' as const
       };
       statusCache.set(cacheKey, { data: resultado, timestamp: Date.now() });
       return resultado;
     }
 
-    // 3º PRIORIDADE: Para datas passadas, verificar movimento no ContaHub
+    // MIGRADO: vendas_item (domain table) em vez de contahub_analitico
     if (dataVerificacao < hoje) {
-      // Data no passado - verificar movimento no ContaHub Analítico
       const { data: movimento, error: errorMovimento } = await supabase
-        .from('contahub_analitico')
-        .select('valorfinal')
-        .eq('trn_dtgerencial', data)
+        .from('vendas_item')
+        .select('valor')
+        .eq('data_venda', data)
         .eq('bar_id', barId);
 
       if (errorMovimento) {
@@ -126,8 +162,7 @@ export async function verificarBarAberto(
       }
 
       if (movimento && movimento.length > 0) {
-        // Somar todos os valores de venda do dia
-        const valorVendas = movimento.reduce((sum, item) => sum + parseFloat(item.valorfinal || '0'), 0);
+        const valorVendas = movimento.reduce((sum: number, item: any) => sum + parseFloat(item.valor || '0'), 0);
         const temMovimento = valorVendas > 0;
         
         console.log(`💰 Movimento detectado: ${data} = R$ ${valorVendas.toFixed(2)} (${movimento.length} transações)`);
@@ -140,33 +175,23 @@ export async function verificarBarAberto(
           fonte: 'movimento' as const
         };
         
-        // Salvar no cache
         statusCache.set(cacheKey, { data: resultado, timestamp: Date.now() });
         return resultado;
       }
     }
 
-    // 4º PRIORIDADE: Usar padrão semanal (dia normal de funcionamento)
-    let resultado: StatusDia;
-    
-    // Para este ponto, já sabemos que:
-    // - Não há registro manual
-    // - Não é dia de fechamento fixo (Deboche segunda já foi tratado acima)
-    // - Não há movimento detectado (ou é data futura)
-    resultado = {
+    const resultado: StatusDia = {
       aberto: true,
       motivo: `${diasSemana[diaSemana]} (dia normal de funcionamento)`,
       fonte: 'padrao'
     };
 
-    // Salvar no cache
     statusCache.set(cacheKey, { data: resultado, timestamp: Date.now() });
     return resultado;
 
   } catch (error) {
     console.error('❌ Erro ao verificar se bar está aberto:', error);
     
-    // Em caso de erro, assumir fechado por segurança
     return {
       aberto: false,
       motivo: 'Erro ao verificar status do dia',
@@ -175,16 +200,9 @@ export async function verificarBarAberto(
   }
 }
 
-/**
- * Verifica múltiplas datas de uma vez (mais eficiente)
- * 
- * @param datas - Array de datas no formato YYYY-MM-DD
- * @param barId - ID do bar (padrão: 3)
- * @returns Map com data como chave e StatusDia como valor
- */
 export async function verificarMultiplasDatas(
   datas: string[],
-  barId: number = 3
+  barId: number
 ): Promise<Map<string, StatusDia>> {
   const resultado = new Map<string, StatusDia>();
 
@@ -193,7 +211,6 @@ export async function verificarMultiplasDatas(
   }
 
   try {
-    // Buscar todos os registros manuais de uma vez
     const { data: registros, error: errorRegistros } = await supabase
       .from('calendario_operacional')
       .select('data, status, motivo')
@@ -204,36 +221,32 @@ export async function verificarMultiplasDatas(
       console.error('⚠️ Erro ao buscar registros:', errorRegistros);
     }
 
-    // Criar map de registros manuais
     const registrosMap = new Map(
       (registros || []).map(r => [r.data, r])
     );
 
-    // Buscar movimentações de uma vez no ContaHub Analítico
+    // MIGRADO: vendas_item (domain table) em vez de contahub_analitico
     const { data: movimentacoes, error: errorMovimentacoes } = await supabase
-      .from('contahub_analitico')
-      .select('trn_dtgerencial, valorfinal')
+      .from('vendas_item')
+      .select('data_venda, valor')
       .eq('bar_id', barId)
-      .in('trn_dtgerencial', datas);
+      .in('data_venda', datas);
 
     if (errorMovimentacoes) {
       console.error('⚠️ Erro ao buscar movimentações:', errorMovimentacoes);
     }
 
-    // Criar map de movimentações (agrupando por data)
     const movimentacoesMap = new Map<string, number>();
-    (movimentacoes || []).forEach(m => {
-      const data = m.trn_dtgerencial;
+    (movimentacoes || []).forEach((m: any) => {
+      const data = m.data_venda;
       const valorAtual = movimentacoesMap.get(data) || 0;
-      movimentacoesMap.set(data, valorAtual + parseFloat(m.valorfinal || '0'));
+      movimentacoesMap.set(data, valorAtual + parseFloat(m.valor || '0'));
     });
 
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
-    // Processar cada data
     for (const data of datas) {
-      // 1º - Registro manual
       const registro = registrosMap.get(data);
       if (registro) {
         resultado.set(data, {
@@ -244,23 +257,32 @@ export async function verificarMultiplasDatas(
         continue;
       }
 
-      // Criar data garantindo interpretação correta (sem timezone issues)
       const [ano, mes, dia] = data.split('-').map(Number);
       const dataVerificacao = new Date(Date.UTC(ano, mes - 1, dia, 12, 0, 0));
       const diaSemana = dataVerificacao.getUTCDay();
 
-      // 2º - Dia de fechamento FIXO por bar (tem prioridade sobre movimento)
-      // DEBOCHE (bar_id=4): Fecha às SEGUNDAS-FEIRAS - SEMPRE
-      if (barId === 4 && diaSemana === 1) {
+      const operacaoBar = await getBarOperacao(barId);
+      if (!operacaoBar) {
+        console.error(`❌ [calendario] Assumindo fechado por falta de config para bar ${barId}`);
         resultado.set(data, {
           aberto: false,
-          motivo: 'Segunda-feira (Deboche não abre)',
+          motivo: 'Erro ao verificar configuração do bar',
+          fonte: 'padrao'
+        });
+        continue;
+      }
+      const barOpera = barOperaNoDia(operacaoBar, diaSemana);
+      
+      if (!barOpera) {
+        const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+        resultado.set(data, {
+          aberto: false,
+          motivo: `${diasSemana[diaSemana]} (bar não opera)`,
           fonte: 'padrao'
         });
         continue;
       }
 
-      // 3º - Movimento (só para passado)
       if (dataVerificacao < hoje) {
         const movimento = movimentacoesMap.get(data) || 0;
         const temMovimento = movimento > 0;
@@ -273,8 +295,6 @@ export async function verificarMultiplasDatas(
         continue;
       }
 
-      // 4º - Padrão semanal (dia normal de funcionamento)
-      // Chegou aqui = não é dia de fechamento fixo e não tem movimento
       resultado.set(data, {
         aberto: true,
         motivo: 'Dia normal de funcionamento',
@@ -290,30 +310,20 @@ export async function verificarMultiplasDatas(
   }
 }
 
-/**
- * Filtra um array de dados removendo registros de dias fechados
- * Função genérica que funciona com qualquer tipo de dado que tenha campo de data
- * 
- * @param dados - Array de dados a filtrar
- * @param campoData - Nome do campo que contém a data (padrão: 'data')
- * @param barId - ID do bar (padrão: 3)
- * @returns Array filtrado apenas com dias abertos
- */
 export async function filtrarDiasAbertos<T extends Record<string, any>>(
   dados: T[],
   campoData: keyof T = 'data' as keyof T,
-  barId: number = 3
+  barId: number
 ): Promise<T[]> {
   if (!dados || dados.length === 0) {
     return [];
   }
 
   try {
-    // Extrair datas únicas dos dados
     const datasUnicas = [...new Set(
       dados
         .map(item => item[campoData] as string)
-        .filter(data => data) // Remove nulls/undefined
+        .filter(data => data)
     )];
 
     if (datasUnicas.length === 0) {
@@ -321,34 +331,28 @@ export async function filtrarDiasAbertos<T extends Record<string, any>>(
       return dados;
     }
 
-    // Verificar status de todas as datas de uma vez
     const statusDias = await verificarMultiplasDatas(datasUnicas, barId);
 
-    // Filtrar apenas registros de dias abertos
     const dadosFiltrados = dados.filter(item => {
       const data = item[campoData] as string;
       if (!data) return false;
 
       const status = statusDias.get(data);
       
-      // Se não conseguiu verificar, mantém por segurança (pode ser erro de conexão)
       if (!status) return true;
       
-      // Remove apenas se explicitamente fechado
       return status.aberto !== false;
     });
 
     const removidos = dados.length - dadosFiltrados.length;
     if (removidos > 0) {
-      console.log(`🔍 Filtro de dias: ${dados.length} → ${dadosFiltrados.length} (${removidos} dias fechados removidos)`);
+      console.log(`📅 Filtro de dias: ${dados.length} → ${dadosFiltrados.length} (${removidos} dias fechados removidos)`);
     }
 
     return dadosFiltrados;
 
   } catch (error) {
     console.error('❌ Erro ao filtrar dias abertos:', error);
-    // Em caso de erro, retorna dados originais para não quebrar a aplicação
     return dados;
   }
 }
-

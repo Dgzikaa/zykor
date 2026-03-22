@@ -32,8 +32,7 @@ async function fetchAllDataWithBuilder(queryBuilder: () => any) {
     }
     
     allData.push(...data);
-    console.log(`📦 Lote ${iterations}: ${data.length} registros (total: ${allData.length})`);
-    
+        
     if (data.length < limit) {
       break; // Última página
     }
@@ -42,8 +41,7 @@ async function fetchAllDataWithBuilder(queryBuilder: () => any) {
   }
   
   if (iterations > 1) {
-    console.log(`📦 ${allData.length} registros buscados em ${iterations} lote(s)`);
-  }
+      }
   
   return allData;
 }
@@ -166,8 +164,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`🔍 Buscando histórico de stockout: ${data_inicio} até ${data_fim}`);
-
+    
     // ⚡ QueryBuilder: função que cria uma nova query a cada chamada
     // Isso é necessário porque o Supabase não permite reutilizar queries com .range()
     // IMPORTANTE: Usar view contahub_stockout_filtrado para garantir mesmos filtros do desempenho
@@ -210,8 +207,7 @@ export async function POST(request: NextRequest) {
 
     // Verificar quais datas únicas temos
     const datasUnicas = [...new Set(dadosValidosFiltrados.map(item => item.data_consulta))].sort();
-    console.log(`📦 Total de registros: ${dadosValidosFiltrados.length} em ${datasUnicas.length} dias`);
-
+    
     // Agrupar dados por data (usando apenas dados válidos)
     const dadosPorData = new Map();
     dadosValidosFiltrados.forEach(item => {
@@ -447,9 +443,7 @@ export async function POST(request: NextRequest) {
         parseFloat(a.percentual_stockout.replace('%', ''))
       );
 
-    console.log(`📍 Análise por local/categoria: ${analisePorLocal.length} categorias processadas`);
-    console.log(`📅 Total de dias processados: ${historicoDiario.length}`);
-
+        
     // Resumo geral - AGREGADO TOTAL (soma stockouts / soma produtos)
     const totalDias = historicoDiario.length;
     const totalProdutosPeriodo = historicoDiario.reduce((sum, dia) => sum + dia.total_produtos_ativos, 0);
@@ -475,8 +469,7 @@ export async function POST(request: NextRequest) {
       historico_diario: historicoDiario
     };
 
-    console.log(`✅ Análise histórica concluída: ${totalDias} dias, média ${mediaStockout}% stockout`);
-
+    
     return NextResponse.json({
       success: true,
       data: resultado

@@ -1,9 +1,8 @@
--- =====================================================
--- FUN«√O: update_eventos_base_from_contahub_batch
+Ôªø-- =====================================================
+-- FUN√á√ÉO: update_eventos_base_from_contahub_batch
 -- =====================================================
 -- Atualiza eventos_base com dados do ContaHub (batch)
--- CORRE«√O: N„o deve tocar em yuzer_liquido/yuzer_ingressos
--- Esses campos s„o exclusivos para dados Yuzer/Sympla
+-- MIGRADO: visitas (domain table) em vez de contahub_periodo
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION update_eventos_base_from_contahub_batch(
@@ -19,12 +18,12 @@ DECLARE
   v_evento_id INTEGER;
   v_result TEXT;
 BEGIN
-  -- Calcular total de pessoas do dia (contahub_periodo)
+  -- Calcular total de pessoas do dia - MIGRADO: visitas (domain table)
   SELECT SUM(pessoas)::INTEGER
   INTO v_publico
-  FROM contahub_periodo
+  FROM visitas
   WHERE bar_id = p_bar_id
-    AND dt_gerencial::date = p_data_evento;
+    AND data_visita::date = p_data_evento;
   
   -- Calcular % stockout EXCLUINDO [HH], [DD] e [IN]
   SELECT 
@@ -37,9 +36,9 @@ BEGIN
   FROM contahub_stockout
   WHERE bar_id = p_bar_id
     AND data_consulta = p_data_evento
-    AND prd_desc NOT LIKE '[HH]%'  -- Excluir Happy Hour
-    AND prd_desc NOT LIKE '[DD]%'  -- Excluir Dose Dupla
-    AND prd_desc NOT LIKE '[IN]%'; -- Excluir Insumos
+    AND prd_desc NOT LIKE '[HH]%'
+    AND prd_desc NOT LIKE '[DD]%'
+    AND prd_desc NOT LIKE '[IN]%';
   
   -- Verificar se existe evento para essa data
   SELECT id INTO v_evento_id

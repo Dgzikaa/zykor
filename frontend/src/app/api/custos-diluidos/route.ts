@@ -24,8 +24,6 @@ export async function GET(request: NextRequest) {
     }
     const barId = parseInt(barIdParam);
 
-    console.log(`📊 Buscando custos diluídos para ${mes}/${ano} - Bar ${barId}`);
-
     const { data, error } = await supabase
       .from('custos_mensais_diluidos')
       .select('*')

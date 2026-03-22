@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useCallback } from 'react';
 
@@ -167,12 +167,12 @@ export function useFileUpload() {
           [uploadId]: { ...prev[uploadId], progress: 50 },
         }));
 
-        // Pegar dados do usuário para header
-        const userData = localStorage.getItem('sgb_user');
+        // Pegar bar_id selecionado para header
+        const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
         const headers: Record<string, string> = {};
 
-        if (userData) {
-          headers['x-user-data'] = encodeURIComponent(userData);
+        if (selectedBarId) {
+          headers['x-selected-bar-id'] = selectedBarId;
         }
 
         setUploads(prev => ({
@@ -238,13 +238,13 @@ export function useFileUpload() {
   // Função para remover arquivo
   const deleteFile = useCallback(async (fileId: string): Promise<void> => {
     try {
-      const userData = localStorage.getItem('sgb_user');
+      const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
 
-      if (userData) {
-        headers['x-user-data'] = encodeURIComponent(userData);
+      if (selectedBarId) {
+        headers['x-selected-bar-id'] = selectedBarId;
       }
 
       const response = await fetch(`/api/configuracoes/uploads?id=${fileId}`, {
@@ -273,11 +273,11 @@ export function useFileUpload() {
   // Função para listar uploads
   const listUploads = useCallback(async (folder?: string) => {
     try {
-      const userData = localStorage.getItem('sgb_user');
+      const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
       const headers: Record<string, string> = {};
 
-      if (userData) {
-        headers['x-user-data'] = encodeURIComponent(userData);
+      if (selectedBarId) {
+        headers['x-selected-bar-id'] = selectedBarId;
       }
 
       const params = new URLSearchParams();

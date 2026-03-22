@@ -166,10 +166,6 @@ export async function POST(request: NextRequest) {
       atribuicao as Record<string, unknown>
     );
 
-    console.log(
-      `✅ Atribuição criada: ${checklist.nome} -> ${data.tipo_atribuicao}`
-    );
-
     return NextResponse.json({
       success: true,
       message: 'Atribuição criada com sucesso',
@@ -472,10 +468,6 @@ async function criarAgendamentosAutomaticos(
 
       if (error) {
         console.error('Erro ao criar agendamentos automáticos:', error);
-      } else {
-        console.log(
-          `📅 ${agendamentos.length} agendamentos criados para atribuição ${atribuicao.id}`
-        );
       }
     }
   } catch (error) {

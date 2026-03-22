@@ -19,6 +19,7 @@ import { read, utils } from 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm'
 import { getGoogleAccessToken, downloadDriveFileAsExcel, parseDataBR, parseDataUS, parseNPSValue } from '../_shared/google-auth.ts'
 import { getSupabaseServiceClient, getBarsAtivos, getApiConfig } from '../_shared/supabase-client.ts'
 import { handleCorsOptions, jsonResponse, errorResponse } from '../_shared/cors.ts'
+import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
 
 // ========== TIPOS ==========
 interface SyncResult {
@@ -274,6 +275,8 @@ async function syncNPSReservas(barId?: number, opts?: SyncOpts): Promise<{ messa
         console.log(`📅 NPS Reservas - Filtro retroativo: ${dataInicioFiltro || 'início'} até ${dataFimFiltro || 'fim'}`)
       }
 
+      const registros: any[] = []
+      
       for (let i = 1; i < data.length; i++) {
         const row = data[i]
         if (!row || row.length === 0) continue
@@ -288,18 +291,40 @@ async function syncNPSReservas(barId?: number, opts?: SyncOpts): Promise<{ messa
         const dia_semana = row[1] ? String(row[1]).trim() : null
         const comentarios = row[3] ? String(row[3]).trim() : null
         
-        const { error: erroInsert } = await supabase
-          .from('nps_reservas')
-          .insert({
-            bar_id: bar.id,
-            data_pesquisa: dataFormatada,
-            nota,
-            dia_semana,
-            comentarios
-          })
-        
-        if (!erroInsert) atualizados++
+        registros.push({
+          bar_id: bar.id,
+          data_pesquisa: dataFormatada,
+          nota,
+          dia_semana,
+          comentarios
+        })
       }
+      
+      console.log(`✅ ${registros.length} registros processados`)
+      
+      // Inserir em lotes com upsert para evitar duplicação
+      const BATCH_SIZE = 500
+      let totalInserted = 0
+      
+      for (let i = 0; i < registros.length; i += BATCH_SIZE) {
+        const batch = registros.slice(i, i + BATCH_SIZE)
+        
+        const { data: insertedData, error: insertError } = await supabase
+          .from('nps_reservas')
+          .upsert(batch, {
+            onConflict: 'bar_id,data_pesquisa,nota,comentarios',
+            ignoreDuplicates: true
+          })
+          .select('id')
+        
+        if (insertError) {
+          console.error(`❌ Erro ao inserir lote:`, insertError)
+          continue
+        }
+        totalInserted += insertedData?.length || batch.length
+      }
+      
+      atualizados = totalInserted
       
       resultados.push({
         bar_id: bar.id,
@@ -429,6 +454,39 @@ async function syncVozCliente(barId?: number): Promise<{ message: string; result
   }
 }
 
+// ========== HELPER: Converter percentual para escala 1-5 ==========
+function parsePercentualToScale(val: any): number {
+  if (!val) return 1
+  const str = String(val).replace('%', '').replace(',', '.')
+  const percentual = parseFloat(str)
+  if (isNaN(percentual) || percentual <= 0) return 1
+  const escala = Math.ceil((percentual / 100) * 5)
+  return Math.max(1, Math.min(5, escala))
+}
+
+// ========== HELPER: Processar data do Excel ==========
+function parseExcelDate(val: any): string | null {
+  if (!val) return null
+  
+  // Se for número (serial date do Excel)
+  if (typeof val === 'number') {
+    const date = new Date((val - 25569) * 86400 * 1000)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  
+  // Se for string DD/MM/YYYY
+  const str = String(val).trim()
+  const parts = str.split('/')
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+  }
+  
+  return null
+}
+
 // ========== SYNC PESQUISA FELICIDADE ==========
 async function syncPesquisaFelicidade(barId?: number): Promise<{ message: string; resultados: SyncResult[] }> {
   console.log('🔄 Iniciando sincronização da Pesquisa de Felicidade...')
@@ -467,42 +525,49 @@ async function syncPesquisaFelicidade(barId?: number): Promise<{ message: string
       
       const registros: any[] = []
       
-      for (let i = 1; i < jsonData.length; i++) {
+      // Pular cabeçalho - arquivo Excel começa na linha 3 (índice 2)
+      const startRow = 3
+      
+      for (let i = startRow; i < jsonData.length; i++) {
         const row = jsonData[i]
         if (!row[0] || String(row[0]).trim() === '') continue
         
-        const timestampCompleto = String(row[0] || '')
-        const dataFormatada = parseDataBR(timestampCompleto.split(' ')[0])
-        
-        if (!dataFormatada) continue
-        
-        const eu_comigo_engajamento = parseNPSValue(row[2])
-        const eu_com_empresa_pertencimento = parseNPSValue(row[3])
-        const eu_com_colega_relacionamento = parseNPSValue(row[4])
-        const eu_com_gestor_lideranca = parseNPSValue(row[5])
-        const justica_reconhecimento = parseNPSValue(row[6])
-        
-        const valores = [eu_comigo_engajamento, eu_com_empresa_pertencimento, eu_com_colega_relacionamento, eu_com_gestor_lideranca, justica_reconhecimento]
-        const valoresRespondidos = valores.filter(v => v > 0)
-        const mediaGeral = valoresRespondidos.length > 0 
-          ? valoresRespondidos.reduce((a, b) => a + b, 0) / valoresRespondidos.length 
-          : 0
-        const resultadoPercentual = (mediaGeral / 5) * 100
-        
-        registros.push({
-          bar_id: bar.id,
-          data_pesquisa: dataFormatada,
-          setor: 'TODOS',
-          quorum: 1,
-          eu_comigo_engajamento,
-          eu_com_empresa_pertencimento,
-          eu_com_colega_relacionamento,
-          eu_com_gestor_lideranca,
-          justica_reconhecimento,
-          media_geral: parseFloat(mediaGeral.toFixed(2)),
-          resultado_percentual: parseFloat(resultadoPercentual.toFixed(2)),
-          funcionario_nome: timestampCompleto.substring(0, 40)
-        })
+        try {
+          // Processar data (pode ser serial ou string)
+          const dataFormatada = parseExcelDate(row[0])
+          if (!dataFormatada) continue
+          
+          // Converter percentuais para escala 1-5 (alinhado com função legada)
+          const engajamento = parsePercentualToScale(row[3])
+          const pertencimento = parsePercentualToScale(row[4])
+          const relacionamento = parsePercentualToScale(row[5])
+          const lideranca = parsePercentualToScale(row[6])
+          const reconhecimento = parsePercentualToScale(row[7])
+          
+          const valores = [engajamento, pertencimento, relacionamento, lideranca, reconhecimento]
+          const valoresRespondidos = valores.filter(v => v > 0)
+          const mediaGeral = valoresRespondidos.length > 0 
+            ? valoresRespondidos.reduce((a, b) => a + b, 0) / valoresRespondidos.length 
+            : 0
+          const resultadoPercentual = (mediaGeral / 5) * 100
+          
+          registros.push({
+            bar_id: bar.id,
+            data_pesquisa: dataFormatada,
+            setor: row[1] || 'TODOS',
+            quorum: parseInt(row[2]) || 0,
+            eu_comigo_engajamento: engajamento,
+            eu_com_empresa_pertencimento: pertencimento,
+            eu_com_colega_relacionamento: relacionamento,
+            eu_com_gestor_lideranca: lideranca,
+            justica_reconhecimento: reconhecimento,
+            media_geral: parseFloat(mediaGeral.toFixed(2)),
+            resultado_percentual: parseFloat(resultadoPercentual.toFixed(2)),
+            funcionario_nome: 'Equipe'
+          })
+        } catch (rowError) {
+          console.warn(`⚠️ Erro ao processar linha ${i + 1}:`, rowError)
+        }
       }
       
       console.log(`✅ ${registros.length} registros processados`)
@@ -555,20 +620,19 @@ async function syncPesquisaFelicidade(barId?: number): Promise<{ message: string
   }
 }
 
-// ========== MAIN HANDLER ==========
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return handleCorsOptions()
-  }
+// ========== PROCESSAR UMA ACTION ==========
+async function processAction(
+  action: string,
+  bar_id?: number,
+  opts?: SyncOpts,
+  body?: any,
+  supabase?: any
+): Promise<{ action: string; success: boolean; message?: string; resultados?: SyncResult[]; error?: string; records_affected?: number }> {
+  // Heartbeat por action
+  const hbSupabase = supabase || getSupabaseServiceClient()
+  const { heartbeatId, startTime } = await heartbeatStart(hbSupabase, 'google-sheets-sync', bar_id, action, 'api')
   
   try {
-    const body = await req.json().catch(() => ({}))
-    const { action, bar_id, data_inicio, data_fim } = body
-    const opts = (data_inicio || data_fim) ? { data_inicio, data_fim } : undefined
-    
-    console.log(`📊 Google Sheets Sync - Action: ${action || 'não especificada'}`)
-    if (opts) console.log(`📅 Retroativo: ${data_inicio || '-'} até ${data_fim || '-'}`)
-    
     let result: { message: string; resultados: SyncResult[] }
     
     switch (action) {
@@ -609,17 +673,108 @@ serve(async (req) => {
         break
       
       default:
-        return errorResponse(
-          `Action inválida: ${action}. Use: nps, nps-reservas, voz-cliente, pesquisa-felicidade, fichas-tecnicas, insumos-receitas, contagem, orcamentacao, cmv`,
-          null,
-          400
-        )
+        await heartbeatEnd(hbSupabase, heartbeatId, 'error', startTime, 0, { action }, `Action inválida: ${action}`)
+        return {
+          action,
+          success: false,
+          error: `Action inválida: ${action}. Use: nps, nps-reservas, voz-cliente, pesquisa-felicidade, fichas-tecnicas, insumos-receitas, contagem, orcamentacao, cmv`
+        }
+    }
+    
+    // Calcular total de registros afetados
+    const totalRecords = result.resultados?.reduce((acc, r) => acc + (r.inseridos || 0), 0) || 0
+    const hasErrors = result.resultados?.some(r => !r.success)
+    const status = hasErrors ? 'partial' : 'success'
+    
+    await heartbeatEnd(hbSupabase, heartbeatId, status, startTime, totalRecords, {
+      action,
+      message: result.message,
+      bares: result.resultados?.length || 0
+    })
+    
+    return {
+      action,
+      success: true,
+      records_affected: totalRecords,
+      ...result
+    }
+  } catch (error: any) {
+    console.error(`❌ Erro ao processar action ${action}:`, error)
+    await heartbeatError(hbSupabase, heartbeatId, startTime, error, { action }, 'google-sheets-sync', bar_id)
+    return {
+      action,
+      success: false,
+      error: error.message
+    }
+  }
+}
+
+// ========== MAIN HANDLER ==========
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return handleCorsOptions()
+  }
+  
+  try {
+    const body = await req.json().catch(() => ({}))
+    const { action, actions, bar_id, data_inicio, data_fim } = body
+    const opts = (data_inicio || data_fim) ? { data_inicio, data_fim } : undefined
+    
+    // Suporte a ambos: action (singular) e actions (array)
+    const actionsToProcess: string[] = actions 
+      ? (Array.isArray(actions) ? actions : [actions])
+      : (action ? [action] : [])
+    
+    if (actionsToProcess.length === 0) {
+      return errorResponse(
+        'Nenhuma action especificada. Use "action" (singular) ou "actions" (array).',
+        null,
+        400
+      )
+    }
+    
+    console.log(`📊 Google Sheets Sync - Actions: ${actionsToProcess.join(', ')}`)
+    if (opts) console.log(`📅 Retroativo: ${data_inicio || '-'} até ${data_fim || '-'}`)
+    
+    const supabase = getSupabaseServiceClient()
+    
+    // Processar múltiplas actions sequencialmente
+    if (actionsToProcess.length > 1) {
+      const results: any[] = []
+      let allSuccess = true
+      let totalRecords = 0
+      
+      for (const act of actionsToProcess) {
+        console.log(`\n🔄 Processando action: ${act}`)
+        const result = await processAction(act, bar_id, opts, body, supabase)
+        results.push(result)
+        if (!result.success) allSuccess = false
+        totalRecords += result.records_affected || 0
+      }
+      
+      return jsonResponse({
+        success: allSuccess,
+        mode: 'batch',
+        actions_processed: actionsToProcess.length,
+        total_records_affected: totalRecords,
+        results,
+        timestamp: new Date().toISOString()
+      })
+    }
+    
+    // Action única
+    const singleAction = actionsToProcess[0]
+    const result = await processAction(singleAction, bar_id, opts, body, supabase)
+    
+    if (!result.success) {
+      return errorResponse(result.error || 'Erro desconhecido', null, 400)
     }
     
     return jsonResponse({
       success: true,
-      action,
-      ...result,
+      action: singleAction,
+      message: result.message,
+      resultados: result.resultados,
       timestamp: new Date().toISOString()
     })
     

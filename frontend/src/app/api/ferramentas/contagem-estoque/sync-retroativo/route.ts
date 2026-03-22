@@ -11,8 +11,6 @@ export const maxDuration = 300; // 5 minutos
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🚀 Iniciando sincronização retroativa de contagem...');
-    
     const body = await request.json().catch(() => ({}));
     const { cronSecret, data_inicio, data_fim } = body;
     
@@ -31,9 +29,7 @@ export async function POST(request: NextRequest) {
         error: 'data_inicio e data_fim são obrigatórios'
       }, { status: 400 });
     }
-    
-    console.log(`📅 Período: ${data_inicio} até ${data_fim}`);
-    
+
     // Chamar Edge Function com SERVICE_ROLE_KEY
     const response = await fetch(
       `https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/sync-contagem-retroativo`,
@@ -57,8 +53,7 @@ export async function POST(request: NextRequest) {
     }
     
     const result = await response.json();
-    console.log('✅ Resultado da sincronização retroativa:', result);
-    
+
     return NextResponse.json({
       success: true,
       message: `Sincronização retroativa executada: ${data_inicio} a ${data_fim}`,

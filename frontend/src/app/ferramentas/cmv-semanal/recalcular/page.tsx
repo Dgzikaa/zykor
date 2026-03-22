@@ -57,7 +57,7 @@ export default function RecalcularCMVPage() {
       const data = await response.json();
       setResultado(data);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao recalcular:', error);
       setResultado({
         success: false,

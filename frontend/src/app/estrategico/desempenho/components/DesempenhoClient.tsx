@@ -236,12 +236,12 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
           ] : [
             { key: 'qui_sab_dom', label: 'QUI+SÁB+DOM', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Soma real_r', formato: 'moeda' as const },
           ]),
-          { key: 'conta_assinada_valor', label: 'Conta Assinada', status: 'auto' as const, fonte: 'contahub_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda_com_percentual' as const, percentualKey: 'conta_assinada_perc' },
-          { key: 'descontos_valor', label: 'Descontos', status: 'auto' as const, fonte: 'contahub_periodo', calculo: 'Soma vr_desconto', formato: 'moeda_com_percentual' as const, percentualKey: 'descontos_perc', temTooltipDetalhes: true },
+          { key: 'conta_assinada_valor', label: 'Conta Assinada', status: 'auto' as const, fonte: 'faturamento_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda_com_percentual' as const, percentualKey: 'conta_assinada_perc' },
+          { key: 'descontos_valor', label: 'Descontos', status: 'auto' as const, fonte: 'visitas', calculo: 'Soma valor_desconto', formato: 'moeda_com_percentual' as const, percentualKey: 'descontos_perc', temTooltipDetalhes: true },
           { key: 'cancelamentos', label: 'Cancelamentos', status: 'auto' as const, fonte: 'contahub_cancelamentos', calculo: 'Soma custototal', formato: 'moeda' as const, temTooltipDetalhes: true, detalhesKey: 'cancelamentos_detalhes' },
           // Couvert Total e Atrações/Eventos para comparação (Deboche) - APÓS Cancelamentos
           ...(barId === 4 ? [
-            { key: 'couvert_atracoes', label: 'Couvert Total R$', status: 'auto' as const, fonte: 'contahub_periodo', calculo: 'Soma vr_couvert', formato: 'moeda' as const },
+            { key: 'couvert_atracoes', label: 'Couvert Total R$', status: 'auto' as const, fonte: 'visitas', calculo: 'Soma valor_couvert', formato: 'moeda' as const },
             { key: 'atracoes_eventos', label: 'Atrações/Eventos R$', status: 'auto' as const, fonte: 'NIBO', calculo: 'Soma c_art eventos_base', formato: 'moeda' as const },
           ] : []),
         ]
@@ -318,7 +318,7 @@ const isGrupoSimples = (grupo: GrupoMetricas): boolean => {
   return grupo.metricas.length === 1;
 };
 
-const calcularValorAgregado = (grupo: GrupoMetricas, semana: any): number | null => {
+const calcularValorAgregado = (grupo: GrupoMetricas, semana: DadosSemana): number | null => {
   if (!grupo.agregacao) return null;
   
   if (grupo.agregacao.tipo === 'fixa' && grupo.agregacao.valorFixo !== undefined) {
@@ -326,13 +326,13 @@ const calcularValorAgregado = (grupo: GrupoMetricas, semana: any): number | null
   }
   
   if (grupo.agregacao.tipo === 'campo' && grupo.agregacao.campo) {
-    const valor = semana[grupo.agregacao.campo];
+    const valor = semana[grupo.agregacao.campo as keyof DadosSemana];
     return valor !== null && valor !== undefined ? Number(valor) : null;
   }
   
   const valores: number[] = [];
   for (const metrica of grupo.metricas) {
-    const valor = semana[metrica.key];
+    const valor = semana[metrica.key as keyof DadosSemana];
     if (valor !== null && valor !== undefined && typeof valor === 'number') {
       valores.push(valor);
     }
@@ -346,10 +346,24 @@ const calcularValorAgregado = (grupo: GrupoMetricas, semana: any): number | null
   return null;
 };
 
-const formatarValor = (valor: number | string | null | undefined, formato: string, sufixo?: string): string => {
-  const num = typeof valor === 'string' ? parseFloat(valor) : valor;
-  if (num === null || num === undefined || (typeof num === 'number' && isNaN(num))) return '-';
-  
+/** Coerção para cálculos numéricos em células (valores vindos de `getValorComOverride`). */
+function numeroMetrica(v: unknown): number {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'number' && !Number.isNaN(v)) return v;
+  if (typeof v === 'string') {
+    const n = parseFloat(v);
+    return Number.isNaN(n) ? 0 : n;
+  }
+  return 0;
+}
+
+const formatarValor = (valor: unknown, formato: string, sufixo?: string): string => {
+  if (valor !== null && typeof valor === 'object') return '-';
+  if (typeof valor === 'boolean') return '-';
+  const num =
+    typeof valor === 'string' ? parseFloat(valor) : typeof valor === 'number' ? valor : NaN;
+  if (valor === null || valor === undefined || Number.isNaN(num)) return '-';
+
   switch (formato) {
     case 'moeda':
       return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(num);
@@ -368,11 +382,11 @@ const formatarValor = (valor: number | string | null | undefined, formato: strin
 };
 
 // Verifica se o valor atingiu a meta e retorna a cor
-const verificarMeta = (valor: number | null | undefined, metricaKey: string, metas: MetasDesempenhoMap): 'verde' | 'vermelho' | 'neutro' => {
+const verificarMeta = (valor: unknown, metricaKey: string, metas: MetasDesempenhoMap): 'verde' | 'vermelho' | 'neutro' => {
   if (valor === null || valor === undefined || !metas[metricaKey]) return 'neutro';
   
   const meta = metas[metricaKey];
-  const num = typeof valor === 'number' ? valor : parseFloat(valor as any);
+  const num = typeof valor === 'number' ? valor : typeof valor === 'string' ? parseFloat(valor) : NaN;
   
   if (isNaN(num)) return 'neutro';
   
@@ -889,24 +903,18 @@ export function DesempenhoClient({
   }, [selectedBar, visao, editMetaDialog, metas, user, toast]);
 
   const abrirDetalhesFalae = useCallback((semana: DadosSemana) => {
-    const avaliacoes = ((semana as any).falae_avaliacoes_detalhes || []) as Array<{ nome: string; media: number; total: number }>;
-    const comentarios = ((semana as any).falae_comentarios_detalhes || []) as Array<{
-      nps: number;
-      comentario: string;
-      data: string;
-      tipo: 'promotor' | 'neutro' | 'detrator';
-      avaliacoes?: { nome: string; nota: number }[];
-    }>;
+    const avaliacoes = semana.falae_avaliacoes_detalhes ?? [];
+    const comentarios = semana.falae_comentarios_detalhes ?? [];
     const periodo = `${formatarDataCurta(semana.data_inicio)} - ${formatarDataCurta(semana.data_fim)}`;
 
     setFalaeDialog({
       aberto: true,
       periodo,
-      npsScore: (semana as any).falae_nps_score ?? null,
-      totalRespostas: Number((semana as any).falae_respostas_total || 0),
-      promotores: Number((semana as any).falae_promotores_total || 0),
-      neutros: Number((semana as any).falae_neutros_total || 0),
-      detratores: Number((semana as any).falae_detratores_total || 0),
+      npsScore: semana.falae_nps_score ?? null,
+      totalRespostas: Number(semana.falae_respostas_total || 0),
+      promotores: Number(semana.falae_promotores_total || 0),
+      neutros: Number(semana.falae_neutros_total || 0),
+      detratores: Number(semana.falae_detratores_total || 0),
       avaliacoes,
       comentarios,
     });
@@ -1143,7 +1151,7 @@ export function DesempenhoClient({
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: barId }))
+            'x-selected-bar-id': String(barId || '')
           },
           body: JSON.stringify({ id: semanaId, [campo]: numValue })
         });
@@ -1172,12 +1180,15 @@ export function DesempenhoClient({
   };
 
   // Helper para obter valor considerando override local
-  const getValorComOverride = (semana: DadosSemana, key: string): any => {
+  const getValorComOverride = (semana: DadosSemana, key: string): unknown => {
     const semanaId = semana.id?.toString() || '';
     if (valoresLocais[semanaId]?.[key] !== undefined) {
       return valoresLocais[semanaId][key];
     }
-    return (semana as any)[key];
+    if (key in semana) {
+      return semana[key as keyof DadosSemana];
+    }
+    return undefined;
   };
 
   // Se não houver dados e não estiver carregando (mas loading é false inicialmente)
@@ -1437,7 +1448,7 @@ export function DesempenhoClient({
                                const valorAgregado = !hierarquico ? calcularValorAgregado(grupo, semana) : null;
                                const valorAgregadoFormatado = valorAgregado !== null && grupo.agregacao ? formatarValor(valorAgregado, grupo.agregacao.formato, grupo.agregacao.sufixo) : '-';
                                const valorPrincipalFormatado = hierarquico && metricaPrincipal?.formato === 'reservas' 
-                                  ? (valorPrincipal !== null && valorPrincipal !== undefined ? `${Math.round(valorPrincipal)}/${valorPessoasPrincipal !== null && valorPessoasPrincipal !== undefined ? Math.round(valorPessoasPrincipal) : '-'}` : '-')
+                                  ? (valorPrincipal !== null && valorPrincipal !== undefined ? `${Math.round(numeroMetrica(valorPrincipal))}/${valorPessoasPrincipal !== null && valorPessoasPrincipal !== undefined ? Math.round(numeroMetrica(valorPessoasPrincipal)) : '-'}` : '-')
                                   : hierarquico ? formatarValor(valorPrincipal, metricaPrincipal?.formato || 'numero', metricaPrincipal?.sufixo) : null;
 
                                return (
@@ -1460,8 +1471,8 @@ export function DesempenhoClient({
                                                     <div className="flex items-center justify-center gap-1">
                                                       <span className={cn("text-xs font-medium text-center cursor-help", getCorMeta(verificarMeta(valorPrincipal, metricaPrincipal.key, metas)))}>{valorPrincipalFormatado}</span>
                                                       {metricaPrincipal.key === 'faturamento_total' && visao === 'semanal' && (() => {
-                                                        const metaSemanal = getValorComOverride(semana, 'meta_semanal') || 0;
-                                                        const faturamentoTotal = valorPrincipal || 0;
+                                                        const metaSemanal = numeroMetrica(getValorComOverride(semana, 'meta_semanal'));
+                                                        const faturamentoTotal = numeroMetrica(valorPrincipal);
                                                         if (metaSemanal > 0 && faturamentoTotal > 0) {
                                                           const percentualAtingido = Math.round((faturamentoTotal / metaSemanal) * 100);
                                                           const acimaMeta = percentualAtingido >= 100;
@@ -1485,10 +1496,10 @@ export function DesempenhoClient({
                                                       <p className="text-xs"><strong>Fonte:</strong> {metricaPrincipal.fonte}</p>
                                                       <p className="text-xs"><strong>Cálculo:</strong> {metricaPrincipal.calculo}</p>
                                                       {metricaPrincipal.key === 'faturamento_total' && (() => {
-                                                        const contaAssinada = getValorComOverride(semana, 'conta_assinada_valor') || 0;
-                                                        const faturamentoTotal = valorPrincipal || 0;
+                                                        const contaAssinada = numeroMetrica(getValorComOverride(semana, 'conta_assinada_valor'));
+                                                        const faturamentoTotal = numeroMetrica(valorPrincipal);
                                                         const faturamentoBruto = faturamentoTotal + contaAssinada;
-                                                        const metaSemanal = visao === 'semanal' ? (getValorComOverride(semana, 'meta_semanal') || 0) : 0;
+                                                        const metaSemanal = visao === 'semanal' ? numeroMetrica(getValorComOverride(semana, 'meta_semanal')) : 0;
                                                         const percentualAtingido = metaSemanal > 0 ? Math.round((faturamentoTotal / metaSemanal) * 100) : 0;
                                                         return (
                                                           <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600 space-y-1">
@@ -1547,7 +1558,7 @@ export function DesempenhoClient({
                                             </TooltipProvider>
                                           )}
                                            {hierarquico && !isEditandoPrincipal && metricaPrincipal?.editavel && semana.id && (
-                                               <Button size="icon" variant="ghost" className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setEditando({ semanaId: semana.id!, campo: metricaPrincipal.key }); setValorEdit(valorPrincipal?.toString().replace('.', ',') || ''); }}><Pencil className="h-3 w-3 text-blue-600" /></Button>
+                                               <Button size="icon" variant="ghost" className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setEditando({ semanaId: semana.id!, campo: metricaPrincipal.key }); setValorEdit(valorPrincipal !== null && valorPrincipal !== undefined ? String(valorPrincipal).replace('.', ',') : ''); }}><Pencil className="h-3 w-3 text-blue-600" /></Button>
                                            )}
                                         </div>
                                      )}
@@ -1557,7 +1568,7 @@ export function DesempenhoClient({
                                         const valorPercentual = metrica.keyPercentual ? getValorComOverride(semana, metrica.keyPercentual) : null;
                                         const valorPercentualKey = metrica.percentualKey ? getValorComOverride(semana, metrica.percentualKey) : null;
                                         const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
-                                       let valorFormatado = metrica.formato === 'reservas' ? (valor !== null && valor !== undefined ? `${Math.round(valor)}/${valorPessoas !== null && valorPessoas !== undefined ? Math.round(valorPessoas) : '-'}` : '-') : formatarValor(valor, metrica.formato, metrica.sufixo);
+                                       let valorFormatado = metrica.formato === 'reservas' ? (valor !== null && valor !== undefined ? `${Math.round(numeroMetrica(valor))}/${valorPessoas !== null && valorPessoas !== undefined ? Math.round(numeroMetrica(valorPessoas)) : '-'}` : '-') : formatarValor(valor, metrica.formato, metrica.sufixo);
                                       if (metrica.keyPercentual && valorPercentual !== null && valorPercentual !== undefined && typeof valorPercentual === 'number' && valor !== null && valor !== undefined) valorFormatado = `${formatarValor(valor, 'numero')} (${valorPercentual.toFixed(1)}%)`;
                                       // Mostrar número de respostas ao lado do NPS (ex: "80 (40)")
                                       if (metrica.respostasKey && valor !== null && valor !== undefined) {
@@ -1568,7 +1579,7 @@ export function DesempenhoClient({
                                       }
                                       // Formato moeda_com_percentual: R$ 27.520 (3,5%)
                                        if (metrica.formato === 'moeda_com_percentual' && valor !== null && valor !== undefined) {
-                                         const moedaFormatada = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(valor);
+                                         const moedaFormatada = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(numeroMetrica(valor));
                                          if (valorPercentualKey !== null && valorPercentualKey !== undefined && typeof valorPercentualKey === 'number') {
                                            valorFormatado = `${moedaFormatada} (${valorPercentualKey.toFixed(1)}%)`;
                                          } else {
@@ -1600,7 +1611,7 @@ export function DesempenhoClient({
                                                 >
                                                   {valorFormatado}
                                                 </button>
-                                              ) : (metrica as any).temTooltipFaturamento ? (
+                                              ) : metrica.temTooltipFaturamento ? (
                                                 <TooltipProvider>
                                                   <Tooltip>
                                                     <TooltipTrigger asChild>
@@ -1614,8 +1625,8 @@ export function DesempenhoClient({
                                                         <p className="text-xs"><strong>Fonte:</strong> {metrica.fonte}</p>
                                                         <p className="text-xs"><strong>Cálculo:</strong> {metrica.calculo}</p>
                                                         {(() => {
-                                                          const contaAssinada = getValorComOverride(semana, 'conta_assinada_valor') || 0;
-                                                          const faturamentoTotal = valor || 0;
+                                                          const contaAssinada = numeroMetrica(getValorComOverride(semana, 'conta_assinada_valor'));
+                                                          const faturamentoTotal = numeroMetrica(valor);
                                                           const faturamentoBruto = faturamentoTotal + contaAssinada;
                                                           return (
                                                             <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600 space-y-1">
@@ -1680,7 +1691,7 @@ export function DesempenhoClient({
                                                           <p className="text-xs"><strong>Percentual:</strong> {valorPercentual.toFixed(1)}%</p>
                                                         )}
                                                         {(() => {
-                                                          const detalhesKey = (metrica as any).detalhesKey || metrica.key + '_detalhes';
+                                                          const detalhesKey = metrica.detalhesKey || metrica.key + '_detalhes';
                                                           const detalhes = (semana as unknown as Record<string, unknown>)[detalhesKey];
                                                           if (!detalhes || !Array.isArray(detalhes) || detalhes.length === 0) return null;
                                                           const primeiro = detalhes[0] as Record<string, unknown>;

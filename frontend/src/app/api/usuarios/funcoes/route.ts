@@ -32,8 +32,6 @@ const FUNCOES_DISPONIVEL = [
 
 export async function GET() {
   try {
-    console.log('📊 GET /api/usuarios/funcoes - Buscando funções disponíveis');
-
     // Aqui você pode adicionar lógica para buscar funções específicas por bar
     // ou implementar diferentes tipos de funções baseadas no plano do bar
 

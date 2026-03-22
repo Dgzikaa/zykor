@@ -1,12 +1,18 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { DadosSemana } from '../types';
+import {
+  CmvSemanalRow,
+  DadosSemana,
+  DescontosSemanaAgregados,
+  MarketingSemanalRow,
+  PaginatedFilter,
+} from '../types';
 
 // Helper for pagination
 async function fetchAllPaginated<T>(
   supabase: SupabaseClient,
   table: string,
   select: string,
-  filters: { column: string; operator: string; value: any }[],
+  filters: PaginatedFilter[],
   pageSize: number = 1000
 ): Promise<T[]> {
   let allData: T[] = [];
@@ -89,8 +95,10 @@ export async function getSemanas(
 
   const { data: marketingData } = await marketingQuery;
 
-  const marketingMap = new Map<string, any>();
-  marketingData?.forEach(m => marketingMap.set(`${m.ano}-${m.semana}`, m));
+  const marketingMap = new Map<string, MarketingSemanalRow>();
+  (marketingData as MarketingSemanalRow[] | null | undefined)?.forEach((m) =>
+    marketingMap.set(`${m.ano}-${m.semana}`, m)
+  );
 
   // Buscar CMV Semanal
   let cmvQuery = supabase
@@ -104,8 +112,8 @@ export async function getSemanas(
 
   const { data: cmvData } = await cmvQuery;
 
-  const cmvMap = new Map<string, any>();
-  cmvData?.forEach(c => cmvMap.set(`${c.ano}-${c.semana}`, c));
+  const cmvMap = new Map<string, CmvSemanalRow>();
+  (cmvData as CmvSemanalRow[] | null | undefined)?.forEach((c) => cmvMap.set(`${c.ano}-${c.semana}`, c));
 
   // Buscar Pagamentos e Descontos (Otimização: filtrar pelo range de datas das semanas encontradas)
   const datas = semanas.map(s => ({ inicio: s.data_inicio, fim: s.data_fim }));
@@ -113,7 +121,7 @@ export async function getSemanas(
   const dataMax = datas.reduce((max, d) => d.fim > max ? d.fim : max, datas[0].fim);
 
   const contaAssinadaMap = new Map<string, number>();
-  const descontosMap = new Map<string, any>();
+  const descontosMap = new Map<string, DescontosSemanaAgregados>();
   const falaeNpsMap = new Map<string, { respostas: number; promotores: number; detratores: number; mediaPonderada: number }>();
   const falaeDetalhesMap = new Map<
     string,
@@ -130,54 +138,54 @@ export async function getSemanas(
   >();
 
   if (dataMin && dataMax) {
-    // Conta Assinada
-    const pagamentos = await fetchAllPaginated<{ dt_gerencial: string; valor: number }>(
+    // Conta Assinada (de faturamento_pagamentos - tabela final)
+    const pagamentos = await fetchAllPaginated<{ data_pagamento: string; valor_bruto: number }>(
       supabase,
-      'contahub_pagamentos',
-      'dt_gerencial, valor',
+      'faturamento_pagamentos',
+      'data_pagamento, valor_bruto',
       [
         { column: 'bar_id', operator: 'eq', value: barId },
         { column: 'meio', operator: 'eq', value: 'Conta Assinada' },
-        { column: 'dt_gerencial', operator: 'gte', value: dataMin },
-        { column: 'dt_gerencial', operator: 'lte', value: dataMax },
+        { column: 'data_pagamento', operator: 'gte', value: dataMin },
+        { column: 'data_pagamento', operator: 'lte', value: dataMax },
       ]
     );
 
     pagamentos.forEach(p => {
-      const semana = semanas.find(s => p.dt_gerencial >= s.data_inicio && p.dt_gerencial <= s.data_fim);
+      const semana = semanas.find(s => p.data_pagamento >= s.data_inicio && p.data_pagamento <= s.data_fim);
       if (semana) {
         const key = `${semana.ano}-${semana.numero_semana}`;
-        contaAssinadaMap.set(key, (contaAssinadaMap.get(key) || 0) + Number(p.valor || 0));
+        contaAssinadaMap.set(key, (contaAssinadaMap.get(key) || 0) + Number(p.valor_bruto || 0));
       }
     });
 
-    // Descontos
-    const descontos = await fetchAllPaginated<{ dt_gerencial: string; vr_desconto: number; motivo: string }>(
+    // Descontos (de visitas - tabela final)
+    const descontos = await fetchAllPaginated<{ data_visita: string; valor_desconto: number; motivo: string }>(
       supabase,
-      'contahub_periodo',
-      'dt_gerencial, vr_desconto, motivo',
+      'visitas',
+      'data_visita, valor_desconto, motivo',
       [
         { column: 'bar_id', operator: 'eq', value: barId },
-        { column: 'vr_desconto', operator: 'gt', value: 0 },
-        { column: 'dt_gerencial', operator: 'gte', value: dataMin },
-        { column: 'dt_gerencial', operator: 'lte', value: dataMax },
+        { column: 'valor_desconto', operator: 'gt', value: 0 },
+        { column: 'data_visita', operator: 'gte', value: dataMin },
+        { column: 'data_visita', operator: 'lte', value: dataMax },
       ]
     );
 
     // Processar descontos (agrupamento)
     descontos.forEach(d => {
-      const semana = semanas.find(s => d.dt_gerencial >= s.data_inicio && d.dt_gerencial <= s.data_fim);
+      const semana = semanas.find(s => d.data_visita >= s.data_inicio && d.data_visita <= s.data_fim);
       if (semana) {
         const key = `${semana.ano}-${semana.numero_semana}`;
-        const valor = Number(d.vr_desconto || 0);
+        const valor = Number(d.valor_desconto || 0);
         const motivo = d.motivo || 'Sem motivo';
-        const data = new Date(d.dt_gerencial + 'T00:00:00');
+        const data = new Date(d.data_visita + 'T00:00:00');
         const diaSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][data.getDay()];
 
         if (!descontosMap.has(key)) {
           descontosMap.set(key, { valor: 0, detalhes: new Map() });
         }
-        const semanaData = descontosMap.get(key);
+        const semanaData = descontosMap.get(key)!;
         semanaData.valor += valor;
 
         // Agrupamento inteligente
@@ -186,14 +194,14 @@ export async function getSemanas(
         if (!semanaData.detalhes.has(categoria)) {
           semanaData.detalhes.set(categoria, { motivo_exibicao: exibicao, valor: 0, qtd: 0, por_dia: new Map() });
         }
-        const motivoData = semanaData.detalhes.get(categoria);
+        const motivoData = semanaData.detalhes.get(categoria)!;
         motivoData.valor += valor;
         motivoData.qtd += 1;
 
         if (!motivoData.por_dia.has(diaSemana)) {
           motivoData.por_dia.set(diaSemana, { valor: 0, qtd: 0 });
         }
-        const diaData = motivoData.por_dia.get(diaSemana);
+        const diaData = motivoData.por_dia.get(diaSemana)!;
         diaData.valor += valor;
         diaData.qtd += 1;
       }
@@ -238,7 +246,7 @@ export async function getSemanas(
     const falaeRespostas = await fetchAllPaginated<{
       created_at: string;
       nps: number;
-      criterios: any;
+      criterios: unknown;
       discursive_question: string | null;
     }>(
       supabase,
@@ -265,13 +273,13 @@ export async function getSemanas(
       }
 
       const bucket = falaeDetalhesMap.get(key)!;
-      const criterios = Array.isArray(r.criterios) ? r.criterios : [];
+      const criterios: unknown[] = Array.isArray(r.criterios) ? r.criterios : [];
       const avaliacoesDaResposta: { nome: string; nota: number }[] = [];
-      criterios.forEach((c: any) => {
-        if (c?.type !== 'Rating') return;
-        const valor = typeof c?.name === 'number' ? c.name : parseFloat(String(c?.name ?? ''));
+      criterios.forEach((c: unknown) => {
+        if (!isPlainRecord(c) || c.type !== 'Rating') return;
+        const valor = typeof c.name === 'number' ? c.name : parseFloat(String(c.name ?? ''));
         if (!Number.isFinite(valor)) return;
-        const nome = String(c?.nick || c?.title || c?.question || 'Geral').trim();
+        const nome = String(c.nick ?? c.title ?? c.question ?? 'Geral').trim();
         const nomeFinal = nome || 'Geral';
         avaliacoesDaResposta.push({
           nome: nomeFinal,
@@ -319,12 +327,12 @@ export async function getSemanas(
     
     // Detalhes Descontos
     const descontosDetalhes = descontosData 
-      ? Array.from(descontosData.detalhes.entries() as Iterable<[string, any]>)
+      ? Array.from(descontosData.detalhes.entries())
           .map(([_, data]) => ({ 
             motivo: data.motivo_exibicao,
             valor: data.valor, 
             qtd: data.qtd,
-            por_dia: Array.from(data.por_dia.entries() as Iterable<[string, any]>)
+            por_dia: Array.from(data.por_dia.entries())
               .map(([dia, diaData]) => ({ 
                 dia_semana: dia, 
                 valor: diaData.valor, 
@@ -464,6 +472,10 @@ function getWeekAndYear(date: Date): { semana: number; ano: number } {
   const semana = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
   const ano = d.getUTCFullYear();
   return { semana, ano };
+}
+
+function isPlainRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 function agruparMotivo(motivo: string): { categoria: string; exibicao: string } {

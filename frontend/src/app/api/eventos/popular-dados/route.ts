@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getMediaM1, getTePlan, getTbPlan } from '@/lib/eventos-rules'
+import { 
+  getMetaM1Server, 
+  getTePlanServer, 
+  getTbPlanServer
+} from '@/lib/eventos-rules'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,10 +45,10 @@ export async function POST(request: NextRequest) {
     for (const evento of eventos || []) {
       const dataEvento = new Date(evento.data_evento)
       
-      // Aplicar regras de negócio
-      const m1_r = getMediaM1(dataEvento)
-      const te_plan = getTePlan(dataEvento)
-      const tb_plan = getTbPlan(dataEvento)
+      // ONDA 2B: Buscar metas do banco via supabase (server-side)
+      const m1_r = await getMetaM1Server(supabase, dataEvento, barId)
+      const te_plan = await getTePlanServer(supabase, dataEvento, barId)
+      const tb_plan = await getTbPlanServer(supabase, dataEvento, barId)
       
       // Dados mockados para custos (serão substituídos pela integração com Nibo)
       const c_art = 0 // Será calculado via Nibo

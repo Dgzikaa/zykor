@@ -58,10 +58,17 @@ export async function POST(request: NextRequest) {
       data_competencia,
       categoria_id,
       centro_custo_id,
-      bar_id = 3
+      bar_id
     } = await request.json();
 
     // Validações obrigatórias
+    if (!bar_id) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
+
     if (!stakeholder_id) {
       return NextResponse.json(
         { success: false, error: 'stakeholder_id é obrigatório. Busque o stakeholder primeiro.' },
@@ -90,8 +97,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`[AGENDAR-NIBO] Agendando para ${nome_beneficiario || stakeholder_nome}, bar_id=${bar_id}`);
-
+    
     const credencial = await getNiboCredentials(bar_id);
     if (!credencial) {
       return NextResponse.json(
@@ -151,15 +157,13 @@ export async function POST(request: NextRequest) {
     };
 
     let schedulePayload = buildPayload(valorNegativo);
-    console.log('[AGENDAR-NIBO] Payload (negativo):', JSON.stringify(schedulePayload, null, 2));
-    let { response, responseText } = await postSchedule(schedulePayload);
+        let { response, responseText } = await postSchedule(schedulePayload);
 
     if (!response.ok && responseText.includes('Valor do agendamento de pagamento deve ser negativo')) {
       const valorPositivo = Math.abs(valorNumerico);
       schedulePayload = buildPayload(valorPositivo);
       console.warn('[AGENDAR-NIBO] NIBO rejeitou negativo, tentando fallback com valor positivo');
-      console.log('[AGENDAR-NIBO] Payload (fallback positivo):', JSON.stringify(schedulePayload, null, 2));
-      const retry = await postSchedule(schedulePayload);
+            const retry = await postSchedule(schedulePayload);
       response = retry.response;
       responseText = retry.responseText;
     }
@@ -185,8 +189,7 @@ export async function POST(request: NextRequest) {
     // NIBO retorna o ID como texto puro (UUID)
     const niboId = responseText.replace(/"/g, '').trim();
     
-    console.log('[AGENDAR-NIBO] Agendamento criado:', niboId);
-
+    
     // Salvar no banco local
     await supabase.from('nibo_agendamentos').insert({
       nibo_id: niboId,

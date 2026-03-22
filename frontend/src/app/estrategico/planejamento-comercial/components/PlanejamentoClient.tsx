@@ -46,7 +46,9 @@ import {
   ChevronDown,
   ChevronRight,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Pencil,
+  Check
 } from 'lucide-react';
 import { PlanejamentoData } from '../services/planejamento-service';
 
@@ -122,6 +124,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
     try {
       const response = await apiCall(`/api/eventos/${eventoId}/update`, {
         method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-selected-bar-id': String(selectedBar?.id || '')
+        },
         body: JSON.stringify({ [campo]: valor }),
       });
       
@@ -129,9 +135,14 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
         setDados(prev => prev.map(e => 
           e.evento_id === eventoId ? { ...e, [campo]: valor } : e
         ));
+        console.log(`✅ Reserva ${campo} atualizada para ${valor}`);
+      } else {
+        console.error('❌ Erro ao salvar reserva:', response.error);
+        alert('Erro ao salvar reserva. Tente novamente.');
       }
     } catch (error) {
       console.error('Erro ao salvar reserva:', error);
+      alert('Erro ao salvar reserva. Tente novamente.');
     }
     setEditandoReservas(null);
     setValorReservaTemp('');
@@ -189,14 +200,14 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
     
     const promises = [
       apiCall(`/api/estrategico/atrasos-evento?data=${evento.data_evento}`, {
-        headers: { 'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id })) }
+        headers: { 'x-selected-bar-id': String(selectedBar?.id || '') }
       }).catch(() => ({ success: false, data: { atrasos_cozinha: 0, atrasos_bar: 0 } }))
     ];
     
     if (isDomingo) {
       promises.push(
         apiCall(`/api/eventos/${evento.evento_id}`, {
-          headers: { 'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id })) }
+          headers: { 'x-selected-bar-id': String(selectedBar?.id || '') }
         }).catch(() => ({ data: null }))
       );
     }
@@ -271,7 +282,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
       setSalvando(true);
       await apiCall(`/api/eventos/${eventoEdicao.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id })) },
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar?.id || '') },
         body: JSON.stringify({
           nome: eventoEdicao.nome,
           m1_r: eventoEdicao.m1_r,
@@ -285,7 +296,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
 
       await apiCall(`/api/eventos/${eventoEdicao.id}/valores-reais`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id })) },
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar?.id || '') },
         body: JSON.stringify({
           real_r: eventoEdicao.real_r || 0,
           cl_real: eventoEdicao.cl_real || 0,
@@ -452,7 +463,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                     <thead className="bg-[hsl(var(--muted))]/50">
                       {/* Primeira linha - Grupos colapsáveis */}
                       <tr className="sticky top-0 z-30 bg-[hsl(var(--muted))]/95 backdrop-blur-sm border-b-2 border-[hsl(var(--border))]">
-                        <th colSpan={5} className="border-r-2 border-[hsl(var(--border))] bg-[hsl(var(--muted))]/50"></th>
+                        <th colSpan={5} className="border-r-2 border-[hsl(var(--border))] bg-[hsl(var(--muted))]/95 sticky left-0 z-40" style={{minWidth: '446px'}}></th>
 
                         {/* Grupo CLIENTES */}
                         <th
@@ -511,12 +522,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                       
                       {/* Segunda linha - Headers principais e subcolunas */}
                       <tr className="sticky top-[32px] z-30 bg-[hsl(var(--muted))]/95 backdrop-blur-sm border-b border-[hsl(var(--border))]">
-                        {/* Colunas Fixas */}
+                        {/* Colunas Fixas (5 primeiras: Data, Dia, Artista, Receita Real, Meta M1) */}
                         <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-0 bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>Data</th>
                         <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[48px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>Dia</th>
                         <th className="px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[86px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '140px', minWidth: '140px', maxWidth: '140px'}}>Artista</th>
                         <th className="px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[226px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Receita Real</th>
-                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Meta M1</th>
+                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))] sticky left-[336px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Meta M1</th>
                         
                         {/* Subcolunas CLIENTES */}
                         {gruposAbertos.clientes ? (
@@ -645,19 +656,19 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                               isNewWeek ? 'border-t-4 border-[hsl(var(--border))]' : ''
                             } ${
                               linhaHighlight === idx
-                                ? 'bg-blue-100 dark:bg-blue-900/40 ring-1 ring-blue-400/50 ring-inset'
-                                : 'hover:bg-blue-50/50 dark:hover:bg-blue-900/20'
+                                ? 'bg-blue-200 dark:bg-blue-800/60 ring-2 ring-blue-500 ring-inset shadow-sm'
+                                : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'
                             }`}
                           >
-                            {/* Colunas Fixas (Data, Dia, Artista, Receita Real) */}
-                            <td className={`px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))] sticky left-0 z-10 transition-colors ${linhaHighlight === idx ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-[hsl(var(--background))] group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/20'}`} style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>{evento.data_curta}</td>
-                            <td className={`px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] sticky left-[48px] z-10 transition-colors ${linhaHighlight === idx ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-[hsl(var(--background))] group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/20'}`} style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
-                            <td className={`px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))] sticky left-[86px] z-10 truncate transition-colors ${linhaHighlight === idx ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-[hsl(var(--background))] group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/20'}`} style={{width: '140px', minWidth: '140px', maxWidth: '140px'}} title={evento.evento_nome || 'Sem atração'}>{evento.evento_nome || '-'}</td>
+                            {/* Colunas Fixas (Data, Dia, Artista, Receita Real, Meta M1) */}
+                            <td className={`px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))] sticky left-0 z-10 transition-colors ${linhaHighlight === idx ? 'bg-blue-200 dark:bg-blue-800/60' : 'bg-[hsl(var(--background))] group-hover:bg-blue-100/70 dark:group-hover:bg-blue-900/30'}`} style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>{evento.data_curta}</td>
+                            <td className={`px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] sticky left-[48px] z-10 transition-colors ${linhaHighlight === idx ? 'bg-blue-200 dark:bg-blue-800/60' : 'bg-[hsl(var(--background))] group-hover:bg-blue-100/70 dark:group-hover:bg-blue-900/30'}`} style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
+                            <td className={`px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))] sticky left-[86px] z-10 truncate transition-colors ${linhaHighlight === idx ? 'bg-blue-200 dark:bg-blue-800/60' : 'bg-[hsl(var(--background))] group-hover:bg-blue-100/70 dark:group-hover:bg-blue-900/30'}`} style={{width: '140px', minWidth: '140px', maxWidth: '140px'}} title={evento.evento_nome || 'Sem atração'}>{evento.evento_nome || '-'}</td>
                             <td 
                               onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('real_receita'); }}
                               className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] sticky left-[226px] z-10 transition-colors cursor-pointer ${
-                                linhaHighlight === idx ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-[hsl(var(--background))] group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/20'
-                              } ${colunaHighlight === 'real_receita' ? 'ring-2 ring-inset ring-blue-500/50' : ''}`} 
+                                linhaHighlight === idx ? 'bg-blue-200 dark:bg-blue-800/60' : 'bg-[hsl(var(--background))] group-hover:bg-blue-100/70 dark:group-hover:bg-blue-900/30'
+                              } ${colunaHighlight === 'real_receita' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : ''}`} 
                               style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>
                               {evento.real_receita > 0 ? (
                                 <Tooltip>
@@ -702,7 +713,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             </td>
                             <td 
                               onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('m1_receita'); }}
-                              className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-900/20 ${colunaHighlight === 'm1_receita' ? 'ring-2 ring-inset ring-blue-500/50 bg-blue-50 dark:bg-blue-900/30' : ''}`} 
+                              className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] sticky left-[336px] z-10 cursor-pointer transition-colors ${
+                                linhaHighlight === idx ? 'bg-blue-200 dark:bg-blue-800/60' : 'bg-[hsl(var(--background))] group-hover:bg-blue-100/70 dark:group-hover:bg-blue-900/30'
+                              } ${colunaHighlight === 'm1_receita' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : ''}`} 
                               style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
                             
                             {/* Grupo CLIENTES */}
@@ -710,63 +723,87 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                               <>
                                 <td 
                                   onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('clientes_plan'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-900/20 ${colunaHighlight === 'clientes_plan' ? 'ring-2 ring-inset ring-blue-500/50 bg-blue-50 dark:bg-blue-900/30' : ''}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'clientes_plan' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.clientes_plan || '-'}</td>
                                 <td 
                                   onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('clientes_real'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-900/20 ${colunaHighlight === 'clientes_real' ? 'ring-2 ring-inset ring-blue-500/50 bg-blue-50 dark:bg-blue-900/30' : ''}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'clientes_real' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.ci_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.clientes_real || '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('res_tot'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'res_tot' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>
                                   {selectedBar?.id === 4 ? (
                                     editandoReservas?.id === evento.evento_id && editandoReservas?.campo === 'res_tot' ? (
-                                      <input
-                                        type="number"
-                                        className="w-16 px-1 py-0.5 text-center text-[11px] border rounded bg-[hsl(var(--background))]"
-                                        value={valorReservaTemp}
-                                        onChange={(e) => setValorReservaTemp(e.target.value)}
-                                        onBlur={() => salvarReservaInline(evento.evento_id, 'res_tot', parseInt(valorReservaTemp) || 0)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') salvarReservaInline(evento.evento_id, 'res_tot', parseInt(valorReservaTemp) || 0);
-                                          if (e.key === 'Escape') { setEditandoReservas(null); setValorReservaTemp(''); }
-                                        }}
-                                        autoFocus
-                                        onClick={(e) => e.stopPropagation()}
-                                      />
+                                      <div className="flex items-center justify-center gap-1">
+                                        <input
+                                          type="number"
+                                          className="w-14 px-1 py-0.5 text-center text-[11px] border border-blue-400 rounded bg-[hsl(var(--background))] focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                          value={valorReservaTemp}
+                                          onChange={(e) => setValorReservaTemp(e.target.value)}
+                                          onBlur={() => salvarReservaInline(evento.evento_id, 'res_tot', parseInt(valorReservaTemp) || 0)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') salvarReservaInline(evento.evento_id, 'res_tot', parseInt(valorReservaTemp) || 0);
+                                            if (e.key === 'Escape') { setEditandoReservas(null); setValorReservaTemp(''); }
+                                          }}
+                                          autoFocus
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); salvarReservaInline(evento.evento_id, 'res_tot', parseInt(valorReservaTemp) || 0); }}
+                                          className="p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900/40 text-green-600"
+                                        >
+                                          <Check className="h-3 w-3" />
+                                        </button>
+                                      </div>
                                     ) : (
-                                      <span 
-                                        className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/40 px-2 py-0.5 rounded"
+                                      <div 
+                                        className="flex items-center justify-center gap-1 cursor-pointer group/edit hover:bg-amber-50 dark:hover:bg-amber-900/30 px-1 py-0.5 rounded transition-colors"
                                         onClick={(e) => { e.stopPropagation(); setEditandoReservas({id: evento.evento_id, campo: 'res_tot'}); setValorReservaTemp(String(evento.res_tot || 0)); }}
                                       >
-                                        {evento.res_tot || '-'}
-                                      </span>
+                                        <span className="font-medium">{evento.res_tot || '0'}</span>
+                                        <Pencil className="h-3 w-3 text-amber-500 opacity-50 group-hover/edit:opacity-100 transition-opacity" />
+                                      </div>
                                     )
                                   ) : (
                                     evento.res_tot || '-'
                                   )}
                                 </td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))] " style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('res_p'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'res_p' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>
                                   {selectedBar?.id === 4 ? (
                                     editandoReservas?.id === evento.evento_id && editandoReservas?.campo === 'res_p' ? (
-                                      <input
-                                        type="number"
-                                        className="w-16 px-1 py-0.5 text-center text-[11px] border rounded bg-[hsl(var(--background))]"
-                                        value={valorReservaTemp}
-                                        onChange={(e) => setValorReservaTemp(e.target.value)}
-                                        onBlur={() => salvarReservaInline(evento.evento_id, 'res_p', parseInt(valorReservaTemp) || 0)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') salvarReservaInline(evento.evento_id, 'res_p', parseInt(valorReservaTemp) || 0);
-                                          if (e.key === 'Escape') { setEditandoReservas(null); setValorReservaTemp(''); }
-                                        }}
-                                        autoFocus
-                                        onClick={(e) => e.stopPropagation()}
-                                      />
+                                      <div className="flex items-center justify-center gap-1">
+                                        <input
+                                          type="number"
+                                          className="w-14 px-1 py-0.5 text-center text-[11px] border border-blue-400 rounded bg-[hsl(var(--background))] focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                          value={valorReservaTemp}
+                                          onChange={(e) => setValorReservaTemp(e.target.value)}
+                                          onBlur={() => salvarReservaInline(evento.evento_id, 'res_p', parseInt(valorReservaTemp) || 0)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') salvarReservaInline(evento.evento_id, 'res_p', parseInt(valorReservaTemp) || 0);
+                                            if (e.key === 'Escape') { setEditandoReservas(null); setValorReservaTemp(''); }
+                                          }}
+                                          autoFocus
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); salvarReservaInline(evento.evento_id, 'res_p', parseInt(valorReservaTemp) || 0); }}
+                                          className="p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900/40 text-green-600"
+                                        >
+                                          <Check className="h-3 w-3" />
+                                        </button>
+                                      </div>
                                     ) : (
-                                      <span 
-                                        className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/40 px-2 py-0.5 rounded"
+                                      <div 
+                                        className="flex items-center justify-center gap-1 cursor-pointer group/edit hover:bg-amber-50 dark:hover:bg-amber-900/30 px-1 py-0.5 rounded transition-colors"
                                         onClick={(e) => { e.stopPropagation(); setEditandoReservas({id: evento.evento_id, campo: 'res_p'}); setValorReservaTemp(String(evento.res_p || 0)); }}
                                       >
-                                        {evento.res_p || '-'}
-                                      </span>
+                                        <span className="font-medium">{evento.res_p || '0'}</span>
+                                        <Pencil className="h-3 w-3 text-amber-500 opacity-50 group-hover/edit:opacity-100 transition-opacity" />
+                                      </div>
                                     )
                                   ) : (
                                     evento.res_p || '-'
@@ -774,26 +811,44 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                 </td>
                               </>
                             ) : (
-                              <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] " style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
+                              <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
                             )}
                             
                             {/* Grupo TICKET */}
                             {gruposAbertos.ticket ? (
                               <>
-                                <td className="px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.te_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.te_real > 0 ? formatarMoeda(evento.te_real) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.tb_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.tb_real > 0 ? formatarMoeda(evento.tb_real) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-right text-[11px] border-r-2 border-[hsl(var(--border))] " style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.t_medio_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_medio > 0 ? formatarMoeda(evento.t_medio) : '-'}</span></td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('te_real'); }}
+                                  className={`px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'te_real' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.te_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.te_real > 0 ? formatarMoeda(evento.te_real) : '-'}</span></td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('tb_real'); }}
+                                  className={`px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'tb_real' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.tb_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.tb_real > 0 ? formatarMoeda(evento.tb_real) : '-'}</span></td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('t_medio'); }}
+                                  className={`px-2 py-1.5 text-right text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 't_medio' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.t_medio_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_medio > 0 ? formatarMoeda(evento.t_medio) : '-'}</span></td>
                               </>
                             ) : (
-                              <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] " style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
+                              <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
                             )}
                             
                             {/* Grupo ARTÍSTICO */}
                             {gruposAbertos.artistico ? (
                               <>
-                                <td className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_art > 0 ? formatarMoeda(evento.c_art) : '-'}</td>
-                                <td className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.faturamento_couvert > 0 ? formatarMoeda(evento.faturamento_couvert) : '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_art_fat_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_art_fat > 0 ? formatarPercentual(evento.percent_art_fat) : '-'}</span></td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('c_art'); }}
+                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_art' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_art > 0 ? formatarMoeda(evento.c_art) : '-'}</td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('faturamento_couvert'); }}
+                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'faturamento_couvert' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.faturamento_couvert > 0 ? formatarMoeda(evento.faturamento_couvert) : '-'}</td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('percent_art_fat'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_art_fat' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_art_fat_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_art_fat > 0 ? formatarPercentual(evento.percent_art_fat) : '-'}</span></td>
                               </>
                             ) : (
                               <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
@@ -802,13 +857,34 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             {/* Grupo PRODUÇÃO */}
                             {gruposAbertos.producao ? (
                               <>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_b > 0 ? formatarPercentual(evento.percent_b) : '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_d > 0 ? formatarPercentual(evento.percent_d) : '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_c > 0 ? formatarPercentual(evento.percent_c) : '-'}</td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_cozinha <= 10 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_cozinha > 0 ? formatarContagem(evento.atrasao_cozinha) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_bar <= 50 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_bar > 0 ? formatarContagem(evento.atrasao_bar) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_drinks_perc <= 10 ? 'text-green-600 dark:text-green-400' : evento.stockout_drinks_perc <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_drinks_perc > 0 ? formatarPercentual(evento.stockout_drinks_perc) : '-'}</span></td>
-                                <td className="px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_comidas_perc <= 10 ? 'text-green-600 dark:text-green-400' : evento.stockout_comidas_perc <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_comidas_perc > 0 ? formatarPercentual(evento.stockout_comidas_perc) : '-'}</span></td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('percent_b'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_b' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_b > 0 ? formatarPercentual(evento.percent_b) : '-'}</td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('percent_d'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_d' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_d > 0 ? formatarPercentual(evento.percent_d) : '-'}</td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('percent_c'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_c' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_c > 0 ? formatarPercentual(evento.percent_c) : '-'}</td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('atrasao_cozinha'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'atrasao_cozinha' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_cozinha <= 10 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_cozinha > 0 ? formatarContagem(evento.atrasao_cozinha) : '-'}</span></td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('atrasao_bar'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'atrasao_bar' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_bar <= 50 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_bar > 0 ? formatarContagem(evento.atrasao_bar) : '-'}</span></td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('stockout_drinks'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_drinks' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_drinks_perc <= 10 ? 'text-green-600 dark:text-green-400' : evento.stockout_drinks_perc <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_drinks_perc > 0 ? formatarPercentual(evento.stockout_drinks_perc) : '-'}</span></td>
+                                <td 
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('stockout_comidas'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_comidas' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_comidas_perc <= 10 ? 'text-green-600 dark:text-green-400' : evento.stockout_comidas_perc <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_comidas_perc > 0 ? formatarPercentual(evento.stockout_comidas_perc) : '-'}</span></td>
                               </>
                             ) : (
                               <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>

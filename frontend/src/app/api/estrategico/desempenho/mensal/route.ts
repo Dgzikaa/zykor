@@ -4,6 +4,27 @@ import { getAdminClient } from '@/lib/supabase-admin';
 // Cache por 2 minutos para dados mensais de desempenho
 export const revalidate = 120;
 
+// =====================================================
+// ONDA 2B: Buscar categorias de atração do banco
+// SEM FALLBACK: Se não encontrar, retornar erro 500
+// =====================================================
+async function getCategoriasAtracao(supabase: any, barId: number): Promise<string[] | null> {
+  const { data, error } = await supabase
+    .from('bar_categorias_custo')
+    .select('nome_categoria')
+    .eq('bar_id', barId)
+    .eq('tipo', 'atracao')
+    .eq('ativo', true);
+  
+  if (error || !data || data.length === 0) {
+    console.error(`❌ [ERRO CONFIG] Categorias de atração não encontradas para bar ${barId}. Configure bar_categorias_custo.`);
+    return null;
+  }
+  
+  const categorias = data.map((d: { nome_categoria: string }) => d.nome_categoria);
+  return categorias;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await getAdminClient();
@@ -13,17 +34,12 @@ export async function GET(request: NextRequest) {
     const mes = parseInt(searchParams.get('mes') || (new Date().getMonth() + 1).toString());
     const ano = parseInt(searchParams.get('ano') || new Date().getFullYear().toString());
     
-    // Obter bar_id do header
-    const userDataHeader = request.headers.get('x-user-data');
-    let barId = 3; // Default
+    // Obter bar_id do header x-selected-bar-id
+    const barIdHeader = request.headers.get('x-selected-bar-id');
+    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
     
-    if (userDataHeader) {
-      try {
-        const userData = JSON.parse(decodeURIComponent(userDataHeader));
-        if (userData.bar_id) barId = userData.bar_id;
-      } catch (e) {
-        console.warn('Erro ao parsear user data:', e);
-      }
+    if (!barId) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
     // Datas do mês
@@ -43,22 +59,88 @@ export async function GET(request: NextRequest) {
       console.error('Erro ao buscar eventos diários:', eventosError);
     }
 
-    // Stockout mensal canônico por categoria_mix (fonte: contahub_stockout)
+    // Stockout mensal via view filtrada (mesma lógica do semanal)
     const { data: stockoutMensal, error: stockoutError } = await supabase
-      .from('contahub_stockout')
-      .select('categoria_mix, prd_venda')
+      .from('contahub_stockout_filtrado')
+      .select('categoria_local, prd_venda')
       .eq('bar_id', barId)
       .gte('data_consulta', dataInicio)
-      .lte('data_consulta', dataFim)
-      .eq('prd_ativo', 'S')
-      .in('categoria_mix', ['BEBIDA', 'DRINK', 'COMIDA']);
+      .lte('data_consulta', dataFim);
 
     if (stockoutError) {
       console.error('Erro ao buscar stockout mensal:', stockoutError);
     }
 
-    // Agregar dados diários + stockout canônico do mês
-    const dadosDiarios = agregarDadosDiarios(eventosDiarios || [], stockoutMensal || []);
+    // Mix de vendas mensal direto do ContaHub (mais preciso que eventos_base)
+    const { data: mixMensal, error: mixError } = await supabase
+      .rpc('calcular_mix_vendas', {
+        p_bar_id: barId,
+        p_data_inicio: dataInicio,
+        p_data_fim: dataFim
+      });
+
+    if (mixError) {
+      console.error('Erro ao buscar mix de vendas mensal:', mixError);
+    }
+
+    // Couvert mensal - soma dia a dia de visitas
+    const { data: couvertRows, error: couvertError } = await supabase
+      .from('visitas')
+      .select('valor_couvert')
+      .eq('bar_id', barId)
+      .gte('data_visita', dataInicio)
+      .lte('data_visita', dataFim);
+
+    if (couvertError) {
+      console.error('Erro ao buscar couvert mensal:', couvertError);
+    }
+
+    // Cancelamentos mensal - soma dia a dia de contahub_cancelamentos
+    const { data: cancelamentosRows, error: cancelError } = await supabase
+      .from('contahub_cancelamentos')
+      .select('custototal')
+      .eq('bar_id', barId)
+      .gte('data', dataInicio)
+      .lte('data', dataFim);
+
+    if (cancelError) {
+      console.error('Erro ao buscar cancelamentos mensal:', cancelError);
+    }
+
+    // Atrações/Eventos mensal - soma de nibo_agendamentos (mesma lógica do semanal)
+    // ONDA 2B: Buscar categorias do banco - erro se não configurado
+    const categoriasAtracao = await getCategoriasAtracao(supabase, barId);
+    if (!categoriasAtracao) {
+      return NextResponse.json(
+        { error: `Configuração ausente: categorias de atração para bar ${barId}. Configure bar_categorias_custo.` },
+        { status: 500 }
+      );
+    }
+    const { data: niboAtracaoRows, error: niboError } = await supabase
+      .from('nibo_agendamentos')
+      .select('valor')
+      .eq('bar_id', barId)
+      .eq('tipo', 'despesa')
+      .eq('deletado', false)
+      .in('categoria_nome', categoriasAtracao)
+      .gte('data_competencia', dataInicio)
+      .lte('data_competencia', dataFim);
+
+    if (niboError) {
+      console.error('Erro ao buscar atrações NIBO mensal:', niboError);
+    }
+
+    const atracoesEventos = (niboAtracaoRows || []).reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
+    const couvertAtracoes = (couvertRows || []).reduce((sum, r) => sum + (parseFloat(r.valor_couvert) || 0), 0);
+    const cancelamentos = (cancelamentosRows || []).reduce((sum, r) => sum + (parseFloat(r.custototal) || 0), 0);
+
+    // Agregar dados diários + stockout + mix + vendas (tudo soma dia a dia, sem proporção)
+    const dadosDiarios = agregarDadosDiarios(
+      eventosDiarios || [],
+      stockoutMensal || [],
+      mixMensal?.[0] || null,
+      { couvertAtracoes, cancelamentos, atracoesEventos }
+    );
 
     // ========== PARTE 1.5: Dados mensais de marketing (100% manual) ==========
     const { data: marketingMensal, error: marketingMensalError } = await supabase
@@ -222,15 +304,46 @@ function getWeekAndYear(date: Date): { semana: number; ano: number } {
   return { semana, ano };
 }
 
+// Extras opcionais: couvert, cancelamentos, atrações (soma dia a dia)
+type ExtrasDiarios = { couvertAtracoes: number; cancelamentos: number; atracoesEventos: number };
+
 // Agregar dados diários de eventos_base
-function agregarDadosDiarios(eventos: any[], stockoutRows: any[]): any {
+function agregarDadosDiarios(
+  eventos: any[],
+  stockoutRows: any[],
+  mixContahub: any,
+  extras?: ExtrasDiarios
+): any {
   if (!eventos || eventos.length === 0) {
-    return {};
+    return extras ? {
+      qui_sab_dom: 0,
+      ter_qua_qui: 0,
+      sex_sab: 0,
+      couvert_atracoes: extras.couvertAtracoes,
+      cancelamentos: extras.cancelamentos,
+      atracoes_eventos: extras.atracoesEventos,
+    } : {};
   }
 
   // Filtrar dias com faturamento real
   const diasComFaturamento = eventos.filter(e => parseFloat(e.real_r) > 0);
   const n = diasComFaturamento.length;
+
+  // Faturamento por dia da semana (soma dia a dia - mesma lógica da Edge Function)
+  // Ordinário: Qui(4), Sab(6), Dom(0) | Deboche: Ter(2), Qua(3), Qui(4) e Sex(5), Sab(6)
+  let quiSabDom = 0;
+  let terQuaQui = 0;
+  let sexSab = 0;
+  for (const e of eventos) {
+    const dataEvento = e.data_evento;
+    if (!dataEvento) continue;
+    const d = new Date(dataEvento + 'T12:00:00Z');
+    const dia = d.getUTCDay(); // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sab
+    const valor = parseFloat(e.real_r) || 0;
+    if (dia === 4 || dia === 6 || dia === 0) quiSabDom += valor;
+    if (dia === 2 || dia === 3 || dia === 4) terQuaQui += valor;
+    if (dia === 5 || dia === 6) sexSab += valor;
+  }
 
   if (n === 0) {
     return {
@@ -240,6 +353,14 @@ function agregarDadosDiarios(eventos: any[], stockoutRows: any[]): any {
       perc_bebidas: 0,
       perc_drinks: 0,
       perc_comida: 0,
+      qui_sab_dom: quiSabDom,
+      ter_qua_qui: terQuaQui,
+      sex_sab: sexSab,
+      ...(extras && {
+        couvert_atracoes: extras.couvertAtracoes,
+        cancelamentos: extras.cancelamentos,
+        atracoes_eventos: extras.atracoesEventos,
+      }),
     };
   }
 
@@ -252,24 +373,6 @@ function agregarDadosDiarios(eventos: any[], stockoutRows: any[]): any {
   const mesasPresentes = eventos.reduce((acc, e) => acc + (parseInt(e.num_mesas_presentes) || 0), 0);
   const faturamentoCouvert = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.faturamento_couvert) || 0), 0);
   const faturamentoBar = diasComFaturamento.reduce((acc, e) => acc + (parseFloat(e.faturamento_bar) || 0), 0);
-
-  // Médias ponderadas por faturamento para percentuais (% Mix de Vendas)
-  // Fórmula: Σ(percent * faturamento) / Σ(faturamento)
-  const somaPercentBPonderado = diasComFaturamento.reduce((acc, e) => {
-    const fat = parseFloat(e.real_r) || 0;
-    const perc = parseFloat(e.percent_b) || 0;
-    return acc + (perc * fat);
-  }, 0);
-  const somaPercentDPonderado = diasComFaturamento.reduce((acc, e) => {
-    const fat = parseFloat(e.real_r) || 0;
-    const perc = parseFloat(e.percent_d) || 0;
-    return acc + (perc * fat);
-  }, 0);
-  const somaPercentCPonderado = diasComFaturamento.reduce((acc, e) => {
-    const fat = parseFloat(e.real_r) || 0;
-    const perc = parseFloat(e.percent_c) || 0;
-    return acc + (perc * fat);
-  }, 0);
 
   // Médias simples para tempos e percentuais
   const diasComTempo = diasComFaturamento.filter(e => parseFloat(e.t_coz) > 0 || parseFloat(e.t_bar) > 0);
@@ -290,52 +393,65 @@ function agregarDadosDiarios(eventos: any[], stockoutRows: any[]): any {
     faturamento_total: faturamentoTotal,
     faturamento_entrada: faturamentoCouvert,
     faturamento_bar: faturamentoBar,
-    
+
+    // $ Vendas por dia da semana (soma dia a dia, sem proporção)
+    qui_sab_dom: quiSabDom,
+    ter_qua_qui: terQuaQui,
+    sex_sab: sexSab,
+
     // Clientes
     clientes_atendidos: clientesTotal,
-    
+
     // Ticket médio (faturamento / clientes)
     ticket_medio: clientesTotal > 0 ? faturamentoTotal / clientesTotal : 0,
-    
-    // Mix de vendas (média ponderada pelo faturamento)
-    perc_bebidas: faturamentoTotal > 0 ? somaPercentBPonderado / faturamentoTotal : 0,
-    perc_drinks: faturamentoTotal > 0 ? somaPercentDPonderado / faturamentoTotal : 0,
-    perc_comida: faturamentoTotal > 0 ? somaPercentCPonderado / faturamentoTotal : 0,
-    
+
+    // Mix de vendas - usar direto do ContaHub (stored procedure) se disponível
+    perc_bebidas: mixContahub?.perc_bebidas ?? 0,
+    perc_drinks: mixContahub?.perc_drinks ?? 0,
+    perc_comida: mixContahub?.perc_comidas ?? 0,
+    perc_happy_hour: mixContahub?.perc_happy_hour ?? 0,
+
     // Reservas (mesas / pessoas)
     reservas_totais: reservasTotal,
     reservas_presentes: reservasPresentes,
     mesas_totais: mesasTotal,
     mesas_presentes: mesasPresentes,
-    
+
     // Tempos
     tempo_saida_cozinha: tempoMedioCoz,
     tempo_saida_bar: tempoMedioBar,
-    
+
     // Faturamento até 19h
     perc_faturamento_ate_19h: percFat19h,
-    
-    ...agregarStockoutCategoriaMix(stockoutRows),
+
+    // Couvert, cancelamentos, atrações (soma dia a dia)
+    ...(extras && {
+      couvert_atracoes: extras.couvertAtracoes,
+      cancelamentos: extras.cancelamentos,
+      atracoes_eventos: extras.atracoesEventos,
+    }),
+
+    ...agregarStockoutCategoriaLocal(stockoutRows),
   };
 }
 
-function agregarStockoutCategoriaMix(stockoutRows: any[]) {
-  const totalBebidas = stockoutRows.filter(r => r.categoria_mix === 'BEBIDA').length;
-  const totalDrinks = stockoutRows.filter(r => r.categoria_mix === 'DRINK').length;
-  const totalComidas = stockoutRows.filter(r => r.categoria_mix === 'COMIDA').length;
+function agregarStockoutCategoriaLocal(stockoutRows: any[]) {
+  const totalBar = stockoutRows.filter(r => r.categoria_local === 'Bar').length;
+  const totalDrinks = stockoutRows.filter(r => r.categoria_local === 'Drinks').length;
+  const totalComidas = stockoutRows.filter(r => r.categoria_local === 'Comidas').length;
 
-  const soBebidas = stockoutRows.filter(r => r.categoria_mix === 'BEBIDA' && r.prd_venda === 'N').length;
-  const soDrinks = stockoutRows.filter(r => r.categoria_mix === 'DRINK' && r.prd_venda === 'N').length;
-  const soComidas = stockoutRows.filter(r => r.categoria_mix === 'COMIDA' && r.prd_venda === 'N').length;
+  const soBar = stockoutRows.filter(r => r.categoria_local === 'Bar' && r.prd_venda === 'N').length;
+  const soDrinks = stockoutRows.filter(r => r.categoria_local === 'Drinks' && r.prd_venda === 'N').length;
+  const soComidas = stockoutRows.filter(r => r.categoria_local === 'Comidas' && r.prd_venda === 'N').length;
 
-  const totalItens = totalBebidas + totalDrinks + totalComidas;
-  const totalStockout = soBebidas + soDrinks + soComidas;
+  const totalItens = totalBar + totalDrinks + totalComidas;
+  const totalStockout = soBar + soDrinks + soComidas;
 
   return {
-    stockout_bar: soBebidas,
+    stockout_bar: soBar,
     stockout_drinks: soDrinks,
     stockout_comidas: soComidas,
-    stockout_bar_perc: totalBebidas > 0 ? (soBebidas / totalBebidas) * 100 : 0,
+    stockout_bar_perc: totalBar > 0 ? (soBar / totalBar) * 100 : 0,
     stockout_drinks_perc: totalDrinks > 0 ? (soDrinks / totalDrinks) * 100 : 0,
     stockout_comidas_perc: totalComidas > 0 ? (soComidas / totalComidas) * 100 : 0,
     percent_stockout: totalItens > 0 ? (totalStockout / totalItens) * 100 : 0,

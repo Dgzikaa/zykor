@@ -7,11 +7,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    console.log('🗑️ [DELETE EVENTO] Iniciando exclusão do evento ID:', id);
 
     const eventoId = parseInt(id);
     if (isNaN(eventoId)) {
-      console.log('❌ [DELETE EVENTO] ID inválido:', id);
       return NextResponse.json(
         {
           success: false,
@@ -21,7 +19,6 @@ export async function DELETE(
       );
     }
 
-    console.log('🔗 [DELETE EVENTO] Inicializando cliente Supabase...');
     const supabase = await getSupabaseClient();
     if (!supabase) {
       return NextResponse.json(
@@ -34,7 +31,6 @@ export async function DELETE(
     }
 
     // Primeiro verificar se o evento existe
-    console.log('🔍 [DELETE EVENTO] Verificando se evento existe...');
     const { data: eventoExistente, error: erroConsulta } = await supabase
       .from('eventos_base')
       .select('id, nome_evento')
@@ -56,7 +52,6 @@ export async function DELETE(
     }
 
     if (!eventoExistente) {
-      console.log('❌ [DELETE EVENTO] Evento não encontrado:', eventoId);
       return NextResponse.json(
         {
           success: false,
@@ -66,13 +61,7 @@ export async function DELETE(
       );
     }
 
-    console.log(
-      '📝 [DELETE EVENTO] Evento encontrado:',
-      eventoExistente.nome_evento
-    );
-
     // Deletar o evento
-    console.log('🗑️ [DELETE EVENTO] Executando exclusão...');
     const { error: erroDelecao } = await supabase
       .from('eventos_base')
       .delete()
@@ -89,7 +78,6 @@ export async function DELETE(
       );
     }
 
-    console.log('✅ [DELETE EVENTO] Evento excluído com sucesso:', eventoId);
     return NextResponse.json({
       success: true,
       message: 'Evento excluído com sucesso',

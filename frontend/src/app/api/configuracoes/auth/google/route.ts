@@ -95,7 +95,6 @@ class GoogleOAuthManager {
       }
 
       const tokenData = await response.json();
-      console.log('✅ Token obtido com sucesso');
 
       return tokenData;
     } catch (error) {
@@ -136,7 +135,6 @@ class GoogleOAuthManager {
       }
 
       const tokenData = await response.json();
-      console.log('✅ Token atualizado com sucesso');
 
       return tokenData;
     } catch (error) {
@@ -159,8 +157,6 @@ export async function GET(request: NextRequest) {
     if (action === 'authorize') {
       const state = searchParams.get('state') || 'sgb-auth-' + Date.now();
       const authUrl = oauthManager.getAuthUrl(state);
-
-      console.log('🔄 Redirecionando para autorização Google...');
 
       return NextResponse.redirect(authUrl);
     }

@@ -33,8 +33,6 @@ export async function POST(request: NextRequest) {
     if (userId !== undefined && userId !== null) {
       const rawUserId = String(userId).trim();
       if (rawUserId) {
-        console.log('🔍 Tentando encontrar usuário por userId:', rawUserId);
-
         if (/^\d+$/.test(rawUserId)) {
           const byNumericId = await usuariosQuery().eq('id', Number(rawUserId));
           usuario = byNumericId.data?.[0] || null;
@@ -58,7 +56,6 @@ export async function POST(request: NextRequest) {
     if (!usuario && userAuthId) {
       const rawAuthId = String(userAuthId).trim();
       if (rawAuthId) {
-        console.log('🔍 Tentando encontrar usuário por auth_id:', rawAuthId);
         const byAuthId = await usuariosQuery().eq('auth_id', rawAuthId);
         usuario = byAuthId.data?.[0] || null;
         fetchError = byAuthId.error;
@@ -68,7 +65,6 @@ export async function POST(request: NextRequest) {
     if (!usuario && email) {
       const normalizedEmail = normalizeEmail(String(email));
       if (normalizedEmail) {
-        console.log('🔍 Tentando encontrar usuário por email:', normalizedEmail);
         const byEmail = await usuariosQuery().eq('email', normalizedEmail);
         usuario = byEmail.data?.[0] || null;
         fetchError = byEmail.error;
@@ -91,13 +87,8 @@ export async function POST(request: NextRequest) {
 
     // 2. Gerar senha temporária (método mais direto para admin)
     const senhaTemporaria = `Temp${Math.random().toString(36).substring(2, 8)}!`;
-    
-    console.log('🔑 Gerando senha temporária para:', usuario.email);
-    console.log('👤 Auth ID:', usuario.auth_id);
-    console.log('🔐 Senha temporária gerada:', senhaTemporaria);
-    
+
     // 3. Atualizar senha no Supabase Auth
-    console.log('🔄 Atualizando senha no Supabase Auth...');
     const { data: authData, error: authUpdateError } = await supabase.auth.admin.updateUserById(
       usuario.auth_id,
       { 
@@ -129,20 +120,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('✅ Senha atualizada no Auth com sucesso');
-    console.log('✅ User ID confirmado:', authData.user.id);
-    console.log('✅ Email confirmado:', authData.user.email);
-
     // 4. Buscar email REAL do Auth (pode ser diferente do banco)
-    console.log('🔍 Verificando email real no Supabase Auth...');
     const { data: authUserCheck } = await supabase.auth.admin.getUserById(usuario.auth_id);
     
     let emailParaLogin = normalizeEmail(usuario.email);
     if (authUserCheck?.user?.email) {
       const emailNoAuth = normalizeEmail(authUserCheck.user.email);
-      console.log('📧 Email no banco:', emailParaLogin);
-      console.log('📧 Email no Auth:', emailNoAuth);
-      
+
       if (emailNoAuth !== emailParaLogin) {
         console.warn('⚠️ ATENÇÃO: Email no Auth é diferente! Usando email do Auth para login.');
         emailParaLogin = emailNoAuth;
@@ -150,10 +134,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. TESTAR LOGIN para garantir que a senha funciona
-    console.log('🧪 Testando login com a senha temporária...');
-    console.log('📧 Email usado no teste:', emailParaLogin);
-    console.log('🔐 Senha usada no teste:', senhaTemporaria);
-    
     const { data: testLogin, error: testError } = await supabase.auth.signInWithPassword({
       email: emailParaLogin,
       password: senhaTemporaria,
@@ -177,7 +157,6 @@ export async function POST(request: NextRequest) {
         aviso: 'A senha foi atualizada no Auth, mas o login de teste falhou. Verifique se o email está correto.'
       }, { status: 500 });
     } else {
-      console.log('✅ Login de teste bem-sucedido! Senha está funcionando.');
       // Fazer sign out do teste
       await supabase.auth.signOut();
     }
@@ -234,7 +213,6 @@ export async function POST(request: NextRequest) {
 
       if (emailResponse.ok) {
         emailSent = true;
-        console.log('✅ Email de redefinição (link) enviado para:', usuario.email);
       } else {
         const errorData = await emailResponse.json().catch(() => ({}));
         emailError = errorData.error || 'Falha ao enviar email';

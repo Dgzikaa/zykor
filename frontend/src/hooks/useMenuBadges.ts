@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '@/contexts/UserContext';
@@ -7,7 +7,6 @@ import { useBar } from '@/contexts/BarContext';
 interface MenuBadges {
   checklist: number;
   producao: number;
-  windsor: number;
   marketing: number;
   configuracoes: number;
   notifications: number;
@@ -23,7 +22,6 @@ export function useMenuBadges() {
   const [badges, setBadges] = useState<MenuBadges>({
     checklist: 0,
     producao: 0,
-    windsor: 0,
     marketing: 0,
     configuracoes: 0,
     notifications: 0,
@@ -93,7 +91,6 @@ export function useMenuBadges() {
     setBadges({
       checklist: 0,
       producao: 0,
-      windsor: 0,
       marketing: 0,
       configuracoes: 0,
       notifications: 0,

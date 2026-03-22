@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getFatorCmv } from '@/lib/config/getFatorCmv';
 
 // Cache por 2 minutos para detalhes de CMV
 export const revalidate = 120;
@@ -41,7 +42,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log(`🔍 Buscando detalhes de ${campo} para ${dataInicio} - ${dataFim}`);
+    // Buscar fator CMV do banco uma vez (centralizado)
+    const fatorCmv = await getFatorCmv(supabase, barId);
 
     let detalhes: any[] = [];
     let subtotais: any = {};
@@ -72,34 +74,34 @@ export async function GET(request: NextRequest) {
         detalhes = await buscarDetalhesEstoque(barId, dataInicio, dataFim, campo);
         break;
 
-      // ========== CONSUMOS ==========
+      // ========== CONSUMOS (Onda 2A: usa fator do banco) ==========
       case 'consumo_socios':
       case 'total_consumo_socios':
-        detalhes = await buscarDetalhesConsumoSocios(barId, dataInicio, dataFim);
+        detalhes = await buscarDetalhesConsumoSocios(barId, dataInicio, dataFim, fatorCmv);
         break;
 
       case 'consumo_beneficios':
       case 'mesa_beneficios_cliente':
-        detalhes = await buscarDetalhesConsumoBeneficios(barId, dataInicio, dataFim);
+        detalhes = await buscarDetalhesConsumoBeneficios(barId, dataInicio, dataFim, fatorCmv);
         break;
 
       case 'consumo_adm':
       case 'mesa_adm_casa':
-        detalhes = await buscarDetalhesConsumoAdm(barId, dataInicio, dataFim);
+        detalhes = await buscarDetalhesConsumoAdm(barId, dataInicio, dataFim, fatorCmv);
         break;
 
       case 'consumo_artista':
       case 'mesa_banda_dj':
-        detalhes = await buscarDetalhesConsumoArtista(barId, dataInicio, dataFim);
+        detalhes = await buscarDetalhesConsumoArtista(barId, dataInicio, dataFim, fatorCmv);
         break;
 
       case 'chegadeira':
-        detalhes = await buscarDetalhesChegadeira(barId, dataInicio, dataFim);
+        detalhes = await buscarDetalhesChegadeira(barId, dataInicio, dataFim, fatorCmv);
         break;
 
       case 'mesa_rh':
       case 'consumo_rh':
-        detalhes = await buscarDetalhesConsumoRH(barId, dataInicio, dataFim);
+        detalhes = await buscarDetalhesConsumoRH(barId, dataInicio, dataFim, fatorCmv);
         break;
 
       // ========== VENDAS ==========
@@ -404,168 +406,168 @@ async function buscarDetalhesEstoque(barId: number, dataInicio: string, dataFim:
 }
 
 /**
- * Buscar detalhes de consumo dos sócios
+ * Buscar detalhes de consumo dos sócios (Onda 2A: recebe fator do banco)
  */
-async function buscarDetalhesConsumoSocios(barId: number, dataInicio: string, dataFim: string) {
+async function buscarDetalhesConsumoSocios(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
   // Sócios: sócio, socio, x-socio, x-sócio, gonza, corbal, diogo, cadu, augusto, rodrigo, digao, vinicius, vini, bueno, kaizen, caisen, joão pedro, joao pedro, jp, 3v, cantucci
   const { data, error } = await supabase
-    .from('contahub_periodo')
+    .from('visitas')
     .select('*')
     .eq('bar_id', barId)
-    .gte('dt_gerencial', dataInicio)
-    .lte('dt_gerencial', dataFim)
-    .or('motivo.ilike.%sócio%,motivo.ilike.%socio%,motivo.ilike.%x-socio%,motivo.ilike.%x-sócio%,motivo.ilike.%gonza%,motivo.ilike.%corbal%,motivo.ilike.%diogo%,motivo.ilike.%cadu%,motivo.ilike.%augusto%,motivo.ilike.%rodrigo%,motivo.ilike.%digao%,motivo.ilike.%vinicius%,motivo.ilike.%vini%,motivo.ilike.%bueno%,motivo.ilike.%kaizen%,motivo.ilike.%caisen%,motivo.ilike.%joão pedro%,motivo.ilike.%joao pedro%,motivo.ilike.%jp%,motivo.ilike.%3v%,motivo.ilike.%cantucci%')
-    .order('dt_gerencial', { ascending: true });
+    .gte('data_visita', dataInicio)
+    .lte('data_visita', dataFim)
+    .or('motivo_desconto.ilike.%sócio%,motivo_desconto.ilike.%socio%,motivo_desconto.ilike.%x-socio%,motivo_desconto.ilike.%x-sócio%,motivo_desconto.ilike.%gonza%,motivo_desconto.ilike.%corbal%,motivo_desconto.ilike.%diogo%,motivo_desconto.ilike.%cadu%,motivo_desconto.ilike.%augusto%,motivo_desconto.ilike.%rodrigo%,motivo_desconto.ilike.%digao%,motivo_desconto.ilike.%vinicius%,motivo_desconto.ilike.%vini%,motivo_desconto.ilike.%bueno%,motivo_desconto.ilike.%kaizen%,motivo_desconto.ilike.%caisen%,motivo_desconto.ilike.%joão pedro%,motivo_desconto.ilike.%joao pedro%,motivo_desconto.ilike.%jp%,motivo_desconto.ilike.%3v%,motivo_desconto.ilike.%cantucci%')
+    .order('data_visita', { ascending: true });
 
   if (error || !data) return [];
 
   return data.map((conta: any) => ({
     tipo: 'consumo_socio',
-    descricao: conta.nm_conta || 'Conta não especificada',
-    data: conta.dt_gerencial,
-    motivo: conta.motivo || '-',
-    valor_produtos: parseFloat(conta.vr_produtos || 0),
-    valor_desconto: parseFloat(conta.vr_desconto || 0),
-    valor: (parseFloat(conta.vr_produtos || 0) + parseFloat(conta.vr_desconto || 0)) * 0.35, // CMV 35%
-    detalhes: `${conta.motivo || 'Consumo Sócio'} - Valor Bruto: R$ ${(parseFloat(conta.vr_produtos || 0) + parseFloat(conta.vr_desconto || 0)).toFixed(2)}`
+    descricao: conta.cliente_nome || 'Conta não especificada',
+    data: conta.data_visita,
+    motivo: conta.motivo_desconto || '-',
+    valor_produtos: parseFloat(conta.valor_produtos || 0),
+    valor_desconto: parseFloat(conta.valor_desconto || 0),
+    valor: (parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)) * fatorCmv,
+    detalhes: `${conta.motivo_desconto || 'Consumo Sócio'} - Valor Bruto: R$ ${(parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)).toFixed(2)}`
   }));
 }
 
 /**
- * Buscar detalhes de consumo de benefícios
+ * Buscar detalhes de consumo de benefícios (Onda 2A: recebe fator do banco)
  */
-async function buscarDetalhesConsumoBeneficios(barId: number, dataInicio: string, dataFim: string) {
+async function buscarDetalhesConsumoBeneficios(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
   // Clientes: aniver, anivers, aniversário, aniversario, aniversariante, niver, voucher, benefício, beneficio, mesa mágica, mágica, influencer, influ, influencia, influência, club, clube, midia, mídia, social, insta, digital, cliente, ambev, chegadeira, chegador
   const { data, error } = await supabase
-    .from('contahub_periodo')
+    .from('visitas')
     .select('*')
     .eq('bar_id', barId)
-    .gte('dt_gerencial', dataInicio)
-    .lte('dt_gerencial', dataFim)
-    .or('motivo.ilike.%aniver%,motivo.ilike.%anivers%,motivo.ilike.%aniversário%,motivo.ilike.%aniversario%,motivo.ilike.%aniversariante%,motivo.ilike.%niver%,motivo.ilike.%voucher%,motivo.ilike.%benefício%,motivo.ilike.%beneficio%,motivo.ilike.%mesa mágica%,motivo.ilike.%mágica%,motivo.ilike.%influencer%,motivo.ilike.%influ%,motivo.ilike.%influencia%,motivo.ilike.%influência%,motivo.ilike.%club%,motivo.ilike.%clube%,motivo.ilike.%midia%,motivo.ilike.%mídia%,motivo.ilike.%social%,motivo.ilike.%insta%,motivo.ilike.%digital%,motivo.ilike.%cliente%,motivo.ilike.%ambev%,motivo.ilike.%chegadeira%,motivo.ilike.%chegador%')
-    .order('dt_gerencial', { ascending: true });
+    .gte('data_visita', dataInicio)
+    .lte('data_visita', dataFim)
+    .or('motivo_desconto.ilike.%aniver%,motivo_desconto.ilike.%anivers%,motivo_desconto.ilike.%aniversário%,motivo_desconto.ilike.%aniversario%,motivo_desconto.ilike.%aniversariante%,motivo_desconto.ilike.%niver%,motivo_desconto.ilike.%voucher%,motivo_desconto.ilike.%benefício%,motivo_desconto.ilike.%beneficio%,motivo_desconto.ilike.%mesa mágica%,motivo_desconto.ilike.%mágica%,motivo_desconto.ilike.%influencer%,motivo_desconto.ilike.%influ%,motivo_desconto.ilike.%influencia%,motivo_desconto.ilike.%influência%,motivo_desconto.ilike.%club%,motivo_desconto.ilike.%clube%,motivo_desconto.ilike.%midia%,motivo_desconto.ilike.%mídia%,motivo_desconto.ilike.%social%,motivo_desconto.ilike.%insta%,motivo_desconto.ilike.%digital%,motivo_desconto.ilike.%cliente%,motivo_desconto.ilike.%ambev%,motivo_desconto.ilike.%chegadeira%,motivo_desconto.ilike.%chegador%')
+    .order('data_visita', { ascending: true });
 
   if (error || !data) return [];
 
   return data.map((conta: any) => ({
     tipo: 'consumo_beneficio',
-    descricao: conta.nm_conta || 'Conta não especificada',
-    data: conta.dt_gerencial,
-    motivo: conta.motivo || '-',
-    valor_produtos: parseFloat(conta.vr_produtos || 0),
-    valor_desconto: parseFloat(conta.vr_desconto || 0),
-    valor: (parseFloat(conta.vr_produtos || 0) + parseFloat(conta.vr_desconto || 0)) * 0.33, // CMV 33%
-    detalhes: `${conta.motivo || 'Benefício Cliente'} - Valor Bruto: R$ ${(parseFloat(conta.vr_produtos || 0) + parseFloat(conta.vr_desconto || 0)).toFixed(2)}`
+    descricao: conta.cliente_nome || 'Conta não especificada',
+    data: conta.data_visita,
+    motivo: conta.motivo_desconto || '-',
+    valor_produtos: parseFloat(conta.valor_produtos || 0),
+    valor_desconto: parseFloat(conta.valor_desconto || 0),
+    valor: (parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)) * fatorCmv,
+    detalhes: `${conta.motivo_desconto || 'Benefício Cliente'} - Valor Bruto: R$ ${(parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)).toFixed(2)}`
   }));
 }
 
 /**
- * Buscar detalhes de consumo ADM
+ * Buscar detalhes de consumo ADM (Onda 2A: recebe fator do banco)
  */
-async function buscarDetalhesConsumoAdm(barId: number, dataInicio: string, dataFim: string) {
+async function buscarDetalhesConsumoAdm(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
   // Funcionários: funcionários, funcionario, rh, recursos humanos, financeiro, fin, mkt, marketing, slu, adm, administrativo, prêmio, confra
   const { data, error } = await supabase
-    .from('contahub_periodo')
+    .from('visitas')
     .select('*')
     .eq('bar_id', barId)
-    .gte('dt_gerencial', dataInicio)
-    .lte('dt_gerencial', dataFim)
-    .or('motivo.ilike.%funcionários%,motivo.ilike.%funcionario%,motivo.ilike.%rh%,motivo.ilike.%recursos humanos%,motivo.ilike.%financeiro%,motivo.ilike.%fin%,motivo.ilike.%mkt%,motivo.ilike.%marketing%,motivo.ilike.%slu%,motivo.ilike.%adm%,motivo.ilike.%administrativo%,motivo.ilike.%prêmio%,motivo.ilike.%confra%')
-    .order('dt_gerencial', { ascending: true });
+    .gte('data_visita', dataInicio)
+    .lte('data_visita', dataFim)
+    .or('motivo_desconto.ilike.%funcionários%,motivo_desconto.ilike.%funcionario%,motivo_desconto.ilike.%rh%,motivo_desconto.ilike.%recursos humanos%,motivo_desconto.ilike.%financeiro%,motivo_desconto.ilike.%fin%,motivo_desconto.ilike.%mkt%,motivo_desconto.ilike.%marketing%,motivo_desconto.ilike.%slu%,motivo_desconto.ilike.%adm%,motivo_desconto.ilike.%administrativo%,motivo_desconto.ilike.%prêmio%,motivo_desconto.ilike.%confra%')
+    .order('data_visita', { ascending: true });
 
   if (error || !data) return [];
 
   return data.map((conta: any) => ({
     tipo: 'consumo_adm',
-    descricao: conta.nm_conta || 'Conta não especificada',
-    data: conta.dt_gerencial,
-    motivo: conta.motivo || '-',
-    valor_produtos: parseFloat(conta.vr_produtos || 0),
-    valor_desconto: parseFloat(conta.vr_desconto || 0),
-    valor: (parseFloat(conta.vr_produtos || 0) + parseFloat(conta.vr_desconto || 0)) * 0.35, // CMV 35%
-    detalhes: `${conta.motivo || 'Consumo ADM'} - Valor Bruto: R$ ${(parseFloat(conta.vr_produtos || 0) + parseFloat(conta.vr_desconto || 0)).toFixed(2)}`
+    descricao: conta.cliente_nome || 'Conta não especificada',
+    data: conta.data_visita,
+    motivo: conta.motivo_desconto || '-',
+    valor_produtos: parseFloat(conta.valor_produtos || 0),
+    valor_desconto: parseFloat(conta.valor_desconto || 0),
+    valor: (parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)) * fatorCmv,
+    detalhes: `${conta.motivo_desconto || 'Consumo ADM'} - Valor Bruto: R$ ${(parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)).toFixed(2)}`
   }));
 }
 
 /**
- * Buscar detalhes de consumo de artista/banda
+ * Buscar detalhes de consumo de artista/banda (Onda 2A: recebe fator do banco)
  */
-async function buscarDetalhesConsumoArtista(barId: number, dataInicio: string, dataFim: string) {
+async function buscarDetalhesConsumoArtista(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
   // Artistas: musico, músicos, dj, banda, artista, breno, benza, stz, zelia, tia, samba, sambadona, doze, boca, boka, pé, chão, segunda, resenha, pagode, roda, reconvexa, rodie, roudier, roudi, som, técnico, tecnico, pv, paulo victor, prod
   const { data, error } = await supabase
-    .from('contahub_periodo')
+    .from('visitas')
     .select('*')
     .eq('bar_id', barId)
-    .gte('dt_gerencial', dataInicio)
-    .lte('dt_gerencial', dataFim)
-    .or('motivo.ilike.%musico%,motivo.ilike.%músicos%,motivo.ilike.%dj%,motivo.ilike.%banda%,motivo.ilike.%artista%,motivo.ilike.%breno%,motivo.ilike.%benza%,motivo.ilike.%stz%,motivo.ilike.%zelia%,motivo.ilike.%tia%,motivo.ilike.%samba%,motivo.ilike.%sambadona%,motivo.ilike.%doze%,motivo.ilike.%boca%,motivo.ilike.%boka%,motivo.ilike.%pé%,motivo.ilike.%chão%,motivo.ilike.%segunda%,motivo.ilike.%resenha%,motivo.ilike.%pagode%,motivo.ilike.%roda%,motivo.ilike.%reconvexa%,motivo.ilike.%rodie%,motivo.ilike.%roudier%,motivo.ilike.%roudi%,motivo.ilike.%som%,motivo.ilike.%técnico%,motivo.ilike.%tecnico%,motivo.ilike.%pv%,motivo.ilike.%paulo victor%,motivo.ilike.%prod%')
-    .order('dt_gerencial', { ascending: true });
+    .gte('data_visita', dataInicio)
+    .lte('data_visita', dataFim)
+    .or('motivo_desconto.ilike.%musico%,motivo_desconto.ilike.%músicos%,motivo_desconto.ilike.%dj%,motivo_desconto.ilike.%banda%,motivo_desconto.ilike.%artista%,motivo_desconto.ilike.%breno%,motivo_desconto.ilike.%benza%,motivo_desconto.ilike.%stz%,motivo_desconto.ilike.%zelia%,motivo_desconto.ilike.%tia%,motivo_desconto.ilike.%samba%,motivo_desconto.ilike.%sambadona%,motivo_desconto.ilike.%doze%,motivo_desconto.ilike.%boca%,motivo_desconto.ilike.%boka%,motivo_desconto.ilike.%pé%,motivo_desconto.ilike.%chão%,motivo_desconto.ilike.%segunda%,motivo_desconto.ilike.%resenha%,motivo_desconto.ilike.%pagode%,motivo_desconto.ilike.%roda%,motivo_desconto.ilike.%reconvexa%,motivo_desconto.ilike.%rodie%,motivo_desconto.ilike.%roudier%,motivo_desconto.ilike.%roudi%,motivo_desconto.ilike.%som%,motivo_desconto.ilike.%técnico%,motivo_desconto.ilike.%tecnico%,motivo_desconto.ilike.%pv%,motivo_desconto.ilike.%paulo victor%,motivo_desconto.ilike.%prod%')
+    .order('data_visita', { ascending: true });
 
   if (error || !data) return [];
 
   return data.map((conta: any) => ({
     tipo: 'consumo_artista',
-    descricao: conta.nm_conta || 'Conta não especificada',
-    data: conta.dt_gerencial,
-    motivo: conta.motivo || '-',
-    valor_produtos: parseFloat(conta.vr_produtos || 0),
-    valor_desconto: parseFloat(conta.vr_desconto || 0),
-    valor: (parseFloat(conta.vr_produtos || 0) + parseFloat(conta.vr_desconto || 0)) * 0.35, // CMV 35%
-    detalhes: `${conta.motivo || 'Consumo Banda/DJ'} - Valor Bruto: R$ ${(parseFloat(conta.vr_produtos || 0) + parseFloat(conta.vr_desconto || 0)).toFixed(2)}`
+    descricao: conta.cliente_nome || 'Conta não especificada',
+    data: conta.data_visita,
+    motivo: conta.motivo_desconto || '-',
+    valor_produtos: parseFloat(conta.valor_produtos || 0),
+    valor_desconto: parseFloat(conta.valor_desconto || 0),
+    valor: (parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)) * fatorCmv,
+    detalhes: `${conta.motivo_desconto || 'Consumo Banda/DJ'} - Valor Bruto: R$ ${(parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)).toFixed(2)}`
   }));
 }
 
 /**
- * Buscar detalhes de chegadeira
+ * Buscar detalhes de chegadeira (Onda 2A: recebe fator do banco)
  */
-async function buscarDetalhesChegadeira(barId: number, dataInicio: string, dataFim: string) {
+async function buscarDetalhesChegadeira(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
   const { data, error } = await supabase
-    .from('contahub_periodo')
+    .from('visitas')
     .select('*')
     .eq('bar_id', barId)
-    .gte('dt_gerencial', dataInicio)
-    .lte('dt_gerencial', dataFim)
-    .ilike('motivo', '%chegadeira%')
-    .order('dt_gerencial', { ascending: true });
+    .gte('data_visita', dataInicio)
+    .lte('data_visita', dataFim)
+    .ilike('motivo_desconto', '%chegadeira%')
+    .order('data_visita', { ascending: true });
 
   if (error || !data) return [];
 
   return data.map((conta: any) => ({
     tipo: 'chegadeira',
-    descricao: conta.nm_conta || 'Conta não especificada',
-    data: conta.dt_gerencial,
-    valor_produtos: parseFloat(conta.vr_produtos || 0),
-    valor_desconto: parseFloat(conta.vr_desconto || 0),
-    valor: (parseFloat(conta.vr_produtos || 0) + parseFloat(conta.vr_desconto || 0)) * 0.33, // CMV 33%
-    detalhes: `Chegadeira - Valor Bruto: R$ ${(parseFloat(conta.vr_produtos || 0) + parseFloat(conta.vr_desconto || 0)).toFixed(2)}`
+    descricao: conta.cliente_nome || 'Conta não especificada',
+    data: conta.data_visita,
+    valor_produtos: parseFloat(conta.valor_produtos || 0),
+    valor_desconto: parseFloat(conta.valor_desconto || 0),
+    valor: (parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)) * fatorCmv,
+    detalhes: `Chegadeira - Valor Bruto: R$ ${(parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)).toFixed(2)}`
   }));
 }
 
 /**
- * Buscar detalhes de consumo RH
+ * Buscar detalhes de consumo RH (Onda 2A: recebe fator do banco)
  */
-async function buscarDetalhesConsumoRH(barId: number, dataInicio: string, dataFim: string) {
+async function buscarDetalhesConsumoRH(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
   // RH: rh, recursos humanos (os demais funcionários estão em ADM)
   const { data, error } = await supabase
-    .from('contahub_periodo')
+    .from('visitas')
     .select('*')
     .eq('bar_id', barId)
-    .gte('dt_gerencial', dataInicio)
-    .lte('dt_gerencial', dataFim)
-    .or('motivo.ilike.%rh%,motivo.ilike.%recursos humanos%')
-    .order('dt_gerencial', { ascending: true });
+    .gte('data_visita', dataInicio)
+    .lte('data_visita', dataFim)
+    .or('motivo_desconto.ilike.%rh%,motivo_desconto.ilike.%recursos humanos%')
+    .order('data_visita', { ascending: true });
 
   if (error || !data) return [];
 
   return data.map((conta: any) => ({
     tipo: 'consumo_rh',
-    descricao: conta.nm_conta || 'Conta não especificada',
-    data: conta.dt_gerencial,
-    motivo: conta.motivo || '-',
-    valor_produtos: parseFloat(conta.vr_produtos || 0),
-    valor_desconto: parseFloat(conta.vr_desconto || 0),
-    valor: (parseFloat(conta.vr_produtos || 0) + parseFloat(conta.vr_desconto || 0)) * 0.35, // CMV 35%
-    detalhes: `${conta.motivo || 'Consumo RH'} - Valor Bruto: R$ ${(parseFloat(conta.vr_produtos || 0) + parseFloat(conta.vr_desconto || 0)).toFixed(2)}`
+    descricao: conta.cliente_nome || 'Conta não especificada',
+    data: conta.data_visita,
+    motivo: conta.motivo_desconto || '-',
+    valor_produtos: parseFloat(conta.valor_produtos || 0),
+    valor_desconto: parseFloat(conta.valor_desconto || 0),
+    valor: (parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)) * fatorCmv,
+    detalhes: `${conta.motivo_desconto || 'Consumo RH'} - Valor Bruto: R$ ${(parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)).toFixed(2)}`
   }));
 }
 
@@ -574,12 +576,12 @@ async function buscarDetalhesConsumoRH(barId: number, dataInicio: string, dataFi
  */
 async function buscarDetalhesVendas(barId: number, dataInicio: string, dataFim: string, campo: string) {
   const { data, error } = await supabase
-    .from('contahub_periodo')
+    .from('visitas')
     .select('*')
     .eq('bar_id', barId)
-    .gte('dt_gerencial', dataInicio)
-    .lte('dt_gerencial', dataFim)
-    .order('dt_gerencial', { ascending: true });
+    .gte('data_visita', dataInicio)
+    .lte('data_visita', dataFim)
+    .order('data_visita', { ascending: true });
 
   if (error || !data) return [];
 
@@ -594,10 +596,10 @@ async function buscarDetalhesVendas(barId: number, dataInicio: string, dataFim: 
   }>();
 
   data.forEach((conta: any) => {
-    const dia = conta.dt_gerencial;
-    const valorProdutos = parseFloat(conta.vr_produtos || 0);
-    const valorServicos = parseFloat(conta.vr_servicos || 0);
-    const valorDesconto = parseFloat(conta.vr_desconto || 0);
+    const dia = conta.data_visita;
+    const valorProdutos = parseFloat(conta.valor_produtos || 0);
+    const valorServicos = 0; // visitas não tem vr_servicos
+    const valorDesconto = parseFloat(conta.valor_desconto || 0);
     const valorBruto = valorProdutos + valorServicos;
     const valorLiquido = valorBruto - valorDesconto;
 

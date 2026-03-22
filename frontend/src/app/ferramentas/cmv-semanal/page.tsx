@@ -128,6 +128,7 @@ export default function CMVSemanalPage() {
   const [cmvsTotais, setCmvsTotais] = useState(0); // Total de CMVs antes do filtro
   const [anoFiltro, setAnoFiltro] = useState(() => new Date().getFullYear());
   const [statusFiltro, setStatusFiltro] = useState('TODOS');
+  const [fatorCmv, setFatorCmv] = useState(0.35); // Fator de CMV para consumos (carregado do banco)
   
   // Modal de adicionar/editar
   const [modalAberto, setModalAberto] = useState(false);
@@ -184,17 +185,17 @@ export default function CMVSemanalPage() {
     const dados = { ...formData };
     
     // 1. Calcular consumos baseados nas contas especiais
-    // Consumo Sócios = Total Consumo Sócios * 0.35
-    dados.consumo_socios = (dados.total_consumo_socios || 0) * 0.35;
+    // Consumo Sócios = Total Consumo Sócios * fatorCmv
+    dados.consumo_socios = (dados.total_consumo_socios || 0) * fatorCmv;
     
     // Consumo Benefícios = (Mesa Benefícios Cliente + Chegadeira) * 0.33
     dados.consumo_beneficios = ((dados.mesa_beneficios_cliente || 0) + (dados.chegadeira || 0)) * 0.33;
     
-    // Consumo ADM = Mesa ADM/Casa * 0.35
-    dados.consumo_adm = (dados.mesa_adm_casa || 0) * 0.35;
+    // Consumo ADM = Mesa ADM/Casa * fatorCmv
+    dados.consumo_adm = (dados.mesa_adm_casa || 0) * fatorCmv;
     
-    // Consumo Artista = Mesa da Banda/DJ * 0.35
-    dados.consumo_artista = (dados.mesa_banda_dj || 0) * 0.35;
+    // Consumo Artista = Mesa da Banda/DJ * fatorCmv
+    dados.consumo_artista = (dados.mesa_banda_dj || 0) * fatorCmv;
     
     // 2. Calcular estoque final total
     dados.estoque_final = (dados.estoque_final_cozinha || 0) + 
@@ -397,7 +398,7 @@ export default function CMVSemanalPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+          'x-selected-bar-id': String(selectedBar?.id || '')
         },
         body: JSON.stringify({
           bar_id: selectedBar.id,
@@ -459,7 +460,7 @@ export default function CMVSemanalPage() {
 
       const response = await fetch(`/api/cmv-semanal?${params}`, {
         headers: {
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+          'x-selected-bar-id': String(selectedBar?.id || '')
         }
       });
 
@@ -583,7 +584,7 @@ export default function CMVSemanalPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+          'x-selected-bar-id': String(selectedBar?.id || '')
         },
         body: JSON.stringify({
           bar_id: selectedBar.id,
@@ -621,7 +622,7 @@ export default function CMVSemanalPage() {
       const response = await fetch(`/api/cmv-semanal?id=${id}`, {
         method: 'DELETE',
         headers: {
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+          'x-selected-bar-id': String(selectedBar?.id || '')
         }
       });
 
@@ -651,7 +652,7 @@ export default function CMVSemanalPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+          'x-selected-bar-id': String(selectedBar?.id || '')
         },
         body: JSON.stringify({ id, status: novoStatus })
       });
@@ -712,6 +713,25 @@ export default function CMVSemanalPage() {
     setPageTitle('📊 CMV Semanal');
     return () => setPageTitle('');
   }, [setPageTitle]);
+
+  // Carregar fator CMV do banco de regras do bar
+  useEffect(() => {
+    const carregarFatorCmv = async () => {
+      if (!selectedBar?.id) return;
+      try {
+        const response = await fetch(`/api/config/bar/${selectedBar.id}/regras`);
+        if (response.ok) {
+          const regras = await response.json();
+          if (regras.cmv_fator_consumo) {
+            setFatorCmv(regras.cmv_fator_consumo);
+          }
+        }
+      } catch (error) {
+        console.warn('Usando fator CMV padrão (0.35):', error);
+      }
+    };
+    carregarFatorCmv();
+  }, [selectedBar?.id]);
 
   useEffect(() => {
     if (selectedBar && user) {
@@ -1201,7 +1221,7 @@ export default function CMVSemanalPage() {
             description="Valores das mesas/contas que entram no cálculo de consumo"
           >
             <ModalFormGrid columns={3}>
-              <ModalField label="Total Consumo Sócios" description="x-corbal, etc. × 0.35">
+              <ModalField label="Total Consumo Sócios" description={`x-corbal, etc. × ${fatorCmv}`}>
                 <Input
                   type="number"
                   step="0.01"
@@ -1210,7 +1230,7 @@ export default function CMVSemanalPage() {
                   className="input-dark"
                 />
               </ModalField>
-              <ModalField label="Mesa Benefícios Cliente" description="Parte do cálculo × 0.33">
+              <ModalField label="Mesa Benefícios Cliente" description="Parte do cálculo × 0.33 (benefícios)">
                 <Input
                   type="number"
                   step="0.01"
@@ -1219,7 +1239,7 @@ export default function CMVSemanalPage() {
                   className="input-dark"
                 />
               </ModalField>
-              <ModalField label="Mesa Banda/DJ" description="× 0.35">
+              <ModalField label="Mesa Banda/DJ" description={`× ${fatorCmv}`}>
                 <Input
                   type="number"
                   step="0.01"
@@ -1237,7 +1257,7 @@ export default function CMVSemanalPage() {
                   className="input-dark"
                 />
               </ModalField>
-              <ModalField label="Mesa ADM/Casa" description="× 0.35">
+              <ModalField label="Mesa ADM/Casa" description={`× ${fatorCmv}`}>
                 <Input
                   type="number"
                   step="0.01"

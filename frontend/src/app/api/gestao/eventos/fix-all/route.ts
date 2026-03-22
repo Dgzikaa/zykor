@@ -24,8 +24,6 @@ export async function POST() {
       );
     }
 
-    console.log('?? Starting complete event name fix...');
-
     let totalFixed = 0;
     const errors: string[] = [];
 
@@ -41,7 +39,6 @@ export async function POST() {
         if (error) {
           errors.push(`Error fixing ${mapping.name}: ${error.message}`);
         } else {
-          console.log(`? Fixed event: ${mapping.name}`);
           totalFixed++;
         }
       } catch (err: unknown) {

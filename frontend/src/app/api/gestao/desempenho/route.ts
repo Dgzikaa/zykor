@@ -16,9 +16,8 @@ function getWeekNumber(date: Date): number {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const barId = request.headers.get('x-user-data')
-      ? JSON.parse(request.headers.get('x-user-data') || '{}').bar_id
-      : null;
+    const barIdHeader = request.headers.get('x-selected-bar-id');
+    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
 
     if (!barId) {
       return NextResponse.json(
@@ -108,9 +107,8 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    const barId = request.headers.get('x-user-data')
-      ? JSON.parse(request.headers.get('x-user-data') || '{}').bar_id
-      : null;
+    const barIdHeader = request.headers.get('x-selected-bar-id');
+    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
 
     if (!barId || !id) {
       return NextResponse.json(
@@ -170,29 +168,11 @@ const MARKETING_FIELDS = [
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    console.log('PUT desempenho - body:', JSON.stringify(body));
-    
-    const userDataHeader = request.headers.get('x-user-data');
-    console.log('PUT desempenho - userDataHeader:', userDataHeader);
-    
-    let barId = null;
-    if (userDataHeader) {
-      try {
-        const decoded = decodeURIComponent(userDataHeader);
-        console.log('PUT desempenho - decoded:', decoded);
-        const parsed = JSON.parse(decoded);
-        barId = parsed.bar_id;
-      } catch (parseError) {
-        console.error('Erro ao parsear header:', parseError);
-        return NextResponse.json(
-          { success: false, error: 'Erro ao parsear header x-user-data' },
-          { status: 400 }
-        );
-      }
-    }
+
+    const barIdHeader = request.headers.get('x-selected-bar-id');
+    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
 
     const { id, numero_semana, ano, ...updateData } = body;
-    console.log('PUT desempenho - barId:', barId, 'id:', id, 'updateData:', JSON.stringify(updateData));
 
     if (!barId || !id) {
       return NextResponse.json(
@@ -201,20 +181,9 @@ export async function PUT(request: Request) {
       );
     }
 
-    // Extrair dados do usuário para auditoria
-    let userId: string | null = null;
-    let userName: string | null = null;
-    if (userDataHeader) {
-      try {
-        const decoded = decodeURIComponent(userDataHeader);
-        const parsed = JSON.parse(decoded);
-        // Converter ID para string (pode ser número ou UUID)
-        userId = parsed.id ? String(parsed.id) : null;
-        userName = parsed.nome || parsed.email || null;
-      } catch (e) {
-        // Ignora erro de parse para auditoria
-      }
-    }
+    // TODO: Extrair dados do usuário do JWT/cookie para auditoria
+    const userId: string | null = null;
+    const userName: string | null = null;
 
     // Usar service_role para dados administrativos (bypass RLS)
     const supabase = createClient(
@@ -320,7 +289,6 @@ export async function PUT(request: Request) {
       );
     }
 
-    console.log('PUT desempenho - sucesso:', resultData);
     return NextResponse.json({ 
       success: true, 
       message: 'Registro atualizado com sucesso',

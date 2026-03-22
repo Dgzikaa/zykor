@@ -142,11 +142,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
         // SEMPRE buscar da API para garantir dados atualizados
 
         try {
-          const response = await fetch('/api/configuracoes/bars/user-bars', {
-            headers: {
-              'x-user-data': encodeURIComponent(JSON.stringify(user)),
-            },
-          });
+          const response = await fetch('/api/configuracoes/bars/user-bars');
 
           if (response.ok) {
             const data = await response.json();

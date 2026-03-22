@@ -10,7 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const barId = body.bar_id || 3;
+    const barId = body.bar_id;
+    if (!barId) return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     const semana = body.semana; // opcional - semana específica
     const ano = body.ano; // opcional - ano específico
     
@@ -20,9 +21,7 @@ export async function POST(request: NextRequest) {
     if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json({ error: 'Configuração Supabase ausente' }, { status: 500 });
     }
-    
-    console.log(`🔄 Sincronizando CMV da planilha para bar_id=${barId}${semana ? ` semana=${semana}` : ''}${ano ? ` ano=${ano}` : ''}`);
-    
+
     const response = await fetch(`${supabaseUrl}/functions/v1/sync-cmv-sheets`, {
       method: 'POST',
       headers: {
@@ -45,9 +44,7 @@ export async function POST(request: NextRequest) {
         { status: response.status }
       );
     }
-    
-    console.log(`✅ Sync concluído:`, result.message);
-    
+
     return NextResponse.json({
       success: true,
       message: result.message || 'Planilha sincronizada com sucesso',

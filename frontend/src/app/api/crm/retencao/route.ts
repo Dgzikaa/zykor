@@ -25,7 +25,6 @@ function getCached(key: string) {
   
   if (entry.version !== CACHE_VERSION) {
     cache.delete(key);
-    console.log(`🔄 Cache retenção invalidado (versão ${entry.version} → ${CACHE_VERSION})`);
     return null;
   }
   
@@ -83,11 +82,7 @@ async function fetchAllData(tableName: string, columns: string, filters: any = {
     }
     
     allData.push(...data);
-    
-    if (allData.length % 10000 === 0 || data.length < limit) {
-      console.log(`  ✓ ${tableName}: ${allData.length} registros carregados`);
-    }
-    
+
     if (data.length < limit) {
       break;
     }
@@ -189,8 +184,6 @@ export async function GET(request: NextRequest) {
     }
     const barId = parseInt(barIdParam);
 
-    console.log(`🔍 API Retenção - tipo: ${tipo}, bar_id: ${barId}`);
-
     if (tipo === 'cohort') {
       return await calcularCohorts(barId);
     } else if (tipo === 'jornada') {
@@ -219,7 +212,6 @@ async function calcularCohorts(barId: number) {
   const cached = getCached(cacheKey);
   
   if (cached) {
-    console.log(`⚡ Cache HIT: Usando dados de cohorts em cache`);
     return NextResponse.json({
       success: true,
       data: cached,
@@ -227,32 +219,29 @@ async function calcularCohorts(barId: number) {
     });
   }
 
-  console.log(`🔍 Cache MISS: Calculando cohorts do ContaHub...`);
-
-  // Buscar dados do ContaHub
-  const contahubData = await fetchAllData(
-    'contahub_periodo',
-    'cli_nome, cli_fone, dt_gerencial, vr_couvert, vr_pagamentos',
+  // Buscar dados de visitas
+  const visitasData = await fetchAllData(
+    'visitas',
+    'cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos',
     { eq_bar_id: barId }
   );
 
   // Filtrar clientes válidos
-  const dadosValidos = contahubData.filter(item => 
-    item.cli_fone && item.cli_fone.trim() !== ''
+  const dadosValidos = visitasData.filter(item => 
+    item.cliente_fone && item.cliente_fone.trim() !== ''
   );
-  console.log(`💳 ContaHub: ${dadosValidos.length} registros válidos`);
 
   // Consolidar por cliente
   const clientesMap = new Map<string, Date[]>();
 
   dadosValidos.forEach(item => {
-    const telefone = item.cli_fone.replace(/\D/g, '').slice(-9);
+    const telefone = item.cliente_fone.replace(/\D/g, '').slice(-9);
     if (telefone.length < 9) return;
     
     if (!clientesMap.has(telefone)) {
       clientesMap.set(telefone, []);
     }
-    clientesMap.get(telefone)!.push(new Date(item.dt_gerencial));
+    clientesMap.get(telefone)!.push(new Date(item.data_visita));
   });
 
   // Para cada cliente, determinar cohort (mês da primeira visita)
@@ -331,26 +320,26 @@ async function buscarJornadaCliente(telefone: string, barId: number) {
   // Normalizar telefone para busca
   const telefoneNorm = telefone.replace(/\D/g, '').slice(-9);
   
-  // Buscar visitas do cliente no ContaHub
-  const { data: contahubData, error } = await supabase
-    .from('contahub_periodo')
-    .select('cli_nome, dt_gerencial, vr_couvert, vr_pagamentos')
+  // Buscar visitas do cliente
+  const { data: visitasData, error } = await supabase
+    .from('visitas')
+    .select('cliente_nome, data_visita, valor_couvert, valor_pagamentos')
     .eq('bar_id', barId)
-    .ilike('cli_fone', `%${telefoneNorm}%`)
-    .order('dt_gerencial', { ascending: true });
+    .ilike('cliente_fone', `%${telefoneNorm}%`)
+    .order('data_visita', { ascending: true });
 
   if (error) {
     throw new Error(`Erro ao buscar cliente: ${error.message}`);
   }
 
-  if (!contahubData || contahubData.length === 0) {
+  if (!visitasData || visitasData.length === 0) {
     throw new Error('Cliente não encontrado');
   }
 
   // Processar visitas
-  const visitas = contahubData.map(v => ({
-    data: new Date(v.dt_gerencial),
-    valor: (v.vr_couvert || 0) + (v.vr_pagamentos || 0)
+  const visitas = visitasData.map(v => ({
+    data: new Date(v.data_visita),
+    valor: (v.valor_couvert || 0) + (v.valor_pagamentos || 0)
   }));
 
   const hoje = new Date();
@@ -371,7 +360,7 @@ async function buscarJornadaCliente(telefone: string, barId: number) {
 
   const jornada: JornadaCliente = {
     telefone,
-    nome: contahubData[0].cli_nome || 'Cliente',
+    nome: visitasData[0].cliente_nome || 'Cliente',
     etapa_atual: etapa,
     dias_no_funil: diasComoCliente,
     visitas_totais: visitas.length,
@@ -395,7 +384,6 @@ async function listarJornadasClientes(barId: number) {
   const cached = getCached(cacheKey);
   
   if (cached) {
-    console.log(`⚡ Cache HIT: Usando dados de jornadas em cache (${cached.jornadas.length} clientes)`);
     return NextResponse.json({
       success: true,
       data: cached.jornadas,
@@ -404,21 +392,18 @@ async function listarJornadasClientes(barId: number) {
     });
   }
 
-  console.log(`🔍 Cache MISS: Processando jornadas de TODOS os clientes...`);
-
-  // Buscar TODOS os dados do ContaHub
-  const contahubData = await fetchAllData(
-    'contahub_periodo',
-    'cli_nome, cli_fone, dt_gerencial, vr_couvert, vr_pagamentos',
+  // Buscar TODOS os dados de visitas
+  const visitasDataAll = await fetchAllData(
+    'visitas',
+    'cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos',
     { eq_bar_id: barId }
   );
 
   // Filtrar clientes válidos
-  const dadosValidos = contahubData.filter(item => 
-    item.cli_fone && item.cli_fone.trim() !== '' && 
-    item.cli_nome && item.cli_nome.trim() !== ''
+  const dadosValidos = visitasDataAll.filter(item => 
+    item.cliente_fone && item.cliente_fone.trim() !== '' && 
+    item.cliente_nome && item.cliente_nome.trim() !== ''
   );
-  console.log(`💳 ContaHub: ${dadosValidos.length} registros válidos (de ${contahubData.length} totais)`);
 
   // Consolidar
   const clientesMap = new Map<string, {
@@ -428,26 +413,24 @@ async function listarJornadasClientes(barId: number) {
   }>();
 
   dadosValidos.forEach(item => {
-    const telefone = item.cli_fone.replace(/\D/g, '').slice(-9);
+    const telefone = item.cliente_fone.replace(/\D/g, '').slice(-9);
     if (telefone.length < 9) return;
     
     if (!clientesMap.has(telefone)) {
       clientesMap.set(telefone, {
-        nome: item.cli_nome || 'Cliente',
+        nome: item.cliente_nome || 'Cliente',
         visitas: [],
         totalGasto: 0
       });
     }
     const cliente = clientesMap.get(telefone)!;
-    const valor = (item.vr_couvert || 0) + (item.vr_pagamentos || 0);
+    const valor = (item.valor_couvert || 0) + (item.valor_pagamentos || 0);
     cliente.visitas.push({
-      data: new Date(item.dt_gerencial),
+      data: new Date(item.data_visita),
       valor
     });
     cliente.totalGasto += valor;
   });
-
-  console.log(`👥 Total de clientes únicos: ${clientesMap.size}`);
 
   const jornadas: JornadaCliente[] = [];
   const hoje = new Date();
@@ -485,8 +468,6 @@ async function listarJornadasClientes(barId: number) {
 
   // Ordenar por visitas (mais frequentes primeiro)
   jornadas.sort((a, b) => b.visitas_totais - a.visitas_totais);
-
-  console.log(`✅ Jornadas processadas: ${jornadas.length} clientes`);
 
   // Estatísticas
   const stats = {

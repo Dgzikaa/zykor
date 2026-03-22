@@ -15,8 +15,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`🚀 Iniciando sync retroativo do Getin: ${start_date} a ${end_date}`)
-
     // Chamar a Edge Function com os parâmetros de data
     const functionUrl = 'https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/getin-sync-continuous'
     
@@ -35,8 +33,6 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await response.json()
-    
-    console.log('✅ Sincronização Getin retroativa concluída:', result)
 
     return NextResponse.json({
       success: true,

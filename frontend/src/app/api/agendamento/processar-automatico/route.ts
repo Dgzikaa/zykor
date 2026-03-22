@@ -137,12 +137,7 @@ function getTipoPixNibo(tipo: string): number {
 
 // Função para obter token do Inter (usando mTLS real)
 async function obterAccessToken(config: any, conta: string, bar_id: number): Promise<string> {
-  console.log('🔑 Obtendo token Inter para:', {
-    conta,
-    bar_id,
-    conta_corrente: config.CONTA_CORRENTE
-  });
-  
+    
   // Usar função real com mTLS
   const token = await getInterAccessToken(
     config.CLIENT_ID,
@@ -155,8 +150,7 @@ async function obterAccessToken(config: any, conta: string, bar_id: number): Pro
 
 // Função para enviar PIX (usando mTLS real)
 async function enviarPix(config: any, token: string, payload: any): Promise<{ success: boolean; codigoSolicitacao?: string; error?: string }> {
-  console.log('💸 Enviando PIX real:', payload);
-  
+    
   // Usar função real com mTLS
   const resultado = await realizarPagamentoPixInter({
     token: token,
@@ -193,36 +187,12 @@ export async function POST(request: NextRequest) {
       centro_custo_id 
     } = await request.json();
 
-    console.log('🔍 Dados recebidos na API:', {
-      conta: conta + ' (tipo: ' + typeof conta + ')',
-      chave_pix: chave_pix + ' (tipo: ' + typeof chave_pix + ')',
-      nome_beneficiario: nome_beneficiario + ' (tipo: ' + typeof nome_beneficiario + ')',
-      valor: valor + ' (tipo: ' + typeof valor + ')',
-      categoria_id: categoria_id + ' (tipo: ' + typeof categoria_id + ')',
-      centro_custo_id: centro_custo_id + ' (tipo: ' + typeof centro_custo_id + ')',
-    });
-
-    console.log('🔍 Validação individual de campos:', {
-      conta_ok: !!conta,
-      chave_pix_ok: !!chave_pix,
-      nome_beneficiario_ok: !!nome_beneficiario,
-      valor_ok: !!valor,
-      categoria_id_ok: !!categoria_id,
-      centro_custo_id_ok: !!centro_custo_id,
-    });
-
+    
+    
     // Validar dados de entrada
     // centro_custo_id é opcional
     if (!conta || !chave_pix || !nome_beneficiario || !valor || !categoria_id) {
-      console.log('❌ Validação falhou - campos faltando:', {
-        conta: !conta ? 'FALTANDO' : 'OK',
-        chave_pix: !chave_pix ? 'FALTANDO' : 'OK',
-        nome_beneficiario: !nome_beneficiario ? 'FALTANDO' : 'OK',
-        valor: !valor ? 'FALTANDO' : 'OK',
-        categoria_id: !categoria_id ? 'FALTANDO' : 'OK',
-        centro_custo_id: centro_custo_id || 'NÃO INFORMADO (opcional)',
-      });
-      return NextResponse.json({
+            return NextResponse.json({
         success: false,
         error: 'Dados obrigatórios faltando (conta, chave_pix, nome_beneficiario, valor, categoria_id)'
       }, { status: 400 });
@@ -259,13 +229,7 @@ export async function POST(request: NextRequest) {
     // Processar chave PIX
     const { tipo, chaveFormatada } = identificarTipoChave(chave_pix);
     
-    console.log('🔍 Debug chave PIX:', {
-      chave_original: chave_pix,
-      chave_limpa: chave_pix.replace(/\D/g, ''),
-      tipo_identificado: tipo,
-      chave_formatada: chaveFormatada
-    });
-    
+        
     if (!tipo) {
       return NextResponse.json({
         success: false,
@@ -314,8 +278,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. PRIMEIRO: Buscar/Criar stakeholder no NIBO
-    console.log('🔍 Verificando stakeholder no NIBO...');
-    let stakeholderId: string | null = null;
+        let stakeholderId: string | null = null;
     
     // Usar URL base para chamadas internas - prioriza variável de ambiente, depois Vercel, depois produção
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://zykor.com.br');
@@ -327,20 +290,17 @@ export async function POST(request: NextRequest) {
       const cpfCnpj = (tipo === 'CPF' || tipo === 'CNPJ') ? chaveFormatada : '';
       const queryParam = cpfCnpj || encodeURIComponent(nome_beneficiario);
       
-      console.log(`🔍 Buscando stakeholder por: ${cpfCnpj ? 'CPF/CNPJ' : 'nome'} = ${queryParam}`);
-      
+            
       const stakeholderResponse = await fetch(`${baseUrl}/api/financeiro/nibo/stakeholders?q=${queryParam}&bar_id=${bar_id}`);
       const stakeholderData = await stakeholderResponse.json();
 
       if (stakeholderData.success && stakeholderData.data.length > 0) {
         const stakeholder = stakeholderData.data[0];
         stakeholderId = stakeholder.id;
-        console.log('✅ Stakeholder encontrado no NIBO:', stakeholderId);
-        
+                
         // Verificar se precisa atualizar chave PIX
         if (stakeholder.pixKey !== chaveFormatada) {
-          console.log('🔄 Atualizando chave PIX do stakeholder...');
-          const updateResponse = await fetch(`${baseUrl}/api/financeiro/nibo/stakeholders/${stakeholderId}`, {
+                    const updateResponse = await fetch(`${baseUrl}/api/financeiro/nibo/stakeholders/${stakeholderId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -350,18 +310,14 @@ export async function POST(request: NextRequest) {
           });
           
           if (updateResponse.ok) {
-            console.log('✅ Chave PIX atualizada com sucesso');
-          } else {
-            console.log('⚠️ Erro ao atualizar chave PIX, mas continuando...');
-          }
+                      } else {
+                      }
         } else {
-          console.log('✅ Chave PIX já está correta');
-        }
+                  }
       } else {
         // Tentar criar novo stakeholder apenas se temos CPF/CNPJ
         if (cpfCnpj) {
-          console.log('📝 Criando novo stakeholder com chave PIX...');
-          const novoStakeholder = {
+                    const novoStakeholder = {
             name: nome_beneficiario,
             document: cpfCnpj,
             type: 'fornecedor' as const,
@@ -370,8 +326,7 @@ export async function POST(request: NextRequest) {
             pixKeyType: getTipoPixNibo(tipo)
           };
 
-          console.log('📤 Payload do novo stakeholder:', novoStakeholder);
-
+          
           const createResponse = await fetch(`${baseUrl}/api/financeiro/nibo/stakeholders`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -381,15 +336,13 @@ export async function POST(request: NextRequest) {
           const createData = await createResponse.json();
           if (createData.success) {
             stakeholderId = createData.data.id;
-            console.log('✅ Stakeholder criado com chave PIX:', stakeholderId);
-          } else {
+                      } else {
             // Não bloquear, apenas logar warning
             console.warn('⚠️ Não foi possível criar stakeholder, continuando sem:', createData.error);
           }
         } else {
           // Chave PIX não é CPF/CNPJ, não temos documento para criar stakeholder
-          console.log('⚠️ Chave PIX é email/telefone/aleatória - continuando sem stakeholder vinculado');
-        }
+                  }
       }
     } catch (error) {
       // Não bloquear pagamento por erro de stakeholder
@@ -397,8 +350,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. SEGUNDO: Criar agendamento no NIBO
-    console.log('📅 Criando agendamento no NIBO...');
-    let niboAgendamentoId: string | null = null;
+        let niboAgendamentoId: string | null = null;
     
     try {
       // Validar categoria_id ANTES de criar agendamento
@@ -422,18 +374,7 @@ export async function POST(request: NextRequest) {
         bar_id: bar_id, // Importante: passar o bar_id correto
       };
 
-      console.log('📋 Payload para NIBO:', agendamento);
-      console.log('🔍 Validação de campos obrigatórios:', {
-        stakeholderId: !!stakeholderId,
-        dueDate: !!dataPagamentoFormatada,
-        scheduleDate: !!dataPagamentoFormatada,
-        categoria_id: !!categoria_id,
-        categoria_id_valor: categoria_id,
-        centro_custo_id: !!centro_custo_id,
-        value: !!valorNumerico,
-        bar_id: bar_id
-      });
-
+            
       const niboResponse = await fetch(`${baseUrl}/api/financeiro/nibo/schedules`, {
         method: 'POST',
         headers: {
@@ -450,8 +391,7 @@ export async function POST(request: NextRequest) {
       const niboResult = await niboResponse.json();
       niboAgendamentoId = niboResult.data?.id || niboResult.id;
       
-      console.log('✅ Agendamento NIBO criado com sucesso:', niboAgendamentoId);
-      
+            
     } catch (error) {
       console.error('❌ Erro ao criar agendamento NIBO:', error);
       return NextResponse.json({
@@ -479,8 +419,7 @@ export async function POST(request: NextRequest) {
 
     // Se falhou e é 11 dígitos, tentar como telefone também
     if (!resultado.success && chave_pix.replace(/\D/g, '').length === 11) {
-      console.log('🔄 Tentando como telefone...');
-      const payloadTelefone = {
+            const payloadTelefone = {
         ...payload,
         destinatario: {
           tipo: 'CHAVE',

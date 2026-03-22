@@ -76,6 +76,11 @@ interface ResumoDesempenho {
   cmv_medio: number;
 }
 
+/** Mesma semântica do filtro anterior: apenas `sucesso === true` conta como sucesso. */
+function automacaoItemSucessoTrue(r: unknown): boolean {
+  return typeof r === 'object' && r !== null && (r as { sucesso: unknown }).sucesso === true;
+}
+
 export default function TabelaDesempenhoPage() {
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
@@ -136,10 +141,7 @@ export default function TabelaDesempenhoPage() {
 
       const response = await fetch(`/api/gestao/desempenho?${params.toString()}`, {
         headers: {
-          'x-user-data': JSON.stringify({
-            bar_id: selectedBar.id,
-            permissao: 'admin',
-          }),
+          'x-selected-bar-id': String(selectedBar.id),
         },
       });
 
@@ -178,10 +180,7 @@ export default function TabelaDesempenhoPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-data': JSON.stringify({
-            bar_id: selectedBar.id,
-            permissao: 'admin',
-          }),
+          'x-selected-bar-id': String(selectedBar.id),
         },
         body: JSON.stringify({
           recalcular_todas: true
@@ -243,10 +242,7 @@ export default function TabelaDesempenhoPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-data': JSON.stringify({
-            bar_id: selectedBar.id,
-            permissao: 'admin',
-          }),
+          'x-selected-bar-id': String(selectedBar.id),
         },
         body: JSON.stringify({
           planilha_url: URL_PLANILHA,
@@ -291,10 +287,7 @@ export default function TabelaDesempenhoPage() {
       const response = await fetch(`/api/gestao/desempenho?id=${id}`, {
         method: 'DELETE',
         headers: {
-          'x-user-data': JSON.stringify({
-            bar_id: selectedBar?.id,
-            permissao: 'admin',
-          }),
+          'x-selected-bar-id': String(selectedBar?.id || ''),
         },
       });
 
@@ -328,10 +321,7 @@ export default function TabelaDesempenhoPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-data': JSON.stringify({
-            bar_id: selectedBar?.id,
-            permissao: 'admin',
-          }),
+          'x-selected-bar-id': String(selectedBar?.id || ''),
         },
       });
 
@@ -366,10 +356,7 @@ export default function TabelaDesempenhoPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-data': JSON.stringify({
-            bar_id: selectedBar.id,
-            permissao: 'admin',
-          }),
+          'x-selected-bar-id': String(selectedBar.id),
         },
         body: JSON.stringify({
           ate_semana: 52 // Criar ano completo
@@ -424,9 +411,10 @@ export default function TabelaDesempenhoPage() {
       const result = await response.json();
 
       if (result.success) {
-        const resultados = result.result?.resultados || [];
-        const sucessos = resultados.filter((r: any) => r.sucesso).length;
-        const erros = resultados.filter((r: any) => !r.sucesso).length;
+        const raw = result.result?.resultados;
+        const resultados: unknown[] = Array.isArray(raw) ? raw : [];
+        const sucessos = resultados.filter(automacaoItemSucessoTrue).length;
+        const erros = resultados.filter((r) => !automacaoItemSucessoTrue(r)).length;
 
         toast({
           title: '✅ Teste da Automação Concluído!',
@@ -504,10 +492,7 @@ export default function TabelaDesempenhoPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-data': JSON.stringify({
-            bar_id: selectedBar.id,
-            permissao: 'admin',
-          }),
+          'x-selected-bar-id': String(selectedBar.id),
         },
         body: JSON.stringify({
           id: selectedData.id,

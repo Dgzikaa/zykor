@@ -286,20 +286,20 @@ export async function GET(request: NextRequest) {
 
     // Buscar top produtos
     const { data: produtosRaw } = await supabase
-      .from('contahub_analitico')
-      .select('prd_desc, qtd, valorfinal')
+      .from('vendas_item')
+      .select('produto_desc, quantidade, valor')
       .eq('bar_id', parseInt(barId))
-      .gte('trn_dtgerencial', dataInicio);
+      .gte('data_venda', dataInicio);
 
     // Agrupar produtos
     const produtosAgrupados: Record<string, { qtd: number; valor: number }> = {};
     produtosRaw?.forEach(p => {
-      if (!p.prd_desc) return;
-      if (!produtosAgrupados[p.prd_desc]) {
-        produtosAgrupados[p.prd_desc] = { qtd: 0, valor: 0 };
+      if (!p.produto_desc) return;
+      if (!produtosAgrupados[p.produto_desc]) {
+        produtosAgrupados[p.produto_desc] = { qtd: 0, valor: 0 };
       }
-      produtosAgrupados[p.prd_desc].qtd += p.qtd || 0;
-      produtosAgrupados[p.prd_desc].valor += p.valorfinal || 0;
+      produtosAgrupados[p.produto_desc].qtd += p.quantidade || 0;
+      produtosAgrupados[p.produto_desc].valor += p.valor || 0;
     });
 
     const topProdutos = Object.entries(produtosAgrupados)

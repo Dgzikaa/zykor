@@ -23,8 +23,6 @@ async function executeNiboSync(barId?: string, syncMode?: string, dateStart?: st
 
     // Horário atual no fuso de São Paulo
     const agoraBrasil = toZonedTime(new Date(), 'America/Sao_Paulo');
-    console.log(`🕐 Horário em São Paulo: ${format(agoraBrasil, 'dd/MM/yyyy HH:mm:ss')}`);
-    console.log(`🔧 Modo de sincronização: ${targetSyncMode}${dateStart ? ` (${dateStart} a ${dateEnd})` : ''}`);
 
     // Buscar credenciais do Nibo na tabela api_credentials
     const { data: credenciais, error: credError } = await supabase
@@ -38,8 +36,6 @@ async function executeNiboSync(barId?: string, syncMode?: string, dateStart?: st
     if (credError || !credenciais) {
       throw new Error(`Credenciais do Nibo não encontradas para o bar_id ${targetBarId}`);
     }
-
-    console.log(`✅ Credenciais encontradas para bar_id: ${targetBarId}`);
 
     // Log da sincronização
     const logData = {
@@ -61,8 +57,6 @@ async function executeNiboSync(barId?: string, syncMode?: string, dateStart?: st
       console.error('Erro ao criar log de início:', logError);
     }
 
-    console.log(`🔄 Chamando Edge Function NIBO para bar_id: ${targetBarId} (modo: ${targetSyncMode})`);
-    
     // ✅ CHAMADA REAL para a Edge Function do NIBO
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -136,8 +130,6 @@ async function executeNiboSync(barId?: string, syncMode?: string, dateStart?: st
 // GET - Para cron job do Vercel
 export async function GET() {
   try {
-    console.log('🕐 Cron job Nibo Sync iniciado');
-    
     const result = await executeNiboSync();
     
     return NextResponse.json(result, { status: 200 });
@@ -170,8 +162,7 @@ export async function POST(request: NextRequest) {
     }
 
     const modoSync = sync_mode || 'continuous';
-    console.log(`🔄 Sincronização manual iniciada para bar_id: ${barId} (modo: ${modoSync})`);
-    
+
     const result = await executeNiboSync(barId, modoSync, date_start, date_end);
     
     return NextResponse.json(result, { status: 200 });

@@ -109,14 +109,20 @@ function validarEFormatarPixKey(chavePix: string): { pixKey: string; pixKeyType:
   }
   
   // Chave não reconhecida/inválida - não enviar para o NIBO
-  console.log(`[CRIAR-SUPPLIER] Chave PIX não suportada: "${chavePix}"`);
-  return null;
+    return null;
 }
 
 // POST - Criar supplier no NIBO
 export async function POST(request: NextRequest) {
   try {
-    const { nome, chave_pix, bar_id = 3 } = await request.json();
+    const { nome, chave_pix, bar_id } = await request.json();
+
+    if (!bar_id) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
 
     if (!nome) {
       return NextResponse.json(
@@ -125,8 +131,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`[CRIAR-SUPPLIER] Criando "${nome}" (chave_pix: ${chave_pix || 'N/A'}) no bar_id=${bar_id}`);
-
+    
     const credencial = await getNiboCredentials(bar_id);
     if (!credencial) {
       return NextResponse.json(
@@ -160,13 +165,10 @@ export async function POST(request: NextRequest) {
         pixKey: pixInfo.pixKey,
         pixKeyType: pixInfo.pixKeyType
       };
-      console.log(`[CRIAR-SUPPLIER] PIX válido: ${pixInfo.pixKey} (tipo ${pixInfo.pixKeyType})`);
-    } else if (chave_pix) {
-      console.log(`[CRIAR-SUPPLIER] PIX ignorado (formato inválido): ${chave_pix}`);
-    }
+          } else if (chave_pix) {
+          }
 
-    console.log(`[CRIAR-SUPPLIER] Payload:`, JSON.stringify(supplierPayload));
-
+    
     // Criar supplier no NIBO
     const niboUrl = `${NIBO_BASE_URL}/suppliers?apitoken=${credencial.api_token}`;
     
@@ -188,8 +190,7 @@ export async function POST(request: NextRequest) {
       // Verificar se o erro é "já existe com esta chave PIX"
       if (responseText.includes('Já existe um fornecedor cadastrado com esta chave PIX')) {
         // Tentar buscar o supplier existente
-        console.log(`[CRIAR-SUPPLIER] Supplier já existe com esta chave PIX, buscando...`);
-        
+                
         try {
           // Buscar todos suppliers com paginação
           let allSuppliers: any[] = [];
@@ -234,14 +235,12 @@ export async function POST(request: NextRequest) {
             }
           }
           
-          console.log(`[CRIAR-SUPPLIER] Buscando "${nome}" entre ${allSuppliers.length} suppliers...`);
-          
+                    
           // Normalizar nome para comparação
           const nomeNormalizado = nome.trim().toUpperCase()
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
           
-          console.log(`[CRIAR-SUPPLIER] Nome normalizado: "${nomeNormalizado}"`);
-          
+                    
           // Buscar pelo PIX formatado ou por nome similar
           const pixFormatado = pixInfo?.pixKey?.toLowerCase();
           let existente: any = null;
@@ -286,8 +285,7 @@ export async function POST(request: NextRequest) {
           }
           
           if (existente) {
-            console.log(`[CRIAR-SUPPLIER] ✓ Encontrado supplier existente: ${existente.id} - ${existente.name}`);
-            // Limpar cache
+                        // Limpar cache
             clearSuppliersCache(bar_id);
             return NextResponse.json({
               success: true,
@@ -310,8 +308,7 @@ export async function POST(request: NextRequest) {
               })
               .slice(0, 3)
               .map((s: any) => s.name);
-            console.log(`[CRIAR-SUPPLIER] ✗ Não encontrado. Opções similares:`, opcoesNome);
-          }
+                      }
         } catch (searchError) {
           console.error(`[CRIAR-SUPPLIER] Erro ao buscar supplier existente:`, searchError);
         }
@@ -332,8 +329,7 @@ export async function POST(request: NextRequest) {
 
     const supplierId = createdSupplier.id || createdSupplier;
     const pixStatus = pixInfo ? 'com PIX' : (chave_pix ? 'sem PIX (formato inválido)' : 'sem PIX');
-    console.log(`[CRIAR-SUPPLIER] ✓ Supplier criado: ${supplierId} (${pixStatus})`);
-    
+        
     // Limpar cache para que a próxima busca encontre o novo supplier
     clearSuppliersCache(bar_id);
 

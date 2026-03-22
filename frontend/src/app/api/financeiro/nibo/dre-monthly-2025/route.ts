@@ -18,8 +18,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const barId = searchParams.get('bar_id');
 
-    console.log(`[DRE-MONTHLY-2025] Buscando evolução mensal, bar_id=${barId}`);
-
     // Buscar dados mensais de 2025 da view_dre
     const { data: dreData, error: dreError } = await supabase
       .from('view_dre')

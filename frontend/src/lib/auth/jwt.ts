@@ -5,14 +5,21 @@
 import jwt from 'jsonwebtoken';
 import type { AuthToken } from './types';
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXT_PUBLIC_JWT_SECRET || 'zykor-secret-key-change-in-production';
 const JWT_EXPIRATION = '7d'; // 7 dias
+
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET não configurado. Configure a variável de ambiente.');
+  }
+  return secret;
+}
 
 /**
  * Gerar token JWT
  */
 export function generateToken(payload: Omit<AuthToken, 'iat' | 'exp'>): string {
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, getJwtSecret(), {
     expiresIn: JWT_EXPIRATION,
   });
 }
@@ -22,7 +29,7 @@ export function generateToken(payload: Omit<AuthToken, 'iat' | 'exp'>): string {
  */
 export function validateToken(token: string): AuthToken | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthToken;
+    const decoded = jwt.verify(token, getJwtSecret()) as AuthToken;
     
     // Verificar expiração
     if (decoded.exp && decoded.exp < Date.now() / 1000) {
@@ -60,7 +67,7 @@ export function isTokenExpired(token: string): boolean {
  * Gerar refresh token (válido por 30 dias)
  */
 export function generateRefreshToken(payload: Omit<AuthToken, 'iat' | 'exp'>): string {
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, getJwtSecret(), {
     expiresIn: '30d',
   });
 }
@@ -70,7 +77,7 @@ export function generateRefreshToken(payload: Omit<AuthToken, 'iat' | 'exp'>): s
  */
 export function validateRefreshToken(token: string): AuthToken | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthToken;
+    const decoded = jwt.verify(token, getJwtSecret()) as AuthToken;
     return decoded;
   } catch (error) {
     return null;

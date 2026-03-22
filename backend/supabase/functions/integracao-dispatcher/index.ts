@@ -12,6 +12,8 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -35,13 +37,25 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  let heartbeatId: number | null = null;
+  let startTime: number = Date.now();
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, serviceKey);
+
   try {
     const body: DispatcherRequest = await req.json();
     const { action, ...params } = body;
 
     console.log(`🔗 Integração Dispatcher - Action: ${action}`);
 
+    const hbResult = await heartbeatStart(supabase, 'integracao-dispatcher', null, action, 'pgcron');
+    heartbeatId = hbResult.heartbeatId;
+    startTime = hbResult.startTime;
+
     if (!action || !ACTION_URLS[action]) {
+      await heartbeatEnd(supabase, heartbeatId, 'error', startTime, 0, { error: 'action_invalida' });
       return new Response(
         JSON.stringify({
           success: false,
@@ -53,9 +67,6 @@ serve(async (req) => {
         }
       );
     }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
     const targetUrl = `${supabaseUrl}${ACTION_URLS[action]}`;
     
@@ -71,6 +82,8 @@ serve(async (req) => {
     });
     
     const result = await response.json();
+
+    await heartbeatEnd(supabase, heartbeatId, response.ok ? 'success' : 'error', startTime, 1, { action, status: response.status });
     
     return new Response(
       JSON.stringify({
@@ -88,6 +101,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Erro no integração dispatcher:', error);
+    await heartbeatError(supabase, heartbeatId, startTime, error instanceof Error ? error : String(error));
     
     return new Response(
       JSON.stringify({

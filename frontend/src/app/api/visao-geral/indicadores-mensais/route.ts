@@ -59,10 +59,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    console.log(`🔍 Calculando indicadores mensais para bar ${barIdNum}:`);
-    console.log(`📅 Meses: ${meses.map(m => m.mes).join(', ')}`);
-    console.log(`📊 barId recebido: ${barId}, barIdNum: ${barIdNum}`);
-
     const indicadoresPorMes: IndicadoresMes[] = [];
 
     // Calcular indicadores para cada mês
@@ -71,11 +67,7 @@ export async function GET(request: NextRequest) {
       const inicioMes = `${mesInfo.mes}-01`;
       const fimMes = new Date(parseInt(ano), parseInt(mes), 0).toISOString().split('T')[0];
 
-      console.log(`📊 Processando ${mesInfo.mesNome} (${inicioMes} a ${fimMes})`);
-
       // 1. FATURAMENTO TOTAL DO MÊS (ContaHub + Yuzer + Sympla)
-      console.log(`💰 Buscando faturamento para bar_id=${barIdNum}, período=${inicioMes} a ${fimMes}`);
-      
       const limit = 1000; // Limite para paginação
       
       // 1.1. CONTAHUB (excluindo 'Conta Assinada')
@@ -85,15 +77,15 @@ export async function GET(request: NextRequest) {
 
       while (hasMoreContahub) {
         const { data: batch, error: batchError } = await supabase
-          .from('contahub_pagamentos')
-          .select('liquido, meio')
+          .from('faturamento_pagamentos')
+          .select('valor_liquido, meio')
           .eq('bar_id', barIdNum)
-          .gte('dt_gerencial', inicioMes)
-          .lte('dt_gerencial', fimMes)
+          .gte('data_pagamento', inicioMes)
+          .lte('data_pagamento', fimMes)
           .range(fromContahub, fromContahub + limit - 1);
 
         if (batchError) {
-          console.error('❌ Erro ao buscar batch ContaHub:', batchError);
+          console.error('❌ Erro ao buscar batch faturamento_pagamentos:', batchError);
           throw batchError;
         }
 
@@ -108,7 +100,7 @@ export async function GET(request: NextRequest) {
 
       // Filtrar para excluir 'Conta Assinada' (consumo de sócios)
       const contahubFiltrado = contahubData?.filter(item => item.meio !== 'Conta Assinada') || [];
-      const faturamentoContahub = contahubFiltrado.reduce((sum, item) => sum + (parseFloat(item.liquido) || 0), 0);
+      const faturamentoContahub = contahubFiltrado.reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0);
 
       // 1.2. YUZER
       let yuzerData: any[] = [];
@@ -173,30 +165,23 @@ export async function GET(request: NextRequest) {
 
       // 1.4. TOTAL
       const faturamentoTotal = faturamentoContahub + faturamentoYuzer + faturamentoSympla;
-      
-      console.log(`💰 Faturamento ContaHub: R$ ${faturamentoContahub.toLocaleString('pt-BR')} (${contahubFiltrado.length} registros)`);
-      console.log(`💰 Faturamento Yuzer: R$ ${faturamentoYuzer.toLocaleString('pt-BR')} (${yuzerData.length} registros)`);
-      console.log(`💰 Faturamento Sympla: R$ ${faturamentoSympla.toLocaleString('pt-BR')} (${symplaData.length} registros)`);
-      console.log(`💰 Faturamento TOTAL: R$ ${faturamentoTotal.toLocaleString('pt-BR')}`);
 
       // 2. PREPARAR DADOS PARA CLIENTES ATIVOS
       // Vamos calcular depois que tivermos os clientes totais do mês
 
       // 3. CLIENTES TOTAIS DO MÊS - TODOS os registros
-      console.log(`📊 Buscando clientes totais do mês ${inicioMes} a ${fimMes}`);
-
       let clientesTotaisData: any[] = [];
       let fromTotais = 0;
       let hasMoreTotais = true;
 
       while (hasMoreTotais) {
         const { data: batch, error: batchError } = await supabase
-          .from('contahub_periodo')
-          .select('cli_fone')
+          .from('visitas')
+          .select('cliente_fone')
           .eq('bar_id', barIdNum)
-          .gte('dt_gerencial', inicioMes)
-          .lte('dt_gerencial', fimMes)
-          .not('cli_fone', 'is', null)
+          .gte('data_visita', inicioMes)
+          .lte('data_visita', fimMes)
+          .not('cliente_fone', 'is', null)
           .range(fromTotais, fromTotais + limit - 1);
 
         if (batchError) {
@@ -213,17 +198,11 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      console.log(`📊 Registros de clientes totais encontrados: ${clientesTotaisData?.length || 0}`);
-
       const clientesTotaisUnicos = new Set(
-        (clientesTotaisData || []).map(row => (row.cli_fone || '').toString().trim()).filter(Boolean)
+        (clientesTotaisData || []).map(row => (row.cliente_fone || '').toString().trim()).filter(Boolean)
       ).size;
 
-      console.log(`📊 Clientes totais únicos: ${clientesTotaisUnicos}`);
-
       // 3. NOVOS CLIENTES (primeira visita no mês)
-      console.log(`📊 Calculando novos clientes para ${mesInfo.mesNome} (${inicioMes} a ${fimMes})`);
-      
       // Buscar TODOS os clientes históricos para calcular primeira visita (sem limite)
       let todosClientesData: any[] = [];
       let fromHistorico = 0;
@@ -232,11 +211,11 @@ export async function GET(request: NextRequest) {
 
       while (hasMoreHistorico) {
         const { data: batch, error: batchError } = await supabase
-          .from('contahub_periodo')
-          .select('cli_fone, dt_gerencial')
+          .from('visitas')
+          .select('cliente_fone, data_visita')
           .eq('bar_id', barIdNum)
-          .not('cli_fone', 'is', null)
-          .order('dt_gerencial', { ascending: true })
+          .not('cliente_fone', 'is', null)
+          .order('data_visita', { ascending: true })
           .range(fromHistorico, fromHistorico + limitHistorico - 1);
 
         if (batchError) {
@@ -257,12 +236,10 @@ export async function GET(request: NextRequest) {
 
       let novosClientes = 0;
       if (!todosClientesError && todosClientesData) {
-        console.log(`📊 Processando ${todosClientesData.length} registros para calcular novos clientes`);
-        
         const primeiraVisitaMap = new Map<string, string>();
         todosClientesData.forEach(row => {
-          const fone = (row.cli_fone || '').toString().trim();
-          const data = row.dt_gerencial;
+          const fone = (row.cliente_fone || '').toString().trim();
+          const data = row.data_visita;
           if (fone && data) {
             // Só adiciona se não existe (primeira ocorrência já que está ordenado por data)
             if (!primeiraVisitaMap.has(fone)) {
@@ -277,33 +254,24 @@ export async function GET(request: NextRequest) {
             novosClientes++;
           }
         });
-        
-        console.log(`📊 Novos clientes calculados: ${novosClientes} (primeira visita entre ${inicioMes} e ${fimMes})`);
       } else {
         console.error('❌ Erro ao buscar dados para novos clientes:', todosClientesError);
       }
 
       // 4. CLIENTES RECORRENTES (visitaram no mês MAS não são novos)
-      console.log(`🔄 Calculando clientes recorrentes para ${mesInfo.mesNome}`);
-      
       // Clientes recorrentes = Clientes totais do mês - Novos clientes
       const clientesRecorrentes = clientesTotaisUnicos - novosClientes;
-      console.log(`🔄 Clientes recorrentes calculados: ${clientesRecorrentes} (${clientesTotaisUnicos} totais - ${novosClientes} novos)`);
 
       // 5. VALIDAÇÃO: Novos + Recorrentes deve = Totais
       const soma = novosClientes + clientesRecorrentes;
       if (soma !== clientesTotaisUnicos) {
         console.warn(`⚠️ ATENÇÃO: Soma não confere! Novos(${novosClientes}) + Recorrentes(${clientesRecorrentes}) = ${soma}, mas Totais = ${clientesTotaisUnicos}`);
-      } else {
-        console.log(`✅ Validação OK: ${novosClientes} + ${clientesRecorrentes} = ${clientesTotaisUnicos}`);
       }
 
       // 5. CLIENTES ATIVOS (visitaram no mês + pelo menos 1x nos últimos 90 dias)
-      console.log(`👥 Calculando clientes ativos para ${mesInfo.mesNome}`);
-      
       // Buscar clientes que visitaram no mês
       const clientesDoMes = new Set(
-        (clientesTotaisData || []).map(row => (row.cli_fone || '').toString().trim()).filter(Boolean)
+        (clientesTotaisData || []).map(row => (row.cliente_fone || '').toString().trim()).filter(Boolean)
       );
       
       // Buscar histórico dos últimos 90 dias (antes do mês)
@@ -314,20 +282,18 @@ export async function GET(request: NextRequest) {
       fimPeriodoAnterior.setDate(fimPeriodoAnterior.getDate() - 1);
       const fimPeriodoAnteriorStr = fimPeriodoAnterior.toISOString().split('T')[0];
 
-      console.log(`👥 Buscando histórico recente de ${data90DiasAtrasStr} a ${fimPeriodoAnteriorStr}`);
-
       let historicoRecenteData: any[] = [];
       let fromHistoricoRecente = 0;
       let hasMoreHistoricoRecente = true;
 
       while (hasMoreHistoricoRecente) {
         const { data: batch, error: batchError } = await supabase
-          .from('contahub_periodo')
-          .select('cli_fone')
+          .from('visitas')
+          .select('cliente_fone')
           .eq('bar_id', barIdNum)
-          .gte('dt_gerencial', data90DiasAtrasStr)
-          .lte('dt_gerencial', fimPeriodoAnteriorStr)
-          .not('cli_fone', 'is', null)
+          .gte('data_visita', data90DiasAtrasStr)
+          .lte('data_visita', fimPeriodoAnteriorStr)
+          .not('cliente_fone', 'is', null)
           .range(fromHistoricoRecente, fromHistoricoRecente + limit - 1);
 
         if (batchError) {
@@ -346,7 +312,7 @@ export async function GET(request: NextRequest) {
 
       // Clientes que visitaram nos últimos 90 dias (antes do mês)
       const clientesHistoricoRecente = new Set(
-        (historicoRecenteData || []).map(row => (row.cli_fone || '').toString().trim()).filter(Boolean)
+        (historicoRecenteData || []).map(row => (row.cliente_fone || '').toString().trim()).filter(Boolean)
       );
 
       // Clientes ativos = visitaram no mês E também visitaram nos 90 dias anteriores
@@ -356,8 +322,6 @@ export async function GET(request: NextRequest) {
           clientesAtivos++;
         }
       });
-
-      console.log(`👥 Clientes ativos calculados: ${clientesAtivos} (visitaram no mês + nos últimos 90 dias)`);
 
       // 6. PERCENTUAIS
       const percentualNovos = clientesTotaisUnicos > 0 ? (novosClientes / clientesTotaisUnicos) * 100 : 0;
@@ -380,7 +344,6 @@ export async function GET(request: NextRequest) {
       }
 
       // 8. CALCULAR CMO (Custo de Mão de Obra) - buscar da tabela nibo_agendamentos
-      console.log(`💼 Calculando CMO para ${mesInfo.mesNome}`);
       const { data: cmoData, error: cmoError } = await supabase
         .from('nibo_agendamentos')
         .select('valor')
@@ -394,11 +357,8 @@ export async function GET(request: NextRequest) {
 
       const cmoTotal = !cmoError && cmoData ? 
         cmoData.reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0) : 0;
-      
-      console.log(`💼 CMO calculado: R$ ${cmoTotal.toLocaleString('pt-BR')} (${cmoData?.length || 0} registros)`);
 
       // 9. CALCULAR % ARTÍSTICA/FATURAMENTO
-      console.log(`🎭 Calculando % Artística para ${mesInfo.mesNome}`);
       const { data: artisticaData, error: artisticaError } = await supabase
         .from('nibo_agendamentos')
         .select('valor')
@@ -411,27 +371,21 @@ export async function GET(request: NextRequest) {
         artisticaData.reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0) : 0;
       
       const percentualArtistico = faturamentoTotal > 0 ? (custoArtistico / faturamentoTotal) * 100 : 0;
-      
-      console.log(`🎭 Custo Artístico: R$ ${custoArtistico.toLocaleString('pt-BR')} (${percentualArtistico.toFixed(1)}%)`);
 
       // 10. CALCULAR TICKET MÉDIO CORRETO
       // Ticket médio = Faturamento / Número de pessoas (não clientes únicos)
-      console.log(`🎯 Calculando Ticket Médio para ${mesInfo.mesNome}`);
-      
-      // Buscar pessoas do ContaHub
+      // Buscar pessoas da tabela visitas
       const { data: pessoasContahub, error: pessoasError } = await supabase
-        .from('contahub_periodo')
+        .from('visitas')
         .select('pessoas')
         .eq('bar_id', barIdNum)
-        .gte('dt_gerencial', inicioMes)
-        .lte('dt_gerencial', fimMes);
+        .gte('data_visita', inicioMes)
+        .lte('data_visita', fimMes);
 
       const totalPessoas = !pessoasError && pessoasContahub ? 
         pessoasContahub.reduce((sum, item) => sum + (parseInt(item.pessoas) || 0), 0) : 0;
       
       const ticketMedio = totalPessoas > 0 ? faturamentoTotal / totalPessoas : 0;
-      
-      console.log(`🎯 Pessoas: ${totalPessoas}, Ticket Médio: R$ ${ticketMedio.toFixed(2)}`);
 
       indicadoresPorMes.push({
         mes: mesInfo.mes,
@@ -452,8 +406,6 @@ export async function GET(request: NextRequest) {
         totalPessoas,
         reputacao
       });
-
-      console.log(`✅ ${mesInfo.mesNome}: Fat=${faturamentoTotal.toLocaleString()}, Totais=${clientesTotaisUnicos}, Novos=${novosClientes}, Recorrentes=${clientesRecorrentes}, Ativos=${clientesAtivos}`);
     }
 
     // Calcular variações entre os meses

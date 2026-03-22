@@ -11,7 +11,7 @@ const supabase = createClient(
 const NIBO_BASE_URL = 'https://api.nibo.com.br/empresas/v1';
 
 // Buscar credenciais do NIBO para um bar
-async function getNiboCredentials(barId: number = 3) {
+async function getNiboCredentials(barId: number) {
   const { data: credencial, error } = await supabase
     .from('api_credentials')
     .select('api_token, empresa_id')
@@ -35,9 +35,14 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, document, pixKey, pixKeyType = 3, bar_id = 3 } = body;
+    const { name, document, pixKey, pixKeyType = 3, bar_id } = body;
 
-    console.log(`[NIBO-STAKEHOLDERS] Atualizando stakeholder ID=${id}, pixKey=${pixKey}`);
+    if (!bar_id) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
 
     const credencial = await getNiboCredentials(bar_id);
     
@@ -67,7 +72,6 @@ export async function PUT(
     }
 
     const currentData = await getResponse.json();
-    console.log('[NIBO-STAKEHOLDERS] Dados atuais:', JSON.stringify(currentData, null, 2));
 
     // Limpar documento
     const cleanDocument = (document || currentData.document?.number || '').replace(/\D/g, '');
@@ -102,8 +106,6 @@ export async function PUT(
       };
     }
 
-    console.log('[NIBO-STAKEHOLDERS] Payload de atualização:', JSON.stringify(updatePayload, null, 2));
-
     const response = await fetch(`${NIBO_BASE_URL}/stakeholders/${id}?apitoken=${credencial.api_token}`, {
       method: 'PUT',
       headers: {
@@ -124,7 +126,6 @@ export async function PUT(
     }
 
     const niboData = await response.json();
-    console.log('[NIBO-STAKEHOLDERS] Stakeholder atualizado:', niboData.id);
 
     // Atualizar cache local
     if (pixKey) {
@@ -167,9 +168,14 @@ export async function GET(
   try {
     const { id } = await params;
     const { searchParams } = new URL(request.url);
-    const barId = parseInt(searchParams.get('bar_id') || '3');
-
-    console.log(`[NIBO-STAKEHOLDERS] Buscando stakeholder ID=${id}`);
+    const barIdParam = searchParams.get('bar_id');
+    if (!barIdParam) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
+    const barId = parseInt(barIdParam);
 
     const credencial = await getNiboCredentials(barId);
     

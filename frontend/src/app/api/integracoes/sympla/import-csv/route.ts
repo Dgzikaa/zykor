@@ -87,8 +87,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`📊 Processando ${rows.length} linhas do CSV...`);
-
     const participantesParaInserir: any[] = [];
     let comCheckin = 0;
     let semCheckin = 0;
@@ -161,9 +159,6 @@ export async function POST(request: NextRequest) {
 
     for (let i = 0; i < participantesParaInserir.length; i += tamanhoLote) {
       const lote = participantesParaInserir.slice(i, i + tamanhoLote);
-      
-      console.log(`📦 Inserindo lote ${Math.floor(i/tamanhoLote) + 1}: ${lote.length} registros`);
-      
       const { data, error } = await supabase
         .from('sympla_participantes')
         .insert(lote)
@@ -175,11 +170,8 @@ export async function POST(request: NextRequest) {
       } else {
         const inseridos = data?.length || 0;
         totalInseridos += inseridos;
-        console.log(`✅ Lote ${Math.floor(i/tamanhoLote) + 1}: ${inseridos} registros inseridos`);
       }
     }
-    
-    console.log(`\n📊 RESUMO: ${totalInseridos} inseridos, ${erros} erros`);
 
     // Recalcular métricas
     try {

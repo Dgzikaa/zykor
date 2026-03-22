@@ -3,10 +3,6 @@ import { Resend } from 'resend';
 
 export const dynamic = 'force-dynamic';
 
-// Verificar se a chave da API está disponível
-const RESEND_API_KEY = process.env.RESEND_API_KEY || 'dummy-key';
-const resend = new Resend(RESEND_API_KEY);
-
 interface UserWelcomeRequest {
   to: string;
   nome: string;
@@ -18,8 +14,7 @@ interface UserWelcomeRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    // Verificar se a API está configurada
-    if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 'dummy-key') {
+    if (!process.env.RESEND_API_KEY) {
       console.warn('⚠️ RESEND_API_KEY não configurado');
       return NextResponse.json(
         { 
@@ -29,6 +24,8 @@ export async function POST(request: NextRequest) {
         { status: 503 }
       );
     }
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
 
     const { to, nome, email, senha_temporaria, role, loginUrl } = await request.json() as UserWelcomeRequest;
 
@@ -174,8 +171,6 @@ export async function POST(request: NextRequest) {
         { name: 'environment', value: process.env.NODE_ENV || 'production' }
       ]
     });
-
-    console.log('📧 Email de boas-vindas enviado para novo usuário:', result);
 
     return NextResponse.json({
       success: true,

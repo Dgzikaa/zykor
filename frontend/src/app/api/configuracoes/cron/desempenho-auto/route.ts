@@ -4,8 +4,6 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔧 Gerando SQL para configuração do pg_cron - Desempenho Automático...');
-
     const cronJobSQL = `-- CONFIGURAR PG_CRON PARA DESEMPENHO AUTOMÁTICO
 -- Execute este SQL no Supabase SQL Editor:
 
@@ -93,8 +91,6 @@ ORDER BY jobname;
       sql_to_execute: cronJobSQL
     };
 
-    console.log('📊 SQL preparado para execução:', summary);
-
     return NextResponse.json({
       success: true,
       message: 'SQL para configuração do pg_cron está pronto',
@@ -120,8 +116,6 @@ ORDER BY jobname;
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 Gerando SQL para verificação do pg_cron - Desempenho...');
-
     const verificationSQL = `-- VERIFICAR STATUS DO PG_CRON DESEMPENHO
 -- Execute este SQL no Supabase SQL Editor:
 
@@ -216,8 +210,6 @@ ORDER BY jobname;`;
 
 export async function DELETE(request: NextRequest) {
   try {
-    console.log('🗑️ Gerando SQL para remover jobs do pg_cron - Desempenho...');
-
     const deleteSQL = `-- REMOVER JOBS DO PG_CRON DESEMPENHO
 -- Execute este SQL no Supabase SQL Editor:
 

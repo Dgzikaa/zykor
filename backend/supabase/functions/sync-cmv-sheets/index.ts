@@ -1,23 +1,30 @@
 /**
- * 📊 SYNC CMV SHEETS - Versão 6.0
+ * 📊 SYNC CMV SHEETS - Versão 7.0
  * 
- * Edge Function para sincronizar dados do CMV Semanal usando Google Sheets API
- * com mapeamento FIXO de linhas baseado na estrutura real da planilha.
+ * Edge Function para sincronizar dados do CMV Semanal usando Google Sheets API.
  * 
- * Suporta estruturas diferentes por bar:
- * - Deboche (bar_id=4): linhas começam na 3
- * - Ordinário (bar_id=3): linhas têm offset diferente
+ * v7.0: BLOCO 3A - Agora lê row_map_cmv_semanal de api_credentials.configuracoes
+ *       Fallback para mapeamento hardcoded se não encontrar no banco.
  * 
  * v6.0: Lê CMV Real diretamente da planilha (linha 15) ao invés de calcular.
  *       A fórmula do Sheets é: =(BF4+BF5-BF6)-SOMA(BF7;BF8;BF9;BF10;BF11;BF12)+BF14+BF13
  *       Também lê consumos das linhas 7-11 (já com fator 35% aplicado).
  * 
- * @version 6.0.0
- * @date 2026-03-16
+ * @version 7.0.0
+ * @date 2026-03-19
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { 
+  getSyncBaseline, 
+  validateSheetStructure, 
+  updateSyncBaseline,
+  createValidationError,
+  logValidationResult,
+  isValidationError
+} from '../_shared/sheets-validation.ts'
+import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,45 +39,10 @@ interface SyncRequest {
   debug?: boolean
 }
 
-// ====== MAPEAMENTO DE LINHAS POR BAR ======
+// ====== FALLBACK ROW MAP (usado se banco não tiver configuração) ======
 // IMPORTANTE: Índices são 0-based (linha 4 do Excel = índice 3)
-// A fórmula do Sheets é: =(BF4+BF5-BF6)-SOMA(BF7;BF8;BF9;BF10;BF11;BF12)+BF14+BF13
-const ROW_MAP_DEBOCHE = {
-  // Dados principais (seção superior da planilha)
-  estoque_inicial: 3,      // Linha 4: Estoque Inicial
-  compras: 4,              // Linha 5: Compras
-  estoque_final: 5,        // Linha 6: Estoque Final
-  consumo_socios: 6,       // Linha 7: Consumo Sócios (usado na fórmula CMV)
-  consumo_beneficios: 7,   // Linha 8: Consumo Benefícios
-  consumo_rh_operacao: 8,  // Linha 9: Consumo RH Operação
-  consumo_rh_escritorio: 9,// Linha 10: Consumo RH Escritório
-  consumo_artista: 10,     // Linha 11: Consumo Artista
-  outros_ajustes: 11,      // Linha 12: Outros Ajustes
-  bonificacao_contrato: 12,// Linha 13: Bonificações Contrato
-  outras_bonificacoes: 13, // Linha 14: Outras Bonificações/Ajustes
-  cmv_real_planilha: 14,   // Linha 15: CMV Real (R$) calculado
-  cmv_teorico_pct: 16,     // Linha 17: CMV Teórico (%)
-  // Estoques detalhados
-  estoque_inicial_cozinha: 23,
-  estoque_inicial_bebidas: 24,
-  estoque_inicial_drinks: 25,
-  estoque_final_cozinha: 29,
-  estoque_final_bebidas: 30,
-  estoque_final_drinks: 31,
-  // Contas especiais (valores brutos - usado para relatórios, não para CMV)
-  total_consumo_socios: 55,
-  mesa_beneficios_cliente: 56,
-  mesa_banda_dj: 57,
-  mesa_rh_operacao: 59,
-  mesa_rh_escritorio: 60,
-  // Alimentação
-  estoque_inicial_funcionarios: 65,
-  compras_alimentacao: 66,
-  estoque_final_funcionarios: 67,
-}
-
-const ROW_MAP_ORDINARIO = {
-  // Dados principais
+// Este fallback usa valores do Ordinário (bar 3) como padrão seguro
+const FALLBACK_ROW_MAP = {
   estoque_inicial: 3,
   compras: 4,
   estoque_final: 5,
@@ -84,27 +56,50 @@ const ROW_MAP_ORDINARIO = {
   outras_bonificacoes: 12,
   cmv_real_planilha: 13,
   cmv_teorico_pct: 15,
-  // Estoques detalhados
   estoque_inicial_cozinha: 22,
   estoque_inicial_bebidas: 23,
   estoque_inicial_drinks: 24,
   estoque_final_cozinha: 28,
   estoque_final_bebidas: 29,
   estoque_final_drinks: 30,
-  // Contas especiais
   total_consumo_socios: 54,
   mesa_beneficios_cliente: 55,
   mesa_banda_dj: 56,
   mesa_rh_operacao: 58,
   mesa_rh_escritorio: 59,
-  // Alimentação
   estoque_inicial_funcionarios: 67,
   compras_alimentacao: 68,
   estoque_final_funcionarios: 69,
 }
 
-function getRowMap(barId: number) {
-  return barId === 3 ? ROW_MAP_ORDINARIO : ROW_MAP_DEBOCHE
+interface RowMapType {
+  estoque_inicial: number
+  compras: number
+  estoque_final: number
+  consumo_socios: number
+  consumo_beneficios: number
+  consumo_rh_operacao: number
+  consumo_rh_escritorio: number
+  consumo_artista: number
+  outros_ajustes: number
+  bonificacao_contrato: number
+  outras_bonificacoes: number
+  cmv_real_planilha: number
+  cmv_teorico_pct: number
+  estoque_inicial_cozinha: number
+  estoque_inicial_bebidas: number
+  estoque_inicial_drinks: number
+  estoque_final_cozinha: number
+  estoque_final_bebidas: number
+  estoque_final_drinks: number
+  total_consumo_socios: number
+  mesa_beneficios_cliente: number
+  mesa_banda_dj: number
+  mesa_rh_operacao: number
+  mesa_rh_escritorio: number
+  estoque_inicial_funcionarios: number
+  compras_alimentacao: number
+  estoque_final_funcionarios: number
 }
 
 // ====== AUTENTICAÇÃO GOOGLE ======
@@ -287,15 +282,22 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  let heartbeatId: number | null = null
+  let startTime: number = Date.now()
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const supabase = createClient(supabaseUrl, serviceKey)
+
   try {
     const body: SyncRequest = await req.json().catch(() => ({}))
     const { bar_id, ano, semana, todas_semanas = true, debug = false } = body
 
-    console.log('📊 Sync CMV Sheets v5.0 - Iniciando', { bar_id, ano, semana, todas_semanas })
+    console.log('📊 Sync CMV Sheets v7.0 - Iniciando', { bar_id, ano, semana, todas_semanas })
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, serviceKey)
+    const hbResult = await heartbeatStart(supabase, 'sync-cmv-sheets', bar_id || null, null, 'pgcron')
+    heartbeatId = hbResult.heartbeatId
+    startTime = hbResult.startTime
 
     const baresQuery = supabase
       .from('api_credentials')
@@ -324,7 +326,8 @@ serve(async (req) => {
       ?.map(c => ({
         bar_id: c.bar_id,
         nome: baresMap.get(c.bar_id) || `Bar ${c.bar_id}`,
-        cmv_spreadsheet_id: (c.configuracoes as any)?.cmv_spreadsheet_id || null
+        cmv_spreadsheet_id: (c.configuracoes as any)?.cmv_spreadsheet_id || null,
+        configuracoes: c.configuracoes as any
       }))
       .filter(b => b.cmv_spreadsheet_id) || []
 
@@ -343,7 +346,15 @@ serve(async (req) => {
     for (const barConfig of baresConfig) {
       console.log(`\n🍺 Processando: ${barConfig.nome} (bar_id=${barConfig.bar_id})`)
       
-      const ROW_MAP = getRowMap(barConfig.bar_id)
+      // BLOCO 3A: Lê row_map do banco, fallback para hardcoded
+      const rowMapFromDb = barConfig.configuracoes?.row_map_cmv_semanal as RowMapType | undefined
+      const ROW_MAP: RowMapType = rowMapFromDb || FALLBACK_ROW_MAP
+      
+      if (rowMapFromDb) {
+        console.log(`📋 [ROW_MAP] Bar ${barConfig.bar_id}: usando configuração do banco`)
+      } else {
+        console.log(`⚠️ [ROW_MAP] Bar ${barConfig.bar_id}: usando fallback hardcoded`)
+      }
 
       try {
         const sheets = await listSheets(barConfig.cmv_spreadsheet_id!, accessToken)
@@ -368,6 +379,20 @@ serve(async (req) => {
         const rows = await getSheetData(barConfig.cmv_spreadsheet_id!, range, accessToken)
         
         console.log(`📊 ${rows.length} linhas carregadas`)
+        
+        // ========== VALIDAÇÃO ESTRUTURAL ==========
+        const baseline = await getSyncBaseline(supabase, 'cmv', barConfig.bar_id)
+        const validationResult = validateSheetStructure(rows, baseline, {
+          headerRowIndex: 0,
+          allowEmptyBaseline: true
+        })
+        
+        logValidationResult('cmv', barConfig.bar_id, validationResult)
+        
+        if (!validationResult.valid) {
+          throw createValidationError(validationResult)
+        }
+        // ========== FIM VALIDAÇÃO ==========
         
         let headerRowIndex = -1
         for (let i = 0; i < Math.min(5, rows.length); i++) {
@@ -651,6 +676,13 @@ serve(async (req) => {
 
         console.log(`✅ ${barConfig.nome}: ${semanasAtualizadas} semanas atualizadas, ${semanasErro} erros`)
 
+        // Atualizar baseline após sync bem-sucedido
+        await updateSyncBaseline(supabase, 'cmv', barConfig.bar_id, null, {
+          row_count: rows.length,
+          column_count: (rows[0] || []).length,
+          headers: (headers || []).slice(0, 20).map((h: any) => String(h || ''))
+        })
+
         resultadosPorBar.push({
           bar_id: barConfig.bar_id,
           bar_nome: barConfig.nome,
@@ -661,16 +693,28 @@ serve(async (req) => {
 
       } catch (barError: any) {
         console.error(`❌ Erro ${barConfig.nome}:`, barError.message)
-        resultadosPorBar.push({ bar_id: barConfig.bar_id, bar_nome: barConfig.nome, success: false, error: barError.message })
+        
+        const errorType = isValidationError(barError) ? 'VALIDATION_FAILED' : 'SYNC_ERROR'
+        
+        resultadosPorBar.push({ 
+          bar_id: barConfig.bar_id, 
+          bar_nome: barConfig.nome, 
+          success: false, 
+          error: barError.message,
+          error_type: errorType,
+          validation_details: barError.validation || null
+        })
       }
     }
 
     const totalAtualizadas = resultadosPorBar.filter(r => r.success).reduce((acc, r) => acc + (r.semanas_atualizadas || 0), 0)
 
+    await heartbeatEnd(supabase, heartbeatId, 'success', startTime, totalAtualizadas, { bares: resultadosPorBar.length })
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: `CMV Sheets v5.0 sincronizado: ${totalAtualizadas} semanas atualizadas`,
+        message: `CMV Sheets v7.0 sincronizado: ${totalAtualizadas} semanas atualizadas`,
         resultados_por_bar: resultadosPorBar,
         timestamp: new Date().toISOString()
       }),
@@ -679,6 +723,7 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('❌ Erro:', error.message)
+    await heartbeatError(supabase, heartbeatId, startTime, error)
     return new Response(
       JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

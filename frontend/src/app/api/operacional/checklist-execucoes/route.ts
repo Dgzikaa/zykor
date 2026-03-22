@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import DiscordChecklistService from '@/lib/discord-checklist-service';
 
@@ -70,8 +70,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('✅ Execução criada:', execucao.id);
-
     // 2. Salvar respostas individuais
     if (respostas && Array.isArray(respostas) && respostas.length > 0) {
       const respostasFormatadas = respostas.map(resposta => ({
@@ -90,8 +88,6 @@ export async function POST(request: NextRequest) {
       if (respostasError) {
         console.error('❌ Erro ao salvar respostas:', respostasError);
         // Não falhar a operação se só as respostas deram erro
-      } else {
-        console.log(`✅ ${respostasFormatadas.length} respostas salvas`);
       }
     }
 
@@ -122,10 +118,6 @@ export async function POST(request: NextRequest) {
 
       if (scoreError) {
         console.error('❌ Erro ao salvar score:', scoreError);
-      } else {
-        console.log(
-          `✅ Score calculado: ${(scoreResult as any).score}/${(scoreResult as any).maxScore} (${(scoreResult as any).percentual.toFixed(1)}%)`
-        );
       }
     } catch (scoreError) {
       console.error('❌ Erro no cálculo de score:', scoreError);
@@ -164,9 +156,6 @@ export async function POST(request: NextRequest) {
         };
 
         await DiscordChecklistService.sendCompletion(executionNotification);
-        console.log(
-          `🎯 Notificação Discord enviada: ${checklistData.nome} concluído por ${userData.nome}`
-        );
       }
     } catch (discordError) {
       console.error('❌ Erro ao enviar notificação Discord:', discordError);

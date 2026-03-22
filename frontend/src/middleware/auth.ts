@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { safeErrorLog } from '@/lib/logger';
+import { validateToken } from '@/lib/auth/jwt';
 
 // 🔇 Controle de logs verbose - defina como true para debug
 const VERBOSE_AUTH_LOGS = true;
@@ -27,72 +28,109 @@ export interface PermissionCheck {
 
 /**
  * Middleware de autenticação para APIs
- * Valida o usuário logado via cookie/header
- * PRIORIDADE: x-user-data header > Authorization > cookie
+ * Valida o usuário logado via JWT ou cookie
+ * 
+ * PRIORIDADE SEGURA:
+ * 1. Authorization Bearer token (JWT validado)
+ * 2. Cookie sgb_user (dados validados no banco)
+ * 
+ * NOTA: x-selected-bar-id pode ser usado apenas para override de bar_id
+ * após autenticação bem-sucedida, com validação de acesso.
  */
 export async function authenticateUser(
   request: NextRequest
 ): Promise<AuthenticatedUser | null> {
   try {
-    // PRIORIDADE 1: Header x-user-data (contém bar_id selecionado pelo usuário)
-    const userDataHeader = request.headers.get('x-user-data');
-    if (userDataHeader) {
-      try {
-        const userData = JSON.parse(decodeURIComponent(userDataHeader));
-        if (userData && userData.email && userData.bar_id) {
+    let authenticatedUser: AuthenticatedUser | null = null;
+
+    // PRIORIDADE 1: Header Authorization Bearer (JWT)
+    const authHeader = request.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '');
+      const decoded = validateToken(token);
+      
+      if (decoded && decoded.email && decoded.user_id) {
+        // Validar se o usuário ainda existe e está ativo
+        const supabase = await getAdminClient();
+        const { data: usuario, error } = await supabase
+          .from('usuarios')
+          .select('*')
+          .eq('id', decoded.user_id)
+          .eq('ativo', true)
+          .single();
+
+        if (!error && usuario) {
           if (VERBOSE_AUTH_LOGS) {
-            console.log(`✅ Usuário autenticado: ${userData.nome || userData.email}`);
+            console.log('✅ Usuário autenticado via JWT:', usuario.nome);
           }
-          return userData as AuthenticatedUser;
+          authenticatedUser = usuario as AuthenticatedUser;
         }
-      } catch {
-        // Silenciosamente tenta fallback
       }
     }
 
-    // PRIORIDADE 2: Header Authorization
-    let userToken = request.headers
-      .get('authorization')
-      ?.replace('Bearer ', '');
+    // PRIORIDADE 2: Cookie sgb_user (fallback)
+    if (!authenticatedUser) {
+      const userCookie = request.cookies.get('sgb_user')?.value;
+      
+      if (userCookie) {
+        try {
+          const userData = JSON.parse(decodeURIComponent(userCookie));
 
-    // PRIORIDADE 3: Cookie sgb_user
-    if (!userToken) {
-      userToken = request.cookies.get('sgb_user')?.value;
+          if (userData && userData.email && userData.id) {
+            // Validar se o usuário ainda existe e está ativo
+            const supabase = await getAdminClient();
+            const { data: usuario, error } = await supabase
+              .from('usuarios')
+              .select('*')
+              .eq('id', userData.id)
+              .eq('ativo', true)
+              .single();
+
+            if (!error && usuario) {
+              if (VERBOSE_AUTH_LOGS) {
+                console.log('✅ Usuário autenticado via cookie:', usuario.nome);
+              }
+              authenticatedUser = usuario as AuthenticatedUser;
+            }
+          }
+        } catch {
+          // Cookie inválido, ignora
+        }
+      }
     }
 
-    if (!userToken) {
-      // Não loga - é comum em rotas públicas
+    // Se não autenticou por nenhum método, retorna null
+    if (!authenticatedUser) {
       return null;
     }
 
-    // Tentar parsear o token como JSON (dados do usuário)
-    try {
-      const userData = JSON.parse(decodeURIComponent(userToken));
+    // OVERRIDE SEGURO: x-selected-bar-id para multi-bar
+    // Apenas permite trocar bar_id se o usuário tem acesso ao bar
+    const selectedBarId = request.headers.get('x-selected-bar-id');
+    if (selectedBarId) {
+      const barId = parseInt(selectedBarId, 10);
+      if (!isNaN(barId) && barId !== authenticatedUser.bar_id) {
+        // Validar que o usuário tem acesso a este bar
+        const supabase = await getAdminClient();
+        const { data: acesso } = await supabase
+          .from('usuarios_bares')
+          .select('bar_id')
+          .eq('usuario_id', authenticatedUser.id)
+          .eq('bar_id', barId)
+          .single();
 
-      if (!userData || !userData.email || !userData.id) {
-        return null;
+        if (acesso) {
+          if (VERBOSE_AUTH_LOGS) {
+            console.log(`🔄 Bar override para ${barId} (usuário ${authenticatedUser.nome})`);
+          }
+          authenticatedUser = { ...authenticatedUser, bar_id: barId };
+        } else {
+          console.warn(`⚠️ Tentativa de acesso não autorizado ao bar ${barId} por ${authenticatedUser.email}`);
+        }
       }
-
-      // Validar se o usuário ainda existe e está ativo
-      const supabase = await getAdminClient();
-      const { data: usuario, error } = await supabase
-        .from('usuarios')
-        .select('*')
-        .eq('id', userData.id)
-        .eq('ativo', true)
-        .single();
-
-      if (error || !usuario) {
-        return null;
-      }
-
-      if (VERBOSE_AUTH_LOGS) {
-        console.log('✅ Usuário autenticado:', usuario.nome);
-      }
-      return usuario as AuthenticatedUser;
-    } catch {
-      return null;
     }
+
+    return authenticatedUser;
   } catch (error) {
     safeErrorLog('autenticação', error);
     return null;
@@ -204,8 +242,6 @@ export function permissionErrorResponse(
 export const PROTECTED_ROUTES = [
   '/api/configuracoes',
   '/api/configuracoes/dashboard',
-  '/api/windsor-auth',
-  '/api/windsor-sync',
   '/api/nibo-auth',
   '/api/nibo-sync',
 ];

@@ -13,9 +13,6 @@ export async function POST() {
         { status: 500 }
       );
     }
-    console.log('🗑️ Removendo dias fechados...');
-
-    // Criar cliente Supabase
 
     // Lista de datas de dias fechados (formato YYYY-MM-DD)
     const diasFechados = [
@@ -57,8 +54,6 @@ export async function POST() {
       '2025-06-24',
     ];
 
-    console.log(`📅 Removendo ${diasFechados.length} dias fechados`);
-
     // Remover eventos nos dias fechados
     const { data, error } = await supabase
       .from('eventos_base')
@@ -75,8 +70,6 @@ export async function POST() {
         details: error,
       });
     }
-
-    console.log(`✅ Removidos ${data?.length || 0} eventos de dias fechados`);
 
     return NextResponse.json({
       success: true,

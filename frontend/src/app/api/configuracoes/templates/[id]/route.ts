@@ -331,8 +331,6 @@ export async function PUT(
       }
     }
 
-    console.log('✅ Template atualizado:', templateAtualizado.nome);
-
     return NextResponse.json({
       success: true,
       message: 'Template atualizado com sucesso',
@@ -454,8 +452,6 @@ export async function DELETE(
         { status: 500 }
       );
     }
-
-    console.log('✅ Template deletado:', template.nome);
 
     return NextResponse.json({
       success: true,

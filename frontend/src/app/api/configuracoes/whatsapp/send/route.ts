@@ -138,13 +138,6 @@ export async function POST(req: NextRequest) {
 async function sendToEvolutionAPI(messageData: WhatsAppMessage) {
   // 🧪 MODO SIMULAÇÃO - Para testes sem WhatsApp real
   if (WHATSAPP_SIMULATION_MODE) {
-    console.log('🧪 MODO SIMULAÇÃO - WhatsApp:', {
-      to: messageData.number,
-      message: messageData.message.substring(0, 100) + '...',
-      timestamp: new Date().toISOString(),
-      simulated: true,
-    });
-
     // Simular resposta bem-sucedida
     return {
       success: true,

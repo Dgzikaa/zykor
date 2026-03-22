@@ -113,13 +113,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { bar_id = 3, data_inicio, data_fim } = body;
+    const { bar_id, data_inicio, data_fim } = body;
+
+    if (!bar_id) {
+      return NextResponse.json({
+        success: false,
+        error: 'bar_id é obrigatório'
+      }, { status: 400 });
+    }
     
     const supabase = createServiceRoleClient();
-    
-    console.log('🔍 Executando detecção de anomalias...');
-    console.log(`📅 Período: ${data_inicio || 'últimos 90 dias'} até ${data_fim || 'hoje'}`);
-    
+
     // Chamar função SQL de detecção
     const { data, error } = await supabase.rpc('detectar_anomalias_contagem', {
       p_bar_id: bar_id,
@@ -136,9 +140,7 @@ export async function POST(request: NextRequest) {
     }
     
     const resultado = data?.[0] || {};
-    
-    console.log('✅ Detecção concluída:', resultado);
-    
+
     return NextResponse.json({
       success: true,
       message: 'Detecção de anomalias concluída',

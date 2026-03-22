@@ -260,10 +260,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(
-      `📊 Template de relatório criado: ${data.nome} (${data.categoria})`
-    );
-
     return NextResponse.json({
       success: true,
       message: 'Template criado com sucesso',

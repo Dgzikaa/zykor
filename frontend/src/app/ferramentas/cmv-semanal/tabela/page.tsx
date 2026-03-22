@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -145,6 +145,48 @@ interface SecaoConfig {
   grupos: GrupoMetricas[];
 }
 
+/** Item em `detalhes` da API GET /api/cmv-semanal/detalhes */
+interface CMVSemanalDetalheApiItem {
+  descricao?: string;
+  valor?: number;
+  data?: string;
+  detalhes?: string;
+  categoria?: string;
+  tipo?: string;
+  sinal?: string;
+  quantidade?: number;
+  unidade?: string;
+  custo_unitario?: number;
+  fornecedor?: string;
+  documento?: string;
+  status?: string;
+  motivo?: string;
+  local?: string;
+}
+
+/** Linha normalizada para o modal de drill-down */
+interface CMVDrillDownLinha {
+  label: string;
+  valor: number;
+  data?: string;
+  detalhes?: string;
+  categoria?: string;
+  tipo?: string;
+  sinal?: string;
+  quantidade?: number;
+  unidade?: string;
+  custo_unitario?: number;
+  fornecedor?: string;
+  documento?: string;
+  status?: string;
+  motivo?: string;
+  local?: string;
+}
+
+interface CMVDetalhesApiJson {
+  detalhes?: CMVSemanalDetalheApiItem[];
+}
+
 // Cores por status
 // auto e calculado = verde (dados verificados e confiáveis)
 // manual = azul (bonificações inseridas manualmente)
@@ -154,8 +196,8 @@ const STATUS_COLORS = {
   calculado: { dot: 'bg-green-500', text: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' }
 };
 
-// Configuração das seções e métricas
-const SECOES: SecaoConfig[] = [
+// Configuração das seções e métricas (dinâmica com fator CMV)
+const getSecoes = (fatorCmv: number): SecaoConfig[] => [
   {
     id: 'vendas',
     titulo: 'VENDAS',
@@ -212,13 +254,13 @@ const SECOES: SecaoConfig[] = [
       },
       {
         id: 'consumos',
-        label: '(-) Consumações × 0.35',
+        label: `(-) Consumações × ${fatorCmv}`,
         metricas: [
-          { key: 'total_consumos', label: 'TOTAL (×0.35)', status: 'calculado', fonte: 'Calculado', calculo: 'Soma de todas as consumações × 0.35 (CMV)', formato: 'moeda' },
-          { key: 'total_consumo_socios', label: 'Sócios (×0.35)', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %sócio% × 0.35', formato: 'moeda', drilldown: true },
-          { key: 'mesa_adm_casa', label: 'Funcionários (×0.35)', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %adm% ou %casa% × 0.35', formato: 'moeda', drilldown: true },
-          { key: 'mesa_beneficios_cliente', label: 'Clientes (×0.35)', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %benefício% × 0.35', formato: 'moeda', drilldown: true },
-          { key: 'mesa_banda_dj', label: 'Artistas (×0.35)', status: 'auto', fonte: 'ContaHub', calculo: 'motivo ILIKE %banda% ou %dj% × 0.35', formato: 'moeda', drilldown: true },
+          { key: 'total_consumos', label: `TOTAL (×${fatorCmv})`, status: 'calculado', fonte: 'Calculado', calculo: `Soma de todas as consumações × ${fatorCmv} (CMV)`, formato: 'moeda' },
+          { key: 'total_consumo_socios', label: `Sócios (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %sócio% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
+          { key: 'mesa_adm_casa', label: `Funcionários (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %adm% ou %casa% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
+          { key: 'mesa_beneficios_cliente', label: `Clientes (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %benefício% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
+          { key: 'mesa_banda_dj', label: `Artistas (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %banda% ou %dj% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
         ]
       },
       {
@@ -321,6 +363,10 @@ export default function CMVSemanalTabelaPage() {
   
   const [semanas, setSemanas] = useState<CMVSemanal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fatorCmv, setFatorCmv] = useState(0.35); // Fator de CMV para consumos (carregado do banco)
+  
+  // Gerar configuração de seções com fator CMV dinâmico
+  const SECOES = useMemo(() => getSecoes(fatorCmv), [fatorCmv]);
   const [semanaAtualIdx, setSemanaAtualIdx] = useState<number>(-1);
   const [anoFiltro, setAnoFiltro] = useState<string>('todos');
   // Visão: 'semanal' ou 'mensal'
@@ -359,7 +405,7 @@ export default function CMVSemanalTabelaPage() {
     campo: string;
     semana: CMVSemanal | null;
     loading: boolean;
-    dados: any[];
+    dados: CMVDrillDownLinha[];
   }>({
     open: false,
     titulo: '',
@@ -516,6 +562,25 @@ export default function CMVSemanalTabelaPage() {
     }
   }, [anoFiltro, selectedBar?.id, visao]);
 
+  // Carregar fator CMV do banco de regras do bar
+  useEffect(() => {
+    const carregarFatorCmv = async () => {
+      if (!selectedBar?.id) return;
+      try {
+        const response = await fetch(`/api/config/bar/${selectedBar.id}/regras`);
+        if (response.ok) {
+          const regras = await response.json();
+          if (regras.cmv_fator_consumo) {
+            setFatorCmv(regras.cmv_fator_consumo);
+          }
+        }
+      } catch (error) {
+        console.warn('Usando fator CMV padrão (0.35):', error);
+      }
+    };
+    carregarFatorCmv();
+  }, [selectedBar?.id]);
+
   useEffect(() => {
     if (selectedBar?.id) {
       carregarDados();
@@ -575,11 +640,12 @@ export default function CMVSemanalTabelaPage() {
       
       if (!response.ok) throw new Error('Erro ao buscar detalhes');
 
-      const result = await response.json();
-      
-      const detalhesFormatados = result.detalhes.map((item: any) => ({
-        label: item.descricao,
-        valor: item.valor,
+      const result = (await response.json()) as CMVDetalhesApiJson;
+      const lista = Array.isArray(result.detalhes) ? result.detalhes : [];
+
+      const detalhesFormatados: CMVDrillDownLinha[] = lista.map((item) => ({
+        label: item.descricao ?? '',
+        valor: item.valor ?? 0,
         data: item.data,
         detalhes: item.detalhes,
         categoria: item.categoria,
@@ -592,7 +658,7 @@ export default function CMVSemanalTabelaPage() {
         documento: item.documento,
         status: item.status,
         motivo: item.motivo,
-        local: item.local
+        local: item.local,
       }));
 
       setModalDrillDown(prev => ({
@@ -671,26 +737,26 @@ export default function CMVSemanalTabelaPage() {
              (semana.compras_alimentacao || 0) - 
              (semana.estoque_final_funcionarios || 0);
     }
-    // Consumações = soma dos sub-itens × 0.35 (CMV do consumo)
+    // Consumações = soma dos sub-itens × fatorCmv (CMV do consumo)
     // 4 categorias: Sócios, Funcionários, Clientes, Artistas
     if (key === 'total_consumos') {
-      return ((semana.total_consumo_socios || 0) * 0.35) + 
-             ((semana.mesa_adm_casa || 0) * 0.35) + 
-             ((semana.mesa_beneficios_cliente || 0) * 0.35) + 
-             ((semana.mesa_banda_dj || 0) * 0.35);
+      return ((semana.total_consumo_socios || 0) * fatorCmv) + 
+             ((semana.mesa_adm_casa || 0) * fatorCmv) + 
+             ((semana.mesa_beneficios_cliente || 0) * fatorCmv) + 
+             ((semana.mesa_banda_dj || 0) * fatorCmv);
     }
-    // Consumações individuais também × 0.35
+    // Consumações individuais também × fatorCmv
     if (key === 'total_consumo_socios') {
-      return (semana.total_consumo_socios || 0) * 0.35;
+      return (semana.total_consumo_socios || 0) * fatorCmv;
     }
     if (key === 'mesa_adm_casa') {
-      return (semana.mesa_adm_casa || 0) * 0.35;
+      return (semana.mesa_adm_casa || 0) * fatorCmv;
     }
     if (key === 'mesa_beneficios_cliente') {
-      return (semana.mesa_beneficios_cliente || 0) * 0.35;
+      return (semana.mesa_beneficios_cliente || 0) * fatorCmv;
     }
     if (key === 'mesa_banda_dj') {
-      return (semana.mesa_banda_dj || 0) * 0.35;
+      return (semana.mesa_banda_dj || 0) * fatorCmv;
     }
     // Bonificações = soma dos sub-itens
     if (key === 'ajuste_bonificacoes') {
@@ -708,8 +774,11 @@ export default function CMVSemanalTabelaPage() {
       const valor = semana.cmv_limpo_percentual;
       return valor ? parseFloat(String(valor)) : 0;
     }
-    const valor = (semana as any)[key];
-    return valor !== undefined && valor !== null ? (typeof valor === 'string' ? parseFloat(valor) : valor) : null;
+    if (!(key in semana)) return null;
+    const valor = semana[key as keyof CMVSemanal];
+    return valor !== undefined && valor !== null
+      ? (typeof valor === 'string' ? parseFloat(valor) : typeof valor === 'number' ? valor : null)
+      : null;
   };
 
   // Cor do gap
@@ -779,10 +848,10 @@ export default function CMVSemanalTabelaPage() {
       case 'total_consumos':
         // 4 categorias: Sócios, Funcionários, Clientes, Artistas
         return [
-          { label: 'Sócios × 0.35', valor: (semana.total_consumo_socios || 0) * 0.35 },
-          { label: 'Funcionários × 0.35', valor: (semana.mesa_adm_casa || 0) * 0.35 },
-          { label: 'Clientes × 0.35', valor: (semana.mesa_beneficios_cliente || 0) * 0.35 },
-          { label: 'Artistas × 0.35', valor: (semana.mesa_banda_dj || 0) * 0.35 },
+          { label: `Sócios × ${fatorCmv}`, valor: (semana.total_consumo_socios || 0) * fatorCmv },
+          { label: `Funcionários × ${fatorCmv}`, valor: (semana.mesa_adm_casa || 0) * fatorCmv },
+          { label: `Clientes × ${fatorCmv}`, valor: (semana.mesa_beneficios_cliente || 0) * fatorCmv },
+          { label: `Artistas × ${fatorCmv}`, valor: (semana.mesa_banda_dj || 0) * fatorCmv },
         ];
       case 'ajuste_bonificacoes':
         return [
@@ -801,13 +870,13 @@ export default function CMVSemanalTabelaPage() {
         const estFimDetalhado = (semana.estoque_final_cozinha || 0) + (semana.estoque_final_drinks || 0) + (semana.estoque_final_bebidas || 0);
         const estoqueFinal = estFimDetalhado > 0 ? estFimDetalhado : (semana.estoque_final || 0);
         // 4 categorias: Sócios, Funcionários, Clientes, Artistas
-        const consumosTotal = ((semana.total_consumo_socios || 0) * 0.35) + ((semana.mesa_adm_casa || 0) * 0.35) + ((semana.mesa_beneficios_cliente || 0) * 0.35) + ((semana.mesa_banda_dj || 0) * 0.35);
+        const consumosTotal = ((semana.total_consumo_socios || 0) * fatorCmv) + ((semana.mesa_adm_casa || 0) * fatorCmv) + ((semana.mesa_beneficios_cliente || 0) * fatorCmv) + ((semana.mesa_banda_dj || 0) * fatorCmv);
         const bonificacoes = (semana.bonificacao_contrato_anual || 0) + (semana.bonificacao_cashback_mensal || 0);
         return [
           { label: 'Estoque Inicial', valor: estoqueInicial },
           { label: '(+) Compras', valor: compras },
           { label: '(-) Estoque Final', valor: -estoqueFinal },
-          { label: '(-) Consumações × 0.35', valor: -consumosTotal },
+          { label: `(-) Consumações × ${fatorCmv}`, valor: -consumosTotal },
           { label: '(+) Bonificações', valor: bonificacoes },
         ];
       }
@@ -1455,7 +1524,7 @@ export default function CMVSemanalTabelaPage() {
                 </div>
 
                 <div className="max-h-[400px] overflow-y-auto space-y-2">
-                  {modalDrillDown.dados.map((item: any, idx: number) => (
+                  {modalDrillDown.dados.map((item, idx) => (
                     <div
                       key={idx}
                       className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"

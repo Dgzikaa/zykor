@@ -28,13 +28,9 @@ async function getBaresAtivosContaHub(): Promise<number[]> {
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔄 Executando sincronização diária automática do ContaHub para TODOS os bares...');
-
     // Usar ontem como data padrão (para cron diário)
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const targetDate = yesterday.toISOString().split('T')[0];
-
-    console.log(`📅 Data alvo: ${targetDate}`);
 
     const baresAtivos = await getBaresAtivosContaHub();
     if (baresAtivos.length === 0) {
@@ -51,8 +47,6 @@ export async function GET(request: NextRequest) {
 
     // Sincronizar cada bar
     for (const barId of baresAtivos) {
-      console.log(`\n🍺 Sincronizando bar_id=${barId}...`);
-      
       try {
         // Usar nova função consolidada contahub-sync com action=sync
         const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/contahub-sync`, {
@@ -76,7 +70,6 @@ export async function GET(request: NextRequest) {
         }
 
         const result = await response.json();
-        console.log(`✅ bar_id=${barId}: ${result.summary?.total_records_collected || 0} registros coletados`);
         resultados.push({ bar_id: barId, success: true, result });
       } catch (err) {
         console.error(`❌ Erro bar_id=${barId}:`, err);
@@ -85,7 +78,6 @@ export async function GET(request: NextRequest) {
     }
 
     const totalSucesso = resultados.filter(r => r.success).length;
-    console.log(`\n🎉 Sincronização diária concluída: ${totalSucesso}/${baresAtivos.length} bares sincronizados`);
 
     return NextResponse.json({
       success: totalSucesso > 0,
@@ -109,8 +101,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔄 Executando sincronização manual do ContaHub via POST...');
-
     const body = await request.json();
     const { data_date, bar_id } = body;
 
@@ -129,9 +119,6 @@ export async function POST(request: NextRequest) {
         cron_job: false
       }, { status: 404 });
     }
-
-    console.log(`📅 Data alvo: ${targetDate}`);
-    console.log(`🍺 Bares: ${baresParaSincronizar.join(', ')}`);
 
     const resultados: Array<{ bar_id: number; success: boolean; error?: string; result?: any }> = [];
 
@@ -158,7 +145,6 @@ export async function POST(request: NextRequest) {
         }
 
         const result = await response.json();
-        console.log(`✅ bar_id=${barIdItem}: ${result.summary?.total_records_collected || 0} registros`);
         resultados.push({ bar_id: barIdItem, success: true, result });
       } catch (err) {
         resultados.push({ bar_id: barIdItem, success: false, error: err instanceof Error ? err.message : 'Erro' });

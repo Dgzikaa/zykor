@@ -53,10 +53,6 @@ export async function POST(
       );
     }
 
-    console.log(
-      `✅ Status do usuário alterado: ${usuario.nome} - ${novoStatus ? 'Ativo' : 'Inativo'}`
-    );
-
     return NextResponse.json({
       success: true,
       usuario: usuarioAtualizado,

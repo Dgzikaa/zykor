@@ -17,8 +17,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('📊 Buscando perfil do usuário:', user.id);
-
     // Usar cliente administrativo
     const adminClient = await getAdminClient();
 
@@ -58,8 +56,6 @@ export async function GET(request: NextRequest) {
       .select('id, nome')
       .eq('id', perfil.bar_id)
       .single();
-
-    console.log('✅ Perfil encontrado para:', perfil.nome);
 
     return NextResponse.json({
       success: true,
@@ -104,8 +100,6 @@ export async function PUT(request: NextRequest) {
       foto_perfil,
       preferencias,
     } = body;
-
-    console.log('🔄 Atualizando perfil do usuário:', user.id);
 
     // Usar cliente administrativo
     const adminClient = await getAdminClient();
@@ -161,8 +155,6 @@ export async function PUT(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log('✅ Perfil atualizado com sucesso:', perfilAtualizado.nome);
 
     return NextResponse.json({
       success: true,

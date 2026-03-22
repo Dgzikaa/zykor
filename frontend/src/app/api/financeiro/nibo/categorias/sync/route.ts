@@ -33,8 +33,6 @@ export async function POST(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const barId = parseInt(searchParams.get('bar_id') || '3');
 
-    console.log(`[NIBO-CATEGORIAS-SYNC] Sincronizando categorias do NIBO, bar_id=${barId}`);
-
     const credencial = await getNiboCredentials(barId);
     
     if (!credencial) {
@@ -65,8 +63,6 @@ export async function POST(request: NextRequest) {
 
     const niboData = await response.json();
     const categorias = niboData.items || niboData || [];
-
-    console.log(`[NIBO-CATEGORIAS-SYNC] Encontradas ${categorias.length} categorias no NIBO`);
 
     let atualizadas = 0;
     let criadas = 0;
@@ -123,8 +119,6 @@ export async function POST(request: NextRequest) {
         erros++;
       }
     }
-
-    console.log(`[NIBO-CATEGORIAS-SYNC] Sincronização concluída: ${atualizadas} atualizadas, ${criadas} criadas, ${erros} erros`);
 
     return NextResponse.json({
       success: true,

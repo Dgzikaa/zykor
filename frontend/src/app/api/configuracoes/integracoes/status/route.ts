@@ -73,19 +73,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔍 Iniciando API de status das integrações...');
-
     const user = await authenticateUser(request);
     if (!user) {
-      console.log('❌ Usuário não autenticado');
       return authErrorResponse('Usuário não autenticado');
     }
 
-    console.log('✅ Usuário autenticado:', user.id);
-
     const { bar_id } = await request.json();
-    console.log('📋 Bar ID recebido:', bar_id);
-
     if (!bar_id) {
       return NextResponse.json(
         {
@@ -96,10 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await getAdminClient();
-    console.log('🔗 Cliente Supabase conectado');
-
     // Buscar credenciais configuradas
-    console.log('🔍 Buscando credenciais para bar_id:', bar_id);
     const { data: credentials, error: credentialsError } = await supabase
       .from('api_credentials')
       .select('*')
@@ -115,8 +105,6 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log('✅ Credenciais encontradas:', credentials?.length || 0);
 
     // Buscar webhooks do Discord configurados
     const { data: discordWebhooks, error: discordError } = await supabase
@@ -157,11 +145,6 @@ export async function POST(request: NextRequest) {
       },
       whatsapp: {
         status: 'not-configured',
-        hasCredentials: false,
-        lastActivity: null,
-      },
-      windsor: {
-        status: 'pending',
         hasCredentials: false,
         lastActivity: null,
       },

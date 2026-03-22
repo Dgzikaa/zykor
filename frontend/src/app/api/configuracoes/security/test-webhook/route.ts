@@ -5,8 +5,6 @@ export const dynamic = 'force-dynamic'
 
 export async function POST() {
   try {
-    console.log('🧪 Iniciando teste do webhook Discord...');
-
     // Registrar evento crítico que deve disparar o webhook
     await securityMonitor.logEvent({
       level: 'critical',
@@ -26,10 +24,6 @@ export async function POST() {
       },
       risk_score: 100,
     });
-
-    console.log(
-      '✅ Evento crítico registrado, webhook deve ter sido disparado'
-    );
 
     return NextResponse.json({
       success: true,

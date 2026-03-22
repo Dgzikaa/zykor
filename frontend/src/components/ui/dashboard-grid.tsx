@@ -427,7 +427,7 @@ function WidgetContent({ widget }: { widget: WidgetConfig }) {
           </div>
           <div className="space-y-1">
             <div className="text-sm text-gray-900 dark:text-white">
-              Sync Windsor.ai concluído
+              Sync concluído
             </div>
             <div className="text-xs text-gray-600 dark:text-gray-400">
               há 2 minutos

@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { command, barId = 3 } = body;
+    const { command, barId } = body;
+    if (!barId) return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
 
     if (!command) {
       return NextResponse.json({ 

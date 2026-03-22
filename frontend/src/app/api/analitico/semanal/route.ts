@@ -67,8 +67,7 @@ export async function GET(request: NextRequest) {
       datasParaBuscar.push(dataFormatada);
     }
 
-    console.log(`🔍 Buscando dados para ${NOMES_DIAS[diaSemanaNum]} nas datas:`, datasParaBuscar);
-
+    
     // ⚡ FILTRAR DIAS FECHADOS
     const statusDias = await verificarMultiplasDatas(datasParaBuscar, barIdNum);
     const datasAberto = datasParaBuscar.filter(data => {
@@ -76,8 +75,7 @@ export async function GET(request: NextRequest) {
       return status?.aberto !== false;
     });
     
-    console.log(`📅 Dias abertos: ${datasAberto.length}/${datasParaBuscar.length}`);
-
+    
     const indicadoresPorSemana: IndicadorSemanal[] = [];
     const limit = 1000;
 
@@ -85,27 +83,25 @@ export async function GET(request: NextRequest) {
       const inicioData = data;
       const fimData = data;
 
-      console.log(`📊 Processando ${NOMES_DIAS[diaSemanaNum]} - ${data}`);
-
-      // 1. FATURAMENTO TOTAL DO DIA (ContaHub + Yuzer + Sympla)
-      console.log(`💰 Buscando faturamento para bar_id=${barIdNum}, data=${data}`);
       
-      // 1.1. CONTAHUB (excluindo 'Conta Assinada')
+      // 1. FATURAMENTO TOTAL DO DIA (ContaHub + Yuzer + Sympla)
+            
+      // 1.1. FATURAMENTO_PAGAMENTOS (excluindo 'Conta Assinada')
       let contahubData: any[] = [];
       let fromContahub = 0;
       let hasMoreContahub = true;
 
       while (hasMoreContahub) {
         const { data: batch, error: batchError } = await supabase
-          .from('contahub_pagamentos')
-          .select('liquido, meio')
+          .from('faturamento_pagamentos')
+          .select('valor_liquido, meio')
           .eq('bar_id', barIdNum)
-          .gte('dt_gerencial', inicioData)
-          .lte('dt_gerencial', fimData)
+          .gte('data_pagamento', inicioData)
+          .lte('data_pagamento', fimData)
           .range(fromContahub, fromContahub + limit - 1);
 
         if (batchError) {
-          console.error('❌ Erro ao buscar batch ContaHub:', batchError);
+          console.error('❌ Erro ao buscar batch faturamento_pagamentos:', batchError);
           throw batchError;
         }
 
@@ -119,7 +115,7 @@ export async function GET(request: NextRequest) {
       }
 
       const contahubFiltrado = contahubData?.filter(item => item.meio !== 'Conta Assinada') || [];
-      const faturamentoContahub = contahubFiltrado.reduce((sum, item) => sum + (parseFloat(item.liquido) || 0), 0);
+      const faturamentoContahub = contahubFiltrado.reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0);
 
       // 1.2. YUZER
       let yuzerData: any[] = [];
@@ -184,24 +180,22 @@ export async function GET(request: NextRequest) {
       
       // Se não há faturamento, pular este dia
       if (faturamentoTotal === 0) {
-        console.log(`⚠️ Sem dados para ${data}, pulando...`);
-        continue;
+                continue;
       }
 
       // 2. CLIENTES TOTAIS ÚNICOS DO DIA
-      console.log(`📊 Buscando clientes totais do dia ${data}`);
-      let clientesTotaisData: any[] = [];
+            let clientesTotaisData: any[] = [];
       let fromTotais = 0;
       let hasMoreTotais = true;
 
       while (hasMoreTotais) {
         const { data: batch, error: batchError } = await supabase
-          .from('contahub_periodo')
-          .select('cli_fone')
+          .from('visitas')
+          .select('cliente_fone')
           .eq('bar_id', barIdNum)
-          .gte('dt_gerencial', inicioData)
-          .lte('dt_gerencial', fimData)
-          .not('cli_fone', 'is', null)
+          .gte('data_visita', inicioData)
+          .lte('data_visita', fimData)
+          .not('cliente_fone', 'is', null)
           .range(fromTotais, fromTotais + limit - 1);
 
         if (batchError) {
@@ -219,14 +213,12 @@ export async function GET(request: NextRequest) {
       }
 
       const clientesTotaisUnicos = new Set(
-        (clientesTotaisData || []).map(row => (row.cli_fone || '').toString().trim()).filter(Boolean)
+        (clientesTotaisData || []).map(row => (row.cliente_fone || '').toString().trim()).filter(Boolean)
       ).size;
 
-      console.log(`📊 Clientes totais únicos: ${clientesTotaisUnicos}`);
-
-      // 3. NOVOS CLIENTES (primeira visita no dia)
-      console.log(`📊 Calculando novos clientes para ${data}`);
       
+      // 3. NOVOS CLIENTES (primeira visita no dia)
+            
       // Buscar histórico completo até o dia anterior
       const dataAnterior = new Date(data);
       dataAnterior.setDate(dataAnterior.getDate() - 1);
@@ -238,11 +230,11 @@ export async function GET(request: NextRequest) {
 
       while (hasMoreHistorico) {
         const { data: batch, error: batchError } = await supabase
-          .from('contahub_periodo')
-          .select('cli_fone')
+          .from('visitas')
+          .select('cliente_fone')
           .eq('bar_id', barIdNum)
-          .lte('dt_gerencial', dataAnteriorStr)
-          .not('cli_fone', 'is', null)
+          .lte('data_visita', dataAnteriorStr)
+          .not('cliente_fone', 'is', null)
           .range(fromHistorico, fromHistorico + limit - 1);
 
         if (batchError) {
@@ -260,13 +252,13 @@ export async function GET(request: NextRequest) {
       }
 
       const clientesHistoricos = new Set(
-        (historicoData || []).map(row => (row.cli_fone || '').toString().trim()).filter(Boolean)
+        (historicoData || []).map(row => (row.cliente_fone || '').toString().trim()).filter(Boolean)
       );
 
       // Contar novos clientes
       let novosClientes = 0;
       const clientesDoMes = new Set(
-        (clientesTotaisData || []).map(row => (row.cli_fone || '').toString().trim()).filter(Boolean)
+        (clientesTotaisData || []).map(row => (row.cliente_fone || '').toString().trim()).filter(Boolean)
       );
 
       clientesDoMes.forEach(cliente => {
@@ -279,8 +271,7 @@ export async function GET(request: NextRequest) {
       const clientesRecorrentes = clientesTotaisUnicos - novosClientes;
 
       // 5. CLIENTES ATIVOS (visitaram no dia + pelo menos 1x nos últimos 90 dias)
-      console.log(`👥 Calculando clientes ativos para ${data}`);
-      
+            
       const data90DiasAtras = new Date(data);
       data90DiasAtras.setDate(data90DiasAtras.getDate() - 90);
       const data90DiasAtrasStr = data90DiasAtras.toISOString().split('T')[0];
@@ -291,12 +282,12 @@ export async function GET(request: NextRequest) {
 
       while (hasMoreHistoricoRecente) {
         const { data: batch, error: batchError } = await supabase
-          .from('contahub_periodo')
-          .select('cli_fone')
+          .from('visitas')
+          .select('cliente_fone')
           .eq('bar_id', barIdNum)
-          .gte('dt_gerencial', data90DiasAtrasStr)
-          .lt('dt_gerencial', inicioData)
-          .not('cli_fone', 'is', null)
+          .gte('data_visita', data90DiasAtrasStr)
+          .lt('data_visita', inicioData)
+          .not('cliente_fone', 'is', null)
           .range(fromHistoricoRecente, fromHistoricoRecente + limit - 1);
 
         if (batchError) {
@@ -314,7 +305,7 @@ export async function GET(request: NextRequest) {
       }
 
       const clientesHistoricoRecente = new Set(
-        (historicoRecenteData || []).map(row => (row.cli_fone || '').toString().trim()).filter(Boolean)
+        (historicoRecenteData || []).map(row => (row.cliente_fone || '').toString().trim()).filter(Boolean)
       );
 
       let clientesAtivos = 0;
@@ -325,8 +316,7 @@ export async function GET(request: NextRequest) {
       });
 
       // 6. CALCULAR CMO
-      console.log(`💼 Calculando CMO para ${data}`);
-      const { data: cmoData, error: cmoError } = await supabase
+            const { data: cmoData, error: cmoError } = await supabase
         .from('nibo_agendamentos')
         .select('valor')
         .eq('bar_id', barIdNum)
@@ -341,8 +331,7 @@ export async function GET(request: NextRequest) {
         cmoData.reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0) : 0;
 
       // 7. CALCULAR % ARTÍSTICA/FATURAMENTO
-      console.log(`🎭 Calculando % Artística para ${data}`);
-      const { data: artisticaData, error: artisticaError } = await supabase
+            const { data: artisticaData, error: artisticaError } = await supabase
         .from('nibo_agendamentos')
         .select('valor')
         .eq('bar_id', barIdNum)
@@ -356,13 +345,12 @@ export async function GET(request: NextRequest) {
       const percentualArtistico = faturamentoTotal > 0 ? (custoArtistico / faturamentoTotal) * 100 : 0;
 
       // 8. CALCULAR TICKET MÉDIO
-      console.log(`🎯 Calculando Ticket Médio para ${data}`);
-      const { data: pessoasContahub, error: pessoasError } = await supabase
-        .from('contahub_periodo')
+            const { data: pessoasContahub, error: pessoasError } = await supabase
+        .from('visitas')
         .select('pessoas')
         .eq('bar_id', barIdNum)
-        .gte('dt_gerencial', inicioData)
-        .lte('dt_gerencial', fimData);
+        .gte('data_visita', inicioData)
+        .lte('data_visita', fimData);
 
       const totalPessoas = !pessoasError && pessoasContahub ? 
         pessoasContahub.reduce((sum, item) => sum + (parseInt(item.pessoas) || 0), 0) : 0;
@@ -395,8 +383,7 @@ export async function GET(request: NextRequest) {
         reputacao
       });
 
-      console.log(`✅ ${data}: Fat=${faturamentoTotal.toLocaleString()}, Totais=${clientesTotaisUnicos}, Novos=${novosClientes}, Recorrentes=${clientesRecorrentes}, Ativos=${clientesAtivos}`);
-
+      
       // Parar quando tivermos 4 semanas com dados
       if (indicadoresPorSemana.length >= 4) {
         break;

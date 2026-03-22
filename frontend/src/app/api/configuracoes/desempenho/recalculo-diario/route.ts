@@ -13,23 +13,11 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔄 Recálculo diário de desempenho iniciado');
-
-    // Verificar se é uma requisição de cron válida (opcional para chamadas manuais)
-    const authHeader = request.headers.get('authorization');
-    const isCronCall = authHeader === `Bearer ${process.env.CRON_SECRET}`;
-    
-    if (!isCronCall) {
-      console.log('⚠️ Chamada manual (sem CRON_SECRET)');
-    }
-
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
     if (!supabaseUrl) {
       throw new Error('URL do Supabase não configurada');
     }
-
-    console.log('🚀 Disparando Edge Function de recálculo de desempenho...');
 
     // Chamar a Edge Function de automação semanal (que agora pode ser usada diariamente)
     const response = await fetch(
@@ -58,7 +46,6 @@ export async function GET(request: NextRequest) {
 
     if (response.ok) {
       const result = await response.json();
-      console.log('✅ Recálculo diário concluído com sucesso:', result);
       resultados.desempenho = result;
 
       // Etapa extra: reconciliar Falaê (hoje até D-7) para garantir consistência além do webhook
@@ -72,7 +59,6 @@ export async function GET(request: NextRequest) {
           .not('bar_id', 'is', null);
 
         if (barsError) {
-          console.log('⚠️ Erro ao buscar bares com Falaê ativo:', barsError.message);
           resultados.falae_reconciliacao = { total_bares: 0, sucesso: 0, resultados: [] };
         } else {
           const barIds = Array.from(
@@ -110,8 +96,7 @@ export async function GET(request: NextRequest) {
             resultados: falaeResultados,
           };
         }
-      } catch (falaeErr) {
-        console.log('⚠️ Falha na reconciliação Falaê:', falaeErr);
+      } catch {
       }
 
       return NextResponse.json({

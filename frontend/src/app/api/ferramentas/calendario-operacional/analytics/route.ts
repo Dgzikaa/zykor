@@ -25,8 +25,6 @@ export async function GET(request: NextRequest) {
     }
     const barId = parseInt(barIdParam);
 
-    console.log(`📊 Analytics Calendário - Ano: ${ano}, Mês: ${mes || 'todos'}, Bar: ${barId}`);
-
     // Definir período de análise
     const dataInicio = mes ? `${ano}-${mes.toString().padStart(2, '0')}-01` : `${ano}-01-01`;
     const dataFim = mes 
@@ -47,13 +45,13 @@ export async function GET(request: NextRequest) {
       throw errorCalendario;
     }
 
-    // 2. BUSCAR MOVIMENTAÇÃO DO CONTAHUB PARA VALIDAÇÃO
+    // 2. BUSCAR MOVIMENTAÇÃO DE eventos_base PARA VALIDAÇÃO
     const { data: movimentacoes, error: errorMovimentacoes } = await supabase
-      .from('contahub_dados')
-      .select('data, total_vendas, total_clientes')
+      .from('eventos_base')
+      .select('data_evento, real_r, cl_real')
       .eq('bar_id', barId)
-      .gte('data', dataInicio)
-      .lte('data', dataFim);
+      .gte('data_evento', dataInicio)
+      .lte('data_evento', dataFim);
 
     if (errorMovimentacoes) {
       console.warn('Erro ao buscar movimentações:', errorMovimentacoes);
@@ -62,10 +60,10 @@ export async function GET(request: NextRequest) {
     // Criar map de movimentações
     const movimentacoesMap = new Map(
       (movimentacoes || []).map(m => [
-        m.data, 
+        m.data_evento, 
         { 
-          vendas: parseFloat(m.total_vendas || '0'),
-          clientes: parseInt(m.total_clientes || '0')
+          vendas: parseFloat(m.real_r || '0'),
+          clientes: parseInt(m.cl_real || '0')
         }
       ])
     );

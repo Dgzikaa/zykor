@@ -4,12 +4,17 @@
  * Lê os dados mensais diretamente da planilha do Google Sheets
  * e insere/atualiza na tabela cmv_mensal.
  * 
- * @version 1.0.0
- * @date 2026-03-17
+ * v2.0: BLOCO 3A - Agora lê row_map_cmv_mensal de api_credentials.configuracoes
+ *       Fallback para mapeamento hardcoded se não encontrar no banco.
+ *       Campos com valor -1 representam "linha inexistente" na planilha.
+ * 
+ * @version 2.0.0
+ * @date 2026-03-19
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,59 +27,55 @@ interface SyncRequest {
   debug?: boolean
 }
 
-// Mapeamento de linhas da aba CMV Mensal (0-indexed) - DEBOCHE
-const ROW_MAP_DEBOCHE = {
-  header_meses: 0,      // Linha 1: Nome do bar + datas dos meses
-  data_inicio: 1,       // Linha 2: "de" + datas início
-  data_fim: 2,          // Linha 3: "a" + datas fim
-  estoque_inicial: 3,   // Linha 4: Estoque Inicial
-  compras: 4,           // Linha 5: Compras
-  estoque_final: 5,     // Linha 6: Estoque Final
-  consumo_socios: 6,    // Linha 7: Consumo Sócios
-  consumo_beneficios: 7,// Linha 8: Consumo Benefícios
-  consumo_rh_op: 8,     // Linha 9: Consumo RH Operação
-  consumo_rh_esc: 9,    // Linha 10: Consumo RH Escritório
-  consumo_artista: 10,  // Linha 11: Consumo Artista
-  outros_ajustes: 11,   // Linha 12: Outros Ajustes
-  ajuste_bonif: 12,     // Linha 13: Ajuste Bonificações
-  cmv_real: 13,         // Linha 14: CMV Real (R$)
-  fat_cmvivel: 14,      // Linha 15: Faturamento CMVível
-  cmv_limpo_pct: 15,    // Linha 16: CMV Limpo (%)
-  cmv_teorico_pct: 16,  // Linha 17: CMV Teórico (%)
-  gap: 17,              // Linha 18: GAP
-  fat_total: 18,        // Linha 19: Fat Total
-  cmv_real_pct: 19,     // Linha 20: CMV Real %
-  ano_linha: 21,        // Linha 22: Anos
+// ====== FALLBACK ROW MAP MENSAL (usado se banco não tiver configuração) ======
+// Valores de -1 significam "campo inexistente na planilha"
+// Este fallback usa valores do Ordinário (bar 3) como padrão seguro
+const FALLBACK_ROW_MAP_MENSAL = {
+  header_meses: 0,
+  data_inicio: 0,
+  data_fim: -1,
+  estoque_inicial: 1,
+  compras: 2,
+  estoque_final: 3,
+  consumo_socios: 4,
+  consumo_beneficios: 5,
+  consumo_artista: 6,
+  consumo_rh_op: 7,
+  consumo_rh_esc: 8,
+  outros_ajustes: -1,
+  ajuste_bonif: 9,
+  cmv_real: 10,
+  fat_cmvivel: 11,
+  cmv_limpo_pct: 12,
+  cmv_teorico_pct: 13,
+  gap: 14,
+  fat_total: 15,
+  cmv_real_pct: 16,
+  ano_linha: -1,
 }
 
-// Mapeamento de linhas da aba CMV Mensal (0-indexed) - ORDINÁRIO
-// Estrutura diferente: começa direto com datas na linha 1
-const ROW_MAP_ORDINARIO = {
-  header_meses: 0,      // Linha 1: Datas dos meses
-  data_inicio: 0,       // Usa a mesma linha 1 para datas
-  data_fim: -1,         // Não tem linha separada
-  estoque_inicial: 1,   // Linha 2: Estoque Inicial
-  compras: 2,           // Linha 3: Compras
-  estoque_final: 3,     // Linha 4: Estoque Final
-  consumo_socios: 4,    // Linha 5: Consumo Sócios
-  consumo_beneficios: 5,// Linha 6: Consumo Benefícios
-  consumo_artista: 6,   // Linha 7: Consumo Artista (ordem diferente!)
-  consumo_rh_op: 7,     // Linha 8: Consumo RH Operação
-  consumo_rh_esc: 8,    // Linha 9: Consumo RH Escritório
-  outros_ajustes: -1,   // Não tem
-  ajuste_bonif: 9,      // Linha 10: Ajuste Bonificações
-  cmv_real: 10,         // Linha 11: CMV Real (R$)
-  fat_cmvivel: 11,      // Linha 12: Faturamento CMVível
-  cmv_limpo_pct: 12,    // Linha 13: CMV Limpo (%)
-  cmv_teorico_pct: 13,  // Linha 14: CMV Teórico (%)
-  gap: 14,              // Linha 15: GAP
-  fat_total: 15,        // Linha 16: Fat Total
-  cmv_real_pct: 16,     // Linha 17: CMV Real %
-  ano_linha: -1,        // Não tem linha de anos (calcula da data)
-}
-
-function getRowMap(barId: number) {
-  return barId === 3 ? ROW_MAP_ORDINARIO : ROW_MAP_DEBOCHE
+interface RowMapMensalType {
+  header_meses: number
+  data_inicio: number
+  data_fim: number
+  estoque_inicial: number
+  compras: number
+  estoque_final: number
+  consumo_socios: number
+  consumo_beneficios: number
+  consumo_artista: number
+  consumo_rh_op: number
+  consumo_rh_esc: number
+  outros_ajustes: number
+  ajuste_bonif: number
+  cmv_real: number
+  fat_cmvivel: number
+  cmv_limpo_pct: number
+  cmv_teorico_pct: number
+  gap: number
+  fat_total: number
+  cmv_real_pct: number
+  ano_linha: number
 }
 
 // ====== AUTENTICAÇÃO GOOGLE ======
@@ -239,15 +240,22 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  let heartbeatId: number | null = null
+  let startTime: number = Date.now()
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const supabase = createClient(supabaseUrl, serviceKey)
+
   try {
     const body: SyncRequest = await req.json().catch(() => ({}))
     const { bar_id, ano, debug = false } = body
 
-    console.log('📊 Sync CMV Mensal - Iniciando', { bar_id, ano })
+    console.log('📊 Sync CMV Mensal v2.0 - Iniciando', { bar_id, ano })
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, serviceKey)
+    const hbResult = await heartbeatStart(supabase, 'sync-cmv-mensal', bar_id || null, null, 'pgcron')
+    heartbeatId = hbResult.heartbeatId
+    startTime = hbResult.startTime
 
     // Buscar configurações dos bares
     const baresQuery = supabase
@@ -277,7 +285,8 @@ serve(async (req) => {
       ?.map(c => ({
         bar_id: c.bar_id,
         nome: baresMap.get(c.bar_id) || `Bar ${c.bar_id}`,
-        cmv_spreadsheet_id: (c.configuracoes as any)?.cmv_spreadsheet_id || null
+        cmv_spreadsheet_id: (c.configuracoes as any)?.cmv_spreadsheet_id || null,
+        configuracoes: c.configuracoes as any
       }))
       .filter(b => b.cmv_spreadsheet_id) || []
 
@@ -296,15 +305,22 @@ serve(async (req) => {
     for (const barConfig of baresConfig) {
       console.log(`\n🍺 Processando: ${barConfig.nome} (bar_id=${barConfig.bar_id})`)
 
+      // BLOCO 3A: Lê row_map do banco, fallback para hardcoded
+      const rowMapFromDb = barConfig.configuracoes?.row_map_cmv_mensal as RowMapMensalType | undefined
+      const ROW_MAP: RowMapMensalType = rowMapFromDb || FALLBACK_ROW_MAP_MENSAL
+      
+      if (rowMapFromDb) {
+        console.log(`📋 [ROW_MAP] Bar ${barConfig.bar_id}: usando configuração do banco`)
+      } else {
+        console.log(`⚠️ [ROW_MAP] Bar ${barConfig.bar_id}: usando fallback hardcoded`)
+      }
+
       try {
         // Buscar dados da aba CMV Mensal
         const range = `'CMV Mensal'!A1:Z25`
         const rows = await getSheetData(barConfig.cmv_spreadsheet_id!, range, accessToken)
         
         console.log(`📊 ${rows.length} linhas carregadas da aba CMV Mensal`)
-
-        // Obter mapeamento de linhas para este bar
-        const ROW_MAP = getRowMap(barConfig.bar_id)
         
         // Identificar colunas por mês/ano
         const anosRow = ROW_MAP.ano_linha >= 0 ? (rows[ROW_MAP.ano_linha] || []) : []
@@ -424,10 +440,12 @@ serve(async (req) => {
 
     const totalAtualizados = resultadosPorBar.filter(r => r.success).reduce((acc, r) => acc + (r.meses_atualizados || 0), 0)
 
+    await heartbeatEnd(supabase, heartbeatId, 'success', startTime, totalAtualizados, { bares: resultadosPorBar.length })
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: `CMV Mensal sincronizado: ${totalAtualizados} meses atualizados`,
+        message: `CMV Mensal v2.0 sincronizado: ${totalAtualizados} meses atualizados`,
         resultados_por_bar: resultadosPorBar,
         timestamp: new Date().toISOString()
       }),
@@ -436,6 +454,7 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('❌ Erro:', error.message)
+    await heartbeatError(supabase, heartbeatId, startTime, error)
     return new Response(
       JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

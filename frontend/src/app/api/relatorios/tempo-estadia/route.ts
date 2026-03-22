@@ -19,23 +19,18 @@ export async function GET(request: NextRequest) {
     
     const startTime = Date.now()
     
-    // Obter bar_id do header
-    const barIdHeader = request.headers.get('x-user-data')
+    // Obter bar_id do header x-selected-bar-id
+    const barIdHeader = request.headers.get('x-selected-bar-id')
     let barId: number | null = null
     if (barIdHeader) {
-      try {
-        const parsed = JSON.parse(barIdHeader)
-        if (parsed?.bar_id) barId = parseInt(String(parsed.bar_id))
-      } catch (error) {
-        console.error('Erro ao parsear x-user-data:', error)
-      }
+      barId = parseInt(barIdHeader, 10) || null
     }
     
     if (!barId) {
       return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 })
     }
 
-    // 🚀 OTIMIZAÇÃO: Usar agregações SQL em vez de processar em memória
+    // Usar agregações SQL em vez de processar em memória (tabela visitas)
     
     // 1. Estatísticas gerais (1 query)
     const { data: stats, error: statsError } = await supabase
@@ -44,7 +39,7 @@ export async function GET(request: NextRequest) {
     if (statsError) {
       // Fallback para query simples se a função não existir
       const { count, error: countError } = await supabase
-        .from('contahub_vendas')
+        .from('visitas')
         .select('*', { count: 'exact', head: true })
         .eq('bar_id', barId)
         .not('tempo_estadia_minutos', 'is', null)
@@ -67,16 +62,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 2. Agregação por mês usando SQL
+    // 2. Agregação por mês usando SQL (migrado para visitas)
     const { data: porMesData } = await supabase
-      .from('contahub_vendas')
-      .select('dt_gerencial, tempo_estadia_minutos')
+      .from('visitas')
+      .select('data_visita, tempo_estadia_minutos')
       .eq('bar_id', barId)
       .not('tempo_estadia_minutos', 'is', null)
       .gt('tempo_estadia_minutos', 0)
       .lt('tempo_estadia_minutos', 720)
-      .order('dt_gerencial', { ascending: false })
-      .limit(10000) // Limitar para últimos registros
+      .order('data_visita', { ascending: false })
+      .limit(10000)
     
     if (!porMesData || porMesData.length === 0) {
       return NextResponse.json({
@@ -98,10 +93,10 @@ export async function GET(request: NextRequest) {
     const tempoMedio = porMesData.reduce((acc, v) => acc + (v.tempo_estadia_minutos || 0), 0) / totalVendas
     const tempoFormatado = `${Math.floor(tempoMedio / 60)}h ${Math.round(tempoMedio % 60)}min`
 
-    // Por mês
+    // Por mês (usando data_visita da tabela visitas)
     const porMesMap = new Map<string, { total: number; soma: number }>()
     porMesData.forEach(v => {
-      const mes = v.dt_gerencial.substring(0, 7)
+      const mes = v.data_visita.substring(0, 7)
       const current = porMesMap.get(mes) || { total: 0, soma: 0 }
       porMesMap.set(mes, {
         total: current.total + 1,
@@ -118,10 +113,10 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.periodo.localeCompare(a.periodo))
       .slice(0, 12)
 
-    // Por dia da semana
+    // Por dia da semana (usando data_visita)
     const porDiaMap = new Map<number, { total: number; soma: number }>()
     porMesData.forEach(v => {
-      const dia = new Date(v.dt_gerencial).getDay()
+      const dia = new Date(v.data_visita).getDay()
       const current = porDiaMap.get(dia) || { total: 0, soma: 0 }
       porDiaMap.set(dia, {
         total: current.total + 1,
@@ -161,23 +156,23 @@ export async function GET(request: NextRequest) {
       }
     }).filter(f => f.total > 0)
 
-    // Top clientes - buscar separadamente com agregação
+    // Top clientes - buscar separadamente com agregação (migrado para visitas)
     const { data: topClientesData } = await supabase
-      .from('contahub_vendas')
-      .select('cli_fone, tempo_estadia_minutos')
+      .from('visitas')
+      .select('cliente_fone, tempo_estadia_minutos')
       .eq('bar_id', barId)
       .not('tempo_estadia_minutos', 'is', null)
-      .not('cli_fone', 'is', null)
+      .not('cliente_fone', 'is', null)
       .gt('tempo_estadia_minutos', 0)
       .lt('tempo_estadia_minutos', 720)
-      .order('dt_gerencial', { ascending: false })
-      .limit(5000) // Últimos 5k registros para top clientes
+      .order('data_visita', { ascending: false })
+      .limit(5000)
     
     const clientesMap = new Map<string, { total: number; soma: number }>()
     topClientesData?.forEach(v => {
-      if (!v.cli_fone) return
-      const current = clientesMap.get(v.cli_fone) || { total: 0, soma: 0 }
-      clientesMap.set(v.cli_fone, {
+      if (!v.cliente_fone) return
+      const current = clientesMap.get(v.cliente_fone) || { total: 0, soma: 0 }
+      clientesMap.set(v.cliente_fone, {
         total: current.total + 1,
         soma: current.soma + (v.tempo_estadia_minutos || 0)
       })

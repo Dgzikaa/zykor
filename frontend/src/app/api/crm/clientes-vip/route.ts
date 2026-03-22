@@ -14,16 +14,11 @@ export async function GET(request: NextRequest) {
 
     const supabase = await getAdminClient()
 
-    // Obter bar_id do header
-    const barIdHeader = request.headers.get('x-user-data')
+    // Obter bar_id do header x-selected-bar-id
+    const barIdHeader = request.headers.get('x-selected-bar-id')
     let barId: number | null = null
     if (barIdHeader) {
-      try {
-        const parsed = JSON.parse(barIdHeader)
-        if (parsed?.bar_id) barId = parseInt(String(parsed.bar_id))
-      } catch (error) {
-        console.warn('Erro ao parsear barIdHeader:', error)
-      }
+      barId = parseInt(barIdHeader, 10) || null
     }
 
     if (!barId) {
@@ -32,8 +27,6 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    console.log(`🎯 Buscando clientes VIP para bar_id=${barId}`)
 
     // 1. Buscar clientes com perfil de consumo ordenados por visitas
     const { data: clientesPerfil, error: perfilError } = await supabase

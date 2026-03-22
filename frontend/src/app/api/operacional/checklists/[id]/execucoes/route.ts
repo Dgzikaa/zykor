@@ -244,10 +244,6 @@ export async function POST(
 
     const execucaoData = execucao as ExecucaoCompleta;
 
-    console.log(
-      `✅ Execução iniciada: ${checklistData.nome} por ${funcionarioData.nome}`
-    );
-
     return NextResponse.json({
       success: true,
       message: 'Execução iniciada com sucesso',

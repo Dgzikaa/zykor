@@ -6,40 +6,27 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Lista de atrações conhecidas para extração
-const ATRACOES_CONHECIDAS = [
-  'Breno Alves', 'Benzadeus', 'Bonsai', 'Boka de Sergipe', 'Pé no Chão',
-  '7naRoda', 'Doze', 'STZ', 'Sambadona', 'Reconvexa', 'Na Medida',
-  'Gigi', 'Pagode da Gigi', 'Clima de Montanha', 'Inácio Rios', 'Mosquito',
-  'Marina Íris', 'Marcelle Motta', 'Lucas Alves', 'Umiranda', 'Stephanie'
-];
-
-// DJs conhecidos
-const DJS_CONHECIDOS = [
-  'Dj Jess Ullun', 'Dj Vinny', 'Dj Caju', 'Dj Negritah', 'Dj Afrika',
-  'Dj Leo Cabral', 'Dj Tiago Jousef', 'Dj A CONFIRMAR'
-];
-
-function extrairAtracoes(nome: string): { principal: string; dj: string | null; todas: string[] } {
+function criarExtratorAtracoes(atracoesConhecidas: string[], djsConhecidos: string[]) {
+  return function extrairAtracoes(nome: string): { principal: string; dj: string | null; todas: string[] } {
   const todas: string[] = [];
   let principal = '';
   let dj: string | null = null;
 
-  // Extrair atrações conhecidas
-  for (const atracao of ATRACOES_CONHECIDAS) {
-    if (nome.toLowerCase().includes(atracao.toLowerCase())) {
-      todas.push(atracao);
-      if (!principal) principal = atracao;
+    // Extrair atrações conhecidas
+    for (const atracao of atracoesConhecidas) {
+      if (nome.toLowerCase().includes(atracao.toLowerCase())) {
+        todas.push(atracao);
+        if (!principal) principal = atracao;
+      }
     }
-  }
 
-  // Extrair DJ
-  for (const djNome of DJS_CONHECIDOS) {
-    if (nome.toLowerCase().includes(djNome.toLowerCase())) {
-      dj = djNome;
-      break;
+    // Extrair DJ
+    for (const djNome of djsConhecidos) {
+      if (nome.toLowerCase().includes(djNome.toLowerCase())) {
+        dj = djNome;
+        break;
+      }
     }
-  }
 
   // Se não encontrou atração conhecida, tentar extrair do nome
   if (!principal) {
@@ -52,7 +39,8 @@ function extrairAtracoes(nome: string): { principal: string; dj: string | null; 
     }
   }
 
-  return { principal, dj, todas };
+    return { principal, dj, todas };
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -61,6 +49,23 @@ export async function GET(request: NextRequest) {
     const barId = searchParams.get('bar_id') || '3';
     const periodo = searchParams.get('periodo') || '12'; // meses
     const minShows = parseInt(searchParams.get('min_shows') || '2');
+
+    // Buscar artistas do banco
+    const { data: artistasDb } = await supabase
+      .from('bar_artistas')
+      .select('nome, tipo')
+      .eq('bar_id', parseInt(barId))
+      .eq('ativo', true);
+
+    const ATRACOES_CONHECIDAS = (artistasDb || [])
+      .filter((a: any) => a.tipo !== 'dj')
+      .map((a: any) => a.nome);
+
+    const DJS_CONHECIDOS = (artistasDb || [])
+      .filter((a: any) => a.tipo === 'dj')
+      .map((a: any) => a.nome);
+
+    const extrairAtracoes = criarExtratorAtracoes(ATRACOES_CONHECIDAS, DJS_CONHECIDOS);
 
     // Calcular data inicial
     const dataInicial = new Date();

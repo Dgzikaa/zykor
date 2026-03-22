@@ -104,9 +104,7 @@ export async function POST(request: NextRequest) {
         error: 'ano e mes são obrigatórios'
       }, { status: 400 });
     }
-    
-    console.log(`📅 Importando mês ${mes}/${ano}...`);
-    
+
     // Calcular datas do mês
     const dataInicio = new Date(ano, mes - 1, 1);
     const dataFim = new Date(ano, mes, 0); // Último dia do mês
@@ -116,9 +114,7 @@ export async function POST(request: NextRequest) {
     for (let d = new Date(dataInicio); d <= dataFim; d.setDate(d.getDate() + 1)) {
       datas.push(d.toISOString().split('T')[0]);
     }
-    
-    console.log(`📊 Total de dias: ${datas.length}`);
-    
+
     // Conectar ao Supabase
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -216,9 +212,7 @@ export async function POST(request: NextRequest) {
         stats.processadas++;
       }
     }
-    
-    console.log('✅ Mês concluído:', stats);
-    
+
     return NextResponse.json({
       success: true,
       message: `Mês ${mes}/${ano} importado`,

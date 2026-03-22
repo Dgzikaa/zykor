@@ -12,6 +12,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts';
 import { 
   sendDiscordEmbed,
   sendDiscordEmbeds,
@@ -53,15 +54,22 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  let heartbeatId: number | null = null;
+  let startTime: number = Date.now();
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
   try {
     const body: DispatcherRequest = await req.json();
     const { action, bar_id = 3 } = body;
 
     console.log(`🚨 Alertas Dispatcher - Action: ${action}`);
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const hbResult = await heartbeatStart(supabase, 'alertas-dispatcher', bar_id, action, 'pgcron');
+    heartbeatId = hbResult.heartbeatId;
+    startTime = hbResult.startTime;
 
     let resultado;
 
@@ -86,6 +94,8 @@ serve(async (req) => {
         throw new Error(`Action não reconhecida: ${action}`);
     }
 
+    await heartbeatEnd(supabase, heartbeatId, 'success', startTime, 1, { action });
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -98,6 +108,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Erro no alertas dispatcher:', error);
+    await heartbeatError(supabase, heartbeatId, startTime, error instanceof Error ? error : String(error));
     
     return new Response(
       JSON.stringify({

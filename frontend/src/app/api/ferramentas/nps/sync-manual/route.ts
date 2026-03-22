@@ -13,7 +13,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const { data_inicio, data_fim } = body;
     const opts = (data_inicio && data_fim) ? { data_inicio, data_fim } : {};
-    console.log('🔄 Iniciando sincronização manual...', Object.keys(opts).length ? `(retroativo: ${data_inicio} a ${data_fim})` : '');
 
     const [npsResponse, felicidadeResponse] = await Promise.all([
       fetch(`${SUPABASE_URL}/functions/v1/google-sheets-sync`, {
@@ -36,9 +35,6 @@ export async function POST(request: NextRequest) {
 
     const npsData = await npsResponse.json();
     const felicidadeData = await felicidadeResponse.json();
-
-    console.log('📊 Resultado NPS:', npsData);
-    console.log('😊 Resultado Felicidade:', felicidadeData);
 
     // Verificar se ambas tiveram sucesso
     const npsSuccess = npsResponse.ok && npsData.success;

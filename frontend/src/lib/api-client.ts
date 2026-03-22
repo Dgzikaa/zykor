@@ -22,18 +22,11 @@ export async function apiCall(endpoint: string, options: ApiOptions = {}) {
     // Cookie httpOnly é enviado automaticamente pelo navegador
     // Não precisa adicionar token manualmente
     
-    // Manter x-user-data para compatibilidade temporária
+    // Enviar apenas o ID do bar selecionado (autenticação real vai no JWT/cookie)
     if (typeof window !== 'undefined') {
-      const userData = localStorage.getItem('sgb_user');
-      if (userData) {
-        try {
-          const user = JSON.parse(userData);
-          headers['x-user-data'] = encodeURIComponent(userData);
-          if (user.id) headers['x-user-id'] = user.id;
-          if (user.email) headers['x-user-email'] = user.email;
-        } catch (e) {
-          console.warn('Erro ao parsear dados do usuário:', e);
-        }
+      const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
+      if (selectedBarId) {
+        headers['x-selected-bar-id'] = selectedBarId;
       }
     }
 
@@ -137,11 +130,11 @@ export const uploadsApi = {
   // Fazer upload de arquivo (com FormData)
   upload: async (formData: FormData) => {
     try {
-      const userData = localStorage.getItem('sgb_user');
+      const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
       const headers: Record<string, string> = {};
 
-      if (userData) {
-        headers['x-user-data'] = encodeURIComponent(userData);
+      if (selectedBarId) {
+        headers['x-selected-bar-id'] = selectedBarId;
       }
 
       const response = await fetch('/api/configuracoes/uploads', {

@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts';
 
 console.log("­ƒôª ContaHub Stockout Sync - Controle de Estoque (Multi-Bar)");
 
@@ -303,9 +304,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  let heartbeatId: number | null = null;
+  let startTime: number = Date.now();
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return new Response(JSON.stringify({ success: false, error: 'Variáveis do Supabase não encontradas' }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500
+    });
+  }
+  
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
   try {
     const requestBody = await req.text();
-    console.log('­ƒôÑ Body recebido:', requestBody);
+    console.log('📝 Body recebido:', requestBody);
     
     let parsedBody: { bar_id?: number; data_date?: string } = {};
     try {
@@ -313,27 +329,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
         parsedBody = JSON.parse(requestBody);
       }
     } catch (jsonError) {
-      console.error('ÔØî Erro ao fazer parse do JSON:', jsonError);
+      console.error('❌ Erro ao fazer parse do JSON:', jsonError);
       throw new Error(`Erro no parsing do JSON: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`);
     }
     
     const { bar_id, data_date } = parsedBody;
     
     if (!bar_id || !data_date) {
-      throw new Error('bar_id e data_date s├úo obrigat├│rios');
+      throw new Error('bar_id e data_date são obrigatórios');
     }
+
+    const hbResult = await heartbeatStart(supabase, 'contahub-stockout-sync', bar_id, null, 'pgcron');
+    heartbeatId = hbResult.heartbeatId;
+    startTime = hbResult.startTime;
     
-    console.log(`­ƒÄ» Coletando STOCKOUT para bar_id=${bar_id}, data=${data_date}`);
-    
-    // Configurar Supabase
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Vari├íveis do Supabase n├úo encontradas');
-    }
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    console.log(`🎯 Coletando STOCKOUT para bar_id=${bar_id}, data=${data_date}`);
     
     // Buscar credenciais do ContaHub para o bar espec├¡fico
     const credentials = await getContaHubCredentials(supabase, bar_id);
@@ -421,9 +431,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.log(`- % Stockout: ${summary.percentual_stockout}`);
     console.log(`- Registros processados: ${summary.registros_processados}`);
     
-    // Notifica├º├úo de sucesso
-    const successMessage = `Ô£à **Stockout processado com sucesso**\n\n­ƒÅ¬ **Bar ID:** ${bar_id}\n­ƒÅó **Empresa:** ${empresaId}\n\n­ƒôè **Resultados:**\nÔÇó Total produtos: ${summary.total_produtos}\nÔÇó Produtos ativos: ${summary.produtos_ativos}\nÔÇó Produtos inativos: ${summary.produtos_inativos}\nÔÇó % Stockout: ${summary.percentual_stockout}\n\nÔÅ░ **Fim:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
+    const successMessage = `✅ **Stockout processado com sucesso**\n\n🏪 **Bar ID:** ${bar_id}\n🏢 **Empresa:** ${empresaId}\n\n📊 **Resultados:**\n• Total produtos: ${summary.total_produtos}\n• Produtos ativos: ${summary.produtos_ativos}\n• Produtos inativos: ${summary.produtos_inativos}\n• % Stockout: ${summary.percentual_stockout}\n\n⏱ **Fim:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
     await sendDiscordNotification(successMessage);
+
+    await heartbeatEnd(supabase, heartbeatId, 'success', startTime, summary.registros_processados, { total_produtos: summary.total_produtos, percentual_stockout: summary.percentual_stockout });
     
     return new Response(JSON.stringify({
       success: true,
@@ -435,10 +446,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
     
   } catch (error) {
-    console.error('ÔØî Erro geral:', error);
+    console.error('❌ Erro geral:', error);
     
-    // Enviar notifica├º├úo de erro cr├¡tico
-    const errorMessage = `ÔØî **Erro na coleta Stockout**\n\nÔÅ░ **Tempo:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n­ƒÜ¿ **Erro:** ${error instanceof Error ? error.message : String(error)}`;
+    await heartbeatError(supabase, heartbeatId, startTime, error instanceof Error ? error : String(error));
+    
+    const errorMessage = `❌ **Erro na coleta Stockout**\n\n⏱ **Tempo:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n🚨 **Erro:** ${error instanceof Error ? error.message : String(error)}`;
     await sendDiscordNotification(errorMessage, true);
   
     return new Response(JSON.stringify({

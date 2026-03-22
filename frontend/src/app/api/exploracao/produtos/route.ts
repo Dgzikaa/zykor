@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { getFatorCmv } from '@/lib/config/getFatorCmv';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,18 +9,21 @@ export async function GET(request: NextRequest) {
     const supabase = createServiceRoleClient();
     const { searchParams } = new URL(request.url);
     const barId = parseInt(searchParams.get('bar_id') || '3');
+    
+    // Buscar fator CMV do banco (Onda 2A)
+    const fatorCmvPadrao = await getFatorCmv(supabase, barId);
 
-    // 1. TOP 20 PRODUTOS MAIS VENDIDOS (por quantidade)
+    // 1. TOP 20 PRODUTOS MAIS VENDIDOS (por quantidade) - migrado para vendas_item
     const { data: produtosPorQtd } = await supabase
-      .from('contahub_analitico')
-      .select('prd_desc, qtd, valorfinal')
+      .from('vendas_item')
+      .select('produto_desc, quantidade, valor')
       .eq('bar_id', barId)
-      .not('prd_desc', 'is', null)
-      .neq('prd_desc', '');
+      .not('produto_desc', 'is', null)
+      .neq('produto_desc', '');
 
     const produtosAgregados: any = {};
     (produtosPorQtd || []).forEach((venda: any) => {
-      const produto = venda.prd_desc;
+      const produto = venda.produto_desc;
       if (!produtosAgregados[produto]) {
         produtosAgregados[produto] = {
           produto,
@@ -28,8 +32,8 @@ export async function GET(request: NextRequest) {
           quantidade_transacoes: 0
         };
       }
-      produtosAgregados[produto].quantidade_vendida += venda.qtd || 0;
-      produtosAgregados[produto].faturamento_total += venda.valorfinal || 0;
+      produtosAgregados[produto].quantidade_vendida += venda.quantidade || 0;
+      produtosAgregados[produto].faturamento_total += venda.valor || 0;
       produtosAgregados[produto].quantidade_transacoes += 1;
     });
 
@@ -44,10 +48,11 @@ export async function GET(request: NextRequest) {
 
     // 2. PRODUTOS COM MAIOR MARGEM (assumindo margem = faturamento - custo estimado)
     // Vamos usar uma estimativa: bebidas ~30% custo, comida ~40% custo
+    // Onda 2A: custo padrão vem do banco (fatorCmvPadrao)
     const produtosComMargem = Object.values(produtosAgregados)
       .map((p: any) => {
         const produto = p.produto.toLowerCase();
-        let custoEstimado = 0.35; // Padrão 35%
+        let custoEstimado = fatorCmvPadrao; // Padrão do banco (Onda 2A)
         
         if (produto.includes('cerveja') || produto.includes('chopp') || produto.includes('drink')) {
           custoEstimado = 0.30;
@@ -70,17 +75,17 @@ export async function GET(request: NextRequest) {
       .sort((a: any, b: any) => b.margem_estimada - a.margem_estimada)
       .slice(0, 20);
 
-    // 3. PRODUTOS MAIS CANCELADOS (valor negativo indica cancelamento)
+    // 3. PRODUTOS MAIS CANCELADOS (valor negativo indica cancelamento) - migrado para vendas_item
     const { data: cancelamentos } = await supabase
-      .from('contahub_analitico')
-      .select('prd_desc, qtd, valorfinal')
+      .from('vendas_item')
+      .select('produto_desc, quantidade, valor')
       .eq('bar_id', barId)
-      .lt('valorfinal', 0)
-      .not('prd_desc', 'is', null);
+      .lt('valor', 0)
+      .not('produto_desc', 'is', null);
 
     const produtosCancelados: any = {};
     (cancelamentos || []).forEach((cancel: any) => {
-      const produto = cancel.prd_desc;
+      const produto = cancel.produto_desc;
       if (!produtosCancelados[produto]) {
         produtosCancelados[produto] = {
           produto,
@@ -89,8 +94,8 @@ export async function GET(request: NextRequest) {
           quantidade_cancelamentos: 0
         };
       }
-      produtosCancelados[produto].quantidade_cancelada += Math.abs(cancel.qtd || 0);
-      produtosCancelados[produto].valor_cancelado += Math.abs(cancel.valorfinal || 0);
+      produtosCancelados[produto].quantidade_cancelada += Math.abs(cancel.quantidade || 0);
+      produtosCancelados[produto].valor_cancelado += Math.abs(cancel.valor || 0);
       produtosCancelados[produto].quantidade_cancelamentos += 1;
     });
 
@@ -98,26 +103,25 @@ export async function GET(request: NextRequest) {
       .sort((a: any, b: any) => b.quantidade_cancelamentos - a.quantidade_cancelamentos)
       .slice(0, 20);
 
-    // 4. PRODUTOS QUE VENDEM JUNTOS (análise de combos)
-    // Buscar transações do mesmo horário/mesa
+    // 4. PRODUTOS QUE VENDEM JUNTOS (análise de combos) - migrado para vendas_item
+    // Buscar transações do mesmo horário/data
     const { data: transacoesPorHora } = await supabase
-      .from('contahub_analitico')
-      .select('trn_dtgerencial, hora, prd_desc, qtd')
+      .from('vendas_item')
+      .select('data_venda, produto_desc, quantidade')
       .eq('bar_id', barId)
-      .not('prd_desc', 'is', null)
-      .gte('trn_dtgerencial', new Date(new Date().setDate(new Date().getDate() - 90)).toISOString().split('T')[0])
-      .order('trn_dtgerencial', { ascending: false })
-      .order('hora', { ascending: false })
+      .not('produto_desc', 'is', null)
+      .gte('data_venda', new Date(new Date().setDate(new Date().getDate() - 90)).toISOString().split('T')[0])
+      .order('data_venda', { ascending: false })
       .limit(10000);
 
-    // Agrupar por data+hora (proxy de "mesma mesa")
+    // Agrupar por data (proxy de "mesma mesa/dia")
     const transacoesPorMomento: any = {};
     (transacoesPorHora || []).forEach((t: any) => {
-      const chave = `${t.trn_dtgerencial}-${t.hora}`;
+      const chave = `${t.data_venda}`;
       if (!transacoesPorMomento[chave]) {
         transacoesPorMomento[chave] = [];
       }
-      transacoesPorMomento[chave].push(t.prd_desc);
+      transacoesPorMomento[chave].push(t.produto_desc);
     });
 
     // Encontrar combinações frequentes
@@ -148,16 +152,16 @@ export async function GET(request: NextRequest) {
     dataLimite6Meses.setMonth(dataLimite6Meses.getMonth() - 6);
 
     const { data: vendasRecentes } = await supabase
-      .from('contahub_analitico')
-      .select('prd_desc, qtd, valorfinal, trn_dtgerencial')
+      .from('vendas_item')
+      .select('produto_desc, quantidade, valor, data_venda')
       .eq('bar_id', barId)
-      .gte('trn_dtgerencial', dataLimite6Meses.toISOString().split('T')[0])
-      .not('prd_desc', 'is', null);
+      .gte('data_venda', dataLimite6Meses.toISOString().split('T')[0])
+      .not('produto_desc', 'is', null);
 
     const vendasPorPeriodo: any = {};
     (vendasRecentes || []).forEach((venda: any) => {
-      const produto = venda.prd_desc;
-      const data = new Date(venda.trn_dtgerencial);
+      const produto = venda.produto_desc;
+      const data = new Date(venda.data_venda);
       const periodo = data >= dataLimite3Meses ? 'recente' : 'anterior';
       
       if (!vendasPorPeriodo[produto]) {
@@ -171,11 +175,11 @@ export async function GET(request: NextRequest) {
       }
       
       if (periodo === 'recente') {
-        vendasPorPeriodo[produto].qtd_recente += venda.qtd || 0;
-        vendasPorPeriodo[produto].fat_recente += venda.valorfinal || 0;
+        vendasPorPeriodo[produto].qtd_recente += venda.quantidade || 0;
+        vendasPorPeriodo[produto].fat_recente += venda.valor || 0;
       } else {
-        vendasPorPeriodo[produto].qtd_anterior += venda.qtd || 0;
-        vendasPorPeriodo[produto].fat_anterior += venda.valorfinal || 0;
+        vendasPorPeriodo[produto].qtd_anterior += venda.quantidade || 0;
+        vendasPorPeriodo[produto].fat_anterior += venda.valor || 0;
       }
     });
 

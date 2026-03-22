@@ -31,8 +31,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`🍽️ Buscando dados CMA (Alimentação Funcionários) - Bar ${bar_id} de ${data_inicio} até ${data_fim}`);
-
     const resultado = {
       estoque_inicial_funcionarios: 0,
       compras_alimentacao: 0,
@@ -46,7 +44,6 @@ export async function POST(request: NextRequest) {
     // 1. BUSCAR ESTOQUE INICIAL (contagem da segunda-feira = data_inicio)
     try {
       const dataContagem = data_inicio;
-      console.log(`📅 Estoque Inicial Funcionários: Buscando contagem de ${dataContagem}`);
 
       // Buscar insumos de funcionários
       const { data: insumos } = await supabase
@@ -73,13 +70,7 @@ export async function POST(request: NextRequest) {
             const valor = contagem.estoque_final * (contagem.custo_unitario || 0);
             resultado.estoque_inicial_funcionarios += valor;
           });
-
-          console.log(`✅ Estoque Inicial Funcionários: R$ ${resultado.estoque_inicial_funcionarios.toFixed(2)}`);
-        } else {
-          console.log(`⚠️ Nenhuma contagem de funcionários encontrada para ${dataContagem}`);
         }
-      } else {
-        console.log(`⚠️ Nenhum insumo de funcionário cadastrado`);
       }
     } catch (err) {
       console.error('Erro ao buscar estoque inicial de funcionários:', err);
@@ -89,7 +80,6 @@ export async function POST(request: NextRequest) {
     try {
       const dataInicioFull = data_inicio + (usarDataCriacao ? 'T00:00:00' : '');
       const dataFimFull = data_fim + (usarDataCriacao ? 'T23:59:59' : '');
-      console.log(`📅 Compras Alimentação: critério=${usarDataCriacao ? 'criação (criado_em)' : 'competência (data_competencia)'}`);
 
       const queryBuilder = supabase
         .from('nibo_agendamentos')
@@ -109,8 +99,6 @@ export async function POST(request: NextRequest) {
             return cat === 'alimentação' || cat === 'alimentacao';
           })
           .reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0);
-
-        console.log(`✅ Compras Alimentação: R$ ${resultado.compras_alimentacao.toFixed(2)}`);
       }
     } catch (err) {
       console.error('Erro ao buscar compras de alimentação:', err);
@@ -134,9 +122,7 @@ export async function POST(request: NextRequest) {
       
       dataFimDate.setUTCDate(dataFimDate.getUTCDate() + diasParaSegunda);
       const dataSegundaFinal = dataFimDate.toISOString().split('T')[0];
-      
-      console.log(`📅 Estoque Final Funcionários: Buscando contagem de ${dataSegundaFinal}`);
-      
+
       let dataContagemFinal: string | null = null;
       
       // Tentar buscar contagem exata da segunda-feira
@@ -150,7 +136,6 @@ export async function POST(request: NextRequest) {
       
       if (contagemExata && contagemExata.length > 0) {
         dataContagemFinal = dataSegundaFinal;
-        console.log(`✅ Encontrou contagem exata: ${dataContagemFinal}`);
       } else {
         // Fallback: buscar contagem mais próxima
         const { data: contagensProximas } = await supabase
@@ -164,7 +149,6 @@ export async function POST(request: NextRequest) {
         
         if (contagensProximas && contagensProximas.length > 0) {
           dataContagemFinal = contagensProximas[0].data_contagem;
-          console.log(`✅ Usando contagem próxima: ${dataContagemFinal}`);
         }
       }
 
@@ -194,12 +178,8 @@ export async function POST(request: NextRequest) {
               const valor = contagem.estoque_final * (contagem.custo_unitario || 0);
               resultado.estoque_final_funcionarios += valor;
             });
-
-            console.log(`✅ Estoque Final Funcionários: R$ ${resultado.estoque_final_funcionarios.toFixed(2)}`);
           }
         }
-      } else {
-        console.log('⚠️ Nenhuma contagem de estoque final encontrada');
       }
     } catch (err) {
       console.error('Erro ao buscar estoque final de funcionários:', err);
@@ -209,11 +189,6 @@ export async function POST(request: NextRequest) {
     resultado.cma_total = resultado.estoque_inicial_funcionarios + 
                           resultado.compras_alimentacao - 
                           resultado.estoque_final_funcionarios;
-
-    console.log(`📊 CMA TOTAL: R$ ${resultado.cma_total.toFixed(2)}`);
-    console.log(`   Estoque Inicial: R$ ${resultado.estoque_inicial_funcionarios.toFixed(2)}`);
-    console.log(`   (+) Compras: R$ ${resultado.compras_alimentacao.toFixed(2)}`);
-    console.log(`   (-) Estoque Final: R$ ${resultado.estoque_final_funcionarios.toFixed(2)}`);
 
     return NextResponse.json({
       success: true,

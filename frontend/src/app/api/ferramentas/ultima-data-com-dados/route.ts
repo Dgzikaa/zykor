@@ -18,12 +18,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Buscar a data mais recente com dados no contahub_analitico
+    // Buscar a data mais recente com dados em vendas_item
     const { data: ultimaData, error } = await supabase
-      .from('contahub_analitico')
-      .select('trn_dtgerencial')
+      .from('vendas_item')
+      .select('data_venda')
       .eq('bar_id', parseInt(bar_id))
-      .order('trn_dtgerencial', { ascending: false })
+      .order('data_venda', { ascending: false })
       .limit(1);
 
     if (error) {
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const dataEncontrada = ultimaData?.[0]?.trn_dtgerencial;
+    const dataEncontrada = ultimaData?.[0]?.data_venda;
     
     if (!dataEncontrada) {
       return NextResponse.json(
@@ -45,10 +45,10 @@ export async function GET(request: NextRequest) {
 
     // Verificar se há dados suficientes para essa data (pelo menos 100 registros)
     const { data: contagem, error: errorContagem } = await supabase
-      .from('contahub_analitico')
-      .select('trn_dtgerencial', { count: 'exact' })
+      .from('vendas_item')
+      .select('data_venda', { count: 'exact' })
       .eq('bar_id', parseInt(bar_id))
-      .eq('trn_dtgerencial', dataEncontrada);
+      .eq('data_venda', dataEncontrada);
 
     const totalRegistros = contagem?.length || 0;
 

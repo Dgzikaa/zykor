@@ -159,7 +159,7 @@ export default function CalendarioPage() {
 
       const response = await apiCall(`/api/ferramentas/calendario?${params}`, {
         headers: {
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+          'x-selected-bar-id': String(selectedBar?.id || '')
         }
       });
       
@@ -213,7 +213,7 @@ export default function CalendarioPage() {
       const response = await apiCall('/api/trigger-getin-sync', {
         method: 'GET',
         headers: {
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+          'x-selected-bar-id': String(selectedBar?.id || '')
         }
       });
 
@@ -292,7 +292,7 @@ export default function CalendarioPage() {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+            'x-selected-bar-id': String(selectedBar?.id || '')
           },
           body: JSON.stringify(updateData)
         });
@@ -317,7 +317,7 @@ export default function CalendarioPage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+            'x-selected-bar-id': String(selectedBar?.id || '')
           },
           body: JSON.stringify(novoEvento)
         });
@@ -379,7 +379,7 @@ export default function CalendarioPage() {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+          'x-selected-bar-id': String(selectedBar?.id || '')
         }
       });
 
@@ -419,7 +419,7 @@ export default function CalendarioPage() {
     try {
       const response = await apiCall(`/api/ferramentas/calendario/eventos?data=${data}`, {
         headers: {
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+          'x-selected-bar-id': String(selectedBar?.id || '')
         }
       });
       

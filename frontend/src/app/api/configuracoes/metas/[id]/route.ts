@@ -127,7 +127,6 @@ export async function PUT(
       );
     }
 
-    console.log(`✅ Meta atualizada: ${metaAtualizada.nome_meta}`);
     return NextResponse.json({
       success: true,
       data: metaAtualizada,
@@ -202,7 +201,6 @@ export async function DELETE(
       );
     }
 
-    console.log(`✅ Meta deletada: ${metaId}`);
     return NextResponse.json({
       success: true,
       message: 'Meta deletada com sucesso',

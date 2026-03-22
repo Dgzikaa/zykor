@@ -8,28 +8,21 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Função para autenticar usuário
-async function authenticateUser(request: NextRequest) {
-  try {
-    const userHeader = request.headers.get('x-user-data');
-    if (!userHeader) {
-      return null;
-    }
-    
-    const user = JSON.parse(decodeURIComponent(userHeader));
-    return user;
-  } catch (error) {
-    console.error('❌ Erro ao autenticar usuário:', error);
+// Função para obter bar_id do header
+function getBarIdFromRequest(request: NextRequest): number | null {
+  const barIdHeader = request.headers.get('x-selected-bar-id');
+  if (!barIdHeader) {
     return null;
   }
+  return parseInt(barIdHeader, 10) || null;
 }
 
 // GET - Buscar evento específico por data
 export async function GET(request: NextRequest) {
   try {
-    const user = await authenticateUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    const barId = getBarIdFromRequest(request);
+    if (!barId) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -42,7 +35,7 @@ export async function GET(request: NextRequest) {
         .from('eventos_base')
         .select('*')
         .eq('id', id)
-        .eq('bar_id', user.bar_id)
+        .eq('bar_id', barId)
         .single();
 
       if (error) {
@@ -59,7 +52,7 @@ export async function GET(request: NextRequest) {
         .from('eventos_base')
         .select('*')
         .eq('data_evento', data)
-        .eq('bar_id', user.bar_id)
+        .eq('bar_id', barId)
         .eq('ativo', true)
         .single();
 
@@ -85,9 +78,9 @@ export async function GET(request: NextRequest) {
 // POST - Criar novo evento
 export async function POST(request: NextRequest) {
   try {
-    const user = await authenticateUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    const barId = getBarIdFromRequest(request);
+    if (!barId) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
     const body = await request.json();
@@ -110,8 +103,6 @@ export async function POST(request: NextRequest) {
     const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     const diaSemana = diasSemana[dataEvento.getDay()];
 
-    console.log('➕ Criando novo evento:', { data_evento, nome, artista, genero });
-
     const { data: evento, error } = await supabase
       .from('eventos_base')
       .insert({
@@ -121,7 +112,7 @@ export async function POST(request: NextRequest) {
         genero: genero || null,
         observacoes: observacoes || null,
         dia_semana: diaSemana,
-        bar_id: user.bar_id,
+        bar_id: barId,
         ativo: true,
         precisa_recalculo: true,
         criado_em: new Date().toISOString(),
@@ -138,8 +129,6 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log('✅ Evento criado com sucesso:', evento);
-
     return NextResponse.json({ 
       success: true, 
       data: evento,
@@ -155,9 +144,9 @@ export async function POST(request: NextRequest) {
 // PUT - Atualizar evento existente
 export async function PUT(request: NextRequest) {
   try {
-    const user = await authenticateUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    const barId = getBarIdFromRequest(request);
+    if (!barId) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
     const body = await request.json();
@@ -175,8 +164,6 @@ export async function PUT(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('🔄 Atualizando evento:', { id, nome, artista, genero });
-
     const { data: evento, error } = await supabase
       .from('eventos_base')
       .update({
@@ -188,7 +175,7 @@ export async function PUT(request: NextRequest) {
         precisa_recalculo: true
       })
       .eq('id', id)
-      .eq('bar_id', user.bar_id)
+      .eq('bar_id', barId)
       .select()
       .single();
 
@@ -199,8 +186,6 @@ export async function PUT(request: NextRequest) {
         details: error.message 
       }, { status: 500 });
     }
-
-    console.log('✅ Evento atualizado com sucesso:', evento);
 
     return NextResponse.json({ 
       success: true, 
@@ -217,9 +202,9 @@ export async function PUT(request: NextRequest) {
 // DELETE - Excluir evento (soft delete)
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await authenticateUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    const barId = getBarIdFromRequest(request);
+    if (!barId) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -229,8 +214,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID é obrigatório' }, { status: 400 });
     }
 
-    console.log('🗑️ Excluindo evento:', id);
-
     // Soft delete - marcar como inativo
     const { data: evento, error } = await supabase
       .from('eventos_base')
@@ -239,7 +222,7 @@ export async function DELETE(request: NextRequest) {
         atualizado_em: new Date().toISOString()
       })
       .eq('id', id)
-      .eq('bar_id', user.bar_id)
+      .eq('bar_id', barId)
       .select()
       .single();
 
@@ -250,8 +233,6 @@ export async function DELETE(request: NextRequest) {
         details: error.message 
       }, { status: 500 });
     }
-
-    console.log('✅ Evento excluído com sucesso:', evento);
 
     return NextResponse.json({ 
       success: true, 

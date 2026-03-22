@@ -1407,7 +1407,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`✅ Meta criada: ${nome_meta}`);
     return NextResponse.json({
       success: true,
       data: novaMeta,
@@ -1495,7 +1494,6 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    console.log(`✅ ${metas.length} metas atualizadas`);
     return NextResponse.json({
       success: true,
       data: metasAtualizadas,

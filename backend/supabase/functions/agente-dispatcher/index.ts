@@ -5,7 +5,8 @@
  * Reduz duplicação de código e facilita manutenção.
  * 
  * Actions disponíveis:
- * - analise-diaria: Análise diária com IA
+ * - analise-diaria: Análise diária com IA (versão básica)
+ * - analise-diaria-v2: Análise diária automática com tool-use (versão avançada)
  * - analise-semanal: Análise semanal com IA
  * - analise-mensal: Análise mensal com IA
  * - metas: Relatório de metas
@@ -13,6 +14,7 @@
  * - treinamento: Geração de FAQ/tutoriais
  * - auditor: Auditoria de dados
  * - chat: Chat SQL interativo
+ * - chat-v2: Chat com tool-use
  * - custos: Análise de CMV
  * - padroes: Detecção de padrões
  * - sql-expert: Consultas SQL avançadas
@@ -21,16 +23,20 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts';
 import { 
   createGeminiClient, 
   getGeminiModel, 
-  generateGeminiResponse 
+  generateGeminiResponse,
+  generateWithTools 
 } from '../_shared/gemini-client.ts';
+import { AGENT_TOOLS, createToolExecutor } from '../_shared/agent-tools.ts';
 import { 
   sendDiscordEmbed, 
   createInfoEmbed,
   createErrorEmbed,
-  DiscordColors 
+  DiscordColors,
+  getDiscordWebhookFromDb
 } from '../_shared/discord-notifier.ts';
 import { 
   buscarEventosPeriodo,
@@ -75,16 +81,22 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  let heartbeatId: number | null = null;
+  let startTime: number = Date.now();
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
   try {
     const body: DispatcherRequest = await req.json();
     const { action, bar_id = 3 } = body;
 
     console.log(`🤖 Agente Dispatcher - Action: ${action}`);
 
-    // Inicializar Supabase
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const hbResult = await heartbeatStart(supabase, 'agente-dispatcher', bar_id, action, 'pgcron');
+    heartbeatId = hbResult.heartbeatId;
+    startTime = hbResult.startTime;
 
     let resultado;
 
@@ -137,9 +149,166 @@ serve(async (req) => {
         resultado = await simularPlanejamento(supabase, bar_id, body.params);
         break;
       
+      case 'chat-v2': {
+        const { mensagem, historico } = body.params || {};
+        
+        if (!mensagem) {
+          throw new Error('Parâmetro "mensagem" é obrigatório para chat-v2');
+        }
+
+        const systemPrompt = `Você é o assistente de inteligência do Zykor, sistema de gestão de bares.
+Você tem acesso a ferramentas para consultar dados reais do bar. USE as ferramentas para buscar dados antes de responder.
+
+Regras:
+- SEMPRE use ferramentas para buscar dados antes de responder sobre métricas
+- Responda em português do Brasil
+- Seja direto e objetivo
+- Use formatação markdown
+- Valores monetários em R$ com 2 decimais
+- Quando comparar períodos, calcule variações percentuais
+- Se o usuário perguntar algo que não tem ferramenta, diga o que você pode consultar
+
+Você também pode AGIR além de consultar:
+- criar_alerta: para sinalizar problemas ou oportunidades ao time
+- disparar_recalculo_desempenho: se dados parecem inconsistentes
+- enviar_notificacao_discord: para enviar insights urgentes ao time
+- registrar_insight: para salvar padrões detectados para consulta futura
+
+Regras de ação:
+- Use ações com moderação — só quando realmente relevante
+- NUNCA dispare recálculo a menos que detecte inconsistência real nos dados
+- Crie alertas apenas para anomalias significativas (>20% de variação)
+- Registre insights quando encontrar padrões que valem documentar
+
+Data de hoje: ${new Date().toISOString().split('T')[0]}
+Bar ID: ${bar_id}`;
+
+        const fullPrompt = historico
+          ? `${systemPrompt}\n\nHistórico:\n${historico}\n\nUsuário: ${mensagem}`
+          : `${systemPrompt}\n\nUsuário: ${mensagem}`;
+
+        const executor = createToolExecutor(supabase, bar_id);
+
+        const resposta = await generateWithTools(
+          fullPrompt,
+          AGENT_TOOLS,
+          executor,
+          { temperature: 0.3, maxOutputTokens: 2048 }
+        );
+
+        resultado = { success: true, response: resposta };
+        break;
+      }
+
+      case 'analise-diaria-v2': {
+        const ontem = new Date();
+        ontem.setDate(ontem.getDate() - 1);
+        const dataOntem = ontem.toISOString().split('T')[0];
+
+        const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+        const diaSemana = diasSemana[ontem.getDay()];
+
+        const dataSemanaPassada = new Date(ontem.getTime() - 7 * 86400000).toISOString().split('T')[0];
+        const dataDuasSemanasAtras = new Date(ontem.getTime() - 14 * 86400000).toISOString().split('T')[0];
+
+        const systemPrompt = `Você é o analista de inteligência do Zykor, sistema de gestão de bares.
+Sua tarefa: analisar o desempenho completo do dia ${dataOntem} (${diaSemana}).
+
+INSTRUÇÕES:
+1. Use consultar_faturamento para buscar dados de ontem
+2. Use comparar_periodos para comparar ontem com:
+   - Mesmo dia da semana passada (${dataSemanaPassada})
+   - Mesmo dia há 2 semanas (${dataDuasSemanasAtras})
+3. Use consultar_cmv para ver CMV recente
+4. Use consultar_tendencia para ver tendência de 4 semanas
+5. Use consultar_mix_vendas para ver mix do dia
+6. Use consultar_tempos_producao para ver tempos de ontem
+7. Use consultar_estoque para ver rupturas de ontem
+
+FORMATO DA RESPOSTA (markdown):
+## 📊 Relatório Diário — ${dataOntem} (${diaSemana})
+
+### Faturamento
+- Valor total, comparação com semana anterior (% variação)
+- Público total, ticket médio
+
+### Comparativo
+- vs mesmo dia semana passada: +/- X%
+- vs mesmo dia há 2 semanas: +/- X%
+- Tendência: subindo/caindo/estável
+
+### Operacional
+- Mix: X% bebida, Y% drink, Z% comida
+- Tempos: bar Xmin, cozinha Ymin
+- Rupturas: listar top 3 se houver
+
+### Anomalias
+- Listar APENAS se algo estiver fora do padrão (>20% variação)
+- Faturamento muito acima/abaixo do esperado
+- CMV alto (>40%)
+- Muitos atrasos
+
+### Recomendações
+- 1-3 ações concretas baseadas nos dados
+- Ser específico (não genérico)
+
+Data de hoje: ${new Date().toISOString().split('T')[0]}
+Bar ID: ${bar_id}`;
+
+        const executor = createToolExecutor(supabase, bar_id);
+
+        const resposta = await generateWithTools(
+          systemPrompt,
+          AGENT_TOOLS,
+          executor,
+          { temperature: 0.3, maxOutputTokens: 3000 }
+        );
+
+        const webhookUrl = await getDiscordWebhookFromDb(supabase, 'agentes', bar_id);
+
+        if (webhookUrl) {
+          try {
+            await fetch(webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                embeds: [{
+                  title: `📊 Relatório Diário — ${dataOntem} (${diaSemana})`,
+                  description: resposta.substring(0, 4000),
+                  color: 0x0099ff,
+                  timestamp: new Date().toISOString(),
+                  footer: { text: `Zykor AI Agent | Bar ${bar_id}` }
+                }]
+              })
+            });
+          } catch (discordError) {
+            console.error('❌ Erro ao enviar para Discord:', discordError);
+          }
+        }
+
+        await supabase.from('agente_insights').insert({
+          bar_id,
+          tipo: 'analise_diaria',
+          categoria: 'relatorio',
+          titulo: `Relatório Diário — ${dataOntem} (${diaSemana})`,
+          descricao: resposta,
+          dados_suporte: { 
+            data_referencia: dataOntem,
+            dia_semana: diaSemana,
+            comparacoes: [dataSemanaPassada, dataDuasSemanasAtras]
+          },
+          created_at: new Date().toISOString()
+        });
+
+        resultado = { success: true, response: resposta, sent_to_discord: !!webhookUrl };
+        break;
+      }
+      
       default:
         throw new Error(`Action não reconhecida: ${action}`);
     }
+
+    await heartbeatEnd(supabase, heartbeatId, 'success', startTime, 1, { action });
 
     return new Response(
       JSON.stringify({
@@ -153,6 +322,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Erro no agente dispatcher:', error);
+    await heartbeatError(supabase, heartbeatId, startTime, error instanceof Error ? error : String(error));
     
     return new Response(
       JSON.stringify({

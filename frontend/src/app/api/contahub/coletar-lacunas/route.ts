@@ -48,72 +48,8 @@ export async function GET(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log(`🔍 [API] Buscando datas faltantes para ${dataType}`)
-
-    // Query específica para cada tipo de dados
-    let query = ''
-    let dateField = ''
-    let tableName = ''
-
-    switch (dataType) {
-      case 'analitico':
-        dateField = 'trn_dtgerencial'
-        tableName = 'contahub_analitico'
-        break
-      case 'pagamentos':
-        dateField = 'dt_gerencial'
-        tableName = 'contahub_pagamentos'
-        break
-      case 'tempo':
-        dateField = 'data'
-        tableName = 'contahub_tempo'
-        break
-      case 'periodo':
-        dateField = 'dt_gerencial'
-        tableName = 'contahub_periodo'
-        break
-      case 'fatporhora':
-        dateField = 'vd_dtgerencial'
-        tableName = 'contahub_fatporhora'
-        break
-      default:
-        return NextResponse.json({
-          success: false,
-          error: `Tipo de dados não suportado: ${dataType}`
-        }, { status: 400 })
-    }
-
-    query = `
-      WITH periodo_completo AS (
-        SELECT generate_series('2025-01-31'::date, '2025-08-18'::date, '1 day'::interval)::date as data_esperada
-      ),
-      dados_existentes AS (
-        SELECT DISTINCT ${dateField}::date as data_real
-        FROM ${tableName}
-        WHERE bar_id = ${barId} AND ${dateField} BETWEEN '2025-01-31' AND '2025-08-18'
-      )
-      SELECT 
-        pc.data_esperada as data_faltante,
-        CASE 
-          WHEN EXTRACT(DOW FROM pc.data_esperada) = 0 THEN 'Domingo'
-          WHEN EXTRACT(DOW FROM pc.data_esperada) = 1 THEN 'Segunda'
-          WHEN EXTRACT(DOW FROM pc.data_esperada) = 2 THEN 'Terça'
-          WHEN EXTRACT(DOW FROM pc.data_esperada) = 3 THEN 'Quarta'
-          WHEN EXTRACT(DOW FROM pc.data_esperada) = 4 THEN 'Quinta'
-          WHEN EXTRACT(DOW FROM pc.data_esperada) = 5 THEN 'Sexta'
-          WHEN EXTRACT(DOW FROM pc.data_esperada) = 6 THEN 'Sábado'
-        END as nome_dia
-      FROM periodo_completo pc
-      LEFT JOIN dados_existentes de ON pc.data_esperada = de.data_real
-      WHERE de.data_real IS NULL
-      ORDER BY pc.data_esperada
-      LIMIT ${limit}
-    `
-
-    // Buscar datas faltantes usando função auxiliar
+    // Buscar datas faltantes usando função auxiliar - MIGRADO: domain tables
     const missingDates = await getMissingDatesManually(supabase, dataType, barId, limit)
-
-    console.log(`📊 [API] Encontradas ${missingDates.length} datas faltantes para ${dataType}`)
 
     return NextResponse.json({
       success: true,
@@ -138,8 +74,6 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const body: MissingDatesRequest = await request.json()
 
-    console.log('🔄 [API] Iniciando coleta de lacunas:', body)
-
     const dataType = body.data_type
     if (!body.bar_id) {
       return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
@@ -156,7 +90,6 @@ export async function POST(request: NextRequest) {
     }
 
     const missingDates: MissingDate[] = missingDatesData.missing_dates
-    console.log(`📅 [API] Coletando dados para ${missingDates.length} datas faltantes`)
 
     const results: CollectionResult[] = []
     let successCount = 0
@@ -166,7 +99,6 @@ export async function POST(request: NextRequest) {
     for (const missingDate of missingDates) {
       try {
         const date = missingDate.data_faltante
-        console.log(`🔍 [API] Coletando ${dataType} para ${date} (${missingDate.nome_dia})`)
 
         // Coletar dados do ContaHub para esta data específica
         const collectionResult = await collectContaHubDataForDate(dataType, date, barId)
@@ -189,8 +121,6 @@ export async function POST(request: NextRequest) {
           if (insertError) {
             throw new Error(`Erro ao salvar dados brutos: ${insertError.message}`)
           }
-
-          console.log(`✅ [API] Dados coletados para ${date}: ${collectionResult.record_count} registros`)
 
           results.push({
             success: true,
@@ -222,8 +152,6 @@ export async function POST(request: NextRequest) {
       await new Promise(resolve => setTimeout(resolve, 50))
     }
 
-    console.log(`🎉 [API] Coleta de lacunas concluída: ${successCount}/${missingDates.length} sucessos`)
-
     return NextResponse.json({
       success: true,
       message: `Coleta de lacunas concluída: ${successCount} sucessos, ${errorCount} erros`,
@@ -247,39 +175,34 @@ export async function POST(request: NextRequest) {
 
 async function collectContaHubDataForDate(dataType: string, date: string, barId: number) {
   try {
-    console.log(`📡 [API] Coletando dados ContaHub: ${dataType} para ${date}`)
-    
-    // Simular coleta de dados específicos para a data
     const dayOfWeek = new Date(date).getDay()
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
     const isMonday = dayOfWeek === 1
     
-    // Ajustar quantidade de registros baseado no dia
     let baseRecords = 100
     if (isWeekend) {
-      baseRecords = Math.floor(Math.random() * 30) + 10 // 10-40 registros
+      baseRecords = Math.floor(Math.random() * 30) + 10
     } else if (isMonday) {
-      baseRecords = Math.floor(Math.random() * 50) + 20 // 20-70 registros
+      baseRecords = Math.floor(Math.random() * 50) + 20
     } else {
-      baseRecords = Math.floor(Math.random() * 150) + 50 // 50-200 registros
+      baseRecords = Math.floor(Math.random() * 150) + 50
     }
     
     const recordCount = baseRecords
     
-    // Gerar dados mock específicos para o tipo
     let mockData
     switch (dataType) {
       case 'analitico':
         mockData = {
           list: Array.from({ length: recordCount }, (_, i) => ({
-            trn_dtgerencial: `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}:00`,
+            data_venda: `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}:00`,
             trn_id: `TRN_${date.replace(/-/g, '')}_${i.toString().padStart(4, '0')}`,
             produto_id: `PROD_${(i % 50) + 1}`,
-            produto_nome: `Produto ${(i % 50) + 1}`,
+            produto_desc: `Produto ${(i % 50) + 1}`,
             categoria: ['Bebidas', 'Comidas', 'Sobremesas', 'Petiscos'][i % 4],
             quantidade: Math.random() * 3 + 1,
             valor_unitario: Math.random() * 40 + 10,
-            valor_total: Math.random() * 80 + 20,
+            valor: Math.random() * 80 + 20,
             desconto: Math.random() * 5,
             funcionario_id: `FUNC_${(i % 8) + 1}`,
             mesa: `Mesa ${(i % 20) + 1}`,
@@ -291,10 +214,11 @@ async function collectContaHubDataForDate(dataType: string, date: string, barId:
       case 'pagamentos':
         mockData = {
           list: Array.from({ length: recordCount }, (_, i) => ({
-            dt_gerencial: `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}:00`,
+            data_pagamento: `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}:00`,
             id: `PAG_${date.replace(/-/g, '')}_${i.toString().padStart(4, '0')}`,
-            tipo: ['Dinheiro', 'Cartão Débito', 'Cartão Crédito', 'PIX', 'Vale Refeição'][i % 5],
-            valor: Math.random() * 150 + 20,
+            meio: ['Dinheiro', 'Cartão Débito', 'Cartão Crédito', 'PIX', 'Vale Refeição'][i % 5],
+            valor_bruto: Math.random() * 150 + 20,
+            valor_liquido: Math.random() * 140 + 18,
             descricao: `Pagamento ${i + 1}`,
             status: Math.random() > 0.05 ? 'Aprovado' : 'Pendente'
           }))
@@ -304,7 +228,7 @@ async function collectContaHubDataForDate(dataType: string, date: string, barId:
       case 'tempo':
         mockData = {
           list: Array.from({ length: recordCount }, (_, i) => ({
-            data: `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}:00`,
+            data_producao: `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}:00`,
             funcionario_id: `FUNC_${(i % 12) + 1}`,
             nome: `Funcionário ${(i % 12) + 1}`,
             entrada: `${7 + (i % 3)}:${(i % 4) * 15}0`.padStart(5, '0'),
@@ -319,9 +243,9 @@ async function collectContaHubDataForDate(dataType: string, date: string, barId:
       case 'periodo':
         mockData = {
           list: Array.from({ length: recordCount }, (_, i) => ({
-            dt_gerencial: `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}:00`,
+            data_visita: `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}:00`,
             periodo: ['Manhã', 'Tarde', 'Noite'][i % 3],
-            valor_vendas: Math.random() * 800 + 200,
+            valor_consumo: Math.random() * 800 + 200,
             qtd_vendas: Math.floor(Math.random() * 40) + 10,
             ticket_medio: Math.random() * 40 + 20
           }))
@@ -331,12 +255,12 @@ async function collectContaHubDataForDate(dataType: string, date: string, barId:
       case 'fatporhora':
         mockData = {
           list: Array.from({ length: recordCount }, (_, i) => ({
-            vd_dtgerencial: `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}:00`,
+            data_venda: `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}:00`,
             hora: i % 24,
-            $valor: Math.random() * 150 + 30,
+            valor: Math.random() * 150 + 30,
             dds: dayOfWeek.toString(),
             dia: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][dayOfWeek],
-            qtd: Math.floor(Math.random() * 15) + 1
+            quantidade: Math.floor(Math.random() * 15) + 1
           }))
         }
         break
@@ -361,6 +285,7 @@ async function collectContaHubDataForDate(dataType: string, date: string, barId:
   }
 }
 
+// MIGRADO: usa domain tables em vez de staging tables
 async function getMissingDatesManually(
   supabase: any, 
   dataType: string, 
@@ -377,31 +302,31 @@ async function getMissingDatesManually(
       allDates.push(d.toISOString().split('T')[0])
     }
 
-    // Buscar datas que já existem na tabela
+    // Buscar datas que já existem na tabela - MIGRADO: domain tables
     let existingDates: string[] = []
     let tableName = ''
     let dateField = ''
 
     switch (dataType) {
       case 'analitico':
-        tableName = 'contahub_analitico'
-        dateField = 'trn_dtgerencial'
+        tableName = 'vendas_item'
+        dateField = 'data_venda'
         break
       case 'pagamentos':
-        tableName = 'contahub_pagamentos'
-        dateField = 'dt_gerencial'
+        tableName = 'faturamento_pagamentos'
+        dateField = 'data_pagamento'
         break
       case 'tempo':
-        tableName = 'contahub_tempo'
-        dateField = 'data'
+        tableName = 'tempos_producao'
+        dateField = 'data_producao'
         break
       case 'periodo':
-        tableName = 'contahub_periodo'
-        dateField = 'dt_gerencial'
+        tableName = 'visitas'
+        dateField = 'data_visita'
         break
       case 'fatporhora':
-        tableName = 'contahub_fatporhora'
-        dateField = 'vd_dtgerencial'
+        tableName = 'faturamento_hora'
+        dateField = 'data_venda'
         break
       default:
         throw new Error(`Tipo não suportado: ${dataType}`)
@@ -421,7 +346,7 @@ async function getMissingDatesManually(
       existingDates = existingData.map((row: any) => {
         const dateValue = row[dateField]
         if (typeof dateValue === 'string') {
-          return dateValue.split('T')[0] // Extrair apenas a data
+          return dateValue.split('T')[0]
         }
         return dateValue
       }).filter(Boolean)

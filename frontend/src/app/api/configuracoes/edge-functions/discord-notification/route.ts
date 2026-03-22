@@ -13,14 +13,6 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    console.log('🔄 Discord Notification API - Dados recebidos:', {
-      bar_id: body.bar_id,
-      title: body.title,
-      webhook_type: body.webhook_type,
-      hasDescription: !!body.description,
-      hasFields: !!body.fields,
-    });
-
     // Validar se bar_id foi fornecido
     if (!body.bar_id || !body.title) {
       console.error('❌ Validação falhou:', {
@@ -48,8 +40,6 @@ export async function POST(request: NextRequest) {
     const webhookType = body.webhook_type || 'sistema';
     const sistema = webhookTypeMap[webhookType as keyof typeof webhookTypeMap];
 
-    console.log('🎯 Buscando webhook:', { webhookType, sistema });
-
     if (!sistema) {
       console.error('❌ Tipo de webhook não mapeado:', webhookType);
       return NextResponse.json(
@@ -70,8 +60,6 @@ export async function POST(request: NextRequest) {
       .eq('ambiente', 'producao')
       .maybeSingle();
 
-    console.log('📊 Webhook do banco:', { webhookData, webhookError });
-
     let webhookUrl = '';
     if (
       !webhookError &&
@@ -79,18 +67,7 @@ export async function POST(request: NextRequest) {
       webhookData.configuracoes?.webhook_url
     ) {
       webhookUrl = webhookData.configuracoes.webhook_url;
-      console.log(`✅ Webhook ${webhookType} encontrado no sistema ${sistema}`);
-    } else {
-      console.log(
-        `⚠️ Webhook ${webhookType} não encontrado no sistema ${sistema}`
-      );
     }
-
-    console.log('🎯 Webhook selecionado:', {
-      webhookType,
-      webhookUrl: webhookUrl ? webhookUrl.substring(0, 50) + '...' : 'VAZIO',
-      hasUrl: !!webhookUrl,
-    });
 
     if (!webhookUrl || webhookUrl === '') {
       console.error('❌ Webhook não configurado:', { webhookType, sistema });
@@ -144,7 +121,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`✅ Webhook ${webhookType} enviado com sucesso para Discord`);
     return NextResponse.json({
       success: true,
       message: `Webhook ${webhookType} enviado com sucesso`,

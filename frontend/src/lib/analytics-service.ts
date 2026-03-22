@@ -1,6 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+﻿import { createClient } from '@supabase/supabase-js';
 
-// Interfaces para tipagem adequada
 interface FuncionarioStats {
   id: string;
   nome: string;
@@ -34,22 +33,6 @@ interface PerformanceResult {
     melhor_funcionario: string;
   };
   mensagem: string;
-}
-
-interface ChecklistExecucao {
-  id: string;
-  funcionario_id: string;
-  funcionario_nome: string;
-  pontuacao_final: number;
-  tempo_execucao_minutos: number;
-  created_at: string;
-}
-
-interface WhatsAppMensagem {
-  id: string;
-  status: string;
-  tipo: string;
-  created_at: string;
 }
 
 // ========================================
@@ -100,7 +83,7 @@ export async function getStatusChecklists(
 }
 
 // ========================================
-// 👥 ANÁLISES DE PERFORMANCE
+// 💰 ANÁLISES DE PERFORMANCE
 // ========================================
 
 export async function getPerformanceFuncionarios(
@@ -159,7 +142,7 @@ export async function getPerformanceFuncionarios(
 
   const ranking: FuncionarioRanking[] = Object.values(funcionarios)
     .map((func: FuncionarioStats) => ({
-      posicao: 0, // Será definido depois
+      posicao: 0,
       ...func,
       score_medio:
         func.total_execucoes > 0 ? func.score_total / func.total_execucoes : 0,
@@ -190,7 +173,7 @@ export async function getPerformanceFuncionarios(
 }
 
 // ========================================
-// 📱 ANÁLISES DE WHATSAPP
+// 📲 ANÁLISES DE WHATSAPP
 // ========================================
 
 export async function getWhatsAppStats(
@@ -221,7 +204,6 @@ export async function getWhatsAppStats(
   const lidas = mensagens.filter(m => m.status === 'read').length;
   const falhas = mensagens.filter(m => m.status === 'failed').length;
 
-  // Estatísticas por tipo
   const tipoStats: Record<string, number> = {};
   mensagens.forEach(m => {
     tipoStats[m.tipo] = (tipoStats[m.tipo] || 0) + 1;
@@ -242,7 +224,7 @@ export async function getWhatsAppStats(
 }
 
 // ========================================
-// 🍕 ANÁLISES DE PRODUÇÃO & TEMPO
+// 🕐 ANÁLISES DE PRODUÇÃO & TEMPO - MIGRADO: tempos_producao (domain table)
 // ========================================
 
 export async function getTempoProducao(
@@ -257,45 +239,40 @@ export async function getTempoProducao(
     new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const dataFim = fim || new Date().toISOString().split('T')[0];
 
+  // MIGRADO: tempos_producao (domain table) em vez de contahub_tempo
   const { data: tempos } = await supabase
-    .from('contahub_tempo')
-    .select(
-      `
-      tempo_t0_t1,
-      tempo_t1_t2,
-      tempo_t2_t3,
-      tempo_t0_t3,
-      prd_desc,
-      dia
-    `
-    )
+    .from('tempos_producao')
+    .select(`
+      t0_t1,
+      t0_t2,
+      t0_t3,
+      produto_desc,
+      data_producao
+    `)
     .eq('bar_id', bar_id)
-    .gte('dia', `${dataInicio}T00:00:00`)
-    .lte('dia', `${dataFim}T23:59:59`);
+    .gte('data_producao', dataInicio)
+    .lte('data_producao', dataFim);
 
   if (!tempos) return { erro: 'Erro ao buscar dados' };
 
   const tempoMedioTotal =
-    tempos.reduce((acc, t) => acc + (t.tempo_t0_t3 || 0), 0) / tempos.length;
+    tempos.reduce((acc, t) => acc + (t.t0_t3 || 0), 0) / tempos.length;
   const tempoMedioPrep =
-    tempos.reduce((acc, t) => acc + (t.tempo_t0_t1 || 0), 0) / tempos.length;
+    tempos.reduce((acc, t) => acc + (t.t0_t1 || 0), 0) / tempos.length;
   const tempoMedioCozinha =
-    tempos.reduce((acc, t) => acc + (t.tempo_t1_t2 || 0), 0) / tempos.length;
-  const tempoMedioEntrega =
-    tempos.reduce((acc, t) => acc + (t.tempo_t2_t3 || 0), 0) / tempos.length;
+    tempos.reduce((acc, t) => acc + (t.t0_t2 || 0), 0) / tempos.length;
 
-  // Produtos mais demorados
   const produtosTempo: Record<string, number[]> = {};
   tempos.forEach(t => {
-    if (!produtosTempo[t.prd_desc]) produtosTempo[t.prd_desc] = [];
-    produtosTempo[t.prd_desc].push(t.tempo_t0_t3 || 0);
+    if (!produtosTempo[t.produto_desc]) produtosTempo[t.produto_desc] = [];
+    produtosTempo[t.produto_desc].push(t.t0_t3 || 0);
   });
 
   const produtosMaisDemorados = Object.entries(produtosTempo)
-    .map(([produto, tempos]) => ({
+    .map(([produto, temposArr]) => ({
       produto,
-      tempo_medio: tempos.reduce((a, b) => a + b, 0) / tempos.length,
-      total_pedidos: tempos.length,
+      tempo_medio: temposArr.reduce((a, b) => a + b, 0) / temposArr.length,
+      total_pedidos: temposArr.length,
     }))
     .sort((a, b) => b.tempo_medio - a.tempo_medio)
     .slice(0, 5);
@@ -307,7 +284,7 @@ export async function getTempoProducao(
       total_minutos: tempoMedioTotal / 60,
       preparacao: tempoMedioPrep,
       cozinha: tempoMedioCozinha,
-      entrega: tempoMedioEntrega,
+      entrega: 0,
     },
     produtos_mais_demorados: produtosMaisDemorados,
     total_producoes: tempos.length,
@@ -316,23 +293,23 @@ export async function getTempoProducao(
 }
 
 // ========================================
-// 🤖 ANÁLISES DE IA & ANALYTICS
+// 🤖 ANÁLISES DE IA & ANALYTICS - MIGRADO: faturamento_pagamentos (domain table)
 // ========================================
 
 export async function getScoreSaudeGeral(bar_id: number) {
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
   
-  // Score simplificado baseado em dados disponíveis
   const hoje = new Date().toISOString().split('T')[0];
   const ontem = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+  // MIGRADO: faturamento_pagamentos (domain table) em vez de contahub_pagamentos
   const [vendasRes, checklistsRes] = await Promise.all([
     supabase
-      .from('contahub_pagamentos')
+      .from('faturamento_pagamentos')
       .select('valor_liquido')
       .eq('bar_id', bar_id)
-      .gte('dt_gerencial', ontem)
-      .lte('dt_gerencial', hoje),
+      .gte('data_pagamento', ontem)
+      .lte('data_pagamento', hoje),
     supabase
       .from('checklist_execucoes')
       .select('status, pontuacao_final')
@@ -343,15 +320,13 @@ export async function getScoreSaudeGeral(bar_id: number) {
   const vendas = vendasRes;
   const checklists = { data: checklistsRes.error ? [] : checklistsRes.data };
 
-  let score = 85; // Score base
+  let score = 85;
 
-  // Ajustar baseado em vendas
   const vendaTotal = vendas.data?.reduce((acc, v) => acc + (v.valor_liquido || 0), 0) || 0;
   if (vendaTotal > 1000) score += 10;
   else if (vendaTotal < 100) score -= 15;
 
-  // Ajustar baseado em checklists
-  const checklistsConcluidos = checklists.data?.filter(c => c.status === 'concluido').length || 0;
+  const checklistsConcluidos = checklists.data?.filter((c: any) => c.status === 'concluido').length || 0;
   const checklistsTotal = checklists.data?.length || 1;
   const percentualConcluido = (checklistsConcluidos / checklistsTotal) * 100;
   
@@ -380,7 +355,7 @@ export async function getScoreSaudeGeral(bar_id: number) {
 }
 
 // ========================================
-// 📊 DASHBOARD EXECUTIVO COMPLETO
+// 📊 DASHBOARD EXECUTIVO COMPLETO - MIGRADO: faturamento_pagamentos (domain table)
 // ========================================
 
 export async function getDashboardExecutivo(
@@ -395,14 +370,15 @@ export async function getDashboardExecutivo(
     new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const dataFim = fim || new Date().toISOString().split('T')[0];
 
+  // MIGRADO: faturamento_pagamentos (domain table) em vez de contahub_pagamentos
   const [faturamento, checklists, whatsapp, tempos, scoreSaude] =
     await Promise.all([
       supabase
-        .from('contahub_pagamentos')
+        .from('faturamento_pagamentos')
         .select('valor_liquido')
         .eq('bar_id', bar_id)
-        .gte('dt_gerencial', dataInicio)
-        .lte('dt_gerencial', dataFim),
+        .gte('data_pagamento', dataInicio)
+        .lte('data_pagamento', dataFim),
 
       getStatusChecklists(bar_id, inicio, fim),
       getWhatsAppStats(bar_id, inicio, fim),
@@ -435,7 +411,7 @@ export async function getDashboardExecutivo(
 }
 
 // ========================================
-// 🎯 ANÁLISE 360° COMPLETA
+// 🔄 ANÁLISE 360° COMPLETA
 // ========================================
 
 export async function getVisao360(
@@ -482,9 +458,9 @@ export async function getVisao360(
     resumo_inteligencia: {
       total_anomalias_ativas: anomalias.data?.length || 0,
       insights_criticos:
-        insights.data?.filter(i => i.impacto === 'critico').length || 0,
+        insights.data?.filter((i: any) => i.impacto === 'critico').length || 0,
       recomendacoes_altas:
-        recomendacoes.data?.filter(r => r.prioridade >= 8).length || 0,
+        recomendacoes.data?.filter((r: any) => r.prioridade >= 8).length || 0,
     },
     mensagem: 'Análise 360° completa do estabelecimento',
   };

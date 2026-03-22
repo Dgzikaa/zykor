@@ -47,8 +47,6 @@ interface GetinResponse {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🚀 Iniciando sincronização manual GET IN')
-
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
     const supabase = createClient(supabaseUrl, supabaseKey)
@@ -67,7 +65,6 @@ export async function POST(request: NextRequest) {
     }
 
     const getinApiKey = credenciais.api_token
-    console.log('✅ Credenciais carregadas')
 
     // Parse request body for custom dates
     const body = await request.json()
@@ -78,8 +75,6 @@ export async function POST(request: NextRequest) {
       throw new Error('start_date e end_date são obrigatórios')
     }
 
-    console.log(`📅 Período: ${startDate} a ${endDate}`)
-
     let totalReservas = 0
     let totalSalvas = 0
     let totalErros = 0
@@ -87,8 +82,6 @@ export async function POST(request: NextRequest) {
     let hasMorePages = true
 
     while (hasMorePages) {
-      console.log(`📡 Página ${currentPage}...`)
-
       const getinUrl = new URL('https://api.getinapis.com/apis/v2/reservations')
       getinUrl.searchParams.set('start_date', startDate)
       getinUrl.searchParams.set('end_date', endDate)
@@ -113,7 +106,6 @@ export async function POST(request: NextRequest) {
         break
       }
 
-      console.log(`✅ ${data.data.length} reservas encontradas`)
       totalReservas += data.data.length
 
       for (const reserva of data.data) {
@@ -183,13 +175,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Após sincronizar, atualizar eventos_base
-    console.log('🔄 Sincronizando mesas para eventos_base...')
     const { error: syncError } = await supabase.rpc('sync_mesas_getin_to_eventos')
-    
+
     if (syncError) {
       console.warn('⚠️ Erro ao sincronizar mesas:', syncError.message)
-    } else {
-      console.log('✅ Mesas sincronizadas com eventos_base')
     }
 
     // Log sync result
@@ -211,8 +200,6 @@ export async function POST(request: NextRequest) {
     } catch (logError) {
       console.warn('⚠️ Erro ao registrar log:', logError)
     }
-
-    console.log('🎉 Sincronização concluída!')
 
     return NextResponse.json({
       success: true,

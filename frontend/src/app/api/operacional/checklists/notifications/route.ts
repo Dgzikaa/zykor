@@ -188,10 +188,6 @@ export async function POST(request: NextRequest) {
       bar_id: user.bar_id,
     } as any);
 
-    console.log(
-      `📱 Notificações enviadas para checklist ${execucao.checklist.nome}: ${resultados.sucessos.length} sucessos, ${resultados.falhas.length} falhas`
-    );
-
     return NextResponse.json({
       success: true,
       message: 'Notificações processadas',

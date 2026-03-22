@@ -8,38 +8,27 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Função para autenticar usuário
-async function authenticateUser(request: NextRequest) {
-  try {
-    const userHeader = request.headers.get('x-user-data');
-    if (!userHeader) {
-      return null;
-    }
-    
-    const user = JSON.parse(decodeURIComponent(userHeader));
-    return user;
-  } catch (error) {
-    console.error('❌ Erro ao autenticar usuário:', error);
+// Função para obter bar_id do header
+function getBarIdFromRequest(request: NextRequest): number | null {
+  const barIdHeader = request.headers.get('x-selected-bar-id');
+  if (!barIdHeader) {
     return null;
   }
+  return parseInt(barIdHeader, 10) || null;
 }
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🚀 API Calendário - Buscando eventos e reservas');
-
-    // Autenticação
-    const user = await authenticateUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    // Obter bar_id do header
+    const barId = getBarIdFromRequest(request);
+    if (!barId) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
     // Parâmetros da URL
     const { searchParams } = new URL(request.url);
     const mes = parseInt(searchParams.get('mes') || (new Date().getMonth() + 1).toString());
     const ano = parseInt(searchParams.get('ano') || new Date().getFullYear().toString());
-
-    console.log(`📅 Buscando dados para ${mes}/${ano} - Bar ID: ${user.bar_id}`);
 
     // Calcular período do mês
     const ultimoDia = new Date(ano, mes, 0).getDate();
@@ -57,7 +46,7 @@ export async function GET(request: NextRequest) {
         genero,
         observacoes
       `)
-      .eq('bar_id', user.bar_id)
+      .eq('bar_id', barId)
       .gte('data_evento', dataInicio)
       .lte('data_evento', dataFim)
       .eq('ativo', true)
@@ -68,8 +57,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao buscar eventos' }, { status: 500 });
     }
 
-    console.log(`✅ ${eventos?.length || 0} eventos encontrados`);
-
     // 2. Buscar dados de reservas do Getin
     const { data: reservas, error: reservasError } = await supabase
       .from('getin_reservations')
@@ -78,7 +65,7 @@ export async function GET(request: NextRequest) {
         status,
         people
       `)
-      .eq('bar_id', user.bar_id)
+      .eq('bar_id', barId)
       .gte('reservation_date', dataInicio)
       .lte('reservation_date', dataFim);
 
@@ -86,8 +73,6 @@ export async function GET(request: NextRequest) {
       console.error('❌ Erro ao buscar reservas:', reservasError);
       // Não falhar se não houver reservas, apenas logar
     }
-
-    console.log(`✅ ${reservas?.length || 0} reservas encontradas`);
 
     // 3. Processar dados por data
     const dadosPorData: Record<string, any> = {};
@@ -200,9 +185,6 @@ export async function GET(request: NextRequest) {
       totais.reservas++;
       totais.pessoas += pessoas;
     });
-
-    console.log(`📊 Dados processados para ${Object.keys(dadosPorData).length} dias`);
-    console.log(`📈 Totais: ${totais.reservas} reservas, ${totais.pessoas} pessoas`);
 
     return NextResponse.json({
       success: true,

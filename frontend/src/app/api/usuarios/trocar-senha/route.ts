@@ -44,8 +44,6 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    console.log('🔐 Iniciando troca de senha para usuário:', user.id);
-
     // Usar cliente administrativo para operações com Auth
     const adminClient = await getAdminClient();
 
@@ -72,7 +70,6 @@ export async function PUT(request: NextRequest) {
       });
 
       if (signInError) {
-        console.log('❌ Senha atual incorreta para:', userData.email);
         return NextResponse.json(
           { success: false, error: 'Senha atual incorreta' },
           { status: 400 }
@@ -104,8 +101,6 @@ export async function PUT(request: NextRequest) {
           { status: 500 }
         );
       }
-
-      console.log('✅ Senha atualizada no Auth para:', userData.email);
     } catch (authUpdateError) {
       console.error('❌ Erro na atualização da senha:', authUpdateError);
       return NextResponse.json(
@@ -131,8 +126,6 @@ export async function PUT(request: NextRequest) {
       );
       // Não falha aqui, pois a senha já foi alterada com sucesso
     }
-
-    console.log('✅ Senha alterada com sucesso para:', userData.nome);
 
     return NextResponse.json({
       success: true,

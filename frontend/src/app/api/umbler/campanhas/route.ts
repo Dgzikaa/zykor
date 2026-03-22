@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       template_mensagem,
       template_name,
       variaveis,
-      destinatarios, // Array de { telefone, nome, cliente_contahub_id }
+      destinatarios, // Array de { telefone, nome, cliente_id }
       segmento_criterios,
       executar_agora = true,
       agendado_para,
@@ -122,11 +122,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Criar destinatários
-    const destinatariosData = destinatarios.map((d: { telefone: string; nome?: string; cliente_contahub_id?: number }) => ({
+    const destinatariosData = destinatarios.map((d: { telefone: string; nome?: string; cliente_id?: number }) => ({
       campanha_id: campanha.id,
       telefone: normalizePhone(d.telefone),
       nome: d.nome,
-      cliente_contahub_id: d.cliente_contahub_id,
+      cliente_id: d.cliente_id,
       status: 'pendente'
     }));
 

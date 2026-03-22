@@ -9,8 +9,6 @@ const supabase = createClient(
 // POST - Executar o agente de monitoramento
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔍 Disparando agente de monitoramento de concorrência...')
-
     // Chamar a Edge Function
     const { data, error } = await supabase.functions.invoke('monitor-concorrencia', {
       body: {}

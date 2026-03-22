@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
@@ -10,9 +10,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const barId = parseInt(searchParams.get('bar_id') || '3');
 
-    // 2. VOLUME DE REGISTROS - ContaHub Analítico
-    const { count: countAnalitico } = await supabase
-      .from('contahub_analitico')
+    // 2. VOLUME DE REGISTROS - vendas_item (domain table) - MIGRADO
+    const { count: countVendasItem } = await supabase
+      .from('vendas_item')
       .select('*', { count: 'exact', head: true });
 
     // 3. VOLUME - Eventos Base
@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
       score_saude: Math.max(0, 100 - pontosDesconto)
     };
 
-    // 10. TOP 10 PROBLEMAS
+    // 10. TOP 10 PROBLEMAS - MIGRADO: vendas_item em vez de contahub_analitico
     const { data: top10Problemas, error: erroTop10 } = await supabase.rpc('execute_raw_sql', {
       sql_query: `
         WITH problemas_ranked AS (
@@ -219,8 +219,8 @@ export async function GET(request: NextRequest) {
             
             SELECT 
                 'Vendas sem Produto Identificado' as problema,
-                (SELECT COUNT(*) FROM contahub_analitico 
-                 WHERE (prd_desc IS NULL OR prd_desc = '') AND valorfinal > 0) as quantidade,
+                (SELECT COUNT(*) FROM vendas_item 
+                 WHERE (produto_desc IS NULL OR produto_desc = '') AND valor > 0) as quantidade,
                 'MÉDIO' as severidade,
                 3 as peso
         )
@@ -276,7 +276,7 @@ export async function GET(request: NextRequest) {
       success: true,
       auditoria: {
         volume_tabelas: {
-          contahub_analitico: countAnalitico || 0,
+          vendas_item: countVendasItem || 0,
           eventos_base: countEventos || 0,
           cmv_semanal: countCmv || 0,
           desempenho_semanal: countDesempenho || 0,

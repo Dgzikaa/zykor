@@ -30,8 +30,6 @@ export async function GET(request: NextRequest) {
     const month = searchParams.get('month') || (new Date().getMonth() + 1).toString();
     const barId = searchParams.get('bar_id');
 
-    console.log(`[DRE-MONTHLY-DETAILED] ano=${year}, mes=${month}, bar_id=${barId}`);
-
     // Buscar dados da view_dre para o mês específico
     const { data: dreData, error: dreError } = await supabase
       .from('view_dre')

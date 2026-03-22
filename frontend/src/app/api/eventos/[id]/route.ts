@@ -8,29 +8,21 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-async function authenticateUser(request: NextRequest) {
-  try {
-    const userDataHeader = request.headers.get('x-user-data');
-    if (!userDataHeader) return null;
-    
-    const userData = JSON.parse(decodeURIComponent(userDataHeader));
-    return userData;
-  } catch (error) {
-    console.error('❌ Erro ao autenticar usuário:', error);
-    return null;
-  }
+function getBarIdFromRequest(request: NextRequest): number | null {
+  const barIdHeader = request.headers.get('x-selected-bar-id');
+  if (!barIdHeader) return null;
+  return parseInt(barIdHeader, 10) || null;
 }
 
 // PUT - Atualizar dados de planejamento do evento
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  console.log('🔄 API Edição Planejamento - Evento ID:', id);
 
   try {
-    // Autenticação
-    const user = await authenticateUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    // Obter bar_id do header
+    const barId = getBarIdFromRequest(request);
+    if (!barId) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
     const eventoId = parseInt(id);
@@ -62,35 +54,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const c_artistico_plan = body.c_artistico_plan;
     const observacoes = body.observacoes;
 
-    console.log('📝 Dados recebidos para edição de planejamento:', {
-      eventoId,
-      nome,
-      m1_r,
-      cl_plan,
-      te_plan,
-      tb_plan,
-      c_artistico_plan,
-      observacoes
-    });
-    
-    console.log('🔍 Debug - Body completo recebido:', body);
-    console.log('🔍 Debug - JSON.stringify do body:', JSON.stringify(body));
-    console.log('🔍 Debug - Object.keys do body:', Object.keys(body));
-
     // Verificar se o evento existe e pertence ao bar do usuário
     const { data: evento, error: eventoError } = await supabase
       .from('eventos_base')
       .select('id, nome, bar_id')
       .eq('id', eventoId)
-      .eq('bar_id', user.bar_id)
+      .eq('bar_id', barId)
       .single();
 
     if (eventoError || !evento) {
       console.error('❌ Evento não encontrado:', eventoError);
       return NextResponse.json({ error: 'Evento não encontrado' }, { status: 404 });
     }
-
-    console.log('✅ Evento encontrado:', evento.nome);
 
     // Verificar se o evento já tem versão manual (999)
     const { data: eventoAtual } = await supabase
@@ -112,29 +87,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       observacoes: observacoes || null,
       atualizado_em: new Date().toISOString()
     };
-    
-    console.log('🔍 Debug - Update data preparado:', updateData);
 
     // Só alterar versao_calculo se não for manual (999)
     if (eventoAtual?.versao_calculo !== 999) {
       updateData.precisa_recalculo = true;
       updateData.versao_calculo = 1;
-      console.log('📝 Evento automático - definindo versão 1 e precisa_recalculo');
-    } else {
-      // Se for manual (999), manter como manual mas SEMPRE salvar planejamento
-      console.log('📝 Evento manual (999) - mantendo versão mas salvando planejamento');
     }
 
-    console.log('🔄 Executando UPDATE no Supabase...');
     const { data: eventoAtualizado, error: updateError } = await supabase
       .from('eventos_base')
       .update(updateData)
       .eq('id', eventoId)
-      .eq('bar_id', user.bar_id)
+      .eq('bar_id', barId)
       .select()
       .single();
-
-    console.log('📊 Resultado do UPDATE:', { eventoAtualizado, updateError });
 
     if (updateError) {
       console.error('❌ Erro ao atualizar evento:', updateError);
@@ -151,8 +117,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         details: 'Verifique se o evento existe e pertence ao usuário' 
       }, { status: 404 });
     }
-
-    console.log('✅ Evento atualizado com sucesso:', eventoAtualizado);
 
     return NextResponse.json({ 
       success: true, 
@@ -172,9 +136,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 // GET - Buscar evento específico por ID
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await authenticateUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    const barId = getBarIdFromRequest(request);
+    if (!barId) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
     const { id } = await params;
@@ -188,7 +152,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .from('eventos_base')
       .select('*')
       .eq('id', eventoId)
-      .eq('bar_id', user.bar_id)
+      .eq('bar_id', barId)
       .single();
 
     if (error) {

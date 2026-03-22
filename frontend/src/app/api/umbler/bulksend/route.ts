@@ -159,13 +159,6 @@ export async function GET(request: NextRequest) {
 
     const { api_token, organization_id } = config;
 
-    // Debug: verificar se temos os dados
-    console.log('[BULKSEND] Config encontrada:', {
-      bar_id: barId,
-      organization_id,
-      has_token: !!api_token
-    });
-
     // 2. Se foi passado session_id, buscar detalhes dessa sessão
     if (sessionId) {
       return await getBulkSendDetails(
@@ -190,9 +183,6 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    console.log('[BULKSEND] URL chamada:', `${UMBLER_API_BASE}/v1/bulk-send-session/?organizationId=${organization_id}&Take=${limit}&OrderBy=CreatedAtUTC&Order=Desc`);
-    console.log('[BULKSEND] Status resposta:', sessionsResponse.status);
-
     if (!sessionsResponse.ok) {
       const errorText = await sessionsResponse.text();
       console.error('Erro ao buscar bulksend sessions:', errorText);
@@ -213,14 +203,6 @@ export async function GET(request: NextRequest) {
     const sessionsData = await sessionsResponse.json();
     const allSessions: BulkSendSession[] = sessionsData.items || [];
 
-    console.log('[BULKSEND] Total de sessões retornadas da API:', allSessions.length);
-    console.log('[BULKSEND] Primeiras sessões:', allSessions.slice(0, 3).map(s => ({
-      id: s.id,
-      title: s.title,
-      messagesSent: s.messagesSent,
-      totalSent: s.totalSent
-    })));
-
     // Filtrar apenas campanhas com mais de 90 envios (campanhas em massa reais)
     // A API Umbler usa totalScheduled para quantidade de mensagens programadas
     const minEnvios = parseInt(searchParams.get('min_envios') || '90');
@@ -229,8 +211,6 @@ export async function GET(request: NextRequest) {
       (s.messagesSent || 0) >= minEnvios || 
       (s.totalSent || 0) >= minEnvios
     );
-
-    console.log('[BULKSEND] Após filtro (>= ' + minEnvios + ' envios):', sessions.length);
 
     // 4. Buscar detalhes completos de cada sessão (para ter totalSent, totalRead, etc)
     const sessionsComDetalhes = await Promise.all(
@@ -328,8 +308,6 @@ async function getBulkSendDetails(
     const session: BulkSendSession = await sessionResponse.json();
 
     // 2. Buscar mensagens enviadas da sessão (endpoint que retorna os contatos)
-    console.log('[BULKSEND DETAILS] Buscando messages-sent para session:', sessionId);
-    
     // Função para extrair telefone do chatId (formato: 5561999999999@s.whatsapp.net)
     const extrairTelefoneDoChatId = (chatId: string): string | null => {
       if (!chatId) return null;
@@ -357,8 +335,7 @@ async function getBulkSendDetails(
     
     while (hasMore && skip < 10000) { // Limite de segurança de 10000
       const messagesUrl = `${UMBLER_API_BASE}/v1/bulk-send-session/${sessionId}/messages-sent/?organizationId=${organizationId}&Skip=${skip}&Take=${take}&Behavior=GetSliceOnly`;
-      console.log('[BULKSEND DETAILS] Messages URL (skip=' + skip + '):', messagesUrl);
-      
+
       const messagesResponse = await fetch(messagesUrl, {
         headers: {
           'Authorization': `Bearer ${apiToken}`,
@@ -374,8 +351,7 @@ async function getBulkSendDetails(
 
       const messagesData = await messagesResponse.json();
       const items = messagesData.items || [];
-      console.log('[BULKSEND DETAILS] Messages batch skip=' + skip + ', count:', items.length);
-      
+
       if (items.length > 0) {
         allMessagesSent = [...allMessagesSent, ...items];
         skip += items.length; // Usar o tamanho real retornado
@@ -384,20 +360,9 @@ async function getBulkSendDetails(
         hasMore = false;
       }
     }
-    
-    console.log('[BULKSEND DETAILS] Total messages-sent:', allMessagesSent.length);
-    if (allMessagesSent.length > 0) {
-      console.log('[BULKSEND DETAILS] First message:', JSON.stringify(allMessagesSent[0], null, 2));
-    }
 
     // 3. Primeiro tentar extrair telefones do chatId
     // Se não conseguir, buscar da tabela umbler_conversas como fallback
-    
-    // Debug: ver formato do chatId
-    if (allMessagesSent.length > 0) {
-      console.log('[BULKSEND DETAILS] Exemplo de chatId:', allMessagesSent[0].chatId);
-      console.log('[BULKSEND DETAILS] Exemplo de mensagem completa:', JSON.stringify(allMessagesSent[0], null, 2));
-    }
     
     // Tentar extrair do chatId primeiro
     let destinatarios = allMessagesSent.map(msg => {
@@ -412,16 +377,12 @@ async function getBulkSendDetails(
     });
     
     let telefonesExtraidos = destinatarios.filter(d => d.telefone).length;
-    console.log('[BULKSEND DETAILS] Telefones extraídos do chatId:', telefonesExtraidos, 'de', destinatarios.length);
-    
+
     // Se poucos telefones foram extraídos do chatId, buscar da tabela umbler_conversas
     if (telefonesExtraidos < destinatarios.length * 0.5) {
-      console.log('[BULKSEND DETAILS] Poucos telefones extraídos, buscando da tabela umbler_conversas...');
-      
       const contactIds = allMessagesSent.map(m => m.contactId).filter(Boolean);
       const uniqueContactIds = [...new Set(contactIds)];
-      console.log('[BULKSEND DETAILS] ContactIds únicos para buscar:', uniqueContactIds.length);
-      
+
       if (uniqueContactIds.length > 0) {
         // Buscar em lotes de 500 para evitar limite do Supabase
         const contactIdToPhone = new Map<string, string>();
@@ -429,8 +390,7 @@ async function getBulkSendDetails(
         
         for (let i = 0; i < uniqueContactIds.length; i += batchSize) {
           const batch = uniqueContactIds.slice(i, i + batchSize);
-          console.log('[BULKSEND DETAILS] Buscando conversas batch', i, '-', i + batch.length);
-          
+
           const { data: conversas, error } = await supabase
             .from('umbler_conversas')
             .select('contato_id, contato_telefone, contato_nome')
@@ -440,7 +400,6 @@ async function getBulkSendDetails(
           if (error) {
             console.error('[BULKSEND DETAILS] Erro ao buscar conversas:', error);
           } else if (conversas && conversas.length > 0) {
-            console.log('[BULKSEND DETAILS] Conversas encontradas neste batch:', conversas.length);
             conversas.forEach(c => {
               if (c.contato_id && c.contato_telefone) {
                 contactIdToPhone.set(c.contato_id, c.contato_telefone);
@@ -448,9 +407,7 @@ async function getBulkSendDetails(
             });
           }
         }
-        
-        console.log('[BULKSEND DETAILS] Total mapeamentos contactId->telefone:', contactIdToPhone.size);
-        
+
         if (contactIdToPhone.size > 0) {
           // Atualizar destinatários que não tem telefone
           destinatarios = destinatarios.map(d => {
@@ -464,7 +421,6 @@ async function getBulkSendDetails(
           });
           
           telefonesExtraidos = destinatarios.filter(d => d.telefone).length;
-          console.log('[BULKSEND DETAILS] Após buscar da tabela, telefones:', telefonesExtraidos);
         }
       }
     }
@@ -484,8 +440,6 @@ async function getBulkSendDetails(
         }
       }
     });
-    
-    console.log('[BULKSEND DETAILS] Telefones para busca:', telefonesParaBusca.length);
 
     // 4. Se não incluir cruzamento, retornar apenas os dados da Umbler
     if (!incluirCruzamento) {
@@ -508,14 +462,6 @@ async function getBulkSendDetails(
     const hoje = new Date().toISOString().split('T')[0];
     const modoEfetivo = modo || (dataEvento && dataEvento <= hoje ? 'pos_evento' : 'pre_evento');
     const incluirContaHub = modoEfetivo === 'pos_evento';
-    
-    console.log('[BULKSEND DETAILS] Calculando métricas...');
-    console.log('[BULKSEND DETAILS] Data evento específica:', dataEvento || 'não especificada');
-    console.log('[BULKSEND DETAILS] Modo:', modoEfetivo, '(incluir ContaHub:', incluirContaHub, ')');
-    console.log('[BULKSEND DETAILS] Data início busca:', dataInicio);
-    console.log('[BULKSEND DETAILS] Data fim busca:', dataFim);
-    console.log('[BULKSEND DETAILS] Bar ID:', barId);
-    console.log('[BULKSEND DETAILS] Telefones para busca (primeiros 10):', telefonesParaBusca.slice(0, 10));
 
     // Buscar reservas do Getin no período (tabela real é getin_reservations)
     // Incluir created_at para saber quando a reserva foi feita (timeline)
@@ -534,18 +480,7 @@ async function getBulkSendDetails(
         .lte('reservation_date', dataFim);
     }
     
-    const { data: reservas, error: reservasError } = await reservasQuery;
-    
-    console.log('[BULKSEND DETAILS] Reservas query error:', reservasError);
-    console.log('[BULKSEND DETAILS] Total reservas no período:', reservas?.length || 0);
-    if (reservas && reservas.length > 0) {
-      console.log('[BULKSEND DETAILS] Primeiras 5 reservas:', reservas.slice(0, 5).map(r => ({
-        phone: r.customer_phone,
-        normalized: normalizeTelefone(r.customer_phone),
-        status: r.status,
-        date: r.reservation_date
-      })));
-    }
+    const { data: reservas } = await reservasQuery;
 
     // Mapear reservas por telefone normalizado (com todas as variações)
     interface ReservaInfo {
@@ -592,66 +527,37 @@ async function getBulkSendDetails(
     const visitasPorTelefone = new Map<string, { data: string; valor: number }>();
     
     if (incluirContaHub) {
-      console.log('[BULKSEND DETAILS] Buscando dados do ContaHub (modo pós-evento)...');
       const { data: visitas } = await supabase
-        .from('contahub_periodo')
-        .select('cli_fone, dt_gerencial, vr_pagamentos')
+        .from('visitas')
+        .select('cliente_fone, data_visita, valor_pagamentos')
         .eq('bar_id', barId)
-        .gte('dt_gerencial', dataInicio)
-        .lte('dt_gerencial', dataFim)
-        .not('cli_fone', 'is', null)
+        .gte('data_visita', dataInicio)
+        .lte('data_visita', dataFim)
+        .not('cliente_fone', 'is', null)
         .gt('pessoas', 0);
 
       // Mapear visitas por telefone normalizado (com todas as variações)
       (visitas || []).forEach(v => {
-        if (!v.cli_fone) return;
-        const variacoes = gerarVariacoesTelefone(v.cli_fone);
+        if (!v.cliente_fone) return;
+        const variacoes = gerarVariacoesTelefone(v.cliente_fone);
         variacoes.forEach(normalized => {
           const existing = visitasPorTelefone.get(normalized);
           if (!existing) {
             visitasPorTelefone.set(normalized, {
-              data: v.dt_gerencial || '',
-              valor: v.vr_pagamentos || 0
+              data: v.data_visita || '',
+              valor: v.valor_pagamentos || 0
             });
           } else {
-            existing.valor += v.vr_pagamentos || 0;
+            existing.valor += v.valor_pagamentos || 0;
           }
         });
       });
-      console.log('[BULKSEND DETAILS] Visitas ContaHub encontradas:', visitasPorTelefone.size);
-    } else {
-      console.log('[BULKSEND DETAILS] Pulando ContaHub (modo pré-evento)');
-    }
-
-    console.log('[BULKSEND DETAILS] Reservas mapeadas por telefone:', reservasPorTelefone.size);
-    console.log('[BULKSEND DETAILS] Visitas mapeadas por telefone:', visitasPorTelefone.size);
-    
-    // Debug: mostrar alguns telefones e ver se dão match
-    if (telefonesParaBusca.length > 0 && reservasPorTelefone.size > 0) {
-      const reservaPhones = Array.from(reservasPorTelefone.keys()).slice(0, 5);
-      const campanhaPhones = telefonesParaBusca.slice(0, 5);
-      console.log('[BULKSEND DETAILS] Telefones das reservas (primeiros 5):', reservaPhones);
-      console.log('[BULKSEND DETAILS] Telefones da campanha (primeiros 5):', campanhaPhones);
-      
-      // Verificar se algum match existe
-      let matchCount = 0;
-      telefonesParaBusca.forEach(tel => {
-        const variacoes = gerarVariacoesTelefone(tel);
-        for (const v of variacoes) {
-          if (reservasPorTelefone.has(v)) {
-            matchCount++;
-            break;
-          }
-        }
-      });
-      console.log('[BULKSEND DETAILS] Matches encontrados:', matchCount);
     }
 
     // ========== TIMELINE ==========
     // Criar timeline de eventos para visualizar impacto do bulk
     const bulkEnviadoEm = new Date(session.createdAtUTC);
-    console.log('[BULKSEND DETAILS] Bulk enviado em:', bulkEnviadoEm.toISOString());
-    
+
     // Separar reservas em ANTES e DEPOIS do bulk
     const reservasAntesBulk: typeof todasReservas = [];
     const reservasDeposBulk: typeof todasReservas = [];
@@ -674,11 +580,7 @@ async function getBulkSendDetails(
     // Ordenar por created_at
     reservasAntesBulk.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     reservasDeposBulk.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    
-    console.log('[BULKSEND DETAILS] Timeline - Reservas antes do bulk:', reservasAntesBulk.length);
-    console.log('[BULKSEND DETAILS] Timeline - Reservas depois do bulk:', reservasDeposBulk.length);
-    console.log('[BULKSEND DETAILS] Timeline - Reservas sem data criação:', reservasSemDataCriacao.length);
-    
+
     // Montar timeline estruturada
     interface TimelineEvent {
       tipo: 'reserva' | 'bulk_enviado';
@@ -750,8 +652,6 @@ async function getBulkSendDetails(
           : 'N/A (sem reservas antes)'
       }
     };
-    
-    console.log('[BULKSEND DETAILS] Timeline resumo:', timelineResumo);
 
     // Montar destinatários com cruzamento (usando busca por variações)
     const destinatariosComCruzamento = destinatarios.map(d => {
@@ -836,26 +736,6 @@ async function getBulkSendDetails(
     const totalReceberamEFizeramReserva = receberamEFizeramReserva.length;
     const pessoasReceberamEFizeramReserva = receberamEFizeramReserva.reduce((sum, d) => sum + (d.reserva_pessoas || 0), 0);
 
-    // DEBUG: Ver detalhes dos que fizeram reserva
-    console.log('[BULKSEND DETAILS] Quem fez reserva - detalhes:', receberamEFizeramReserva.map(d => ({
-      telefone: d.telefone,
-      nome: d.nome || d.reserva_nome,
-      status_envio: d.status_envio,
-      leu_mensagem: d.leu_mensagem,
-      reserva_pessoas: d.reserva_pessoas,
-      reserva_horario: d.reserva_horario
-    })));
-
-    console.log('[BULKSEND DETAILS] Métricas finais:', {
-      totalEnviados,
-      totalLidos,
-      totalErros,
-      fizeramReserva,
-      leramEFizeramReserva: totalLeramEFizeramReserva,
-      foramAoBar,
-      valorTotalGasto
-    });
-
     // Identificar reservas que NÃO vieram do bulk (fizeram reserva mas não estavam na lista)
     const telefonesNaBulk = new Set(
       destinatarios
@@ -883,8 +763,6 @@ async function getBulkSendDetails(
       horario: r.reservation_time,
       pessoas: r.people
     }));
-    
-    console.log('[BULKSEND DETAILS] Reservas fora do bulk:', reservasForaDoBulk.length);
 
     return NextResponse.json({
       success: true,
@@ -965,8 +843,8 @@ async function getBulkSendDetails(
           horario: d.reserva_horario,
           leu: d.leu_mensagem
         })),
-        // Dados do ContaHub (apenas pós-evento)
-        contahub_disponivel: incluirContaHub,
+        // Dados de visitas (apenas pós-evento)
+        dados_visitas_disponiveis: incluirContaHub,
         foram_ao_bar: incluirContaHub ? foramAoBar : null,
         valor_total_gasto: incluirContaHub ? valorTotalGasto : null,
         ticket_medio: incluirContaHub && foramAoBar > 0 ? valorTotalGasto / foramAoBar : null
@@ -1035,7 +913,6 @@ async function calcularAnaliseCampanha(
     
     // Sem dados da sessão, retornar null
     // O cruzamento detalhado será feito ao abrir os detalhes da campanha
-    console.log('[calcularAnaliseCampanha] Sem dados da sessão para:', sessionId);
     return null;
   } catch (error) {
     console.error('Erro ao calcular análise:', error);

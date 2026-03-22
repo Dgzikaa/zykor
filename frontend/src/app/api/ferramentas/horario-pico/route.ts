@@ -42,11 +42,11 @@ export async function POST(request: NextRequest) {
     const semanaPassada = new Date(dataAtual);
     semanaPassada.setDate(semanaPassada.getDate() - 7);
     
-    // 1. Buscar faturamento por hora PRIMEIRO (para não bloquear quando contahub_analitico está atrasado)
+    // 1. Buscar faturamento por hora PRIMEIRO (para não bloquear quando vendas_item está atrasado)
     const { data: faturamentoDiaAtualPre, error: errorFaturamentoDiaPre } = await supabase
-      .from('contahub_fatporhora')
-      .select('hora, valor, qtd')
-      .eq('vd_dtgerencial', data_selecionada)
+      .from('faturamento_hora')
+      .select('hora, valor, quantidade')
+      .eq('data_venda', data_selecionada)
       .eq('bar_id', bar_id)
       .gte('hora', 17)
       .lte('hora', 26);
@@ -98,8 +98,6 @@ export async function POST(request: NextRequest) {
       const status = statusDias.get(data);
       return status?.aberto !== false;
     }).slice(0, 4); // Pegar apenas 4 dias abertos
-    
-    console.log(`📅 Comparando com ${ultimas4Datas.length} dias abertos:`, ultimas4Datas);
 
     // Horários de operação: 17:00 às 03:00
     const horariosOperacao = [] as number[];
@@ -112,21 +110,21 @@ export async function POST(request: NextRequest) {
       horariosOperacao.push(h);
     }
 
-    // 1. Buscar dados de faturamento por hora (contahub_fatporhora - dados oficiais)
+    // 1. Buscar dados de faturamento por hora (faturamento_hora - dados oficiais)
     // Horários 17:00-23:00 do dia atual
     const { data: faturamentoDiaAtual, error: errorFaturamentoDia } = await supabase
-      .from('contahub_fatporhora')
-      .select('hora, valor, qtd')
-      .eq('vd_dtgerencial', data_selecionada)
+      .from('faturamento_hora')
+      .select('hora, valor, quantidade')
+      .eq('data_venda', data_selecionada)
       .eq('bar_id', bar_id)
       .gte('hora', 17)
       .lte('hora', 23);
 
     // Horários 24h, 25h, 26h (que são 00h, 01h, 02h) do mesmo dia
     const { data: faturamentoMadrugada, error: errorFaturamentoMadrugada } = await supabase
-      .from('contahub_fatporhora')
-      .select('hora, valor, qtd')
-      .eq('vd_dtgerencial', data_selecionada)
+      .from('faturamento_hora')
+      .select('hora, valor, quantidade')
+      .eq('data_venda', data_selecionada)
       .eq('bar_id', bar_id)
       .gte('hora', 24)
       .lte('hora', 26);
@@ -144,27 +142,27 @@ export async function POST(request: NextRequest) {
       console.error('Erro ao buscar faturamento por hora:', errorFaturamentoDia || errorFaturamentoMadrugada);
     }
 
-    // 2. Buscar dados do período (pessoas + couvert + pagamentos + repique) - EVITAR DUPLICATAS
+    // 2. Buscar dados de visitas (pessoas + couvert + pagamentos + repique) - EVITAR DUPLICATAS
     const { data: dadosPeriodoRaw, error: errorPeriodo } = await supabase
-      .from('contahub_periodo')
-      .select('vd_mesadesc, pessoas, vr_couvert, vr_pagamentos, vr_repique')
-      .eq('dt_gerencial', data_selecionada)
+      .from('visitas')
+      .select('mesa_desc, pessoas, valor_couvert, valor_pagamentos, valor_repique')
+      .eq('data_visita', data_selecionada)
       .eq('bar_id', bar_id);
 
     if (errorPeriodo) {
-      console.error('Erro ao buscar dados do período:', errorPeriodo);
+      console.error('Erro ao buscar dados de visitas:', errorPeriodo);
     }
 
-    // Remover duplicatas agrupando por vd_mesadesc (mesa) e somando apenas uma vez cada mesa
+    // Remover duplicatas agrupando por mesa_desc (mesa) e somando apenas uma vez cada mesa
     const mesasUnicas = new Map();
     dadosPeriodoRaw?.forEach(item => {
-      const mesa = item.vd_mesadesc;
+      const mesa = item.mesa_desc;
       if (!mesasUnicas.has(mesa)) {
         mesasUnicas.set(mesa, {
-          pessoas: parseFloat(item.pessoas) || 0,
-          vr_couvert: parseFloat(item.vr_couvert) || 0,
-          vr_pagamentos: parseFloat(item.vr_pagamentos) || 0,
-          vr_repique: parseFloat(item.vr_repique) || 0
+          pessoas: parseFloat(item.pessoas as any) || 0,
+          valor_couvert: parseFloat(item.valor_couvert as any) || 0,
+          valor_pagamentos: parseFloat(item.valor_pagamentos as any) || 0,
+          valor_repique: parseFloat(item.valor_repique as any) || 0
         });
       }
     });
@@ -172,30 +170,22 @@ export async function POST(request: NextRequest) {
     const dadosPeriodo = Array.from(mesasUnicas.values());
 
     const totalPessoasDia = dadosPeriodo.reduce((sum, item) => sum + item.pessoas, 0);
-    const totalCouvert = dadosPeriodo.reduce((sum, item) => sum + item.vr_couvert, 0);
-    const totalPagamentos = dadosPeriodo.reduce((sum, item) => sum + item.vr_pagamentos, 0);
-    const totalRepique = dadosPeriodo.reduce((sum, item) => sum + item.vr_repique, 0);
+    const totalCouvert = dadosPeriodo.reduce((sum, item) => sum + item.valor_couvert, 0);
+    const totalPagamentos = dadosPeriodo.reduce((sum, item) => sum + item.valor_pagamentos, 0);
+    const totalRepique = dadosPeriodo.reduce((sum, item) => sum + item.valor_repique, 0);
     
-    // 🔧 CORREÇÃO: Usar vr_pagamentos do contahub_periodo (que JÁ É O TOTAL)
-    // Não usar contahub_pagamentos para evitar diferenças de processamento
-    const faturamentoTotalDia = totalPagamentos; // vr_pagamentos já é o total correto
-    
-    console.log(`🔧 CORREÇÃO HORÁRIO PICO ${data_selecionada}:`, {
-      vr_pagamentos_TOTAL: `R$ ${totalPagamentos.toLocaleString('pt-BR')}`,
-      vr_couvert: `R$ ${totalCouvert.toLocaleString('pt-BR')}`,
-      vr_repique: `R$ ${totalRepique.toLocaleString('pt-BR')}`,
-      observacao: 'Usando apenas vr_pagamentos (sem duplicação)'
-    });
-    
+    // Usar valor_pagamentos de visitas (que JÁ É O TOTAL)
+    const faturamentoTotalDia = totalPagamentos;
+
     // Faturamento do bar = total do dia - couvert (produtos/bebidas)
     const faturamentoBar = Math.max(0, faturamentoTotalDia - totalCouvert);
 
     // 3. Buscar dados da semana passada (17-23h + 24-26h)
     const semanaPassadaStr = semanaPassada.toISOString().split('T')[0];
     const { data: faturamentoSemanaPassadaDia } = await supabase
-      .from('contahub_fatporhora')
-      .select('hora, valor, qtd')
-      .eq('vd_dtgerencial', semanaPassadaStr)
+      .from('faturamento_hora')
+      .select('hora, valor, quantidade')
+      .eq('data_venda', semanaPassadaStr)
       .eq('bar_id', bar_id)
       .gte('hora', 17)
       .lte('hora', 26);
@@ -208,9 +198,9 @@ export async function POST(request: NextRequest) {
 
     // 4. Buscar dados das últimas 4 semanas (17-23h + 24-26h)
     const { data: faturamentoUltimas4Raw } = await supabase
-      .from('contahub_fatporhora')
-      .select('hora, valor, qtd, vd_dtgerencial')
-      .in('vd_dtgerencial', ultimas4Datas)
+      .from('faturamento_hora')
+      .select('hora, valor, quantidade, data_venda')
+      .in('data_venda', ultimas4Datas)
       .eq('bar_id', bar_id)
       .gte('hora', 17)
       .lte('hora', 26);
@@ -218,7 +208,8 @@ export async function POST(request: NextRequest) {
     // Normalizar horários 24h+ das últimas 4 semanas
     const faturamentoUltimas4 = faturamentoUltimas4Raw?.map(item => ({
       ...item,
-      hora: item.hora > 23 ? item.hora - 24 : item.hora
+      hora: item.hora > 23 ? item.hora - 24 : item.hora,
+      vd_dtgerencial: item.data_venda
     })) || [];
 
     // 5. Buscar recorde de faturamento para o mesmo dia da semana
@@ -230,12 +221,12 @@ export async function POST(request: NextRequest) {
 
     while (hasMore) {
       const { data: pageData, error } = await supabase
-        .from('contahub_fatporhora')
-        .select('hora, valor, qtd, vd_dtgerencial')
+        .from('faturamento_hora')
+        .select('hora, valor, quantidade, data_venda')
         .eq('bar_id', bar_id)
         .gte('hora', 17)
         .lte('hora', 26)
-        .order('vd_dtgerencial', { ascending: false })
+        .order('data_venda', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (error) {
@@ -255,17 +246,17 @@ export async function POST(request: NextRequest) {
 
     // Filtrar apenas o mesmo dia da semana para encontrar o recorde
     const faturamentosRecorde = todosFaturamentos?.filter(f => {
-      const dataFat = new Date(f.vd_dtgerencial + 'T12:00:00');
+      const dataFat = new Date(f.data_venda + 'T12:00:00');
       return dataFat.getDay() === diaSemana;
     }) || [];
 
     // Agrupar por data e calcular faturamento total por dia da semana
     const faturamentoPorDia: { [data: string]: number } = {};
     faturamentosRecorde.forEach(f => {
-      if (!faturamentoPorDia[f.vd_dtgerencial]) {
-        faturamentoPorDia[f.vd_dtgerencial] = 0;
+      if (!faturamentoPorDia[f.data_venda]) {
+        faturamentoPorDia[f.data_venda] = 0;
       }
-      faturamentoPorDia[f.vd_dtgerencial] += parseFloat(f.valor);
+      faturamentoPorDia[f.data_venda] += parseFloat(f.valor);
     });
 
     // Encontrar a data com maior faturamento
@@ -279,7 +270,7 @@ export async function POST(request: NextRequest) {
     // Buscar dados detalhados do dia recorde e normalizar horários
     const faturamentosRecordeDetalhado = dataRecorde 
       ? faturamentosRecorde
-          .filter(f => f.vd_dtgerencial === dataRecorde)
+          .filter(f => f.data_venda === dataRecorde)
           .map(item => ({
             ...item,
             hora: item.hora > 23 ? item.hora - 24 : item.hora
@@ -330,9 +321,9 @@ export async function POST(request: NextRequest) {
       
       dadosHorarioPico.push({
         hora,
-        faturamento: faturamentoHora ? parseFloat(faturamentoHora.valor) : 0,
-        transacoes: faturamentoHora ? parseFloat(faturamentoHora.qtd) : 0,
-        faturamento_semana_passada: faturamentoSemPassada ? parseFloat(faturamentoSemPassada.valor) : 0,
+        faturamento: faturamentoHora ? parseFloat(faturamentoHora.valor as any) : 0,
+        transacoes: faturamentoHora ? parseFloat(faturamentoHora.quantidade as any) : 0,
+        faturamento_semana_passada: faturamentoSemPassada ? parseFloat(faturamentoSemPassada.valor as any) : 0,
         media_ultimas_4: mediaUltimas4PorHora[hora] || 0,
         recorde_faturamento: recordePorHora[hora] || 0
       });
@@ -343,16 +334,16 @@ export async function POST(request: NextRequest) {
     const totalFaturamentoSemanaPassada = dadosHorarioPico.reduce((sum, h) => sum + h.faturamento_semana_passada, 0);
     const totalMediaUltimas4 = dadosHorarioPico.reduce((sum, h) => sum + h.media_ultimas_4, 0);
     
-    // CORREÇÃO: Buscar o total REAL do dia recorde (contahub_pagamentos - não fatporhora)
+    // CORREÇÃO: Buscar o total REAL do dia recorde (faturamento_pagamentos)
     let totalRecordeReal = 0;
     if (dataRecorde) {
       const { data: pagamentosRecorde } = await supabase
-        .from('contahub_pagamentos')
-        .select('liquido')
-        .eq('dt_gerencial', dataRecorde)
+        .from('faturamento_pagamentos')
+        .select('valor_liquido')
+        .eq('data_pagamento', dataRecorde)
         .eq('bar_id', bar_id);
       
-      totalRecordeReal = pagamentosRecorde?.reduce((sum, item) => sum + (parseFloat(item.liquido) || 0), 0) || 0;
+      totalRecordeReal = pagamentosRecorde?.reduce((sum, item) => sum + (parseFloat(item.valor_liquido as any) || 0), 0) || 0;
     }
     
     const totalRecorde = dadosHorarioPico.reduce((sum, h) => sum + h.recorde_faturamento, 0); // Para o gráfico (produtos por hora)
@@ -362,47 +353,24 @@ export async function POST(request: NextRequest) {
     const maxFaturamento = Math.max(...dadosHorarioPico.map(h => h.faturamento));
     const horaPicoFaturamento = dadosHorarioPico.find(h => h.faturamento === maxFaturamento)?.hora;
 
-    // 11. Buscar produto mais vendido do dia (agrupando por produto e somando todas as horas)
-    // Primeiro tentar contahub_prodporhora
-    const { data: produtoMaisVendidoRaw } = await supabase
-      .from('contahub_prodporhora')
-      .select('produto_descricao, quantidade, valor_total')
-      .eq('data_gerencial', data_selecionada)
-      .eq('bar_id', bar_id);
-
-    // Agrupar por produto e somar quantidades
+    // 11. Buscar produto mais vendido do dia usando vendas_item
     const produtosPorQuantidade: { [key: string]: { quantidade: number, valor: number } } = {};
     
-    if (produtoMaisVendidoRaw && produtoMaisVendidoRaw.length > 0) {
-      // Usar dados do prodporhora se disponível
-      produtoMaisVendidoRaw.forEach(item => {
-        const produto = item.produto_descricao;
-        if (!produtosPorQuantidade[produto]) {
-          produtosPorQuantidade[produto] = { quantidade: 0, valor: 0 };
-        }
-        produtosPorQuantidade[produto].quantidade += parseFloat(item.quantidade);
-        produtosPorQuantidade[produto].valor += parseFloat(item.valor_total);
-      });
-    } else {
-      // Fallback: usar dados do contahub_analitico
-      // Excluir categorias que são compras/estoque, não vendas
-      console.log('📊 Usando contahub_analitico para produtos (prodporhora vazio)');
-      const { data: produtosAnalitico } = await supabase
-        .from('contahub_analitico')
-        .select('prd_desc, qtd, valorfinal, grp_desc')
-        .eq('trn_dtgerencial', data_selecionada)
-        .eq('bar_id', bar_id)
-        .not('grp_desc', 'in', '("Mercadorias- Compras","Insumos","Uso Interno")');
+    const { data: produtosVendasItem } = await supabase
+      .from('vendas_item' as any)
+      .select('produto_desc, quantidade, valor, grupo_desc')
+      .eq('data_venda', data_selecionada)
+      .eq('bar_id', bar_id)
+      .not('grupo_desc', 'in', '("Mercadorias- Compras","Insumos","Uso Interno")');
 
-      produtosAnalitico?.forEach(item => {
-        const produto = item.prd_desc;
-        if (!produtosPorQuantidade[produto]) {
-          produtosPorQuantidade[produto] = { quantidade: 0, valor: 0 };
-        }
-        produtosPorQuantidade[produto].quantidade += parseFloat(item.qtd) || 0;
-        produtosPorQuantidade[produto].valor += parseFloat(item.valorfinal) || 0;
-      });
-    }
+    (produtosVendasItem || []).forEach((item: any) => {
+      const produto = item.produto_desc;
+      if (!produtosPorQuantidade[produto]) {
+        produtosPorQuantidade[produto] = { quantidade: 0, valor: 0 };
+      }
+      produtosPorQuantidade[produto].quantidade += parseFloat(item.quantidade) || 0;
+      produtosPorQuantidade[produto].valor += parseFloat(item.valor) || 0;
+    });
 
     // Encontrar produto mais vendido
     const produtoMaisVendido = Object.keys(produtosPorQuantidade).length > 0 

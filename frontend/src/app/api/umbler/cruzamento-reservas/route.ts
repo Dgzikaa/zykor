@@ -19,8 +19,6 @@ export async function GET(request: NextRequest) {
 
     // Se a função RPC não existir, fazer a query direta
     if (error) {
-      console.log('RPC não encontrada, executando query direta...');
-      
       // Buscar telefones da Umbler
       const { data: umblerPhones } = await supabase
         .from('umbler_conversas')

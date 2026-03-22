@@ -26,7 +26,6 @@ function getCached(key: string) {
   // Invalidar se versão mudou
   if (entry.version !== CACHE_VERSION) {
     cache.delete(key);
-    console.log(`🔄 Cache invalidado (versão ${entry.version} → ${CACHE_VERSION})`);
     return null;
   }
   
@@ -94,12 +93,7 @@ async function fetchAllData(tableName: string, columns: string, filters: any = {
     }
     
     allData.push(...data);
-    
-    // Log de progresso a cada 10k registros
-    if (allData.length % 10000 === 0 || data.length < limit) {
-      console.log(`  ✓ ${tableName}: ${allData.length} registros carregados`);
-    }
-    
+
     if (data.length < limit) {
       break; // Última página
     }
@@ -158,36 +152,29 @@ export async function GET(request: NextRequest) {
     let stats;
 
     if (cached) {
-      console.log(`⚡ Cache HIT: Usando dados em cache (${cached.clientes.length} clientes)`);
       clientesSegmentados = cached.clientes;
       stats = cached.stats;
     } else {
-      console.log(`🔍 Cache MISS: Processando dados do ContaHub...`);
-
-      // Buscar APENAS ContaHub - ÚNICA fonte com dados REAIS de consumo (usar contahub_periodo que tem telefone)
-      const contahubDataRaw = await fetchAllData(
-        'contahub_periodo', 
-        'cli_nome, cli_fone, dt_gerencial, vr_couvert, vr_pagamentos', 
+      // Buscar dados de visitas - ÚNICA fonte com dados REAIS de consumo
+      const visitasDataRaw = await fetchAllData(
+        'visitas', 
+        'cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos', 
         {
           eq_bar_id: barId
         }
       );
 
       // Filtrar clientes válidos (remover null e vazio, e com telefone)
-      const contahubData = contahubDataRaw.filter(item => 
-        item.cli_fone && item.cli_fone.trim() !== '' && item.cli_nome && item.cli_nome.trim() !== ''
+      const visitasData = visitasDataRaw.filter(item => 
+        item.cliente_fone && item.cliente_fone.trim() !== '' && item.cliente_nome && item.cliente_nome.trim() !== ''
       );
 
-      console.log(`💳 ContaHub: ${contahubData.length} registros válidos (de ${contahubDataRaw.length} totais)`);
-
-      // 5. Processar APENAS ContaHub - agrupar por TELEFONE (mesma lógica do analítico)
+      // 5. Processar visitas - agrupar por TELEFONE (mesma lógica do analítico)
       const clientesMap = new Map<string, ClienteUnificado>();
-      
-      console.log(`💳 Processando ${contahubData.length} registros do ContaHub...`);
-      
-      for (const item of contahubData) {
-        const nome = item.cli_nome?.trim();
-        const rawFone = item.cli_fone?.toString().trim();
+
+      for (const item of visitasData) {
+        const nome = item.cliente_nome?.trim();
+        const rawFone = item.cliente_fone?.toString().trim();
         
         // Filtrar clientes inválidos
         if (!nome || !rawFone || nome === 'MESA' || nome === 'SEM NOME' || nome === 'BALCAO') continue;
@@ -222,20 +209,20 @@ export async function GET(request: NextRequest) {
         const cliente = clientesMap.get(id)!;
         cliente.total_visitas++;
         
-        // Calcular gasto (vr_pagamentos - vr_couvert = consumo líquido)
-        const vrCouvert = parseFloat(item.vr_couvert || '0') || 0;
-        const vrPagamentos = parseFloat(item.vr_pagamentos || '0') || 0;
+        // Calcular gasto (valor_pagamentos - valor_couvert = consumo líquido)
+        const vrCouvert = parseFloat(item.valor_couvert || '0') || 0;
+        const vrPagamentos = parseFloat(item.valor_pagamentos || '0') || 0;
         const vrConsumo = vrPagamentos - vrCouvert;
         cliente.total_gasto += vrConsumo;
         
-        if (item.dt_gerencial) {
-          const dataGerencial = item.dt_gerencial.toString();
+        if (item.data_visita) {
+          const dataVisita = item.data_visita.toString();
           
-          if (!cliente.ultima_visita || dataGerencial > cliente.ultima_visita) {
-            cliente.ultima_visita = dataGerencial;
+          if (!cliente.ultima_visita || dataVisita > cliente.ultima_visita) {
+            cliente.ultima_visita = dataVisita;
           }
-          if (!cliente.primeira_visita || dataGerencial < cliente.primeira_visita) {
-            cliente.primeira_visita = dataGerencial;
+          if (!cliente.primeira_visita || dataVisita < cliente.primeira_visita) {
+            cliente.primeira_visita = dataVisita;
           }
         }
       }
@@ -262,8 +249,6 @@ export async function GET(request: NextRequest) {
         cliente.frequencia_dias = cliente.total_visitas / Math.max(1, diasEntrePrimeiraEUltima);
       }
     });
-
-    console.log(`👥 Total de clientes únicos com dados REAIS: ${clientesMap.size}`);
 
     // 7. Calcular scores RFM (MELHORADO - usa percentis em vez de indexOf)
     const clientes = Array.from(clientesMap.values());
@@ -431,7 +416,6 @@ export async function GET(request: NextRequest) {
 
       // Salvar no cache (5 minutos)
       setCache(cacheKey, { clientes: clientesSegmentados, stats });
-      console.log(`💾 Cache SAVED: ${clientesSegmentados.length} clientes processados`);
     }
 
     // 10. Filtrar por segmento se especificado (APÓS o cache)
@@ -493,8 +477,6 @@ export async function GET(request: NextRequest) {
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
     const clientesPaginados = clientesFiltrados.slice(startIndex, endIndex);
-
-    console.log(`✅ CRM: ${clientesPaginados.length} de ${totalClientes} clientes (página ${page}/${totalPages})`);
 
     return NextResponse.json({
       success: true,

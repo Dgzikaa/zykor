@@ -270,14 +270,6 @@ function parseEventos(
     // VERSÃO ULTRA SIMPLES: Só aplicar as transformações básicas
     let nomeEvento = eventoStr.trim();
 
-    // DEBUG: Log ALL events being processed
-    console.log(`🔍 Processing ${dataStr}: "${eventoStr}"`);
-
-    // DEBUG: Force specific test for first few events
-    if (dataStr === '01/06' || dataStr === '02/06' || dataStr === '03/06') {
-      console.log(`🚨 IMPORTANT EVENT ${dataStr}: "${eventoStr}"`);
-    }
-
     // Step 1: Remove parentheses at the end
     nomeEvento = nomeEvento.replace(/\s*\([^)]+\)\s*$/, '');
 
@@ -306,11 +298,6 @@ function parseEventos(
     // Fallback if empty
     if (!nomeEvento) {
       nomeEvento = `Evento ${dataStr}`;
-    }
-
-    // DEBUG: Log final result for first few events
-    if (dataStr === '01/06' || dataStr === '02/06' || dataStr === '03/06') {
-      console.log(`🚨 FINAL RESULT ${dataStr}: "${nomeEvento}"`);
     }
     const genero = extrairGenero(eventoStr);
     const capacidade = extrairCapacidade(eventoStr);
@@ -401,7 +388,6 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-    console.log('🔄 Iniciando importação de eventos...');
 
     let body;
     try {
@@ -424,13 +410,6 @@ export async function POST(request: NextRequest) {
       confirmar_substituicao = false,
     } = body;
 
-    console.log('📥 Dados recebidos no endpoint:', {
-      bar_id,
-      bar_name,
-      ano,
-      confirmar_substituicao,
-    });
-
     if (!bar_id && !bar_name) {
       console.error('❌ bar_id ou bar_name não fornecido');
       return NextResponse.json(
@@ -443,7 +422,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar se o bar existe
-    console.log('🔍 Verificando se bar existe...');
     let query = supabase.from('bars').select('id, nome');
 
     if (bar_id) {
@@ -465,8 +443,6 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
-
-    console.log(`✅ Bar encontrado: ${barData.nome} (ID: ${barData.id})`);
 
     // Parse dos eventos usando o ID do bar encontrado
     const barIdFinal = barData.id;
@@ -504,24 +480,12 @@ export async function POST(request: NextRequest) {
         .lte('data_evento', `${ano}-06-30`);
     }
 
-    // Inserir novos eventos
-    console.log(
-      `📤 Inserindo ${eventosParaImportar.length} eventos para bar_id: ${barIdFinal}`
-    );
-    console.log(
-      '📋 Primeiro evento:',
-      JSON.stringify(eventosParaImportar[0], null, 2)
-    );
-
     // Inserir em lotes para evitar timeouts
     const BATCH_SIZE = 50;
     let totalInseridos = 0;
 
     for (let i = 0; i < eventosParaImportar.length; i += BATCH_SIZE) {
       const lote = eventosParaImportar.slice(i, i + BATCH_SIZE);
-      console.log(
-        `📦 Inserindo lote ${Math.floor(i / BATCH_SIZE) + 1}: ${lote.length} eventos`
-      );
 
       const { data, error } = await supabase
         .from('eventos_base')
@@ -549,12 +513,7 @@ export async function POST(request: NextRequest) {
       }
 
       totalInseridos += data?.length || 0;
-      console.log(
-        `✅ Lote inserido com sucesso! Total até agora: ${totalInseridos}`
-      );
     }
-
-    console.log(`✅ ${totalInseridos} eventos inseridos com sucesso!`);
 
     return NextResponse.json({
       success: true,

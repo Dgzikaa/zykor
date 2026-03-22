@@ -33,8 +33,6 @@ export async function GET(request: NextRequest) {
     const barId = parseInt(barIdParam);
     const meses = parseInt(searchParams.get('meses') || '12'); // Últimos 12 meses por padrão
 
-    console.log(`📊 Buscando evolução de ${meses} meses para bar_id ${barId}`);
-
     // Calcular evolução usando SQL direto para performance
     const evolucaoMensal: EvolucaoMensal[] = [];
 
@@ -121,8 +119,6 @@ export async function GET(request: NextRequest) {
         baseAtiva,
       });
     }
-
-    console.log(`📈 Evolução calculada para ${evolucaoMensal.length} meses`);
 
     return NextResponse.json({
       success: true,

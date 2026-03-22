@@ -20,6 +20,35 @@ export interface GeminiMessage {
   parts: Array<{ text: string }>;
 }
 
+// ============================================================
+// Tool Use / Function Calling Types
+// ============================================================
+
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: {
+    type: string;
+    properties: Record<string, { 
+      type: string; 
+      description: string; 
+      enum?: string[];
+      items?: { type: string };
+    }>;
+    required: string[];
+  };
+}
+
+export interface FunctionCall {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+export interface ToolResult {
+  name: string;
+  response: Record<string, unknown>;
+}
+
 /**
  * Criar cliente Gemini com configuração padrão
  */
@@ -149,7 +178,7 @@ export function cleanGeminiResponse(text: string): string {
 /**
  * Extrair JSON da resposta do Gemini
  */
-export function extractJsonFromGemini<T = any>(text: string): T {
+export function extractJsonFromGemini<T = unknown>(text: string): T {
   const cleaned = cleanGeminiResponse(text);
   
   try {
@@ -158,4 +187,137 @@ export function extractJsonFromGemini<T = any>(text: string): T {
     console.error('❌ Erro ao parsear JSON do Gemini:', cleaned);
     throw new Error('Resposta do Gemini não é um JSON válido');
   }
+}
+
+// ============================================================
+// Tool Use / Function Calling
+// ============================================================
+
+/**
+ * Gerar resposta com suporte a Tool Use (Function Calling)
+ * 
+ * O Gemini pode chamar ferramentas definidas para buscar dados,
+ * executar queries, etc. O loop continua até o modelo retornar texto.
+ * 
+ * @param prompt - Mensagem do usuário + system prompt
+ * @param tools - Definições das ferramentas disponíveis
+ * @param executeToolFn - Função que executa cada ferramenta chamada
+ * @param config - Configurações do Gemini
+ * @param maxIterations - Limite de iterações (segurança)
+ */
+export async function generateWithTools(
+  prompt: string,
+  tools: ToolDefinition[],
+  executeToolFn: (call: FunctionCall) => Promise<Record<string, unknown>>,
+  config: GeminiConfig = {},
+  maxIterations: number = 5
+): Promise<string> {
+  const apiKey = Deno.env.get('GEMINI_API_KEY');
+  if (!apiKey) throw new Error('GEMINI_API_KEY não configurada');
+
+  const model = config.model || 'gemini-2.0-flash-exp';
+  const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+
+  // Histórico de conversa para multi-turn
+  const contents: Array<{
+    role: string;
+    parts: Array<Record<string, unknown>>;
+  }> = [{ role: 'user', parts: [{ text: prompt }] }];
+
+  for (let i = 0; i < maxIterations; i++) {
+    const requestBody = {
+      contents,
+      tools: [{ functionDeclarations: tools }],
+      generationConfig: {
+        temperature: config.temperature ?? 0.3,
+        topP: config.topP ?? 0.95,
+        topK: config.topK ?? 40,
+        maxOutputTokens: config.maxOutputTokens ?? 4096,
+      }
+    };
+
+    console.log(`🔄 [Tool Use] Iteração ${i + 1}/${maxIterations}`);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini API ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    const candidate = data.candidates?.[0];
+    
+    if (!candidate?.content?.parts) {
+      throw new Error('Resposta inválida do Gemini');
+    }
+
+    // Adicionar resposta do modelo ao histórico
+    contents.push(candidate.content);
+
+    // Verificar se o modelo quer chamar funções
+    const functionCalls = candidate.content.parts.filter(
+      (p: Record<string, unknown>) => p.functionCall
+    );
+
+    if (functionCalls.length === 0) {
+      // Modelo retornou texto - terminamos
+      const textPart = candidate.content.parts.find(
+        (p: Record<string, unknown>) => p.text
+      );
+      const finalText = (textPart?.text as string) || '';
+      console.log(`✅ [Tool Use] Resposta final gerada (${finalText.length} chars)`);
+      return finalText;
+    }
+
+    // Executar todas as chamadas de função
+    console.log(`🔧 [Tool Use] ${functionCalls.length} função(ões) chamada(s)`);
+    
+    for (const part of functionCalls) {
+      const call = part.functionCall as { name: string; args: Record<string, unknown> };
+      console.log(`   → Executando: ${call.name}`);
+      
+      try {
+        const result = await executeToolFn({ 
+          name: call.name, 
+          args: call.args || {} 
+        });
+
+        // Adicionar resposta da função ao histórico
+        contents.push({
+          role: 'function',
+          parts: [{
+            functionResponse: {
+              name: call.name,
+              response: result
+            }
+          }]
+        });
+        
+        console.log(`   ✓ ${call.name} executada com sucesso`);
+      } catch (error) {
+        console.error(`   ✗ Erro em ${call.name}:`, error);
+        
+        // Retornar erro como resposta da função
+        contents.push({
+          role: 'function',
+          parts: [{
+            functionResponse: {
+              name: call.name,
+              response: { 
+                error: true, 
+                message: error instanceof Error ? error.message : 'Erro desconhecido' 
+              }
+            }
+          }]
+        });
+      }
+    }
+  }
+
+  throw new Error(`Agente atingiu limite de ${maxIterations} iterações`);
 }

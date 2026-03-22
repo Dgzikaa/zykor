@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/auth/server';
-import { logAuditEvent } from '@/lib/auth/audit';
 import { getAdminClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic'
@@ -62,15 +61,6 @@ export const GET = requireAdmin(async (request, user) => {
         bares_ids: baresMap[u.auth_id] || []
       };
     }) || [];
-
-    // Logar acesso
-    await logAuditEvent({
-      user_id: user.id,
-      action: 'LIST_USUARIOS',
-      resource: 'usuarios',
-      ip_address: request.headers.get('x-forwarded-for') || undefined,
-      user_agent: request.headers.get('user-agent') || undefined,
-    });
 
     return NextResponse.json({ success: true, usuarios: usuariosFormatados });
   } catch (error) {
@@ -213,7 +203,6 @@ export const POST = requireAdmin(async (request, user) => {
         if (!emailResponse.ok) {
           console.warn('⚠️ Falha ao enviar email de boas-vindas:', emailResult.error);
         } else {
-          console.log('✅ Email de boas-vindas enviado com sucesso');
           emailSent = true;
         }
       } else {
@@ -223,17 +212,6 @@ export const POST = requireAdmin(async (request, user) => {
     } catch (emailError) {
       console.warn('⚠️ Erro ao enviar email de boas-vindas:', emailError);
     }
-
-    // Logar criação
-    await logAuditEvent({
-      user_id: user.id,
-      action: 'CREATE_USUARIO',
-      resource: 'usuarios',
-      resource_id: usuario.id.toString(),
-      changes: { email, nome, role, bares_ids: baresParaAssociar },
-      ip_address: request.headers.get('x-forwarded-for') || undefined,
-      user_agent: request.headers.get('user-agent') || undefined,
-    });
 
     return NextResponse.json({ 
       success: true,
@@ -306,7 +284,6 @@ export const PUT = requireAdmin(async (request, user) => {
         // Se o email mudou, atualizar também
         if (email && email !== currentUser.email) {
           authUpdates.email = email;
-          console.log(`📧 Atualizando email no Auth: ${currentUser.email} → ${email}`);
         }
 
         const { error: authError } = await supabase.auth.admin.updateUserById(
@@ -316,8 +293,6 @@ export const PUT = requireAdmin(async (request, user) => {
 
         if (authError) {
           console.warn('⚠️ Erro ao atualizar Auth (continuando):', authError.message);
-        } else {
-          console.log('✅ Supabase Auth atualizado com sucesso');
         }
       } catch (authUpdateError) {
         console.warn('⚠️ Erro ao atualizar Auth:', authUpdateError);
@@ -382,19 +357,6 @@ export const PUT = requireAdmin(async (request, user) => {
       }
     }
 
-    console.log(`✅ Usuário ${nome} atualizado com sucesso (ID: ${id}, Bares: ${baresParaAssociar.join(', ')})`);
-
-    // Logar atualização
-    await logAuditEvent({
-      user_id: user.id,
-      action: 'UPDATE_USUARIO',
-      resource: 'usuarios',
-      resource_id: id.toString(),
-      changes: { email, nome, role, bares_ids: baresParaAssociar },
-      ip_address: request.headers.get('x-forwarded-for') || undefined,
-      user_agent: request.headers.get('user-agent') || undefined,
-    });
-
     return NextResponse.json({ 
       success: true,
       usuario: { ...usuario, bares_ids: baresParaAssociar }, 
@@ -438,8 +400,6 @@ export const DELETE = requireAdmin(async (request, user) => {
       );
     }
 
-    console.log(`🗑️ Iniciando exclusão completa do usuário: ${usuario.email}`);
-
     // 2. Excluir da tabela usuarios
     const { error: deleteTableError } = await supabase
       .from('usuarios')
@@ -451,8 +411,6 @@ export const DELETE = requireAdmin(async (request, user) => {
       throw deleteTableError;
     }
 
-    console.log('✅ Usuário removido da tabela usuarios');
-
     // 3. Excluir do Supabase Auth (se auth_id existir)
     if (usuario.auth_id) {
       try {
@@ -460,25 +418,12 @@ export const DELETE = requireAdmin(async (request, user) => {
         
         if (authDeleteError) {
           console.warn('⚠️ Erro ao excluir do Auth (usuário pode já ter sido removido):', authDeleteError.message);
-        } else {
-          console.log('✅ Usuário removido do Supabase Auth');
         }
       } catch (authError) {
         console.warn('⚠️ Erro na exclusão do Auth:', authError);
         // Não falhar a operação se o Auth der erro
       }
     }
-
-    // Logar exclusão
-    await logAuditEvent({
-      user_id: user.id,
-      action: 'DELETE_USUARIO',
-      resource: 'usuarios',
-      resource_id: id,
-      changes: { deleted_user: { nome: usuario.nome, email: usuario.email } },
-      ip_address: request.headers.get('x-forwarded-for') || undefined,
-      user_agent: request.headers.get('user-agent') || undefined,
-    });
 
     return NextResponse.json({ 
       success: true,

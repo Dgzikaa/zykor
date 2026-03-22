@@ -110,11 +110,7 @@ async function calcularRetencao(supabase: any, barIdNum: number, mesEspecifico?:
       inicioPeriodoAnterior = formatDate(inicioAnt);
       fimPeriodoAnterior = formatDate(fimAnt);
     }
-    
-    console.log('🔄 CALCULANDO TAXA DE RETORNANTES (mesma lógica clientes-ativos):');
-    console.log(`Período ATUAL: ${inicioPeriodo} até ${fimPeriodo}`);
-    console.log(`Período ANTERIOR: ${inicioPeriodoAnterior} até ${fimPeriodoAnterior}`);
-    
+
     // ✅ USAR A STORED PROCEDURE calcular_metricas_clientes (mesma da clientes-ativos)
     const { data: metricas, error: errorMetricas } = await supabase.rpc('calcular_metricas_clientes', {
       p_bar_id: barIdNum,
@@ -148,14 +144,7 @@ async function calcularRetencao(supabase: any, barIdNum: number, mesEspecifico?:
     const variacaoRetornantes = percentualRetornantesAnterior > 0 
       ? ((percentualRetornantes - percentualRetornantesAnterior) / percentualRetornantesAnterior * 100)
       : 0;
-    
-    console.log('🔄 TAXA DE RETORNANTES CALCULADA:');
-    console.log(`Total clientes período atual: ${totalClientesAtual}`);
-    console.log(`Retornantes período atual: ${retornantesAtual}`);
-    console.log(`Taxa de retornantes: ${percentualRetornantes.toFixed(1)}%`);
-    console.log(`Taxa de retornantes anterior: ${percentualRetornantesAnterior.toFixed(1)}%`);
-    console.log(`Variação: ${variacaoRetornantes.toFixed(1)}%`);
-    
+
     return {
       valor: parseFloat(percentualRetornantes.toFixed(1)),
       variacao: parseFloat(variacaoRetornantes.toFixed(1))
@@ -244,41 +233,37 @@ async function calcularRetencaoReal(supabase: any, barIdNum: number, trimestre?:
       inicioPeriodoComparacao = formatDate(inicioComp);
       fimPeriodoComparacao = formatDate(fimComp);
     }
-    
-    console.log('🔄 CALCULANDO RETENÇÃO REAL (% que voltaram):');
-    console.log(`Período ATUAL: ${inicioPeriodoAtual} até ${fimPeriodoAtual}`);
-    console.log(`Período ANTERIOR: ${inicioPeriodoAnterior} até ${fimPeriodoAnterior}`);
-    
+
     // Buscar clientes dos períodos
     const [clientesPeriodoAtualBruto, clientesPeriodoAnteriorBruto, clientesPeriodoComparacaoBruto] = await Promise.all([
-      fetchAllData(supabase, 'contahub_periodo', 'cli_fone', {
+      fetchAllData(supabase, 'visitas', 'cliente_fone', {
         'eq_bar_id': barIdNum,
-        'gte_dt_gerencial': inicioPeriodoAtual,
-        'lte_dt_gerencial': fimPeriodoAtual
+        'gte_data_visita': inicioPeriodoAtual,
+        'lte_data_visita': fimPeriodoAtual
       }),
-      fetchAllData(supabase, 'contahub_periodo', 'cli_fone', {
+      fetchAllData(supabase, 'visitas', 'cliente_fone', {
         'eq_bar_id': barIdNum,
-        'gte_dt_gerencial': inicioPeriodoAnterior,
-        'lte_dt_gerencial': fimPeriodoAnterior
+        'gte_data_visita': inicioPeriodoAnterior,
+        'lte_data_visita': fimPeriodoAnterior
       }),
-      fetchAllData(supabase, 'contahub_periodo', 'cli_fone', {
+      fetchAllData(supabase, 'visitas', 'cliente_fone', {
         'eq_bar_id': barIdNum,
-        'gte_dt_gerencial': inicioPeriodoComparacao,
-        'lte_dt_gerencial': fimPeriodoComparacao
+        'gte_data_visita': inicioPeriodoComparacao,
+        'lte_data_visita': fimPeriodoComparacao
       })
     ]);
     
     // Criar sets de clientes únicos
     const clientesPeriodoAtual = new Set(
-      clientesPeriodoAtualBruto?.filter(item => item.cli_fone && item.cli_fone.length >= 8).map(item => item.cli_fone) || []
+      clientesPeriodoAtualBruto?.filter(item => item.cliente_fone && item.cliente_fone.length >= 8).map(item => item.cliente_fone) || []
     );
     
     const clientesPeriodoAnterior = new Set(
-      clientesPeriodoAnteriorBruto?.filter(item => item.cli_fone && item.cli_fone.length >= 8).map(item => item.cli_fone) || []
+      clientesPeriodoAnteriorBruto?.filter(item => item.cliente_fone && item.cliente_fone.length >= 8).map(item => item.cliente_fone) || []
     );
     
     const clientesPeriodoComparacao = new Set(
-      clientesPeriodoComparacaoBruto?.filter(item => item.cli_fone && item.cli_fone.length >= 8).map(item => item.cli_fone) || []
+      clientesPeriodoComparacaoBruto?.filter(item => item.cliente_fone && item.cliente_fone.length >= 8).map(item => item.cliente_fone) || []
     );
     
     // RETENÇÃO REAL = clientes do período ANTERIOR que voltaram no período ATUAL
@@ -306,13 +291,7 @@ async function calcularRetencaoReal(supabase: any, barIdNum: number, trimestre?:
     const variacaoRetencaoReal = percentualRetencaoRealAnterior > 0 
       ? ((percentualRetencaoReal - percentualRetencaoRealAnterior) / percentualRetencaoRealAnterior * 100)
       : 0;
-    
-    console.log('🔄 RETENÇÃO REAL CALCULADA:');
-    console.log(`Clientes período anterior: ${totalClientesAnterior}`);
-    console.log(`Clientes que voltaram: ${totalQueVoltaram}`);
-    console.log(`Taxa de retenção real: ${percentualRetencaoReal.toFixed(1)}%`);
-    console.log(`Variação: ${variacaoRetencaoReal.toFixed(1)}%`);
-    
+
     return {
       valor: parseFloat(percentualRetencaoReal.toFixed(1)),
       variacao: parseFloat(variacaoRetencaoReal.toFixed(1))
@@ -389,17 +368,8 @@ export async function GET(request: Request) {
     const trimestre = parseInt(searchParams.get('trimestre') || '3'); // 2, 3 ou 4
     const mesRetencao = searchParams.get('mes_retencao'); // formato YYYY-MM
     const barId = searchParams.get('bar_id') || 
-      (request.headers.get('x-user-data') 
-        ? JSON.parse(request.headers.get('x-user-data') || '{}').bar_id 
-        : null);
-    
-    // Log simplificado de início
-    // Log principal apenas em desenvolvimento
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`📊 Visão Geral: Calculando ${periodo}${trimestre ? ` T${trimestre}` : ''} - Bar ${barId}`);
-      console.log(`🔍 DEBUG: mesRetencao recebido: "${mesRetencao}"`);
-    }
-    
+      request.headers.get('x-selected-bar-id');
+
     if (!barId) {
       return NextResponse.json(
         { success: false, error: 'Bar não selecionado' },
@@ -428,10 +398,6 @@ export async function GET(request: Request) {
       const anoAtual = new Date().getFullYear();
       
       // 🚀 OTIMIZAÇÃO: Usar stored procedure consolidada (1 query em vez de 7+)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🚀 USANDO STORED PROCEDURE: calcular_visao_geral_anual');
-      }
-      
       const { data: anualData, error: anualError } = await supabase
         .rpc('calcular_visao_geral_anual', {
           p_bar_id: barIdNum,
@@ -444,12 +410,6 @@ export async function GET(request: Request) {
       }
       
       const dados = anualData[0];
-      
-      // Log apenas em desenvolvimento
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`💰 Faturamento Anual: R$ ${Number(dados.faturamento_total).toLocaleString('pt-BR')}`);
-        console.log(`👥 Total Pessoas: ${dados.pessoas_total.toLocaleString('pt-BR')}`);
-      }
 
       // EBITDA (será calculado futuramente com DRE)
       const ebitda = 0;
@@ -496,10 +456,6 @@ export async function GET(request: Request) {
       const anoAtual = new Date().getFullYear();
       
       // 🚀 OTIMIZAÇÃO: Usar stored procedure consolidada (1 query em vez de 20+)
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`🚀 USANDO STORED PROCEDURE: calcular_visao_geral_trimestral (T${trimestre})`);
-      }
-      
       const { data: trimestreData, error: trimestreError } = await supabase
         .rpc('calcular_visao_geral_trimestral', {
           p_bar_id: barIdNum,
@@ -513,16 +469,7 @@ export async function GET(request: Request) {
       }
       
       const dados = trimestreData[0];
-      
-      // Log apenas em desenvolvimento
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`👥 Clientes Ativos (90d): ${dados.clientes_ativos} | Var: ${Number(dados.variacao_clientes_ativos).toFixed(1)}%`);
-        console.log(`👥 Clientes Totais T${trimestre}: ${dados.clientes_totais} | Var: ${Number(dados.variacao_clientes_totais).toFixed(1)}%`);
-        console.log(`💰 Faturamento T${trimestre}: R$ ${Number(dados.faturamento_trimestre).toLocaleString('pt-BR')}`);
-        console.log(`📊 CMO: ${Number(dados.cmo_percentual).toFixed(1)}% | Var: ${Number(dados.variacao_cmo).toFixed(1)}%`);
-        console.log(`🎭 Artística: ${Number(dados.artistica_percentual).toFixed(1)}% | Var: ${Number(dados.variacao_artistica).toFixed(1)}%`);
-      }
-      
+
       // Datas para retenção (ainda usa funções existentes)
       const { start: startDate, end: endDate } = getTrimestreDates(trimestre);
       const hoje = new Date();
@@ -683,11 +630,11 @@ export async function GET(request: Request) {
       const dataLimite30DiasStr = dataLimite30Dias.toISOString().split('T')[0];
 
       const { data: clientesAtivosData, error: clientesAtivosError } = await supabase
-        .from('contahub_periodo')
-        .select('cli_fone')
+        .from('visitas')
+        .select('cliente_fone')
         .eq('bar_id', barIdNum)
-        .gte('dt_gerencial', dataLimite30DiasStr)
-        .not('cli_fone', 'is', null);
+        .gte('data_visita', dataLimite30DiasStr)
+        .not('cliente_fone', 'is', null);
 
       if (clientesAtivosError) {
         console.error('Erro ao buscar clientes ativos mensais:', clientesAtivosError);
@@ -696,7 +643,7 @@ export async function GET(request: Request) {
       // Contar clientes únicos com 2+ visitas
       const clientesMap = new Map<string, number>();
       (clientesAtivosData || []).forEach(row => {
-        const fone = (row.cli_fone || '').toString().trim();
+        const fone = (row.cliente_fone || '').toString().trim();
         if (fone) {
           clientesMap.set(fone, (clientesMap.get(fone) || 0) + 1);
         }
@@ -706,34 +653,34 @@ export async function GET(request: Request) {
 
       // Clientes Totais do mês
       const { data: clientesTotaisData, error: clientesTotaisError } = await supabase
-        .from('contahub_periodo')
-        .select('cli_fone')
+        .from('visitas')
+        .select('cliente_fone')
         .eq('bar_id', barIdNum)
-        .gte('dt_gerencial', startDate)
-        .lte('dt_gerencial', endDate)
-        .not('cli_fone', 'is', null);
+        .gte('data_visita', startDate)
+        .lte('data_visita', endDate)
+        .not('cliente_fone', 'is', null);
 
       if (clientesTotaisError) {
         console.error('Erro ao buscar clientes totais mensais:', clientesTotaisError);
       }
 
       const clientesTotaisUnicos = new Set(
-        (clientesTotaisData || []).map(row => (row.cli_fone || '').toString().trim()).filter(Boolean)
+        (clientesTotaisData || []).map(row => (row.cliente_fone || '').toString().trim()).filter(Boolean)
       ).size;
 
-      // Faturamento Total do mês
+      // Faturamento Total do mês (usando valor_pagamentos de visitas)
       const { data: faturamentoData, error: faturamentoError } = await supabase
-        .from('contahub_periodo')
-        .select('vr_total')
+        .from('visitas')
+        .select('valor_pagamentos')
         .eq('bar_id', barIdNum)
-        .gte('dt_gerencial', startDate)
-        .lte('dt_gerencial', endDate);
+        .gte('data_visita', startDate)
+        .lte('data_visita', endDate);
 
       if (faturamentoError) {
         console.error('Erro ao buscar faturamento mensal:', faturamentoError);
       }
 
-      const faturamentoTotal = (faturamentoData || []).reduce((sum, row) => sum + (row.vr_total || 0), 0);
+      const faturamentoTotal = (faturamentoData || []).reduce((sum, row) => sum + (row.valor_pagamentos || 0), 0);
 
       // Taxa de Retenção (clientes ativos / clientes totais)
       const taxaRetencao = clientesTotaisUnicos > 0 ? (clientesAtivos / clientesTotaisUnicos) * 100 : 0;

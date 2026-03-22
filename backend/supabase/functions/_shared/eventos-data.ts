@@ -1,8 +1,11 @@
-/**
+﻿/**
  * 📊 Eventos Data - Busca de Dados de Eventos
  * 
  * Módulo compartilhado para buscar dados de eventos do banco.
  * Usado por agentes IA e funções de análise.
+ * 
+ * @version 1.1.0 - Migração para domain tables
+ * @date 2026-03-21
  */
 
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -30,8 +33,8 @@ export interface EventoBase {
 export interface EventoDetalhado extends EventoBase {
   yuzer_produtos?: any[];
   sympla_pedidos?: any[];
-  contahub_pagamentos?: any[];
-  contahub_periodo?: any[];
+  faturamento_pagamentos?: any[];
+  visitas?: any[];
 }
 
 /**
@@ -166,19 +169,19 @@ export async function buscarEventoDetalhado(
     return null;
   }
   
-  const [yuzerProdutos, symplaPedidos, contahubPagamentos, contahubPeriodo] = await Promise.all([
+  const [yuzerProdutos, symplaPedidos, faturamentoPagamentos, visitas] = await Promise.all([
     buscarYuzerProdutos(supabase, evento.bar_id, evento.data_evento),
     buscarSymplaPedidos(supabase, evento.bar_id, evento.data_evento),
-    buscarContaHubPagamentos(supabase, evento.bar_id, evento.data_evento),
-    buscarContaHubPeriodo(supabase, evento.bar_id, evento.data_evento),
+    buscarFaturamentoPagamentos(supabase, evento.bar_id, evento.data_evento),
+    buscarVisitas(supabase, evento.bar_id, evento.data_evento),
   ]);
   
   return {
     ...evento,
     yuzer_produtos: yuzerProdutos,
     sympla_pedidos: symplaPedidos,
-    contahub_pagamentos: contahubPagamentos,
-    contahub_periodo: contahubPeriodo,
+    faturamento_pagamentos: faturamentoPagamentos,
+    visitas: visitas,
   };
 }
 
@@ -217,35 +220,35 @@ async function buscarSymplaPedidos(
 }
 
 /**
- * Buscar pagamentos ContaHub do evento
+ * Buscar pagamentos faturamento do evento (domain table)
  */
-async function buscarContaHubPagamentos(
+async function buscarFaturamentoPagamentos(
   supabase: SupabaseClient,
   barId: number,
   dataEvento: string
 ): Promise<any[]> {
   const { data } = await supabase
-    .from('contahub_pagamentos')
+    .from('faturamento_pagamentos')
     .select('*')
     .eq('bar_id', barId)
-    .eq('data', dataEvento);
+    .eq('data_pagamento', dataEvento);
   
   return data || [];
 }
 
 /**
- * Buscar período ContaHub do evento
+ * Buscar visitas do evento (domain table)
  */
-async function buscarContaHubPeriodo(
+async function buscarVisitas(
   supabase: SupabaseClient,
   barId: number,
   dataEvento: string
 ): Promise<any[]> {
   const { data } = await supabase
-    .from('contahub_periodo')
+    .from('visitas')
     .select('*')
     .eq('bar_id', barId)
-    .eq('data', dataEvento);
+    .eq('data_visita', dataEvento);
   
   return data || [];
 }

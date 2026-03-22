@@ -10,7 +10,8 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await getAdminClient()
-    const barId = user.bar_id || 3
+    const barId = user.bar_id
+    if (!barId) return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 })
 
     // Buscar validações dos últimos 30 dias
     const { data: validacoes, error: validacoesError } = await supabase
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
       .single()
 
     const { data: contahubSync } = await supabase
-      .from('contahub_pagamentos')
+      .from('faturamento_pagamentos')
       .select('atualizado_em')
       .eq('bar_id', barId)
       .order('atualizado_em', { ascending: false })
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
       .eq('bar_id', barId)
 
     const { count: contahubCount } = await supabase
-      .from('contahub_pagamentos')
+      .from('faturamento_pagamentos')
       .select('*', { count: 'exact', head: true })
       .eq('bar_id', barId)
 

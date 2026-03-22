@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -468,17 +469,24 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
+  let heartbeatId: number | null = null
+  let startTime: number = Date.now()
+
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  )
+
   try {
     console.log('🚀 ================================================')
     console.log('🔍 MONITOR DE EVENTOS BRASÍLIA 2026')
     console.log('   Shows, Festivais, Jogos e Grandes Eventos')
     console.log('================================================')
     console.log(`⏰ Início: ${new Date().toISOString()}`)
-    
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+
+    const hbResult = await heartbeatStart(supabase, 'monitor-concorrencia', null, null, 'pgcron')
+    heartbeatId = hbResult.heartbeatId
+    startTime = hbResult.startTime
     
     // Coletar eventos de todas as fontes
     console.log('\n📡 Buscando eventos em todas as fontes...\n')
@@ -565,6 +573,8 @@ serve(async (req) => {
     console.log(`\n📊 Total de eventos no banco: ${eventosAtuais?.length || 0}`)
     console.log(`⏰ Fim: ${new Date().toISOString()}`)
     console.log('================================================\n')
+
+    await heartbeatEnd(supabase, heartbeatId, 'success', startTime, salvos, { eventos_relevantes: eventosRelevantes.length, eventos_totais: eventosAtuais?.length || 0 })
     
     return new Response(
       JSON.stringify({
@@ -590,8 +600,9 @@ serve(async (req) => {
       }
     )
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Erro na execução:', error)
+    await heartbeatError(supabase, heartbeatId, startTime, error)
     return new Response(
       JSON.stringify({
         success: false,

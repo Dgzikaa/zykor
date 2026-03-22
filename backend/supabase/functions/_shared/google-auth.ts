@@ -105,7 +105,35 @@ export async function getGoogleAccessToken(
 }
 
 /**
+ * Obtém metadados de um arquivo do Google Drive
+ * @param fileId - ID do arquivo no Google Drive
+ * @param accessToken - Token de acesso Google
+ */
+export async function getFileMimeType(
+  fileId: string,
+  accessToken: string
+): Promise<{ mimeType: string; name: string }> {
+  const metadataUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,mimeType`
+  
+  const response = await fetch(metadataUrl, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Erro ao obter metadados do arquivo: ${response.status} ${response.statusText}`)
+  }
+
+  const data = await response.json()
+  return {
+    mimeType: data.mimeType,
+    name: data.name
+  }
+}
+
+/**
  * Baixa um arquivo do Google Drive como Excel
+ * Detecta automaticamente se é Google Sheet ou arquivo nativo e usa o endpoint correto
+ * 
  * @param fileId - ID do arquivo no Google Drive
  * @param accessToken - Token de acesso Google
  */
@@ -113,7 +141,23 @@ export async function downloadDriveFileAsExcel(
   fileId: string,
   accessToken: string
 ): Promise<ArrayBuffer> {
-  const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+  // Primeiro, obter o tipo do arquivo
+  const { mimeType, name } = await getFileMimeType(fileId, accessToken)
+  
+  console.log(`📄 Arquivo: ${name} (${mimeType})`)
+  
+  let downloadUrl: string
+  
+  // Google Sheets → usar /export para converter para xlsx
+  if (mimeType === 'application/vnd.google-apps.spreadsheet') {
+    downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+    console.log(`📊 Tipo: Google Sheet → usando /export`)
+  } 
+  // Arquivos nativos (xlsx, xls, etc) → usar ?alt=media para download direto
+  else {
+    downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
+    console.log(`📁 Tipo: Arquivo nativo → usando ?alt=media`)
+  }
   
   const fileResponse = await fetch(downloadUrl, {
     headers: { 'Authorization': `Bearer ${accessToken}` },

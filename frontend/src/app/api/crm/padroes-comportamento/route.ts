@@ -25,7 +25,6 @@ function getCached(key: string) {
   
   if (entry.version !== CACHE_VERSION) {
     cache.delete(key);
-    console.log(`🔄 Cache padroes invalidado (versão ${entry.version} → ${CACHE_VERSION})`);
     return null;
   }
   
@@ -83,11 +82,7 @@ async function fetchAllData(tableName: string, columns: string, filters: any = {
     }
     
     allData.push(...data);
-    
-    if (allData.length % 10000 === 0 || data.length < limit) {
-      console.log(`  ✓ ${tableName}: ${allData.length} registros carregados`);
-    }
-    
+
     if (data.length < limit) {
       break;
     }
@@ -202,8 +197,6 @@ export async function GET(request: NextRequest) {
     }
     const barId = parseInt(barIdParam);
 
-    console.log(`🔍 API Padrões de Comportamento - telefone: ${telefone}, limite: ${limite}, bar_id: ${barId}`);
-
     if (!telefone) {
       return await buscarPadroesTodosClientes(limite, barId);
     } else {
@@ -223,27 +216,27 @@ async function buscarPadraoCliente(telefone: string, barId: number) {
   // Normalizar telefone para busca
   const telefoneNorm = telefone.replace(/\D/g, '').slice(-9);
   
-  // Buscar visitas do cliente no ContaHub
-  const { data: contahubData, error } = await supabase
-    .from('contahub_periodo')
-    .select('cli_nome, dt_gerencial, vr_couvert, vr_pagamentos')
+  // Buscar visitas do cliente
+  const { data: visitasData, error } = await supabase
+    .from('visitas')
+    .select('cliente_nome, data_visita, valor_couvert, valor_pagamentos')
     .eq('bar_id', barId)
-    .ilike('cli_fone', `%${telefoneNorm}%`)
-    .order('dt_gerencial', { ascending: true });
+    .ilike('cliente_fone', `%${telefoneNorm}%`)
+    .order('data_visita', { ascending: true });
 
   if (error) {
     throw new Error(`Erro ao buscar cliente: ${error.message}`);
   }
 
-  if (!contahubData || contahubData.length === 0) {
+  if (!visitasData || visitasData.length === 0) {
     throw new Error('Cliente não encontrado');
   }
 
   // Processar visitas
-  const visitas = contahubData.map(v => ({
-    data: parseDateBrazil(v.dt_gerencial),
-    dataOriginal: String(v.dt_gerencial),
-    valor: (v.vr_couvert || 0) + (v.vr_pagamentos || 0)
+  const visitas = visitasData.map(v => ({
+    data: parseDateBrazil(v.data_visita),
+    dataOriginal: String(v.data_visita),
+    valor: (v.valor_couvert || 0) + (v.valor_pagamentos || 0)
   }));
 
   const distribuicaoDias = {
@@ -289,7 +282,7 @@ async function buscarPadraoCliente(telefone: string, barId: number) {
 
   const padrao: PadraoCliente = {
     telefone,
-    nome: contahubData[0].cli_nome || 'Cliente',
+    nome: visitasData[0].cliente_nome || 'Cliente',
     total_visitas: visitas.length,
     dia_semana_preferido: getMaxKey(distribuicaoDias, 'sexta'),
     distribuicao_dias: distribuicaoDias,
@@ -317,8 +310,6 @@ async function buscarPadroesTodosClientes(limite: number, barId: number = 3) {
   const cached = getCached(cacheKey);
 
   if (cached) {
-    console.log(`⚡ Cache HIT: Usando dados de padrões em cache (${cached.padroes.length} clientes)`);
-    
     const resultado = cached.padroes.slice(0, limite);
     
     return NextResponse.json({
@@ -329,22 +320,18 @@ async function buscarPadroesTodosClientes(limite: number, barId: number = 3) {
     });
   }
 
-  console.log(`🔍 Cache MISS: Processando dados de padrões do ContaHub...`);
-
-  // ===== BUSCAR DADOS DO CONTAHUB =====
-  console.log(`📊 Buscando dados do ContaHub para bar ${barId}...`);
-  const contahubDataRaw = await fetchAllData(
-    'contahub_periodo',
-    'cli_nome, cli_fone, dt_gerencial, vr_couvert, vr_pagamentos',
+  // ===== BUSCAR DADOS DE VISITAS =====
+  const visitasDataRaw = await fetchAllData(
+    'visitas',
+    'cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos',
     { eq_bar_id: barId }
   );
 
   // Filtrar clientes válidos
-  const contahubData = contahubDataRaw.filter(item => 
-    item.cli_fone && item.cli_fone.trim() !== '' && 
-    item.cli_nome && item.cli_nome.trim() !== ''
+  const visitasDataAll = visitasDataRaw.filter(item => 
+    item.cliente_fone && item.cliente_fone.trim() !== '' && 
+    item.cliente_nome && item.cliente_nome.trim() !== ''
   );
-  console.log(`💳 ContaHub: ${contahubData.length} registros válidos (de ${contahubDataRaw.length} totais)`);
 
   // ===== CONSOLIDAR POR TELEFONE =====
   const clientesMap = new Map<string, {
@@ -362,32 +349,30 @@ async function buscarPadroesTodosClientes(limite: number, barId: number = 3) {
     return limpo.slice(-9);
   };
 
-  // Processar ContaHub
-  for (const item of contahubData) {
-    const telefoneNorm = normalizarTelefone(item.cli_fone);
+  // Processar visitas
+  for (const item of visitasDataAll) {
+    const telefoneNorm = normalizarTelefone(item.cliente_fone);
     if (!telefoneNorm) continue;
 
     if (!clientesMap.has(telefoneNorm)) {
       clientesMap.set(telefoneNorm, {
         telefone: telefoneNorm,
-        nome: item.cli_nome || 'Cliente',
+        nome: item.cliente_nome || 'Cliente',
         visitas: [],
         totalGasto: 0
       });
     }
 
     const cliente = clientesMap.get(telefoneNorm)!;
-    const valor = (item.vr_couvert || 0) + (item.vr_pagamentos || 0);
+    const valor = (item.valor_couvert || 0) + (item.valor_pagamentos || 0);
     
     cliente.visitas.push({
-      data: parseDateBrazil(item.dt_gerencial),
-      dataOriginal: String(item.dt_gerencial),
+      data: parseDateBrazil(item.data_visita),
+      dataOriginal: String(item.data_visita),
       valor
     });
     cliente.totalGasto += valor;
   }
-
-  console.log(`👥 Total de clientes únicos: ${clientesMap.size}`);
 
   // ===== CALCULAR PADRÕES PARA CADA CLIENTE =====
   const padroes: PadraoCliente[] = [];
@@ -455,8 +440,6 @@ async function buscarPadroesTodosClientes(limite: number, barId: number = 3) {
 
   // Ordenar por total de visitas (clientes mais frequentes primeiro)
   padroes.sort((a, b) => b.total_visitas - a.total_visitas);
-
-  console.log(`✅ Padrões calculados: ${padroes.length} clientes com 2+ visitas`);
 
   // Estatísticas gerais
   let stats: any = {

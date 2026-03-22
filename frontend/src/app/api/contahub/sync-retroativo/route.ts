@@ -9,11 +9,9 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔄 Iniciando sincronização retroativa do ContaHub...');
-
     const body = await request.json();
     const { 
-      bar_id = 3,
+      bar_id,
       start_date,
       end_date,
       data_types = ['analitico'],
@@ -21,14 +19,17 @@ export async function POST(request: NextRequest) {
       process_after = true
     } = body;
 
-    if (!start_date || !end_date) {
-      return NextResponse.json({ 
-        error: 'start_date e end_date são obrigatórios (formato YYYY-MM-DD)' 
+    if (!bar_id) {
+      return NextResponse.json({
+        error: 'bar_id é obrigatório'
       }, { status: 400 });
     }
 
-    console.log(`📅 Período: ${start_date} até ${end_date}`);
-    console.log(`🏠 Bar ID: ${bar_id}`);
+    if (!start_date || !end_date) {
+      return NextResponse.json({
+        error: 'start_date e end_date são obrigatórios (formato YYYY-MM-DD)'
+      }, { status: 400 });
+    }
 
     // Chamar a Edge Function
     const edgeFunctionUrl = `${supabaseUrl}/functions/v1/contahub-sync-retroativo`;
@@ -59,7 +60,6 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await response.json();
-    console.log('✅ Sincronização concluída:', result);
 
     return NextResponse.json(result);
 
@@ -77,7 +77,7 @@ export async function GET() {
     metodo: 'POST',
     descricao: 'Busca dados históricos do ContaHub e salva no Supabase',
     parametros: {
-      bar_id: 'ID do bar (padrão: 3)',
+      bar_id: 'ID do bar (obrigatório)',
       start_date: 'Data inicial YYYY-MM-DD (obrigatório)',
       end_date: 'Data final YYYY-MM-DD (obrigatório)',
       data_types: 'Array de tipos: analitico, fatporhora, pagamentos, periodo, tempo (padrão: ["analitico"])',

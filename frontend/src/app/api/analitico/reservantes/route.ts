@@ -6,38 +6,23 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 API Reservantes: Iniciando busca...')
-    
     // Autenticar usuário
     const user = await authenticateUser(request)
     if (!user) {
-      console.log('❌ API Reservantes: Usuário não autenticado')
       return authErrorResponse('Usuário não autenticado')
     }
     
-    console.log('✅ API Reservantes: Usuário autenticado:', user.nome)
-    
     const supabase = await getAdminClient()
-    console.log('✅ API Reservantes: Cliente administrativo Supabase obtido')
-
-		// Buscar dados dos reservantes com paginação completa
-		console.log('📊 API Reservantes: Buscando dados dos reservantes (paginação completa)...')
-		const barIdHeader = request.headers.get('x-user-data')
+    // Buscar dados dos reservantes com paginação completa
+		const barIdHeader = request.headers.get('x-selected-bar-id')
 		let barIdFilter: number | null = null
 		if (barIdHeader) {
-			try {
-				const parsed = JSON.parse(barIdHeader)
-				if (parsed?.bar_id) barIdFilter = parseInt(String(parsed.bar_id))
-			} catch (error) {
-				console.warn('Erro ao parsear barIdHeader:', error);
-			}
+			barIdFilter = parseInt(barIdHeader, 10) || null
 		}
 
 		// Obter filtro de dia da semana da URL
 		const { searchParams } = new URL(request.url)
 		const diaSemanaFiltro = searchParams.get('dia_semana')
-		console.log('📅 API Reservantes: Filtro dia da semana:', diaSemanaFiltro)
-
 		const pageSize = 1000
 		let from = 0
 		let totalLinhas = 0
@@ -53,7 +38,7 @@ export async function GET(request: NextRequest) {
 			ultimaReserva: string;
 		}>()
 		
-		// Mapa para contar visitas totais (da tabela contahub_periodo)
+		// Mapa para contar visitas totais (da tabela visitas)
 		const mapVisitas = new Map<string, number>()
 
 		const MAX_ITERATIONS = 100; // Prevenir loop infinito
@@ -73,8 +58,7 @@ export async function GET(request: NextRequest) {
 			// Filtrar por dia da semana se especificado
 			if (diaSemanaFiltro && diaSemanaFiltro !== 'todos') {
 				// Filtro será aplicado no JavaScript após buscar os dados
-				console.log('🗓️ API Reservantes: Filtro por dia da semana será aplicado no JavaScript:', diaSemanaFiltro)
-			}
+				}
 			
 			const { data, error } = await query
 			if (error) {
@@ -162,8 +146,6 @@ export async function GET(request: NextRequest) {
 		}
 
 		// Buscar TODAS as visitas do bar e depois fazer match com os reservantes
-		console.log('🔍 API Reservantes: Buscando todas as visitas do bar...')
-		
 		let offsetVisitas = 0
 		const pageSizeVisitas = 1000
 		let totalVisitasProcessadas = 0
@@ -176,10 +158,10 @@ export async function GET(request: NextRequest) {
 				iterationsVisitas++
 				
 				const { data: visitasData, error: visitasError } = await supabase
-					.from('contahub_periodo')
-					.select('cli_fone')
-					.not('cli_fone', 'is', null)
-					.neq('cli_fone', '')
+					.from('visitas')
+					.select('cliente_fone')
+					.not('cliente_fone', 'is', null)
+					.neq('cliente_fone', '')
 					.eq('bar_id', barIdFilter)
 					.range(offsetVisitas, offsetVisitas + pageSizeVisitas - 1)
 					.order('id', { ascending: true }) // Garantir ordem consistente para paginação
@@ -194,7 +176,7 @@ export async function GET(request: NextRequest) {
 				totalVisitasProcessadas += visitasData.length
 				
 				visitasData.forEach(visita => {
-					let foneNormalizado = (visita.cli_fone || '').replace(/\D/g, '')
+					let foneNormalizado = (visita.cliente_fone || '').replace(/\D/g, '')
 					if (!foneNormalizado) return
 					
 					// Aplicar a mesma normalização usada nos reservantes
@@ -231,13 +213,9 @@ export async function GET(request: NextRequest) {
 				console.warn('⚠️ API Reservantes: Limite de iterações atingido ao buscar visitas')
 			}
 		} else {
-			console.log('⚠️ API Reservantes: bar_id não definido, pulando busca de visitas')
-		}
-
-		console.log(`📊 API Reservantes: ${totalVisitasProcessadas} visitas processadas, ${mapVisitas.size} telefones únicos com visitas`)
+			}
 
 		// Fazer match entre reservantes e visitas
-		console.log('🔗 API Reservantes: Fazendo match entre reservantes e visitas...')
 		let matchesEncontrados = 0
 		let debugCount = 0
 		
@@ -282,8 +260,6 @@ export async function GET(request: NextRequest) {
 					percentual_presenca: Math.round(percentualPresenca * 100) / 100, // Arredondar para 2 casas decimais
 				}
 			})
-
-		console.log(`✅ API Reservantes: ${reservantes.length} no ranking • ${map.size} únicos • ${totalLinhas} reservas • ${matchesEncontrados} matches com visitas`)
 
 		return NextResponse.json({
 			reservantes,

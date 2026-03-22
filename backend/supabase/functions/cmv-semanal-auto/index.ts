@@ -10,6 +10,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,6 +44,10 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // 💓 Heartbeat: variáveis no escopo externo para acesso no catch
+  let heartbeatId: number | null = null;
+  let startTime: number = Date.now();
+
   try {
     const body: CMVRequest = await req.json().catch(() => ({}));
     const { bar_id, ano, semana, todas_semanas = false } = body;
@@ -58,12 +63,56 @@ serve(async (req) => {
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const bares = bar_id ? [bar_id] : [3, 4];
+    // 💓 Heartbeat: registrar início da execução
+    const hbResult = await heartbeatStart(supabase, 'cmv-semanal-auto', bar_id || null, todas_semanas ? 'todas' : 'recalculo', 'pgcron');
+    heartbeatId = hbResult.heartbeatId;
+    startTime = hbResult.startTime;
+
+    // Buscar bares ativos do banco (com fallback)
+    let baresAtivos: number[] = [3, 4]; // Fallback
+    if (!bar_id) {
+      const { data: baresData } = await supabase
+        .from('bares')
+        .select('id')
+        .eq('ativo', true)
+        .order('id');
+      
+      if (baresData && baresData.length > 0) {
+        baresAtivos = baresData.map((b: { id: number }) => b.id);
+        console.log(`📋 [BARES] Usando bares do banco: ${baresAtivos.join(', ')}`);
+      } else {
+        console.log(`⚠️ [BARES] Usando fallback: ${baresAtivos.join(', ')}`);
+      }
+    }
+
+    const bares = bar_id ? [bar_id] : baresAtivos;
     const anoAtual = ano || new Date().getFullYear();
     
     let semanasProcessadas = 0;
     let semanasCriadas = 0;
     const resultados: any[] = [];
+    
+    const fatorConsumoCache = new Map<number, number>();
+    
+    async function getFatorConsumo(barId: number): Promise<number> {
+      if (fatorConsumoCache.has(barId)) {
+        return fatorConsumoCache.get(barId)!;
+      }
+      
+      const { data, error } = await supabase
+        .from('bar_regras_negocio')
+        .select('cmv_fator_consumo')
+        .eq('bar_id', barId)
+        .single();
+      
+      if (error || !data?.cmv_fator_consumo) {
+        throw new Error(`Config ausente: bar_regras_negocio.cmv_fator_consumo para bar_id=${barId}`);
+      }
+      
+      const fator = parseFloat(String(data.cmv_fator_consumo));
+      fatorConsumoCache.set(barId, fator);
+      return fator;
+    }
 
     for (const barId of bares) {
       console.log(`\n🍺 Processando bar_id: ${barId}`);
@@ -263,11 +312,12 @@ serve(async (req) => {
         let cmvLimpoPercentual = null;
         
         if (estoqueInicial > 0 || estoqueFinal > 0) {
-          // Consumos com fator 0.35 (conforme frontend)
-          const consumoSocios = (dadosAtuais.total_consumo_socios || 0) * 0.35;
-          const consumoBeneficios = (dadosAtuais.mesa_beneficios_cliente || 0) * 0.35;
-          const consumoArtista = (dadosAtuais.mesa_banda_dj || 0) * 0.35;
-          const consumoRh = (dadosAtuais.consumo_rh || 0) * 0.35;
+          // Consumos com fator do banco (Onda 1)
+          const fatorConsumo = await getFatorConsumo(barId);
+          const consumoSocios = (dadosAtuais.total_consumo_socios || 0) * fatorConsumo;
+          const consumoBeneficios = (dadosAtuais.mesa_beneficios_cliente || 0) * fatorConsumo;
+          const consumoArtista = (dadosAtuais.mesa_banda_dj || 0) * fatorConsumo;
+          const consumoRh = (dadosAtuais.consumo_rh || 0) * fatorConsumo;
           const totalConsumos = consumoSocios + consumoBeneficios + consumoArtista + consumoRh;
           
           const bonificacoes = dadosAtuais.bonificacao_contrato_anual || 0;
@@ -364,6 +414,16 @@ serve(async (req) => {
 
     console.log(`\n✅ Processamento concluído: ${semanasProcessadas} semanas atualizadas, ${semanasCriadas} criadas`);
 
+    // 💓 Heartbeat: registrar sucesso
+    await heartbeatEnd(
+      supabase,
+      heartbeatId,
+      'success',
+      startTime,
+      semanasProcessadas + semanasCriadas,
+      { semanas_processadas: semanasProcessadas, semanas_criadas: semanasCriadas }
+    );
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -381,6 +441,16 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Erro ao processar CMV:', error);
+    
+    // 💓 Heartbeat: registrar erro
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabaseForError = createClient(supabaseUrl, serviceKey);
+      await heartbeatError(supabaseForError, heartbeatId, startTime, error instanceof Error ? error : String(error));
+    } catch (hbErr) {
+      console.warn('⚠️ Erro ao registrar heartbeat de erro:', hbErr);
+    }
     
     return new Response(
       JSON.stringify({

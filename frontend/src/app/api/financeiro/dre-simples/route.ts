@@ -15,8 +15,6 @@ export async function GET(request: NextRequest) {
     const mes = searchParams.get('mes') || (new Date().getMonth() + 1).toString();
     const barId = searchParams.get('bar_id');
 
-    console.log(`[DRE-SIMPLES] Buscando dados: ano=${ano}, mes=${mes}, bar_id=${barId}`);
-
     // Buscar dados da view_dre
     const { data: dreData, error: dreError } = await supabase
       .from('view_dre')

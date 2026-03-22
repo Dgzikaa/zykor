@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(request: NextRequest) {
   try {
-    const { to, nome, email, resetLink, expiresIn } = await request.json();
-
     if (!process.env.RESEND_API_KEY) {
       console.error('❌ RESEND_API_KEY não configurada');
       return NextResponse.json(
@@ -14,6 +10,9 @@ export async function POST(request: NextRequest) {
         { status: 503 }
       );
     }
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { to, nome, email, resetLink, expiresIn } = await request.json();
 
     // Em desenvolvimento, forçar para email de teste
     const finalTo = process.env.NODE_ENV === 'development' 
@@ -131,8 +130,6 @@ export async function POST(request: NextRequest) {
         { name: 'environment', value: process.env.NODE_ENV || 'production' }
       ]
     });
-
-    console.log('📧 Email de reset de senha (link) enviado:', result);
 
     return NextResponse.json({
       success: true,

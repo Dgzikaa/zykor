@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/lib/api-client';
 
 // =====================================================
@@ -10,7 +10,6 @@ interface Notificacao {
   modulo:
     | 'checklists'
     | 'metas'
-    | 'windsor'
     | 'relatorios'
     | 'dashboard'
     | 'sistema';

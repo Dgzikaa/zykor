@@ -124,7 +124,6 @@ export async function POST(request: NextRequest) {
     if (compress && file.type.startsWith('image/')) {
       try {
         // Nota: compressão seria feita no frontend, aqui só validamos
-        console.log('📸 Compressão será aplicada no frontend');
       } catch (error: any) {
         console.warn('⚠️ Erro na compressão, usando arquivo original:', error);
       }
@@ -205,8 +204,6 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log('✅ Upload realizado com sucesso:', finalFileName);
 
     return NextResponse.json({
       success: true,
@@ -376,8 +373,6 @@ export async function DELETE(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log('✅ Arquivo removido:', anexo.nome_arquivo);
 
     return NextResponse.json({
       success: true,

@@ -1,0 +1,4 @@
+﻿-- View: sympla_resumo
+CREATE OR REPLACE VIEW public.sympla_resumo AS
+ SELECT se.evento_sympla_id, se.nome_evento, se.data_inicio, se.data_fim, COALESCE(participantes.total, 0::bigint) AS total_participantes, COALESCE(participantes.checkins, 0::bigint) AS checkins_realizados, COALESCE(pedidos.receita, 0::numeric) AS receita_total
+   FROM (sympla_eventos se LEFT JOIN (SELECT sympla_participantes.evento_sympla_id, count(*) AS total, count(CASE WHEN (sympla_participantes.fez_checkin = true) THEN 1 ELSE NULL END) AS checkins FROM sympla_participantes GROUP BY sympla_participantes.evento_sympla_id) participantes ON (se.evento_sympla_id = participantes.evento_sympla_id) LEFT JOIN (SELECT sympla_pedidos.evento_sympla_id, sum(sympla_pedidos.valor_liquido) AS receita FROM sympla_pedidos GROUP BY sympla_pedidos.evento_sympla_id) pedidos ON (se.evento_sympla_id = pedidos.evento_sympla_id));

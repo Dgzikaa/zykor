@@ -124,12 +124,12 @@ function UsuariosPage() {
 
   const fetchUsuarios = useCallback(async () => {
     try {
-      const userData = safeLocalStorage.getItem('sgb_user');
+      const selectedBarId = safeLocalStorage.getItem('sgb_selected_bar_id');
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-      if (userData) {
-        headers['x-user-data'] = encodeURIComponent(userData);
+      if (selectedBarId) {
+        headers['x-selected-bar-id'] = selectedBarId;
       }
       
       const response = await fetch('/api/configuracoes/usuarios', { headers });
@@ -151,12 +151,12 @@ function UsuariosPage() {
 
   const fetchModulos = useCallback(async () => {
     try {
-      const userData = safeLocalStorage.getItem('sgb_user');
+      const selectedBarId = safeLocalStorage.getItem('sgb_selected_bar_id');
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-      if (userData) {
-        headers['x-user-data'] = encodeURIComponent(userData);
+      if (selectedBarId) {
+        headers['x-selected-bar-id'] = selectedBarId;
       }
       
       const response = await fetch('/api/configuracoes/permissoes', { headers });
@@ -171,12 +171,12 @@ function UsuariosPage() {
 
   const fetchBares = useCallback(async () => {
     try {
-      const userData = safeLocalStorage.getItem('sgb_user');
+      const selectedBarId = safeLocalStorage.getItem('sgb_selected_bar_id');
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-      if (userData) {
-        headers['x-user-data'] = encodeURIComponent(userData);
+      if (selectedBarId) {
+        headers['x-selected-bar-id'] = selectedBarId;
       }
       
       const response = await fetch('/api/configuracoes/bars', { headers });

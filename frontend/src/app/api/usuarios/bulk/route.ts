@@ -214,14 +214,6 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    // Log da operação
-    console.log(`Bulk operation ${action}:`, {
-      total: userIds.length,
-      success: successCount,
-      errors: errorCount,
-      timestamp: new Date().toISOString(),
-    });
-
     return NextResponse.json({
       success: true,
       results,

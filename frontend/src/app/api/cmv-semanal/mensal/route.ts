@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { createClient } from '@supabase/supabase-js';
+import { getFatorCmv, safeDivideCmv } from '@/lib/config/getFatorCmv';
 
 // Cache por 2 minutos para dados mensais de CMV
 export const revalidate = 120;
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // Interface para dados CMV semanal
 interface CMVSemanal {
@@ -119,6 +126,9 @@ export async function GET(request: NextRequest) {
 
     // Se tiver dados na tabela cmv_mensal, usar diretamente
     if (cmvMensal && !errMensal) {
+      // Buscar fator CMV do banco (centralizado)
+      const fatorCmv = await getFatorCmv(supabase, barId);
+      
       // Calcular semanas para informação
       const semanasComProporcao = calcularSemanasComProporcao(mes, ano);
       const primeiroDiaMes = new Date(ano, mes - 1, 1);
@@ -126,7 +136,7 @@ export async function GET(request: NextRequest) {
       const primeiroDiaMesSeguinte = new Date(ano, mes, 1);
       const { semana: semanaFinal, ano: anoFinal } = getWeekAndYear(primeiroDiaMesSeguinte);
 
-      // Mapear campos da tabela cmv_mensal para o formato esperado
+      // Mapear campos da tabela cmv_mensal para o formato esperado (Onda 2A: usa fator do banco)
       const dadosMensais = {
         vendas_brutas: parseFloat(String(cmvMensal.faturamento_total || 0)),
         vendas_liquidas: parseFloat(String(cmvMensal.faturamento_cmvivel || 0)),
@@ -144,10 +154,10 @@ export async function GET(request: NextRequest) {
         estoque_final_cozinha: 0,
         estoque_final_bebidas: 0,
         estoque_final_drinks: 0,
-        total_consumo_socios: parseFloat(String(cmvMensal.consumo_socios || 0)) / 0.35, // Reverter o fator 35%
-        mesa_beneficios_cliente: parseFloat(String(cmvMensal.consumo_beneficios || 0)) / 0.35,
-        mesa_banda_dj: parseFloat(String(cmvMensal.consumo_artista || 0)) / 0.35,
-        mesa_adm_casa: (parseFloat(String(cmvMensal.consumo_rh_operacao || 0)) + parseFloat(String(cmvMensal.consumo_rh_escritorio || 0))) / 0.35,
+        total_consumo_socios: safeDivideCmv(parseFloat(String(cmvMensal.consumo_socios || 0)), fatorCmv),
+        mesa_beneficios_cliente: safeDivideCmv(parseFloat(String(cmvMensal.consumo_beneficios || 0)), fatorCmv),
+        mesa_banda_dj: safeDivideCmv(parseFloat(String(cmvMensal.consumo_artista || 0)), fatorCmv),
+        mesa_adm_casa: safeDivideCmv(parseFloat(String(cmvMensal.consumo_rh_operacao || 0)) + parseFloat(String(cmvMensal.consumo_rh_escritorio || 0)), fatorCmv),
         consumo_socios: parseFloat(String(cmvMensal.consumo_socios || 0)),
         consumo_beneficios: parseFloat(String(cmvMensal.consumo_beneficios || 0)),
         consumo_rh: parseFloat(String(cmvMensal.consumo_rh_operacao || 0)) + parseFloat(String(cmvMensal.consumo_rh_escritorio || 0)),

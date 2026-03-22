@@ -126,9 +126,6 @@ export async function GET() {
     for (const criticalAlert of criticalAlerts) {
       try {
         await DiscordChecklistService.sendCriticalAlert(criticalAlert);
-        console.log(
-          `🔴 Alerta crítico enviado para Discord: ${criticalAlert.titulo}`
-        );
       } catch (error) {
         console.error('❌ Erro ao enviar alerta crítico para Discord:', error);
       }
@@ -138,9 +135,6 @@ export async function GET() {
     for (const urgentAlert of urgentAlerts) {
       try {
         await DiscordChecklistService.sendAlert(urgentAlert);
-        console.log(
-          `🟠 Alerta urgente enviado para Discord: ${urgentAlert.titulo}`
-        );
       } catch (error) {
         console.error('❌ Erro ao enviar alerta urgente para Discord:', error);
       }

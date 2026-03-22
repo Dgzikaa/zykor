@@ -11,15 +11,11 @@ const CACHE_VERSION = 27
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🚀 Iniciando GET /api/retrospectiva-2025')
-    
     // Verificar cache
     if (cache && Date.now() - cache.timestamp < CACHE_TTL) {
-      console.log('📦 Retornando dados do cache')
       return NextResponse.json({ success: true, data: cache.data, cached: true })
     }
 
-    console.log('✅ Cliente administrativo Supabase inicializado')
     const supabase = await getAdminClient()
     if (!supabase) {
       console.error('❌ Falha ao obter cliente Supabase')
@@ -28,74 +24,52 @@ export async function GET(request: NextRequest) {
 
     const startTime = Date.now()
 
-    console.log('🔍 Iniciando busca de dados da retrospectiva 2025 (OTIMIZADA)...')
-
     // ============================================
     // USAR STORED PROCEDURES OTIMIZADAS
     // ============================================
 
     // 1. Dados principais (financeiro, operacional, cultura, marketing)
-    console.log('📊 Buscando dados principais...')
-    let t1 = Date.now()
     const { data: dadosPrincipais, error: erroPrincipal } = await supabase
       .rpc('get_retrospectiva_2025', { p_bar_id: 3 })
-    console.log(`⏱️ Dados principais: ${Date.now() - t1}ms`)
 
     if (erroPrincipal) {
       console.error('❌ Erro ao buscar dados principais:', erroPrincipal)
       throw erroPrincipal
     }
 
-    console.log(`✅ Dados principais carregados:`, dadosPrincipais ? 'OK' : 'NULL')
-
     // 2. Evolução mensal
-    t1 = Date.now()
     const { data: evolucaoMensal, error: erroEvolucao } = await supabase
       .rpc('get_retrospectiva_evolucao_mensal', { p_bar_id: 3 })
-    console.log(`⏱️ Evolução mensal: ${Date.now() - t1}ms`)
 
     if (erroEvolucao) {
       console.error('❌ Erro ao buscar evolução mensal:', erroEvolucao)
     }
 
     // 3. Clientes por mês
-    t1 = Date.now()
     const { data: clientesMes, error: erroClientes } = await supabase
       .rpc('get_retrospectiva_clientes_mes', { p_bar_id: 3 })
-    console.log(`⏱️ Clientes por mês: ${Date.now() - t1}ms`)
 
     if (erroClientes) {
       console.error('❌ Erro ao buscar clientes por mês:', erroClientes)
     }
 
     // 4. Top produtos
-    console.log('🏆 Buscando top produtos...')
-    t1 = Date.now()
     const { data: topProdutos, error: erroProdutos } = await supabase
       .rpc('get_retrospectiva_top_produtos', { p_bar_id: 3, p_limit: 15 })
-    console.log(`⏱️ Top produtos: ${Date.now() - t1}ms`)
 
     if (erroProdutos) {
       console.error('❌ Erro ao buscar top produtos:', erroProdutos)
     }
-    console.log(`✅ Top produtos:`, topProdutos ? `${topProdutos.length} produtos` : 'null')
 
     // 5. Vendas por categoria
-    console.log('📦 Buscando vendas por categoria...')
-    t1 = Date.now()
     const { data: vendasCategoria, error: erroCategorias } = await supabase
       .rpc('get_retrospectiva_vendas_categoria', { p_bar_id: 3 })
-    console.log(`⏱️ Vendas por categoria: ${Date.now() - t1}ms`)
 
     if (erroCategorias) {
       console.error('❌ Erro ao buscar vendas por categoria:', erroCategorias)
     }
-    console.log(`✅ Vendas por categoria:`, vendasCategoria ? `${vendasCategoria.length} categorias` : 'null')
 
     // 6. INSIGHTS ESTRATÉGICOS - Queries diretas otimizadas
-    console.log('🔍 Buscando insights estratégicos...')
-    const insightsStart = Date.now()
-    
     const [
       { data: recordesFat },
       { data: recordesPub },
@@ -135,13 +109,13 @@ export async function GET(request: NextRequest) {
         .single(),
       
       // Buscar todos os clientes (para agregar no código)
-      supabase.from('contahub_periodo')
-        .select('cli_nome, vr_pagamentos, dt_gerencial')
+      supabase.from('visitas')
+        .select('cliente_nome, valor_pagamentos, data_visita')
         .eq('bar_id', 3)
-        .gte('dt_gerencial', '2025-01-01')
-        .lte('dt_gerencial', '2025-12-31')
-        .not('cli_nome', 'is', null)
-        .neq('cli_nome', ''),
+        .gte('data_visita', '2025-01-01')
+        .lte('data_visita', '2025-12-31')
+        .not('cliente_nome', 'is', null)
+        .neq('cliente_nome', ''),
       
       // Buscar todos os eventos (para performance por dia)
       supabase.from('eventos')
@@ -163,7 +137,7 @@ export async function GET(request: NextRequest) {
     // Agregar clientes no código
     const clientesMap = new Map()
     todosClientes?.forEach((row: any) => {
-      const nome = row.cli_nome
+      const nome = row.cliente_nome
       if (!clientesMap.has(nome)) {
         clientesMap.set(nome, { 
           nome, 
@@ -172,8 +146,8 @@ export async function GET(request: NextRequest) {
         })
       }
       const cliente = clientesMap.get(nome)
-      cliente.totalgasto += Number(row.vr_pagamentos) || 0
-      cliente.visitas.add(row.dt_gerencial)
+      cliente.totalgasto += Number(row.valor_pagamentos) || 0
+      cliente.visitas.add(row.data_visita)
     })
     
     const topClientes = Array.from(clientesMap.values())
@@ -261,9 +235,6 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => diasSemana.indexOf(a.dia) - diasSemana.indexOf(b.dia))
     
-    console.log(`⏱️ Insights levaram ${Date.now() - insightsStart}ms`)
-    console.log(`✅ Insights carregados: ${topClientes?.length || 0} clientes, ${topArtistas?.length || 0} artistas, ${perfDia?.length || 0} dias`)
-    
     const insightsData = {
       recordes: {
         maiorFaturamentoDia: {
@@ -290,7 +261,6 @@ export async function GET(request: NextRequest) {
     }
 
     // 6b-6f. MEGA/ULTRA/EXTRAS INSIGHTS - DESABILITADOS (muito lentos)
-    console.log('⚠️ Mega/Ultra/Extras insights desabilitados temporariamente')
     const megaInsightsData = null
     const oportunidadesData = null
     const adicionaisData = null
@@ -378,9 +348,6 @@ export async function GET(request: NextRequest) {
     // TODO: Calcular base ativa corretamente (por enquanto usando totalClientes)
     // A função get_count_base_ativa está muito lenta, precisa otimização
     const clientesAtivosMedia = Math.round((dadosPrincipais.financeiro.totalClientes || 0) * 0.35) // Estimativa: 35% da base
-    
-    console.log(`✅ Base ativa estimada: ${clientesAtivosMedia}`)
-    console.log(`✅ Total clientes únicos: ${dadosPrincipais.financeiro.totalClientes}`)
 
     const consolidado = {
       // FINANCEIRO (dados da stored procedure)
@@ -496,19 +463,6 @@ export async function GET(request: NextRequest) {
       timestamp: Date.now()
     }
 
-    const tempoTotal = Date.now() - startTime
-    console.log('🎉 Dados consolidados com sucesso!')
-    console.log(`⏱️ Tempo de carregamento: ${tempoTotal}ms`)
-    console.log(`💰 Faturamento Total: R$ ${consolidado.financeiro.faturamentoTotal?.toLocaleString('pt-BR')}`)
-    console.log(`💵 Ticket Médio: R$ ${consolidado.financeiro.ticketMedio?.toFixed(2)}`)
-    console.log(`👥 Clientes Ativos: ${consolidado.financeiro.clientesAtivos}`)
-    console.log(`📊 CMV: ${consolidado.financeiro.cmvMedio?.toFixed(2)}%`)
-    console.log(`📊 CMO: ${consolidado.financeiro.cmoMedio?.toFixed(2)}%`)
-    console.log(`🎨 Artística: ${consolidado.financeiro.artisticaMedio?.toFixed(2)}%`)
-    console.log(`🍺 Cervejas: R$ ${consolidado.vendas.faturamentoCervejas?.toLocaleString('pt-BR')}`)
-    console.log(`🍹 Drinks: R$ ${consolidado.vendas.faturamentoDrinks?.toLocaleString('pt-BR')}`)
-    console.log(`🍽️ Comidas: R$ ${consolidado.vendas.faturamentoComidas?.toLocaleString('pt-BR')}`)
-    
     return NextResponse.json({ success: true, data: consolidado })
   } catch (error: any) {
     console.error('❌❌❌ ERRO CRÍTICO na retrospectiva:', error)

@@ -45,12 +45,12 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // 3. FATURAMENTO POR HORA (usando contahub_fatporhora)
+    // 3. FATURAMENTO POR HORA (usando faturamento_hora)
     const { data: faturamentoPorHora } = await supabase
-      .from('contahub_fatporhora')
+      .from('faturamento_hora')
       .select('hora, valor')
       .eq('bar_id', barId)
-      .gte('vd_dtgerencial', new Date(new Date().setDate(new Date().getDate() - 90)).toISOString().split('T')[0]);
+      .gte('data_venda', new Date(new Date().setDate(new Date().getDate() - 90)).toISOString().split('T')[0]);
 
     const mediaPorHora: any = {};
     for (let h = 0; h < 24; h++) {

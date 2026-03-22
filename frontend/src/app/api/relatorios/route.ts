@@ -21,124 +21,129 @@ export async function GET(request: NextRequest) {
     const data_fim = searchParams.get('data_fim');
     const limit = parseInt(searchParams.get('limit') || '100');
 
-    console.log(`📊 Relatório solicitado: ${tipo} para bar ${bar_id}`);
-
     let query;
     let result;
 
+    // Cast supabase para any para contornar tipos ainda não atualizados
+    const sb = supabase as any;
+
     switch (tipo) {
       case 'analitico':
-        // Excluir categorias de compras/estoque
-        query = supabase
-          .from('contahub_analitico')
+        // MIGRADO: vendas_item (domain table)
+        query = sb
+          .from('vendas_item')
           .select('*')
           .eq('bar_id', parseInt(bar_id))
-          .not('grp_desc', 'in', '("Mercadorias- Compras","Insumos","Uso Interno")')
+          .not('grupo_desc', 'in', '("Mercadorias- Compras","Insumos","Uso Interno")')
           .limit(limit);
 
         if (data_inicio) {
-          query = query.gte('trn_dtgerencial', data_inicio);
+          query = query.gte('data_venda', data_inicio);
         }
         if (data_fim) {
-          query = query.lte('trn_dtgerencial', data_fim);
+          query = query.lte('data_venda', data_fim);
         }
 
         result = await query;
         break;
 
       case 'pagamentos':
-        query = supabase
-          .from('contahub_pagamentos')
+        // MIGRADO: faturamento_pagamentos (domain table)
+        query = sb
+          .from('faturamento_pagamentos')
           .select('*')
           .eq('bar_id', parseInt(bar_id))
           .limit(limit);
 
         if (data_inicio) {
-          query = query.gte('dt_gerencial', data_inicio);
+          query = query.gte('data_pagamento', data_inicio);
         }
         if (data_fim) {
-          query = query.lte('dt_gerencial', data_fim);
+          query = query.lte('data_pagamento', data_fim);
         }
 
         result = await query;
         break;
 
       case 'periodo':
-        query = supabase
-          .from('contahub_periodo')
+        // MIGRADO: visitas (domain table)
+        query = sb
+          .from('visitas')
           .select('*')
           .eq('bar_id', parseInt(bar_id))
           .limit(limit);
 
         if (data_inicio) {
-          query = query.gte('dt_gerencial', data_inicio);
+          query = query.gte('data_visita', data_inicio);
         }
         if (data_fim) {
-          query = query.lte('dt_gerencial', data_fim);
+          query = query.lte('data_visita', data_fim);
         }
 
         result = await query;
         break;
 
       case 'tempo':
-        query = supabase
-          .from('contahub_tempo')
+        // MIGRADO: tempos_producao (domain table)
+        query = sb
+          .from('tempos_producao')
           .select('*')
           .eq('bar_id', parseInt(bar_id))
           .limit(limit);
 
         if (data_inicio) {
-          query = query.gte('dia', data_inicio);
+          query = query.gte('data_producao', data_inicio);
         }
         if (data_fim) {
-          query = query.lte('dia', data_fim);
+          query = query.lte('data_producao', data_fim);
         }
 
         result = await query;
         break;
 
       case 'fatporhora':
-        query = supabase
-          .from('contahub_fatporhora')
+        // MIGRADO: faturamento_hora (domain table)
+        query = sb
+          .from('faturamento_hora')
           .select('*')
           .eq('bar_id', parseInt(bar_id))
           .limit(limit);
 
         if (data_inicio) {
-          query = query.gte('vd_dtgerencial', data_inicio);
+          query = query.gte('data_venda', data_inicio);
         }
         if (data_fim) {
-          query = query.lte('vd_dtgerencial', data_fim);
+          query = query.lte('data_venda', data_fim);
         }
 
         result = await query;
         break;
 
       case 'resumo': {
-        // Resumo geral de todas as tabelas
+        // Resumo geral de todas as tabelas - MIGRADO para domain tables
         const [analitico, pagamentos, periodo, tempo, fatporhora] = await Promise.all([
-          supabase
-            .from('contahub_analitico')
+          sb
+            .from('vendas_item')
             .select('*')
             .eq('bar_id', parseInt(bar_id))
             .limit(1000),
-          supabase
-            .from('contahub_pagamentos')
+          sb
+            .from('faturamento_pagamentos')
             .select('*')
             .eq('bar_id', parseInt(bar_id))
             .limit(1000),
-          supabase
-            .from('contahub_periodo')
+          sb
+            .from('visitas')
             .select('*')
             .eq('bar_id', parseInt(bar_id))
             .limit(1000),
-          supabase
-            .from('contahub_tempo')
+          sb
+            .from('tempos_producao')
             .select('*')
             .eq('bar_id', parseInt(bar_id))
             .limit(1000),
-          supabase
-            .from('contahub_fatporhora')
+          sb
+            .from('faturamento_hora')
             .select('*')
             .eq('bar_id', parseInt(bar_id))
             .limit(1000)
@@ -210,4 +215,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

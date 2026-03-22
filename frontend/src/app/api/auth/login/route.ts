@@ -7,7 +7,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { generateToken } from '@/lib/auth/jwt';
-import { logAuditEvent } from '@/lib/auth/audit';
 import type { AuthenticatedUser } from '@/lib/auth/types';
 import crypto from 'crypto';
 
@@ -40,7 +39,6 @@ export async function POST(request: NextRequest) {
     );
 
     // Autenticar com Supabase Auth
-    console.log(`🔐 Tentando login para: ${email}`);
     const { data: authData, error: authError } =
       await authClient.auth.signInWithPassword({
         email,
@@ -48,28 +46,20 @@ export async function POST(request: NextRequest) {
       });
 
     if (authError || !authData.user) {
-      console.log(`❌ Falha no login: ${email}`);
-      console.log(`❌ Erro Supabase:`, authError?.message || 'Usuário não encontrado');
       return NextResponse.json(
         { success: false, error: authError?.message || 'Email ou senha incorretos' },
         { status: 401 }
       );
     }
-    
-    console.log(`✅ Autenticação Supabase OK para: ${email}`);
 
     // Buscar dados do usuário na tabela usuarios
-    console.log(`🔍 Buscando usuário com auth_id: ${authData.user.id}`);
     let { data: usuarios, error: dbError } = await adminClient
       .from('usuarios')
       .select('*')
       .eq('auth_id', authData.user.id)
       .eq('ativo', true);
 
-    console.log(`📊 Resultado busca por auth_id:`, { usuarios: usuarios?.length || 0, error: dbError?.message });
-
     if (dbError || !usuarios || usuarios.length === 0) {
-      console.log(`⚠️ Usuário não encontrado por auth_id, tentando por email...`);
       // Tentar buscar por email e atualizar auth_id
       const { data: usuariosPorEmail } = await adminClient
         .from('usuarios')
@@ -211,17 +201,6 @@ export async function POST(request: NextRequest) {
       updated_at: usuarioPrincipal.updated_at,
     };
 
-    // Logar login bem-sucedido
-    await logAuditEvent({
-      user_id: usuarioPrincipal.id,
-      action: 'LOGIN',
-      resource: 'auth',
-      ip_address: clientIp,
-      user_agent: userAgent,
-    });
-
-    console.log(`✅ Login bem-sucedido: ${usuarioPrincipal.nome} (${usuarioPrincipal.email})`);
-
     // Fazer logout do authClient
     await authClient.auth.signOut();
 
@@ -242,8 +221,6 @@ export async function POST(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 7, // 7 dias
       path: '/',
     };
-
-    console.log('🍪 Configurando cookies:', { isProduction, cookieOptions });
 
     // Salvar token em cookie httpOnly
     response.cookies.set('auth_token', token, {
@@ -267,8 +244,6 @@ export async function POST(request: NextRequest) {
       ...cookieOptions,
       httpOnly: false,
     });
-
-    console.log('✅ Cookies configurados com sucesso');
 
     return response;
   } catch (error: unknown) {

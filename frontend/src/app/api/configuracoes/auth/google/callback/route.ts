@@ -13,8 +13,6 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get('state');
     const error = searchParams.get('error');
 
-    console.log('🔄 Callback OAuth recebido:', { code: !!code, state, error });
-
     if (error) {
       console.error('❌ Erro OAuth:', error);
 
@@ -45,8 +43,6 @@ export async function GET(request: NextRequest) {
     const successPageUrl = new URL('/auth/success', request.url);
     successPageUrl.searchParams.set('code', code);
     successPageUrl.searchParams.set('state', state || '');
-
-    console.log('✅ Redirecionando para página de sucesso...');
 
     return NextResponse.redirect(successPageUrl);
   } catch (error) {

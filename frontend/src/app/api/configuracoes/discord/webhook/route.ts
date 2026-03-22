@@ -10,10 +10,7 @@ export const dynamic = 'force-dynamic'
 // ========================================
 export async function POST(request: NextRequest) {
   try {
-    console.log('🎮 Webhook Discord recebido');
-
     const body = await request.json();
-    console.log('📦 Payload recebido:', JSON.stringify(body, null, 2));
 
     // Verificar se é uma mensagem de usuário
     if (!body.content || body.content.trim() === '') {
@@ -22,7 +19,6 @@ export async function POST(request: NextRequest) {
 
     // Ignorar mensagens de bots
     if (body.author?.bot || body.webhook_id) {
-      console.log('🤖 Ignorando mensagem de bot');
       return NextResponse.json({ success: true, message: 'Bot ignorado' });
     }
 
@@ -31,8 +27,6 @@ export async function POST(request: NextRequest) {
 
     // Bar ID do Ordinário Bar
     const BAR_ID = 3; // Ordinário Bar
-
-    console.log(`📨 Processando mensagem de ${username}: "${message}"`);
 
     // Processar comando com o bot inteligente
     const success = await processDiscordCommand(message, username, BAR_ID);
@@ -64,8 +58,6 @@ export async function GET(request: NextRequest) {
   const testCommand = url.searchParams.get('test') || 'dashboard executivo';
 
   try {
-    console.log(`🧪 Teste do Discord Bot: "${testCommand}"`);
-
     const success = await processDiscordCommand(
       testCommand,
       'Sistema de Teste',

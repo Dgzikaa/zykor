@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { useBarContext } from '@/contexts/BarContext'
 import { useUser } from '@/contexts/UserContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -39,13 +40,8 @@ export default function AgenteChatPage() {
       'Content-Type': 'application/json'
     }
     
-    if (user) {
-      const userData = {
-        ...user,
-        bar_id: selectedBar,
-        user_id: (user as any).user_id || user.id?.toString()
-      }
-      headers['x-user-data'] = encodeURIComponent(JSON.stringify(userData))
+    if (selectedBar) {
+      headers['x-selected-bar-id'] = String(selectedBar)
     }
     
     return headers
@@ -273,7 +269,13 @@ export default function AgenteChatPage() {
                             : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
                         }`}
                       >
-                        <p className="whitespace-pre-wrap">{msg.conteudo}</p>
+                        {msg.tipo === 'usuario' ? (
+                          <p className="whitespace-pre-wrap">{msg.conteudo}</p>
+                        ) : (
+                          <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-strong:text-inherit">
+                            <ReactMarkdown>{msg.conteudo}</ReactMarkdown>
+                          </div>
+                        )}
                         
                         {msg.aprendizado_detectado && (
                           <div className="mt-2 pt-2 border-t border-white/20 dark:border-gray-600">

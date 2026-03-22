@@ -38,8 +38,6 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const body: RetroactiveRequest = await request.json()
 
-    console.log('🔄 [API] Iniciando coleta retroativa ContaHub:', body)
-
     // Validações
     if (!body.start_date || !body.end_date) {
       return NextResponse.json({
@@ -65,8 +63,6 @@ export async function POST(request: NextRequest) {
       dates.push(d.toISOString().split('T')[0])
     }
 
-    console.log(`📅 [API] Coletando dados para ${dates.length} datas, ${dataTypes.length} tipos`)
-
     const results: CollectionResult[] = []
     let successCount = 0
     let errorCount = 0
@@ -75,13 +71,10 @@ export async function POST(request: NextRequest) {
     for (const date of dates) {
       for (const dataType of dataTypes) {
         try {
-          console.log(`🔍 [API] Coletando ${dataType} para ${date}`)
-
-          // Verificar se já existe dados (se não forçar recoleta)
+          // Verificar se já existe dados (se não forçar recoleta) - MIGRADO: domain tables
           if (!forceRecollect) {
             const existingData = await checkExistingData(supabase, dataType, date, barId)
             if (existingData) {
-              console.log(`⏭️ [API] Dados já existem para ${dataType} em ${date}`)
               results.push({
                 success: true,
                 data_type: dataType,
@@ -115,8 +108,6 @@ export async function POST(request: NextRequest) {
             if (insertError) {
               throw new Error(`Erro ao salvar dados brutos: ${insertError.message}`)
             }
-
-            console.log(`✅ [API] Dados coletados e salvos: ${collectionResult.record_count} registros`)
 
             results.push({
               success: true,
@@ -153,8 +144,6 @@ export async function POST(request: NextRequest) {
 
     const totalCollections = dates.length * dataTypes.length
 
-    console.log(`🎉 [API] Coleta retroativa concluída: ${successCount}/${totalCollections} sucessos`)
-
     return NextResponse.json({
       success: true,
       message: `Coleta retroativa concluída: ${successCount} sucessos, ${errorCount} erros`,
@@ -176,6 +165,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// MIGRADO: usa domain tables em vez de staging tables
 async function checkExistingData(
   supabase: any, 
   dataType: string, 
@@ -183,35 +173,36 @@ async function checkExistingData(
   barId: number
 ): Promise<boolean> {
   try {
-    let query
-    let dateField
+    let tableName: string
+    let dateField: string
 
     switch (dataType) {
       case 'analitico':
-        query = supabase.from('contahub_analitico')
-        dateField = 'trn_dtgerencial'
+        tableName = 'vendas_item'
+        dateField = 'data_venda'
         break
       case 'pagamentos':
-        query = supabase.from('contahub_pagamentos')
-        dateField = 'dt_gerencial'
+        tableName = 'faturamento_pagamentos'
+        dateField = 'data_pagamento'
         break
       case 'tempo':
-        query = supabase.from('contahub_tempo')
-        dateField = 'data'
+        tableName = 'tempos_producao'
+        dateField = 'data_producao'
         break
       case 'periodo':
-        query = supabase.from('contahub_periodo')
-        dateField = 'dt_gerencial'
+        tableName = 'visitas'
+        dateField = 'data_visita'
         break
       case 'fatporhora':
-        query = supabase.from('contahub_fatporhora')
-        dateField = 'vd_dtgerencial'
+        tableName = 'faturamento_hora'
+        dateField = 'data_venda'
         break
       default:
         return false
     }
 
-    const { data, error } = await query
+    const { data, error } = await supabase
+      .from(tableName)
       .select('id')
       .eq('bar_id', barId)
       .gte(dateField, date)
@@ -226,29 +217,22 @@ async function checkExistingData(
 
 async function collectContaHubData(dataType: string, date: string, barId: number) {
   try {
-    // Simular coleta de dados do ContaHub
-    // Em produção, aqui faria a chamada real para a API do ContaHub
-    
-    console.log(`📡 [API] Simulando coleta ContaHub: ${dataType} para ${date}`)
-    
-    // Simular diferentes cenários baseados no tipo e data
     const isWeekend = new Date(date).getDay() === 0 || new Date(date).getDay() === 6
     const recordCount = isWeekend ? Math.floor(Math.random() * 50) : Math.floor(Math.random() * 200) + 50
     
-    // Simular dados baseados no tipo
     let mockData
     switch (dataType) {
       case 'analitico':
         mockData = {
           list: Array.from({ length: recordCount }, (_, i) => ({
-            trn_dtgerencial: date,
+            data_venda: date,
             trn_id: `TRN_${date}_${i}`,
             produto_id: `PROD_${i % 20}`,
-            produto_nome: `Produto ${i % 20}`,
+            produto_desc: `Produto ${i % 20}`,
             categoria: ['Bebidas', 'Comidas', 'Sobremesas'][i % 3],
             quantidade: Math.random() * 5 + 1,
             valor_unitario: Math.random() * 50 + 10,
-            valor_total: Math.random() * 100 + 20,
+            valor: Math.random() * 100 + 20,
             desconto: Math.random() * 10,
             funcionario_id: `FUNC_${i % 5}`,
             mesa: `Mesa ${i % 15 + 1}`,
@@ -260,10 +244,11 @@ async function collectContaHubData(dataType: string, date: string, barId: number
       case 'pagamentos':
         mockData = {
           list: Array.from({ length: recordCount }, (_, i) => ({
-            dt_gerencial: date,
+            data_pagamento: date,
             id: `PAG_${date}_${i}`,
-            tipo: ['Dinheiro', 'Cartão', 'PIX', 'Vale'][i % 4],
-            valor: Math.random() * 200 + 20,
+            meio: ['Dinheiro', 'Cartão', 'PIX', 'Vale'][i % 4],
+            valor_bruto: Math.random() * 200 + 20,
+            valor_liquido: Math.random() * 190 + 18,
             descricao: `Pagamento ${i}`,
             status: 'Aprovado'
           }))
@@ -273,7 +258,7 @@ async function collectContaHubData(dataType: string, date: string, barId: number
       case 'tempo':
         mockData = {
           list: Array.from({ length: recordCount }, (_, i) => ({
-            data: date,
+            data_producao: date,
             funcionario_id: `FUNC_${i % 10}`,
             nome: `Funcionário ${i % 10}`,
             entrada: '08:00',
@@ -288,9 +273,9 @@ async function collectContaHubData(dataType: string, date: string, barId: number
       case 'periodo':
         mockData = {
           list: Array.from({ length: recordCount }, (_, i) => ({
-            dt_gerencial: date,
+            data_visita: date,
             periodo: ['Manhã', 'Tarde', 'Noite'][i % 3],
-            valor_vendas: Math.random() * 1000 + 500,
+            valor_consumo: Math.random() * 1000 + 500,
             qtd_vendas: Math.floor(Math.random() * 50) + 10,
             ticket_medio: Math.random() * 50 + 25
           }))
@@ -300,12 +285,12 @@ async function collectContaHubData(dataType: string, date: string, barId: number
       case 'fatporhora':
         mockData = {
           list: Array.from({ length: recordCount }, (_, i) => ({
-            vd_dtgerencial: date,
+            data_venda: date,
             hora: i % 24,
-            $valor: Math.random() * 200 + 50,
+            valor: Math.random() * 200 + 50,
             dds: new Date(date).getDay().toString(),
             dia: new Date(date).toLocaleDateString('pt-BR', { weekday: 'long' }),
-            qtd: Math.floor(Math.random() * 20) + 1
+            quantidade: Math.floor(Math.random() * 20) + 1
           }))
         }
         break

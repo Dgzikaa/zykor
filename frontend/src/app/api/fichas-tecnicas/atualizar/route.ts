@@ -7,8 +7,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { receita_id, insumo_id } = body;
 
-    console.log('🔄 Acionando atualização de fichas técnicas:', { receita_id, insumo_id });
-
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     // Usar SERVICE_ROLE_KEY para autenticação de Edge Functions (server-side apenas)
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -28,7 +26,6 @@ export async function POST(request: NextRequest) {
     const result = await response.json();
 
     if (result.success) {
-      console.log(`✅ Fichas técnicas atualizadas:`, result);
       return NextResponse.json(result);
     } else {
       console.error('❌ Erro ao atualizar fichas:', result);

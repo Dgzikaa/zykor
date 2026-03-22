@@ -6,7 +6,8 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { action, barId = 3, params } = body;
+    const { action, barId, params } = body;
+    if (!barId) return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
 
     const response = await fetch(`${SUPABASE_URL}/functions/v1/agente-comparacao`, {
       method: 'POST',

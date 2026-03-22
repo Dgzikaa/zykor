@@ -104,7 +104,7 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
       { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', permission: 'gestao' },
       { icon: ChefHat, label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal', permission: 'gestao' },
-      { icon: Users, label: 'CMO - Mão de Obra', href: '/ferramentas/cmo', permission: 'gestao' },
+      // CMO removido — feature não implementada
       { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
       { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
     ],
@@ -118,7 +118,7 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: Users, label: 'Administração', href: '/configuracoes/administracao/usuarios', permission: 'configuracoes' },
       { icon: Target, label: 'Metas', href: '/configuracoes/metas', permission: 'configuracoes' },
       { icon: Activity, label: 'Teste de Produção', href: '/configuracoes/teste-producao', permission: 'configuracoes' },
-      { icon: History, label: 'Auditoria', href: '/configuracoes/auditoria', permission: 'configuracoes' },
+      // Auditoria removida — libs deletadas
       { icon: Activity, label: 'Saúde dos Dados', href: '/configuracoes/saude-dados', permission: 'configuracoes' },
       { icon: Activity, label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },
     ],
@@ -129,8 +129,7 @@ const defaultSidebarItems: SidebarItem[] = [
     href: '/extras',
     permission: 'home',
     subItems: [
-      { icon: Package, label: 'Produção e Insumos', href: '/ferramentas/producao-insumos', permission: 'operacoes' },
-      { icon: Package, label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque', permission: 'operacoes' },
+      // Produção e Contagem removidos — APIs deletadas
       { icon: PieChart, label: 'DRE', href: '/ferramentas/dre', permission: 'gestao' },
       { icon: Clock, label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
       { icon: Star, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },

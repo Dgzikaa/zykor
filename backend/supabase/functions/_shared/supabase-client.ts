@@ -31,7 +31,7 @@ export async function getBarsAtivos(
   barId?: number
 ): Promise<{ id: number; nome: string }[]> {
   const { data: todosOsBares, error } = await supabase
-    .from('bars')
+    .from('bares')
     .select('id, nome')
     .eq('ativo', true)
   

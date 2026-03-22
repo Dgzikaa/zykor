@@ -26,8 +26,15 @@ interface HistoricoMesmoDia {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { data, bar_id = 3 } = body;
-    
+    const { data, bar_id } = body;
+
+    if (!bar_id) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
+
     if (!data) {
       return NextResponse.json(
         { success: false, error: 'Data é obrigatória' },
@@ -230,7 +237,14 @@ Responda em JSON com:
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const barId = searchParams.get('bar_id') || '3';
+    const barIdParam = searchParams.get('bar_id');
+    if (!barIdParam) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
+    const barId = barIdParam;
     
     const hoje = new Date();
     const previsoes: any[] = [];

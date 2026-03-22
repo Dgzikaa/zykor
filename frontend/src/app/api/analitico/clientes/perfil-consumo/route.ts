@@ -18,16 +18,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const telefone = searchParams.get('telefone')
 
-    // Obter bar_id do header
-    const barIdHeader = request.headers.get('x-user-data')
+    // Obter bar_id do header x-selected-bar-id
+    const barIdHeader = request.headers.get('x-selected-bar-id')
     let barId: number | null = null
     if (barIdHeader) {
-      try {
-        const parsed = JSON.parse(barIdHeader)
-        if (parsed?.bar_id) barId = parseInt(String(parsed.bar_id))
-      } catch (error) {
-        console.warn('Erro ao parsear barIdHeader:', error)
-      }
+      barId = parseInt(barIdHeader, 10) || null
     }
 
     if (!barId) {
@@ -75,14 +70,12 @@ export async function GET(request: NextRequest) {
 
     // Se não encontrou no cache, tentar buscar em tempo real
     if (!perfil) {
-      console.log(`📊 Perfil não encontrado no cache para ${telefone}, buscando em tempo real...`)
-      
-      // Buscar comandas do cliente
+      // Buscar comandas do cliente (migrado para visitas)
       const { data: vendas } = await supabase
-        .from('contahub_vendas')
-        .select('vd_mesadesc, dt_gerencial, cli_nome')
+        .from('visitas')
+        .select('id, data_visita, cliente_nome')
         .eq('bar_id', barId)
-        .in('cli_fone', Array.from(variacoes))
+        .in('cliente_fone', Array.from(variacoes))
 
       if (!vendas || vendas.length === 0) {
         return NextResponse.json({
@@ -91,17 +84,16 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      // Extrair comandas e datas
-      const comandas = [...new Set(vendas.map(v => v.vd_mesadesc).filter(Boolean))]
-      const datas = [...new Set(vendas.map(v => v.dt_gerencial).filter(Boolean))]
+      // Extrair IDs e datas das visitas
+      const visitaIds = [...new Set(vendas.map(v => v.id).filter(Boolean))]
+      const datas = [...new Set(vendas.map(v => v.data_visita).filter(Boolean))]
 
-      // Buscar itens consumidos
+      // Buscar itens consumidos (migrado para vendas_item)
       const { data: itensConsumo } = await supabase
-        .from('contahub_analitico')
-        .select('prd_desc, grp_desc, qtd, valorfinal, trn_dtgerencial')
+        .from('vendas_item')
+        .select('produto_desc, grupo_desc, quantidade, valor, data_venda')
         .eq('bar_id', barId)
-        .in('comandaorigem', comandas)
-        .in('trn_dtgerencial', datas)
+        .in('data_venda', datas)
 
       if (!itensConsumo || itensConsumo.length === 0) {
         return NextResponse.json({
@@ -118,10 +110,10 @@ export async function GET(request: NextRequest) {
       let totalValor = 0
 
       for (const item of itensConsumo) {
-        const produto = item.prd_desc || 'Produto'
-        const categoria = item.grp_desc || 'Outros'
-        const qtd = parseFloat(item.qtd) || 0
-        const valor = parseFloat(item.valorfinal) || 0
+        const produto = item.produto_desc || 'Produto'
+        const categoria = item.grupo_desc || 'Outros'
+        const qtd = parseFloat(item.quantidade) || 0
+        const valor = parseFloat(item.valor) || 0
 
         // Ignorar insumos
         if (produto.startsWith('[IN]') || produto.startsWith('[PD]') || produto.startsWith('[DD]')) continue
@@ -147,7 +139,7 @@ export async function GET(request: NextRequest) {
       // Montar perfil em tempo real
       const perfilTempoReal = {
         telefone: telefoneNormalizado,
-        nome: vendas[0]?.cli_nome || 'Cliente',
+        nome: vendas[0]?.cliente_nome || 'Cliente',
         total_visitas: datas.length,
         total_itens_consumidos: Math.round(totalItens),
         valor_total_consumo: Math.round(totalValor * 100) / 100,

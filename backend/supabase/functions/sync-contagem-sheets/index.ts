@@ -2,6 +2,15 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 import * as XLSX from 'https://esm.sh/xlsx@0.18.5'
 import { getGoogleAccessToken, downloadDriveFileAsExcel, parseDataBR } from '../_shared/google-auth.ts'
+import { 
+  getSyncBaseline, 
+  validateSheetStructure, 
+  updateSyncBaseline,
+  createValidationError,
+  logValidationResult,
+  isValidationError
+} from '../_shared/sheets-validation.ts'
+import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
 
 /**
  * 📦 EDGE FUNCTION - SYNC-CONTAGEM-SHEETS
@@ -17,7 +26,11 @@ import { getGoogleAccessToken, downloadDriveFileAsExcel, parseDataBR } from '../
  * 5. Extrai estoque_fechado, estoque_flutuante, pedido para cada insumo/data
  * 6. Upsert na tabela contagem_estoque_insumos
  * 
- * @version 1.0.0
+ * v2.0: BLOCO 3A - Agora lê layout_contagem de api_credentials.configuracoes
+ *       Fallback para mapeamento hardcoded se não encontrar no banco.
+ * 
+ * @version 2.0.0
+ * @date 2026-03-19
  */
 
 const corsHeaders = {
@@ -48,9 +61,9 @@ function gerarCodigoAuto(nome: string): string {
 }
 
 /**
- * Configuração específica por bar para mapeamento da planilha
+ * Configuração de layout da planilha de contagem
  */
-interface BarSheetConfig {
+interface LayoutContagemType {
   linhasDatas: number       // Índice da linha que contém as datas
   linhaCabecalhos: number   // Índice da linha de cabeçalhos
   linhaInicio: number       // Índice da primeira linha de dados
@@ -61,29 +74,17 @@ interface BarSheetConfig {
   colunasPorData: number    // Quantas colunas por data (3 = fechado, flutuante, pedido | 2 = fechado, flutuante)
 }
 
-const CONFIG_POR_BAR: Record<number, BarSheetConfig> = {
-  // Ordinário
-  3: {
-    linhasDatas: 3,        // Linha 4 (índice 3)
-    linhaCabecalhos: 5,    // Linha 6 (índice 5)
-    linhaInicio: 6,        // Linha 7 (índice 6)
-    colunaPreco: 0,        // Coluna A
-    colunaCodigo: 3,       // Coluna D
-    colunaCategoria: 4,    // Coluna E
-    colunaNome: 6,         // Coluna G
-    colunasPorData: 3,     // ESTOQUE FECHADO, ESTOQUE FLUTUANTE, PEDIDO (colunas a cada 3)
-  },
-  // Deboche - estrutura igual ao Ordinário, datas na linha 4 (índice 3)
-  4: {
-    linhasDatas: 3,        // Linha 4 (índice 3) - IGUAL ao Ordinário!
-    linhaCabecalhos: 5,    // Linha 6 (índice 5)
-    linhaInicio: 6,        // Linha 7 (índice 6)
-    colunaPreco: 0,        // Coluna A
-    colunaCodigo: 3,       // Coluna D
-    colunaCategoria: 4,    // Coluna E
-    colunaNome: 6,         // Coluna G
-    colunasPorData: 2,     // ESTOQUE FECHADO, ESTOQUE FLUTUANTE (colunas a cada 2)
-  },
+// ====== FALLBACK (usado se banco não tiver configuração) ======
+// Este fallback usa valores do Ordinário (bar 3) como padrão seguro
+const FALLBACK_LAYOUT_CONTAGEM: LayoutContagemType = {
+  linhasDatas: 3,        // Linha 4 (índice 3)
+  linhaCabecalhos: 5,    // Linha 6 (índice 5)
+  linhaInicio: 6,        // Linha 7 (índice 6)
+  colunaPreco: 0,        // Coluna A
+  colunaCodigo: 3,       // Coluna D
+  colunaCategoria: 4,    // Coluna E
+  colunaNome: 6,         // Coluna G
+  colunasPorData: 3,     // ESTOQUE FECHADO, ESTOQUE FLUTUANTE, PEDIDO (colunas a cada 3)
 }
 
 interface ContagemData {
@@ -164,6 +165,14 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  let heartbeatId: number | null = null
+  let startTime: number = Date.now()
+
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  )
+
   try {
     const url = new URL(req.url)
     const dataParam = url.searchParams.get('data') || new Date().toISOString().split('T')[0]
@@ -172,11 +181,10 @@ serve(async (req) => {
     
     console.log(`📦 sync-contagem-sheets iniciado`)
     console.log(`📅 Data base: ${dataParam}, dias atrás: ${diasAtras}`)
-    
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
+
+    const hbResult = await heartbeatStart(supabase, 'sync-contagem-sheets', barIdParam ? parseInt(barIdParam) : null, null, 'pgcron')
+    heartbeatId = hbResult.heartbeatId
+    startTime = hbResult.startTime
 
     // Calcular datas para processar
     const datasProcessar: string[] = []
@@ -258,9 +266,40 @@ serve(async (req) => {
           continue
         }
 
-        // Obter configuração específica do bar
-        const config = CONFIG_POR_BAR[barId] || CONFIG_POR_BAR[3] // Default: Ordinário
-        console.log(`  ⚙️ Config Bar ${barId}: datas linha ${config.linhasDatas}, dados linha ${config.linhaInicio}, ${config.colunasPorData} cols/data`)
+        // BLOCO 3A: Lê layout_contagem do banco, fallback para hardcoded
+        const layoutFromDb = config?.layout_contagem as LayoutContagemType | undefined
+        const barConfig: LayoutContagemType = layoutFromDb || FALLBACK_LAYOUT_CONTAGEM
+        
+        if (layoutFromDb) {
+          console.log(`📋 [LAYOUT] Bar ${barId}: usando configuração do banco`)
+        } else {
+          console.log(`⚠️ [LAYOUT] Bar ${barId}: usando fallback hardcoded`)
+        }
+        
+        // ========== VALIDAÇÃO ESTRUTURAL ==========
+        const baseline = await getSyncBaseline(supabase, 'contagem', barId, abaInsumos)
+        
+        // Usar linha de cabeçalhos da configuração do bar
+        const validationResult = validateSheetStructure(jsonData, baseline, {
+          headerRowIndex: barConfig.linhaCabecalhos,
+          allowEmptyBaseline: true
+        })
+        
+        logValidationResult('contagem', barId, validationResult)
+        
+        if (!validationResult.valid) {
+          const errorMsg = validationResult.errors.map(e => e.message).join('; ')
+          resultados.push({
+            bar_id: barId,
+            error: `VALIDATION_FAILED: ${errorMsg}`,
+            validation_details: validationResult
+          })
+          continue
+        }
+        // ========== FIM VALIDAÇÃO ==========
+        
+        // Log da configuração de layout
+        console.log(`  ⚙️ Layout Bar ${barId}: datas linha ${barConfig.linhasDatas}, dados linha ${barConfig.linhaInicio}, ${barConfig.colunasPorData} cols/data`)
 
         // ========================================
         // ETAPA 1: CADASTRAR/ATUALIZAR INSUMOS DO BAR
@@ -272,13 +311,13 @@ serve(async (req) => {
         // Mapa para detectar códigos duplicados - conta quantas vezes cada código apareceu
         const codigosContador = new Map<string, number>() // codigo -> contador
         
-        for (let row = config.linhaInicio; row < jsonData.length; row++) {
+        for (let row = barConfig.linhaInicio; row < jsonData.length; row++) {
           const linha = jsonData[row]
-          if (!linha || linha.length < config.colunaNome + 1) continue
+          if (!linha || linha.length < barConfig.colunaNome + 1) continue
 
-          const codigoRaw = String(linha[config.colunaCodigo] || '').trim()
-          const nome = String(linha[config.colunaNome] || '').trim()
-          const categoria = String(linha[config.colunaCategoria] || '').trim()
+          const codigoRaw = String(linha[barConfig.colunaCodigo] || '').trim()
+          const nome = String(linha[barConfig.colunaNome] || '').trim()
+          const categoria = String(linha[barConfig.colunaCategoria] || '').trim()
           
           if (!nome) continue
 
@@ -301,7 +340,7 @@ serve(async (req) => {
           codigosContador.set(codigoBase, contador + 1)
 
           // Parse do preço
-          let precoRaw = linha[config.colunaPreco]
+          let precoRaw = linha[barConfig.colunaPreco]
           let preco = 0
           
           if (typeof precoRaw === 'number') {
@@ -381,7 +420,7 @@ serve(async (req) => {
         console.log(`  📊 Etapa 2: Processando contagens de estoque...`)
 
         // Linha de datas conforme configuração do bar
-        const linhaDatas = jsonData[config.linhasDatas] || []
+        const linhaDatas = jsonData[barConfig.linhasDatas] || []
         
         // Mapear colunas por data
         const colunasPorData = new Map<string, number>()
@@ -428,13 +467,13 @@ serve(async (req) => {
         // Contador de códigos para contagens (mesma lógica de duplicatas)
         const codigosContadorContagem = new Map<string, number>()
 
-        for (let row = config.linhaInicio; row < jsonData.length; row++) {
+        for (let row = barConfig.linhaInicio; row < jsonData.length; row++) {
           const linha = jsonData[row]
-          if (!linha || linha.length < config.colunaNome + 1) continue
+          if (!linha || linha.length < barConfig.colunaNome + 1) continue
 
-          const codigoRaw = String(linha[config.colunaCodigo] || '').trim()
-          const nome = String(linha[config.colunaNome] || '').trim()
-          const categoria = String(linha[config.colunaCategoria] || '').trim()
+          const codigoRaw = String(linha[barConfig.colunaCodigo] || '').trim()
+          const nome = String(linha[barConfig.colunaNome] || '').trim()
+          const categoria = String(linha[barConfig.colunaCategoria] || '').trim()
 
           if (!nome) continue
 
@@ -464,7 +503,7 @@ serve(async (req) => {
           for (const [dataStr, colIndex] of colunasPorData.entries()) {
             const estoqueFechado = parseFloat(String(linha[colIndex] || '0').replace(',', '.')) || 0
             const estoqueFlutuante = parseFloat(String(linha[colIndex + 1] || '0').replace(',', '.')) || 0
-            const pedido = config.colunasPorData >= 3 
+            const pedido = barConfig.colunasPorData >= 3 
               ? parseFloat(String(linha[colIndex + 2] || '0').replace(',', '.')) || 0 
               : 0
 
@@ -534,8 +573,17 @@ serve(async (req) => {
           }
 
           console.log(`✅ Bar ${barId}: ${novos} upserted, ${errors} erros`)
+          
+          // Atualizar baseline após sync bem-sucedido
+          const headerRow = jsonData[barConfig.linhaCabecalhos] || []
+          await updateSyncBaseline(supabase, 'contagem', barId, abaInsumos, {
+            row_count: jsonData.length - barConfig.linhaInicio,
+            column_count: headerRow.length,
+            headers: headerRow.slice(0, 10).map((h: any) => String(h || ''))
+          })
 
           // Gravar histórico simplificado (uma entrada por data)
+          const datasProcessadas = Array.from(colunasPorData.keys())
           for (const dataStr of datasProcessadas) {
             const qtdData = contagensParaInserir.filter(c => c.data_contagem === dataStr).length
             await supabase
@@ -570,11 +618,16 @@ serve(async (req) => {
           })
         }
 
-      } catch (barError) {
+      } catch (barError: any) {
         console.error(`❌ Erro ao processar Bar ${barId}:`, barError)
+        
+        const errorType = isValidationError(barError) ? 'VALIDATION_FAILED' : 'SYNC_ERROR'
+        
         resultados.push({
           bar_id: barId,
-          error: barError instanceof Error ? barError.message : 'Erro desconhecido'
+          error: barError instanceof Error ? barError.message : 'Erro desconhecido',
+          error_type: errorType,
+          validation_details: barError?.validation || null
         })
       }
     }
@@ -582,6 +635,9 @@ serve(async (req) => {
     // Após sincronizar contagens, calcular estoques semanais para CMV
     console.log('\n📊 Calculando estoques semanais para CMV...')
     await calcularEstoquesSemanaais(supabase, datasProcessar)
+
+    const totalRegistros = resultados.reduce((acc: number, r: any) => acc + (r.contagens_novas || 0), 0)
+    await heartbeatEnd(supabase, heartbeatId, 'success', startTime, totalRegistros, { datas_processadas: datasProcessar.length, bares: resultados.length })
 
     return new Response(JSON.stringify({
       success: true,
@@ -595,6 +651,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Erro geral:', error)
+    await heartbeatError(supabase, heartbeatId, startTime, error instanceof Error ? error : String(error))
     return new Response(JSON.stringify({
       success: false,
       error: error instanceof Error ? error.message : 'Erro desconhecido',
@@ -671,13 +728,22 @@ async function calcularEstoquesSemanaais(
   const semanas = Array.from(semanasSet)
   console.log(`  📆 Semanas para atualizar: ${semanas.join(', ')}`)
 
+  // Buscar bares ativos do banco
+  const { data: baresAtivos } = await supabase
+    .from('bares')
+    .select('id')
+    .eq('ativo', true)
+    .order('id')
+  
+  const barIds = baresAtivos?.map((b: { id: number }) => b.id) || [3, 4]
+
   for (const semanaInicio of semanas) {
     const semanaFim = new Date(semanaInicio + 'T12:00:00Z')
     semanaFim.setDate(semanaFim.getDate() + 6)
     const semanaFimStr = semanaFim.toISOString().split('T')[0]
 
     // Para cada bar
-    for (const barId of [3, 4]) {
+    for (const barId of barIds) {
       // Buscar primeiro dia da semana com dados
       const { data: primeiroDia } = await supabase
         .from('contagem_estoque_insumos')

@@ -6,8 +6,6 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const { data_inicio, data_fim, bar_id } = body;
-    console.log('🔄 Iniciando sincronização NPS Reservas...', data_inicio || data_fim ? `(retroativo: ${data_inicio || '-'} a ${data_fim || '-'})` : '');
-
     const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/google-sheets-sync`;
     
     const response = await fetch(functionUrl, {
@@ -26,7 +24,6 @@ export async function POST(request: Request) {
     }
 
     const result = await response.json();
-    console.log('✅ Sincronização de Reservas concluída:', result);
 
     return NextResponse.json(result);
   } catch (error: any) {

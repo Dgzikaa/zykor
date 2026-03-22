@@ -9,7 +9,14 @@ const supabase = createClient(
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const barId = searchParams.get('bar_id') || '3';
+    const barIdParam = searchParams.get('bar_id');
+    if (!barIdParam) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
+    const barId = barIdParam;
     const tipo = searchParams.get('tipo');
     const limite = parseInt(searchParams.get('limite') || '50');
     const incluirPadroes = searchParams.get('padroes') === 'true';
@@ -119,7 +126,14 @@ export async function PUT(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { acao, bar_id = 3 } = body;
+    const { acao, bar_id } = body;
+
+    if (!bar_id) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
 
     if (acao === 'detectar_padroes') {
       // Chamar Edge Function de detecção de padrões

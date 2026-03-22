@@ -35,12 +35,12 @@ Você pode conversar naturalmente, analisar dados, criar gráficos, ler arquivos
 
 ## TABELAS PRINCIPAIS DISPONÍVEIS:
 
-📊 **VENDAS & FINANCEIRO (DIAS NORMAIS - ContaHub):**
-- **contahub_periodo**: 41.949 registros de vendas agregadas por período
-- **contahub_pagamentos**: Pagamentos individuais detalhados (PIX, cartão, dinheiro)
-- **contahub_analitico**: Produtos vendidos em dias normais (seg-sáb)
-- **contahub_fatporhora**: Faturamento por hora detalhado
-- **contahub_tempo**: Tempo de produção/preparo de cada produto
+📊 **VENDAS & FINANCEIRO (DIAS NORMAIS):**
+- **visitas**: Registros de vendas agregadas por período
+- **faturamento_pagamentos**: Pagamentos individuais detalhados (PIX, cartão, dinheiro)
+- **vendas_item**: Produtos vendidos em dias normais (seg-sáb)
+- **faturamento_hora**: Faturamento por hora detalhado
+- **tempos_producao**: Tempo de produção/preparo de cada produto
 
 🎪 **EVENTOS & DOMINGOS (Yuzer/Sympla):**
 - **eventos_base**: 154 eventos com receita, público e performance
@@ -56,12 +56,12 @@ Você pode conversar naturalmente, analisar dados, criar gráficos, ler arquivos
 
 ## LÓGICA DE DADOS POR CONTEXTO:
 🗓️ **DIAS NORMAIS (Segunda a Sábado):**
-- Faturamento: \`contahub_periodo\`
-- Produtos: \`contahub_analitico\`
-- Pagamentos: \`contahub_pagamentos\`
-- Clientes: \`contahub_periodo\` (campo pessoas)
-- Tempo produção: \`contahub_tempo\`
-- Faturamento/hora: \`contahub_fatporhora\`
+- Faturamento: \`visitas\`
+- Produtos: \`vendas_item\`
+- Pagamentos: \`faturamento_pagamentos\`
+- Clientes: \`visitas\` (campo pessoas)
+- Tempo produção: \`tempos_producao\`
+- Faturamento/hora: \`faturamento_hora\`
 - Reservas: \`getin_reservas\`
 
 🎭 **DOMINGOS/EVENTOS:**
@@ -190,17 +190,13 @@ export async function POST(request: NextRequest) {
 
     // Tentar usar Claude (API real)
     try {
-      console.log('🔑 Verificando ANTHROPIC_API_KEY:', !!process.env.ANTHROPIC_API_KEY);
-      
       if (!process.env.ANTHROPIC_API_KEY) {
-        console.log('❌ API Key não encontrada, usando fallback');
         return NextResponse.json(await getAdvancedFallback(message));
       }
 
       // Validar formato da API key
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey.startsWith('sk-ant-api')) {
-        console.log('❌ Formato de API Key inválido, usando fallback');
         return NextResponse.json({
           success: true,
           message: `🔧 **API Key Configuração**
@@ -226,8 +222,6 @@ A API key do Anthropic está presente mas com formato incorreto.
           suggestions: ["🔧 Verificar configuração", "📊 Análise básica", "💡 Como configurar API"]
         });
       }
-      
-      console.log('✅ Claude API disponível e configurada, processando...');
 
       const Anthropic = (await import('@anthropic-ai/sdk')).default;
       const anthropic = new Anthropic({
@@ -323,8 +317,6 @@ A API key do Anthropic está presente mas com formato incorreto.
       } as AssistantResponse);
 
     } catch (claudeError: any) {
-      console.log('Claude API Error:', claudeError.message);
-      
       // Tratamento específico de erro 401 (unauthorized)
       if (claudeError.status === 401 || claudeError.message?.includes('401')) {
         return NextResponse.json({
@@ -373,7 +365,7 @@ async function executeTool(toolName: string, input: any) {
     switch (toolName) {
       case 'execute_sql_query': {
         const { data, error } = await supabase
-          .from('contahub_periodo') // Usar uma tabela como base
+          .from('visitas') // Usar uma tabela como base
           .select('*')
           .limit(0); // Query vazia só para testar conexão
         
@@ -413,10 +405,9 @@ async function executeTool(toolName: string, input: any) {
         const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
         
         const agenteName = input.agente;
-        const barId = input.bar_id || 3; // Default bar_id
-        
-        console.log(`🤖 Chamando agente especializado: ${agenteName}`);
-        
+        const barId = input.bar_id;
+        if (!barId) return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
+
         // Montar payload baseado no agente
         let payload: any = {
           mensagem: input.mensagem,
@@ -474,8 +465,7 @@ async function executeTool(toolName: string, input: any) {
           }
           
           const resultado = await response.json();
-          console.log(`✅ Agente ${agenteName} respondeu com sucesso`);
-          
+
           return {
             success: true,
             type: 'agent_response',
@@ -510,14 +500,14 @@ async function executeCustomQuery(query: string) {
   try {
     const lowerQuery = query.toLowerCase();
     
-    // Análise de vendas - ContaHub
-    if (lowerQuery.includes('vendas') || lowerQuery.includes('contahub_periodo')) {
+    // Análise de vendas - visitas
+    if (lowerQuery.includes('vendas') || lowerQuery.includes('visitas')) {
       const { data, error } = await supabase
-        .from('contahub_periodo')
-        .select('dt_gerencial, total_liquido, total_bruto, pessoas, desconto')
+        .from('visitas')
+        .select('data_visita, valor_pagamentos, pessoas, valor_desconto')
         .eq('bar_id', 3)
-        .gte('dt_gerencial', '2024-01-01')
-        .order('dt_gerencial', { ascending: false })
+        .gte('data_visita', '2024-01-01')
+        .order('data_visita', { ascending: false })
         .limit(50);
       
       return {
@@ -527,7 +517,7 @@ async function executeCustomQuery(query: string) {
         summary: {
           total_registros: data?.length || 0,
           periodo: '2024-presente',
-          tabela: 'contahub_periodo'
+          tabela: 'visitas'
         }
       };
     }
@@ -644,7 +634,7 @@ async function executeCustomQuery(query: string) {
     if (lowerQuery.includes('geral') || lowerQuery.includes('resumo') || lowerQuery.includes('dashboard')) {
       // Buscar dados consolidados de múltiplas fontes
       const [vendas, eventos, produtos] = await Promise.all([
-        supabase.from('contahub_periodo').select('dt_gerencial, total_liquido, pessoas').eq('bar_id', 3).gte('dt_gerencial', '2024-08-01').limit(10),
+        supabase.from('visitas').select('data_visita, valor_pagamentos, pessoas').eq('bar_id', 3).gte('data_visita', '2024-08-01').limit(10),
         supabase.from('eventos_base').select('data_evento, artista, receita_total, publico_total').eq('bar_id', 3).order('data_evento', { ascending: false }).limit(5),
         supabase.from('yuzer_produtos').select('produto, categoria, quantidade, valor_total').eq('bar_id', 3).gte('data_evento', '2024-08-01').limit(10)
       ]);
@@ -702,12 +692,12 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
       const periodo = getPeriodo(lowerMessage);
       
       const { data: faturamento } = await supabase
-        .from('contahub_periodo')
-        .select('dt_gerencial, total_liquido, total_bruto')
+        .from('visitas')
+        .select('data_visita, valor_pagamentos')
         .eq('bar_id', 3)
-        .gte('dt_gerencial', periodo.start)
-        .lte('dt_gerencial', periodo.end)
-        .order('dt_gerencial', { ascending: true });
+        .gte('data_visita', periodo.start)
+        .lte('data_visita', periodo.end)
+        .order('data_visita', { ascending: true });
 
       if (!faturamento || faturamento.length === 0) {
         return {
@@ -718,22 +708,21 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
       }
 
       const chartData = faturamento.map(item => ({
-        name: new Date(item.dt_gerencial).toLocaleDateString('pt-BR'),
-        value: parseFloat(item.total_liquido?.toString() || '0'),
-        bruto: parseFloat(item.total_bruto?.toString() || '0')
+        name: new Date(item.data_visita).toLocaleDateString('pt-BR'),
+        value: parseFloat(item.valor_pagamentos?.toString() || '0'),
+        bruto: 0
       }));
 
-      const totalLiquido = faturamento.reduce((sum, item) => sum + parseFloat(item.total_liquido?.toString() || '0'), 0);
-      const totalBruto = faturamento.reduce((sum, item) => sum + parseFloat(item.total_bruto?.toString() || '0'), 0);
+      const totalLiquido = faturamento.reduce((sum, item) => sum + parseFloat(item.valor_pagamentos?.toString() || '0'), 0);
 
       return {
         success: true,
-        message: `📊 **Gráfico de Faturamento - ${periodo.nome}**\n\n💰 **Resumo (ContaHub):**\n• Total Líquido: R$ ${totalLiquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n• Total Bruto: R$ ${totalBruto.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n• Registros: ${faturamento.length} dias\n\n📈 **Fonte:** contahub_periodo`,
+        message: `📊 **Gráfico de Faturamento - ${periodo.nome}**\n\n💰 **Resumo:**\n• Total Pagamentos: R$ ${totalLiquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n• Registros: ${faturamento.length} dias\n\n📈 **Fonte:** visitas`,
         type: 'chart',
         chartData: {
           type: 'line',
           title: `Faturamento - ${periodo.nome}`,
-          description: `Evolução do faturamento líquido em ${periodo.nome}`,
+          description: `Evolução do faturamento em ${periodo.nome}`,
           data: chartData
         },
         chartType: 'line',
@@ -761,15 +750,15 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
         produtos = data;
         fonte = 'yuzer_produtos (Eventos/Domingos)';
       } else {
-        // DIAS NORMAIS: Usar contahub_analitico
+        // DIAS NORMAIS: Usar vendas_item
         const { data } = await supabase
-          .from('contahub_analitico')
-          .select('produto, categoria, quantidade, valor_total, dt_gerencial')
+          .from('vendas_item')
+          .select('produto_desc, grupo_desc, quantidade, valor, data_venda')
           .eq('bar_id', 3)
-          .gte('dt_gerencial', periodo.start)
-          .lte('dt_gerencial', periodo.end);
+          .gte('data_venda', periodo.start)
+          .lte('data_venda', periodo.end);
         produtos = data;
-        fonte = 'contahub_analitico (Dias normais)';
+        fonte = 'vendas_item (Dias normais)';
       }
 
       if (!produtos || produtos.length === 0) {
@@ -782,12 +771,12 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
 
       // Agrupar por produto
       const produtosAgrupados = produtos.reduce((acc: any, item) => {
-        const nome = item.produto || 'Produto sem nome';
+        const nome = item.produto || item.produto_desc || 'Produto sem nome';
         if (!acc[nome]) {
           acc[nome] = { quantidade: 0, valor: 0 };
         }
         acc[nome].quantidade += parseInt(item.quantidade?.toString() || '0');
-        acc[nome].valor += parseFloat(item.valor_total?.toString() || '0');
+        acc[nome].valor += parseFloat(item.valor_total?.toString() || item.valor?.toString() || '0');
         return acc;
       }, {});
 
@@ -824,11 +813,11 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
       const periodo = getPeriodo(lowerMessage);
       
       const { data: pagamentos } = await supabase
-        .from('contahub_pagamentos')
-        .select('forma_pagamento, valor, dt_gerencial')
+        .from('faturamento_pagamentos')
+        .select('meio, valor_liquido, data_pagamento')
         .eq('bar_id', 3)
-        .gte('dt_gerencial', periodo.start)
-        .lte('dt_gerencial', periodo.end);
+        .gte('data_pagamento', periodo.start)
+        .lte('data_pagamento', periodo.end);
 
       if (!pagamentos || pagamentos.length === 0) {
         return {
@@ -840,11 +829,11 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
 
       // Agrupar por forma de pagamento
       const pagamentosAgrupados = pagamentos.reduce((acc: any, item) => {
-        const forma = item.forma_pagamento || 'Não informado';
+        const forma = item.meio || 'Não informado';
         if (!acc[forma]) {
           acc[forma] = { valor: 0, quantidade: 0 };
         }
-        acc[forma].valor += parseFloat(item.valor?.toString() || '0');
+        acc[forma].valor += parseFloat(item.valor_liquido?.toString() || '0');
         acc[forma].quantidade += 1;
         return acc;
       }, {});
@@ -857,11 +846,11 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
         }))
         .sort((a, b) => b.value - a.value);
 
-      const totalPagamentos = pagamentos.reduce((sum, p) => sum + parseFloat(p.valor?.toString() || '0'), 0);
+      const totalPagamentos = pagamentos.reduce((sum, p) => sum + parseFloat(p.valor_liquido?.toString() || '0'), 0);
 
       return {
         success: true,
-        message: `💳 **Análise de Pagamentos - ${periodo.nome}**\n\n💰 **Total:** R$ ${totalPagamentos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n📊 **Transações:** ${pagamentos.length}\n📈 **Fonte:** contahub_pagamentos`,
+        message: `💳 **Análise de Pagamentos - ${periodo.nome}**\n\n💰 **Total:** R$ ${totalPagamentos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n📊 **Transações:** ${pagamentos.length}\n📈 **Fonte:** faturamento_pagamentos`,
         type: 'chart',
         chartData: {
           type: 'pie',
@@ -894,16 +883,16 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
         clientes = data;
         fonte = 'sympla_participantes (Eventos/Domingos)';
       } else {
-        // DIAS NORMAIS: Usar contahub_periodo
+        // DIAS NORMAIS: Usar visitas
         const { data } = await supabase
-          .from('contahub_periodo')
-          .select('pessoas, dt_gerencial, total_liquido')
+          .from('visitas')
+          .select('pessoas, data_visita, valor_pagamentos')
           .eq('bar_id', 3)
           .gt('pessoas', 0)
-          .gte('dt_gerencial', periodo.start)
-          .lte('dt_gerencial', periodo.end);
+          .gte('data_visita', periodo.start)
+          .lte('data_visita', periodo.end);
         clientes = data;
-        fonte = 'contahub_periodo (Dias normais)';
+        fonte = 'visitas (Dias normais)';
       }
 
       if (!clientes || clientes.length === 0) {
@@ -934,11 +923,11 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
         }));
       } else {
         totalClientes = clientes.reduce((sum: number, c: any) => sum + parseInt(c.pessoas?.toString() || '0'), 0);
-        const totalReceita = clientes.reduce((sum: number, c: any) => sum + parseFloat(c.total_liquido?.toString() || '0'), 0);
+        const totalReceita = clientes.reduce((sum: number, c: any) => sum + parseFloat(c.valor_pagamentos?.toString() || '0'), 0);
         ticketMedio = totalClientes > 0 ? totalReceita / totalClientes : 0;
 
         chartData = clientes.map((item: any) => ({
-          name: new Date(item.dt_gerencial).toLocaleDateString('pt-BR'),
+          name: new Date(item.data_visita).toLocaleDateString('pt-BR'),
           value: parseInt(item.pessoas?.toString() || '0')
         }));
       }
@@ -967,27 +956,27 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
       const periodo = getPeriodo(lowerMessage);
       
       const { data: tempos } = await supabase
-        .from('contahub_tempo')
-        .select('produto, tempo_preparo, dt_gerencial, categoria')
+        .from('tempos_producao')
+        .select('produto_desc, t0_t3, data_producao, categoria')
         .eq('bar_id', 3)
-        .gte('dt_gerencial', periodo.start)
-        .lte('dt_gerencial', periodo.end);
+        .gte('data_producao', periodo.start)
+        .lte('data_producao', periodo.end);
 
       if (!tempos || tempos.length === 0) {
         return {
           success: true,
-          message: `⏰ **Nenhum dado de tempo encontrado para ${periodo.nome}**\n\n📈 **Fonte:** contahub_tempo`,
+          message: `⏰ **Nenhum dado de tempo encontrado para ${periodo.nome}**\n\n📈 **Fonte:** tempos_producao`,
           type: 'text'
         };
       }
 
-      // Agrupar por produto e calcular tempo médio
+      // Agrupar por produto e calcular tempo médio (t0_t3 = tempo total lançamento → entrega)
       const temposAgrupados = tempos.reduce((acc: any, item) => {
-        const produto = item.produto || 'Produto sem nome';
+        const produto = item.produto_desc || 'Produto sem nome';
         if (!acc[produto]) {
           acc[produto] = { tempos: [], categoria: item.categoria };
         }
-        acc[produto].tempos.push(parseInt(item.tempo_preparo?.toString() || '0'));
+        acc[produto].tempos.push(parseFloat(item.t0_t3?.toString() || '0'));
         return acc;
       }, {});
 
@@ -1003,11 +992,11 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
         .sort((a, b) => b.value - a.value)
         .slice(0, 15);
 
-      const tempoMedioGeral = tempos.reduce((sum, t) => sum + parseInt(t.tempo_preparo?.toString() || '0'), 0) / tempos.length;
+      const tempoMedioGeral = tempos.reduce((sum, t) => sum + parseFloat(t.t0_t3?.toString() || '0'), 0) / tempos.length;
 
       return {
         success: true,
-        message: `⏰ **Análise de Tempo de Produção - ${periodo.nome}**\n\n📊 **Registros:** ${tempos.length}\n⏱️ **Tempo Médio Geral:** ${Math.round(tempoMedioGeral)} min\n📈 **Fonte:** contahub_tempo`,
+        message: `⏰ **Análise de Tempo de Produção - ${periodo.nome}**\n\n📊 **Registros:** ${tempos.length}\n⏱️ **Tempo Médio Geral:** ${Math.round(tempoMedioGeral)} min\n📈 **Fonte:** tempos_producao`,
         type: 'chart',
         chartData: {
           type: 'bar',
@@ -1029,27 +1018,27 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
       const periodo = getPeriodo(lowerMessage);
       
       const { data: fatPorHora } = await supabase
-        .from('contahub_fatporhora')
-        .select('hora, faturamento, dt_gerencial')
+        .from('faturamento_hora')
+        .select('hora, valor, data_venda')
         .eq('bar_id', 3)
-        .gte('dt_gerencial', periodo.start)
-        .lte('dt_gerencial', periodo.end);
+        .gte('data_venda', periodo.start)
+        .lte('data_venda', periodo.end);
 
       if (!fatPorHora || fatPorHora.length === 0) {
         return {
           success: true,
-          message: `⏰ **Nenhum dado de faturamento por hora encontrado para ${periodo.nome}**\n\n📈 **Fonte:** contahub_fatporhora`,
+          message: `⏰ **Nenhum dado de faturamento por hora encontrado para ${periodo.nome}**\n\n📈 **Fonte:** faturamento_hora`,
           type: 'text'
         };
       }
 
-      // Agrupar por hora
+      // Agrupar por hora (hora é integer na nova tabela)
       const fatPorHoraAgrupado = fatPorHora.reduce((acc: any, item) => {
-        const hora = item.hora || '00:00';
+        const hora = item.hora?.toString().padStart(2, '0') + ':00' || '00:00';
         if (!acc[hora]) {
           acc[hora] = { faturamento: 0, registros: 0 };
         }
-        acc[hora].faturamento += parseFloat(item.faturamento?.toString() || '0');
+        acc[hora].faturamento += parseFloat(item.valor?.toString() || '0');
         acc[hora].registros += 1;
         return acc;
       }, {});
@@ -1057,17 +1046,17 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
       const chartData = Object.entries(fatPorHoraAgrupado)
         .map(([hora, dados]: [string, any]) => ({
           name: hora,
-          value: Math.round(dados.faturamento / dados.registros), // Média por hora
+          value: Math.round(dados.faturamento / dados.registros),
           total: dados.faturamento
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
 
-      const totalFaturamento = fatPorHora.reduce((sum, f) => sum + parseFloat(f.faturamento?.toString() || '0'), 0);
+      const totalFaturamento = fatPorHora.reduce((sum, f) => sum + parseFloat(f.valor?.toString() || '0'), 0);
       const horaPico = chartData.reduce((max, curr) => curr.value > max.value ? curr : max, chartData[0]);
 
       return {
         success: true,
-        message: `⏰ **Faturamento por Hora - ${periodo.nome}**\n\n💰 **Total:** R$ ${totalFaturamento.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n🎯 **Hora Pico:** ${horaPico?.name} (R$ ${horaPico?.value.toLocaleString('pt-BR')})\n📈 **Fonte:** contahub_fatporhora`,
+        message: `⏰ **Faturamento por Hora - ${periodo.nome}**\n\n💰 **Total:** R$ ${totalFaturamento.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n🎯 **Hora Pico:** ${horaPico?.name} (R$ ${horaPico?.value.toLocaleString('pt-BR')})\n📈 **Fonte:** faturamento_hora`,
         type: 'chart',
         chartData: {
           type: 'bar',
@@ -1087,20 +1076,19 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
   if (lowerMessage.includes('vendas') || lowerMessage.includes('venda')) {
     try {
       const { data: vendas } = await supabase
-        .from('contahub_periodo')
-        .select('dt_gerencial, total_liquido, total_bruto, pessoas')
+        .from('visitas')
+        .select('data_visita, valor_pagamentos, pessoas')
         .eq('bar_id', 3)
-        .gte('dt_gerencial', '2024-01-01')
-        .order('dt_gerencial', { ascending: false })
+        .gte('data_visita', '2024-01-01')
+        .order('data_visita', { ascending: false })
         .limit(30);
 
-      const totalLiquido = vendas?.reduce((sum, v) => sum + (parseFloat(v.total_liquido?.toString() || '0')), 0) || 0;
-      const totalBruto = vendas?.reduce((sum, v) => sum + (parseFloat(v.total_bruto?.toString() || '0')), 0) || 0;
+      const totalLiquido = vendas?.reduce((sum, v) => sum + (parseFloat(v.valor_pagamentos?.toString() || '0')), 0) || 0;
       const totalPessoas = vendas?.reduce((sum, v) => sum + (parseInt(v.pessoas?.toString() || '0')), 0) || 0;
 
       return {
         success: true,
-        message: `📊 **Análise de Vendas Completa**\n\n💰 **Últimos 30 registros:**\n• Total Líquido: R$ ${totalLiquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n• Total Bruto: R$ ${totalBruto.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n• Total Pessoas: ${totalPessoas.toLocaleString('pt-BR')}\n\n📈 **Ticket Médio:** R$ ${totalPessoas > 0 ? (totalLiquido / totalPessoas).toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '0,00'}\n\n✨ **Sistema SGB com IA Inteligente ativado!**`,
+        message: `📊 **Análise de Vendas Completa**\n\n💰 **Últimos 30 registros:**\n• Total Pagamentos: R$ ${totalLiquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n• Total Pessoas: ${totalPessoas.toLocaleString('pt-BR')}\n\n📈 **Ticket Médio:** R$ ${totalPessoas > 0 ? (totalLiquido / totalPessoas).toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '0,00'}\n\n✨ **Sistema SGB com IA Inteligente ativado!**`,
         type: 'text',
         suggestions: ["📊 Gráfico de vendas", "🎯 Produtos mais vendidos", "📈 Gráfico de crescimento", "👥 Análise de clientes"]
       };
@@ -1113,11 +1101,11 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
   if (lowerMessage.includes('cliente') || lowerMessage.includes('pessoa')) {
     try {
       const { data: clientes } = await supabase
-        .from('contahub_periodo')
-        .select('pessoas, dt_gerencial')
+        .from('visitas')
+        .select('pessoas, data_visita')
         .eq('bar_id', 3)
         .gt('pessoas', 0)
-        .order('dt_gerencial', { ascending: false });
+        .order('data_visita', { ascending: false });
 
       const clientesUnicos = new Set(clientes?.map(c => c.pessoas) || []).size;
       const totalRegistros = clientes?.length || 0;
@@ -1144,10 +1132,10 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
 
 async function getBasicFallback(message: string): Promise<AssistantResponse> {
   // Tentar responder perguntas básicas sobre dados
-  if (message.toLowerCase().includes('contahub_periodo') || message.toLowerCase().includes('clientes') || message.toLowerCase().includes('pessoas')) {
+  if (message.toLowerCase().includes('visitas') || message.toLowerCase().includes('clientes') || message.toLowerCase().includes('pessoas')) {
     try {
       const { data: totalClientes } = await supabase
-        .from('contahub_periodo')
+        .from('visitas')
         .select('pessoas')
         .gt('pessoas', 0);
 
@@ -1155,7 +1143,7 @@ async function getBasicFallback(message: string): Promise<AssistantResponse> {
 
       return {
         success: true,
-        message: `📊 **Análise de Clientes - ContaHub**\n\n**Total de registros únicos:** ${clientesUnicos} clientes diferentes\n\n**Sua pergunta:** "${message}"\n\n---\n\n🤖 **Claude AI com API key inválida**\n\nPara ter acesso completo:\n1. **Gere nova API key** em: https://console.anthropic.com/\n2. **Substitua no .env.local**\n3. **Reinicie o servidor**\n\n*Análise básica fornecida com dados reais do sistema.*`,
+        message: `📊 **Análise de Clientes - Visitas**\n\n**Total de registros únicos:** ${clientesUnicos} clientes diferentes\n\n**Sua pergunta:** "${message}"\n\n---\n\n🤖 **Claude AI com API key inválida**\n\nPara ter acesso completo:\n1. **Gere nova API key** em: https://console.anthropic.com/\n2. **Substitua no .env.local**\n3. **Reinicie o servidor**\n\n*Análise básica fornecida com dados reais do sistema.*`,
         type: 'text',
         suggestions: [
           "📊 Vendas hoje",

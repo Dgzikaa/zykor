@@ -42,7 +42,6 @@ async function getCurrentWeekNumber(supabase: any, barId: number) {
     
     return semanaAtual?.numero_semana || 31; // fallback para semana 31
   } catch (error) {
-    console.log('⚠️ Erro ao buscar semana atual, usando fallback 31');
     return 31;
   }
 }
@@ -53,9 +52,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { ate_semana } = body;
     
-    const barId = request.headers.get('x-user-data')
-      ? JSON.parse(request.headers.get('x-user-data') || '{}').bar_id
-      : null;
+    const barIdHeader = request.headers.get('x-selected-bar-id');
+    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
 
     if (!barId) {
       return NextResponse.json(
@@ -69,9 +67,6 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
-
-    console.log('📅 Criando semanas faltantes...');
-    console.log('Bar ID:', barId);
 
     // Buscar a última semana existente
     const { data: ultimaSemana, error: ultimaError } = await supabase
@@ -93,9 +88,6 @@ export async function POST(request: Request) {
 
     const ultimaSemanaCriada = ultimaSemana?.numero_semana || 0;
     const semanaFinal = 52; // CRIAR TODAS AS 52 SEMANAS DO ANO
-    
-    console.log(`📊 Última semana criada: ${ultimaSemanaCriada}`);
-    console.log(`📅 Criando até semana: ${semanaFinal} (ano completo)`);
 
     if (ultimaSemanaCriada >= semanaFinal) {
       return NextResponse.json({
@@ -110,9 +102,7 @@ export async function POST(request: Request) {
     
     for (let semana = ultimaSemanaCriada + 1; semana <= semanaFinal; semana++) {
       const { start, end } = getWeekDates(2025, semana);
-      
-      console.log(`📝 Preparando Semana ${semana}: ${start} - ${end}`);
-      
+
       (semanasParaCriar as any).push({
         bar_id: barId,
         ano: 2025,
@@ -161,8 +151,6 @@ export async function POST(request: Request) {
       });
     }
 
-    console.log(`💾 Inserindo ${semanasParaCriar.length} semana(s) no banco...`);
-
     // Inserir as semanas no banco
     const { data: semanasInseridas, error: insertError } = await supabase
       .from('desempenho_semanal')
@@ -176,8 +164,6 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
-
-    console.log(`✅ ${semanasInseridas?.length || 0} semana(s) criada(s) com sucesso!`);
 
     return NextResponse.json({
       success: true,

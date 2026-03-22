@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    // Dados mockados baseados na análise das tabelas Windsor
+    // Dados mockados para demonstração
     const mockAgeData = [
       {
         date: "2025-07-25",

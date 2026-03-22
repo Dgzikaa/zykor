@@ -16,8 +16,6 @@ export async function POST(request: NextRequest) {
       .toLowerCase()
       .trim();
 
-    console.log('🔐 Redefinindo senha para:', { email });
-
     if (!email || !novaSenha || !token) {
       return NextResponse.json(
         { success: false, error: 'Email, nova senha e token são obrigatórios' },
@@ -33,10 +31,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar usuário pelo email e validar token
-    console.log('🔍 Buscando usuário e validando token...');
-    console.log('📧 Email recebido:', emailNormalizado);
-    console.log('🔑 Token recebido:', token ? token.substring(0, 8) + '...' : 'vazio');
-    
     // 1) Priorizar schema atual: usuarios
     const { data: usuariosData, error: usuariosError } = await supabase
       .from('usuarios')
@@ -103,14 +97,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('✅ Usuário encontrado e token válido');
-    console.log('👤 User ID:', authUserId);
-
     // Atualizar senha no Supabase Auth
-    console.log('🔑 Atualizando senha no Auth...');
-    console.log('🔐 Nova senha (tamanho):', novaSenha.length, 'caracteres');
-    console.log('👤 User ID:', authUserId);
-    
     const { data: authData, error: authError } = await supabase.auth.admin.updateUserById(
       authUserId,
       {
@@ -137,10 +124,6 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log('✅ Senha atualizada com sucesso no Auth');
-    console.log('✅ User ID atualizado:', authData.user.id);
-    console.log('✅ Email confirmado:', authData.user.email);
 
     // Limpar token e marcar senha redefinida no schema atual
     const { error: updateUsuariosError } = await supabase

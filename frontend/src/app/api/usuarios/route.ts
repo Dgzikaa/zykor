@@ -199,8 +199,6 @@ export async function POST(request: NextRequest) {
       
       if (!emailResponse.ok) {
         console.warn('⚠️ Falha ao enviar email de boas-vindas:', emailResult.error);
-      } else {
-        console.log('✅ Email de boas-vindas enviado com sucesso');
       }
     } catch (emailError) {
       console.warn('⚠️ Erro ao enviar email de boas-vindas:', emailError);

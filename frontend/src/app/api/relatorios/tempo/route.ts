@@ -30,32 +30,31 @@ export async function GET(request: NextRequest) {
     const localizacao = searchParams.get('localizacao');
     const limit = parseInt(searchParams.get('limit') || '1000');
 
-    console.log(`⏱️ Relatório de Tempo solicitado para bar ${bar_id}`);
-
     let query = supabase
-      .from('contahub_tempo')
+      .from('tempos_producao' as any)
       .select('*')
       .eq('bar_id', parseInt(bar_id))
       .limit(limit);
 
     // Aplicar filtros
     if (data_inicio) {
-      query = query.gte('dia', data_inicio);
+      query = query.gte('data_producao', data_inicio);
     }
     if (data_fim) {
-      query = query.lte('dia', data_fim);
+      query = query.lte('data_producao', data_fim);
     }
     if (produto) {
-      query = query.ilike('prd_desc', `%${produto}%`);
+      query = query.ilike('produto_desc', `%${produto}%`);
     }
     if (grupo) {
-      query = query.ilike('grp_desc', `%${grupo}%`);
+      query = query.ilike('grupo_desc', `%${grupo}%`);
     }
     if (localizacao) {
       query = query.ilike('loc_desc', `%${localizacao}%`);
     }
 
-    const { data, error } = await query;
+    const { data: rawData, error } = await query;
+    const data = (rawData || []) as any[];
 
     if (error) {
       console.error('❌ Erro ao buscar dados de tempo:', error);
@@ -67,20 +66,20 @@ export async function GET(request: NextRequest) {
 
     // Calcular estatísticas
     const estatisticas = {
-      total_registros: data?.length || 0,
-      tempo_medio_t0_t1: data?.reduce((sum, item) => sum + (item.t0_t1 || 0), 0) / (data?.length || 1) || 0,
-      tempo_medio_t1_t2: data?.reduce((sum, item) => sum + (item.t1_t2 || 0), 0) / (data?.length || 1) || 0,
-      tempo_medio_t2_t3: data?.reduce((sum, item) => sum + (item.t2_t3 || 0), 0) / (data?.length || 1) || 0,
-      tempo_medio_total: data?.reduce((sum, item) => sum + (item.t0_t3 || 0), 0) / (data?.length || 1) || 0,
-      produtos_unicos: [...new Set(data?.map(item => item.prd_desc).filter(Boolean))].length,
-      grupos_unicos: [...new Set(data?.map(item => item.grp_desc).filter(Boolean))].length,
-      localizacoes_unicas: [...new Set(data?.map(item => item.loc_desc).filter(Boolean))].length,
-      total_itens: data?.reduce((sum, item) => sum + (item.itm_qtd || 0), 0) || 0
+      total_registros: data.length || 0,
+      tempo_medio_t0_t1: data.reduce((sum: number, item: any) => sum + (item.t0_t1 || 0), 0) / (data.length || 1) || 0,
+      tempo_medio_t1_t2: data.reduce((sum: number, item: any) => sum + (item.t1_t2 || 0), 0) / (data.length || 1) || 0,
+      tempo_medio_t2_t3: data.reduce((sum: number, item: any) => sum + (item.t2_t3 || 0), 0) / (data.length || 1) || 0,
+      tempo_medio_total: data.reduce((sum: number, item: any) => sum + (item.t0_t3 || 0), 0) / (data.length || 1) || 0,
+      produtos_unicos: [...new Set(data.map((item: any) => item.produto_desc).filter(Boolean))].length,
+      grupos_unicos: [...new Set(data.map((item: any) => item.grupo_desc).filter(Boolean))].length,
+      localizacoes_unicas: [...new Set(data.map((item: any) => item.local_desc).filter(Boolean))].length,
+      total_itens: data.reduce((sum: number, item: any) => sum + (item.quantidade || 0), 0) || 0
     };
 
     // Top produtos por tempo médio
-    const produtosPorTempo = data?.reduce((acc, item) => {
-      const produto = item.prd_desc || 'Sem descrição';
+    const produtosPorTempo = data.reduce((acc: any, item: any) => {
+      const produto = item.produto_desc || 'Sem descrição';
       if (!acc[produto]) {
         acc[produto] = { 
           tempo_total: 0, 
@@ -95,7 +94,7 @@ export async function GET(request: NextRequest) {
       acc[produto].t0_t1_total += item.t0_t1 || 0;
       acc[produto].t1_t2_total += item.t1_t2 || 0;
       acc[produto].t2_t3_total += item.t2_t3 || 0;
-      acc[produto].quantidade += item.itm_qtd || 0;
+      acc[produto].quantidade += item.quantidade || 0;
       acc[produto].registros += 1;
       return acc;
     }, {} as Record<string, { 
@@ -107,7 +106,7 @@ export async function GET(request: NextRequest) {
       t2_t3_total: number;
     }>);
 
-    const topProdutos = Object.entries(produtosPorTempo || {})
+    const topProdutos = Object.entries(produtosPorTempo)
       .map(([produto, stats]) => ({
         produto,
         tempo_medio_total: (stats as any).registros > 0 ? (stats as any).tempo_total / (stats as any).registros : 0,
@@ -121,8 +120,8 @@ export async function GET(request: NextRequest) {
       .slice(0, 10);
 
     // Top grupos por tempo médio
-    const gruposPorTempo = data?.reduce((acc, item) => {
-      const grupo = item.grp_desc || 'Sem grupo';
+    const gruposPorTempo = data.reduce((acc: any, item: any) => {
+      const grupo = item.grupo_desc || 'Sem grupo';
       if (!acc[grupo]) {
         acc[grupo] = { 
           tempo_total: 0, 
@@ -131,12 +130,12 @@ export async function GET(request: NextRequest) {
         };
       }
       acc[grupo].tempo_total += item.t0_t3 || 0;
-      acc[grupo].quantidade += item.itm_qtd || 0;
+      acc[grupo].quantidade += item.quantidade || 0;
       acc[grupo].registros += 1;
       return acc;
     }, {} as Record<string, { tempo_total: number; quantidade: number; registros: number }>);
 
-    const topGrupos = Object.entries(gruposPorTempo || {})
+    const topGrupos = Object.entries(gruposPorTempo)
       .map(([grupo, stats]) => ({
         grupo,
         tempo_medio: (stats as { tempo_total: number; quantidade: number; registros: number }).registros > 0 ? 
@@ -149,8 +148,8 @@ export async function GET(request: NextRequest) {
       .slice(0, 10);
 
     // Tempo médio por dia
-    const tempoPorDia = data?.reduce((acc, item) => {
-      const dia = item.dia || 'Sem data';
+    const tempoPorDia = data.reduce((acc: any, item: any) => {
+      const dia = item.data_producao || 'Sem data';
       if (!acc[dia]) {
         acc[dia] = { 
           tempo_total: 0, 
@@ -159,12 +158,12 @@ export async function GET(request: NextRequest) {
         };
       }
       acc[dia].tempo_total += item.t0_t3 || 0;
-      acc[dia].quantidade += item.itm_qtd || 0;
+      acc[dia].quantidade += item.quantidade || 0;
       acc[dia].registros += 1;
       return acc;
     }, {} as Record<string, { tempo_total: number; registros: number; quantidade: number }>);
 
-    const tempoDiario = Object.entries(tempoPorDia || {})
+    const tempoDiario = Object.entries(tempoPorDia)
       .map(([dia, stats]) => ({
         dia,
         tempo_medio: (stats as { tempo_total: number; registros: number; quantidade: number }).registros > 0 ? 

@@ -12,46 +12,55 @@ export async function GET(request: NextRequest) {
     const ano = searchParams.get('ano') || new Date().getFullYear().toString();
     const data_inicio = searchParams.get('data_inicio') || `${ano}-01-01`;
     const data_fim = searchParams.get('data_fim') || `${ano}-12-31`;
+    const barIdParam = searchParams.get('bar_id');
 
-    // Query para agregar vendas por categoria usando loc_desc e grp_desc
+    if (!barIdParam) {
+      return NextResponse.json(
+        { error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
+    const bar_id = parseInt(barIdParam);
+
+    // Query para agregar vendas por categoria usando local_desc e grupo_desc - migrado para vendas_item
     const query = `
       WITH categorias AS (
         SELECT 
           CASE 
             -- CERVEJAS (Chopp, Baldes e cervejas do Bar)
-            WHEN loc_desc IN ('Chopp', 'Baldes') AND grp_desc IN ('Cervejas', 'Baldes', 'Happy Hour') THEN 'CERVEJAS'
-            WHEN loc_desc = 'Bar' AND grp_desc IN ('Cervejas', 'Baldes') THEN 'CERVEJAS'
+            WHEN local_desc IN ('Chopp', 'Baldes') AND grupo_desc IN ('Cervejas', 'Baldes', 'Happy Hour') THEN 'CERVEJAS'
+            WHEN local_desc = 'Bar' AND grupo_desc IN ('Cervejas', 'Baldes') THEN 'CERVEJAS'
             
             -- NÃO ALCOÓLICOS (bebidas sem álcool, refrigerantes, águas, sucos, energéticos)
-            WHEN loc_desc = 'Bar' AND grp_desc = 'Bebidas Não Alcoólicas' THEN 'NÃO ALCOÓLICOS'
-            WHEN grp_desc IN ('Drinks sem Álcool') THEN 'NÃO ALCOÓLICOS'
+            WHEN local_desc = 'Bar' AND grupo_desc = 'Bebidas Não Alcoólicas' THEN 'NÃO ALCOÓLICOS'
+            WHEN grupo_desc IN ('Drinks sem Álcool') THEN 'NÃO ALCOÓLICOS'
             
             -- DRINKS ALCOÓLICOS (Montados, Batidos, Preshh, Mexido, Shot e Dose e drinks do Bar)
-            WHEN loc_desc IN ('Montados', 'Batidos', 'Preshh', 'Mexido', 'Shot e Dose') THEN 'DRINKS'
-            WHEN loc_desc = 'Bar' AND grp_desc IN ('Drinks Autorais', 'Drinks Classicos', 'Drinks Clássicos',
+            WHEN local_desc IN ('Montados', 'Batidos', 'Preshh', 'Mexido', 'Shot e Dose') THEN 'DRINKS'
+            WHEN local_desc = 'Bar' AND grupo_desc IN ('Drinks Autorais', 'Drinks Classicos', 'Drinks Clássicos',
                                                     'Drinks Prontos', 'Dose Dupla',
                                                     'Doses', 'Combos', 'Vinhos', 'Bebidas Prontas',
                                                     'Happy Hour', 'Fest Moscow') THEN 'DRINKS'
             
             -- COMIDAS (Cozinha 1 e Cozinha 2)
-            WHEN loc_desc IN ('Cozinha 1', 'Cozinha 2') THEN 'COMIDAS'
+            WHEN local_desc IN ('Cozinha 1', 'Cozinha 2') THEN 'COMIDAS'
             
             ELSE 'OUTROS'
           END as categoria,
-          qtd,
-          valorfinal,
-          trn_dtgerencial
-        FROM contahub_analitico
-        WHERE trn_dtgerencial >= $1
-          AND trn_dtgerencial <= $2
-          AND bar_id = 3
-          AND grp_desc NOT IN ('Insumos', 'Mercadorias- Compras', 'Uso Interno')
-          AND qtd > 0
+          quantidade,
+          valor,
+          data_venda
+        FROM vendas_item
+        WHERE data_venda >= $1
+          AND data_venda <= $2
+          AND bar_id = $3
+          AND grupo_desc NOT IN ('Insumos', 'Mercadorias- Compras', 'Uso Interno')
+          AND quantidade > 0
       )
       SELECT 
         categoria,
-        ROUND(SUM(qtd)::numeric, 2) as quantidade_total,
-        ROUND(SUM(valorfinal)::numeric, 2) as faturamento_total,
+        ROUND(SUM(quantidade)::numeric, 2) as quantidade_total,
+        ROUND(SUM(valor)::numeric, 2) as faturamento_total,
         COUNT(*) as num_vendas
       FROM categorias
       WHERE categoria IN ('DRINKS', 'CERVEJAS', 'COMIDAS', 'NÃO ALCOÓLICOS')
@@ -61,19 +70,19 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase.rpc('exec_sql', {
       query_text: query,
-      params: [data_inicio, data_fim]
+      params: [data_inicio, data_fim, bar_id]
     });
 
     if (error) {
-      // Fallback: usar query direta sem RPC
+      // Fallback: usar query direta sem RPC - migrado para vendas_item
       const { data: dataFallback, error: errorFallback } = await supabase
-        .from('contahub_analitico')
-        .select('loc_desc, grp_desc, qtd, valorfinal, trn_dtgerencial')
-        .gte('trn_dtgerencial', data_inicio)
-        .lte('trn_dtgerencial', data_fim)
-        .eq('bar_id', 3)
-        .not('grp_desc', 'in', '("Insumos","Mercadorias- Compras","Uso Interno")')
-        .gt('qtd', 0);
+        .from('vendas_item')
+        .select('local_desc, grupo_desc, quantidade, valor, data_venda')
+        .gte('data_venda', data_inicio)
+        .lte('data_venda', data_fim)
+        .eq('bar_id', bar_id)
+        .not('grupo_desc', 'in', '("Insumos","Mercadorias- Compras","Uso Interno")')
+        .gt('quantidade', 0);
 
       if (errorFallback) throw errorFallback;
 
@@ -87,8 +96,8 @@ export async function GET(request: NextRequest) {
       };
 
       dataFallback?.forEach(item => {
-        const loc = item.loc_desc || '';
-        const grp = item.grp_desc || '';
+        const loc = item.local_desc || '';
+        const grp = item.grupo_desc || '';
         let categoria: keyof typeof categorias = 'OUTROS';
 
         // CERVEJAS
@@ -117,8 +126,8 @@ export async function GET(request: NextRequest) {
           categoria = 'COMIDAS';
         }
 
-        categorias[categoria].quantidade_total += parseFloat(item.qtd?.toString() || '0');
-        categorias[categoria].faturamento_total += parseFloat(item.valorfinal?.toString() || '0');
+        categorias[categoria].quantidade_total += parseFloat(item.quantidade?.toString() || '0');
+        categorias[categoria].faturamento_total += parseFloat(item.valor?.toString() || '0');
         categorias[categoria].num_vendas += 1;
       });
 

@@ -14,8 +14,6 @@ export async function POST() {
       );
     }
 
-    console.log('?? Starting simple event name fix...');
-
     // Simple test: Update just a few specific events
     const updates = [
       { date: '2025-06-01', name: 'Samba da tia Zelia' },
@@ -35,8 +33,6 @@ export async function POST() {
     }> = [];
 
     for (const update of updates) {
-      console.log(`Updating ${update.date} to "${update.name}"`);
-
       const { data, error } = await supabase
         .from('eventos_base')
         .update({ nome_evento: update.name })
@@ -52,7 +48,6 @@ export async function POST() {
           error: error.message,
         });
       } else {
-        console.log(`? Successfully updated ${update.date}`);
         successCount++;
         results.push({
           date: update.date,

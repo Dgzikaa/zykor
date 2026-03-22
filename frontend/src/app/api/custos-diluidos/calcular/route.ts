@@ -39,8 +39,6 @@ export async function GET(request: NextRequest) {
     const barId = parseInt(barIdParam);
     const dataEvento = searchParams.get('data_evento'); // Opcional: calcular para um dia específico
 
-    console.log(`🧮 Calculando diluição de custos para ${mes}/${ano} - Bar ${barId}`);
-
     // 1. Buscar custos diluídos ativos do mês
     const { data: custos, error: custosError } = await supabase
       .from('custos_mensais_diluidos')

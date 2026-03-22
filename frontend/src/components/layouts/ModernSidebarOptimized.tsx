@@ -130,7 +130,7 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
       { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', permission: 'gestao' },
       { icon: ChefHat, label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal', permission: 'gestao' },
-      { icon: Users, label: 'CMO - Mão de Obra', href: '/ferramentas/cmo', permission: 'gestao' },
+      // CMO removido — feature não implementada
       { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
       { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
       // { icon: Wallet, label: 'CFP - Finanças', href: '/fp', description: 'Controle Financeiro Pessoal', permission: 'home' }, // TODO: Implementar
@@ -146,7 +146,7 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: Users, label: 'Administração', href: '/configuracoes/administracao/usuarios', permission: 'configuracoes' },
       { icon: Target, label: 'Metas', href: '/configuracoes/metas', permission: 'configuracoes' },
       { icon: ChefHat, label: 'Teste de Produção', href: '/configuracoes/teste-producao', permission: 'operacoes' },
-      { icon: FileSearch, label: 'Auditoria', href: '/configuracoes/auditoria', permission: 'configuracoes' },
+      // Auditoria removida — libs deletadas
       { icon: Target, label: 'Saúde dos Dados', href: '/configuracoes/saude-dados', permission: 'configuracoes' },
       { icon: Activity, label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },
     ],
@@ -158,8 +158,7 @@ const defaultSidebarItems: SidebarItem[] = [
     color: 'text-yellow-600 dark:text-yellow-400',
     permission: 'home',
     subItems: [
-      { icon: Package, label: 'Produção e Insumos', href: '/ferramentas/producao-insumos', permission: 'operacoes' },
-      { icon: Package, label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque', permission: 'operacoes' },
+      // Produção e Contagem removidos — APIs deletadas
       { icon: DollarSign, label: 'DRE', href: '/ferramentas/dre', permission: 'dashboard_financeiro_mensal' },
       { icon: Clock, label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
       { icon: Sparkles, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },

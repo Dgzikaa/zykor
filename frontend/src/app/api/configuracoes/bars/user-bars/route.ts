@@ -6,26 +6,12 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 API: Buscando bares do usuário...');
-    }
-
     const user = await authenticateUser(request);
     if (!user) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('❌ API: Usuário não autenticado');
-      }
       return authErrorResponse('Usuário não autenticado');
     }
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ API: Usuário autenticado:', user.nome);
-    }
-
     const supabase = await getAdminClient();
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔗 API: Cliente Supabase conectado');
-    }
 
     // 1. Buscar dados do usuário
     const { data: usuarioData, error: userError } = await supabase
@@ -41,10 +27,6 @@ export async function GET(request: NextRequest) {
         { error: 'Usuário não encontrado' },
         { status: 404 }
       );
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📊 API: Dados do usuário encontrados:', usuarioData);
     }
 
     // 2. Buscar bares do usuário através de usuarios_bares (usando auth_id)
@@ -65,9 +47,6 @@ export async function GET(request: NextRequest) {
     }
 
     if (!relacoes || relacoes.length === 0) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('❌ API: Usuário não tem acesso a nenhum bar');
-      }
       return NextResponse.json(
         { error: 'Usuário não tem acesso a nenhum bar' },
         { status: 404 }
@@ -84,10 +63,6 @@ export async function GET(request: NextRequest) {
         role: usuarioData.role || 'funcionario',
         setor: usuarioData.setor,
       }));
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ API: Bares encontrados:', barsEnriquecidos);
-    }
 
     return NextResponse.json({
       success: true,

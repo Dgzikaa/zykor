@@ -73,7 +73,7 @@ export default function ClientesVIPPage() {
       setLoading(true)
       const response = await fetch('/api/crm/clientes-vip', {
         headers: {
-          'x-user-data': JSON.stringify({ bar_id: selectedBar.id })
+          'x-selected-bar-id': String(selectedBar.id)
         }
       })
 
@@ -108,7 +108,7 @@ export default function ClientesVIPPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-data': JSON.stringify({ bar_id: selectedBar.id })
+          'x-selected-bar-id': String(selectedBar.id)
         },
         body: JSON.stringify({ bar_id: selectedBar.id })
       })

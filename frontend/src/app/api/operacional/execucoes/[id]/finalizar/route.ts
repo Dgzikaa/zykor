@@ -164,10 +164,6 @@ export async function POST(
       },
     });
 
-    console.log(
-      `✅ Execução finalizada: ${execucao.checklist.nome} por ${execucao.funcionario.nome} - Score: ${scoreResult.score_total}%`
-    );
-
     return NextResponse.json({
       success: true,
       message: 'Execução finalizada com sucesso',

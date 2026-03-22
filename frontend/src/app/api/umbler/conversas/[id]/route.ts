@@ -40,28 +40,27 @@ export async function GET(
       console.error('Erro ao buscar mensagens:', mensagensError);
     }
 
-    // Buscar dados do cliente no ContaHub se tiver correlação
-    let clienteContahub: {
+    // Buscar dados do cliente na tabela visitas se tiver correlação
+    let clienteVisita: {
       id: any;
       cliente_nome: any;
-      cliente_cpf: any;
-      data_atendimento: any;
-      vr_pagamentos: any;
+      data_visita: any;
+      valor_pagamentos: any;
     } | null = null;
-    if (conversa.cliente_contahub_id) {
+    if (conversa.cliente_id) {
       const { data: cliente } = await supabase
-        .from('contahub_periodo')
-        .select('id, cliente_nome, cliente_cpf, data_atendimento, vr_pagamentos')
-        .eq('id', conversa.cliente_contahub_id)
+        .from('visitas')
+        .select('id, cliente_nome, data_visita, valor_pagamentos')
+        .eq('id', conversa.cliente_id)
         .single();
       
-      clienteContahub = cliente;
+      clienteVisita = cliente;
     }
 
     return NextResponse.json({
       conversa,
       mensagens: mensagens || [],
-      cliente_contahub: clienteContahub
+      cliente_visita: clienteVisita
     });
 
   } catch (error) {

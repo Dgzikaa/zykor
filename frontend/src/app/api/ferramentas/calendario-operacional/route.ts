@@ -36,8 +36,6 @@ export async function GET(request: NextRequest) {
     const dataInicio = primeiroDia.toISOString().split('T')[0];
     const dataFim = ultimoDia.toISOString().split('T')[0];
 
-    console.log(`📅 Buscando calendário: ${dataInicio} até ${dataFim} (bar ${barId})`);
-
     // Buscar registros do calendário
     const { data: registros, error } = await supabase
       .from('calendario_operacional')
@@ -52,13 +50,13 @@ export async function GET(request: NextRequest) {
       throw error;
     }
 
-    // Buscar movimento do ContaHub para datas sem registro
+    // Buscar movimento de eventos_base para datas sem registro
     const { data: movimentacoes, error: errorMovimentacoes } = await supabase
-      .from('contahub_dados')
-      .select('data, total_vendas')
+      .from('eventos_base')
+      .select('data_evento, real_r')
       .eq('bar_id', barId)
-      .gte('data', dataInicio)
-      .lte('data', dataFim);
+      .gte('data_evento', dataInicio)
+      .lte('data_evento', dataFim);
 
     if (errorMovimentacoes) {
       console.error('⚠️ Erro ao buscar movimentações:', errorMovimentacoes);
@@ -66,7 +64,7 @@ export async function GET(request: NextRequest) {
 
     // Criar mapa de movimentações
     const movimentacoesMap = new Map(
-      (movimentacoes || []).map(m => [m.data, parseFloat(m.total_vendas || '0')])
+      (movimentacoes || []).map(m => [m.data_evento, parseFloat(m.real_r || '0')])
     );
 
     // Gerar todos os dias do mês com status
@@ -200,8 +198,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`📝 Salvando calendário: ${data} = ${status} (bar ${bar_id})`);
-
     // Buscar registro existente para histórico
     const { data: registroExistente } = await supabase
       .from('calendario_operacional')
@@ -290,8 +286,6 @@ export async function DELETE(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    console.log(`🗑️ Removendo registro: ${data} (bar ${barId})`);
 
     // Buscar registro antes de deletar (para histórico)
     const { data: registroExistente } = await supabase

@@ -239,8 +239,6 @@ export async function PUT(
       );
     }
 
-    console.log(`📝 Atribuição atualizada: ${atribuicaoId}`);
-
     return NextResponse.json({
       success: true,
       message: 'Atribuição atualizada com sucesso',
@@ -382,8 +380,6 @@ export async function DELETE(
         { status: 500 }
       );
     }
-
-    console.log(`🗑️ Atribuição excluída: ${atribuicaoId}`);
 
     return NextResponse.json({
       success: true,
@@ -636,10 +632,6 @@ async function recriarAgendamentos(
 
     if (novosAgendamentos.length > 0) {
       await supabase.from('checklist_agendamentos').insert(novosAgendamentos);
-
-      console.log(
-        `📅 ${novosAgendamentos.length} novos agendamentos criados para atribuição ${atribuicao.id}`
-      );
     }
   } catch (error) {
     console.error('Erro ao recriar agendamentos:', error);

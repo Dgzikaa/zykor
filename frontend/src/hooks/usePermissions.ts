@@ -300,9 +300,6 @@ export function usePermissions(): PermissionsHook {
         reservas: 'reservas',
         reservas_recorrencia: 'reservas_recorrencia',
 
-        // Windsor.ai
-        windsor_analytics: 'windsor_analytics',
-
         // NIBO
         nibo_contabil: 'nibo_contabil',
 

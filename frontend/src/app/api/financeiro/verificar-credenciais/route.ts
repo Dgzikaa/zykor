@@ -23,8 +23,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    console.log(`[VERIFICAR-CREDENCIAIS] Verificando credenciais para bar_id=${barId}`);
-
     // Verificar credencial NIBO
     const { data: niboCredencial } = await supabase
       .from('api_credentials')
@@ -56,8 +54,6 @@ export async function GET(request: NextRequest) {
         ? 'Credencial Inter não configurada'
         : 'Todas as credenciais configuradas',
     };
-
-    console.log(`[VERIFICAR-CREDENCIAIS] Resultado:`, resultado);
 
     return NextResponse.json(resultado);
 

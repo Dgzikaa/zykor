@@ -18,8 +18,6 @@ export async function POST(request: NextRequest) {
       // Configurar novo interval
       syncInterval = setInterval(
         async () => {
-          console.log('🔄 Executando sincronização automática...');
-
           try {
             // Chamar endpoint de sincronização
             const response = await fetch(
@@ -34,12 +32,7 @@ export async function POST(request: NextRequest) {
 
             const result = await response.json();
 
-            if (result.success) {
-              console.log(
-                '✅ Sincronização automática concluída:',
-                result.data
-              );
-            } else {
+            if (!result.success) {
               console.error(
                 '❌ Erro na sincronização automática:',
                 result.error
@@ -55,10 +48,6 @@ export async function POST(request: NextRequest) {
         intervalMinutes * 60 * 1000
       ); // Converter minutos para milliseconds
 
-      console.log(
-        `🚀 Sincronização automática iniciada a cada ${intervalMinutes} minutos`
-      );
-
       return NextResponse.json({
         success: true,
         message: `Sincronização automática iniciada a cada ${intervalMinutes} minutos`,
@@ -68,7 +57,6 @@ export async function POST(request: NextRequest) {
       if (syncInterval) {
         clearInterval(syncInterval);
         syncInterval = null;
-        console.log('⏸️ Sincronização automática parada');
 
         return NextResponse.json({
           success: true,

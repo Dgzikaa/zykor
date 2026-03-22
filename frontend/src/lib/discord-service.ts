@@ -1,4 +1,4 @@
-﻿// ========================================
+// ========================================
 // 🎮 DISCORD WEBHOOK SERVICE - SGB
 // ========================================
 // Service completo para notificações via Discord
@@ -54,7 +54,6 @@ interface DiscordNotificationData {
   bar_id: string;
   webhook_type?:
     | 'sistema'
-    | 'windsor'
     | 'nibo'
     | 'checklists'
     | 'contahub'
@@ -260,24 +259,6 @@ export class DiscordService {
       fields,
       bar_id: barId,
       webhook_type: 'sistema',
-    };
-
-    return await this.sendNotification(notificationData);
-  }
-
-  static async sendWindsorNotification(
-    barId: string,
-    title: string,
-    description: string,
-    fields?: DiscordField[]
-  ) {
-    const notificationData: DiscordNotificationData = {
-      title,
-      description,
-      color: 0xff6600,
-      fields,
-      bar_id: barId,
-      webhook_type: 'windsor',
     };
 
     return await this.sendNotification(notificationData);

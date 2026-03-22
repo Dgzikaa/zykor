@@ -68,9 +68,6 @@ async function fetchContaHubStockout(
     nfe: '1'
   });
 
-  console.log(`🔍 Buscando produtos do ContaHub para análise de stockout em ${date} (empresa: ${empresaId})`);
-  console.log(`🔗 URL: ${url}?${params}`);
-  
   const response = await fetch(`${url}?${params}`, {
     method: 'GET',
     headers: {
@@ -109,9 +106,7 @@ async function saveStockoutData(barId: number, date: string, hour: string, data:
     
     return !excluirPorNome && !excluirPorLocal && !excluirPorGrupo;
   });
-  
-  console.log(`🔍 Filtrando produtos excluídos: ${data.length} produtos -> ${filteredData.length} (excluídos: ${data.length - filteredData.length})`);
-  
+
   const records = filteredData.map(item => ({
     bar_id: barId,
     data_consulta: date,
@@ -198,8 +193,6 @@ export async function GET(request: NextRequest) {
     }
     const barId = parseInt(barIdParam);
 
-    console.log(`🔄 Iniciando coleta de stockout para ${date} às ${hour}`);
-
     // Buscar credenciais do ContaHub
     const credentials = await getContaHubCredentials(barId);
 
@@ -225,8 +218,6 @@ export async function GET(request: NextRequest) {
 
     // Salvar dados no banco
     const recordsSaved = await saveStockoutData(barId, date, hour, stockoutData.list);
-
-    console.log(`✅ Stockout coletado: ${stockoutData.list.length} registros encontrados, ${recordsSaved} salvos`);
 
     return NextResponse.json({
       success: true,
@@ -271,8 +262,6 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log(`🔄 Coleta manual de stockout para ${date} às ${hour}`);
-
     // Buscar credenciais do ContaHub
     const credentials = await getContaHubCredentials(bar_id);
 
@@ -298,8 +287,6 @@ export async function POST(request: NextRequest) {
 
     // Salvar dados no banco
     const recordsSaved = await saveStockoutData(bar_id, date, hour, stockoutData.list);
-
-    console.log(`✅ Stockout manual coletado: ${stockoutData.list.length} registros encontrados, ${recordsSaved} salvos`);
 
     return NextResponse.json({
       success: true,

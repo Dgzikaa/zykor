@@ -32,9 +32,6 @@ export async function POST() {
         { status: 500 }
       );
     }
-    console.log('🔄 Iniciando importação da CSV...');
-
-    // Criar cliente Supabase
 
     // Ler o arquivo CSV
     const csvPath = path.join(
@@ -45,10 +42,7 @@ export async function POST() {
     const csvContent = fs.readFileSync(csvPath, 'utf-8');
     const lines = csvContent.split('\n').filter(line => line.trim());
 
-    console.log(`📁 CSV encontrada com ${lines.length} linhas`);
-
     // 1. Limpar todos os eventos existentes do Bar Ordinário
-    console.log('🗑️ Removendo eventos existentes...');
     const { error: deleteError } = await supabase
       .from('eventos_base')
       .delete()
@@ -62,8 +56,6 @@ export async function POST() {
         details: deleteError,
       });
     }
-
-    console.log('✅ Eventos existentes removidos com sucesso');
 
     // 2. Processar CSV e inserir eventos
     const eventosParaInserir: any[] = [];
@@ -100,8 +92,6 @@ export async function POST() {
       });
     }
 
-    console.log(`📝 Processados ${eventosParaInserir.length} eventos da CSV`);
-
     // 3. Inserir eventos em lotes
     const { data: insertedEvents, error: insertError } = await supabase
       .from('eventos_base')
@@ -116,10 +106,6 @@ export async function POST() {
         details: insertError,
       });
     }
-
-    console.log(
-      `✅ ${insertedEvents?.length} novos eventos inseridos com sucesso`
-    );
 
     return NextResponse.json({
       success: true,

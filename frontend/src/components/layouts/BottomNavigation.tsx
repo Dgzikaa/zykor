@@ -120,7 +120,7 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
         { icon: Users, label: 'NPS', href: '/ferramentas/nps', permission: 'home' },
         { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
         { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', permission: 'relatorios' },
-        { icon: Users, label: 'Simulação de CMO', href: '/ferramentas/simulacao-cmo', permission: 'gestao' },
+        // Simulação CMO removida — feature não implementada
         { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'operacoes' },
         // { icon: TrendingUp, label: 'CFP - Finanças', href: '/fp', permission: 'home' }, // TODO: Implementar
         { icon: Sparkles, label: 'Agente IA', href: '/ferramentas/agente', permission: 'home' },
@@ -141,8 +141,7 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
       color: 'text-yellow-600 dark:text-yellow-400',
       permission: 'home',
       subItems: [
-        { icon: Package, label: 'Produção e Insumos', href: '/ferramentas/producao-insumos', permission: 'receitas_insumos' },
-        { icon: Package, label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque', permission: 'operacoes' },
+        // Produção e Contagem removidos — APIs deletadas
         { icon: DollarSign, label: 'DRE', href: '/ferramentas/dre', permission: 'dashboard_financeiro_mensal' },
         { icon: Clock, label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
         { icon: Sparkles, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },

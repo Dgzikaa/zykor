@@ -393,10 +393,6 @@ export async function PUT(
       );
     }
 
-    console.log(
-      `✅ Checklist atualizado: ${checklistAtualizado.nome} (versão ${novaVersao})`
-    );
-
     return NextResponse.json({
       success: true,
       message: 'Checklist atualizado com sucesso',
@@ -504,8 +500,6 @@ export async function DELETE(
         tipo_mudanca: 'arquivamento',
       });
 
-      console.log(`📦 Checklist arquivado: ${checklist.nome}`);
-
       return NextResponse.json({
         success: true,
         message: 'Checklist arquivado com sucesso (possui execuções)',
@@ -526,8 +520,6 @@ export async function DELETE(
           { status: 500 }
         );
       }
-
-      console.log(`🗑️ Checklist deletado: ${checklist.nome}`);
 
       return NextResponse.json({
         success: true,

@@ -10,8 +10,6 @@ const supabase = createClient(
 
 export async function GET() {
   try {
-    console.log('🧪 Teste simples de conectividade NIBO');
-    
     const targetBarId = process.env.NIBO_BAR_ID || '3';
 
     // Log de início simples

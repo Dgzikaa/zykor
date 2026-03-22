@@ -10,7 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const barId = body.bar_id || 3;
+    const barId = body.bar_id;
+    if (!barId) return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     const totalSemanas = body.semanas || 60; // Padrão: últimas 60 semanas (~1 ano)
     
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -19,9 +20,7 @@ export async function POST(request: NextRequest) {
     if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json({ error: 'Configuração Supabase ausente' }, { status: 500 });
     }
-    
-    console.log(`🔄 Iniciando sync retroativo CMV: ${totalSemanas} semanas, bar_id=${barId}`);
-    
+
     const resultados: any[] = [];
     const erros: any[] = [];
     
@@ -31,8 +30,6 @@ export async function POST(request: NextRequest) {
       const offsetSemanas = -i; // 0, -1, -2, -3...
       
       try {
-        console.log(`📅 Processando offset ${offsetSemanas} (${i + 1}/${totalSemanas})`);
-        
         const response = await fetch(`${supabaseUrl}/functions/v1/cmv-semanal-auto`, {
           method: 'POST',
           headers: {
@@ -55,7 +52,6 @@ export async function POST(request: NextRequest) {
             periodo: result.periodo,
             success: true
           });
-          console.log(`✅ Semana ${result.semana}/${result.ano} OK`);
         } else {
           erros.push({
             offset: offsetSemanas,
@@ -75,9 +71,7 @@ export async function POST(request: NextRequest) {
         console.error(`❌ Offset ${offsetSemanas}: ${err.message}`);
       }
     }
-    
-    console.log(`\n🎉 Sync retroativo finalizado: ${resultados.length} OK, ${erros.length} erros`);
-    
+
     return NextResponse.json({
       success: true,
       message: `Sync retroativo: ${resultados.length}/${totalSemanas} semanas processadas`,

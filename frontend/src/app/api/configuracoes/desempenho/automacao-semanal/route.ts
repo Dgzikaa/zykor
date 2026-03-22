@@ -4,12 +4,9 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔄 Trigger manual da automação semanal de desempenho...');
-
     // Verificar se é uma requisição de cron válida
     const authHeader = request.headers.get('authorization');
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      console.log('❌ Acesso negado - token inválido');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -18,8 +15,6 @@ export async function GET(request: NextRequest) {
     if (!supabaseUrl) {
       throw new Error('URL do Supabase não configurada');
     }
-
-    console.log('🚀 Disparando Edge Function de automação semanal...');
 
     // Chamar a Edge Function de automação semanal
     const response = await fetch(
@@ -39,8 +34,6 @@ export async function GET(request: NextRequest) {
 
     if (response.ok) {
       const result = await response.json();
-      console.log('✅ Automação semanal executada com sucesso:', result);
-
       return NextResponse.json({
         success: true,
         message: 'Automação semanal de desempenho executada com sucesso',
@@ -80,8 +73,6 @@ export async function POST(request: NextRequest) {
 // Endpoint público para teste manual (sem autenticação)
 export async function PUT(request: NextRequest) {
   try {
-    console.log('🧪 Teste manual da automação semanal...');
-
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
     if (!supabaseUrl) {
@@ -107,7 +98,6 @@ export async function PUT(request: NextRequest) {
     const result = await response.json();
 
     if (response.ok) {
-      console.log('✅ Teste manual concluído:', result);
       return NextResponse.json({
         success: true,
         message: 'Teste manual da automação semanal concluído',

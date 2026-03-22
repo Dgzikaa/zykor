@@ -71,8 +71,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('✅ Email de boas-vindas reenviado com sucesso');
-
     return NextResponse.json({
       success: true,
       message: 'Email de boas-vindas reenviado com sucesso',

@@ -4,12 +4,9 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔄 Cron SGB Orchestrator Secure iniciado');
-
     // Verificar se é uma requisição de cron válida
     const authHeader = request.headers.get('authorization');
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      console.log('❌ Acesso negado - token inválido');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -44,8 +41,6 @@ export async function GET(request: NextRequest) {
     }
 
     const result = await response.json();
-    console.log('✅ Cron executado com sucesso:', result);
-
     return NextResponse.json({
       success: true,
       message: 'Cron SGB Orchestrator Secure executado com sucesso',

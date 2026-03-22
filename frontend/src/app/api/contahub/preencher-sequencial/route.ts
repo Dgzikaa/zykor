@@ -18,8 +18,6 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const body: SequentialRequest = await request.json()
 
-    console.log('🔄 [API] Preenchimento sequencial:', body)
-
     const dataType = body.data_type
     if (!body.bar_id) {
       return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
@@ -40,8 +38,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    console.log(`🎯 [API] Próxima lacuna para ${dataType}: ${nextMissingDate}`)
-
     // Gerar lista sequencial de datas a partir da próxima faltante
     const datesToProcess = generateSequentialDates(nextMissingDate, batchSize)
     
@@ -54,16 +50,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`📅 [API] Processando ${actualMissingDates.length} datas: ${actualMissingDates[0]} até ${actualMissingDates[actualMissingDates.length - 1]}`)
-
     let collectedCount = 0
     let processedCount = 0
 
     // Processar cada data faltante
     for (const date of actualMissingDates) {
       try {
-        console.log(`🔍 [API] Coletando ${dataType} para ${date}`)
-
         // Coletar dados para esta data
         const collectionResult = await collectDataForDate(dataType, date, barId)
         
@@ -93,7 +85,6 @@ export async function POST(request: NextRequest) {
           const processResult = await processRawData(supabase, rawData.id)
           if (processResult.success) {
             processedCount++
-            console.log(`✅ [API] ${date}: ${collectionResult.record_count} registros processados`)
           }
         }
 
@@ -110,8 +101,6 @@ export async function POST(request: NextRequest) {
     const remainingGaps = await countRemainingGaps(supabase, dataType, barId)
     const completedDays = totalDays - remainingGaps
     const coveragePercentage = Math.round((completedDays / totalDays) * 100)
-
-    console.log(`🎉 [API] Lote concluído: ${processedCount}/${actualMissingDates.length} processados`)
 
     return NextResponse.json({
       success: true,

@@ -13,17 +13,12 @@ export async function GET(request: NextRequest) {
     const ateSemana = parseInt(searchParams.get('ate_semana') || '0');
     const ano = parseInt(searchParams.get('ano') || new Date().getFullYear().toString());
     
-    // Obter bar_id do header
-    const userDataHeader = request.headers.get('x-user-data');
-    let barId = 3; // Default
+    // Obter bar_id do header x-selected-bar-id
+    const barIdHeader = request.headers.get('x-selected-bar-id');
+    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
     
-    if (userDataHeader) {
-      try {
-        const userData = JSON.parse(decodeURIComponent(userDataHeader));
-        if (userData.bar_id) barId = userData.bar_id;
-      } catch (e) {
-        console.warn('Erro ao parsear user data:', e);
-      }
+    if (!barId) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
     // Se não especificou semana, calcular semana atual (ISO)
@@ -66,9 +61,6 @@ export async function GET(request: NextRequest) {
         semanaAtual = getISOWeeksInYear(anoAtualCalc);
       }
     }
-    
-    console.log(`[Semanas API] Bar ${barId}: Buscando ${quantidade} semanas até S${semanaFinal}/${anoFinal}:`, 
-      semanasParaBuscar.map(s => `S${s.semana}/${s.ano}`).join(', '));
 
     // Buscar todas as semanas em paralelo
     const promises = semanasParaBuscar.map(async ({ semana, ano: anoSemana }) => {

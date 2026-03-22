@@ -12,17 +12,12 @@ export async function GET(request: NextRequest) {
     const semana = parseInt(searchParams.get('semana') || '1');
     const ano = parseInt(searchParams.get('ano') || new Date().getFullYear().toString());
     
-    // Obter bar_id do header
-    const userDataHeader = request.headers.get('x-user-data');
-    let barId = 3; // Default
+    // Obter bar_id do header x-selected-bar-id
+    const barIdHeader = request.headers.get('x-selected-bar-id');
+    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
     
-    if (userDataHeader) {
-      try {
-        const userData = JSON.parse(decodeURIComponent(userDataHeader));
-        if (userData.bar_id) barId = userData.bar_id;
-      } catch (e) {
-        console.warn('Erro ao parsear user data:', e);
-      }
+    if (!barId) {
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
     // Buscar dados da semana atual (desempenho + marketing em paralelo)

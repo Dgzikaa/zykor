@@ -1,6 +1,6 @@
 # 📊 Regras por Bar - Zykor
 
-> **Última atualização:** 18/03/2026
+> **Última atualização:** 18/03/2026 22:30
 > **Bares:** Ordinário (ID: 3) | Deboche (ID: 4)
 
 ---
@@ -17,6 +17,7 @@
 │  08:00 ──► Sympla/Yuzer Sync (segundas-feiras)                                          │
 │  09:00 ──► Alertas Proativos + Agente Análise Diária                                    │
 │  10:00 ──► ContaHub Sync (ambos bares) ──► Update eventos_base                          │
+│            ↳ Inclui: analitico, tempo, periodo, pagamentos, fatporhora, cancelamentos   │
 │  11:00 ──► Google Reviews Sync + NIBO Sync                                               │
 │  11:30 ──► Sync Contagem Estoque (ambos bares)                                          │
 │  12:00 ──► Desempenho Auto + CMV Semanal                                                 │
@@ -36,7 +37,7 @@
 
 | Sistema | Edge Function | Tabela(s) Destino | Cronjob | Ordinário | Deboche |
 |---------|--------------|-------------------|---------|-----------|---------|
-| **ContaHub** | `contahub-sync-automatico` | `contahub_analitico`, `contahub_tempo`, `contahub_periodo`, `contahub_pagamentos`, `contahub_fatporhora` | `07:00 BRT` | ✅ | ✅ |
+| **ContaHub** | `contahub-sync-automatico` | `contahub_analitico`, `contahub_tempo`, `contahub_periodo`, `contahub_pagamentos`, `contahub_fatporhora`, `contahub_cancelamentos` | `07:00 BRT` | ✅ | ✅ |
 | **ContaHub Stockout** | `contahub-stockout-sync` | `contahub_stockout` | `19:00 BRT` | ✅ | ✅ |
 | **GetIn** | `getin-sync-continuous` | `getin_reservas` → `eventos_base` | `a cada 2h` | ✅ | ❌ Sem API |
 | **NIBO** | `nibo-sync` | `nibo_agendamentos` | `08:00, 19:00` | ✅ | ✅ |
@@ -87,6 +88,12 @@ recalcular-desempenho-auto (Edge Function)
 ├──────────────┴──────────────────────────────────────────────────┤
 │ ORDINÁRIO    │ ✅ Igual                                         │
 │ DEBOCHE      │ ✅ Igual                                         │
+├─────────────────────────────────────────────────────────────────┤
+│ META SEMANAL (VISÃO SEMANAL):                                    │
+│ ✅ IMPLEMENTADO: Meta dinâmica = Soma M1 do Planejamento        │
+│ Exibição: Badge % ao lado do valor + tooltip com meta           │
+│ Coluna "Meta" fixa: REMOVIDA na visão semanal                   │
+│ (mantida apenas na visão mensal)                                │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -376,13 +383,13 @@ recalcular-desempenho-auto (Edge Function)
 │ Tabela       │ contahub_tempo                                   │
 │ Stored Proc  │ calcular_atrasos_tempo                           │
 ├──────────────┴──────────────────────────────────────────────────┤
-│ THRESHOLDS ATUAIS:                                               │
+│ ✅ THRESHOLDS ATUALIZADOS (18/03/2026):                          │
 │                                                                  │
 │ ┌─────────────┬─────────────────────┬─────────────────────┐     │
 │ │ Indicador   │     ORDINÁRIO       │       DEBOCHE       │     │
 │ ├─────────────┼─────────────────────┼─────────────────────┤     │
-│ │ Atrasão     │ t0_t3 > 1200 seg    │ t0_t2 > 600 seg     │     │
-│ │ Drinks      │ (> 20 minutos)      │ (> 10 minutos)      │     │
+│ │ Atrasão     │ t0_t3 > 600 seg     │ t0_t2 > 600 seg     │     │
+│ │ Drinks      │ (> 10 minutos)      │ (> 10 minutos)      │     │
 │ ├─────────────┼─────────────────────┼─────────────────────┤     │
 │ │ Atrasão     │ t0_t2 > 1200 seg    │ t0_t2 > 1200 seg    │     │
 │ │ Comida      │ (> 20 minutos)      │ (> 20 minutos)      │     │
@@ -415,17 +422,18 @@ recalcular-desempenho-auto (Edge Function)
 │ Tabela       │ eventos_base                                     │
 │ Colunas      │ atrasinho_bar, atrasinho_cozinha                 │
 ├──────────────┴──────────────────────────────────────────────────┤
-│ THRESHOLDS ATUAIS (ambos bares):                                 │
+│ ✅ THRESHOLDS ATUALIZADOS (18/03/2026):                          │
 │                                                                  │
 │ ┌─────────────────────────────────────────────────────────┐     │
-│ │ Atrasinho Drinks: t0_t3 > 240 seg E < 480 seg           │     │
-│ │                   (> 4 min e < 8 min)                   │     │
+│ │ Atrasinho Drinks: t0_t3 > 300 seg (> 5 min)             │     │
+│ │                   SEM limite superior                   │     │
 │ ├─────────────────────────────────────────────────────────┤     │
-│ │ Atrasinho Comida: t0_t2 > 900 seg E < 1200 seg          │     │
-│ │                   (> 15 min e < 20 min)                 │     │
+│ │ Atrasinho Comida: t0_t2 > 900 seg (> 15 min)            │     │
+│ │                   SEM limite superior                   │     │
 │ └─────────────────────────────────────────────────────────┘     │
 │                                                                  │
 │ Fórmula: SUM(atrasinho_*) da semana                              │
+│ Descrição frontend atualizada: "> 5 min" e "> 15 min"            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -461,8 +469,8 @@ recalcular-desempenho-auto (Edge Function)
 │ FATURAMENTO POR DIA DA SEMANA                                    │
 ├──────────────┬──────────────────────────────────────────────────┤
 │ Tipo         │ 🤖 AUTOMÁTICO                                    │
-│ Tabela       │ ⚠️ contahub_analitico (PROBLEMA!)                │
-│ Coluna       │ valorfinal, trn_dtgerencial                      │
+│ Tabela       │ ✅ eventos_base (CORRIGIDO 18/03/2026)           │
+│ Coluna       │ real_r, data_evento                              │
 ├──────────────┴──────────────────────────────────────────────────┤
 │ EXIBIÇÃO POR BAR:                                                │
 │                                                                  │
@@ -471,59 +479,34 @@ recalcular-desempenho-auto (Edge Function)
 │ ├─────────────────────┼─────────────────────┤                   │
 │ │ QUI+SÁB+DOM         │ TER+QUA+QUI         │                   │
 │ │ (dias 4, 6, 0)      │ (dias 2, 3, 4)      │                   │
-│ │                     │                     │                   │
+│ │ ⚠️ NÃO inclui Sex   │                     │                   │
 │ │                     │ SEX+SÁB             │                   │
 │ │                     │ (dias 5, 6)         │                   │
 │ └─────────────────────┴─────────────────────┘                   │
 │                                                                  │
-│ ⚠️ PROBLEMA IDENTIFICADO:                                        │
+│ ✅ CORREÇÃO APLICADA (18/03/2026):                               │
 │ ┌───────────────────────────────────────────────────────────┐   │
-│ │ Usando: contahub_analitico.valorfinal                     │   │
-│ │ (múltiplos registros por transação = valor por item)      │   │
+│ │ ANTES: contahub_analitico.valorfinal                      │   │
+│ │ (múltiplos registros por transação = soma incorreta)      │   │
 │ │                                                           │   │
-│ │ Deveria usar: eventos_base.real_r                         │   │
-│ │ (valor consolidado por dia)                               │   │
+│ │ AGORA: eventos_base.real_r                                │   │
+│ │ (valor consolidado por dia = correto)                     │   │
 │ │                                                           │   │
-│ │ Exemplo erro S11: Sex+Sab = R$1.641 (deveria ser ~R$43k)  │   │
+│ │ Exemplo S11 corrigido: Sex+Sab = ~R$43k (era R$1.641)     │   │
 │ └───────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Couvert Total R$ / Atrações/Eventos
+### Cancelamentos / Couvert Total R$ / Atrações/Eventos R$
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ COUVERT E ATRAÇÕES                                               │
-├──────────────┬──────────────────────────────────────────────────┤
-│              │        ORDINÁRIO           │      DEBOCHE        │
-├──────────────┼────────────────────────────┼─────────────────────┤
-│ Exibição     │ ❌ OCULTO                  │ ✅ VISÍVEL          │
-├──────────────┴────────────────────────────┴─────────────────────┤
-│ COUVERT TOTAL R$:                                                │
-│ ┌─────────────────────────────────────────────────────────┐     │
-│ │ Tipo: 🤖 AUTOMÁTICO                                     │     │
-│ │ Tabela: contahub_periodo                                │     │
-│ │ Coluna: vr_couvert                                      │     │
-│ │ Fórmula: SUM(vr_couvert)                                │     │
-│ │ Destino: desempenho_semanal.couvert_atracoes            │     │
-│ └─────────────────────────────────────────────────────────┘     │
-│                                                                  │
-│ ATRAÇÕES/EVENTOS (Custo):                                        │
-│ ┌─────────────────────────────────────────────────────────┐     │
-│ │ Tipo: 🤖 AUTOMÁTICO                                     │     │
-│ │ Tabela: nibo_agendamentos                               │     │
-│ │ Filtros: tipo = 'despesa', deletado = false             │     │
-│ │                                                         │     │
-│ │ CATEGORIAS POR BAR:                                     │     │
-│ │ ┌───────────────────┬───────────────────┐               │     │
-│ │ │ ORDINÁRIO         │ DEBOCHE           │               │     │
-│ │ ├───────────────────┼───────────────────┤               │     │
-│ │ │ 'Atrações         │ 'Atrações/Eventos'│               │     │
-│ │ │  Programação',    │                   │               │     │
-│ │ │ 'Produção Eventos'│                   │               │     │
-│ │ └───────────────────┴───────────────────┘               │     │
-│ └─────────────────────────────────────────────────────────┘     │
-└─────────────────────────────────────────────────────────────────┘
+│ ORDEM DAS LINHAS EM $ VENDAS (DEBOCHE)                           │
+├──────────────────────────────────────────────────────────────────┤
+│ 1. Cancelamentos                                                 │
+│ 2. Couvert Total R$     ◄── Apenas Deboche                       │
+│ 3. Atrações/Eventos R$  ◄── Apenas Deboche                       │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ### Cancelamentos
@@ -536,11 +519,65 @@ recalcular-desempenho-auto (Edge Function)
 │ Tabela       │ contahub_cancelamentos                           │
 │ Coluna       │ custototal                                       │
 │ Fórmula      │ SUM(custototal)                                  │
-│ Cronjob      │ Alimentado pelo contahub-sync-7h-ambos           │
+│ Query ID     │ ✅ qry=57 (corrigido 18/03/2026)                 │
+│ Cronjob      │ Alimentado pelo contahub-sync-automatico         │
 │ Destino      │ desempenho_semanal.cancelamentos                 │
 ├──────────────┴──────────────────────────────────────────────────┤
 │ ORDINÁRIO    │ ✅ Igual                                         │
 │ DEBOCHE      │ ✅ Igual                                         │
+├─────────────────────────────────────────────────────────────────┤
+│ BACKFILL HISTÓRICO: Agendado para 19/03/2026 07:00-09:30 BRT    │
+│ (busca cancelamentos de 2025-01-01 até 2026-03-17)              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Couvert Total R$ (Deboche apenas)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ COUVERT TOTAL R$                                                 │
+├──────────────┬──────────────────────────────────────────────────┤
+│              │        ORDINÁRIO           │      DEBOCHE        │
+├──────────────┼────────────────────────────┼─────────────────────┤
+│ Exibição     │ ❌ OCULTO                  │ ✅ VISÍVEL          │
+├──────────────┴────────────────────────────┴─────────────────────┤
+│ Tipo: 🤖 AUTOMÁTICO                                              │
+│ Tabela: contahub_periodo                                         │
+│ Coluna: vr_couvert                                               │
+│ Fórmula: SUM(vr_couvert)                                         │
+│ Destino: desempenho_semanal.couvert_atracoes                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Atrações/Eventos R$ (Deboche apenas)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ ATRAÇÕES/EVENTOS R$                                              │
+├──────────────┬──────────────────────────────────────────────────┤
+│              │        ORDINÁRIO           │      DEBOCHE        │
+├──────────────┼────────────────────────────┼─────────────────────┤
+│ Exibição     │ ❌ OCULTO                  │ ✅ VISÍVEL          │
+├──────────────┴────────────────────────────┴─────────────────────┤
+│ Tipo: 🤖 AUTOMÁTICO                                              │
+│ Tabela: nibo_agendamentos                                        │
+│ Filtros: tipo = 'despesa', deletado = false                      │
+│                                                                  │
+│ CATEGORIAS POR BAR:                                              │
+│ ┌───────────────────┬───────────────────┐                       │
+│ │ ORDINÁRIO         │ DEBOCHE           │                       │
+│ ├───────────────────┼───────────────────┤                       │
+│ │ 'Atrações         │ 'Atrações/Eventos'│                       │
+│ │  Programação',    │                   │                       │
+│ │ 'Produção Eventos'│                   │                       │
+│ └───────────────────┴───────────────────┘                       │
+│                                                                  │
+│ Destino: desempenho_semanal.atracoes_eventos                     │
+│                                                                  │
+│ ⚠️ DIFERENÇA DO INDICADOR "Atração/Fat. (%)":                    │
+│ - Atração/Fat. = custo_atracao / faturamento * 100 (percentual)  │
+│ - Atrações/Eventos R$ = valor absoluto em reais                  │
+│ - MESMO DADO FONTE, representação diferente                      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -574,8 +611,8 @@ NIBO ────────────────┘
 ├──────────────┬──────────────────────────────────────────────────┤
 │              │        ORDINÁRIO           │      DEBOCHE        │
 ├──────────────┼────────────────────────────┼─────────────────────┤
-│ Tipo         │ 🤖 AUTOMÁTICO              │ ✋ MANUAL (modal)   │
-│ Fonte        │ GetIn API                  │ ❌ Sem API          │
+│ Tipo         │ 🤖 AUTOMÁTICO              │ ✋ MANUAL (inline)  │
+│ Fonte        │ GetIn API                  │ ❌ Sem API GetIn    │
 │ Cronjob      │ getin-sync-continuo        │ —                   │
 │              │ (a cada 2h)                │                     │
 │ Tabela       │ getin_reservas →           │ eventos_base        │
@@ -583,11 +620,17 @@ NIBO ────────────────┘
 │ Colunas      │ res_tot, res_p             │ res_tot, res_p      │
 │              │ num_mesas_tot,             │                     │
 │              │ num_mesas_presentes        │                     │
-│ Editável     │ ✅ Modal apenas            │ ✅ Modal apenas     │
-│              │                            │ ⚠️ Precisa inline   │
+│ Editável     │ ✅ Modal apenas            │ ✅ INLINE na tabela │
 ├──────────────┴────────────────────────────┴─────────────────────┤
+│ ✅ IMPLEMENTADO (18/03/2026):                                    │
+│ - Deboche: Edição inline com ícone de lápis (✏️)                │
+│ - Clique no lápis → campo de input aparece                      │
+│ - Enter ou clique no ✓ → salva                                  │
+│ - Escape → cancela                                              │
+│ - API: POST /api/eventos/[id]/update                            │
+│ - Dados salvos em eventos_base.res_tot e res_p                  │
+│ - Desempenho puxa de eventos_base automaticamente               │
 │ Arquivo: PlanejamentoClient.tsx                                  │
-│ Edição: Via modal (modoEdicao = true)                           │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -597,16 +640,48 @@ NIBO ────────────────┘
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ COLUNAS CONGELADAS ATUALMENTE                                    │
-├──────────────┬──────────────────────────────────────────────────┤
+│ COLUNAS CONGELADAS (5 primeiras)                                 │
+├──────────────┬───────────────────┬──────────────────────────────┤
 │ Coluna       │ CSS Position      │ Status                       │
 ├──────────────┼───────────────────┼──────────────────────────────┤
 │ Data         │ sticky left-0     │ ✅ Congelada                 │
-│ Dia          │ sticky left-48px  │ ✅ Congelada                 │
-│ Artista      │ sticky left-86px  │ ✅ Congelada                 │
-│ Receita Real │ —                 │ ⚠️ PRECISA CONGELAR          │
-│ Meta M1      │ —                 │ ⚠️ PRECISA CONGELAR          │
-└──────────────┴───────────────────┴──────────────────────────────┘
+│ Dia          │ sticky left-[48px]│ ✅ Congelada                 │
+│ Artista      │ sticky left-[86px]│ ✅ Congelada                 │
+│ Receita Real │ sticky left-[226px]│ ✅ Congelada                │
+│ Meta M1      │ sticky left-[336px]│ ✅ Congelada (18/03/2026)   │
+├──────────────┴───────────────────┴──────────────────────────────┤
+│ Arquivo: PlanejamentoClient.tsx                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🎨 HIGHLIGHT DE LINHA E COLUNA
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ DESTAQUE DE SELEÇÃO (ATUALIZADO 18/03/2026)                      │
+├──────────────────────────────────────────────────────────────────┤
+│ LINHA SELECIONADA (mais visível):                                │
+│ - bg-blue-200 dark:bg-blue-800/60                               │
+│ - ring-2 ring-blue-500 ring-inset shadow-sm                     │
+│                                                                  │
+│ COLUNA SELECIONADA (destaque âmbar):                             │
+│ - bg-amber-100 dark:bg-amber-900/40                             │
+│ - ring-2 ring-inset ring-amber-500                              │
+│                                                                  │
+│ TODAS AS COLUNAS HABILITADAS:                                    │
+│ - Receita Real, Meta M1, Clientes Plan, Clientes Real           │
+│ - Reservas Tot, Reservas Presentes                              │
+│ - Entrada Real, Bar Real, Ticket Médio                          │
+│ - Custo Artístico, $ Couvert, % Art/Fat                         │
+│ - % Bebidas, % Drinks, % Cozinha                                │
+│ - Atrasão Coz, Atrasão Drinks                                   │
+│ - Stockout Drinks, Stockout Comidas                             │
+├──────────────────────────────────────────────────────────────────┤
+│ Estado: colunaHighlight (string | null)                          │
+│ Arquivo: PlanejamentoClient.tsx                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -625,6 +700,7 @@ NIBO ────────────────┘
 | `get_google_reviews_stars_by_date` | Reviews por data | recalcular-desempenho-auto |
 | `sync_mesas_getin_to_eventos` | GetIn → eventos_base | getin-sync-continuous |
 | `update_eventos_base_from_contahub` | ContaHub → eventos | contahub-update-eventos |
+| `backfill_cancelamentos_historico` | Processa raw → cancelamentos | Cronjob único |
 
 ---
 
@@ -637,7 +713,7 @@ NIBO ────────────────┘
 | sympla-sync-semanal | 08:00 Seg | 05:00 Seg | Sympla/Yuzer |
 | alertas-proativos-manha | 09:00 | 06:00 | Alertas Discord |
 | agente-analise-diaria | 09:00 | 06:00 | Análise IA |
-| contahub-sync-7h-ambos | 10:00 | 07:00 | ContaHub principal |
+| contahub-sync-7h-ambos | 10:00 | 07:00 | ContaHub (+ cancelamentos) |
 | sync-eventos-diario | 10:30 | 07:30 | Eventos consolidados |
 | contahub-update-eventos-ambos | 11:00 | 08:00 | Update eventos_base |
 | google-reviews-daily-sync | 11:00 | 08:00 | Google Reviews |
@@ -658,7 +734,7 @@ NIBO ────────────────┘
 ```
 BACKEND (Edge Functions):
 ├── recalcular-desempenho-auto/index.ts  ◄── Cálculo desempenho semanal
-├── contahub-sync-automatico/index.ts    ◄── Sync ContaHub
+├── contahub-sync-automatico/index.ts    ◄── Sync ContaHub (+ cancelamentos qry=57)
 ├── contahub-processor/index.ts          ◄── Processa dados ContaHub
 ├── getin-sync-continuous/index.ts       ◄── Sync GetIn (reservas)
 ├── nibo-sync/index.ts                   ◄── Sync NIBO (custos)
@@ -678,7 +754,8 @@ DATABASE (Stored Procedures):
 ├── calcular_metricas_clientes
 ├── get_count_base_ativa
 ├── calcular_nps_semanal_por_pesquisa
-└── get_google_reviews_stars_by_date
+├── get_google_reviews_stars_by_date
+└── backfill_cancelamentos_historico    ◄── NOVO (18/03/2026)
 ```
 
 ---
@@ -690,6 +767,51 @@ DATABASE (Stored Procedures):
 | 🤖 | Automático (calculado por sistema) |
 | ✋ | Manual (input do usuário) |
 | SP | Stored Procedure |
-| ✅ | Habilitado/Igual |
+| ✅ | Habilitado/Igual/Corrigido |
 | ❌ | Desabilitado/Oculto |
 | ⚠️ | Problema/Atenção necessária |
+
+---
+
+# 📝 CHANGELOG
+
+## 18/03/2026 (noite)
+
+### Correções Stockout
+- ✅ **Stored procedure `calcular_stockout_semanal`**: Corrigida para usar `contahub_stockout_filtrado` com `categoria_local` (baseada em `categoria_mix`)
+- **Antes**: Usava `loc_desc` para mapear categorias (inconsistente com ferramenta)
+- **Agora**: Usa view `contahub_stockout_filtrado` que já tem `categoria_local` normalizado
+- Valores agora batem 100% com a ferramenta "Controle de Stockout"
+
+### Correções Mix de Vendas
+- ✅ **Stored procedure `calcular_mix_vendas`**: Corrigida para usar `categoria_mix` para AMBOS os bares
+- **Antes**: Ordinário usava `categoria_mix`, Deboche usava `loc_desc` (inconsistente)
+- **Agora**: Ambos usam `categoria_mix` (BEBIDA, DRINK, COMIDA)
+- Valores agora batem com a planilha (ex: Fev/26 Deboche: 30.6% bebidas, 36.7% drinks, 32.7% comidas)
+
+### Correções API Desempenho Mensal
+- ✅ **Mix de vendas**: Agora usa `calcular_mix_vendas` RPC direto (não mais eventos_base)
+- ✅ **Stockout**: Agora usa `contahub_stockout_filtrado` com `categoria_local`
+- **Antes**: Mix vinha de `eventos_base.percent_b/d/c` com média ponderada (incorreto quando dias tinham 0%)
+- **Agora**: Mix vem direto do ContaHub via stored procedure (correto)
+
+## 18/03/2026
+
+### Correções
+- ✅ **TER+QUA+QUI / SEX+SÁB / QUI+SÁB+DOM**: Corrigido para usar `eventos_base.real_r` (antes usava `contahub_analitico.valorfinal` incorreto)
+- ✅ **Atrasão Drinks**: Threshold alterado para > 10 min (600 seg) para AMBOS os bares
+- ✅ **Atrasão Comida**: Threshold confirmado > 20 min (1200 seg)
+- ✅ **Atrasinho Drinks**: Threshold alterado para > 5 min (300 seg) SEM limite superior
+- ✅ **Atrasinho Comida**: Threshold confirmado > 15 min (900 seg) SEM limite superior
+- ✅ **Cancelamentos Query ID**: Corrigido de qry=22 para qry=57
+
+### Novos Recursos
+- ✅ **Meta Semanal Dinâmica**: Badge % ao lado do Faturamento Total + tooltip
+- ✅ **Coluna Meta removida** na visão semanal (cada semana tem sua própria meta)
+- ✅ **Colunas fixas** no Planejamento: Data, Dia, Artista, Receita Real
+- ✅ **Highlight linha/coluna** melhorado no Planejamento
+- ✅ **Reservas inline** para Deboche (edição direto na célula)
+- ✅ **Atrações/Eventos R$**: Nova linha após Cancelamentos (Deboche)
+- ✅ **Couvert Total R$**: Nova linha após Cancelamentos (Deboche)
+- ✅ **Backfill Cancelamentos**: Cronjobs agendados para 19/03/2026 (histórico 2025+2026)
+- ✅ **Modo backfill** na Edge Function contahub-sync-automatico

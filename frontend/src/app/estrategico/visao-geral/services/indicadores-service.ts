@@ -1,4 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+﻿import { SupabaseClient } from '@supabase/supabase-js';
 
 // Função para calcular datas do trimestre
 export function getTrimestreDates(trimestre: number, year?: number) {
@@ -73,7 +73,7 @@ async function fetchAllData(supabase: SupabaseClient, tableName: string, columns
     allData.push(...data);
     
     if (data.length < limit) {
-      break; // Última página
+      break; // última página
     }
     
     from += limit;
@@ -203,7 +203,7 @@ export async function calcularRetencao(supabase: SupabaseClient, barIdNum: numbe
   }
 }
 
-// Função para calcular RETENÇÃO REAL (rolling 90 dias)
+// Função para calcular RETENÇÃO REAL (rolling 90 dias) - MIGRADO: visitas (domain table)
 export async function calcularRetencaoReal(supabase: SupabaseClient, barIdNum: number, trimestre?: number) {
   try {
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
@@ -280,36 +280,36 @@ export async function calcularRetencaoReal(supabase: SupabaseClient, barIdNum: n
       fimPeriodoComparacao = formatDate(fimComp);
     }
     
-    // Buscar clientes dos períodos
+    // Buscar clientes dos períodos - MIGRADO: visitas (domain table)
     const [clientesPeriodoAtualBruto, clientesPeriodoAnteriorBruto, clientesPeriodoComparacaoBruto] = await Promise.all([
-      fetchAllData(supabase, 'contahub_periodo', 'cli_fone', {
+      fetchAllData(supabase, 'visitas', 'cliente_fone', {
         'eq_bar_id': barIdNum,
-        'gte_dt_gerencial': inicioPeriodoAtual,
-        'lte_dt_gerencial': fimPeriodoAtual
+        'gte_data_visita': inicioPeriodoAtual,
+        'lte_data_visita': fimPeriodoAtual
       }),
-      fetchAllData(supabase, 'contahub_periodo', 'cli_fone', {
+      fetchAllData(supabase, 'visitas', 'cliente_fone', {
         'eq_bar_id': barIdNum,
-        'gte_dt_gerencial': inicioPeriodoAnterior,
-        'lte_dt_gerencial': fimPeriodoAnterior
+        'gte_data_visita': inicioPeriodoAnterior,
+        'lte_data_visita': fimPeriodoAnterior
       }),
-      fetchAllData(supabase, 'contahub_periodo', 'cli_fone', {
+      fetchAllData(supabase, 'visitas', 'cliente_fone', {
         'eq_bar_id': barIdNum,
-        'gte_dt_gerencial': inicioPeriodoComparacao,
-        'lte_dt_gerencial': fimPeriodoComparacao
+        'gte_data_visita': inicioPeriodoComparacao,
+        'lte_data_visita': fimPeriodoComparacao
       })
     ]) as [any[], any[], any[]];
     
     // Criar sets de clientes únicos
     const clientesPeriodoAtual = new Set(
-      clientesPeriodoAtualBruto?.filter(item => item.cli_fone && item.cli_fone.length >= 8).map(item => item.cli_fone) || []
+      clientesPeriodoAtualBruto?.filter(item => item.cliente_fone && item.cliente_fone.length >= 8).map(item => item.cliente_fone) || []
     );
     
     const clientesPeriodoAnterior = new Set(
-      clientesPeriodoAnteriorBruto?.filter(item => item.cli_fone && item.cli_fone.length >= 8).map(item => item.cli_fone) || []
+      clientesPeriodoAnteriorBruto?.filter(item => item.cliente_fone && item.cliente_fone.length >= 8).map(item => item.cliente_fone) || []
     );
     
     const clientesPeriodoComparacao = new Set(
-      clientesPeriodoComparacaoBruto?.filter(item => item.cli_fone && item.cli_fone.length >= 8).map(item => item.cli_fone) || []
+      clientesPeriodoComparacaoBruto?.filter(item => item.cliente_fone && item.cliente_fone.length >= 8).map(item => item.cliente_fone) || []
     );
     
     // RETENÇÃO REAL = clientes do período ANTERIOR que voltaram no período ATUAL

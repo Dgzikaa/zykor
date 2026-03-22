@@ -37,9 +37,45 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`🤖 Agente Chat - User: ${user.nome}, Bar: ${barIdFinal}, Msg: ${mensagem.substring(0, 50)}...`)
+    // ============================================================
+    // FASE 2: Usar novo agente com Tool Use (chat-v2)
+    // ============================================================
+    try {
+      const agentResponse = await fetch(`${SUPABASE_FUNCTIONS_URL}/agente-dispatcher`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+        },
+        body: JSON.stringify({
+          action: 'chat-v2',
+          bar_id: barIdFinal,
+          params: {
+            mensagem: mensagem.trim(),
+            historico: null
+          }
+        })
+      })
 
-    // Chamar Edge Function de chat usando service role key
+      const agentData = await agentResponse.json()
+
+      if (agentData.success && agentData.data?.response) {
+        return NextResponse.json({
+          success: true,
+          resposta: agentData.data.response,
+          agent: 'Assistente Zykor (Tool Use)',
+          timestamp: new Date().toISOString()
+        })
+      }
+      
+      console.log('⚠️ chat-v2 não retornou resposta válida, usando fallback')
+    } catch (toolUseError) {
+      console.error('⚠️ Erro no chat-v2, usando fallback:', toolUseError)
+    }
+
+    // ============================================================
+    // FALLBACK: Chamar Edge Function antiga de chat
+    // ============================================================
     const response = await fetch(`${SUPABASE_FUNCTIONS_URL}/agente-chat`, {
       method: 'POST',
       headers: {

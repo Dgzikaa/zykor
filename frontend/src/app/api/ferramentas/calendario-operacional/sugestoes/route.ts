@@ -47,8 +47,6 @@ export async function GET(request: NextRequest) {
     }
     const barId = parseInt(barIdParam);
 
-    console.log(`💡 Gerando sugestões para ${mes || 'ano completo'} de ${ano}`);
-
     // 1. FERIADOS NÃO CADASTRADOS
     const dataInicio = mes ? `${ano}-${mes.toString().padStart(2, '0')}-01` : `${ano}-01-01`;
     const dataFim = mes 
@@ -107,16 +105,16 @@ export async function GET(request: NextRequest) {
         : '0'
     })).filter(p => parseFloat(p.percentualFechado) > 80); // Dias que fecham mais de 80% das vezes
 
-    // 3. INCONSISTÊNCIAS DETECTADAS
+    // 3. INCONSISTÊNCIAS DETECTADAS (usando eventos_base)
     const { data: movimentacoes } = await supabase
-      .from('contahub_dados')
-      .select('data, total_vendas')
+      .from('eventos_base')
+      .select('data_evento, real_r')
       .eq('bar_id', barId)
-      .gte('data', dataInicio)
-      .lte('data', dataFim);
+      .gte('data_evento', dataInicio)
+      .lte('data_evento', dataFim);
 
     const movimentacoesMap = new Map(
-      movimentacoes?.map(m => [m.data, parseFloat(m.total_vendas || '0')]) || []
+      movimentacoes?.map(m => [m.data_evento, parseFloat(m.real_r || '0')]) || []
     );
 
     // Dias marcados como fechados mas com movimento

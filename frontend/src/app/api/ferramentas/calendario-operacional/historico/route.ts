@@ -26,8 +26,6 @@ export async function GET(request: NextRequest) {
     const data = searchParams.get('data'); // Filtrar por data específica
     const tipo_acao = searchParams.get('tipo_acao'); // Filtrar por tipo
 
-    console.log(`📜 Buscando histórico do calendário (bar: ${barId}, limit: ${limit})`);
-
     let query = supabase
       .from('calendario_historico')
       .select('*')

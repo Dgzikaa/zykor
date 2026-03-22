@@ -150,10 +150,6 @@ export async function POST(
       );
     }
 
-    console.log(
-      `🔄 Rollback executado: ${checklistRollback.nome} (v${checklistAtual.versao} → v${versao_destino} → v${novaVersao})`
-    );
-
     return NextResponse.json({
       success: true,
       message: `Rollback executado com sucesso para versão ${versao_destino}`,

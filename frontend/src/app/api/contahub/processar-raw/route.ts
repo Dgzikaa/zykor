@@ -27,8 +27,6 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const body: ProcessingRequest = await request.json()
 
-    console.log('🚀 [API] Iniciando processamento de dados brutos ContaHub:', body)
-
     // Se process_all=true, buscar todos os registros não processados
     if (body.process_all) {
       const { data: rawDataRecords, error } = await supabase
@@ -55,22 +53,16 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      console.log(`📊 [API] Encontrados ${rawDataRecords.length} registros para processar`)
-
       // Processar em lotes de 100 registros
       const results: ProcessingResult[] = []
       let successCount = 0
       let errorCount = 0
       const batchSize = 100
 
-      console.log(`📦 [API] Processando em lotes de ${batchSize} registros`)
-
       for (let i = 0; i < rawDataRecords.length; i += batchSize) {
         const batch = rawDataRecords.slice(i, i + batchSize)
         const batchNumber = Math.floor(i / batchSize) + 1
         const totalBatches = Math.ceil(rawDataRecords.length / batchSize)
-        
-        console.log(`🚀 [API] Processando lote ${batchNumber}/${totalBatches} (${batch.length} registros)`)
 
         // Processar lote em paralelo
         const batchPromises = batch.map(async (rawRecord) => {
@@ -105,16 +97,12 @@ export async function POST(request: NextRequest) {
         // Aguardar conclusão do lote
         const batchResults = await Promise.all(batchPromises)
         results.push(...batchResults)
-        
-        console.log(`✅ [API] Lote ${batchNumber} concluído: ${batchResults.filter(r => r.success).length}/${batch.length} sucessos`)
-        
+
         // Pequena pausa entre lotes para evitar sobrecarga
         if (i + batchSize < rawDataRecords.length) {
           await new Promise(resolve => setTimeout(resolve, 500))
         }
       }
-
-      console.log(`🎉 [API] Processamento concluído: ${successCount} sucessos, ${errorCount} erros`)
 
       return NextResponse.json({
         success: true,
@@ -128,8 +116,6 @@ export async function POST(request: NextRequest) {
 
     // Processar um registro específico
     if (body.raw_data_id) {
-      console.log(`🔄 [API] Processando raw_data_id específico: ${body.raw_data_id}`)
-      
       const result = await processRawData(body.raw_data_id)
       
       return NextResponse.json(result, {

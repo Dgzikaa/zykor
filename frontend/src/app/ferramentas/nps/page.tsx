@@ -565,7 +565,7 @@ export default function NPSPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-data': encodeURIComponent(JSON.stringify({ ...user, bar_id: selectedBar?.id }))
+          'x-selected-bar-id': String(selectedBar?.id || '')
         },
         body: JSON.stringify({
           bar_id: selectedBar?.id,

@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       data.setDate(data.getDate() - i)
       const dataStr = data.toISOString().split('T')[0]
 
-      const { data: resultado, error } = await supabase.rpc('validar_contahub_dia', {
+      const { data: resultado, error } = await supabase.rpc('validar_dados_dia', {
         p_data: dataStr,
         p_bar_id: 3
       })

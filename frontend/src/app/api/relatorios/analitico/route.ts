@@ -22,34 +22,30 @@ export async function GET(request: NextRequest) {
     const usuario = searchParams.get('usuario');
     const limit = parseInt(searchParams.get('limit') || '1000');
 
-    console.log(`📊 Relatório Analítico solicitado para bar ${bar_id}`);
-
-    // Excluir categorias de compras/estoque por padrão
-    let query = supabase
-      .from('contahub_analitico')
+    // Excluir categorias de compras/estoque por padrão - migrado para vendas_item
+    let query = (supabase as any)
+      .from('vendas_item')
       .select('*')
       .eq('bar_id', parseInt(bar_id))
-      .not('grp_desc', 'in', '("Mercadorias- Compras","Insumos","Uso Interno")')
+      .not('grupo_desc', 'in', '("Mercadorias- Compras","Insumos","Uso Interno")')
       .limit(limit);
 
     // Aplicar filtros
     if (data_inicio) {
-      query = query.gte('trn_dtgerencial', data_inicio);
+      query = query.gte('data_venda', data_inicio);
     }
     if (data_fim) {
-      query = query.lte('trn_dtgerencial', data_fim);
+      query = query.lte('data_venda', data_fim);
     }
     if (produto) {
-      query = query.ilike('prd_desc', `%${produto}%`);
+      query = query.ilike('produto_desc', `%${produto}%`);
     }
     if (grupo) {
-      query = query.ilike('grp_desc', `%${grupo}%`);
+      query = query.ilike('grupo_desc', `%${grupo}%`);
     }
-    if (usuario) {
-      query = query.ilike('usr_lancou', `%${usuario}%`);
-    }
+    // usuario (usr_lancou) não existe em vendas_item - ignorar filtro
 
-    const { data, error } = await query;
+    const { data, error } = await query as { data: any[] | null; error: any };
 
     if (error) {
       console.error('❌ Erro ao buscar dados analíticos:', error);
@@ -62,21 +58,21 @@ export async function GET(request: NextRequest) {
     // Calcular estatísticas
     const estatisticas = {
       total_registros: data?.length || 0,
-      total_vendas: data?.reduce((sum, item) => sum + (item.valorfinal || 0), 0) || 0,
-      total_itens: data?.reduce((sum, item) => sum + (item.qtd || 0), 0) || 0,
-      produtos_unicos: [...new Set(data?.map(item => item.prd_desc).filter(Boolean))].length,
-      grupos_unicos: [...new Set(data?.map(item => item.grp_desc).filter(Boolean))].length,
-      usuarios_unicos: [...new Set(data?.map(item => item.usr_lancou).filter(Boolean))].length
+      total_vendas: data?.reduce((sum, item) => sum + (item.valor || 0), 0) || 0,
+      total_itens: data?.reduce((sum, item) => sum + (item.quantidade || 0), 0) || 0,
+      produtos_unicos: [...new Set(data?.map(item => item.produto_desc).filter(Boolean))].length,
+      grupos_unicos: [...new Set(data?.map(item => item.grupo_desc).filter(Boolean))].length,
+      usuarios_unicos: 0 // usr_lancou não existe em vendas_item
     };
 
     // Top produtos por valor
     const produtosPorValor = data?.reduce((acc, item) => {
-      const produto = item.prd_desc || 'Sem descrição';
+      const produto = item.produto_desc || 'Sem descrição';
       if (!acc[produto]) {
         acc[produto] = { valor: 0, quantidade: 0, vendas: 0 };
       }
-      acc[produto].valor += item.valorfinal || 0;
-      acc[produto].quantidade += item.qtd || 0;
+      acc[produto].valor += item.valor || 0;
+      acc[produto].quantidade += item.quantidade || 0;
       acc[produto].vendas += 1;
       return acc;
     }, {} as Record<string, { valor: number; quantidade: number; vendas: number }>);
@@ -93,12 +89,12 @@ export async function GET(request: NextRequest) {
 
     // Top grupos por valor
     const gruposPorValor = data?.reduce((acc, item) => {
-      const grupo = item.grp_desc || 'Sem grupo';
+      const grupo = item.grupo_desc || 'Sem grupo';
       if (!acc[grupo]) {
         acc[grupo] = { valor: 0, quantidade: 0, vendas: 0 };
       }
-      acc[grupo].valor += item.valorfinal || 0;
-      acc[grupo].quantidade += item.qtd || 0;
+      acc[grupo].valor += item.valor || 0;
+      acc[grupo].quantidade += item.quantidade || 0;
       acc[grupo].vendas += 1;
       return acc;
     }, {} as Record<string, { valor: number; quantidade: number; vendas: number }>);

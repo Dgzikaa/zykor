@@ -1,53 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
-
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = createServerClient()
-    
-    // Verificar autenticação
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-    }
-
-    const body = await request.json()
-    const { bar_id, tipo_scan = 'completo' } = body
-
-    if (!bar_id) {
-      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 })
-    }
-
-    // Verificar se usuário tem acesso ao bar
-    const { data: userBar } = await supabase
-      .from('usuarios_bar')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .eq('bar_id', bar_id)
-      .single()
-
-    if (!userBar) {
-      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
-    }
-
-    // Chamar Edge Function agente-scanner
-    const { data, error } = await supabase.functions.invoke('agente-scanner', {
-      body: { bar_id, tipo_scan }
-    })
-
-    if (error) throw error
-
-    return NextResponse.json(data)
-
-  } catch (error: any) {
-    console.error('Erro ao iniciar scan:', error)
-    return NextResponse.json(
-      { error: error.message || 'Erro ao iniciar scan' },
-      { status: 500 }
-    )
-  }
-}
 
 export async function GET(request: NextRequest) {
   try {

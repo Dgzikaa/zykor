@@ -16,6 +16,8 @@ export interface DadosSemana {
   cmv_global_real: number;
   cmv_teorico: number;
   cmo: number;
+  /** Meta semanal (gestão / API); opcional na visão estratégica */
+  meta_semanal?: number;
   custo_atracao_faturamento: number;
   retencao_1m: number;
   retencao_2m: number;
@@ -198,3 +200,91 @@ export interface MetaDesempenho {
 export interface MetasDesempenhoMap {
   [metrica: string]: MetaDesempenho;
 }
+
+/** Filtros para paginação Supabase: `in` exige array; demais operadores exigem escalar. */
+export type PaginatedFilter =
+  | { column: string; operator: 'in'; value: readonly (string | number)[] }
+  | { column: string; operator: 'eq' | 'gt' | 'gte' | 'lte' | 'lt'; value: string | number };
+
+/** Linha `marketing_semanal` usada ao enriquecer desempenho semanal */
+export interface MarketingSemanalRow {
+  ano: number;
+  semana: number;
+  o_num_posts?: number | null;
+  o_alcance?: number | null;
+  o_interacao?: number | null;
+  o_compartilhamento?: number | null;
+  o_engajamento?: number | null;
+  o_num_stories?: number | null;
+  o_visu_stories?: number | null;
+  m_valor_investido?: number | null;
+  m_alcance?: number | null;
+  m_frequencia?: number | null;
+  m_cpm?: number | null;
+  m_cliques?: number | null;
+  m_ctr?: number | null;
+  m_cpc?: number | null;
+  m_conversas_iniciadas?: number | null;
+}
+
+/** Subconjunto de `cmv_semanal` para merge no desempenho semanal */
+export interface CmvSemanalRow {
+  semana: number;
+  ano: number;
+  cmv_real?: number | null;
+  cmv_limpo_percentual?: number | null;
+  faturamento_cmvivel?: number | null;
+}
+
+export interface DescontoDiaAgregado {
+  valor: number;
+  qtd: number;
+}
+
+export interface DescontoMotivoAgregado {
+  motivo_exibicao: string;
+  valor: number;
+  qtd: number;
+  por_dia: Map<string, DescontoDiaAgregado>;
+}
+
+export interface DescontosSemanaAgregados {
+  valor: number;
+  detalhes: Map<string, DescontoMotivoAgregado>;
+}
+
+/** `eventos_base` — colunas usadas na agregação mensal */
+export interface EventoBaseDiarioRow {
+  data_evento: string;
+  real_r: string | number | null;
+  cl_real: string | number | null;
+  t_medio: string | number | null;
+  percent_b: string | number | null;
+  percent_d: string | number | null;
+  percent_c: string | number | null;
+  res_tot: string | number | null;
+  res_p: string | number | null;
+  num_mesas_tot: string | number | null;
+  num_mesas_presentes: string | number | null;
+  t_coz: string | number | null;
+  t_bar: string | number | null;
+  fat_19h_percent: string | number | null;
+  faturamento_couvert: string | number | null;
+  faturamento_bar: string | number | null;
+}
+
+export interface ContahubStockoutMixRow {
+  categoria_mix: string;
+  prd_venda: string;
+}
+
+/** Semana ISO com peso de dias no mês (agregação mensal) */
+export interface SemanaProporcaoMes {
+  semana: number;
+  anoISO: number;
+  diasNoMes: number;
+  proporcao: number;
+}
+
+/** Linha `desempenho_semanal` lida dinamicamente por nome de campo */
+export type DesempenhoSemanalDbRow = Record<string, unknown>;

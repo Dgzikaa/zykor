@@ -45,8 +45,6 @@ export async function GET(request: NextRequest) {
     const dataInicio = searchParams.get('data_inicio');
     const dataFim = searchParams.get('data_fim');
 
-    console.log(`📊 NPS Agregado: ${tipo} | Bar: ${barId} | Período: ${dataInicio} a ${dataFim}`);
-
     let viewName = 'nps_agregado_semanal'; // padrão
     if (tipo === 'dia') viewName = 'nps_agregado_diario';
     if (tipo === 'mes') viewName = 'nps_agregado_mensal';
@@ -139,8 +137,6 @@ export async function GET(request: NextRequest) {
         nps_reservas: formatarMetrica(item.nps_reservas, comentariosReservas), // Usar comentários específicos de reservas
       };
     });
-
-    console.log(`✅ Retornando ${resultado.length} registros de NPS ${tipo}`);
 
     return NextResponse.json({
       success: true,

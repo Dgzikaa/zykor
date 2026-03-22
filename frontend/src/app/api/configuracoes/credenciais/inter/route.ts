@@ -15,8 +15,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('🔍 Buscando credenciais do Inter para bar_id:', bar_id);
-
     const credenciais = await getInterCredentials(bar_id);
 
     if (!credenciais) {
@@ -25,11 +23,6 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       );
     }
-
-    console.log('✅ Credenciais encontradas:', {
-      client_id: credenciais.client_id,
-      client_secret: credenciais.client_secret ? '***' : 'não encontrado',
-    });
 
     return NextResponse.json({
       success: true,

@@ -70,8 +70,6 @@ export async function GET(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    console.log(`🔍 ANÁLISE DETALHADA - Bar: ${barId}, Ano: ${ano}, Mês: ${mes || 'TODOS'}`);
-
     // Definir período de busca
     let startDate: string;
     let endDate: string;
@@ -88,16 +86,12 @@ export async function GET(request: Request) {
       endDate = `${ano}-12-31`;
     }
 
-    console.log(`📅 Período: ${startDate} até ${endDate}`);
-
     // Buscar TODOS os dados do Nibo para o período
     const niboData = await fetchAllData(supabase, 'nibo_agendamentos', '*', {
       'eq_bar_id': parseInt(barId),
       'gte_data_competencia': startDate,
       'lte_data_competencia': endDate
     });
-
-    console.log(`📊 Total de registros encontrados: ${niboData?.length || 0}`);
 
     // Mapa de categorias problemáticas que o usuário mencionou
     const categoriasProblematicas = [
@@ -215,11 +209,6 @@ export async function GET(request: Request) {
         sugestoes: sugestoes.sort((a, b) => b.score_similaridade - a.score_similaridade).slice(0, 3)
       });
     });
-
-    console.log(`✅ Análise concluída:`);
-    console.log(`- Categorias disponíveis: ${categoriasArray.length}`);
-    console.log(`- Categorias não encontradas: ${categoriasNaoEncontradas.length}`);
-    console.log(`- Sugestões de mapeamento: ${sugestoesMapeamento.length}`);
 
     return NextResponse.json({
       success: true,

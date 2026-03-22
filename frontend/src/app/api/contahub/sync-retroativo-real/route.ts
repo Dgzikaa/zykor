@@ -48,9 +48,6 @@ export async function POST(request: NextRequest) {
     }
 
     const barId = body.bar_id;
-    
-    console.log(`\n🔄 [SYNC RETROATIVO] Iniciando sincronização para bar_id=${barId}`);
-    console.log(`📅 Período: ${body.start_date} até ${body.end_date}`);
 
     // Gerar lista de datas
     const startDate = new Date(body.start_date);
@@ -61,8 +58,6 @@ export async function POST(request: NextRequest) {
       dates.push(d.toISOString().split('T')[0]);
     }
 
-    console.log(`📊 Total de ${dates.length} dias para sincronizar`);
-
     const results: DateResult[] = [];
     let successCount = 0;
     let errorCount = 0;
@@ -72,9 +67,6 @@ export async function POST(request: NextRequest) {
     // Processar cada data
     for (let i = 0; i < dates.length; i++) {
       const date = dates[i];
-      const progress = ((i + 1) / dates.length * 100).toFixed(1);
-      
-      console.log(`\n[${progress}%] 🗓️ Sincronizando ${date} (bar_id=${barId})...`);
 
       try {
         // Usar nova função consolidada contahub-sync com action=sync
@@ -100,9 +92,7 @@ export async function POST(request: NextRequest) {
         
         const recordsCollected = result.summary?.total_records_collected || 0;
         const recordsProcessed = result.summary?.total_records_processed || 0;
-        
-        console.log(`   ✅ ${date}: ${recordsCollected} coletados, ${recordsProcessed} processados`);
-        
+
         results.push({
           date,
           bar_id: barId,
@@ -132,12 +122,6 @@ export async function POST(request: NextRequest) {
       // Pequena pausa para não sobrecarregar a API (100ms entre requisições)
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-
-    console.log(`\n🎉 [SYNC RETROATIVO] Concluído!`);
-    console.log(`   ✅ Sucessos: ${successCount}/${dates.length}`);
-    console.log(`   ❌ Erros: ${errorCount}/${dates.length}`);
-    console.log(`   📊 Total coletados: ${totalRecordsCollected}`);
-    console.log(`   📊 Total processados: ${totalRecordsProcessed}`);
 
     return NextResponse.json({
       success: errorCount === 0,

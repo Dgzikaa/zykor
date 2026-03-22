@@ -103,8 +103,6 @@ export async function GET() {
         };
       }) || [];
 
-    console.log(`✅ Checklists carregados: ${checklistsFormatados.length}`);
-
     return NextResponse.json(checklistsFormatados);
   } catch (error) {
     console.error('💥 Erro na API de checklists:', error);
@@ -118,8 +116,6 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-
-    console.log('📦 Dados recebidos:', body);
 
     // Validação básica
     if (!body.nome || !body.setor || !body.tipo) {
@@ -138,17 +134,12 @@ export async function POST(req: NextRequest) {
       .eq('email', 'admin@ordinario.com')
       .single();
 
-    // bar_id pode vir do body ou do header x-user-data
+    // bar_id pode vir do body ou do header x-selected-bar-id
     let barId = body.bar_id;
     if (!barId) {
-      const userDataHeader = req.headers.get('x-user-data');
-      if (userDataHeader) {
-        try {
-          const parsed = JSON.parse(userDataHeader);
-          barId = parsed?.bar_id;
-        } catch (e) {
-          // Ignorar erro de parse
-        }
+      const barIdHeader = req.headers.get('x-selected-bar-id');
+      if (barIdHeader) {
+        barId = parseInt(barIdHeader, 10) || null;
       }
     }
     
@@ -169,8 +160,6 @@ export async function POST(req: NextRequest) {
       status: 'ativo',
     };
 
-    console.log('💾 Dados para inserção:', checklistData);
-
     const { data: novoChecklist, error } = await supabase
       .from('checklists')
       .insert([checklistData])
@@ -188,7 +177,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('✅ Checklist criado:', novoChecklist.nome);
     return NextResponse.json(novoChecklist);
   } catch (error) {
     console.error('💥 Erro ao criar checklist:', error);

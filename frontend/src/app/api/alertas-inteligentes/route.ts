@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action = 'analisar', barId = 3, enviarDiscord = false } = body;
+    const { action = 'analisar', barId, enviarDiscord = false } = body;
+    if (!barId) return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -18,8 +19,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[Alertas] Chamando Edge Function:', `${supabaseUrl}/functions/v1/alertas-dispatcher`);
-
+    
     // Chamar alertas-dispatcher (nome correto da Edge Function)
     const response = await fetch(`${supabaseUrl}/functions/v1/alertas-dispatcher`, {
       method: 'POST',
@@ -44,8 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await response.json();
-    console.log('[Alertas] Sucesso:', result);
-    
+        
     // Adaptar resposta para formato esperado pelo frontend
     return NextResponse.json({
       success: result.success,

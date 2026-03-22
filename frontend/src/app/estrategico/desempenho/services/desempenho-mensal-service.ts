@@ -1,5 +1,12 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { DadosSemana } from '../types';
+import {
+  ContahubStockoutMixRow,
+  DadosSemana,
+  DesempenhoSemanalDbRow,
+  EventoBaseDiarioRow,
+  MarketingSemanalRow,
+  SemanaProporcaoMes,
+} from '../types';
 
 export async function getMeses(
   supabase: SupabaseClient,
@@ -66,7 +73,10 @@ async function getDadosMensais(
     .eq('prd_ativo', 'S')
     .in('categoria_mix', ['BEBIDA', 'DRINK', 'COMIDA']);
 
-  const dadosDiarios = agregarDadosDiarios(eventosDiarios || [], stockoutMensal || []);
+  const dadosDiarios = agregarDadosDiarios(
+    (eventosDiarios || []) as EventoBaseDiarioRow[],
+    (stockoutMensal || []) as ContahubStockoutMixRow[]
+  );
 
   // 2. Dados semanais proporcionais
   const semanasComProporcao = calcularSemanasComProporcao(mes, ano);
@@ -95,23 +105,23 @@ async function getDadosMensais(
       .in('semana', semanasComProporcao.filter(s => s.anoISO === anoISO).map(s => s.semana))
   );
 
-  // 3. Buscar Conta Assinada (de contahub_pagamentos)
+  // 3. Buscar Conta Assinada (de faturamento_pagamentos - tabela de domínio)
   const contaAssinadaPromise = supabase
-    .from('contahub_pagamentos')
-    .select('dt_gerencial, valor')
+    .from('faturamento_pagamentos')
+    .select('data_pagamento, valor_bruto')
     .eq('bar_id', barId)
     .eq('meio', 'Conta Assinada')
-    .gte('dt_gerencial', dataInicio)
-    .lte('dt_gerencial', dataFim);
+    .gte('data_pagamento', dataInicio)
+    .lte('data_pagamento', dataFim);
 
-  // 4. Buscar Descontos (de contahub_periodo)
+  // 4. Buscar Descontos (de visitas - tabela de domínio)
   const descontosPromise = supabase
-    .from('contahub_periodo')
-    .select('dt_gerencial, vr_desconto, motivo')
+    .from('visitas')
+    .select('data_visita, valor_desconto, motivo_desconto')
     .eq('bar_id', barId)
-    .gt('vr_desconto', 0)
-    .gte('dt_gerencial', dataInicio)
-    .lte('dt_gerencial', dataFim);
+    .gt('valor_desconto', 0)
+    .gte('data_visita', dataInicio)
+    .lte('data_visita', dataFim);
 
   // 5. Clientes Ativos: usar RPC get_count_base_ativa com os 90 dias anteriores ao último dia do mês
   const dataFimDate = new Date(ano, mes, 0); // Último dia do mês
@@ -155,20 +165,24 @@ async function getDadosMensais(
   const desempenhoData = desempenhoResults.flatMap(r => r.data || []);
   const marketingData = marketingResults.flatMap(r => r.data || []);
 
-  const desempenhoMap = new Map<string, any>();
-  desempenhoData.forEach(d => desempenhoMap.set(`${d.ano}-${d.numero_semana}`, d));
-  
-  const marketingMap = new Map<string, any>();
-  marketingData.forEach(m => marketingMap.set(`${m.ano}-${m.semana}`, m));
+  const desempenhoMap = new Map<string, DesempenhoSemanalDbRow>();
+  desempenhoData.forEach((d) =>
+    desempenhoMap.set(`${d.ano}-${d.numero_semana}`, d as DesempenhoSemanalDbRow)
+  );
+
+  const marketingMap = new Map<string, MarketingSemanalRow>();
+  marketingData.forEach((m) =>
+    marketingMap.set(`${m.ano}-${m.semana}`, m as MarketingSemanalRow)
+  );
 
   // Calcular Conta Assinada total do mês
   const contaAssinadaValor = (contaAssinadaResult.data || []).reduce(
-    (sum, p) => sum + (Number(p.valor) || 0), 0
+    (sum, p) => sum + (Number(p.valor_bruto) || 0), 0
   );
 
   // Calcular Descontos total do mês
   const descontosValor = (descontosResult.data || []).reduce(
-    (sum, d) => sum + (Number(d.vr_desconto) || 0), 0
+    (sum, d) => sum + (Number(d.valor_desconto) || 0), 0
   );
 
   // Clientes Ativos: número calculado pela RPC (clientes com 2+ visitas nos últimos 90 dias até o último dia do mês)
@@ -228,11 +242,15 @@ async function getDadosMensais(
   }
 
   // Calcular reservas e mesas de eventos_base (já sincronizados do GetIn via sync_mesas_getin_to_eventos)
-  const sumInt = (arr: any[], key: string) => arr.reduce((acc, e) => acc + (parseInt(e[key]) || 0), 0);
-  const reservasTotaisDiarias = sumInt(eventosDiarios || [], 'res_tot');
-  const reservasPresentesDiarias = sumInt(eventosDiarios || [], 'res_p');
-  const mesasTotaisDiarias = sumInt(eventosDiarios || [], 'num_mesas_tot');
-  const mesasPresentesDiarias = sumInt(eventosDiarios || [], 'num_mesas_presentes');
+  const sumIntEventos = (arr: EventoBaseDiarioRow[], key: keyof EventoBaseDiarioRow) =>
+    arr.reduce((acc, e) => acc + (parseInt(String(e[key]), 10) || 0), 0);
+  const reservasTotaisDiarias = sumIntEventos((eventosDiarios || []) as EventoBaseDiarioRow[], 'res_tot');
+  const reservasPresentesDiarias = sumIntEventos((eventosDiarios || []) as EventoBaseDiarioRow[], 'res_p');
+  const mesasTotaisDiarias = sumIntEventos((eventosDiarios || []) as EventoBaseDiarioRow[], 'num_mesas_tot');
+  const mesasPresentesDiarias = sumIntEventos(
+    (eventosDiarios || []) as EventoBaseDiarioRow[],
+    'num_mesas_presentes'
+  );
 
   // Calcular faturamento total para os percentuais
   const faturamentoTotal = dadosDiarios.faturamento_total || 0;
@@ -269,7 +287,7 @@ async function getDadosMensais(
 }
 
 // Helpers copiados de route.ts
-function calcularSemanasComProporcao(mes: number, ano: number) {
+function calcularSemanasComProporcao(mes: number, ano: number): SemanaProporcaoMes[] {
   const primeiroDia = new Date(ano, mes - 1, 1);
   const ultimoDia = new Date(ano, mes, 0);
   const contagemDias = new Map<string, { semana: number; anoISO: number; diasNoMes: number }>();
@@ -294,14 +312,16 @@ function getWeekAndYear(date: Date) {
   return { semana, ano };
 }
 
-function agregarDadosDiarios(eventos: any[], stockoutRows: any[]) {
+function agregarDadosDiarios(eventos: EventoBaseDiarioRow[], stockoutRows: ContahubStockoutMixRow[]) {
   if (!eventos || eventos.length === 0) return {};
   
-  const diasComFaturamento = eventos.filter(e => parseFloat(e.real_r) > 0);
+  const diasComFaturamento = eventos.filter((e) => parseFloat(String(e.real_r)) > 0);
   const n = diasComFaturamento.length;
 
-  const sum = (arr: any[], key: string) => arr.reduce((acc, e) => acc + (parseFloat(e[key]) || 0), 0);
-  const sumInt = (arr: any[], key: string) => arr.reduce((acc, e) => acc + (parseInt(e[key]) || 0), 0);
+  const sum = (arr: EventoBaseDiarioRow[], key: keyof EventoBaseDiarioRow) =>
+    arr.reduce((acc, e) => acc + (parseFloat(String(e[key])) || 0), 0);
+  const sumInt = (arr: EventoBaseDiarioRow[], key: keyof EventoBaseDiarioRow) =>
+    arr.reduce((acc, e) => acc + (parseInt(String(e[key]), 10) || 0), 0);
 
   if (n === 0) return { 
     faturamento_total: 0, 
@@ -313,28 +333,30 @@ function agregarDadosDiarios(eventos: any[], stockoutRows: any[]) {
   const faturamentoTotal = sum(diasComFaturamento, 'real_r');
   const clientesTotal = sumInt(diasComFaturamento, 'cl_real');
   
-  const diasComTempo = diasComFaturamento.filter(e => parseFloat(e.t_coz) > 0 || parseFloat(e.t_bar) > 0);
+  const diasComTempo = diasComFaturamento.filter(
+    (e) => parseFloat(String(e.t_coz)) > 0 || parseFloat(String(e.t_bar)) > 0
+  );
   // t_coz e t_bar estão em segundos, converter para minutos
   const tmCoz = diasComTempo.length > 0 ? (sum(diasComTempo, 't_coz') / diasComTempo.length) / 60 : 0;
   const tmBar = diasComTempo.length > 0 ? (sum(diasComTempo, 't_bar') / diasComTempo.length) / 60 : 0;
 
-  const diasFat19 = diasComFaturamento.filter(e => parseFloat(e.fat_19h_percent) > 0);
+  const diasFat19 = diasComFaturamento.filter((e) => parseFloat(String(e.fat_19h_percent)) > 0);
   const percFat19 = diasFat19.length > 0 ? sum(diasFat19, 'fat_19h_percent') / diasFat19.length : 0;
 
   // Mix de vendas: média ponderada pelo faturamento
   const somaPercentBPonderado = diasComFaturamento.reduce((acc, e) => {
-    const fat = parseFloat(e.real_r) || 0;
-    const perc = parseFloat(e.percent_b) || 0;
+    const fat = parseFloat(String(e.real_r)) || 0;
+    const perc = parseFloat(String(e.percent_b)) || 0;
     return acc + (perc * fat);
   }, 0);
   const somaPercentDPonderado = diasComFaturamento.reduce((acc, e) => {
-    const fat = parseFloat(e.real_r) || 0;
-    const perc = parseFloat(e.percent_d) || 0;
+    const fat = parseFloat(String(e.real_r)) || 0;
+    const perc = parseFloat(String(e.percent_d)) || 0;
     return acc + (perc * fat);
   }, 0);
   const somaPercentCPonderado = diasComFaturamento.reduce((acc, e) => {
-    const fat = parseFloat(e.real_r) || 0;
-    const perc = parseFloat(e.percent_c) || 0;
+    const fat = parseFloat(String(e.real_r)) || 0;
+    const perc = parseFloat(String(e.percent_c)) || 0;
     return acc + (perc * fat);
   }, 0);
 
@@ -354,7 +376,7 @@ function agregarDadosDiarios(eventos: any[], stockoutRows: any[]) {
   };
 }
 
-function agregarStockoutCategoriaMix(stockoutRows: any[]) {
+function agregarStockoutCategoriaMix(stockoutRows: ContahubStockoutMixRow[]) {
   const totalBebidas = stockoutRows.filter(r => r.categoria_mix === 'BEBIDA').length;
   const totalDrinks = stockoutRows.filter(r => r.categoria_mix === 'DRINK').length;
   const totalComidas = stockoutRows.filter(r => r.categoria_mix === 'COMIDA').length;
@@ -378,25 +400,25 @@ function agregarStockoutCategoriaMix(stockoutRows: any[]) {
 }
 
 function agregarDadosSemanaisProporcionais(
-  semanasComProporcao: any[],
-  desempenhoMap: Map<string, any>,
-  marketingMap: Map<string, any>
+  semanasComProporcao: SemanaProporcaoMes[],
+  desempenhoMap: Map<string, DesempenhoSemanalDbRow>,
+  _marketingMap: Map<string, MarketingSemanalRow>
 ) {
-  const sumProp = (map: Map<string, any>, campo: string) => {
+  const sumProp = (map: Map<string, DesempenhoSemanalDbRow>, campo: string) => {
     let soma = 0;
     for (const s of semanasComProporcao) {
       const dados = map.get(`${s.anoISO}-${s.semana}`);
-      if (dados && dados[campo]) soma += (parseFloat(dados[campo]) || 0) * s.proporcao;
+      if (dados && dados[campo]) soma += (parseFloat(String(dados[campo])) || 0) * s.proporcao;
     }
     return soma;
   };
 
-  const avgProp = (map: Map<string, any>, campo: string) => {
+  const avgProp = (map: Map<string, DesempenhoSemanalDbRow>, campo: string) => {
     let soma = 0, peso = 0;
     for (const s of semanasComProporcao) {
       const dados = map.get(`${s.anoISO}-${s.semana}`);
       if (dados && dados[campo]) {
-        soma += (parseFloat(dados[campo]) || 0) * s.proporcao;
+        soma += (parseFloat(String(dados[campo])) || 0) * s.proporcao;
         peso += s.proporcao;
       }
     }
@@ -459,7 +481,7 @@ function agregarDadosSemanaisProporcionais(
     perc_faturamento_apos_22h: avgProp(desempenhoMap, 'perc_faturamento_apos_22h'),
     qui_sab_dom: sumProp(desempenhoMap, 'qui_sab_dom'),
     cancelamentos: sumProp(desempenhoMap, 'cancelamentos'),
-    // Nota: conta_assinada e descontos são calculados diretamente de contahub_pagamentos e contahub_periodo
+    // Nota: conta_assinada e descontos são calculados diretamente de faturamento_pagamentos e visitas
     
     // Stockout mensal agora vem do contahub_stockout (categoria_mix) no bloco diário
     

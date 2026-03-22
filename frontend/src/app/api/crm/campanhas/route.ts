@@ -561,9 +561,6 @@ export async function POST(request: NextRequest) {
         : clientes;
       
       const delayMs = Math.ceil(60000 / (whatsappConfig.rate_limit_per_minute || 60));
-      
-      console.log(`Iniciando envio para ${clientesParaEnviar.length} clientes...`);
-      console.log(`Rate limit: ${whatsappConfig.rate_limit_per_minute}/min (delay: ${delayMs}ms)`);
 
       for (let i = 0; i < clientesParaEnviar.length; i++) {
         const cliente = clientesParaEnviar[i];
@@ -602,8 +599,6 @@ export async function POST(request: NextRequest) {
 
           // Log de progresso a cada 10 mensagens
           if ((i + 1) % 10 === 0) {
-            console.log(`Progresso: ${i + 1}/${clientesParaEnviar.length} (${enviadosCount} OK, ${errosCount} erros)`);
-            
             // Atualizar contador no banco
             await supabase
               .from('crm_campanhas')
@@ -628,8 +623,6 @@ export async function POST(request: NextRequest) {
 
       campanhaData.enviados = enviadosCount;
       campanhaData.status = 'concluida';
-
-      console.log(`✅ Campanha finalizada: ${enviadosCount} enviados, ${errosCount} erros`);
     }
 
     return NextResponse.json({

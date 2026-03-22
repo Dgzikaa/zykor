@@ -16,8 +16,6 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🚀 Iniciando sincronização de contagem de estoque...')
-    
     // Verificar se é chamada do cron job
     const body = await request.json().catch(() => ({}))
     const { cronSecret, data } = body
@@ -32,9 +30,7 @@ export async function POST(request: NextRequest) {
     
     // Data para processar (hoje por padrão, ou data passada no body)
     const dataProcessar = data || new Date().toISOString().split('T')[0]
-    
-    console.log(`📅 Data para sincronização: ${dataProcessar}`)
-    
+
     // Chamar Edge Function com SERVICE_ROLE_KEY
     const response = await fetch(
       `https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/sync-contagem-sheets?data=${dataProcessar}`,
@@ -54,8 +50,7 @@ export async function POST(request: NextRequest) {
     }
     
     const result = await response.json()
-    console.log('✅ Resultado da sincronização:', result)
-    
+
     return NextResponse.json({
       success: true,
       message: `Sincronização executada para data: ${dataProcessar}`,

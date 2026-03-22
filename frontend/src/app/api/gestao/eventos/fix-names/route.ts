@@ -203,8 +203,6 @@ export async function POST(request: NextRequest) {
 
     const { bar_id = 1, ano = 2025 } = await request.json();
 
-    console.log('🔧 Starting event name fix...');
-
     // Parse historical data to create date-to-name mapping
     const linhas = eventosHistoricos
       .trim()
@@ -232,8 +230,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`📋 Parsed ${Object.keys(dateNameMap).length} event names`);
-
     // Get all events from the bar in the date range
 
     const { data: eventos, error: fetchError } = await supabase
@@ -251,8 +247,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`📥 Found ${eventos?.length || 0} events to update`);
-
     let updatedCount = 0;
     const updates: Array<{
       id: any;
@@ -264,30 +258,16 @@ export async function POST(request: NextRequest) {
     // Update events with correct names
     for (const evento of eventos || []) {
       const correctName = evento.data_evento ? dateNameMap[evento.data_evento] : null;
-      console.log(
-        `🔍 Event ${evento.data_evento}: current="${evento.nome_evento}", should be="${correctName}"`
-      );
 
       if (correctName && correctName !== evento.nome_evento) {
-        console.log(
-          `📝 Will update ${evento.data_evento}: "${evento.nome_evento}" → "${correctName}"`
-        );
         updates.push({
           id: evento.id,
           data_evento: evento.data_evento,
           old_name: evento.nome_evento,
           new_name: correctName,
         });
-      } else if (correctName) {
-        console.log(
-          `✅ Event ${evento.data_evento} already has correct name: "${correctName}"`
-        );
-      } else {
-        console.log(`⚠️  No mapping found for ${evento.data_evento}`);
       }
     }
-
-    console.log(`🔄 Will update ${updates.length} events`);
 
     // FORCE UPDATE ALL: Update all events with correct names from mapping
     for (const [date, correctName] of Object.entries(dateNameMap)) {
@@ -300,7 +280,6 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         console.error(`Error updating event ${date}:`, updateError);
       } else {
-        console.log(`✅ Updated ${date} → "${correctName}"`);
         updatedCount++;
       }
     }
@@ -315,9 +294,6 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         console.error(`Error updating event ${update.id}:`, updateError);
       } else {
-        console.log(
-          `✅ Updated ${update.data_evento}: "${update.old_name}" → "${update.new_name}"`
-        );
         updatedCount++;
       }
     }

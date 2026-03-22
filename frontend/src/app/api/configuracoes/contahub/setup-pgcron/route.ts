@@ -10,8 +10,6 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔧 Iniciando configuração do pg_cron para ContaHub...');
-
     // 1. Tentar executar diretamente usando MCP Supabase
     // Como não há RPC personalizada, vamos retornar as instruções SQL
     
@@ -63,8 +61,6 @@ WHERE jobname = 'contahub-sync-daily-07h';`;
       sql_to_execute: cronJobSQL
     };
 
-    console.log('📊 SQL preparado para execução:', summary);
-
     return NextResponse.json({
       success: true,
       message: 'SQL para configuração do pg_cron está pronto',
@@ -85,8 +81,6 @@ WHERE jobname = 'contahub-sync-daily-07h';`;
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 Verificando status do pg_cron ContaHub...');
-
     // Como não temos RPC personalizada, retornar instruções
     const verificationSQL = `-- VERIFICAR STATUS DO PG_CRON CONTAHUB
 -- Execute este SQL no Supabase SQL Editor:

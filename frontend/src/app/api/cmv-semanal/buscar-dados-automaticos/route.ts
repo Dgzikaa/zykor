@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { filtrarDiasAbertos } from '@/lib/helpers/calendario-helper';
+import { getFatorCmv } from '@/lib/config/getFatorCmv';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,8 +32,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    console.log(`🔍 Buscando dados automáticos para CMV Semanal - Bar ${bar_id} de ${data_inicio} até ${data_fim}`);
 
     const resultado = {
       // 4 Categorias de consumos: Sócios, Funcionários, Clientes, Artistas
@@ -99,27 +98,25 @@ export async function POST(request: NextRequest) {
 
       // Buscar TODOS os registros com motivo preenchido
       const { data: todosBrutos, error: errorTodos } = await supabase
-        .from('contahub_periodo')
-        .select('vr_desconto, vr_produtos, dt_gerencial, motivo')
+        .from('visitas')
+        .select('valor_desconto, valor_produtos, data_visita, motivo_desconto')
         .eq('bar_id', bar_id)
-        .gte('dt_gerencial', data_inicio)
-        .lte('dt_gerencial', data_fim)
-        .not('motivo', 'is', null);
+        .gte('data_visita', data_inicio)
+        .lte('data_visita', data_fim)
+        .not('motivo_desconto', 'is', null);
 
       if (!errorTodos && todosBrutos) {
         // ⚡ FILTRAR DIAS FECHADOS
-        const todosRegistros = await filtrarDiasAbertos(todosBrutos, 'dt_gerencial', bar_id);
+        const todosRegistros = await filtrarDiasAbertos(todosBrutos, 'data_visita', bar_id);
         
         // Classificar e somar cada registro (cada um só entra em 1 categoria)
         const totais = { socios: 0, artistas: 0, funcionarios: 0, clientes: 0 };
-        const contagens = { socios: 0, artistas: 0, funcionarios: 0, clientes: 0 };
 
         for (const item of todosRegistros as any[]) {
-          const categoria = classificarRegistro(item.motivo || '');
+          const categoria = classificarRegistro(item.motivo_desconto || '');
           if (categoria) {
-            const valor = (parseFloat(item.vr_desconto) || 0) + (parseFloat(item.vr_produtos) || 0);
+            const valor = (parseFloat(item.valor_desconto) || 0) + (parseFloat(item.valor_produtos) || 0);
             totais[categoria] += valor;
-            contagens[categoria]++;
           }
         }
 
@@ -127,74 +124,57 @@ export async function POST(request: NextRequest) {
         resultado.mesa_banda_dj = totais.artistas;
         resultado.mesa_adm_casa = totais.funcionarios;
         resultado.mesa_beneficios_cliente = totais.clientes;
-
-        console.log(`✅ Consumo sócios: R$ ${totais.socios.toFixed(2)} (${contagens.socios} registros)`);
-        console.log(`✅ Consumo artistas: R$ ${totais.artistas.toFixed(2)} (${contagens.artistas} registros)`);
-        console.log(`✅ Consumo funcionários: R$ ${totais.funcionarios.toFixed(2)} (${contagens.funcionarios} registros)`);
-        console.log(`✅ Consumo clientes: R$ ${totais.clientes.toFixed(2)} (${contagens.clientes} registros)`);
       }
     } catch (err) {
       console.error('Erro ao buscar consumações:', err);
     }
 
     // 3. BUSCAR FATURAMENTO CMVível (mesmo cálculo do Desempenho - exclui Conta Assinada)
-    // 🔧 CORRIGIDO: Usar contahub_pagamentos excluindo Conta Assinada (consumo sócios)
-    // Fórmula: faturamento_cmvivel = SUM(liquido) WHERE meio != 'Conta Assinada'
+    // 🔧 CORRIGIDO: Usar faturamento_pagamentos excluindo Conta Assinada (consumo sócios)
+    // Fórmula: faturamento_cmvivel = SUM(valor_liquido) WHERE meio != 'Conta Assinada'
     try {
-      // 3.1 Buscar faturamento do ContaHub (excluindo Conta Assinada - igual ao Desempenho)
+      // 3.1 Buscar faturamento (excluindo Conta Assinada - igual ao Desempenho)
       const { data: pagamentosBrutos, error: errorPagamentos } = await supabase
-        .from('contahub_pagamentos')
-        .select('liquido, valor, dt_gerencial, meio')
+        .from('faturamento_pagamentos')
+        .select('valor_liquido, valor_bruto, data_pagamento, meio')
         .eq('bar_id', bar_id)
-        .gte('dt_gerencial', data_inicio)
-        .lte('dt_gerencial', data_fim)
+        .gte('data_pagamento', data_inicio)
+        .lte('data_pagamento', data_fim)
         .neq('meio', 'Conta Assinada');
 
       if (!errorPagamentos && pagamentosBrutos) {
         // ⚡ FILTRAR DIAS FECHADOS
-        const pagamentos = await filtrarDiasAbertos(pagamentosBrutos, 'dt_gerencial', bar_id);
+        const pagamentos = await filtrarDiasAbertos(pagamentosBrutos, 'data_pagamento', bar_id);
         
-        // Faturamento Bruto = SUM(valor) - igual à tabela Desempenho (sem Conta Assinada)
+        // Faturamento Bruto = SUM(valor_bruto) - igual à tabela Desempenho (sem Conta Assinada)
         resultado.vendas_brutas = pagamentos.reduce((sum, item: any) => 
-          sum + (parseFloat(item.valor) || 0), 0
+          sum + (parseFloat(item.valor_bruto) || 0), 0
         );
 
-        // Faturamento Líquido = SUM(liquido) - igual à tabela Desempenho
+        // Faturamento Líquido = SUM(valor_liquido) - igual à tabela Desempenho
         resultado.vendas_liquidas = pagamentos.reduce((sum, item: any) => 
-          sum + (parseFloat(item.liquido) || 0), 0
+          sum + (parseFloat(item.valor_liquido) || 0), 0
         );
-
-        console.log(`✅ Faturamento Bruto (sem Conta Assinada): R$ ${resultado.vendas_brutas.toFixed(2)}`);
-        console.log(`✅ Faturamento Líquido: R$ ${resultado.vendas_liquidas.toFixed(2)}`);
       }
 
-      // 3.2 Buscar dados adicionais do contahub_periodo para couvert e repique
+      // 3.2 Buscar dados adicionais de visitas para couvert e repique
       const { data: periodoData, error: errorPeriodo } = await supabase
-        .from('contahub_periodo')
-        .select('vr_repique, vr_couvert, dt_gerencial')
+        .from('visitas')
+        .select('valor_repique, valor_couvert, data_visita')
         .eq('bar_id', bar_id)
-        .gte('dt_gerencial', data_inicio)
-        .lte('dt_gerencial', data_fim);
+        .gte('data_visita', data_inicio)
+        .lte('data_visita', data_fim);
 
       if (!errorPeriodo && periodoData) {
-        const periodo = await filtrarDiasAbertos(periodoData, 'dt_gerencial', bar_id);
+        const periodo = await filtrarDiasAbertos(periodoData, 'data_visita', bar_id);
 
-        // Total de couvert
-        const totalCouvert = periodo.reduce((sum, item: any) => 
-          sum + (parseFloat(item.vr_couvert) || 0), 0
-        );
-
-        // Total de comissão (vr_repique)
+        // Total de comissão (valor_repique)
         const totalComissao = periodo.reduce((sum, item: any) => 
-          sum + (parseFloat(item.vr_repique) || 0), 0
+          sum + (parseFloat(item.valor_repique) || 0), 0
         );
 
         // 🔧 FATURAMENTO CMVível = Vendas Líquidas - Comissão (vr_repique)
         resultado.faturamento_cmvivel = resultado.vendas_liquidas - totalComissao;
-
-        console.log(`✅ Total Couvert: R$ ${totalCouvert.toFixed(2)}`);
-        console.log(`✅ Total Comissão (vr_repique): R$ ${totalComissao.toFixed(2)}`);
-        console.log(`✅ Faturamento CMVível: R$ ${resultado.faturamento_cmvivel.toFixed(2)}`);
       }
     } catch (err) {
       console.error('Erro ao buscar faturamento:', err);
@@ -205,7 +185,6 @@ export async function POST(request: NextRequest) {
     try {
       const dataInicioFull = data_inicio + (usarDataCriacao ? 'T00:00:00' : '');
       const dataFimFull = data_fim + (usarDataCriacao ? 'T23:59:59' : '');
-      console.log(`📅 NIBO Compras: critério=${usarDataCriacao ? 'criação (criado_em)' : 'competência (data_competencia)'}`);
       const queryBuilder = supabase
         .from('nibo_agendamentos')
         .select('categoria_nome, valor')
@@ -244,14 +223,6 @@ export async function POST(request: NextRequest) {
 
         // OUTROS = Zero (Materiais de Limpeza e Operação NÃO entram no CMV)
         resultado.compras_custo_outros = 0;
-
-        const totalCompras = resultado.compras_custo_bebidas + resultado.compras_custo_comida + 
-                             resultado.compras_custo_drinks;
-
-        console.log(`✅ Compras Bebidas + Tabacaria: R$ ${resultado.compras_custo_bebidas.toFixed(2)}`);
-        console.log(`✅ Compras Cozinha (CUSTO COMIDA): R$ ${resultado.compras_custo_comida.toFixed(2)}`);
-        console.log(`✅ Compras Drinks: R$ ${resultado.compras_custo_drinks.toFixed(2)}`);
-        console.log(`📊 TOTAL COMPRAS CMV: R$ ${totalCompras.toFixed(2)}`);
       }
     } catch (err) {
       console.error('Erro ao buscar compras do NIBO:', err);
@@ -280,9 +251,7 @@ export async function POST(request: NextRequest) {
       
       dataFimDate.setUTCDate(dataFimDate.getUTCDate() + diasParaSegunda);
       const dataSegundaFinal = dataFimDate.toISOString().split('T')[0];
-      
-      console.log(`📅 Estoque Final: Buscando contagem da segunda-feira ${dataSegundaFinal}`);
-      
+
       let dataContagemFinal: string | null = null;
       
       // Primeiro, tentar buscar contagem exata da segunda-feira
@@ -296,11 +265,8 @@ export async function POST(request: NextRequest) {
       
       if (!errorExata && contagemExata && contagemExata.length > 0) {
         dataContagemFinal = dataSegundaFinal;
-        console.log(`✅ Encontrou contagem exata da segunda-feira: ${dataContagemFinal}`);
       } else {
         // Fallback: buscar contagem mais próxima (até 3 dias depois)
-        console.log('⚠️ Contagem da segunda não encontrada, buscando mais próxima...');
-        
         const { data: contagensProximas, error: errorProximas } = await supabase
           .from('contagem_estoque_insumos')
           .select('data_contagem, estoque_final')
@@ -312,7 +278,6 @@ export async function POST(request: NextRequest) {
         
         if (!errorProximas && contagensProximas && contagensProximas.length > 0) {
           dataContagemFinal = contagensProximas[0].data_contagem;
-          console.log(`✅ Usando contagem próxima: ${dataContagemFinal}`);
         }
       }
       
@@ -321,7 +286,6 @@ export async function POST(request: NextRequest) {
 
       if (ultimaContagemObj) {
         const dataContagem = ultimaContagemObj.data_contagem;
-        console.log(`📅 Usando contagem de estoque de: ${dataContagem} (última com valores até ${data_fim})`);
 
         // Buscar todos os insumos com suas categorias
         const { data: insumos, error: errorInsumos } = await supabase
@@ -427,14 +391,8 @@ export async function POST(request: NextRequest) {
                 resultado.estoque_final_drinks += valor;
               }
             });
-
-            console.log(`✅ Estoque Cozinha: R$ ${resultado.estoque_final_cozinha.toFixed(2)}`);
-            console.log(`✅ Estoque Drinks: R$ ${resultado.estoque_final_drinks.toFixed(2)}`);
-            console.log(`✅ Estoque Bebidas + Tabacaria: R$ ${resultado.estoque_final_bebidas.toFixed(2)}`);
           }
         }
-      } else {
-        console.log('⚠️ Nenhuma contagem de estoque encontrada para o período');
       }
     } catch (err) {
       console.error('Erro ao buscar estoques:', err);
@@ -445,8 +403,6 @@ export async function POST(request: NextRequest) {
     try {
       // Usar diretamente a data_inicio (que deve ser a segunda-feira)
       const dataContagem = data_inicio;
-
-      console.log(`📅 Estoque Inicial: Buscando contagem da segunda-feira ${dataContagem}`);
 
       // Buscar insumos
       const { data: insumos } = await supabase
@@ -495,12 +451,6 @@ export async function POST(request: NextRequest) {
               resultado.estoque_inicial_drinks += valor;
             }
           });
-
-          console.log(`✅ Estoque Inicial Cozinha: R$ ${resultado.estoque_inicial_cozinha.toFixed(2)}`);
-          console.log(`✅ Estoque Inicial Drinks: R$ ${resultado.estoque_inicial_drinks.toFixed(2)}`);
-          console.log(`✅ Estoque Inicial Bebidas: R$ ${resultado.estoque_inicial_bebidas.toFixed(2)}`);
-        } else {
-          console.log(`⚠️ Nenhuma contagem encontrada para ${dataContagem}`);
         }
       }
     } catch (err) {
@@ -509,8 +459,6 @@ export async function POST(request: NextRequest) {
 
     // 7. BUSCAR DADOS CMA (Custo de Alimentação de Funcionários)
     try {
-      console.log('🍽️ Buscando dados CMA (Alimentação Funcionários)...');
-      
       const categoriasFuncionarios = ['HORTIFRUTI (F)', 'MERCADO (F)', 'PROTEÍNA (F)'];
 
       // 7.1. Estoque Inicial de Funcionários
@@ -537,7 +485,6 @@ export async function POST(request: NextRequest) {
             const valor = contagem.estoque_final * (contagem.custo_unitario || 0);
             resultado.estoque_inicial_funcionarios += valor;
           });
-          console.log(`✅ Estoque Inicial Funcionários: R$ ${resultado.estoque_inicial_funcionarios.toFixed(2)}`);
         }
 
         // 7.2. Estoque Final de Funcionários
@@ -573,7 +520,6 @@ export async function POST(request: NextRequest) {
               const valor = contagem.estoque_final * (contagem.custo_unitario || 0);
               resultado.estoque_final_funcionarios += valor;
             });
-            console.log(`✅ Estoque Final Funcionários: R$ ${resultado.estoque_final_funcionarios.toFixed(2)}`);
           }
         }
       }
@@ -599,14 +545,12 @@ export async function POST(request: NextRequest) {
             return cat === 'alimentação' || cat === 'alimentacao';
           })
           .reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0);
-        console.log(`✅ Compras Alimentação: R$ ${resultado.compras_alimentacao.toFixed(2)}`);
       }
 
       // 7.4. Calcular CMA Total
       resultado.cma_total = resultado.estoque_inicial_funcionarios + 
                             resultado.compras_alimentacao - 
                             resultado.estoque_final_funcionarios;
-      console.log(`📊 CMA TOTAL: R$ ${resultado.cma_total.toFixed(2)}`);
 
     } catch (err) {
       console.error('Erro ao buscar dados CMA:', err);
@@ -620,33 +564,17 @@ export async function POST(request: NextRequest) {
     // Compras total
     const compras_periodo = resultado.compras_custo_comida + resultado.compras_custo_bebidas + resultado.compras_custo_drinks;
 
-    // Consumos total (para mapear campos)
-    const consumo_socios = resultado.total_consumo_socios;
-    const consumo_beneficios = resultado.mesa_beneficios_cliente;
-    const consumo_adm = resultado.mesa_adm_casa;
-    const consumo_artista = resultado.mesa_banda_dj;
-
-    console.log(`📊 ESTOQUE INICIAL TOTAL: R$ ${resultado.estoque_inicial.toFixed(2)}`);
-    console.log(`📊 ESTOQUE FINAL TOTAL: R$ ${resultado.estoque_final.toFixed(2)}`);
-    console.log(`📊 COMPRAS TOTAL: R$ ${compras_periodo.toFixed(2)}`);
-    console.log('✅ Dados automáticos buscados com sucesso');
-
-    // 9. CALCULAR CONSUMOS COM MULTIPLICADOR 0.35
-    // 🔧 4 CATEGORIAS de consumação (todas × 0.35):
-    // - Sócios: total_consumo_socios × 0.35
-    // - Funcionários: mesa_adm_casa × 0.35 (inclui RH)
-    // - Clientes: mesa_beneficios_cliente × 0.35 (inclui chegadeira)
-    // - Artistas: mesa_banda_dj × 0.35
-    const consumo_socios_calculado = resultado.total_consumo_socios * 0.35;
-    const consumo_adm_calculado = resultado.mesa_adm_casa * 0.35;
-    const consumo_artista_calculado = resultado.mesa_banda_dj * 0.35;
-    const consumo_beneficios_calculado = resultado.mesa_beneficios_cliente * 0.35;
-
-    console.log(`📊 CONSUMOS COM MULTIPLICADOR 0.35 (4 categorias):`);
-    console.log(`  - Sócios: R$ ${resultado.total_consumo_socios.toFixed(2)} × 0.35 = R$ ${consumo_socios_calculado.toFixed(2)}`);
-    console.log(`  - Funcionários: R$ ${resultado.mesa_adm_casa.toFixed(2)} × 0.35 = R$ ${consumo_adm_calculado.toFixed(2)}`);
-    console.log(`  - Clientes: R$ ${resultado.mesa_beneficios_cliente.toFixed(2)} × 0.35 = R$ ${consumo_beneficios_calculado.toFixed(2)}`);
-    console.log(`  - Artistas: R$ ${resultado.mesa_banda_dj.toFixed(2)} × 0.35 = R$ ${consumo_artista_calculado.toFixed(2)}`);
+    // 9. CALCULAR CONSUMOS COM FATOR DO BANCO (Onda 2A)
+    // 🔧 4 CATEGORIAS de consumação (todas × fator):
+    // - Sócios: total_consumo_socios × fator
+    // - Funcionários: mesa_adm_casa × fator (inclui RH)
+    // - Clientes: mesa_beneficios_cliente × fator (inclui chegadeira)
+    // - Artistas: mesa_banda_dj × fator
+    const fatorCmv = await getFatorCmv(supabase, bar_id);
+    const consumo_socios_calculado = resultado.total_consumo_socios * fatorCmv;
+    const consumo_adm_calculado = resultado.mesa_adm_casa * fatorCmv;
+    const consumo_artista_calculado = resultado.mesa_banda_dj * fatorCmv;
+    const consumo_beneficios_calculado = resultado.mesa_beneficios_cliente * fatorCmv;
 
     // Retornar com campos mapeados para o frontend
     // 4 categorias: Sócios, Funcionários, Clientes, Artistas

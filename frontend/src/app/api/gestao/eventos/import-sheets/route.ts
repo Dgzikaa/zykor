@@ -40,12 +40,6 @@ export async function POST(request: NextRequest) {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('📅 Importando eventos:', {
-      bar_id,
-      total_eventos: dados.length,
-      substituir_existentes,
-    });
-
     let eventosImportados = 0;
     let eventosAtualizados = 0;
     const erros: string[] = [];
@@ -113,9 +107,6 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (existente && !substituir_existentes) {
-          console.log(
-            `⚠️ Evento ${evento.nome} em ${evento.data_evento} já existe, pulando`
-          );
           continue;
         }
 

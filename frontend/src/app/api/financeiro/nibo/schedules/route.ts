@@ -125,8 +125,6 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const limit = Math.min(parseInt(searchParams.get('limit') || (semCompetencia ? '500' : '100')), 1000);
 
-    console.log(`[NIBO-SCHEDULES] Listando agendamentos, bar_id=${barId}${semCompetencia ? ' (sem data_competencia)' : ''}`);
-
     // Buscar do banco de dados local (nibo_agendamentos)
     let query = supabase
       .from('nibo_agendamentos')
@@ -214,9 +212,6 @@ export async function POST(request: NextRequest) {
     }
 
     // BUILD_VERSION: 2026-01-21-v10-DEBUG-BODY-STRING
-    console.log(`[NIBO-SCHEDULES-V4] ========== NOVA REQUISIÇÃO ==========`);
-    console.log(`[NIBO-SCHEDULES-V4] Body recebido:`, JSON.stringify(body, null, 2));
-    console.log(`[NIBO-SCHEDULES-V4] value raw:`, value, typeof value);
 
     // Validações - stakeholderId agora é opcional (pode criar agendamento sem vinculo)
     if (!dueDate || !value) {
@@ -231,8 +226,6 @@ export async function POST(request: NextRequest) {
     let finalStakeholderId = stakeholderId;
     
     if (!finalStakeholderId) {
-      console.log('[NIBO-SCHEDULES] Sem stakeholderId, tentando resolver funcionario em /employees...');
-      
       // Buscar supplier pelo nome no NIBO (endpoint /suppliers)
       try {
         const niboCredencial = await getNiboCredentials(bar_id);
@@ -301,12 +294,7 @@ export async function POST(request: NextRequest) {
 
             if (match?.emp?.id) {
               finalStakeholderId = match.emp.id;
-              console.log(`[NIBO-SCHEDULES] Funcionario encontrado em /employees: ${match.emp.name || match.emp.fullName} (${match.emp.id})`);
             }
-          }
-
-          if (!finalStakeholderId) {
-            console.log('[NIBO-SCHEDULES] Funcionario nao encontrado em /employees, tentando fallback em /suppliers...');
           }
 
           const searchUrl = `${NIBO_BASE_URL}/suppliers?apitoken=${niboCredencial.api_token}&$top=1000`;
@@ -329,7 +317,6 @@ export async function POST(request: NextRequest) {
               
               if (found) {
                 finalStakeholderId = found.id;
-                console.log(`[NIBO-SCHEDULES] Stakeholder encontrado por nome: ${found.name} (${found.id})`);
               }
             }
             
@@ -343,7 +330,6 @@ export async function POST(request: NextRequest) {
               
               if (generico) {
                 finalStakeholderId = generico.id;
-                console.log(`[NIBO-SCHEDULES] Usando stakeholder genérico: ${generico.name} (${generico.id})`);
               }
             }
           }
@@ -432,13 +418,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[NIBO-SCHEDULES-V7] Valor calculado:', {
-      original: value,
-      numerico: valorNumerico,
-      negativo: valorNegativo,
-      eh_negativo: valorNegativo < 0
-    });
-
     const buildSchedulePayload = (categoryValue: number) => {
       const payload: any = {
         stakeholderId: finalStakeholderId,
@@ -489,7 +468,6 @@ export async function POST(request: NextRequest) {
 
     // Tentativa principal com valor negativo (padrão antigo)
     let schedulePayload = buildSchedulePayload(valorNegativo);
-    console.log('[NIBO-SCHEDULES] Payload para NIBO (negativo):', JSON.stringify(schedulePayload, null, 2));
     let { response, responseText } = await postSchedule(schedulePayload);
 
     // Fallback: alguns ambientes do NIBO estão rejeitando o negativo com mensagem inconsistente.
@@ -498,7 +476,6 @@ export async function POST(request: NextRequest) {
       const valorPositivo = Number(Math.abs(valorNumerico).toFixed(2));
       schedulePayload = buildSchedulePayload(valorPositivo);
       console.warn('[NIBO-SCHEDULES] NIBO rejeitou negativo, tentando fallback com valor positivo');
-      console.log('[NIBO-SCHEDULES] Payload para NIBO (fallback positivo):', JSON.stringify(schedulePayload, null, 2));
       const retry = await postSchedule(schedulePayload);
       response = retry.response;
       responseText = retry.responseText;
@@ -517,8 +494,6 @@ export async function POST(request: NextRequest) {
     }
 
     // NIBO retorna o ID como texto puro (UUID)
-    console.log('[NIBO-SCHEDULES] Resposta do NIBO (raw):', responseText);
-
     let niboData: any = {};
     let niboId: string | null = null;
     try {
@@ -536,8 +511,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[NIBO-SCHEDULES] Agendamento criado no NIBO, ID:', niboId);
-    
     const criadoPorIdSeguro = isValidUuid(criado_por_id) ? criado_por_id.trim() : null;
 
     const { data: insertedData, error: insertError } = await supabase.from('nibo_agendamentos').insert({
@@ -571,8 +544,6 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log('[NIBO-SCHEDULES] Agendamento salvo localmente, ID:', insertedData?.id);
 
     return NextResponse.json({
       success: true,

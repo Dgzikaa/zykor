@@ -15,11 +15,7 @@ export async function GET(request: NextRequest) {
     // Data alvo (ontem por padrão)
     const targetDate = date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    console.log(`📅 Verificando sync do ContaHub para: ${targetDate}`);
-
     if (execute) {
-      console.log('🚀 Executando sync manualmente...');
-      
       // Chamar a Edge Function do Supabase
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/contahub-sync`,

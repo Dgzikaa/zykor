@@ -18,8 +18,6 @@ export async function POST(request: NextRequest) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (!supabaseUrl) throw new Error('URL do Supabase não configurada');
 
-    console.log(`🔄 Recalculando semana ${semana}/${ano} para bar ${bar_id}...`);
-
     const response = await fetch(
       `${supabaseUrl}/functions/v1/desempenho-semanal-auto`,
       {
@@ -35,7 +33,6 @@ export async function POST(request: NextRequest) {
     const result = await response.json();
 
     if (response.ok) {
-      console.log(`✅ Semana ${semana}/${ano} recalculada com sucesso!`);
       return NextResponse.json({
         success: true,
         message: `Semana ${semana}/${ano} recalculada`,

@@ -359,9 +359,6 @@ export async function GET(request: Request) {
       }
     });
 
-    console.log(`📊 Dados finais: ${dadosFinais.length} categorias processadas`);
-    console.log(`💰 Valores realizados encontrados: ${valoresRealizados.size} categorias`);
-
     return NextResponse.json({
       success: true,
       data: dadosFinais
@@ -429,8 +426,6 @@ export async function POST(request: Request) {
     } else {
       dadosUpsert.tipo = tipo;
     }
-
-    console.log('💾 Salvando dados na tabela orcamentacao:', dadosUpsert);
 
     // Inserir ou atualizar
     const { data, error } = await supabase

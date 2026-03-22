@@ -11,8 +11,6 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔄 API Recalcular Eventos - Iniciando');
-
     // Autenticação
     const user = await authenticateUser(request);
     if (!user) {
@@ -21,14 +19,10 @@ export async function POST(request: NextRequest) {
 
     const { data_inicio, data_fim, force_all } = await request.json();
 
-    console.log('📅 Parâmetros:', { data_inicio, data_fim, force_all });
-
     let totalRecalculados = 0;
 
     if (force_all) {
       // Recalcular todos os eventos pendentes
-      console.log('🔄 Recalculando eventos pendentes...');
-      
       const { data: eventosPendentes, error: selectError } = await supabase
         .from('eventos_base')
         .select('id')
@@ -40,8 +34,6 @@ export async function POST(request: NextRequest) {
         throw selectError;
       }
 
-      console.log(`📊 Encontrados ${eventosPendentes?.length || 0} eventos pendentes`);
-
       // Recalcular cada evento individualmente
       for (const evento of eventosPendentes || []) {
         try {
@@ -52,7 +44,6 @@ export async function POST(request: NextRequest) {
             console.error(`❌ Erro ao recalcular evento ${evento.id}:`, calcError);
           } else {
             totalRecalculados++;
-            console.log(`✅ Evento ${evento.id} recalculado`);
           }
         } catch (error) {
           console.error(`❌ Erro ao recalcular evento ${evento.id}:`, error);
@@ -63,8 +54,6 @@ export async function POST(request: NextRequest) {
       // Recalcular eventos de um período específico
       const startDate = data_inicio || '2025-08-01';
       const endDate = data_fim || '2025-08-31';
-      
-      console.log(`🔄 Recalculando eventos do período ${startDate} a ${endDate}...`);
 
       // Primeiro, marcar eventos do período para recálculo
       const { error: updateError } = await supabase
@@ -95,8 +84,6 @@ export async function POST(request: NextRequest) {
         throw selectError;
       }
 
-      console.log(`📊 Encontrados ${eventosPeríodo?.length || 0} eventos no período`);
-
       // Recalcular cada evento individualmente
       for (const evento of eventosPeríodo || []) {
         try {
@@ -107,7 +94,6 @@ export async function POST(request: NextRequest) {
             console.error(`❌ Erro ao recalcular evento ${evento.id} (${evento.data_evento}):`, calcError);
           } else {
             totalRecalculados++;
-            console.log(`✅ Evento ${evento.id} (${evento.data_evento}) recalculado`);
           }
         } catch (error) {
           console.error(`❌ Erro ao recalcular evento ${evento.id}:`, error);
@@ -129,9 +115,6 @@ export async function POST(request: NextRequest) {
     if (verifyError) {
       console.error('❌ Erro ao verificar resultados:', verifyError);
     }
-
-    console.log(`✅ Recálculo concluído! ${totalRecalculados} eventos processados`);
-    console.log(`📊 Eventos com te_real/tb_real preenchidos: ${eventosVerificacao?.length || 0}`);
 
     return NextResponse.json({
       success: true,

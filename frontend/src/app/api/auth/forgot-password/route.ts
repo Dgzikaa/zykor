@@ -17,8 +17,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('🔄 Iniciando reset de senha para:', email);
-
     // 1. Verificar se usuário existe na tabela usuarios_bar
     const { data: usuario, error: fetchError } = await supabase
       .from('usuarios_bar')
@@ -28,15 +26,12 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (fetchError || !usuario) {
-      console.log('❌ Usuário não encontrado:', email);
       // Por segurança, sempre retornar sucesso (não revelar se email existe)
       return NextResponse.json({
         success: true,
         message: 'Se o email existir em nossa base, você receberá instruções para redefinir sua senha.'
       });
     }
-
-    console.log('✅ Usuário encontrado:', usuario.nome);
 
     // 2. Gerar nova senha temporária
     const senhaTemporaria = `Temp${Math.random().toString(36).substring(2, 8)}!`;
@@ -95,8 +90,6 @@ export async function POST(request: NextRequest) {
         
         if (!emailResponse.ok) {
           console.warn('⚠️ Falha ao enviar email de reset:', emailResult.error);
-        } else {
-          console.log('✅ Email de reset enviado com sucesso');
         }
       } else {
         const textResponse = await emailResponse.text();

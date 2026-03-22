@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -59,19 +60,26 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  let heartbeatId: number | null = null
+  let startTime: number = Date.now()
+
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  )
+
   try {
     const body = await req.json().catch(() => ({}))
     const { bar_id, run_new_scrape = false, dataset_id } = body
+
+    const hbResult = await heartbeatStart(supabase, 'google-reviews-apify-sync', bar_id || null, null, 'pgcron')
+    heartbeatId = hbResult.heartbeatId
+    startTime = hbResult.startTime
 
     const apifyToken = Deno.env.get('APIFY_API_TOKEN')
     if (!apifyToken) {
       throw new Error('APIFY_API_TOKEN não configurado')
     }
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
 
     // Se bar_id específico, processar apenas esse bar
     const barsToProcess = bar_id 
@@ -297,6 +305,9 @@ serve(async (req) => {
       }
     }
 
+    const totalReviews = Object.values(results).reduce((acc: number, r: any) => acc + (r.count || 0), 0)
+    await heartbeatEnd(supabase, heartbeatId, 'success', startTime, totalReviews, { bars_processed: Object.keys(results).length })
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -309,8 +320,9 @@ serve(async (req) => {
       }
     )
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro geral:', error)
+    await heartbeatError(supabase, heartbeatId, startTime, error)
     return new Response(
       JSON.stringify({ 
         success: false, 

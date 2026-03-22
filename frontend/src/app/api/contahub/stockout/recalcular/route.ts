@@ -24,8 +24,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`🔄 Iniciando recálculo de stockout para bar_id: ${bar_id}`);
-
     // 1. Deletar produtos que não devem estar no stockout
     const termosExcluidos = ['happy hour', 'happyhour', 'happy-hour', 'balde', 'baldes'];
     
@@ -44,7 +42,6 @@ export async function POST(request: NextRequest) {
       } else {
         const count = deletados?.length || 0;
         totalDeletados += count;
-        console.log(`✅ Deletados ${count} produtos com termo "${termo}"`);
       }
     }
 
@@ -60,7 +57,6 @@ export async function POST(request: NextRequest) {
     }
 
     const datasUnicas = [...new Set(datas?.map(d => d.data_consulta) || [])];
-    console.log(`📅 Encontradas ${datasUnicas.length} datas únicas para recalcular`);
 
     // 3. Para cada data, recalcular as estatísticas
     const resultados: Array<{
@@ -101,10 +97,6 @@ export async function POST(request: NextRequest) {
         percentual_disponibilidade: `${percDisponibilidade}%`
       });
     }
-
-    console.log(`✅ Recálculo concluído!`);
-    console.log(`📊 Total de produtos deletados: ${totalDeletados}`);
-    console.log(`📊 Datas recalculadas: ${datasUnicas.length}`);
 
     return NextResponse.json({
       success: true,

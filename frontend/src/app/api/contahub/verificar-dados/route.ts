@@ -1,5 +1,6 @@
 /**
  * API para verificar dados do ContaHub no banco
+ * MIGRADO: usa domain tables (vendas_item) em vez de staging
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -29,8 +30,6 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get('date') || '2026-03-01';
     const barId = parseInt(searchParams.get('bar_id') || '3');
 
-    console.log(`🔍 Verificando dados ContaHub para bar_id=${barId}, data=${date}`);
-
     const supabase = await getAdminClient();
 
     // 1. Verificar contahub_raw
@@ -42,12 +41,12 @@ export async function GET(request: NextRequest) {
       .order('data_coleta', { ascending: false })
       .limit(1);
 
-    // 2. Verificar contahub_analitico
-    const { data: analiticoData, error: analiticoError } = await supabase
-      .from('contahub_analitico')
+    // 2. Verificar vendas_item (domain table) - MIGRADO de contahub_analitico
+    const { data: vendasData, error: vendasError } = await supabase
+      .from('vendas_item')
       .select('id')
       .eq('bar_id', barId)
-      .eq('trn_dtgerencial', date);
+      .eq('data_venda', date);
 
     // 3. Verificar eventos_base
     const { data: eventoData, error: eventoError } = await supabase
@@ -76,10 +75,10 @@ export async function GET(request: NextRequest) {
           total_registros: rawData?.[0]?.total_registros || 0,
           error: rawError?.message,
         },
-        contahub_analitico: {
-          existe: analiticoData && analiticoData.length > 0,
-          total_registros: analiticoData?.length || 0,
-          error: analiticoError?.message,
+        vendas_item: {
+          existe: vendasData && vendasData.length > 0,
+          total_registros: vendasData?.length || 0,
+          error: vendasError?.message,
         },
         eventos_base: {
           existe: !!eventoData,
@@ -96,7 +95,7 @@ export async function GET(request: NextRequest) {
     // Diagnóstico
     if (!rawData || rawData.length === 0) {
       resultado.diagnostico = '❌ CRÍTICO: Dados não foram coletados do ContaHub. Cron não rodou ou falhou.';
-    } else if (!analiticoData || analiticoData.length === 0) {
+    } else if (!vendasData || vendasData.length === 0) {
       resultado.diagnostico = '⚠️ ATENÇÃO: Dados coletados mas não processados. Verificar contahub-processor.';
     } else if (!eventoData?.contahub_synced) {
       resultado.diagnostico = '⚠️ ATENÇÃO: Dados processados mas eventos_base não atualizado. Verificar update_eventos_base.';

@@ -27,11 +27,9 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 export function clearSuppliersCache(barId?: number) {
   if (barId !== undefined) {
     suppliersCache.delete(barId);
-    console.log(`[BUSCAR-STAKEHOLDER] Cache limpo para bar_id=${barId}`);
-  } else {
+      } else {
     suppliersCache.clear();
-    console.log(`[BUSCAR-STAKEHOLDER] Cache completo limpo`);
-  }
+      }
 }
 
 // Buscar todos suppliers com paginação e cache
@@ -39,8 +37,7 @@ async function getAllSuppliers(barId: number, apiToken: string): Promise<any[]> 
   // Verificar cache
   const cached = suppliersCache.get(barId);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    console.log(`[BUSCAR-STAKEHOLDER] Usando cache: ${cached.suppliers.length} suppliers`);
-    return cached.suppliers;
+        return cached.suppliers;
   }
   
   // Buscar com paginação
@@ -49,8 +46,7 @@ async function getAllSuppliers(barId: number, apiToken: string): Promise<any[]> 
   const pageSize = 500;
   let hasMore = true;
   
-  console.log(`[BUSCAR-STAKEHOLDER] Buscando suppliers do NIBO (paginado)...`);
-  
+    
   while (hasMore) {
     const niboUrl = `${NIBO_BASE_URL}/suppliers?apitoken=${apiToken}&$top=${pageSize}&$skip=${skip}`;
     
@@ -91,8 +87,7 @@ async function getAllSuppliers(barId: number, apiToken: string): Promise<any[]> 
     }
   }
   
-  console.log(`[BUSCAR-STAKEHOLDER] Total: ${allSuppliers.length} suppliers carregados`);
-  
+    
   // Salvar no cache
   suppliersCache.set(barId, { suppliers: allSuppliers, timestamp: Date.now() });
   
@@ -200,7 +195,14 @@ function calcularSimilaridade(nome1: string, nome2: string): number {
 // POST - Buscar stakeholder por CPF/CNPJ ou nome no NIBO
 export async function POST(request: NextRequest) {
   try {
-    const { nome, chave_pix, bar_id = 3 } = await request.json();
+    const { nome, chave_pix, bar_id } = await request.json();
+
+    if (!bar_id) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
 
     if (!nome) {
       return NextResponse.json(
@@ -291,8 +293,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (found) {
-      console.log(`[BUSCAR-STAKEHOLDER] ✓ "${nome}" -> "${found.name}" (${matchType})`);
-      return NextResponse.json({
+            return NextResponse.json({
         success: true,
         found: true,
         matchType,
@@ -306,8 +307,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.log(`[BUSCAR-STAKEHOLDER] ✗ "${nome}" não encontrado`);
-    return NextResponse.json({
+        return NextResponse.json({
       success: true,
       found: false,
       stakeholder: null,

@@ -228,24 +228,24 @@ async function calcularAnaliseResumida(campanha: CampanhaUnificada, barId: numbe
       }
     });
 
-    // Buscar visitas no ContaHub
+    // Buscar visitas na tabela visitas
     const { data: visitas } = await supabase
-      .from('contahub_periodo')
-      .select('cli_fone, vr_pagamentos')
+      .from('visitas')
+      .select('cliente_fone, valor_pagamentos')
       .eq('bar_id', barId)
-      .gte('dt_gerencial', dataInicio)
-      .lte('dt_gerencial', dataFim)
-      .not('cli_fone', 'is', null)
+      .gte('data_visita', dataInicio)
+      .lte('data_visita', dataFim)
+      .not('cliente_fone', 'is', null)
       .gt('pessoas', 0);
 
     // Cruzar telefones com visitas
     const visitasPorTelefone = new Map<string, number>();
     (visitas || []).forEach(v => {
-      if (!v.cli_fone) return;
-      const normalized = v.cli_fone.replace(/\D/g, '').slice(-11);
+      if (!v.cliente_fone) return;
+      const normalized = v.cliente_fone.replace(/\D/g, '').slice(-11);
       if (telefones.includes(normalized)) {
         const valorAtual = visitasPorTelefone.get(normalized) || 0;
-        visitasPorTelefone.set(normalized, valorAtual + (v.vr_pagamentos || 0));
+        visitasPorTelefone.set(normalized, valorAtual + (v.valor_pagamentos || 0));
       }
     });
 
@@ -423,27 +423,27 @@ async function getAnaliseDetalhada(
 
     // Buscar visitas
     const { data: visitas } = await supabase
-      .from('contahub_periodo')
-      .select('cli_fone, dt_gerencial, vr_pagamentos')
+      .from('visitas')
+      .select('cliente_fone, data_visita, valor_pagamentos')
       .eq('bar_id', barId)
-      .gte('dt_gerencial', dataInicio)
-      .lte('dt_gerencial', dataFim)
-      .not('cli_fone', 'is', null)
+      .gte('data_visita', dataInicio)
+      .lte('data_visita', dataFim)
+      .not('cliente_fone', 'is', null)
       .gt('pessoas', 0);
 
     const visitasPorTelefone = new Map<string, { data: string; valor: number }>();
     (visitas || []).forEach(v => {
-      if (!v.cli_fone) return;
-      const normalized = v.cli_fone.replace(/\D/g, '').slice(-11);
+      if (!v.cliente_fone) return;
+      const normalized = v.cliente_fone.replace(/\D/g, '').slice(-11);
       if (telefonesParaBusca.includes(normalized)) {
         const existing = visitasPorTelefone.get(normalized);
         if (!existing) {
           visitasPorTelefone.set(normalized, {
-            data: v.dt_gerencial || '',
-            valor: v.vr_pagamentos || 0
+            data: v.data_visita || '',
+            valor: v.valor_pagamentos || 0
           });
         } else {
-          existing.valor += v.vr_pagamentos || 0;
+          existing.valor += v.valor_pagamentos || 0;
         }
       }
     });

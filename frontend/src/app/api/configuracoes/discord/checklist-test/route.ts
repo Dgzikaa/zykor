@@ -9,8 +9,6 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    console.log('🧪 Iniciando teste de conexão Discord Checklist...');
-
     // Testar conexão básica
     const connectionTest = await DiscordChecklistService.testConnection();
 
@@ -46,8 +44,6 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const { type } = await req.json();
-
-    console.log(`🧪 Testando envio de ${type} para Discord...`);
 
     switch (type) {
       case 'alert': {

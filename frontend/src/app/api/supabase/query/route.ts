@@ -29,9 +29,7 @@ export async function POST(request: NextRequest) {
     // **CONEXÃO DIRETA COM MCP SUPABASE**
     // Aqui faria a chamada real para o MCP Supabase
     // Por limitações do ambiente atual, simulo os dados baseados no que inserimos via MCP
-    
-    console.log(`[MCP QUERY] Executando: ${query.substring(0, 100)}...`);
-    
+
     // Para queries SELECT de eventos
     if (query.includes('FROM eventos') && query.includes('SELECT')) {
       const isCountQuery = query.includes('COUNT(*)');
@@ -57,7 +55,6 @@ export async function POST(request: NextRequest) {
     }
     
     // Para outras queries (INSERT, UPDATE, etc)
-    console.log(`[MCP SUCCESS] Query executada com sucesso`);
     return NextResponse.json({ success: true, message: 'Query executada com sucesso' });
     
   } catch (error) {

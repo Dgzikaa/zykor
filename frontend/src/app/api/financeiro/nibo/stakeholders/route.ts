@@ -11,7 +11,7 @@ const supabase = createClient(
 const NIBO_BASE_URL = 'https://api.nibo.com.br/empresas/v1';
 
 // Buscar credenciais do NIBO para um bar
-async function getNiboCredentials(barId: number = 3) {
+async function getNiboCredentials(barId: number) {
   const { data: credencial, error } = await supabase
     .from('api_credentials')
     .select('api_token, empresa_id')
@@ -32,9 +32,15 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q'); // Busca por CPF/CNPJ ou nome
-    const barId = parseInt(searchParams.get('bar_id') || '3');
-
-    console.log(`[NIBO-STAKEHOLDERS] Buscando stakeholders, q=${query}, bar_id=${barId}`);
+    const barIdParam = searchParams.get('bar_id');
+    if (!barIdParam) {
+      return NextResponse.json({
+        success: false,
+        error: 'bar_id é obrigatório',
+        data: []
+      }, { status: 400 });
+    }
+    const barId = parseInt(barIdParam);
 
     // Limpar query - remover formatação do CPF/CNPJ
     const cleanQuery = query?.replace(/\D/g, '') || '';
@@ -42,7 +48,6 @@ export async function GET(request: NextRequest) {
     const credencial = await getNiboCredentials(barId);
     
     if (!credencial) {
-      console.log('[NIBO-STAKEHOLDERS] Sem credenciais NIBO');
       return NextResponse.json({
         success: false,
         error: 'Credenciais NIBO não encontradas',
@@ -53,8 +58,6 @@ export async function GET(request: NextRequest) {
     // Buscar na API do NIBO - usando /suppliers que é onde estão os fornecedores/funcionários
     // O endpoint /stakeholders existe mas /suppliers é o mais usado para pagamentos
     const niboUrl = `${NIBO_BASE_URL}/suppliers?apitoken=${credencial.api_token}&$top=1000`;
-
-    console.log('[NIBO-STAKEHOLDERS] Buscando suppliers da API NIBO...');
 
     const response = await fetch(niboUrl, {
       method: 'GET',
@@ -76,8 +79,6 @@ export async function GET(request: NextRequest) {
     const niboData = await response.json();
     let stakeholders = niboData.items || niboData || [];
 
-    console.log(`[NIBO-STAKEHOLDERS] Encontrados ${stakeholders.length} suppliers no NIBO`);
-
     // Filtrar localmente se houver query
     if (cleanQuery) {
       stakeholders = stakeholders.filter((s: any) => {
@@ -85,12 +86,10 @@ export async function GET(request: NextRequest) {
         const name = (s.name || '').toLowerCase();
         return docNumber.includes(cleanQuery) || name.includes(cleanQuery.toLowerCase());
       });
-      console.log(`[NIBO-STAKEHOLDERS] Após filtro por query: ${stakeholders.length} stakeholders`);
     }
 
     // Filtrar arquivados e deletados - só mostrar ativos
     stakeholders = stakeholders.filter((s: any) => !s.isArchived && !s.isDeleted);
-    console.log(`[NIBO-STAKEHOLDERS] Após filtro de arquivados: ${stakeholders.length} stakeholders`);
 
     // Ordenar: priorizar quem tem PIX cadastrado e tipo Supplier
     stakeholders.sort((a: any, b: any) => {
@@ -140,9 +139,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, document, type = 'fornecedor', bar_id = 3, pixKey, pixKeyType } = body;
+    const { name, document, type = 'fornecedor', bar_id, pixKey, pixKeyType } = body;
 
-    console.log(`[NIBO-STAKEHOLDERS] Criando stakeholder: ${name}, doc=${document}`);
+    if (!bar_id) {
+      return NextResponse.json(
+        { success: false, error: 'bar_id é obrigatório' },
+        { status: 400 }
+      );
+    }
 
     if (!name || !document) {
       return NextResponse.json(
@@ -196,8 +200,6 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    console.log('[NIBO-STAKEHOLDERS] Payload:', JSON.stringify(stakeholderPayload, null, 2));
-
     const response = await fetch(`${NIBO_BASE_URL}/stakeholders?apitoken=${credencial.api_token}`, {
       method: 'POST',
       headers: {
@@ -218,7 +220,6 @@ export async function POST(request: NextRequest) {
     }
 
     const niboData = await response.json();
-    console.log('[NIBO-STAKEHOLDERS] Stakeholder criado:', niboData.id);
 
     // Também salvar no banco local para cache
     await supabase.from('nibo_stakeholders').upsert({
