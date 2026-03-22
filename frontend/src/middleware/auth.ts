@@ -104,18 +104,30 @@ export async function authenticateUser(
       return null;
     }
 
+    // Buscar bar_id do usuário (usuarios não tem bar_id — vem de usuarios_bares)
+    const supabase = await getAdminClient();
+
+    if (!authenticatedUser.bar_id) {
+      const { data: userBars } = await supabase
+        .from('usuarios_bares')
+        .select('bar_id')
+        .eq('usuario_id', authenticatedUser.auth_id)
+        .limit(1);
+
+      if (userBars && userBars.length > 0) {
+        authenticatedUser = { ...authenticatedUser, bar_id: userBars[0].bar_id };
+      }
+    }
+
     // OVERRIDE SEGURO: x-selected-bar-id para multi-bar
-    // Apenas permite trocar bar_id se o usuário tem acesso ao bar
     const selectedBarId = request.headers.get('x-selected-bar-id');
     if (selectedBarId) {
       const barId = parseInt(selectedBarId, 10);
       if (!isNaN(barId) && barId !== authenticatedUser.bar_id) {
-        // Validar que o usuário tem acesso a este bar
-        const supabase = await getAdminClient();
         const { data: acesso } = await supabase
           .from('usuarios_bares')
           .select('bar_id')
-          .eq('usuario_id', authenticatedUser.id)
+          .eq('usuario_id', authenticatedUser.auth_id)
           .eq('bar_id', barId)
           .single();
 
