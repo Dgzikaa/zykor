@@ -202,7 +202,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ONDA 2C: Buscar dias de operação do banco - erro se não configurado
-    const operacaoBar = await getBarOperacao(user.bar_id);
+    const operacaoBar = await getBarOperacao(user.bar_id!);
     if (!operacaoBar) {
       return NextResponse.json(
         { error: `Configuração ausente: dias de operação para bar ${user.bar_id}. Configure bares_config.` },

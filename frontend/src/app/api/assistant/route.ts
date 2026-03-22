@@ -264,7 +264,7 @@ A API key do Anthropic está presente mas com formato incorreto.
           toolResults.push(toolResult);
           
           // Se Claude criou um gráfico, preparar dados
-          if (content.name === 'create_chart' && toolResult.success) {
+          if (content.name === 'create_chart' && (toolResult as any).success) {
             const input = content.input as any;
             chartData = {
               type: input.type,

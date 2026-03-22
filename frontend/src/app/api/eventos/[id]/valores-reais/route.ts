@@ -209,7 +209,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         let total_valorfinal = 0;
 
         // ONDA 2C: Buscar mapeamento de locais do banco - erro se não configurado
-        const locaisMapeamento = await getLocaisMapeamento(user.bar_id);
+        const locaisMapeamento = await getLocaisMapeamento(user.bar_id!);
         if (!locaisMapeamento) {
           return NextResponse.json(
             { error: `Configuração ausente: mapeamento de locais para bar ${user.bar_id}. Configure bar_local_mapeamento.` },
@@ -322,7 +322,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         // Mesmo sem dados analíticos, tentar calcular stockout COM FILTROS
         try {
           // ONDA 2C: Locais excluídos agora vêm do banco - se não configurado, usar []
-          const locaisMapeamentoFallback = await getLocaisMapeamento(user.bar_id);
+          const locaisMapeamentoFallback = await getLocaisMapeamento(user.bar_id!);
           const locaisExcluidosStockout = locaisMapeamentoFallback?.excluidos || [];
           
           const { data: dadosStockout } = await supabase

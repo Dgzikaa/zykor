@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ⚡ FILTRAR DIAS FECHADOS
-    const eventosFiltrados = await filtrarDiasAbertos(eventos || [], 'data_evento', user.bar_id);
+    const eventosFiltrados = await filtrarDiasAbertos(eventos || [], 'data_evento', user.bar_id!);
 
     // Função para buscar dados agregados (RPC aggregate_by_date não existe - usar fallback direto)
     const fetchAggregatedData = async (table: string, dateColumn: string, aggregateColumn: string, _aggregateFunction = 'sum') => {
