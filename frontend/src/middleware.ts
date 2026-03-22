@@ -42,12 +42,23 @@ export function middleware(request: NextRequest) {
 
     // Validar que o cookie contém dados válidos
     try {
-      const userData = JSON.parse(decodeURIComponent(sessionCookie.value));
+      // Tentar decode (client-side usa encodeURIComponent, server-side pode não usar)
+      let rawValue = sessionCookie.value;
+      try {
+        rawValue = decodeURIComponent(rawValue);
+      } catch {
+        // Já está decodificado
+      }
+      const userData = JSON.parse(rawValue);
       if (!userData?.email || !userData?.bar_id) {
-        return NextResponse.redirect(new URL('/login', request.url));
+        const loginUrl = new URL('/login', request.url);
+        loginUrl.searchParams.set('reason', 'invalid_session');
+        return NextResponse.redirect(loginUrl);
       }
     } catch {
-      return NextResponse.redirect(new URL('/login', request.url));
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('reason', 'corrupt_cookie');
+      return NextResponse.redirect(loginUrl);
     }
 
     return NextResponse.next();

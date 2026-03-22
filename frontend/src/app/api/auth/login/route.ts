@@ -201,16 +201,12 @@ export async function POST(request: NextRequest) {
       updated_at: usuarioPrincipal.updated_at,
     };
 
-    // Fazer logout do authClient
-    await authClient.auth.signOut();
-
     // Criar resposta com cookie
     const response = NextResponse.json({
       success: true,
       user,
       availableBars: baresComNome,
-      token, // Retornar token também (para debug)
-      session: authData.session, // Adicionar session para compatibilidade
+      token,
     });
 
     // Configurações de cookie

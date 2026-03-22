@@ -47,11 +47,15 @@ export async function apiCall(endpoint: string, options: ApiOptions = {}) {
 
     // Verificar se a resposta é OK
     if (!response.ok) {
-      // Se 401, token expirado - redirecionar para login
+      // Se 401, token expirado - redirecionar para login (mas não se já está no login)
       if (response.status === 401 && typeof window !== 'undefined') {
-        localStorage.clear();
-        window.location.href = '/login';
-        throw new Error('Sessão expirada');
+        const isOnLoginPage = window.location.pathname === '/login';
+        if (!isOnLoginPage && !endpoint.includes('/api/auth/me')) {
+          const { clearAuthCookie } = await import('@/lib/cookies');
+          clearAuthCookie();
+          window.location.href = '/login';
+          throw new Error('Sessão expirada');
+        }
       }
       
       const errorData = await response.json().catch(() => ({}));

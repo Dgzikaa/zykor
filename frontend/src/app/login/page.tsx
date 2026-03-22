@@ -168,24 +168,9 @@ export default function LoginPage() {
           return;
         }
 
-        // Salvar dados do usuário no localStorage e cookie
+        // Salvar dados do usuário no localStorage (cookie já setado pelo servidor)
         const { syncAuthData } = await import('@/lib/cookies');
-        syncAuthData(userData as any, response.session);
-        
-        // IMPORTANTE: Registrar a sessão no Supabase Auth Client
-        if (response.session) {
-          const { supabase } = await import('@/lib/supabase');
-          const { error: setSessionError } = await supabase.auth.setSession({
-            access_token: response.session.access_token,
-            refresh_token: response.session.refresh_token,
-          });
-          
-          if (setSessionError) {
-            console.error('❌ Erro ao registrar sessão no Supabase Auth:', setSessionError);
-          } else {
-            console.log('✅ Sessão registrada no Supabase Auth Client');
-          }
-        }
+        syncAuthData(userData as any);
 
         const destination = returnUrl ? decodeURIComponent(returnUrl) : '/home';
         setSuccess(
