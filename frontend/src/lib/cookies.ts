@@ -8,6 +8,7 @@ export interface UserCookie {
   email: string;
   nome: string;
   role: string;
+  bar_id?: number;
   modulos_permitidos: string[] | Record<string, any>;
   ativo: boolean;
 }
@@ -60,6 +61,7 @@ export const setAuthCookie = (userData: UserCookie) => {
       email: userData.email,
       nome: userData.nome,
       role: userData.role,
+      bar_id: userData.bar_id,
       modulos_permitidos: userData.modulos_permitidos || [],
       ativo: userData.ativo !== false,
     };
@@ -121,6 +123,7 @@ export const syncAuthData = (userData: UserData, session?: any) => {
       email: userData.email,
       nome: userData.nome,
       role: userData.role,
+      bar_id: (userData as any).bar_id,
       modulos_permitidos: userData.modulos_permitidos || [],
       ativo: userData.ativo !== false,
     };
