@@ -258,46 +258,46 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         id: 'organico',
         label: '[O] Orgânico',
         metricas: [
-          { key: 'o_num_posts', label: 'Nº de Posts', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'o_alcance', label: 'Alcance', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'o_interacao', label: 'Interação', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'o_compartilhamento', label: 'Compartilhamento', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'o_engajamento', label: 'Engajamento', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'percentual', editavel: true },
-          { key: 'o_num_stories', label: 'Nº Stories', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'o_visu_stories', label: 'Visu Stories', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'o_num_posts', label: '[O] Nº de Posts', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'o_alcance', label: '[O] Alcance', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'o_interacao', label: '[O] Interação', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'o_compartilhamento', label: '[O] Compartilhamento', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'o_engajamento', label: '[O] Engajamento', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'percentual', editavel: true },
+          { key: 'o_num_stories', label: '[O] Nº Stories', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'o_visu_stories', label: '[O] Visu Stories', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
         ]
       },
       {
         id: 'meta_ads',
         label: '[M] Meta Ads',
         metricas: [
-          { key: 'm_valor_investido', label: 'Valor Investido', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda', editavel: true },
-          { key: 'm_alcance', label: 'Alcance', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'm_frequencia', label: 'Frequência', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'decimal', editavel: true },
-          { key: 'm_cpm', label: 'CPM (Custo por Visu)', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda_decimal', editavel: true },
-          { key: 'm_cliques', label: 'Cliques', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'm_ctr', label: 'CTR (Taxa de Clique)', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'percentual', editavel: true },
-          { key: 'm_cpc', label: 'Custo por Clique', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda_decimal', editavel: true },
-          { key: 'm_conversas_iniciadas', label: 'Conversas Iniciadas', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'm_valor_investido', label: '[M] Valor Investido', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda', editavel: true },
+          { key: 'm_alcance', label: '[M] Alcance', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'm_frequencia', label: '[M] Frequência', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'decimal', editavel: true },
+          { key: 'm_cpm', label: '[M] CPM (Custo por Visu)', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda_decimal', editavel: true },
+          { key: 'm_cliques', label: '[M] Cliques', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'm_ctr', label: '[M] CTR (Taxa de Clique)', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'percentual', editavel: true },
+          { key: 'm_cpc', label: '[M] Custo por Clique', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda_decimal', editavel: true },
+          { key: 'm_conversas_iniciadas', label: '[M] Conversas Iniciadas', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
         ]
       },
       {
         id: 'gmn',
         label: '[GMN] Google Meu Negócio',
         metricas: [
-          { key: 'gmn_total_visualizacoes', label: 'Total de Visualizações', status: 'manual', fonte: 'Google Meu Negócio', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'gmn_total_acoes', label: 'Total de Ações', status: 'manual', fonte: 'Google Meu Negócio', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'gmn_solicitacoes_rotas', label: 'Rotas', status: 'manual', fonte: 'Google Meu Negócio', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'gmn_total_visualizacoes', label: '[GMN] Total de Visualizações', status: 'manual', fonte: 'Google Meu Negócio', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'gmn_total_acoes', label: '[GMN] Total de Ações', status: 'manual', fonte: 'Google Meu Negócio', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'gmn_solicitacoes_rotas', label: '[GMN] Rotas', status: 'manual', fonte: 'Google Meu Negócio', calculo: 'Manual', formato: 'numero', editavel: true },
         ]
       },
       {
         id: 'gads',
         label: '[GADs] Google Ads',
         metricas: [
-          { key: 'g_valor_investido', label: 'Valor Investido', status: 'manual', fonte: 'Google Ads', calculo: 'Manual', formato: 'moeda', editavel: true },
-          { key: 'g_impressoes', label: 'Total de Impressões', status: 'manual', fonte: 'Google Ads', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'g_cliques', label: 'Total de Cliques', status: 'manual', fonte: 'Google Ads', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'g_ctr', label: 'CTR', status: 'manual', fonte: 'Google Ads', calculo: 'Manual', formato: 'percentual', editavel: true },
+          { key: 'g_valor_investido', label: '[GADs] Valor Investido', status: 'manual', fonte: 'Google Ads', calculo: 'Manual', formato: 'moeda', editavel: true },
+          { key: 'g_impressoes', label: '[GADs] Total de Impressões', status: 'manual', fonte: 'Google Ads', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'g_cliques', label: '[GADs] Total de Cliques', status: 'manual', fonte: 'Google Ads', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'g_ctr', label: '[GADs] CTR', status: 'manual', fonte: 'Google Ads', calculo: 'Manual', formato: 'percentual', editavel: true },
         ]
       }
     ]
@@ -479,6 +479,7 @@ export function DesempenhoClient({
   const [sincronizando, setSincronizando] = useState(false);
   const [semanaAtualIdx, setSemanaAtualIdx] = useState<number>(-1);
   const [metas, setMetas] = useState<MetasDesempenhoMap>({});
+  const [metasOrigens, setMetasOrigens] = useState<Record<string, { tipo: 'definida' | 'herdada'; semana?: number; ano?: number }>>({});
   const [metasModalAberto, setMetasModalAberto] = useState(false);
   const [salvandoMetas, setSalvandoMetas] = useState(false);
   const [metasEditValues, setMetasEditValues] = useState<Record<string, string>>({});
@@ -717,24 +718,38 @@ export function DesempenhoClient({
     return () => setPageTitle('');
   }, [setPageTitle]);
 
-  // Carregar metas
+  // Semana selecionada (para metas reativas)
+  const semanaSelecionada = useMemo(() => {
+    if (semanaAtualIdx < 0 || !semanasProcessadas[semanaAtualIdx]) return null;
+    return semanasProcessadas[semanaAtualIdx];
+  }, [semanaAtualIdx, semanasProcessadas]);
+
+  // Carregar metas (reativo à semana selecionada na visão semanal)
   useEffect(() => {
     const carregarMetas = async () => {
       if (!selectedBar) return;
-      
+
       try {
-        const response = await fetch(`/api/estrategico/desempenho/metas?bar_id=${selectedBar.id}&periodo=${visao}`);
+        let url = `/api/estrategico/desempenho/metas?bar_id=${selectedBar.id}&periodo=${visao}`;
+
+        // Na visão semanal, buscar metas da semana selecionada (com fallback no backend)
+        if (visao === 'semanal' && semanaSelecionada) {
+          url += `&semana=${semanaSelecionada.numero_semana}&ano=${semanaSelecionada.ano}`;
+        }
+
+        const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
           setMetas(data.metas || {});
+          setMetasOrigens(data.origens || {});
         }
       } catch (error) {
         console.error('Erro ao carregar metas:', error);
       }
     };
-    
+
     carregarMetas();
-  }, [selectedBar, visao]);
+  }, [selectedBar, visao, semanaSelecionada]);
 
   const toggleGrupo = useCallback((grupoId: string) => {
     setGruposAbertos(prev => ({ ...prev, [grupoId]: !prev[grupoId] }));
@@ -798,14 +813,22 @@ export function DesempenhoClient({
 
     try {
       setSalvandoMetas(true);
+      const putBody: Record<string, unknown> = {
+        bar_id: selectedBar.id,
+        periodo: visao,
+        metas: metasPayload,
+      };
+
+      // Na visão semanal, vincular metas à semana selecionada
+      if (visao === 'semanal' && semanaSelecionada) {
+        putBody.semana = semanaSelecionada.numero_semana;
+        putBody.ano = semanaSelecionada.ano;
+      }
+
       const response = await fetch('/api/estrategico/desempenho/metas', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bar_id: selectedBar.id,
-          periodo: visao,
-          metas: metasPayload,
-        }),
+        body: JSON.stringify(putBody),
       });
       const data = await response.json().catch(() => ({}));
 
@@ -825,11 +848,12 @@ export function DesempenhoClient({
     } finally {
       setSalvandoMetas(false);
     }
-  }, [selectedBar, visao, metricasParaMetaFlat, metasEditValues, metas, toast]);
+  }, [selectedBar, visao, metricasParaMetaFlat, metasEditValues, metas, semanaSelecionada, toast]);
 
   // Abrir modal de edição individual de meta
   const abrirEditMeta = useCallback((metrica: MetricaConfig) => {
     const valorAtual = metas[metrica.key]?.valor ?? null;
+    const isHerdada = metasOrigens[metrica.key]?.tipo === 'herdada';
     setEditMetaDialog({
       aberto: true,
       metrica,
@@ -837,7 +861,11 @@ export function DesempenhoClient({
       valorNovo: valorAtual !== null ? String(valorAtual) : '',
       salvando: false,
     });
-  }, [metas]);
+    // Se é herdada, mostrar no placeholder que o valor vem de outra semana
+    if (isHerdada && valorAtual !== null) {
+      // O valor no campo é pré-preenchido para facilitar, mas pode ser alterado
+    }
+  }, [metas, metasOrigens]);
 
   // Salvar meta individual com histórico
   const salvarMetaIndividual = useCallback(async () => {
@@ -852,17 +880,25 @@ export function DesempenhoClient({
     setEditMetaDialog(prev => ({ ...prev, salvando: true }));
 
     try {
+      const patchBody: Record<string, unknown> = {
+        bar_id: selectedBar.id,
+        periodo: visao,
+        metrica: editMetaDialog.metrica.key,
+        valor: valorNovo,
+        operador: metas[editMetaDialog.metrica.key]?.operador || (editMetaDialog.metrica.inverso ? '<=' : '>='),
+        alterado_por: user?.nome || user?.email || 'Usuário',
+      };
+
+      // Na visão semanal, vincular meta à semana selecionada
+      if (visao === 'semanal' && semanaSelecionada) {
+        patchBody.semana = semanaSelecionada.numero_semana;
+        patchBody.ano = semanaSelecionada.ano;
+      }
+
       const response = await fetch('/api/estrategico/desempenho/metas', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bar_id: selectedBar.id,
-          periodo: visao,
-          metrica: editMetaDialog.metrica.key,
-          valor: valorNovo,
-          operador: metas[editMetaDialog.metrica.key]?.operador || (editMetaDialog.metrica.inverso ? '<=' : '>='),
-          alterado_por: user?.nome || user?.email || 'Usuário',
-        }),
+        body: JSON.stringify(patchBody),
       });
 
       const data = await response.json().catch(() => ({}));
@@ -880,16 +916,29 @@ export function DesempenhoClient({
         },
       }));
 
+      // Marcar como 'definida' para esta semana
+      if (visao === 'semanal' && semanaSelecionada) {
+        setMetasOrigens(prev => ({
+          ...prev,
+          [editMetaDialog.metrica!.key]: {
+            tipo: 'definida',
+            semana: semanaSelecionada.numero_semana,
+            ano: semanaSelecionada.ano,
+          },
+        }));
+      }
+
       setEditMetaDialog({ aberto: false, metrica: null, valorAtual: null, valorNovo: '', salvando: false });
-      
-      const valorAnteriorFormatado = data.valor_anterior !== null 
+
+      const valorAnteriorFormatado = data.valor_anterior !== null
         ? formatarValor(data.valor_anterior, editMetaDialog.metrica.formato, editMetaDialog.metrica.sufixo)
         : 'não definido';
       const valorNovoFormatado = formatarValor(valorNovo, editMetaDialog.metrica.formato, editMetaDialog.metrica.sufixo);
-      
-      toast({ 
-        title: 'Meta atualizada', 
-        description: `${editMetaDialog.metrica.label}: ${valorAnteriorFormatado} → ${valorNovoFormatado}` 
+      const semanaInfo = visao === 'semanal' && semanaSelecionada ? ` (S${String(semanaSelecionada.numero_semana).padStart(2, '0')})` : '';
+
+      toast({
+        title: 'Meta atualizada',
+        description: `${editMetaDialog.metrica.label}${semanaInfo}: ${valorAnteriorFormatado} → ${valorNovoFormatado}`
       });
     } catch (error) {
       toast({
@@ -900,7 +949,7 @@ export function DesempenhoClient({
     } finally {
       setEditMetaDialog(prev => ({ ...prev, salvando: false }));
     }
-  }, [selectedBar, visao, editMetaDialog, metas, user, toast]);
+  }, [selectedBar, visao, editMetaDialog, metas, user, semanaSelecionada, toast]);
 
   const abrirDetalhesFalae = useCallback((semana: DadosSemana) => {
     const avaliacoes = semana.falae_avaliacoes_detalhes ?? [];
@@ -1247,7 +1296,7 @@ export function DesempenhoClient({
       <div ref={scrollContainerRef} className="flex-1 overflow-auto smooth-scroll">
         <div className="flex" style={{ minWidth: 'fit-content' }}>
           {/* Colunas Fixas (Indicador + Metas na visão mensal) */}
-          <div className="sticky left-0 z-20 flex flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md" style={{ minWidth: visao === 'semanal' ? '200px' : '272px', width: visao === 'semanal' ? '200px' : '272px' }}>
+          <div className="sticky left-0 z-20 flex flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md" style={{ minWidth: '272px', width: '272px' }}>
             {/* Coluna Indicador */}
             <div className="w-[200px] border-r border-gray-200 dark:border-gray-700">
               <div className="h-[72px] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center sticky top-0 z-30">
@@ -1318,6 +1367,9 @@ export function DesempenhoClient({
                                      {metas[metrica.key] && (
                                        <p className="text-xs mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
                                          <strong>Meta {visao === 'semanal' ? 'Semanal' : 'Mensal'}:</strong> {formatarValor(metas[metrica.key].valor, metrica.formato, metrica.sufixo)}
+                                          {visao === 'semanal' && metasOrigens[metrica.key]?.tipo === 'herdada' && (
+                                            <span className="text-[10px] text-gray-400 ml-1">(herdada{metasOrigens[metrica.key]?.semana ? ` da S${metasOrigens[metrica.key].semana}` : ''})</span>
+                                          )}
                                        </p>
                                      )}
                                      <div className="flex items-center gap-1 mt-1">
@@ -1338,13 +1390,17 @@ export function DesempenhoClient({
            ))}
             </div>
 
-            {/* Coluna Metas - apenas na visão mensal (na semanal, a meta é dinâmica por semana) */}
-            {visao !== 'semanal' && (
+            {/* Coluna Metas - reativa à semana/mês selecionado */}
               <div className="w-[72px] border-l border-amber-200 dark:border-amber-800/50">
                 <div className="h-[72px] border-b border-gray-200 dark:border-gray-700 bg-gradient-to-b from-amber-100 to-amber-50 dark:from-amber-900/40 dark:to-amber-900/20 flex items-center justify-center sticky top-0 z-30">
                   <div className="flex flex-col items-center">
                     <Target className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 mb-0.5" />
                     <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Meta</span>
+                    {visao === 'semanal' && semanaSelecionada && (
+                      <span className="text-[8px] text-amber-500 dark:text-amber-500">
+                        S{String(semanaSelecionada.numero_semana).padStart(2, '0')}
+                      </span>
+                    )}
                   </div>
                 </div>
                 {SECOES.map(secao => (
@@ -1359,14 +1415,19 @@ export function DesempenhoClient({
                       return (
                         <div key={`metas-${grupo.id}`}>
                           {mostrarHeaderGrupo && (
-                            <div 
-                              className="flex items-center justify-center bg-amber-50/50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-800/30 hover:bg-amber-100/70 dark:hover:bg-amber-800/20 transition-colors cursor-pointer group" 
+                            <div
+                              className="flex items-center justify-center bg-amber-50/50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-800/30 hover:bg-amber-100/70 dark:hover:bg-amber-800/20 transition-colors cursor-pointer group"
                               style={{ height: '36px' }}
                               onClick={() => hierarquico && grupo.metricas[0] && abrirEditMeta(grupo.metricas[0])}
-                              title={hierarquico && grupo.metricas[0] ? `Clique para editar meta de ${grupo.metricas[0].label}` : undefined}
+                              title={hierarquico && grupo.metricas[0] ? `Clique para editar meta de ${grupo.metricas[0].label}${metasOrigens[grupo.metricas[0].key]?.tipo === 'herdada' ? ' (herdada)' : ''}` : undefined}
                             >
                               {hierarquico && grupo.metricas[0] && metas[grupo.metricas[0].key] ? (
-                                <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 truncate px-1 group-hover:underline">
+                                <span className={cn(
+                                  "text-[10px] font-semibold truncate px-1 group-hover:underline",
+                                  metasOrigens[grupo.metricas[0].key]?.tipo === 'herdada'
+                                    ? "text-amber-400/70 dark:text-amber-500/50 italic"
+                                    : "text-amber-700 dark:text-amber-400"
+                                )}>
                                   {formatarValor(metas[grupo.metricas[0].key].valor, grupo.metricas[0].formato, grupo.metricas[0].sufixo)}
                                 </span>
                               ) : (
@@ -1374,30 +1435,37 @@ export function DesempenhoClient({
                               )}
                             </div>
                           )}
-                          {(!mostrarHeaderGrupo || secoesNaoColapsaveis.includes(secao.id) || gruposAbertos[`${secao.id}-${grupo.id}`]) && metricasParaMostrar.map((metrica) => (
-                            <div 
-                              key={`meta-${metrica.key}`} 
-                              className="flex items-center justify-center border-b border-amber-100/50 dark:border-amber-800/20 bg-amber-50/20 dark:bg-amber-900/5 hover:bg-amber-200/60 dark:hover:bg-amber-800/30 transition-colors cursor-pointer group" 
+                          {(!mostrarHeaderGrupo || secoesNaoColapsaveis.includes(secao.id) || gruposAbertos[`${secao.id}-${grupo.id}`]) && metricasParaMostrar.map((metrica) => {
+                            const isHerdada = metasOrigens[metrica.key]?.tipo === 'herdada';
+                            return (
+                            <div
+                              key={`meta-${metrica.key}`}
+                              className="flex items-center justify-center border-b border-amber-100/50 dark:border-amber-800/20 bg-amber-50/20 dark:bg-amber-900/5 hover:bg-amber-200/60 dark:hover:bg-amber-800/30 transition-colors cursor-pointer group"
                               style={{ height: '32px' }}
                               onClick={() => abrirEditMeta(metrica)}
-                              title={`Clique para editar meta de ${metrica.label}`}
+                              title={`Clique para editar meta de ${metrica.label}${isHerdada ? ` (herdada${metasOrigens[metrica.key]?.semana ? ` da S${metasOrigens[metrica.key].semana}` : ''})` : ''}`}
                             >
                               {metas[metrica.key] ? (
-                                <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400 truncate px-1 group-hover:underline">
+                                <span className={cn(
+                                  "text-[10px] font-medium truncate px-1 group-hover:underline",
+                                  isHerdada
+                                    ? "text-amber-400/70 dark:text-amber-500/50 italic"
+                                    : "text-amber-700 dark:text-amber-400"
+                                )}>
                                   {formatarValor(metas[metrica.key].valor, metrica.formato, metrica.sufixo)}
                                 </span>
                               ) : (
                                 <span className="text-[10px] text-amber-300 dark:text-amber-700 group-hover:text-amber-500">+</span>
                               )}
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )
                     })}
                   </div>
                 ))}
               </div>
-            )}
           </div>
 
           {/* Área das Semanas - inline-flex para manter largura natural */}
@@ -1525,9 +1593,12 @@ export function DesempenhoClient({
                                                           </div>
                                                         );
                                                       })()}
-                                                      {metas[metricaPrincipal.key] && visao !== 'semanal' && (
+                                                      {metas[metricaPrincipal.key] && (
                                                         <p className="text-xs mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-                                                          <strong>Meta Mensal:</strong> {formatarValor(metas[metricaPrincipal.key].valor, metricaPrincipal.formato, metricaPrincipal.sufixo)}
+                                                          <strong>Meta {visao === 'semanal' ? 'Semanal' : 'Mensal'}:</strong> {formatarValor(metas[metricaPrincipal.key].valor, metricaPrincipal.formato, metricaPrincipal.sufixo)}
+                                                          {visao === 'semanal' && metasOrigens[metricaPrincipal.key]?.tipo === 'herdada' && (
+                                                            <span className="text-[10px] text-gray-400 ml-1">(herdada{metasOrigens[metricaPrincipal.key]?.semana ? ` da S${metasOrigens[metricaPrincipal.key].semana}` : ''})</span>
+                                                          )}
                                                         </p>
                                                       )}
                                                       <div className="flex items-center gap-1 mt-1">
@@ -2160,6 +2231,16 @@ export function DesempenhoClient({
           </DialogTitle>
           <DialogDescription>
             {editMetaDialog.metrica?.label}
+            {visao === 'semanal' && semanaSelecionada && (
+              <span className="ml-2 text-amber-600 font-medium">
+                — Semana {String(semanaSelecionada.numero_semana).padStart(2, '0')}/{semanaSelecionada.ano}
+              </span>
+            )}
+            {editMetaDialog.metrica && metasOrigens[editMetaDialog.metrica.key]?.tipo === 'herdada' && (
+              <span className="block text-[11px] text-gray-400 mt-1 italic">
+                Valor atual herdado{metasOrigens[editMetaDialog.metrica.key]?.semana ? ` da Semana ${metasOrigens[editMetaDialog.metrica.key].semana}` : ' (global)'}. Ao salvar, será definido para esta semana.
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
         
