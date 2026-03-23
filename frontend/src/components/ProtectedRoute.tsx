@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { usePermissions } from '@/hooks/usePermissions';
 import { useRouter } from 'next/navigation';
@@ -104,15 +104,6 @@ export function ProtectedRoute({
     showInlineError,
   ]);
 
-  // Debug logs
-  console.log('🔍 ProtectedRoute Debug:', {
-    loading,
-    user: user ? { id: user.id, role: user.role, ativo: user.ativo } : null,
-    requiredRole,
-    accessDenied,
-    denialReason
-  });
-
   // Mostrar loading enquanto verifica permissões
   if (loading) {
     return (
@@ -120,9 +111,6 @@ export function ProtectedRoute({
         <div className="text-center">
           <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
           <p>Verificando permissões...</p>
-          <p className="text-sm text-gray-500 mt-2">
-            Debug: loading={loading.toString()}, user={user ? 'exists' : 'null'}
-          </p>
         </div>
       </div>
     );

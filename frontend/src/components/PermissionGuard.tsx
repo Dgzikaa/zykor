@@ -43,12 +43,6 @@ export function PermissionGuard({ children }: PermissionGuardProps) {
 
       const permitted = hasRoutePermission(pathname, user);
       setHasAccess(permitted);
-
-      if (!permitted) {
-        console.log(`🚫 Acesso negado para ${user.nome} em ${pathname}`);
-      } else {
-        console.log(`✅ Acesso permitido para ${user.nome} em ${pathname}`);
-      }
     }
   }, [user, loading, pathname]);
 

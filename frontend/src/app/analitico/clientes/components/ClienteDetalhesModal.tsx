@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -53,6 +53,9 @@ export function ClienteDetalhesModal({
   barId,
 }: ClienteDetalhesModalProps) {
   const { toast } = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
+  
   const [visitasDetalhadas, setVisitasDetalhadas] = useState<VisitaDetalhada[]>([])
   const [diaDestaque, setDiaDestaque] = useState('')
   const [loadingVisitas, setLoadingVisitas] = useState(false)
@@ -104,7 +107,7 @@ export function ClienteDetalhesModal({
     }
 
     if (!barId) {
-      toast({
+      toastRef.current({
         title: 'Bar não selecionado',
         description: 'Selecione um bar para carregar visitas e perfil de consumo.',
         variant: 'destructive',
@@ -140,7 +143,7 @@ export function ClienteDetalhesModal({
         }
       } catch (err) {
         if (!cancelled) {
-          toast({
+          toastRef.current({
             title: 'Erro ao carregar detalhes',
             description: err instanceof Error ? err.message : 'Erro desconhecido',
             variant: 'destructive',
@@ -180,7 +183,7 @@ export function ClienteDetalhesModal({
     return () => {
       cancelled = true
     }
-  }, [isOpen, cliente, barId, toast])
+  }, [isOpen, cliente, barId])
 
   const produtosFavoritos = perfilConsumo?.produtos_favoritos ?? []
   const categoriasFavoritas = perfilConsumo?.categorias_favoritas ?? []

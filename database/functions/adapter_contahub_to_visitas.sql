@@ -12,6 +12,7 @@ BEGIN
     cliente_nome,
     cliente_fone,
     cliente_email,
+    cliente_dtnasc,
     pessoas,
     valor_pagamentos,
     valor_consumo,
@@ -31,6 +32,7 @@ BEGIN
     cp.cli_nome,
     cp.cli_fone,
     cp.cli_email,
+    cp.cli_dtnasc,
     COALESCE(cp.pessoas, 1),
     COALESCE(cp.vr_pagamentos, 0),
     COALESCE(cp.vr_pagamentos, 0) - COALESCE(cp.vr_couvert, 0),  -- valor_consumo = gasto no bar
@@ -51,6 +53,7 @@ BEGIN
     cliente_nome = EXCLUDED.cliente_nome,
     cliente_fone = EXCLUDED.cliente_fone,
     cliente_email = EXCLUDED.cliente_email,
+    cliente_dtnasc = EXCLUDED.cliente_dtnasc,
     pessoas = EXCLUDED.pessoas,
     valor_pagamentos = EXCLUDED.valor_pagamentos,
     valor_consumo = EXCLUDED.valor_consumo,

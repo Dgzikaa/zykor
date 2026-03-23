@@ -790,6 +790,33 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.error('⚠️ Erro ao gravar log:', logError);
     }
     
+    // 🔄 ATUALIZAR CACHE DE CLIENTE_ESTATISTICAS
+    console.log('\n📊 Atualizando cache de cliente_estatisticas...');
+    try {
+      // Usar UPSERT para atualizar cache incremental (mais eficiente que TRUNCATE)
+      const { error: cacheError } = await supabase.rpc('refresh_cliente_estatisticas', { p_bar_id: bar_id });
+      
+      if (cacheError) {
+        console.warn('⚠️ Erro ao atualizar cache via RPC, tentando método direto...');
+        
+        // Fallback: Atualizar apenas clientes que tiveram visitas na data sincronizada
+        const { error: updateError } = await supabase.rpc('refresh_cliente_estatisticas_incremental', { 
+          p_bar_id: bar_id,
+          p_data_visita: data_date 
+        });
+        
+        if (updateError) {
+          console.error('❌ Erro ao atualizar cache de clientes:', updateError);
+        } else {
+          console.log('✅ Cache de clientes atualizado (incremental)');
+        }
+      } else {
+        console.log('✅ Cache de clientes atualizado com sucesso');
+      }
+    } catch (cacheErr) {
+      console.error('❌ Erro ao atualizar cache de clientes:', cacheErr);
+    }
+    
     // 🚀 CHAMAR DISCORD NOTIFICATION para CONTAHUB
     try {
       const discordResponse = await fetch('https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/discord-notification', {

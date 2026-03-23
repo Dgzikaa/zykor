@@ -203,7 +203,7 @@ export async function GET(request: NextRequest) {
     const todosRegistros = await fetchAllData(
       supabase,
       'visitas',
-      'cliente_nome, cliente_email, cliente_fone, data_visita, valor_couvert, valor_pagamentos, pessoas',
+      'cliente_nome, cliente_email, cliente_fone, cliente_dtnasc, data_visita, valor_couvert, valor_pagamentos, pessoas',
       {
         'eq_bar_id': barId,
         'gte_data_visita': dataLimiteStr
@@ -244,8 +244,8 @@ export async function GET(request: NextRequest) {
       const pessoas = parseFloat(registro.pessoas || 1);
       const dataVisita = new Date(registro.data_visita + 'T12:00:00Z');
       
-      // Data de nascimento não está disponível na tabela visitas
-      const dataNascimento: Date | null = null;
+      // Data de nascimento (coluna cliente_dtnasc — se existir na tabela)
+      const dataNascimento = registro.cliente_dtnasc ? new Date(registro.cliente_dtnasc + 'T12:00:00Z') : null;
       
       if (!clientesMap.has(chaveCliente)) {
         clientesMap.set(chaveCliente, {

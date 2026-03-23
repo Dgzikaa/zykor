@@ -695,216 +695,336 @@ export default function ClientesPage() {
                 </TabsContent>
 
                 <TabsContent value="lista-quente" className="mt-0 p-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-1 space-y-4">
+                  <div className="space-y-6">
+                    {/* Segmentos Salvos */}
+                    {segmentosSalvos.length > 0 && !segmentoDia && (
                       <Card className="card-dark">
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-sm flex items-center gap-2">
-                            <Settings2 className="h-4 w-4" />
-                            Critérios de Segmentação
-                          </CardTitle>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium flex items-center gap-2">Segmentos Salvos</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-xs text-muted-foreground">Dias janela</label>
-                              <Input
-                                type="number"
-                                value={criterios.diasJanela}
-                                onChange={(e) => setCriterios((c) => ({ ...c, diasJanela: Number(e.target.value) }))}
-                                className="h-8"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs text-muted-foreground">Min visitas</label>
-                              <Input
-                                type="number"
-                                value={criterios.minVisitasTotal}
-                                onChange={(e) => setCriterios((c) => ({ ...c, minVisitasTotal: Number(e.target.value) }))}
-                                className="h-8"
-                              />
-                            </div>
+                        <CardContent className="pt-0">
+                          <div className="flex flex-wrap gap-2">
+                            {segmentosSalvos.map((seg) => (
+                              <Button key={String(seg.id)} variant="outline" size="sm" onClick={() => carregarSegmentoSalvo(seg)} className="text-xs">
+                                {String(seg.nome)}
+                              </Button>
+                            ))}
                           </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-xs text-muted-foreground">Max visitas</label>
-                              <Input
-                                type="text"
-                                value={criterios.maxVisitasTotal}
-                                onChange={(e) => setCriterios((c) => ({ ...c, maxVisitasTotal: e.target.value }))}
-                                placeholder="∞"
-                                className="h-8"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs text-muted-foreground">Min/dia</label>
-                              <Input
-                                type="number"
-                                value={criterios.minVisitasDia}
-                                onChange={(e) => setCriterios((c) => ({ ...c, minVisitasDia: Number(e.target.value) }))}
-                                className="h-8"
-                              />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-xs text-muted-foreground">Ticket min</label>
-                              <Input
-                                type="text"
-                                value={criterios.ticketMedioMin}
-                                onChange={(e) => setCriterios((c) => ({ ...c, ticketMedioMin: e.target.value }))}
-                                placeholder="R$"
-                                className="h-8"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs text-muted-foreground">Ticket max</label>
-                              <Input
-                                type="text"
-                                value={criterios.ticketMedioMax}
-                                onChange={(e) => setCriterios((c) => ({ ...c, ticketMedioMax: e.target.value }))}
-                                placeholder="R$"
-                                className="h-8"
-                              />
-                            </div>
-                          </div>
-                          <Button onClick={() => fetchSegmentacao()} disabled={loadingSegmento} className="w-full">
-                            {loadingSegmento ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <TrendingUp className="h-4 w-4 mr-2" />}
-                            Buscar Segmento
-                          </Button>
                         </CardContent>
                       </Card>
+                    )}
 
-                      {segmentosSalvos.length > 0 && (
-                        <Card className="card-dark">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-sm">Segmentos Salvos</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-2 max-h-40 overflow-y-auto">
-                              {segmentosSalvos.map((seg) => (
-                                <Button key={String(seg.id)} variant="ghost" className="w-full justify-start text-sm h-8" onClick={() => carregarSegmentoSalvo(seg)}>
-                                  {String(seg.nome)}
-                                </Button>
-                              ))}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-
-                    <div className="lg:col-span-2 space-y-4">
-                      {segmentoResumo && (
-                        <Card className="card-dark">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-sm flex items-center gap-2">
-                              <Flame className="h-4 w-4 text-orange-500" />
-                              Resumo do Segmento
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                              <div className="text-center p-3 bg-muted rounded-lg">
-                                <div className="text-2xl font-bold text-foreground">{Number(segmentoResumo.total_clientes ?? 0)}</div>
-                                <div className="text-xs text-muted-foreground">Clientes</div>
-                              </div>
-                              <div className="text-center p-3 bg-muted rounded-lg">
-                                <div className="text-2xl font-bold text-foreground">{Number(segmentoResumo.total_visitas ?? 0)}</div>
-                                <div className="text-xs text-muted-foreground">Visitas</div>
-                              </div>
-                              <div className="text-center p-3 bg-muted rounded-lg">
-                                <div className="text-2xl font-bold text-foreground">{formatCurrency(Number(segmentoResumo.ticket_medio ?? 0))}</div>
-                                <div className="text-xs text-muted-foreground">Ticket Médio</div>
-                              </div>
-                              <div className="text-center p-3 bg-muted rounded-lg">
-                                <div className="text-2xl font-bold text-foreground">{formatCurrency(Number(segmentoResumo.valor_total ?? 0))}</div>
-                                <div className="text-xs text-muted-foreground">Valor Total</div>
-                              </div>
-                            </div>
-
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              <Select value={segmentoDia} onValueChange={(val) => { setSegmentoDia(val); fetchSegmentacao(val); }}>
-                                <SelectTrigger className="w-[180px]">
-                                  <SelectValue placeholder="Selecione um dia" />
-                                </SelectTrigger>
+                    {/* Construtor de Segmentos - TODOS os filtros */}
+                    <Card className="card-dark">
+                      <CardHeader className="pb-4">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Settings2 className="h-5 w-5 text-orange-500" />
+                          Construtor de Segmentos
+                        </CardTitle>
+                        <CardDescription>Combine multiplos criterios para criar segmentos personalizados de clientes</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        {/* Janela e Frequencia */}
+                        <div>
+                          <h4 className="text-sm font-semibold text-muted-foreground mb-3">Janela e Frequencia</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Janela (dias)</label>
+                              <Select value={String(criterios.diasJanela)} onValueChange={(v) => setCriterios((c) => ({ ...c, diasJanela: parseInt(v) }))}>
+                                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                  {diasSemana.filter((d) => d.value !== 'todos').map((dia) => (
-                                    <SelectItem key={dia.value} value={dia.value}>
-                                      {dia.label}
-                                    </SelectItem>
+                                  <SelectItem value="30">30 dias</SelectItem>
+                                  <SelectItem value="60">60 dias</SelectItem>
+                                  <SelectItem value="90">90 dias</SelectItem>
+                                  <SelectItem value="120">120 dias</SelectItem>
+                                  <SelectItem value="180">180 dias</SelectItem>
+                                  <SelectItem value="365">1 ano</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Min. Visitas Total</label>
+                              <Select value={String(criterios.minVisitasTotal)} onValueChange={(v) => setCriterios((c) => ({ ...c, minVisitasTotal: parseInt(v) }))}>
+                                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}+ visitas</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <Button variant="outline" onClick={() => downloadCSVSegmento(false)} disabled={!segmentoDia || segmentoClientes.length === 0}>
-                                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                                CSV Simples
-                              </Button>
-                              <Button variant="outline" onClick={() => downloadCSVSegmento(true)} disabled={!segmentoDia || segmentoClientes.length === 0}>
-                                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                                CSV Completo
-                              </Button>
-                              <Button variant="outline" onClick={() => downloadCSVTodos(false)}>
-                                <Download className="h-4 w-4 mr-2" />
-                                Exportar Todos
-                              </Button>
                             </div>
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {segmentoClientes.length > 0 && (
-                        <Card className="card-dark">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-sm">
-                              Clientes do Segmento ({segmentoClientes.length})
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="p-0">
-                            <div className="max-h-96 overflow-y-auto">
-                              <Table>
-                                <TableHeader className="bg-muted/50 sticky top-0">
-                                  <TableRow>
-                                    <TableHead>Nome</TableHead>
-                                    <TableHead>Telefone</TableHead>
-                                    <TableHead className="text-center">Visitas</TableHead>
-                                    <TableHead className="text-right">Ticket</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {segmentoClientes.slice(0, 50).map((cliente, idx) => (
-                                    <TableRow key={idx}>
-                                      <TableCell className="font-medium">{String(cliente.nome ?? '')}</TableCell>
-                                      <TableCell className="text-muted-foreground">{String(cliente.telefone ?? '—')}</TableCell>
-                                      <TableCell className="text-center">{Number(cliente.total_visitas ?? 0)}</TableCell>
-                                      <TableCell className="text-right">{formatCurrency(Number(cliente.ticket_medio ?? 0))}</TableCell>
-                                    </TableRow>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Max. Visitas Total</label>
+                              <Input type="number" placeholder="Sem limite" value={criterios.maxVisitasTotal ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, maxVisitasTotal: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Min. no Dia</label>
+                              <Select value={String(criterios.minVisitasDia)} onValueChange={(v) => setCriterios((c) => ({ ...c, minVisitasDia: parseInt(v) }))}>
+                                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[1,2,3,4,5].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}+ vezes</SelectItem>
                                   ))}
-                                </TableBody>
-                              </Table>
+                                </SelectContent>
+                              </Select>
                             </div>
-                          </CardContent>
-                        </Card>
-                      )}
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Dias Diferentes</label>
+                              <Input type="number" placeholder="Ex: 3+" value={criterios.diasDiferentes ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, diasDiferentes: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                          </div>
+                        </div>
 
-                      <Card className="card-dark">
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-sm">Salvar Segmento</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="flex gap-2">
-                            <Input
-                              placeholder="Nome do segmento"
-                              value={nomeSegmento}
-                              onChange={(e) => setNomeSegmento(e.target.value)}
-                              className="flex-1"
-                            />
-                            <Button onClick={salvarSegmento} disabled={!nomeSegmento.trim() || salvandoSegmento}>
+                        {/* Financeiros */}
+                        <div>
+                          <h4 className="text-sm font-semibold text-muted-foreground mb-3">Financeiros (R$)</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Ticket Medio Min</label>
+                              <Input type="number" placeholder="R$" value={criterios.ticketMedioMin ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketMedioMin: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Ticket Medio Max</label>
+                              <Input type="number" placeholder="R$" value={criterios.ticketMedioMax ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketMedioMax: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Ticket Entrada Min</label>
+                              <Input type="number" placeholder="R$" value={criterios.ticketEntradaMin ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketEntradaMin: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Ticket Entrada Max</label>
+                              <Input type="number" placeholder="R$" value={criterios.ticketEntradaMax ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketEntradaMax: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Ticket Consumo Min</label>
+                              <Input type="number" placeholder="R$" value={criterios.ticketConsumoMin ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketConsumoMin: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Ticket Consumo Max</label>
+                              <Input type="number" placeholder="R$" value={criterios.ticketConsumoMax ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketConsumoMax: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Gasto Total Min</label>
+                              <Input type="number" placeholder="R$" value={criterios.gastoTotalMin ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, gastoTotalMin: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Gasto Total Max</label>
+                              <Input type="number" placeholder="R$" value={criterios.gastoTotalMax ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, gastoTotalMax: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Recencia */}
+                        <div>
+                          <h4 className="text-sm font-semibold text-muted-foreground mb-3">Recencia</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Inativo ha X+ dias</label>
+                              <Input type="number" placeholder="Ex: 30" value={criterios.ultimaVisitaMinDias ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ultimaVisitaMinDias: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Ativo nos ultimos X dias</label>
+                              <Input type="number" placeholder="Ex: 7" value={criterios.ultimaVisitaMaxDias ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ultimaVisitaMaxDias: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Cliente novo (dias)</label>
+                              <Input type="number" placeholder="Ex: 30" value={criterios.primeiraVisitaMaxDias ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, primeiraVisitaMaxDias: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Perfil Social + Contato + Aniversario */}
+                        <div>
+                          <h4 className="text-sm font-semibold text-muted-foreground mb-3">Perfil e Contato</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Grupo Min</label>
+                              <Input type="number" placeholder="Pessoas" value={criterios.tamanhoGrupoMin ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, tamanhoGrupoMin: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Grupo Max</label>
+                              <Input type="number" placeholder="Pessoas" value={criterios.tamanhoGrupoMax ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, tamanhoGrupoMax: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Tem Email</label>
+                              <Select value={criterios.temEmail ?? 'qualquer'} onValueChange={(v) => setCriterios((c) => ({ ...c, temEmail: v === 'qualquer' ? '' : v }))}>
+                                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="qualquer">Qualquer</SelectItem>
+                                  <SelectItem value="true">Sim</SelectItem>
+                                  <SelectItem value="false">Nao</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Tem Telefone</label>
+                              <Select value={criterios.temTelefone ?? 'qualquer'} onValueChange={(v) => setCriterios((c) => ({ ...c, temTelefone: v === 'qualquer' ? '' : v }))}>
+                                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="qualquer">Qualquer</SelectItem>
+                                  <SelectItem value="true">Sim</SelectItem>
+                                  <SelectItem value="false">Nao</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Aniversario</label>
+                              <Select value={criterios.mesAniversario ?? 'qualquer'} onValueChange={(v) => setCriterios((c) => ({ ...c, mesAniversario: v === 'qualquer' ? '' : v }))}>
+                                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="qualquer">Qualquer mes</SelectItem>
+                                  {['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'].map((mes, i) => (
+                                    <SelectItem key={i+1} value={String(i+1)}>{mes}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Botoes de Acao */}
+                        <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-border">
+                          <Button onClick={() => { setSegmentoDia(''); setSegmentoResumo(null); fetchSegmentacao(); }}>
+                            {loadingSegmento ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Buscando...</> : <><Search className="h-4 w-4 mr-2" />Aplicar Filtros</>}
+                          </Button>
+                          <Button variant="outline" onClick={() => downloadCSVTodos(false)}>
+                            <Download className="h-4 w-4 mr-2" />Exportar Lista
+                          </Button>
+                          <Button variant="outline" onClick={() => downloadCSVTodos(true)}>
+                            <FileSpreadsheet className="h-4 w-4 mr-2" />CSV Completo
+                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Input placeholder="Nome do segmento..." value={nomeSegmento} onChange={(e) => setNomeSegmento(e.target.value)} className="w-48 h-9 text-sm" />
+                            <Button variant="outline" onClick={salvarSegmento} disabled={salvandoSegmento || !nomeSegmento.trim()}>
                               {salvandoSegmento ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
                             </Button>
                           </div>
+                          <Button variant="ghost" onClick={() => setCriterios({ diasJanela: 90, minVisitasTotal: 2, maxVisitasTotal: '', minVisitasDia: 1, diasDiferentes: '', ticketMedioMin: '', ticketMedioMax: '', ticketEntradaMin: '', ticketEntradaMax: '', ticketConsumoMin: '', ticketConsumoMax: '', gastoTotalMin: '', gastoTotalMax: '', ultimaVisitaMinDias: '', ultimaVisitaMaxDias: '', primeiraVisitaMaxDias: '', tamanhoGrupoMin: '', tamanhoGrupoMax: '', temEmail: '', temTelefone: '', mesAniversario: '' })} className="text-muted-foreground">
+                            Limpar
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Estatisticas do Segmento */}
+                    {(segmentoResumo as any)?.estatisticas && !segmentoDia && (
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <Card className="card-dark">
+                          <CardContent className="p-4 text-center">
+                            <div className="text-2xl font-bold text-orange-500">{((segmentoResumo as any).estatisticas.totalClientes ?? 0).toLocaleString('pt-BR')}</div>
+                            <div className="text-xs text-muted-foreground">Clientes no Segmento</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="card-dark">
+                          <CardContent className="p-4 text-center">
+                            <div className="text-2xl font-bold text-green-500">R$ {((segmentoResumo as any).estatisticas.ticketMedioGeral ?? 0).toLocaleString('pt-BR')}</div>
+                            <div className="text-xs text-muted-foreground">Ticket Medio</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="card-dark">
+                          <CardContent className="p-4 text-center">
+                            <div className="text-2xl font-bold text-blue-500">{(segmentoResumo as any).estatisticas.visitasMedias ?? 0}</div>
+                            <div className="text-xs text-muted-foreground">Visitas Medias</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="card-dark">
+                          <CardContent className="p-4 text-center">
+                            <div className="text-2xl font-bold text-purple-500">{((segmentoResumo as any).estatisticas.comEmail ?? 0).toLocaleString('pt-BR')}</div>
+                            <div className="text-xs text-muted-foreground">Com Email</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="card-dark">
+                          <CardContent className="p-4 text-center">
+                            <div className="text-2xl font-bold text-cyan-500">{((segmentoResumo as any).estatisticas.comTelefone ?? 0).toLocaleString('pt-BR')}</div>
+                            <div className="text-xs text-muted-foreground">Com Telefone</div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+
+                    {/* Resumo por Dia da Semana */}
+                    {loadingSegmento ? (
+                      <Card className="card-dark"><CardContent className="p-8 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" /><p className="text-muted-foreground">Processando segmento...</p></CardContent></Card>
+                    ) : (segmentoResumo as any)?.resumoPorDia && !segmentoDia ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {Object.entries((segmentoResumo as any).resumoPorDia).map(([dia, dados]: [string, any]) => (
+                          <Card key={dia} className="card-dark cursor-pointer hover:border-orange-500 transition-colors" onClick={() => { setSegmentoDia(dia); fetchSegmentacao(dia); }}>
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm flex items-center justify-between">
+                                <span>{dados.label}</span>
+                                <Badge variant="secondary">{dados.totalClientes} clientes</Badge>
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-0">
+                              <div className="flex justify-between text-xs text-muted-foreground">
+                                <span>Ticket: R$ {dados.ticketMedioSegmento?.toLocaleString('pt-BR')}</span>
+                                <span>Total: R$ {dados.gastoTotalSegmento?.toLocaleString('pt-BR')}</span>
+                              </div>
+                              {dados.exemplos?.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {dados.exemplos.map((ex: any, i: number) => (
+                                    <div key={i} className="text-xs text-muted-foreground truncate">{ex.nome} ({ex.visitas}x - R${ex.ticketMedio})</div>
+                                  ))}
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {/* Lista de Clientes do Dia Selecionado */}
+                    {segmentoDia && !loadingSegmento && (
+                      <Card className="card-dark">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm flex items-center justify-between">
+                            <span>Clientes - {segmentoDia.charAt(0).toUpperCase() + segmentoDia.slice(1)} ({segmentoClientes.length})</span>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" onClick={() => downloadCSVSegmento(false)} disabled={segmentoClientes.length === 0}>
+                                <FileSpreadsheet className="h-3 w-3 mr-1" />CSV
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => downloadCSVSegmento(true)} disabled={segmentoClientes.length === 0}>
+                                <FileSpreadsheet className="h-3 w-3 mr-1" />Completo
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => { setSegmentoDia(''); setSegmentoClientes([]); }}>Voltar</Button>
+                            </div>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                          <div className="max-h-[500px] overflow-y-auto">
+                            <Table>
+                              <TableHeader className="bg-muted/50 sticky top-0">
+                                <TableRow>
+                                  <TableHead>Nome</TableHead>
+                                  <TableHead>Telefone</TableHead>
+                                  <TableHead>Email</TableHead>
+                                  <TableHead className="text-center">Visitas Dia</TableHead>
+                                  <TableHead className="text-center">Total Visitas</TableHead>
+                                  <TableHead className="text-right">Ticket Medio</TableHead>
+                                  <TableHead className="text-right">Gasto Total</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {segmentoClientes.map((cliente: any, idx: number) => (
+                                  <TableRow key={idx}>
+                                    <TableCell className="font-medium">{cliente.Nome ?? ''}</TableCell>
+                                    <TableCell className="text-muted-foreground">{cliente.Telefone ?? '-'}</TableCell>
+                                    <TableCell className="text-muted-foreground text-xs">{cliente.Email ?? '-'}</TableCell>
+                                    <TableCell className="text-center">{cliente.VisitasNoDia ?? '-'}</TableCell>
+                                    <TableCell className="text-center">{cliente.TotalVisitas ?? 0}</TableCell>
+                                    <TableCell className="text-right">R$ {(cliente.TicketMedio ?? 0).toLocaleString('pt-BR')}</TableCell>
+                                    <TableCell className="text-right">R$ {(cliente.GastoTotal ?? 0).toLocaleString('pt-BR')}</TableCell>
+                                  </TableRow>
+                                ))}
+                                {segmentoClientes.length === 0 && (
+                                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum cliente encontrado para este dia</TableCell></TableRow>
+                                )}
+                              </TableBody>
+                            </Table>
+                          </div>
                         </CardContent>
                       </Card>
-                    </div>
+                    )}
                   </div>
                 </TabsContent>
               </CardContent>

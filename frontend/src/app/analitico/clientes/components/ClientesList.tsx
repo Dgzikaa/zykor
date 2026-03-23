@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import {
   Table,
   TableBody,
@@ -61,23 +62,24 @@ export function ClientesList({
       </div>
 
       <div className="rounded-md border border-border overflow-x-auto">
-        <Table>
+        <Table className="table-fixed w-full">
           <TableHeader className="bg-muted/50">
             <TableRow>
-              <TableHead className="font-semibold">Nome</TableHead>
-              <TableHead className="font-semibold">Telefone</TableHead>
-              <TableHead className="font-semibold">E-mail</TableHead>
-              <TableHead className="font-semibold text-center">Visitas</TableHead>
-              <TableHead className="font-semibold text-right">Valor gasto</TableHead>
-              <TableHead className="font-semibold text-right">Ticket médio</TableHead>
-              <TableHead className="font-semibold text-center">Última visita</TableHead>
+              <TableHead className="font-semibold w-[140px]">Nome</TableHead>
+              <TableHead className="font-semibold w-[110px]">Telefone</TableHead>
+              <TableHead className="font-semibold w-[70px] text-center">Visitas</TableHead>
+              <TableHead className="font-semibold w-[100px] text-right pr-4">🎫 Entrada</TableHead>
+              <TableHead className="font-semibold w-[100px] text-right pr-4">🍺 Consumo</TableHead>
+              <TableHead className="font-semibold w-[160px] text-center">Tickets</TableHead>
+              <TableHead className="font-semibold w-[90px] text-center">⏱️ Tempo</TableHead>
+              <TableHead className="font-semibold w-[100px] text-center">Última visita</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 7 }).map((__, j) => (
+                  {Array.from({ length: 8 }).map((__, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-full" />
                     </TableCell>
@@ -86,7 +88,7 @@ export function ClientesList({
               ))
             ) : clientes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                   Nenhum cliente encontrado.
                 </TableCell>
               </TableRow>
@@ -105,23 +107,53 @@ export function ClientesList({
                   tabIndex={0}
                   role="button"
                 >
-                  <TableCell className="font-medium">{cliente.nome_principal}</TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="w-[140px] font-medium truncate">{cliente.nome_principal}</TableCell>
+                  <TableCell className="w-[110px] text-muted-foreground truncate">
                     {cliente.telefone ?? '—'}
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {cliente.email ?? '—'}
+                  <TableCell className="w-[70px] text-center">
+                    <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+                      {cliente.visitas_formatadas ?? cliente.total_visitas}
+                    </Badge>
                   </TableCell>
-                  <TableCell className="text-center">
-                    {cliente.visitas_formatadas ?? cliente.total_visitas}
+                  <TableCell className="w-[100px] text-right tabular-nums pr-4">
+                    {formatCurrency(Number(cliente.valor_total_entrada) || 0)}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatCurrency(Number(cliente.valor_total_gasto) || 0)}
+                  <TableCell className="w-[100px] text-right tabular-nums pr-4">
+                    {formatCurrency(Number(cliente.valor_total_consumo) || 0)}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatCurrency(Number(cliente.ticket_medio_geral) || 0)}
+                  <TableCell className="w-[160px] text-center">
+                    <div className="flex flex-col gap-0.5 items-center justify-center">
+                      <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 text-xs font-semibold">
+                        {formatCurrency(Number(cliente.ticket_medio_geral) || 0)}
+                      </Badge>
+                      <div className="flex gap-1">
+                        <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-[10px]">
+                          🎫 {formatCurrency(Number(cliente.ticket_medio_entrada) || 0)}
+                        </Badge>
+                        <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800 text-[10px]">
+                          🍺 {formatCurrency(Number(cliente.ticket_medio_consumo) || 0)}
+                        </Badge>
+                      </div>
+                    </div>
                   </TableCell>
-                  <TableCell className="text-center text-muted-foreground">
+                  <TableCell className="w-[90px] text-center">
+                    {cliente.tempo_medio_estadia_formatado && cliente.tempo_medio_estadia_formatado !== 'N/A' ? (
+                      <div className="flex flex-col gap-0.5 items-center justify-center">
+                        <Badge variant="outline" className="bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 text-xs">
+                          {cliente.tempo_medio_estadia_formatado}
+                        </Badge>
+                        {cliente.total_visitas_com_tempo && cliente.total_visitas_com_tempo > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            {cliente.total_visitas_com_tempo}/{cliente.total_visitas}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="w-[100px] text-center text-muted-foreground">
                     {formatDate(cliente.ultima_visita)}
                   </TableCell>
                 </TableRow>
