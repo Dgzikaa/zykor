@@ -364,11 +364,9 @@ serve(async (req) => {
         };
         
         // Adicionar CMV calculado se válido
+        // NOTA: cmv_percentual é GENERATED ALWAYS no banco — NÃO incluir no update
         if (cmvReal !== null) {
           updateData.cmv_real = cmvReal;
-        }
-        if (cmvPercentual !== null) {
-          updateData.cmv_percentual = cmvPercentual;
         }
         if (cmvLimpoPercentual !== null) {
           updateData.cmv_limpo_percentual = cmvLimpoPercentual;
