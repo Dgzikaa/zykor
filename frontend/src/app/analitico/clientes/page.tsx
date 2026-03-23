@@ -775,110 +775,95 @@ export default function ClientesPage() {
                           </div>
                         </div>
 
-                        {/* Financeiros */}
+                        {/* Criterios Financeiros */}
                         <div>
-                          <h4 className="text-sm font-semibold text-muted-foreground mb-3">Financeiros (R$)</h4>
+                          <h4 className="text-sm font-semibold text-muted-foreground mb-3">Criterios Financeiros</h4>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Ticket Medio Min</label>
-                              <Input type="number" placeholder="R$" value={criterios.ticketMedioMin ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketMedioMin: e.target.value }))} className="h-9 text-sm" />
+                              <label className="block text-xs text-muted-foreground mb-1">Ticket Medio Min (R$)</label>
+                              <Input type="number" placeholder="Ex: 100" value={criterios.ticketMedioMin ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketMedioMin: e.target.value }))} className="h-9 text-sm" />
                             </div>
                             <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Ticket Medio Max</label>
-                              <Input type="number" placeholder="R$" value={criterios.ticketMedioMax ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketMedioMax: e.target.value }))} className="h-9 text-sm" />
+                              <label className="block text-xs text-muted-foreground mb-1">Ticket Medio Max (R$)</label>
+                              <Input type="number" placeholder="Sem limite" value={criterios.ticketMedioMax ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketMedioMax: e.target.value }))} className="h-9 text-sm" />
                             </div>
                             <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Ticket Entrada Min</label>
-                              <Input type="number" placeholder="R$" value={criterios.ticketEntradaMin ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketEntradaMin: e.target.value }))} className="h-9 text-sm" />
+                              <label className="block text-xs text-muted-foreground mb-1">Gasto Total Min (R$)</label>
+                              <Input type="number" placeholder="Ex: 500" value={criterios.gastoTotalMin ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, gastoTotalMin: e.target.value }))} className="h-9 text-sm" />
                             </div>
                             <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Ticket Entrada Max</label>
-                              <Input type="number" placeholder="R$" value={criterios.ticketEntradaMax ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketEntradaMax: e.target.value }))} className="h-9 text-sm" />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Ticket Consumo Min</label>
-                              <Input type="number" placeholder="R$" value={criterios.ticketConsumoMin ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketConsumoMin: e.target.value }))} className="h-9 text-sm" />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Ticket Consumo Max</label>
-                              <Input type="number" placeholder="R$" value={criterios.ticketConsumoMax ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ticketConsumoMax: e.target.value }))} className="h-9 text-sm" />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Gasto Total Min</label>
-                              <Input type="number" placeholder="R$" value={criterios.gastoTotalMin ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, gastoTotalMin: e.target.value }))} className="h-9 text-sm" />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Gasto Total Max</label>
-                              <Input type="number" placeholder="R$" value={criterios.gastoTotalMax ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, gastoTotalMax: e.target.value }))} className="h-9 text-sm" />
+                              <label className="block text-xs text-muted-foreground mb-1">Gasto Total Max (R$)</label>
+                              <Input type="number" placeholder="Sem limite" value={criterios.gastoTotalMax ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, gastoTotalMax: e.target.value }))} className="h-9 text-sm" />
                             </div>
                           </div>
                         </div>
 
-                        {/* Recencia */}
+                        {/* Recencia e Ciclo de Vida */}
                         <div>
-                          <h4 className="text-sm font-semibold text-muted-foreground mb-3">Recencia</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          <h4 className="text-sm font-semibold text-muted-foreground mb-3">Recencia e Ciclo de Vida</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Inativo ha X+ dias</label>
-                              <Input type="number" placeholder="Ex: 30" value={criterios.ultimaVisitaMinDias ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ultimaVisitaMinDias: e.target.value }))} className="h-9 text-sm" />
+                              <label className="block text-xs text-muted-foreground mb-1">Ultima visita ha + de (dias)</label>
+                              <Input type="number" placeholder="1" value={criterios.ultimaVisitaMinDias ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ultimaVisitaMinDias: e.target.value }))} className="h-9 text-sm" />
                             </div>
                             <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Ativo nos ultimos X dias</label>
-                              <Input type="number" placeholder="Ex: 7" value={criterios.ultimaVisitaMaxDias ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ultimaVisitaMaxDias: e.target.value }))} className="h-9 text-sm" />
+                              <label className="block text-xs text-muted-foreground mb-1">Ultima visita ha - de (dias)</label>
+                              <Input type="number" placeholder="7" value={criterios.ultimaVisitaMaxDias ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, ultimaVisitaMaxDias: e.target.value }))} className="h-9 text-sm" />
                             </div>
                             <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Cliente novo (dias)</label>
-                              <Input type="number" placeholder="Ex: 30" value={criterios.primeiraVisitaMaxDias ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, primeiraVisitaMaxDias: e.target.value }))} className="h-9 text-sm" />
+                              <label className="block text-xs text-muted-foreground mb-1">Cliente Novo (1a visita em)</label>
+                              <Input type="number" placeholder="Ex: 30 dias" value={criterios.primeiraVisitaMaxDias ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, primeiraVisitaMaxDias: e.target.value }))} className="h-9 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Tamanho Grupo Min</label>
+                              <Input type="number" placeholder="Ex: 3 pessoas" value={criterios.tamanhoGrupoMin ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, tamanhoGrupoMin: e.target.value }))} className="h-9 text-sm" />
                             </div>
                           </div>
                         </div>
 
-                        {/* Perfil Social + Contato + Aniversario */}
+                        {/* Filtros de Contato */}
                         <div>
-                          <h4 className="text-sm font-semibold text-muted-foreground mb-3">Perfil e Contato</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                          <h4 className="text-sm font-semibold text-muted-foreground mb-3">Filtros de Contato</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-2 gap-3 max-w-md">
                             <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Grupo Min</label>
-                              <Input type="number" placeholder="Pessoas" value={criterios.tamanhoGrupoMin ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, tamanhoGrupoMin: e.target.value }))} className="h-9 text-sm" />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Grupo Max</label>
-                              <Input type="number" placeholder="Pessoas" value={criterios.tamanhoGrupoMax ?? ''} onChange={(e) => setCriterios((c) => ({ ...c, tamanhoGrupoMax: e.target.value }))} className="h-9 text-sm" />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Tem Email</label>
-                              <Select value={criterios.temEmail ?? 'qualquer'} onValueChange={(v) => setCriterios((c) => ({ ...c, temEmail: v === 'qualquer' ? '' : v }))}>
+                              <label className="block text-xs text-muted-foreground mb-1">Tem Email?</label>
+                              <Select value={criterios.temEmail ?? 'todos'} onValueChange={(v) => setCriterios((c) => ({ ...c, temEmail: v === 'todos' ? '' : v }))}>
                                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="qualquer">Qualquer</SelectItem>
+                                  <SelectItem value="todos">Todos</SelectItem>
                                   <SelectItem value="true">Sim</SelectItem>
                                   <SelectItem value="false">Nao</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
                             <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Tem Telefone</label>
-                              <Select value={criterios.temTelefone ?? 'qualquer'} onValueChange={(v) => setCriterios((c) => ({ ...c, temTelefone: v === 'qualquer' ? '' : v }))}>
+                              <label className="block text-xs text-muted-foreground mb-1">Tem Telefone?</label>
+                              <Select value={criterios.temTelefone ?? 'todos'} onValueChange={(v) => setCriterios((c) => ({ ...c, temTelefone: v === 'todos' ? '' : v }))}>
                                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="qualquer">Qualquer</SelectItem>
+                                  <SelectItem value="todos">Todos</SelectItem>
                                   <SelectItem value="true">Sim</SelectItem>
                                   <SelectItem value="false">Nao</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Aniversario</label>
-                              <Select value={criterios.mesAniversario ?? 'qualquer'} onValueChange={(v) => setCriterios((c) => ({ ...c, mesAniversario: v === 'qualquer' ? '' : v }))}>
-                                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="qualquer">Qualquer mes</SelectItem>
-                                  {['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'].map((mes, i) => (
-                                    <SelectItem key={i+1} value={String(i+1)}>{mes}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
+                          </div>
+                        </div>
+
+                        {/* Aniversariantes */}
+                        <div>
+                          <h4 className="text-sm font-semibold text-muted-foreground mb-3">Aniversariantes</h4>
+                          <div className="max-w-xs">
+                            <label className="block text-xs text-muted-foreground mb-1">Mes de Aniversario</label>
+                            <Select value={criterios.mesAniversario ?? 'todos'} onValueChange={(v) => setCriterios((c) => ({ ...c, mesAniversario: v === 'todos' ? '' : v }))}>
+                              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="todos">Todos os meses</SelectItem>
+                                {['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'].map((mes, i) => (
+                                  <SelectItem key={i+1} value={String(i+1)}>{mes}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
 
