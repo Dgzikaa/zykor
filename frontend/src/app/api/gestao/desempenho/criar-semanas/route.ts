@@ -90,7 +90,7 @@ export async function POST(request: Request) {
     const semanaFinal = 52;
 
     // Criar semanas faltantes (1 a 52)
-    const semanasParaCriar = [];
+    const semanasParaCriar: any[] = [];
     
     for (let semana = 1; semana <= semanaFinal; semana++) {
       if (semanasJaCriadas.has(semana)) continue; // Pular semanas já existentes
