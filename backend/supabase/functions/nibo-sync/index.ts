@@ -120,17 +120,21 @@ async function fetchNiboSchedules(
 
   console.log(`📥 Total ${tipo}s baixados: ${allItems.length}`);
 
-  // Filtrar por accrualDate (data de competência) internamente
+  // Filtrar por accrualDate (data de competência) ou dueDate (vencimento) como fallback
   const startStr = formatDate(dataInicio);
   const endStr = formatDate(dataFim);
   
   const filteredItems = allItems.filter((item) => {
+    // Priorizar accrualDate, mas usar dueDate como fallback se não existir
     const accrualDate = item.accrualDate ? item.accrualDate.split('T')[0] : null;
-    if (!accrualDate) return false;
-    return accrualDate >= startStr && accrualDate <= endStr;
+    const dueDate = item.dueDate ? item.dueDate.split('T')[0] : null;
+    const dateToUse = accrualDate || dueDate;
+    
+    if (!dateToUse) return false;
+    return dateToUse >= startStr && dateToUse <= endStr;
   });
 
-  console.log(`📥 ${tipo}s filtrados por competência (${startStr} a ${endStr}): ${filteredItems.length}`);
+  console.log(`📥 ${tipo}s filtrados por competência/vencimento (${startStr} a ${endStr}): ${filteredItems.length}`);
 
   return filteredItems;
 }
@@ -214,17 +218,21 @@ async function fetchNiboReceipts(
 
   console.log(`📥 Total receipts baixados: ${allItems.length}`);
 
-  // Filtrar por accrualDate (data de competência) internamente
+  // Filtrar por accrualDate (data de competência) ou dueDate (vencimento) como fallback
   const startStr = formatDate(dataInicio);
   const endStr = formatDate(dataFim);
   
   const filteredItems = allItems.filter((item) => {
+    // Priorizar accrualDate, mas usar dueDate como fallback se não existir
     const accrualDate = item.accrualDate ? item.accrualDate.split('T')[0] : null;
-    if (!accrualDate) return false;
-    return accrualDate >= startStr && accrualDate <= endStr;
+    const dueDate = item.dueDate ? item.dueDate.split('T')[0] : null;
+    const dateToUse = accrualDate || dueDate;
+    
+    if (!dateToUse) return false;
+    return dateToUse >= startStr && dateToUse <= endStr;
   });
 
-  console.log(`📥 Receipts filtrados por competência (${startStr} a ${endStr}): ${filteredItems.length}`);
+  console.log(`📥 Receipts filtrados por competência/vencimento (${startStr} a ${endStr}): ${filteredItems.length}`);
 
   return filteredItems;
 }

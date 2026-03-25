@@ -128,6 +128,17 @@ export async function POST(request: NextRequest) {
     const client = answer?.client || {};
     const consumption = answer?.consumption || {};
 
+    // Extrair "Data do pedido" dos critérios (data real da visita)
+    let dataVisita: string | null = null;
+    if (Array.isArray(criterios)) {
+      const dataCriterio = criterios.find(
+        (c: any) => c?.nick?.toLowerCase().includes('data do pedido') && c?.type === 'Data'
+      );
+      if (dataCriterio?.name && /^\d{4}-\d{2}-\d{2}$/.test(dataCriterio.name)) {
+        dataVisita = dataCriterio.name;
+      }
+    }
+
     const row = {
       bar_id: Number(credencial.bar_id),
       falae_id: String(falaeId),
@@ -143,6 +154,7 @@ export async function POST(request: NextRequest) {
       client_phone: client?.phone || null,
       consumption_id: consumption?.id || null,
       order_id: consumption?.order_id || null,
+      data_visita: dataVisita,
       raw_data: payload,
       synced_at: new Date().toISOString(),
     };

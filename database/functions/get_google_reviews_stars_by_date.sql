@@ -7,6 +7,7 @@ CREATE OR REPLACE FUNCTION public.get_google_reviews_stars_by_date(p_bar_id inte
  RETURNS TABLE(stars integer, published_at_date timestamp with time zone)
  LANGUAGE sql
  STABLE
+ SET search_path = 'public'
 AS $function$
   SELECT 
     stars,

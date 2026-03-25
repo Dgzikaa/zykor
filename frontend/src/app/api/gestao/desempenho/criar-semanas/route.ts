@@ -29,20 +29,20 @@ function getWeekDates(year: number, weekNumber: number) {
 }
 
 // Função para obter o número da semana atual via banco (mais preciso)
-async function getCurrentWeekNumber(supabase: any, barId: number) {
+async function getCurrentWeekNumber(supabase: any, barId: number, ano: number) {
   try {
     const { data: semanaAtual } = await supabase
       .from('desempenho_semanal')
       .select('numero_semana')
       .eq('bar_id', barId)
-      .eq('ano', 2025)
+      .eq('ano', ano)
       .lte('data_inicio::date', 'CURRENT_DATE')
       .gte('data_fim::date', 'CURRENT_DATE')
       .single();
     
-    return semanaAtual?.numero_semana || 31; // fallback para semana 31
+    return semanaAtual?.numero_semana || 1;
   } catch (error) {
-    return 31;
+    return 1;
   }
 }
 
@@ -50,7 +50,7 @@ async function getCurrentWeekNumber(supabase: any, barId: number) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { ate_semana } = body;
+    const { ano: anoParam } = body;
     
     const barIdHeader = request.headers.get('x-selected-bar-id');
     const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
@@ -62,50 +62,44 @@ export async function POST(request: Request) {
       );
     }
 
+    // Usar ano passado no body ou o ano atual
+    const ano = anoParam || new Date().getFullYear();
+
     // Usar service_role para dados administrativos (bypass RLS)
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    // Buscar a última semana existente
-    const { data: ultimaSemana, error: ultimaError } = await supabase
+    // Buscar semanas já existentes para este ano
+    const { data: semanasExistentes, error: existentesError } = await supabase
       .from('desempenho_semanal')
-      .select('numero_semana, ano')
+      .select('numero_semana')
       .eq('bar_id', barId)
-      .eq('ano', 2025)
-      .order('numero_semana', { ascending: false })
-      .limit(1)
-      .single();
+      .eq('ano', ano);
 
-    if (ultimaError && ultimaError.code !== 'PGRST116') {
-      console.error('❌ Erro ao buscar última semana:', ultimaError);
+    if (existentesError) {
+      console.error('❌ Erro ao buscar semanas existentes:', existentesError);
       return NextResponse.json(
         { success: false, error: 'Erro ao verificar semanas existentes' },
         { status: 500 }
       );
     }
 
-    const ultimaSemanaCriada = ultimaSemana?.numero_semana || 0;
-    const semanaFinal = 52; // CRIAR TODAS AS 52 SEMANAS DO ANO
+    const semanasJaCriadas = new Set((semanasExistentes || []).map(s => s.numero_semana));
+    const semanaFinal = 52;
 
-    if (ultimaSemanaCriada >= semanaFinal) {
-      return NextResponse.json({
-        success: true,
-        message: 'Todas as semanas do ano já estão criadas',
-        data: []
-      });
-    }
-
-    // Criar semanas faltantes até o final do ano
+    // Criar semanas faltantes (1 a 52)
     const semanasParaCriar = [];
     
-    for (let semana = ultimaSemanaCriada + 1; semana <= semanaFinal; semana++) {
-      const { start, end } = getWeekDates(2025, semana);
+    for (let semana = 1; semana <= semanaFinal; semana++) {
+      if (semanasJaCriadas.has(semana)) continue; // Pular semanas já existentes
+      
+      const { start, end } = getWeekDates(ano, semana);
 
-      (semanasParaCriar as any).push({
+      semanasParaCriar.push({
         bar_id: barId,
-        ano: 2025,
+        ano: ano,
         numero_semana: semana,
         data_inicio: start,
         data_fim: end,
@@ -119,12 +113,11 @@ export async function POST(request: Request) {
         ticket_medio: 0,
         cmv_teorico: 0,
         cmv_limpo: 0,
-        meta_semanal: 200000, // Meta padrão de R$ 200.000
+        meta_semanal: 0, // Será preenchido pelo planejamento comercial
         atingimento: 0,
         observacoes: `Semana criada automaticamente em ${new Date().toLocaleString('pt-BR')}`,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        // Campos adicionais zerados
         tm_entrada: 0,
         tm_bar: 0,
         cmv_global_real: 0,
@@ -146,8 +139,12 @@ export async function POST(request: Request) {
     if (semanasParaCriar.length === 0) {
       return NextResponse.json({
         success: true,
-        message: 'Nenhuma semana para criar',
-        data: []
+        message: `Todas as 52 semanas de ${ano} já estão criadas`,
+        data: [],
+        detalhes: {
+          ano,
+          semanas_existentes: semanasJaCriadas.size,
+        }
       });
     }
 
@@ -160,20 +157,20 @@ export async function POST(request: Request) {
     if (insertError) {
       console.error('❌ Erro ao inserir semanas:', insertError);
       return NextResponse.json(
-        { success: false, error: 'Erro ao criar semanas' },
+        { success: false, error: 'Erro ao criar semanas: ' + insertError.message },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: `${semanasInseridas?.length || 0} semana(s) criada(s) com sucesso`,
+      message: `${semanasInseridas?.length || 0} semana(s) de ${ano} criada(s) com sucesso`,
       data: semanasInseridas,
       detalhes: {
-        semana_inicial: ultimaSemanaCriada + 1,
-        semana_final: semanaFinal,
-        total_criadas: semanasInseridas?.length || 0,
-        semana_atual: await getCurrentWeekNumber(supabase, barId)
+        ano,
+        semanas_criadas: semanasInseridas?.length || 0,
+        semanas_ja_existiam: semanasJaCriadas.size,
+        semana_atual: await getCurrentWeekNumber(supabase, barId, ano)
       }
     });
 

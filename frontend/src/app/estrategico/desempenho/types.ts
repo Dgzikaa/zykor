@@ -35,6 +35,7 @@ export interface DadosSemana {
   descontos_perc?: number;
   descontos_detalhes?: { motivo: string; valor: number; qtd: number; por_dia?: { dia_semana: string; valor: number; qtd: number }[] }[];
   avaliacoes_5_google_trip: number;
+  google_reviews_total?: number;
   media_avaliacoes_google: number;
   nps_geral: number;
   nps_reservas: number;
@@ -163,10 +164,13 @@ export interface MetricaConfig {
   indentado?: boolean;
   temTooltipDetalhes?: boolean;
   temTooltipGoogle?: boolean;
+  temTooltipGoogle5Estrelas?: boolean;
   temTooltipFaturamento?: boolean;
+  temTooltipAtracao?: boolean;
   keyPercentual?: string;
   detalhesKey?: string;
   respostasKey?: string;
+  totalKey?: string;
 }
 
 export type TipoAgregacao = 'media' | 'soma' | 'fixa' | 'campo';

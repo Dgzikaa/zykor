@@ -14,6 +14,9 @@ function barHeaders(barId: number | string): HeadersInit {
 /** Critérios no mesmo formato usado em `page.tsx` (lista quente / segmentação). */
 export interface SegmentacaoCriteriosForm {
   diasJanela: number
+  // Filtro por semana ISO (opcional - quando usado, ignora diasJanela)
+  semanaAno?: number | ''
+  semanaNumero?: number | ''
   minVisitasTotal: number
   maxVisitasTotal?: string | number
   minVisitasDia: number
@@ -86,7 +89,15 @@ function appendListaQuenteParams(
   formato?: string
 ): void {
   params.append('bar_id', String(barId))
-  params.append('dias_janela', String(c.diasJanela))
+  
+  // Se tem semana selecionada, usa filtro por semana, senão usa janela de dias
+  if (c.semanaAno && c.semanaNumero) {
+    params.append('semana_ano', String(c.semanaAno))
+    params.append('semana_numero', String(c.semanaNumero))
+  } else {
+    params.append('dias_janela', String(c.diasJanela))
+  }
+  
   params.append('min_visitas_total', String(c.minVisitasTotal))
   params.append('min_visitas_dia', String(c.minVisitasDia))
   if (c.maxVisitasTotal !== undefined && c.maxVisitasTotal !== '') {

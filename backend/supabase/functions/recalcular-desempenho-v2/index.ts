@@ -1,15 +1,16 @@
 /**
- * 🔮 RECALCULAR-DESEMPENHO-V2 - Shadow Mode com Feature Flag
+ * 🔮 RECALCULAR-DESEMPENHO-V2 - Recálculo Automático de Desempenho
  * 
  * Edge function que recalcula métricas de desempenho usando os calculators modulares.
+ * Permite escrita tanto em semanas fechadas quanto na semana atual (dados parciais).
  * 
  * Modos:
  * - SHADOW (default): apenas compara resultados com banco, não escreve
  * - WRITE: escreve em desempenho_semanal (requer ENABLE_V2_WRITE=true)
  * 
- * Feature Flag:
+ * Feature Flag (Kill Switch):
  * - ENABLE_V2_WRITE=true → permite escrita quando mode='write'
- * - ENABLE_V2_WRITE=false/undefined → bloqueia qualquer escrita (kill switch)
+ * - ENABLE_V2_WRITE=false/undefined → bloqueia qualquer escrita
  * 
  * Fluxo:
  * 1. Recebe bar_id, ano, numero_semana (ou usa semana atual)
@@ -21,8 +22,8 @@
  * 7. Registra diff no heartbeat response_summary
  * 8. Retorna resultado estruturado
  * 
- * @version 2.1.0-feature-flag
- * @date 2026-03-19
+ * @version 2.2.0 - Permite escrita na semana atual
+ * @date 2026-03-24
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -472,44 +473,11 @@ serve(async (req: Request) => {
 
   // Validar modo de escrita antes de processar
   if (mode === "write") {
-    // Ajuste 2: Bloquear escrita na semana atual (exigir semana explícita e fechada)
-    const semanaExplicita = requestBody.numero_semana || semanaParam;
-    if (!semanaExplicita) {
-      console.error(`[V2] Modo WRITE requer numero_semana explícita`);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Modo WRITE requer numero_semana explícita. Não é permitido escrever na semana atual por default.",
-          mode,
-          write_enabled: ENABLE_V2_WRITE,
-          semana_atual: defaultSemana,
-          message: "Informe numero_semana de uma semana fechada para usar mode='write'.",
-        }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    if (numeroSemana >= defaultSemana && ano >= defaultAno) {
-      console.error(`[V2] Modo WRITE bloqueado para semana atual ou futura: ${numeroSemana}/${ano}`);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `Modo WRITE não permitido para semana atual ou futura (${numeroSemana}/${ano}). Use apenas semanas fechadas.`,
-          mode,
-          write_enabled: ENABLE_V2_WRITE,
-          semana_solicitada: numeroSemana,
-          ano_solicitado: ano,
-          semana_atual: defaultSemana,
-          ano_atual: defaultAno,
-          message: "Informe numero_semana de uma semana já encerrada.",
-        }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
+    // Validar feature flag (kill switch)
     try {
       validateWriteMode(mode);
-      console.log(`[V2] Modo WRITE ativo - escrita em desempenho_semanal PERMITIDA (semana ${numeroSemana}/${ano})`);
+      const tipoSemana = numeroSemana === defaultSemana && ano === defaultAno ? "atual (parcial)" : "fechada";
+      console.log(`[V2] Modo WRITE ativo - escrita em desempenho_semanal PERMITIDA (semana ${numeroSemana}/${ano} - ${tipoSemana})`);
     } catch (err) {
       console.error(`[V2] Modo WRITE bloqueado:`, err);
       return new Response(

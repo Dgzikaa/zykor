@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
     const barId = parseInt(searchParams.get('bar_id') || '3');
     const dataInicio = searchParams.get('data_inicio');
     const dataFim = searchParams.get('data_fim');
+    const filtroEstrelas = searchParams.get('stars') ? parseInt(searchParams.get('stars')!) : null;
 
     if (!dataInicio || !dataFim) {
       return NextResponse.json({ 
@@ -71,7 +72,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao buscar dados' }, { status: 500 });
     }
 
-    const reviewsData = (reviews || []) as any[];
+    // Filtrar por estrelas se especificado
+    let reviewsData = (reviews || []) as any[];
+    if (filtroEstrelas !== null && filtroEstrelas >= 1 && filtroEstrelas <= 5) {
+      reviewsData = reviewsData.filter((r: any) => r.stars === filtroEstrelas);
+    }
     const total = reviewsData.length;
     
     const reviewsComStars = reviewsData.filter(r => r.stars !== null);
@@ -115,6 +120,7 @@ export async function GET(request: NextRequest) {
         const data = new Date(dataStr + 'T12:00:00');
         return {
           data: data.toLocaleDateString('pt-BR'),
+          dataStr,
           diaSemana: DIAS_SEMANA[data.getDay()],
           total: dados.total,
           media: dados.total > 0 ? Math.round((dados.soma / dados.total) * 100) / 100 : 0,
@@ -122,10 +128,10 @@ export async function GET(request: NextRequest) {
         };
       })
       .sort((a, b) => {
-        const dateA = a.data.split('/').reverse().join('-');
-        const dateB = b.data.split('/').reverse().join('-');
-        return dateB.localeCompare(dateA);
-      });
+        // Ordenar por data crescente (segunda a domingo)
+        return a.dataStr.localeCompare(b.dataStr);
+      })
+      .map(({ dataStr: _dataStr, ...rest }) => rest);
 
     // Extrair elogios e críticas
     const reviewsComTexto = reviewsData.filter(r => r.text && r.text.trim().length > 10);

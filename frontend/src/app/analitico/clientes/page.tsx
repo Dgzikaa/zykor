@@ -42,6 +42,68 @@ const diasSemana = [
   { value: '6', label: 'Sábado' },
 ]
 
+// Função para obter número da semana ISO
+function getISOWeekNumber(date: Date): { semana: number; ano: number } {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const semana = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return { semana, ano: d.getUTCFullYear() };
+}
+
+// Função para calcular datas de início e fim de uma semana ISO
+function getWeekDatesFromISO(ano: number, semana: number): { inicio: string; fim: string } {
+  const jan4 = new Date(Date.UTC(ano, 0, 4));
+  const dayOfWeek = jan4.getUTCDay() || 7;
+  const firstMonday = new Date(jan4);
+  firstMonday.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1);
+  const weekStart = new Date(firstMonday);
+  weekStart.setUTCDate(firstMonday.getUTCDate() + (semana - 1) * 7);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+  
+  const formatDateForWeek = (d: Date) => {
+    const day = d.getUTCDate().toString().padStart(2, '0');
+    const month = (d.getUTCMonth() + 1).toString().padStart(2, '0');
+    return `${day}/${month}`;
+  };
+  
+  return {
+    inicio: formatDateForWeek(weekStart),
+    fim: formatDateForWeek(weekEnd),
+  };
+}
+
+// Gerar lista de semanas (últimas 12 semanas + semana atual)
+function gerarOpcoesSemanasDisponiveis(): Array<{ value: string; label: string; ano: number; semana: number }> {
+  const hoje = new Date();
+  const semanas: Array<{ value: string; label: string; ano: number; semana: number }> = [];
+  
+  // Adicionar últimas 12 semanas + atual
+  for (let i = 0; i <= 12; i++) {
+    const data = new Date(hoje);
+    data.setDate(data.getDate() - (i * 7));
+    const { semana, ano } = getISOWeekNumber(data);
+    const { inicio, fim } = getWeekDatesFromISO(ano, semana);
+    
+    // Evitar duplicatas
+    const key = `${ano}-${semana}`;
+    if (!semanas.some(s => s.value === key)) {
+      semanas.push({
+        value: key,
+        label: `Semana ${semana} (${inicio} - ${fim})`,
+        ano,
+        semana,
+      });
+    }
+  }
+  
+  return semanas;
+}
+
+const semanasDisponiveis = gerarOpcoesSemanasDisponiveis();
+
 function formatDate(dateString: string) {
   const date = new Date(dateString + 'T12:00:00Z')
   return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' })
@@ -74,6 +136,8 @@ export default function ClientesPage() {
 
   const [criterios, setCriterios] = useState<SegmentacaoCriteriosForm>({
     diasJanela: 90,
+    semanaAno: '',
+    semanaNumero: '',
     minVisitasTotal: 2,
     maxVisitasTotal: '',
     minVisitasDia: 1,
@@ -277,6 +341,8 @@ export default function ClientesPage() {
       if (crit) {
         setCriterios({
           diasJanela: crit.diasJanela ?? 90,
+          semanaAno: crit.semanaAno ?? '',
+          semanaNumero: crit.semanaNumero ?? '',
           minVisitasTotal: crit.minVisitasTotal ?? 2,
           maxVisitasTotal: crit.maxVisitasTotal ?? '',
           minVisitasDia: crit.minVisitasDia ?? 1,
@@ -313,15 +379,18 @@ export default function ClientesPage() {
     fetchClientes()
   }, [fetchClientes])
 
+  const listaQuenteCarregadaRef = useRef(false)
+  
   useEffect(() => {
     if (activeTab === 'reservantes' && reservantes.length === 0) {
       fetchReservantes()
     }
-    if (activeTab === 'lista-quente' && !segmentoResumo) {
+    if (activeTab === 'lista-quente' && !listaQuenteCarregadaRef.current) {
+      listaQuenteCarregadaRef.current = true
       fetchSegmentacao()
       fetchSegmentosSalvos()
     }
-  }, [activeTab, fetchReservantes, reservantes.length, fetchSegmentacao, fetchSegmentosSalvos, segmentoResumo])
+  }, [activeTab, fetchReservantes, reservantes.length, fetchSegmentacao, fetchSegmentosSalvos])
 
   const executarBusca = useCallback(() => {
     setBuscaAplicada(buscaCliente.trim())
@@ -727,11 +796,37 @@ export default function ClientesPage() {
                         {/* Janela e Frequencia */}
                         <div>
                           <h4 className="text-sm font-semibold text-muted-foreground mb-3">Janela e Frequencia</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Semana Específica</label>
+                              <Select 
+                                value={criterios.semanaAno && criterios.semanaNumero ? `${criterios.semanaAno}-${criterios.semanaNumero}` : 'nenhuma'} 
+                                onValueChange={(v) => {
+                                  if (v === 'nenhuma') {
+                                    setCriterios((c) => ({ ...c, semanaAno: '', semanaNumero: '' }))
+                                  } else {
+                                    const [ano, semana] = v.split('-').map(Number)
+                                    setCriterios((c) => ({ ...c, semanaAno: ano, semanaNumero: semana }))
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="nenhuma">Usar janela de dias</SelectItem>
+                                  {semanasDisponiveis.map((s) => (
+                                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                             <div>
                               <label className="block text-xs text-muted-foreground mb-1">Janela (dias)</label>
-                              <Select value={String(criterios.diasJanela)} onValueChange={(v) => setCriterios((c) => ({ ...c, diasJanela: parseInt(v) }))}>
-                                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                              <Select 
+                                value={String(criterios.diasJanela)} 
+                                onValueChange={(v) => setCriterios((c) => ({ ...c, diasJanela: parseInt(v) }))}
+                                disabled={!!(criterios.semanaAno && criterios.semanaNumero)}
+                              >
+                                <SelectTrigger className={`h-9 text-sm ${criterios.semanaAno && criterios.semanaNumero ? 'opacity-50' : ''}`}><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="30">30 dias</SelectItem>
                                   <SelectItem value="60">60 dias</SelectItem>
@@ -884,7 +979,7 @@ export default function ClientesPage() {
                               {salvandoSegmento ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
                             </Button>
                           </div>
-                          <Button variant="ghost" onClick={() => setCriterios({ diasJanela: 90, minVisitasTotal: 2, maxVisitasTotal: '', minVisitasDia: 1, diasDiferentes: '', ticketMedioMin: '', ticketMedioMax: '', ticketEntradaMin: '', ticketEntradaMax: '', ticketConsumoMin: '', ticketConsumoMax: '', gastoTotalMin: '', gastoTotalMax: '', ultimaVisitaMinDias: '', ultimaVisitaMaxDias: '', primeiraVisitaMaxDias: '', tamanhoGrupoMin: '', tamanhoGrupoMax: '', temEmail: '', temTelefone: '', mesAniversario: '' })} className="text-muted-foreground">
+                          <Button variant="ghost" onClick={() => setCriterios({ diasJanela: 90, semanaAno: '', semanaNumero: '', minVisitasTotal: 2, maxVisitasTotal: '', minVisitasDia: 1, diasDiferentes: '', ticketMedioMin: '', ticketMedioMax: '', ticketEntradaMin: '', ticketEntradaMax: '', ticketConsumoMin: '', ticketConsumoMax: '', gastoTotalMin: '', gastoTotalMax: '', ultimaVisitaMinDias: '', ultimaVisitaMaxDias: '', primeiraVisitaMaxDias: '', tamanhoGrupoMin: '', tamanhoGrupoMax: '', temEmail: '', temTelefone: '', mesAniversario: '' })} className="text-muted-foreground">
                             Limpar
                           </Button>
                         </div>

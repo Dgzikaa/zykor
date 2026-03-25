@@ -160,10 +160,10 @@ export async function getSemanas(
     });
 
     // Descontos (de visitas - tabela final)
-    const descontos = await fetchAllPaginated<{ data_visita: string; valor_desconto: number; motivo: string }>(
+    const descontos = await fetchAllPaginated<{ data_visita: string; valor_desconto: number; motivo_desconto: string | null }>(
       supabase,
       'visitas',
-      'data_visita, valor_desconto, motivo',
+      'data_visita, valor_desconto, motivo_desconto',
       [
         { column: 'bar_id', operator: 'eq', value: barId },
         { column: 'valor_desconto', operator: 'gt', value: 0 },
@@ -178,7 +178,7 @@ export async function getSemanas(
       if (semana) {
         const key = `${semana.ano}-${semana.numero_semana}`;
         const valor = Number(d.valor_desconto || 0);
-        const motivo = d.motivo || 'Sem motivo';
+        const motivo = d.motivo_desconto || 'Sem motivo';
         const data = new Date(d.data_visita + 'T00:00:00');
         const diaSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][data.getDay()];
 

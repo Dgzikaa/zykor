@@ -30,6 +30,10 @@ interface CriteriosSegmentacao {
   // Janela de análise
   diasJanela: number;
   
+  // Filtro por semana ISO (novo!)
+  semanaAno?: number; // Ex: 2026
+  semanaNumero?: number; // Ex: 12 (semana 12)
+  
   // Frequência
   minVisitasTotal: number;
   maxVisitasTotal?: number;
@@ -68,6 +72,51 @@ interface CriteriosSegmentacao {
   
   // Aniversário
   mesAniversario?: number; // 1-12 para filtrar por mês de aniversário
+}
+
+// Função para obter data em timezone de Brasília (UTC-3)
+function getHojeBrasilia(): Date {
+  const agora = new Date();
+  // Converter para Brasília (UTC-3)
+  const offsetBrasilia = -3 * 60; // -3 horas em minutos
+  const offsetLocal = agora.getTimezoneOffset(); // offset local em minutos
+  const diffMinutos = offsetBrasilia - (-offsetLocal);
+  return new Date(agora.getTime() + diffMinutos * 60 * 1000);
+}
+
+// Função para calcular início e fim de uma semana ISO
+function getWeekDates(ano: number, semana: number): { inicio: string; fim: string } {
+  // 4 de janeiro sempre está na primeira semana ISO
+  const jan4 = new Date(Date.UTC(ano, 0, 4));
+  const dayOfWeek = jan4.getUTCDay() || 7; // Domingo = 7
+  
+  // Encontrar a primeira segunda-feira do ano ISO
+  const firstMonday = new Date(jan4);
+  firstMonday.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1);
+  
+  // Calcular início da semana desejada
+  const weekStart = new Date(firstMonday);
+  weekStart.setUTCDate(firstMonday.getUTCDate() + (semana - 1) * 7);
+  
+  // Fim da semana (domingo)
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+  
+  return {
+    inicio: weekStart.toISOString().split('T')[0],
+    fim: weekEnd.toISOString().split('T')[0],
+  };
+}
+
+// Função para obter número da semana ISO atual
+function getCurrentWeekNumber(): { semana: number; ano: number } {
+  const hoje = getHojeBrasilia();
+  const d = new Date(Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const semana = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return { semana, ano: d.getUTCFullYear() };
 }
 
 // Função para buscar dados com paginação
@@ -168,6 +217,8 @@ export async function GET(request: NextRequest) {
     // Extrair todos os critérios
     const criterios: CriteriosSegmentacao = {
       diasJanela: parseInt(searchParams.get('dias_janela') || '90'),
+      semanaAno: searchParams.get('semana_ano') ? parseInt(searchParams.get('semana_ano')!) : undefined,
+      semanaNumero: searchParams.get('semana_numero') ? parseInt(searchParams.get('semana_numero')!) : undefined,
       minVisitasTotal: parseInt(searchParams.get('min_visitas_total') || '2'),
       maxVisitasTotal: searchParams.get('max_visitas_total') ? parseInt(searchParams.get('max_visitas_total')!) : undefined,
       minVisitasDia: parseInt(searchParams.get('min_visitas_dia') || '1'),
@@ -193,21 +244,43 @@ export async function GET(request: NextRequest) {
       mesAniversario: searchParams.get('mes_aniversario') ? parseInt(searchParams.get('mes_aniversario')!) : undefined,
     };
 
-    // Calcular data limite
-    const hoje = new Date();
-    const dataLimite = new Date(hoje);
-    dataLimite.setDate(hoje.getDate() - criterios.diasJanela);
-    const dataLimiteStr = dataLimite.toISOString().split('T')[0];
+    // Usar timezone de Brasília para cálculos de data
+    const hojeBrasilia = getHojeBrasilia();
+    
+    // Calcular data limite baseado na janela OU semana específica
+    let dataLimiteStr: string;
+    let dataFimStr: string | undefined;
+    let filtrandoPorSemana = false;
+    
+    if (criterios.semanaAno && criterios.semanaNumero) {
+      // Filtrar por semana específica
+      const { inicio, fim } = getWeekDates(criterios.semanaAno, criterios.semanaNumero);
+      dataLimiteStr = inicio;
+      dataFimStr = fim;
+      filtrandoPorSemana = true;
+    } else {
+      // Usar janela de dias
+      const dataLimite = new Date(hojeBrasilia);
+      dataLimite.setDate(hojeBrasilia.getDate() - criterios.diasJanela);
+      dataLimiteStr = dataLimite.toISOString().split('T')[0];
+    }
     
     // Buscar todos os registros com dados completos
+    const filtros: Record<string, any> = {
+      'eq_bar_id': barId,
+      'gte_data_visita': dataLimiteStr
+    };
+    
+    // Se filtrando por semana, adicionar limite de data_fim
+    if (filtrandoPorSemana && dataFimStr) {
+      filtros['lte_data_visita'] = dataFimStr;
+    }
+    
     const todosRegistros = await fetchAllData(
       supabase,
       'visitas',
       'cliente_nome, cliente_email, cliente_fone, cliente_dtnasc, data_visita, valor_couvert, valor_pagamentos, pessoas',
-      {
-        'eq_bar_id': barId,
-        'gte_data_visita': dataLimiteStr
-      }
+      filtros
     );
 
     // Mapear clientes únicos por telefone normalizado OU por nome (para quem não tem telefone)
@@ -363,21 +436,31 @@ export async function GET(request: NextRequest) {
       clientesFiltrados = clientesFiltrados.filter(c => c.totalGasto <= criterios.gastoTotalMax!);
     }
     
-    // Filtro: Recência - última visita
+    // Filtro: Recência - última visita (usando meia-noite de Brasília para consistência)
     if (criterios.ultimaVisitaMinDias !== undefined) {
-      const dataCorte = new Date();
+      // Cliente inativo: última visita há mais de X dias
+      // Usar início do dia (meia-noite) para corte preciso
+      const hojeBrasiliaCorte = getHojeBrasilia();
+      hojeBrasiliaCorte.setHours(0, 0, 0, 0);
+      const dataCorte = new Date(hojeBrasiliaCorte);
       dataCorte.setDate(dataCorte.getDate() - criterios.ultimaVisitaMinDias);
       clientesFiltrados = clientesFiltrados.filter(c => c.ultimaVisita && c.ultimaVisita < dataCorte);
     }
     if (criterios.ultimaVisitaMaxDias !== undefined) {
-      const dataCorte = new Date();
+      // Cliente recente: última visita nos últimos X dias
+      // Usar início do dia (meia-noite) para corte preciso
+      const hojeBrasiliaCorte = getHojeBrasilia();
+      hojeBrasiliaCorte.setHours(0, 0, 0, 0);
+      const dataCorte = new Date(hojeBrasiliaCorte);
       dataCorte.setDate(dataCorte.getDate() - criterios.ultimaVisitaMaxDias);
       clientesFiltrados = clientesFiltrados.filter(c => c.ultimaVisita && c.ultimaVisita >= dataCorte);
     }
     
     // Filtro: Cliente Novo (primeira visita nos últimos X dias)
     if (criterios.primeiraVisitaMaxDias !== undefined) {
-      const dataCorte = new Date();
+      const hojeBrasiliaCorte = getHojeBrasilia();
+      hojeBrasiliaCorte.setHours(0, 0, 0, 0);
+      const dataCorte = new Date(hojeBrasiliaCorte);
       dataCorte.setDate(dataCorte.getDate() - criterios.primeiraVisitaMaxDias);
       clientesFiltrados = clientesFiltrados.filter(c => c.primeiraVisita && c.primeiraVisita >= dataCorte);
     }
@@ -450,7 +533,7 @@ export async function GET(request: NextRequest) {
         return new NextResponse(csvHeader + csvRows, {
           headers: {
             'Content-Type': 'text/csv; charset=utf-8',
-            'Content-Disposition': `attachment; filename="segmento-${diaNormalizado}-${hoje.toISOString().split('T')[0]}.csv"`
+            'Content-Disposition': `attachment; filename="segmento-${diaNormalizado}-${hojeBrasilia.toISOString().split('T')[0]}.csv"`
           }
         });
       }
@@ -465,7 +548,7 @@ export async function GET(request: NextRequest) {
         return new NextResponse(csvHeader + csvRows, {
           headers: {
             'Content-Type': 'text/csv; charset=utf-8',
-            'Content-Disposition': `attachment; filename="segmento-completo-${diaNormalizado}-${hoje.toISOString().split('T')[0]}.csv"`
+            'Content-Disposition': `attachment; filename="segmento-completo-${diaNormalizado}-${hojeBrasilia.toISOString().split('T')[0]}.csv"`
           }
         });
       }
@@ -509,7 +592,7 @@ export async function GET(request: NextRequest) {
         return new NextResponse(csvHeader + csvRows, {
           headers: {
             'Content-Type': 'text/csv; charset=utf-8',
-            'Content-Disposition': `attachment; filename="lista-clientes-${hoje.toISOString().split('T')[0]}.csv"`
+            'Content-Disposition': `attachment; filename="lista-clientes-${hojeBrasilia.toISOString().split('T')[0]}.csv"`
           }
         });
       }
@@ -524,7 +607,7 @@ export async function GET(request: NextRequest) {
         return new NextResponse(csvHeader + csvRows, {
           headers: {
             'Content-Type': 'text/csv; charset=utf-8',
-            'Content-Disposition': `attachment; filename="lista-clientes-completa-${hoje.toISOString().split('T')[0]}.csv"`
+            'Content-Disposition': `attachment; filename="lista-clientes-completa-${hojeBrasilia.toISOString().split('T')[0]}.csv"`
           }
         });
       }

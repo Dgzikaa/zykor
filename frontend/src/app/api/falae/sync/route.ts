@@ -68,6 +68,7 @@ async function fetchAnswersPage(
 
 type DailyNpsRow = {
   created_at: string;
+  data_visita?: string | null;
   nps: number;
 };
 
@@ -86,7 +87,8 @@ async function upsertDailyNps(
   >();
 
   for (const row of rows) {
-    const day = String(row.created_at).slice(0, 10);
+    // Usar data_visita se disponível, senão created_at
+    const day = row.data_visita || String(row.created_at).slice(0, 10);
     if (!day) continue;
     if (!byDay.has(day)) {
       byDay.set(day, { total: 0, promotores: 0, neutros: 0, detratores: 0, somaNps: 0 });
@@ -274,6 +276,18 @@ export async function POST(request: NextRequest) {
       const consumption = answer?.consumption || {};
       const page = answer?.page || {};
       const company = answer?.company || {};
+      const criterios = answer?.criteria || [];
+      
+      // Extrair "Data do pedido" dos critérios (data real da visita)
+      let dataVisita: string | null = null;
+      if (Array.isArray(criterios)) {
+        const dataCriterio = criterios.find(
+          (c: any) => c?.nick?.toLowerCase().includes('data do pedido') && c?.type === 'Data'
+        );
+        if (dataCriterio?.name && /^\d{4}-\d{2}-\d{2}$/.test(dataCriterio.name)) {
+          dataVisita = dataCriterio.name;
+        }
+      }
 
       return {
         bar_id: barId,
@@ -281,7 +295,7 @@ export async function POST(request: NextRequest) {
         created_at: String(answer?.created_at || new Date().toISOString()),
         nps: toNumber(answer?.nps) || 0,
         discursive_question: answer?.discursive_question || null,
-        criterios: answer?.criteria || null,
+        criterios: criterios.length > 0 ? criterios : null,
         search_id: search?.id || answer?.search_id || null,
         search_name: search?.name || null,
         client_id: client?.id || answer?.client_id || null,
@@ -290,6 +304,7 @@ export async function POST(request: NextRequest) {
         client_phone: client?.phone || null,
         consumption_id: consumption?.id || null,
         order_id: consumption?.order_id || null,
+        data_visita: dataVisita,
         raw_data: {
           ...answer,
           page,
@@ -313,7 +328,7 @@ export async function POST(request: NextRequest) {
       npsDiario = await upsertDailyNps(
         supabase,
         barId,
-        rows.map((r) => ({ created_at: r.created_at, nps: r.nps }))
+        rows.map((r) => ({ created_at: r.created_at, data_visita: r.data_visita, nps: r.nps }))
       );
     } catch (npsError) {
       console.error('Erro ao atualizar nps_falae_diario:', npsError);

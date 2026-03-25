@@ -40,7 +40,8 @@ import {
   UserCog,
   Calculator,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Loader2
 } from 'lucide-react';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
@@ -106,7 +107,7 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         label: 'Custos',
         metricas: [
           { key: 'cmo', label: 'CMO %', status: 'manual', fonte: 'Simulação CMO (manual)', calculo: 'CMO Total / Faturamento × 100 (inserido manualmente até automatização)', formato: 'percentual', inverso: true, editavel: true },
-          { key: 'custo_atracao_faturamento', label: 'Atração/Fat.', status: 'auto', fonte: 'eventos_base (c_art)', calculo: 'Soma c_art eventos / Faturamento × 100', formato: 'percentual', inverso: true },
+          { key: 'custo_atracao_faturamento', label: 'Atração/Fat.', status: 'auto', fonte: 'eventos_base (c_art)', calculo: 'Soma c_art eventos / Faturamento × 100', formato: 'percentual', inverso: true, temTooltipAtracao: true },
         ]
       }
     ]
@@ -152,7 +153,7 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         id: 'avaliacoes',
         label: 'Avaliações',
         metricas: [
-          { key: 'avaliacoes_5_google_trip', label: 'Avaliações 5★ Google', status: 'auto', fonte: 'Google Reviews (Apify)', calculo: 'Contagem de avaliações 5 estrelas no período', formato: 'numero', temTooltipGoogle: true },
+          { key: 'avaliacoes_5_google_trip', label: 'Avaliações 5★ Google', status: 'auto', fonte: 'Google Reviews (Apify)', calculo: 'Contagem de avaliações 5 estrelas no período', formato: 'numero', temTooltipGoogle5Estrelas: true, totalKey: 'google_reviews_total' },
           { key: 'media_avaliacoes_google', label: 'Média Google', status: 'auto', fonte: 'Google Reviews (Apify)', calculo: 'Média das estrelas no período', formato: 'decimal', temTooltipGoogle: true },
         ]
       },
@@ -552,9 +553,11 @@ export function DesempenhoClient({
   const [googleReviewsDialog, setGoogleReviewsDialog] = useState<{
     aberto: boolean;
     loading: boolean;
+    titulo: string;
     periodo: string;
     dataInicio: string;
     dataFim: string;
+    filtroEstrelas: number | null;
     total: number;
     media: number;
     distribuicao: Record<number, number>;
@@ -567,9 +570,11 @@ export function DesempenhoClient({
   }>({
     aberto: false,
     loading: false,
+    titulo: 'Detalhes Google Reviews',
     periodo: '',
     dataInicio: '',
     dataFim: '',
+    filtroEstrelas: null,
     total: 0,
     media: 0,
     distribuicao: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
@@ -581,6 +586,102 @@ export function DesempenhoClient({
     reviewsNeutras: [],
   });
   const [filtroReviewGoogle, setFiltroReviewGoogle] = useState<'todos' | 'positivo' | 'neutro' | 'negativo'>('todos');
+  const [filtroDiaGoogle, setFiltroDiaGoogle] = useState<string | null>(null);
+  const [paginaReviewGoogle, setPaginaReviewGoogle] = useState(1);
+  const [reviewExpandidaGoogle, setReviewExpandidaGoogle] = useState<Set<string>>(new Set());
+  const REVIEWS_POR_PAGINA = 10;
+
+  // Estado do modal de NPS Falaê (Digital/Salão)
+  const [npsDialog, setNpsDialog] = useState<{
+    aberto: boolean;
+    loading: boolean;
+    titulo: string;
+    periodo: string;
+    dataInicio: string;
+    dataFim: string;
+    searchName: string;
+    total: number;
+    npsScore: number | null;
+    promotores: number;
+    neutros: number;
+    detratores: number;
+    mediaNotas: number | null;
+    respostas: {
+      id: string;
+      nps: number;
+      data: string;
+      dataVisita: string | null;
+      comentario: string | null;
+      clientName: string | null;
+      tipo: 'promotor' | 'neutro' | 'detrator';
+      criterios: { nome: string; nota: number }[];
+    }[];
+    criteriosMedia: { nome: string; media: number; total: number }[];
+  }>({
+    aberto: false,
+    loading: false,
+    titulo: '',
+    periodo: '',
+    dataInicio: '',
+    dataFim: '',
+    searchName: '',
+    total: 0,
+    npsScore: null,
+    promotores: 0,
+    neutros: 0,
+    detratores: 0,
+    mediaNotas: null,
+    respostas: [],
+    criteriosMedia: [],
+  });
+  const [filtroNps, setFiltroNps] = useState<'todos' | 'promotor' | 'neutro' | 'detrator'>('todos');
+  const [filtroDiaNps, setFiltroDiaNps] = useState<string | null>(null);
+  const [paginaNps, setPaginaNps] = useState(1);
+  const [respostaExpandidaNps, setRespostaExpandidaNps] = useState<Set<string>>(new Set());
+  const NPS_POR_PAGINA = 10;
+
+  // Estado do modal de Atração/Faturamento
+  const [atracaoDialog, setAtracaoDialog] = useState<{
+    aberto: boolean;
+    loading: boolean;
+    periodo: string;
+    dataInicio: string;
+    dataFim: string;
+    total: number;
+    custoArtisticoTotal: number;
+    custoProducaoTotal: number;
+    custoTotal: number;
+    faturamentoTotal: number;
+    couvertTotal: number;
+    percentualMedio: number;
+    dias: {
+      data: string;
+      dataFormatada: string;
+      diaSemana: string;
+      evento: string;
+      artista: string | null;
+      custoArtistico: number;
+      custoProducao: number;
+      custoTotal: number;
+      faturamento: number;
+      couvert: number;
+      percentualFat: number;
+    }[];
+  }>({
+    aberto: false,
+    loading: false,
+    periodo: '',
+    dataInicio: '',
+    dataFim: '',
+    total: 0,
+    custoArtisticoTotal: 0,
+    custoProducaoTotal: 0,
+    custoTotal: 0,
+    faturamentoTotal: 0,
+    couvertTotal: 0,
+    percentualMedio: 0,
+    dias: [],
+  });
   
   // Estado do modal de edição individual de meta
   const [editMetaDialog, setEditMetaDialog] = useState<{
@@ -970,23 +1071,31 @@ export function DesempenhoClient({
     setFiltroComentarioFalae('todos');
   }, []);
 
-  const abrirDetalhesGoogleReviews = useCallback(async (semana: DadosSemana) => {
+  const abrirDetalhesGoogleReviews = useCallback(async (semana: DadosSemana, filtroEstrelas?: number) => {
     const periodo = `${formatarDataCurta(semana.data_inicio)} - ${formatarDataCurta(semana.data_fim)}`;
-    
+    const titulo = filtroEstrelas === 5 ? 'Avaliações 5★ Google' : 'Detalhes Google Reviews';
+
     setGoogleReviewsDialog(prev => ({
       ...prev,
       aberto: true,
       loading: true,
+      titulo,
       periodo,
       dataInicio: semana.data_inicio,
       dataFim: semana.data_fim,
+      filtroEstrelas: filtroEstrelas || null,
     }));
     setFiltroReviewGoogle('todos');
+    setFiltroDiaGoogle(null);
+    setPaginaReviewGoogle(1);
+    setReviewExpandidaGoogle(new Set());
 
     try {
-      const response = await fetch(
-        `/api/google-reviews/detailed-summary?bar_id=${barId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}`
-      );
+      let url = `/api/google-reviews/detailed-summary?bar_id=${barId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}`;
+      if (filtroEstrelas) {
+        url += `&stars=${filtroEstrelas}`;
+      }
+      const response = await fetch(url);
       const data = await response.json();
       
       if (data.success && data.summary) {
@@ -1012,18 +1121,205 @@ export function DesempenhoClient({
     }
   }, [barId]);
 
+  const abrirDetalhesNps = useCallback(async (semana: DadosSemana, searchName: string, titulo: string) => {
+    const periodo = `${formatarDataCurta(semana.data_inicio)} - ${formatarDataCurta(semana.data_fim)}`;
+    
+    setNpsDialog(prev => ({
+      ...prev,
+      aberto: true,
+      loading: true,
+      titulo,
+      periodo,
+      dataInicio: semana.data_inicio,
+      dataFim: semana.data_fim,
+      searchName,
+    }));
+    setFiltroNps('todos');
+    setFiltroDiaNps(null);
+    setPaginaNps(1);
+    setRespostaExpandidaNps(new Set());
+
+    try {
+      const response = await fetch(
+        `/api/falae/detailed-summary?bar_id=${barId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}&search_name=${encodeURIComponent(searchName)}`
+      );
+      const data = await response.json();
+      
+      if (data.success && data.summary) {
+        setNpsDialog(prev => ({
+          ...prev,
+          loading: false,
+          total: data.summary.total,
+          npsScore: data.summary.npsScore,
+          promotores: data.summary.promotores,
+          neutros: data.summary.neutros,
+          detratores: data.summary.detratores,
+          mediaNotas: data.summary.mediaNotas,
+          respostas: data.summary.respostas,
+          criteriosMedia: data.summary.criteriosMedia,
+        }));
+      } else {
+        setNpsDialog(prev => ({ ...prev, loading: false }));
+      }
+    } catch (error) {
+      console.error('Erro ao buscar detalhes NPS:', error);
+      setNpsDialog(prev => ({ ...prev, loading: false }));
+    }
+  }, [barId]);
+
+  const abrirDetalhesAtracao = useCallback(async (semana: DadosSemana) => {
+    const periodo = `${formatarDataCurta(semana.data_inicio)} - ${formatarDataCurta(semana.data_fim)}`;
+    
+    setAtracaoDialog(prev => ({
+      ...prev,
+      aberto: true,
+      loading: true,
+      periodo,
+      dataInicio: semana.data_inicio,
+      dataFim: semana.data_fim,
+    }));
+
+    try {
+      const response = await fetch(
+        `/api/eventos/atracao-detalhes?bar_id=${barId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}`
+      );
+      const data = await response.json();
+      
+      if (data.success && data.summary) {
+        setAtracaoDialog(prev => ({
+          ...prev,
+          loading: false,
+          total: data.summary.total,
+          custoArtisticoTotal: data.summary.custoArtisticoTotal,
+          custoProducaoTotal: data.summary.custoProducaoTotal,
+          custoTotal: data.summary.custoTotal,
+          faturamentoTotal: data.summary.faturamentoTotal,
+          couvertTotal: data.summary.couvertTotal,
+          percentualMedio: data.summary.percentualMedio,
+          dias: data.summary.dias,
+        }));
+      } else {
+        setAtracaoDialog(prev => ({ ...prev, loading: false }));
+      }
+    } catch (error) {
+      console.error('Erro ao buscar detalhes Atração:', error);
+      setAtracaoDialog(prev => ({ ...prev, loading: false }));
+    }
+  }, [barId]);
+
+  const respostasNpsFiltradas = useMemo(() => {
+    const ordemTipo = { detrator: 0, neutro: 1, promotor: 2 } as const;
+    let base = [...npsDialog.respostas].sort((a, b) => {
+      const ordem = ordemTipo[a.tipo] - ordemTipo[b.tipo];
+      if (ordem !== 0) return ordem;
+      return a.data < b.data ? 1 : -1;
+    });
+    
+    if (filtroNps !== 'todos') {
+      base = base.filter((r) => r.tipo === filtroNps);
+    }
+    
+    // Filtrar por dia se selecionado
+    if (filtroDiaNps) {
+      base = base.filter(r => r.data === filtroDiaNps);
+    }
+    
+    return base;
+  }, [npsDialog.respostas, filtroNps, filtroDiaNps]);
+  
+  // Paginação de respostas NPS
+  const respostasNpsPaginadas = useMemo(() => {
+    const inicio = (paginaNps - 1) * NPS_POR_PAGINA;
+    return respostasNpsFiltradas.slice(inicio, inicio + NPS_POR_PAGINA);
+  }, [respostasNpsFiltradas, paginaNps]);
+  
+  const totalPaginasNps = Math.ceil(respostasNpsFiltradas.length / NPS_POR_PAGINA);
+
+  const contagemRespostasNps = useMemo(() => {
+    const counts = { detrator: 0, neutro: 0, promotor: 0 };
+    for (const r of npsDialog.respostas) {
+      counts[r.tipo] += 1;
+    }
+    return {
+      ...counts,
+      todos: npsDialog.respostas.length,
+    };
+  }, [npsDialog.respostas]);
+  
+  // Agregação de NPS por dia
+  const npsPorDia = useMemo(() => {
+    const porDiaMap = new Map<string, { total: number; soma: number; promotores: number; detratores: number }>();
+    const diasSemanaOrdem = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+    
+    for (const r of npsDialog.respostas) {
+      const data = r.dataVisita || r.data;
+      if (!data) continue;
+      
+      if (!porDiaMap.has(data)) {
+        porDiaMap.set(data, { total: 0, soma: 0, promotores: 0, detratores: 0 });
+      }
+      const stat = porDiaMap.get(data)!;
+      stat.total += 1;
+      stat.soma += r.nps;
+      if (r.tipo === 'promotor') stat.promotores += 1;
+      if (r.tipo === 'detrator') stat.detratores += 1;
+    }
+    
+    const resultado = Array.from(porDiaMap.entries()).map(([data, stats]) => {
+      const dateObj = new Date(data + 'T12:00:00');
+      const diaSemanaIndex = dateObj.getDay();
+      const diasNomes = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+      const nps = stats.total > 0 ? Math.round(((stats.promotores - stats.detratores) / stats.total) * 100) : 0;
+      
+      return {
+        data,
+        diaSemana: diasNomes[diaSemanaIndex],
+        total: stats.total,
+        nps,
+        media: stats.total > 0 ? stats.soma / stats.total : 0,
+      };
+    });
+    
+    // Ordenar por dia da semana (Segunda -> Domingo)
+    return resultado.sort((a, b) => {
+      const ordemA = diasSemanaOrdem.indexOf(a.diaSemana);
+      const ordemB = diasSemanaOrdem.indexOf(b.diaSemana);
+      return ordemA - ordemB;
+    });
+  }, [npsDialog.respostas]);
+
   const reviewsGoogleFiltradas = useMemo(() => {
+    let reviews: { nome: string; stars: number; texto: string; data: string; tipo: string }[] = [];
+    
     if (filtroReviewGoogle === 'todos') {
-      return [
+      reviews = [
         ...googleReviewsDialog.reviewsNegativas,
         ...googleReviewsDialog.reviewsNeutras,
         ...googleReviewsDialog.reviewsPositivas,
       ];
+    } else if (filtroReviewGoogle === 'positivo') {
+      reviews = googleReviewsDialog.reviewsPositivas;
+    } else if (filtroReviewGoogle === 'negativo') {
+      reviews = googleReviewsDialog.reviewsNegativas;
+    } else {
+      reviews = googleReviewsDialog.reviewsNeutras;
     }
-    if (filtroReviewGoogle === 'positivo') return googleReviewsDialog.reviewsPositivas;
-    if (filtroReviewGoogle === 'negativo') return googleReviewsDialog.reviewsNegativas;
-    return googleReviewsDialog.reviewsNeutras;
-  }, [googleReviewsDialog, filtroReviewGoogle]);
+    
+    // Filtrar por dia se selecionado
+    if (filtroDiaGoogle) {
+      reviews = reviews.filter(r => r.data === filtroDiaGoogle);
+    }
+    
+    return reviews;
+  }, [googleReviewsDialog, filtroReviewGoogle, filtroDiaGoogle]);
+  
+  // Paginação de reviews Google
+  const reviewsGooglePaginadas = useMemo(() => {
+    const inicio = (paginaReviewGoogle - 1) * REVIEWS_POR_PAGINA;
+    return reviewsGoogleFiltradas.slice(inicio, inicio + REVIEWS_POR_PAGINA);
+  }, [reviewsGoogleFiltradas, paginaReviewGoogle]);
+  
+  const totalPaginasReviewGoogle = Math.ceil(reviewsGoogleFiltradas.length / REVIEWS_POR_PAGINA);
 
   const contagemReviewsGoogle = useMemo(() => ({
     positivo: googleReviewsDialog.reviewsPositivas.length,
@@ -1648,6 +1944,13 @@ export function DesempenhoClient({
                                           valorFormatado = `${formatarValor(valor, metrica.formato, metrica.sufixo)} (${respostas})`;
                                         }
                                       }
+                                      // Mostrar total de avaliações ao lado das 5 estrelas (ex: "342 (361)")
+                                      if (metrica.totalKey && valor !== null && valor !== undefined) {
+                                        const total = getValorComOverride(semana, metrica.totalKey);
+                                        if (total !== null && total !== undefined && typeof total === 'number' && total > 0) {
+                                          valorFormatado = `${formatarValor(valor, metrica.formato, metrica.sufixo)} (${total})`;
+                                        }
+                                      }
                                       // Formato moeda_com_percentual: R$ 27.520 (3,5%)
                                        if (metrica.formato === 'moeda_com_percentual' && valor !== null && valor !== undefined) {
                                          const moedaFormatada = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(numeroMetrica(valor));
@@ -1670,6 +1973,30 @@ export function DesempenhoClient({
                                                     <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => setEditando(null)}><X className="h-3 w-3 text-red-600" /></Button>
                                                   </div>
                                                 </div>
+                                              ) : metrica.temTooltipGoogle5Estrelas && semana.data_inicio && semana.data_fim ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => abrirDetalhesGoogleReviews(semana, 5)}
+                                                  className={cn(
+                                                    "text-xs text-center underline decoration-dotted hover:opacity-80 transition-opacity",
+                                                    getCorMeta(verificarMeta(valor, metrica.key, metas))
+                                                  )}
+                                                  title="Clique para ver avaliações 5 estrelas"
+                                                >
+                                                  {valorFormatado}
+                                                </button>
+                                              ) : metrica.temTooltipAtracao && semana.data_inicio && semana.data_fim ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => abrirDetalhesAtracao(semana)}
+                                                  className={cn(
+                                                    "text-xs text-center underline decoration-dotted hover:opacity-80 transition-opacity",
+                                                    getCorMeta(verificarMeta(valor, metrica.key, metas))
+                                                  )}
+                                                  title="Clique para ver custos de atração por dia"
+                                                >
+                                                  {valorFormatado}
+                                                </button>
                                               ) : temTooltipGoogle && semana.data_inicio && semana.data_fim ? (
                                                 <button
                                                   type="button"
@@ -1679,6 +2006,22 @@ export function DesempenhoClient({
                                                     getCorMeta(verificarMeta(valor, metrica.key, metas))
                                                   )}
                                                   title="Clique para ver detalhes das avaliações"
+                                                >
+                                                  {valorFormatado}
+                                                </button>
+                                              ) : (metrica.key === 'nps_digital' || metrica.key === 'nps_salao') && semana.data_inicio && semana.data_fim && valor !== null && valor !== undefined ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => abrirDetalhesNps(
+                                                    semana, 
+                                                    metrica.key === 'nps_digital' ? 'NPS Digital' : 'Salão',
+                                                    metrica.label
+                                                  )}
+                                                  className={cn(
+                                                    "text-xs text-center underline decoration-dotted hover:opacity-80 transition-opacity",
+                                                    getCorMeta(verificarMeta(valor, metrica.key, metas))
+                                                  )}
+                                                  title="Clique para ver detalhes das respostas NPS"
                                                 >
                                                   {valorFormatado}
                                                 </button>
@@ -2046,10 +2389,11 @@ export function DesempenhoClient({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Star className="w-5 h-5 fill-yellow-500 text-yellow-500" />
-            Detalhes Google Reviews
+            {googleReviewsDialog.titulo}
           </DialogTitle>
           <DialogDescription>
             Semana {googleReviewsDialog.periodo} • Média {googleReviewsDialog.media.toFixed(2).replace('.', ',')} • {googleReviewsDialog.total} avaliações
+            {googleReviewsDialog.filtroEstrelas === 5 && ' de 5 estrelas'}
           </DialogDescription>
         </DialogHeader>
         
@@ -2094,18 +2438,38 @@ export function DesempenhoClient({
             {/* Avaliações por Dia */}
             {googleReviewsDialog.porDia.length > 0 && (
               <section className="rounded-md border p-3">
-                <p className="text-sm font-semibold mb-3">Avaliações por dia</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold">Avaliações por dia</p>
+                  {filtroDiaGoogle && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-xs text-gray-500"
+                      onClick={() => { setFiltroDiaGoogle(null); setPaginaReviewGoogle(1); }}
+                    >
+                      Limpar filtro de dia
+                    </Button>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
                   {googleReviewsDialog.porDia.map((dia) => (
-                    <div 
+                    <button
+                      type="button"
                       key={dia.data} 
-                      className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2 text-center"
+                      onClick={() => { setFiltroDiaGoogle(filtroDiaGoogle === dia.data ? null : dia.data); setPaginaReviewGoogle(1); }}
+                      className={cn(
+                        "rounded border p-2 text-center transition-all cursor-pointer",
+                        filtroDiaGoogle === dia.data 
+                          ? "border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30 ring-2 ring-yellow-500/50" 
+                          : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-yellow-400 hover:bg-yellow-50/50"
+                      )}
                     >
                       <p className="text-xs text-gray-500">{dia.diaSemana}</p>
                       <p className="text-xs font-medium">{dia.data}</p>
                       <p className="text-lg font-bold text-yellow-600">{dia.total}</p>
                       <p className="text-xs text-gray-500">⭐ {dia.media.toFixed(2).replace('.', ',')}</p>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </section>
@@ -2142,7 +2506,8 @@ export function DesempenhoClient({
                 <div>
                   <p className="text-sm font-semibold">Avaliações com comentários</p>
                   <p className="text-xs text-gray-500">
-                    {contagemReviewsGoogle.todos} avaliações com texto
+                    {reviewsGoogleFiltradas.length} de {contagemReviewsGoogle.todos} avaliações
+                    {filtroDiaGoogle && ` (filtrado por ${filtroDiaGoogle})`}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
@@ -2151,7 +2516,7 @@ export function DesempenhoClient({
                     size="sm"
                     variant={filtroReviewGoogle === 'negativo' ? 'default' : 'outline'}
                     className="h-7 px-2 text-xs"
-                    onClick={() => setFiltroReviewGoogle('negativo')}
+                    onClick={() => { setFiltroReviewGoogle('negativo'); setPaginaReviewGoogle(1); }}
                   >
                     ⭐ 1-2 ({contagemReviewsGoogle.negativo})
                   </Button>
@@ -2160,7 +2525,7 @@ export function DesempenhoClient({
                     size="sm"
                     variant={filtroReviewGoogle === 'neutro' ? 'default' : 'outline'}
                     className="h-7 px-2 text-xs"
-                    onClick={() => setFiltroReviewGoogle('neutro')}
+                    onClick={() => { setFiltroReviewGoogle('neutro'); setPaginaReviewGoogle(1); }}
                   >
                     ⭐ 3 ({contagemReviewsGoogle.neutro})
                   </Button>
@@ -2169,7 +2534,7 @@ export function DesempenhoClient({
                     size="sm"
                     variant={filtroReviewGoogle === 'positivo' ? 'default' : 'outline'}
                     className="h-7 px-2 text-xs"
-                    onClick={() => setFiltroReviewGoogle('positivo')}
+                    onClick={() => { setFiltroReviewGoogle('positivo'); setPaginaReviewGoogle(1); }}
                   >
                     ⭐ 4-5 ({contagemReviewsGoogle.positivo})
                   </Button>
@@ -2178,7 +2543,7 @@ export function DesempenhoClient({
                     size="sm"
                     variant={filtroReviewGoogle === 'todos' ? 'default' : 'outline'}
                     className="h-7 px-2 text-xs"
-                    onClick={() => setFiltroReviewGoogle('todos')}
+                    onClick={() => { setFiltroReviewGoogle('todos'); setPaginaReviewGoogle(1); }}
                   >
                     Todos ({contagemReviewsGoogle.todos})
                   </Button>
@@ -2187,35 +2552,594 @@ export function DesempenhoClient({
               {reviewsGoogleFiltradas.length === 0 ? (
                 <p className="text-sm text-gray-500">Sem avaliações com comentário nesta categoria.</p>
               ) : (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-                  {reviewsGoogleFiltradas.map((review, idx) => (
-                    <div 
-                      key={`${review.data}-${idx}`} 
+                <>
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                    {reviewsGooglePaginadas.map((review, idx) => {
+                      const reviewKey = `${review.data}-${review.nome}-${idx}`;
+                      const isExpanded = reviewExpandidaGoogle.has(reviewKey);
+                      const textoLongo = review.texto.length > 150;
+                      
+                      return (
+                        <div 
+                          key={reviewKey} 
+                          className={cn(
+                            "rounded p-2",
+                            review.tipo === 'negativo' ? 'bg-red-50 dark:bg-red-950/30' :
+                            review.tipo === 'neutro' ? 'bg-yellow-50 dark:bg-yellow-950/30' :
+                            'bg-green-50 dark:bg-green-950/30'
+                          )}
+                        >
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="font-medium">{review.nome}</span>
+                            <span className="text-gray-500">{review.data}</span>
+                          </div>
+                          <div className="flex items-center gap-0.5 mb-1">
+                            {Array.from({ length: review.stars }).map((_, i) => (
+                              <Star key={i} className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                            ))}
+                            {Array.from({ length: 5 - review.stars }).map((_, i) => (
+                              <Star key={i} className="w-3 h-3 text-gray-300" />
+                            ))}
+                          </div>
+                          <p className={cn(
+                            "text-xs text-gray-700 dark:text-gray-300",
+                            !isExpanded && textoLongo && "line-clamp-3"
+                          )}>
+                            {review.texto}
+                          </p>
+                          {textoLongo && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReviewExpandidaGoogle(prev => {
+                                  const newSet = new Set(prev);
+                                  if (isExpanded) {
+                                    newSet.delete(reviewKey);
+                                  } else {
+                                    newSet.add(reviewKey);
+                                  }
+                                  return newSet;
+                                });
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-800 mt-1 font-medium"
+                            >
+                              {isExpanded ? 'Ver menos' : 'Ver mais...'}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Paginação */}
+                  {totalPaginasReviewGoogle > 1 && (
+                    <div className="flex items-center justify-between mt-4 pt-3 border-t">
+                      <p className="text-xs text-gray-500">
+                        Mostrando {((paginaReviewGoogle - 1) * REVIEWS_POR_PAGINA) + 1} - {Math.min(paginaReviewGoogle * REVIEWS_POR_PAGINA, reviewsGoogleFiltradas.length)} de {reviewsGoogleFiltradas.length}
+                      </p>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          disabled={paginaReviewGoogle === 1}
+                          onClick={() => setPaginaReviewGoogle(1)}
+                        >
+                          ««
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          disabled={paginaReviewGoogle === 1}
+                          onClick={() => setPaginaReviewGoogle(p => Math.max(1, p - 1))}
+                        >
+                          «
+                        </Button>
+                        <span className="px-2 text-xs">
+                          {paginaReviewGoogle} / {totalPaginasReviewGoogle}
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          disabled={paginaReviewGoogle === totalPaginasReviewGoogle}
+                          onClick={() => setPaginaReviewGoogle(p => Math.min(totalPaginasReviewGoogle, p + 1))}
+                        >
+                          »
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          disabled={paginaReviewGoogle === totalPaginasReviewGoogle}
+                          onClick={() => setPaginaReviewGoogle(totalPaginasReviewGoogle)}
+                        >
+                          »»
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+
+    {/* Modal de NPS Digital/Salão */}
+    <Dialog open={npsDialog.aberto} onOpenChange={(aberto) => setNpsDialog((prev) => ({ ...prev, aberto }))}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Star className="w-5 h-5 text-blue-600" />
+            Detalhes {npsDialog.titulo}
+          </DialogTitle>
+          <DialogDescription>
+            Semana {npsDialog.periodo} • NPS {npsDialog.npsScore ?? '-'} • {npsDialog.total} respostas
+          </DialogDescription>
+        </DialogHeader>
+        {npsDialog.loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+          </div>
+        ) : (
+          <div className="p-4 pt-0 space-y-4 overflow-y-auto max-h-[70vh]">
+            {/* Resumo NPS */}
+            <section className="rounded-md border p-3 bg-blue-50/60 dark:bg-blue-950/20">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div className="flex items-center gap-4">
+                  <div className="text-center">
+                    <p className={cn(
+                      "text-3xl font-bold",
+                      npsDialog.npsScore !== null && npsDialog.npsScore >= 70 ? "text-green-600" :
+                      npsDialog.npsScore !== null && npsDialog.npsScore >= 50 ? "text-yellow-600" :
+                      npsDialog.npsScore !== null && npsDialog.npsScore >= 0 ? "text-orange-500" : "text-red-600"
+                    )}>
+                      {npsDialog.npsScore ?? '-'}
+                    </p>
+                    <p className="text-xs text-gray-500">NPS Score</p>
+                  </div>
+                  <div className="text-sm space-y-0.5">
+                    <p className="text-green-600">Promotores (9-10): <span className="font-semibold">{npsDialog.promotores}</span></p>
+                    <p className="text-yellow-600">Neutros (7-8): <span className="font-semibold">{npsDialog.neutros}</span></p>
+                    <p className="text-red-600">Detratores (0-6): <span className="font-semibold">{npsDialog.detratores}</span></p>
+                  </div>
+                </div>
+                <div className="text-center md:text-right">
+                  <p className="text-2xl font-bold">{npsDialog.total}</p>
+                  <p className="text-xs text-gray-500">Total de respostas</p>
+                  {npsDialog.mediaNotas && (
+                    <p className="text-xs text-gray-500">Média: {npsDialog.mediaNotas.toFixed(1)}</p>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-300 mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                <strong>Fórmula:</strong> (({npsDialog.promotores} - {npsDialog.detratores}) / {npsDialog.total || 1}) × 100 = <span className="font-semibold">{npsDialog.npsScore ?? '-'}</span>
+              </p>
+            </section>
+
+            {/* Médias por Critério */}
+            {npsDialog.criteriosMedia.length > 0 && (
+              <section className="rounded-md border p-3">
+                <p className="text-sm font-semibold mb-3">Média por avaliação</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {npsDialog.criteriosMedia.map((c) => (
+                    <div
+                      key={c.nome}
+                      className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-2.5 py-2"
+                    >
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{c.nome}</p>
+                      <p className={cn(
+                        "text-lg font-bold",
+                        c.media >= 9 ? "text-green-600" : c.media >= 7 ? "text-yellow-600" : "text-red-500"
+                      )}>
+                        {c.media.toFixed(1)}
+                        <span className="text-xs text-gray-400 font-normal ml-1">({c.total})</span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Respostas por Dia */}
+            {npsPorDia.length > 0 && (
+              <section className="rounded-md border p-3">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold">Respostas por dia</p>
+                  {filtroDiaNps && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-xs text-gray-500"
+                      onClick={() => { setFiltroDiaNps(null); setPaginaNps(1); }}
+                    >
+                      Limpar filtro de dia
+                    </Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
+                  {npsPorDia.map((dia) => (
+                    <button
+                      type="button"
+                      key={dia.data}
+                      onClick={() => { setFiltroDiaNps(filtroDiaNps === dia.data ? null : dia.data); setPaginaNps(1); }}
                       className={cn(
-                        "rounded p-2",
-                        review.tipo === 'negativo' ? 'bg-red-50 dark:bg-red-950/30' :
-                        review.tipo === 'neutro' ? 'bg-yellow-50 dark:bg-yellow-950/30' :
-                        'bg-green-50 dark:bg-green-950/30'
+                        "rounded border p-2 text-center transition-all cursor-pointer",
+                        filtroDiaNps === dia.data
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 ring-2 ring-blue-500/50"
+                          : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-blue-400 hover:bg-blue-50/50"
                       )}
                     >
-                      <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="font-medium">{review.nome}</span>
-                        <span className="text-gray-500">{review.data}</span>
+                      <p className="text-xs text-gray-500">{dia.diaSemana}</p>
+                      <p className="text-xs font-medium">{dia.data.split('-').slice(1).reverse().join('/')}</p>
+                      <p className="text-lg font-bold text-blue-600">{dia.total}</p>
+                      <p className={cn(
+                        "text-xs font-medium",
+                        dia.nps >= 50 ? "text-green-600" : dia.nps >= 0 ? "text-yellow-600" : "text-red-600"
+                      )}>NPS {dia.nps}</p>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Respostas Individuais */}
+            <section className="rounded-md border p-3">
+              <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold">Respostas da semana</p>
+                  <p className="text-xs text-gray-500">
+                    {respostasNpsFiltradas.length} de {npsDialog.total} respostas
+                    {filtroDiaNps && ` (filtrado por ${filtroDiaNps.split('-').slice(1).reverse().join('/')})`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={filtroNps === 'todos' ? 'default' : 'outline'}
+                    onClick={() => { setFiltroNps('todos'); setPaginaNps(1); }}
+                    className="text-xs h-7 px-2"
+                  >
+                    Todos ({contagemRespostasNps.todos})
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={filtroNps === 'detrator' ? 'destructive' : 'outline'}
+                    onClick={() => { setFiltroNps('detrator'); setPaginaNps(1); }}
+                    className="text-xs h-7 px-2"
+                  >
+                    0-6 ({contagemRespostasNps.detrator})
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={filtroNps === 'neutro' ? 'secondary' : 'outline'}
+                    onClick={() => { setFiltroNps('neutro'); setPaginaNps(1); }}
+                    className="text-xs h-7 px-2"
+                  >
+                    7-8 ({contagemRespostasNps.neutro})
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={filtroNps === 'promotor' ? 'default' : 'outline'}
+                    onClick={() => { setFiltroNps('promotor'); setPaginaNps(1); }}
+                    className={cn("text-xs h-7 px-2", filtroNps === 'promotor' && "bg-green-600 hover:bg-green-700")}
+                  >
+                    9-10 ({contagemRespostasNps.promotor})
+                  </Button>
+                </div>
+              </div>
+              {respostasNpsFiltradas.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">Nenhuma resposta encontrada</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {respostasNpsPaginadas.map((resp) => {
+                      const isExpanded = respostaExpandidaNps.has(resp.id);
+                      const comentarioLongo = resp.comentario && resp.comentario.length > 100;
+                      
+                      return (
+                        <div
+                          key={resp.id}
+                          className={cn(
+                            "rounded border p-2",
+                            resp.tipo === 'promotor' ? "border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/30" :
+                            resp.tipo === 'detrator' ? "border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30" :
+                            "border-yellow-200 bg-yellow-50/50 dark:border-yellow-900 dark:bg-yellow-950/30"
+                          )}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={cn(
+                              "text-lg font-bold",
+                              resp.tipo === 'promotor' ? "text-green-600" :
+                              resp.tipo === 'detrator' ? "text-red-600" : "text-yellow-600"
+                            )}>
+                              {resp.nps}
+                            </span>
+                            <div className="text-right">
+                              <span className="text-[10px] text-gray-500 block">
+                                {resp.dataVisita ? `Visita: ${resp.dataVisita}` : resp.data}
+                              </span>
+                              {resp.clientName && (
+                                <span className="text-[10px] text-gray-400 block truncate max-w-[120px]">
+                                  {resp.clientName}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {resp.comentario && (
+                            <>
+                              <p className={cn(
+                                "text-xs text-gray-700 dark:text-gray-300 mt-1",
+                                !isExpanded && comentarioLongo && "line-clamp-2"
+                              )}>
+                                &quot;{resp.comentario}&quot;
+                              </p>
+                              {comentarioLongo && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRespostaExpandidaNps(prev => {
+                                      const newSet = new Set(prev);
+                                      if (isExpanded) {
+                                        newSet.delete(resp.id);
+                                      } else {
+                                        newSet.add(resp.id);
+                                      }
+                                      return newSet;
+                                    });
+                                  }}
+                                  className="text-xs text-blue-600 hover:text-blue-800 mt-1 font-medium"
+                                >
+                                  {isExpanded ? 'Ver menos' : 'Ver mais...'}
+                                </button>
+                              )}
+                            </>
+                          )}
+                          {resp.criterios.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {resp.criterios.slice(0, 3).map((c, i) => (
+                                <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                                  {c.nome}: {c.nota}
+                                </span>
+                              ))}
+                              {resp.criterios.length > 3 && (
+                                <span className="text-[10px] text-gray-400">+{resp.criterios.length - 3}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Paginação NPS */}
+                  {totalPaginasNps > 1 && (
+                    <div className="flex items-center justify-between mt-4 pt-3 border-t">
+                      <p className="text-xs text-gray-500">
+                        Mostrando {((paginaNps - 1) * NPS_POR_PAGINA) + 1} - {Math.min(paginaNps * NPS_POR_PAGINA, respostasNpsFiltradas.length)} de {respostasNpsFiltradas.length}
+                      </p>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          disabled={paginaNps === 1}
+                          onClick={() => setPaginaNps(1)}
+                        >
+                          ««
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          disabled={paginaNps === 1}
+                          onClick={() => setPaginaNps(p => Math.max(1, p - 1))}
+                        >
+                          «
+                        </Button>
+                        <span className="px-2 text-xs">
+                          {paginaNps} / {totalPaginasNps}
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          disabled={paginaNps === totalPaginasNps}
+                          onClick={() => setPaginaNps(p => Math.min(totalPaginasNps, p + 1))}
+                        >
+                          »
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          disabled={paginaNps === totalPaginasNps}
+                          onClick={() => setPaginaNps(totalPaginasNps)}
+                        >
+                          »»
+                        </Button>
                       </div>
-                      <div className="flex items-center gap-0.5 mb-1">
-                        {Array.from({ length: review.stars }).map((_, i) => (
-                          <Star key={i} className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-                        ))}
-                        {Array.from({ length: 5 - review.stars }).map((_, i) => (
-                          <Star key={i} className="w-3 h-3 text-gray-300" />
-                        ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+
+    {/* Modal de Atração/Faturamento */}
+    <Dialog open={atracaoDialog.aberto} onOpenChange={(aberto) => setAtracaoDialog((prev) => ({ ...prev, aberto }))}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Megaphone className="w-5 h-5 text-purple-600" />
+            Custos de Atração por Dia
+          </DialogTitle>
+          <DialogDescription>
+            Semana {atracaoDialog.periodo} • {atracaoDialog.total} eventos • Custo Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(atracaoDialog.custoTotal)}
+          </DialogDescription>
+        </DialogHeader>
+        {atracaoDialog.loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+          </div>
+        ) : (
+          <div className="p-4 pt-0 space-y-4 overflow-y-auto max-h-[70vh]">
+            {/* Resumo Geral */}
+            <section className="rounded-md border p-3 bg-purple-50/60 dark:bg-purple-950/20">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-6">
+                    <div>
+                      <p className="text-xs text-gray-500">Custo Artístico</p>
+                      <p className="text-lg font-bold text-purple-600">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(atracaoDialog.custoArtisticoTotal)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Custo Produção</p>
+                      <p className="text-lg font-bold text-orange-600">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(atracaoDialog.custoProducaoTotal)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Custo Total</p>
+                      <p className="text-lg font-bold text-red-600">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(atracaoDialog.custoTotal)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-center md:text-right space-y-1">
+                  <div>
+                    <p className="text-xs text-gray-500">Faturamento Total</p>
+                    <p className="text-lg font-bold text-green-600">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(atracaoDialog.faturamentoTotal)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">% Atração/Fat.</p>
+                    <p className={cn(
+                      "text-lg font-bold",
+                      atracaoDialog.percentualMedio <= 5 ? "text-green-600" :
+                      atracaoDialog.percentualMedio <= 10 ? "text-yellow-600" : "text-red-600"
+                    )}>
+                      {atracaoDialog.percentualMedio.toFixed(1)}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Detalhes por Dia */}
+            <section className="rounded-md border p-3">
+              <p className="text-sm font-semibold mb-3">Custos por dia da semana</p>
+              {atracaoDialog.dias.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">Nenhum evento encontrado</p>
+              ) : (
+                <div className="space-y-2">
+                  {atracaoDialog.dias.map((dia) => (
+                    <div
+                      key={dia.data}
+                      className={cn(
+                        "rounded border p-3",
+                        dia.custoTotal > 0 ? "border-purple-200 bg-purple-50/50 dark:border-purple-900 dark:bg-purple-950/30" :
+                        "border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-800/50"
+                      )}
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-gray-500 w-16">{dia.diaSemana}</span>
+                            <span className="text-xs text-gray-400">{dia.dataFormatada}</span>
+                          </div>
+                          <p className="text-sm font-medium mt-0.5 line-clamp-1">{dia.evento}</p>
+                          {dia.artista && (
+                            <p className="text-xs text-gray-500 mt-0.5">Artista: {dia.artista}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 text-right">
+                          {dia.custoArtistico > 0 && (
+                            <div>
+                              <p className="text-[10px] text-gray-400">Artístico</p>
+                              <p className="text-xs font-semibold text-purple-600">
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dia.custoArtistico)}
+                              </p>
+                            </div>
+                          )}
+                          {dia.custoProducao > 0 && (
+                            <div>
+                              <p className="text-[10px] text-gray-400">Produção</p>
+                              <p className="text-xs font-semibold text-orange-600">
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dia.custoProducao)}
+                              </p>
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-[10px] text-gray-400">Custo Total</p>
+                            <p className={cn(
+                              "text-xs font-semibold",
+                              dia.custoTotal > 0 ? "text-red-600" : "text-gray-400"
+                            )}>
+                              {dia.custoTotal > 0 
+                                ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dia.custoTotal)
+                                : '-'
+                              }
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400">Faturamento</p>
+                            <p className="text-xs font-semibold text-green-600">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dia.faturamento)}
+                            </p>
+                          </div>
+                          <div className="w-12">
+                            <p className="text-[10px] text-gray-400">%</p>
+                            <p className={cn(
+                              "text-xs font-semibold",
+                              dia.percentualFat <= 5 ? "text-green-600" :
+                              dia.percentualFat <= 10 ? "text-yellow-600" : "text-red-600"
+                            )}>
+                              {dia.percentualFat > 0 ? `${dia.percentualFat.toFixed(1)}%` : '-'}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-700 dark:text-gray-300 line-clamp-3">{review.texto}</p>
                     </div>
                   ))}
                 </div>
               )}
             </section>
+
+            {/* Couvert (se houver) */}
+            {atracaoDialog.couvertTotal > 0 && (
+              <section className="rounded-md border p-3 bg-amber-50/60 dark:bg-amber-950/20">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">Couvert Total da Semana</p>
+                  <p className="text-lg font-bold text-amber-600">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(atracaoDialog.couvertTotal)}
+                  </p>
+                </div>
+              </section>
+            )}
           </div>
         )}
       </DialogContent>
