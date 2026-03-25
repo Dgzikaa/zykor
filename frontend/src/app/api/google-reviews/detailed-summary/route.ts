@@ -192,19 +192,17 @@ export async function GET(request: NextRequest) {
       tipo: r.stars >= 4 ? 'positivo' : r.stars <= 2 ? 'negativo' : 'neutro'
     });
 
+    // Retornar TODAS as avaliações com texto (sem limite artificial)
     const reviewsPositivas = reviewsComTexto
       .filter((r: any) => r.stars >= 4)
-      .slice(0, 10)
       .map(formatReview);
 
     const reviewsNegativas = reviewsComTexto
       .filter((r: any) => r.stars <= 2)
-      .slice(0, 10)
       .map(formatReview);
 
     const reviewsNeutras = reviewsComTexto
       .filter((r: any) => r.stars === 3)
-      .slice(0, 5)
       .map(formatReview);
 
     const summary: DetailedSummary = {
