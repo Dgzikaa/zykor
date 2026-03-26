@@ -460,9 +460,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                 {/* Tabela Completa */}
                 <div className="bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-xl shadow-sm overflow-auto max-h-[calc(100vh-120px)]">
                   <table className="text-[10px] w-full min-w-max" style={{borderCollapse: 'separate', borderSpacing: 0}}>
-                    <thead className="bg-[hsl(var(--muted))]/50">
+                    <thead className="bg-[hsl(var(--muted))]">
                       {/* Primeira linha - Grupos colapsáveis */}
-                      <tr className="sticky top-0 z-30 bg-[hsl(var(--muted))]/95 backdrop-blur-sm border-b-2 border-[hsl(var(--border))]">
+                      <tr className="sticky top-0 z-30 bg-[hsl(var(--muted))] border-b-2 border-[hsl(var(--border))]">
                         <th colSpan={5} className="border-r-2 border-[hsl(var(--border))] bg-[hsl(var(--muted))]/95 sticky left-0 z-40" style={{minWidth: '446px'}}></th>
 
                         {/* Grupo CLIENTES */}
@@ -521,13 +521,13 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                       </tr>
                       
                       {/* Segunda linha - Headers principais e subcolunas */}
-                      <tr className="sticky top-[32px] z-30 bg-[hsl(var(--muted))]/95 backdrop-blur-sm border-b border-[hsl(var(--border))]">
+                      <tr className="sticky top-[32px] z-30 bg-[hsl(var(--muted))] border-b border-[hsl(var(--border))]">
                         {/* Colunas Fixas (5 primeiras: Data, Dia, Artista, Receita Real, Meta M1) */}
-                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-0 bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>Data</th>
-                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[48px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>Dia</th>
-                        <th className="px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[86px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '140px', minWidth: '140px', maxWidth: '140px'}}>Artista</th>
-                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[226px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Receita Real</th>
-                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))] sticky left-[336px] bg-[hsl(var(--muted))]/95 backdrop-blur-sm z-40" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Meta M1</th>
+                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-0 bg-[hsl(var(--muted))] z-40" style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>Data</th>
+                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[48px] bg-[hsl(var(--muted))] z-40" style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>Dia</th>
+                        <th className="px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[86px] bg-[hsl(var(--muted))] z-40" style={{width: '140px', minWidth: '140px', maxWidth: '140px'}}>Artista</th>
+                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[226px] bg-[hsl(var(--muted))] z-40" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Receita Real</th>
+                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))] sticky left-[336px] bg-[hsl(var(--muted))] z-40" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Meta M1</th>
                         
                         {/* Subcolunas CLIENTES */}
                         {gruposAbertos.clientes ? (
@@ -647,14 +647,27 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                           const currentWeek = getWeekNumber(evento.data_evento);
                           const previousWeek = idx > 0 ? getWeekNumber(dados[idx - 1].data_evento) : null;
                           const isNewWeek = previousWeek !== null && currentWeek !== previousWeek;
-                          
+
+                          // Calcular total de colunas visíveis para o separador de semana
+                          const totalColunas = 5
+                            + (gruposAbertos.clientes ? 4 : 1)
+                            + (gruposAbertos.ticket ? 3 : 1)
+                            + (gruposAbertos.artistico ? 3 : 1)
+                            + (gruposAbertos.producao ? 7 : 1)
+                            + 1; // Ações
+
                           return (
+                          <React.Fragment key={evento.evento_id}>
+                          {isNewWeek && (
+                            <tr className="bg-[hsl(var(--muted))]">
+                              <td colSpan={totalColunas} className="py-1.5 px-3 text-[10px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wider border-y-2 border-[hsl(var(--primary))]/30 sticky left-0">
+                                Semana {currentWeek}
+                              </td>
+                            </tr>
+                          )}
                           <tr
-                            key={evento.evento_id} 
                             onClick={() => { setLinhaHighlight(idx); setColunaHighlight(null); }}
                             className={`group cursor-pointer transition-colors ${
-                              isNewWeek ? 'border-t-4 border-[hsl(var(--border))]' : ''
-                            } ${
                               linhaHighlight === idx
                                 ? 'bg-blue-200 dark:bg-blue-800/60 ring-2 ring-blue-500 ring-inset shadow-sm'
                                 : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'
@@ -897,6 +910,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                               </div>
                             </td>
                           </tr>
+                          </React.Fragment>
                           );
                         })}
                     </tbody>

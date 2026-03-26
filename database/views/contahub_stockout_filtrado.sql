@@ -84,4 +84,5 @@ WHERE prd_ativo = 'S'::text
   AND prd_desc !~~* '%Dose Dupla%'::text
   AND prd_desc !~~* '%Dose Dulpa%'::text
   AND prd_desc !~~* '%Balde%'::text
-  AND prd_desc !~~* '%Garrafa%'::text;
+  AND prd_desc !~~* '%Garrafa%'::text
+  AND prd_desc !~~* 'Combo %'::text;

@@ -116,7 +116,7 @@ BEGIN
   INTO contahub_per FROM visitas WHERE data_visita = evento_record.data_evento AND bar_id = evento_record.bar_id;
 
   -- Leitura de faturamento_hora (domain table)
-  SELECT COALESCE(SUM(CASE WHEN hora < 19 THEN valor ELSE 0 END), 0)::NUMERIC INTO contahub_fat
+  SELECT COALESCE(SUM(CASE WHEN hora < 19 THEN valor ELSE 0 END), 0)::NUMERIC AS fat_ate_19h INTO contahub_fat
   FROM faturamento_hora WHERE data_venda = evento_record.data_evento AND bar_id = evento_record.bar_id;
 
   SELECT COALESCE(SUM(valor_liquido), 0)::NUMERIC INTO v_yuzer_liquido_total FROM yuzer_pagamento

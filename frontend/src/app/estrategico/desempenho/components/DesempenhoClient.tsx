@@ -472,9 +472,13 @@ export function DesempenhoClient({
   const { selectedBar } = useBar();
   const { user } = useUser();
   const { toast } = useToast();
-  
+
+  // Fonte de verdade: contexto (client) > prop (server)
+  // Resolve race condition onde cookie server-side fica dessincronizado do contexto client
+  const effectiveBarId = selectedBar?.id || barId;
+
   // Gerar configuração de seções baseada no barId
-  const SECOES = useMemo(() => getSecoesConfig(barId), [barId]);
+  const SECOES = useMemo(() => getSecoesConfig(effectiveBarId), [effectiveBarId]);
   
   const [loading, setLoading] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
@@ -819,6 +823,13 @@ export function DesempenhoClient({
     return () => setPageTitle('');
   }, [setPageTitle]);
 
+  // Quando o bar muda no contexto e difere do prop server-side, recarregar dados
+  useEffect(() => {
+    if (selectedBar?.id && selectedBar.id !== barId) {
+      router.refresh();
+    }
+  }, [selectedBar?.id, barId, router]);
+
   // Semana selecionada (para metas reativas)
   const semanaSelecionada = useMemo(() => {
     if (semanaAtualIdx < 0 || !semanasProcessadas[semanaAtualIdx]) return null;
@@ -1091,7 +1102,7 @@ export function DesempenhoClient({
     setReviewExpandidaGoogle(new Set());
 
     try {
-      let url = `/api/google-reviews/detailed-summary?bar_id=${barId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}`;
+      let url = `/api/google-reviews/detailed-summary?bar_id=${effectiveBarId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}`;
       if (filtroEstrelas) {
         url += `&stars=${filtroEstrelas}`;
       }
@@ -1119,7 +1130,7 @@ export function DesempenhoClient({
       console.error('Erro ao buscar detalhes Google Reviews:', error);
       setGoogleReviewsDialog(prev => ({ ...prev, loading: false }));
     }
-  }, [barId]);
+  }, [effectiveBarId]);
 
   const abrirDetalhesNps = useCallback(async (semana: DadosSemana, searchName: string, titulo: string) => {
     const periodo = `${formatarDataCurta(semana.data_inicio)} - ${formatarDataCurta(semana.data_fim)}`;
@@ -1141,7 +1152,7 @@ export function DesempenhoClient({
 
     try {
       const response = await fetch(
-        `/api/falae/detailed-summary?bar_id=${barId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}&search_name=${encodeURIComponent(searchName)}`
+        `/api/falae/detailed-summary?bar_id=${effectiveBarId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}&search_name=${encodeURIComponent(searchName)}`
       );
       const data = await response.json();
       
@@ -1165,7 +1176,7 @@ export function DesempenhoClient({
       console.error('Erro ao buscar detalhes NPS:', error);
       setNpsDialog(prev => ({ ...prev, loading: false }));
     }
-  }, [barId]);
+  }, [effectiveBarId]);
 
   const abrirDetalhesAtracao = useCallback(async (semana: DadosSemana) => {
     const periodo = `${formatarDataCurta(semana.data_inicio)} - ${formatarDataCurta(semana.data_fim)}`;
@@ -1181,7 +1192,7 @@ export function DesempenhoClient({
 
     try {
       const response = await fetch(
-        `/api/eventos/atracao-detalhes?bar_id=${barId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}`
+        `/api/eventos/atracao-detalhes?bar_id=${effectiveBarId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}`
       );
       const data = await response.json();
       
@@ -1205,7 +1216,7 @@ export function DesempenhoClient({
       console.error('Erro ao buscar detalhes Atração:', error);
       setAtracaoDialog(prev => ({ ...prev, loading: false }));
     }
-  }, [barId]);
+  }, [effectiveBarId]);
 
   const respostasNpsFiltradas = useMemo(() => {
     const ordemTipo = { detrator: 0, neutro: 1, promotor: 2 } as const;
@@ -1482,7 +1493,7 @@ export function DesempenhoClient({
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            bar_id: barId,
+            bar_id: effectiveBarId,
             ano: semanaAtual.ano,
             mes: semanaAtual.numero_semana, // No mensal, numero_semana é o mês
             [campo]: numValue
@@ -1496,7 +1507,7 @@ export function DesempenhoClient({
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'x-selected-bar-id': String(barId || '')
+            'x-selected-bar-id': String(effectiveBarId || '')
           },
           body: JSON.stringify({ id: semanaId, [campo]: numValue })
         });
@@ -1515,7 +1526,8 @@ export function DesempenhoClient({
       
       toast({ title: 'Salvo!', description: 'Valor atualizado' });
       setEditando(null);
-      router.refresh(); // Refresh RSC data
+      // Não chamar router.refresh() aqui — o estado local já foi atualizado em setValoresLocais
+      // router.refresh() re-executava o server component e causava troca de bar involuntária
     } catch (error) {
       console.error('Erro:', error);
       toast({ title: 'Erro', description: 'Falha ao salvar', variant: 'destructive' });

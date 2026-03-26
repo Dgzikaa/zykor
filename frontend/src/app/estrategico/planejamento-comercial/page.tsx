@@ -4,6 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 import { getBarIdServer } from '@/lib/auth-server';
 import { BarSyncCheck } from '@/components/BarSyncCheck';
 
+export const dynamic = 'force-dynamic'; // Depende de cookie (bar_id), não pode cachear
+
 export default async function PlanejamentoComercialPage({
   searchParams,
 }: {

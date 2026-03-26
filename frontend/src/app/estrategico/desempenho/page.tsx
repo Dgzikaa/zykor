@@ -6,7 +6,7 @@ import { getMeses } from './services/desempenho-mensal-service';
 import { BarSyncCheck } from '@/components/BarSyncCheck';
 import { DadosSemana } from './types';
 
-export const revalidate = 60; // 1 minuto cache
+export const dynamic = 'force-dynamic'; // Depende de cookie (bar_id), não pode cachear
 
 export default async function DesempenhoPage({
   searchParams,

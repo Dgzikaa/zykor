@@ -25,7 +25,7 @@ BEGIN
             COALESCE(item_json->>'dia', ''),
             hora_int,
             COALESCE(ROUND((item_json->>'qtd')::numeric)::integer, 0),
-            COALESCE((item_json->>'valor')::numeric, 0)
+            COALESCE((item_json->>'$valor')::numeric, 0)
         );
         inserted_count := inserted_count + 1;
     END LOOP;
