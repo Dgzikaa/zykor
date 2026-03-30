@@ -12,9 +12,26 @@ export default async function PlanejamentoComercialPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const barId = await getBarIdServer();
-  
+
+  // Sem bar_id: cookie ainda não sincronizado no servidor.
+  // BarSyncCheck (client-side) vai setar o cookie e chamar router.refresh()
+  // automaticamente assim que o BarContext carregar.
+  // Exibimos uma tela de loading explícita para evitar tela em branco.
   if (!barId) {
-    return <BarSyncCheck />;
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <BarSyncCheck />
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[hsl(var(--primary))] mx-auto mb-4" />
+          <p className="text-[hsl(var(--muted-foreground))] text-sm">
+            Sincronizando estabelecimento...
+          </p>
+          <p className="text-[hsl(var(--muted-foreground))] text-xs mt-1">
+            A página será recarregada automaticamente.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const searchParamsValue = await searchParams;

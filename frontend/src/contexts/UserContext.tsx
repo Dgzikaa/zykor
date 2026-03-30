@@ -91,6 +91,18 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const tryRefreshToken = async (): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  };
+
   const loadUserData = async () => {
     // Check if we're on the client side
     if (typeof window === 'undefined') {
@@ -110,19 +122,47 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.user) {
-          setUser(data.user);
+          // Preservar bar_id selecionado pelo usuário (se existir)
+          const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
+          const userDataToSave = {
+            ...data.user,
+            // Manter o bar_id selecionado se existir, senão usar o da API
+            bar_id: selectedBarId ? parseInt(selectedBarId) : data.user.bar_id,
+          };
+          setUser(userDataToSave);
           // Salvar no localStorage apenas para cache (não é fonte de verdade)
-          localStorage.setItem('sgb_user', JSON.stringify(data.user));
+          localStorage.setItem('sgb_user', JSON.stringify(userDataToSave));
         } else {
           setUser(null);
           localStorage.removeItem('sgb_user');
         }
-      } else {
-        // Não autenticado ou token inválido
+      } else if (response.status === 401) {
+        // Token expirado — tentar refresh antes de redirecionar
+        const refreshed = await tryRefreshToken();
+        if (refreshed) {
+          // Retry após refresh bem-sucedido
+          const retryResponse = await fetch('/api/auth/me', {
+            credentials: 'include',
+          });
+          if (retryResponse.ok) {
+            const retryData = await retryResponse.json();
+            if (retryData.success && retryData.user) {
+              const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
+              const userDataToSave = {
+                ...retryData.user,
+                bar_id: selectedBarId ? parseInt(selectedBarId) : retryData.user.bar_id,
+              };
+              setUser(userDataToSave);
+              localStorage.setItem('sgb_user', JSON.stringify(userDataToSave));
+              return;
+            }
+          }
+        }
+
+        // Refresh falhou ou retry falhou — redirecionar ao login
         setUser(null);
         localStorage.removeItem('sgb_user');
-        
-        // Se não está na página de login, redirecionar
+
         if (!window.location.pathname.startsWith('/login')) {
           window.location.href = '/login';
         }

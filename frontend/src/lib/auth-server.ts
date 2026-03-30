@@ -58,18 +58,36 @@ export async function hasServerPermission(moduleId: string): Promise<boolean> {
 }
 
 /**
- * Retrieves the selected bar ID from cookies in Server Components
+ * Retrieves the selected bar ID from cookies in Server Components.
+ * Falls back to the bar_id stored in sgb_user cookie (set at login)
+ * so the page works even when sgb_bar_id hasn't been explicitly set yet.
  */
 export async function getBarIdServer(): Promise<number | null> {
   const cookieStore = await cookies();
-  const barIdCookie = cookieStore.get('sgb_bar_id');
 
-  if (!barIdCookie) {
-    return null;
+  // Primary: sgb_bar_id (bar explicitly selected by the user)
+  const barIdCookie = cookieStore.get('sgb_bar_id');
+  if (barIdCookie) {
+    const barId = parseInt(barIdCookie.value);
+    if (!isNaN(barId) && barId > 0) return barId;
   }
 
-  const barId = parseInt(barIdCookie.value);
-  return isNaN(barId) ? null : barId;
+  // Fallback: bar_id embedded in sgb_user cookie (written server-side at login)
+  const userCookie = cookieStore.get('sgb_user');
+  if (userCookie) {
+    try {
+      let raw = userCookie.value;
+      try { raw = decodeURIComponent(raw); } catch { /* already decoded */ }
+      const userData = JSON.parse(raw);
+      if (userData?.bar_id && userData.bar_id > 0) {
+        return userData.bar_id;
+      }
+    } catch {
+      // Ignore parse errors — cookie may be malformed
+    }
+  }
+
+  return null;
 }
 
 /**

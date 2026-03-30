@@ -50,7 +50,7 @@ export function middleware(request: NextRequest) {
         // Já está decodificado
       }
       const userData = JSON.parse(rawValue);
-      if (!userData?.email || !userData?.bar_id) {
+      if (!userData?.email || userData?.bar_id == null) {
         const loginUrl = new URL('/login', request.url);
         loginUrl.searchParams.set('reason', 'invalid_session');
         return NextResponse.redirect(loginUrl);

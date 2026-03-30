@@ -63,6 +63,7 @@ export const clearAuthCookie = () => {
     const pastDate = 'Thu, 01 Jan 1970 00:00:00 UTC';
     document.cookie = `${AUTH_COOKIE_NAME}=; expires=${pastDate}; path=/`;
     document.cookie = `auth_token=; expires=${pastDate}; path=/`;
+    document.cookie = `refresh_token=; expires=${pastDate}; path=/`;
     document.cookie = `${BAR_COOKIE_NAME}=; expires=${pastDate}; path=/`;
     localStorage.removeItem('sgb_user');
     localStorage.removeItem('sgb_session');
@@ -84,7 +85,9 @@ export const syncAuthData = (userData: any, session?: any) => {
       localStorage.setItem('sgb_session', JSON.stringify(session));
     }
     // Salvar bar_id selecionado para uso no header x-selected-bar-id
-    if (userData.bar_id) {
+    // IMPORTANTE: Só setar se NÃO existir um valor já salvo (para não sobrescrever seleção do usuário)
+    const existingBarId = localStorage.getItem('sgb_selected_bar_id');
+    if (userData.bar_id && !existingBarId) {
       localStorage.setItem('sgb_selected_bar_id', String(userData.bar_id));
       setBarCookie(userData.bar_id);
     }

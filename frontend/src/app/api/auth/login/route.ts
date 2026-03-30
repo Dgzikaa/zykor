@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { generateToken } from '@/lib/auth/jwt';
+import { generateToken, generateRefreshToken } from '@/lib/auth/jwt';
 import type { AuthenticatedUser } from '@/lib/auth/types';
 import crypto from 'crypto';
 
@@ -174,8 +174,17 @@ export async function POST(request: NextRequest) {
     // Selecionar primeiro bar como padrão
     const selectedBar = baresComNome[0] || { bar_id: 0, id: 0, nome: 'Sem bar' };
 
-    // Gerar token JWT
+    // Gerar token JWT (7 dias) e refresh token (30 dias)
     const token = generateToken({
+      user_id: usuarioPrincipal.id,
+      auth_id: usuarioPrincipal.auth_id,
+      email: usuarioPrincipal.email,
+      bar_id: selectedBar.bar_id,
+      role: usuarioPrincipal.role,
+      modulos_permitidos: modulosPermitidos,
+    });
+
+    const refreshToken = generateRefreshToken({
       user_id: usuarioPrincipal.id,
       auth_id: usuarioPrincipal.auth_id,
       email: usuarioPrincipal.email,
@@ -218,10 +227,17 @@ export async function POST(request: NextRequest) {
       path: '/',
     };
 
-    // Salvar token em cookie httpOnly
+    // Salvar token em cookie httpOnly (7 dias)
     response.cookies.set('auth_token', token, {
       ...cookieOptions,
       httpOnly: true,
+    });
+
+    // Salvar refresh token (30 dias)
+    response.cookies.set('refresh_token', refreshToken, {
+      ...cookieOptions,
+      httpOnly: true,
+      maxAge: 60 * 60 * 24 * 30,
     });
 
     // Manter cookie sgb_user para compatibilidade (temporário)
