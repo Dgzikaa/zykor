@@ -1,4 +1,4 @@
-﻿CREATE OR REPLACE FUNCTION public.calculate_evento_metrics(evento_id integer)
+CREATE OR REPLACE FUNCTION public.calculate_evento_metrics(evento_id integer)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -111,9 +111,7 @@ BEGIN
   WHERE data_pagamento = evento_record.data_evento AND bar_id = evento_record.bar_id;
 
   -- Leitura de visitas (domain table)
-  SELECT COALESCE(SUM(CASE WHEN valor_pagamentos > 0 THEN pessoas ELSE 0 END), 0)::INTEGER,
-         COALESCE(SUM(valor_couvert), 0)::NUMERIC
-  INTO contahub_per FROM visitas WHERE data_visita = evento_record.data_evento AND bar_id = evento_record.bar_id;
+  SELECT COALESCE(SUM(CASE WHEN valor_pagamentos > 0 THEN pessoas ELSE 0 END), 0)::INTEGER AS total_pessoas_pagantes,`n         COALESCE(SUM(valor_couvert), 0)::NUMERIC AS total_couvert`n  INTO contahub_per FROM visitas WHERE data_visita = evento_record.data_evento AND bar_id = evento_record.bar_id;
 
   -- Leitura de faturamento_hora (domain table)
   SELECT COALESCE(SUM(CASE WHEN hora < 19 THEN valor ELSE 0 END), 0)::NUMERIC AS fat_ate_19h INTO contahub_fat
@@ -134,18 +132,18 @@ BEGIN
   SELECT COALESCE(COUNT(DISTINCT participante_sympla_id), 0)::INTEGER INTO v_sympla_checkins FROM sympla_participantes
   WHERE bar_id = evento_record.bar_id AND fez_checkin = true AND status_pedido = 'APPROVED' AND data_checkin::date = evento_record.data_evento;
 
-  SELECT COALESCE(SUM(CASE WHEN status IN ('seated','pending','no-show','canceled-user','canceled-agent') THEN people ELSE 0 END), 0)::INTEGER,
-         COALESCE(SUM(CASE WHEN status IN ('seated','pending') THEN people ELSE 0 END), 0)::INTEGER,
-         COALESCE(COUNT(*) FILTER (WHERE status IN ('seated','pending','no-show','canceled-user','canceled-agent')), 0)::INTEGER,
-         COALESCE(COUNT(*) FILTER (WHERE status IN ('seated','pending')), 0)::INTEGER
+  SELECT COALESCE(SUM(CASE WHEN status IN ('seated','pending','no-show','canceled-user','canceled-agent') THEN people ELSE 0 END), 0)::INTEGER AS total_reservas,
+         COALESCE(SUM(CASE WHEN status IN ('seated','pending') THEN people ELSE 0 END), 0)::INTEGER AS reservas_presentes,
+         COALESCE(COUNT(*) FILTER (WHERE status IN ('seated','pending','no-show','canceled-user','canceled-agent')), 0)::INTEGER AS total_mesas,
+         COALESCE(COUNT(*) FILTER (WHERE status IN ('seated','pending')), 0)::INTEGER AS mesas_presentes
   INTO getin_reservas FROM getin_reservations WHERE reservation_date = evento_record.data_evento AND bar_id = evento_record.bar_id;
 
-  SELECT COALESCE(SUM(CASE WHEN categoria_nome = ANY(v_categorias_atracao) AND (categoria_nome ILIKE '%programa%' OR categoria_nome ILIKE '%atra%') AND categoria_nome NOT ILIKE '%produ%' THEN valor ELSE 0 END), 0)::NUMERIC,
-         COALESCE(SUM(CASE WHEN categoria_nome = ANY(v_categorias_atracao) AND categoria_nome ILIKE '%produ%' THEN valor ELSE 0 END), 0)::NUMERIC
+  SELECT COALESCE(SUM(CASE WHEN categoria_nome = ANY(v_categorias_atracao) AND (categoria_nome ILIKE '%programa%' OR categoria_nome ILIKE '%atra%') AND categoria_nome NOT ILIKE '%produ%' THEN valor ELSE 0 END), 0)::NUMERIC AS custo_artistico,
+         COALESCE(SUM(CASE WHEN categoria_nome = ANY(v_categorias_atracao) AND categoria_nome ILIKE '%produ%' THEN valor ELSE 0 END), 0)::NUMERIC AS custo_producao
   INTO nibo_custos FROM nibo_agendamentos WHERE data_competencia = evento_record.data_evento AND bar_id = evento_record.bar_id;
 
   IF nibo_custos.custo_artistico = 0 AND nibo_custos.custo_producao = 0 THEN
-    SELECT COALESCE(SUM(CASE WHEN categoria_nome = ANY(v_categorias_atracao) THEN valor ELSE 0 END), 0)::NUMERIC, 0::NUMERIC
+    SELECT COALESCE(SUM(CASE WHEN categoria_nome = ANY(v_categorias_atracao) THEN valor ELSE 0 END), 0)::NUMERIC AS custo_artistico, 0::NUMERIC AS custo_producao
     INTO nibo_custos FROM nibo_agendamentos WHERE data_competencia = evento_record.data_evento AND bar_id = evento_record.bar_id;
   END IF;
 
