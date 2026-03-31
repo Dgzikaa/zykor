@@ -1,6 +1,6 @@
-ï»¿-- View: contahub_stockout_filtrado
--- Filtra produtos ativos e relevantes para cÃ¡lculo de stockout
--- Exclui: Happy Hour, Baldes, Dose Dupla, Insumos, etc.
+-- View: contahub_stockout_filtrado
+-- Filtra produtos ativos e relevantes para cálculo de stockout
+-- Exclui: Happy Hour, Baldes, Dose Dupla, Insumos, Adicional, Embalagem, etc.
 
 CREATE OR REPLACE VIEW public.contahub_stockout_filtrado AS
 SELECT id,
@@ -76,7 +76,7 @@ WHERE prd_ativo = 'S'::text
   AND (COALESCE(raw_data ->> 'grp_desc'::text, ''::text) <> ALL (ARRAY[
     'Baldes'::text, 'Happy Hour'::text, 'Chegadeira'::text,
     'Dose dupla'::text, 'Dose Dupla'::text, 'Dose dupla!'::text, 'Dose Dupla!'::text,
-    'Dose dupla sem Ã¡lcool'::text, 'Dose Dupla sem Ã¡lcool'::text,
+    'Dose dupla sem álcool'::text, 'Dose Dupla sem álcool'::text,
     'Grupo adicional'::text, 'Grupo Adicional'::text, 'Insumos'::text,
     'Promo chivas'::text, 'Promo Chivas'::text,
     'Uso interno'::text, 'Uso Interno'::text, 'Pegue e Pague'::text
@@ -85,4 +85,6 @@ WHERE prd_ativo = 'S'::text
   AND prd_desc !~~* '%Dose Dulpa%'::text
   AND prd_desc !~~* '%Balde%'::text
   AND prd_desc !~~* '%Garrafa%'::text
-  AND prd_desc !~~* 'Combo %'::text;
+  AND prd_desc !~~* 'Combo %'::text
+  AND prd_desc !~~* '%Adicional%'::text
+  AND prd_desc !~~* '%Embalagem%'::text;
