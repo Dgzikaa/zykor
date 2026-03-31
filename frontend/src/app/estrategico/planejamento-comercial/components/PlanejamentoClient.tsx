@@ -659,7 +659,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                           
                           const currentWeek = getWeekNumber(evento.data_evento);
                           const previousWeek = idx > 0 ? getWeekNumber(dados[idx - 1].data_evento) : null;
-                          const isNewWeek = previousWeek !== null && currentWeek !== previousWeek;
+                          // Mostrar label da semana se for primeira linha OU se mudou de semana
+                          const isNewWeek = idx === 0 || (previousWeek !== null && currentWeek !== previousWeek);
 
                           // Calcular total de colunas visíveis para o separador de semana
                           const totalColunas = 5
