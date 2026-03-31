@@ -33,6 +33,7 @@ interface StockoutData {
       grupo_descricao?: string;
       loc_desc?: string;
       local_producao?: string;
+      categoria_local?: string;
       preco?: number;
       prd_precovenda?: number;
       estoque?: number;
@@ -46,6 +47,7 @@ interface StockoutData {
       grupo_descricao?: string;
       loc_desc?: string;
       local_producao?: string;
+      categoria_local?: string;
       preco?: number;
       prd_precovenda?: number;
       estoque?: number;
@@ -562,39 +564,16 @@ export default function StockoutPage() {
       }
     }
 
-    // Mapeamento por bar_id (Ordinário vs Deboche)
-    // DEVE SER IDÊNTICO ao mapeamento da API (normalizarLocal em route.ts)
-    const categoriasParaLocaisPorBar: Record<number, Record<string, string[]>> = {
-      3: { // Ordinário
-        'Comidas': ['Cozinha 1', 'Cozinha 2'],
-        'Drinks': ['Batidos', 'Montados', 'Mexido', 'Preshh'],
-        'Bar': ['Bar', 'Baldes', 'Shot e Dose', 'Chopp'],
-      },
-      4: { // Deboche - Salao=Bar(Bebidas), Bar=Drinks, Cozinha=Comidas
-        'Comidas': ['Cozinha', 'Cozinha 2'],
-        'Bar': ['Salao'],           // Salao = Bebidas/Bar
-        'Drinks': ['Bar'],          // Bar = Drinks
-      }
-    };
-    
-    const categoriasParaLocais = categoriasParaLocaisPorBar[selectedBar?.id || 3] || categoriasParaLocaisPorBar[3];
-    
-    const termosDaCategoria = categoriasParaLocais[nomeLocal];
-    const pertenceCategoria = (localProduto: string) => {
-      if (!termosDaCategoria) return localProduto.toLowerCase() === nomeLocal.toLowerCase();
-      const loc = localProduto.toLowerCase().trim();
-      return termosDaCategoria.some(t => loc.includes(t.toLowerCase()));
-    };
-    
-    // Modo data única - filtrar por locais da categoria
+    // Usar categoria_local que já vem normalizada da view
+    // Isso garante consistência com os cards superiores
     const disponiveis = (stockoutData.produtos?.ativos || []).filter(produto => {
-      const localProduto = produto.loc_desc || produto.local_producao || '';
-      return pertenceCategoria(localProduto);
+      const categoriaLocal = produto.categoria_local || '';
+      return categoriaLocal === nomeLocal;
     });
 
     const indisponiveis = (stockoutData.produtos?.inativos || []).filter(produto => {
-      const localProduto = produto.loc_desc || produto.local_producao || '';
-      return pertenceCategoria(localProduto);
+      const categoriaLocal = produto.categoria_local || '';
+      return categoriaLocal === nomeLocal;
     });
 
     return { disponiveis, indisponiveis };
