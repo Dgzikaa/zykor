@@ -143,8 +143,17 @@ export async function GET(request: NextRequest) {
     const mes = parseInt(searchParams.get('mes') || (new Date().getMonth() + 1).toString());
     const ano = parseInt(searchParams.get('ano') || new Date().getFullYear().toString());
 
-    // Calcular período - ser mais específico para evitar dados de outros meses
-    const dataInicio = `${ano}-${mes.toString().padStart(2, '0')}-01`;
+    // Calcular período incluindo semana anterior que toca o mês
+    // Se o dia 1 do mês não é segunda-feira, precisamos buscar desde a segunda-feira anterior
+    const primeiroDiaMes = new Date(`${ano}-${mes.toString().padStart(2, '0')}-01T00:00:00`);
+    const diaSemana = primeiroDiaMes.getDay(); // 0=domingo, 1=segunda, ..., 6=sábado
+    
+    // Calcular quantos dias voltar para pegar a segunda-feira da semana
+    const diasParaSegunda = diaSemana === 0 ? 6 : (diaSemana - 1); // Se domingo, volta 6 dias; senão, volta até segunda
+    const segundaFeiraSemana = new Date(primeiroDiaMes);
+    segundaFeiraSemana.setDate(primeiroDiaMes.getDate() - diasParaSegunda);
+    
+    const dataInicio = segundaFeiraSemana.toISOString().split('T')[0];
     const dataFinalConsulta = mes === 12 ? `${ano + 1}-01-01` : `${ano}-${(mes + 1).toString().padStart(2, '0')}-01`;
 
     // Buscar dados APENAS da tabela eventos_base (com todos os cálculos)
@@ -210,19 +219,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Filtro adicional para garantir apenas eventos do mês correto (evitar problemas de timezone)
-    // E remover dias em que o bar não opera (via bares_config)
+    // Filtro adicional para remover apenas dias em que o bar não opera
+    // Mantém eventos de semanas que tocam o mês (mesmo que comecem no mês anterior)
     const eventosFiltrados = eventos?.filter(evento => {
       const dataEvento = new Date(evento.data_evento + 'T00:00:00Z');
-      const mesEvento = dataEvento.getUTCMonth() + 1;
-      const anoEvento = dataEvento.getUTCFullYear();
-      const isCorrectMonth = mesEvento === mes && anoEvento === ano;
       
       // ONDA 2C: Verificar se o bar opera nesse dia (via bares_config)
       const dow = dataEvento.getUTCDay();
       const barOpera = barOperaNoDia(operacaoBar, dow);
 
-      return isCorrectMonth && barOpera;
+      return barOpera;
     }) || [];
 
     if (eventosFiltrados.length === 0) {

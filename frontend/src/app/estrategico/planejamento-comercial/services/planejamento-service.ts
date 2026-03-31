@@ -98,8 +98,17 @@ export async function getPlanejamentoComercial(
       total_descontos: number | null;
     }
 
-    // Calcular período
-    const dataInicio = `${ano}-${mes.toString().padStart(2, '0')}-01`;
+    // Calcular período incluindo semana anterior que toca o mês
+    // Se o dia 1 do mês não é segunda-feira, precisamos buscar desde a segunda-feira anterior
+    const primeiroDiaMes = new Date(`${ano}-${mes.toString().padStart(2, '0')}-01T00:00:00`);
+    const diaSemana = primeiroDiaMes.getDay(); // 0=domingo, 1=segunda, ..., 6=sábado
+    
+    // Calcular quantos dias voltar para pegar a segunda-feira da semana
+    const diasParaSegunda = diaSemana === 0 ? 6 : (diaSemana - 1); // Se domingo, volta 6 dias; senão, volta até segunda
+    const segundaFeiraSemana = new Date(primeiroDiaMes);
+    segundaFeiraSemana.setDate(primeiroDiaMes.getDate() - diasParaSegunda);
+    
+    const dataInicio = segundaFeiraSemana.toISOString().split('T')[0];
     const dataFinalConsulta = mes === 12 ? `${ano + 1}-01-01` : `${ano}-${(mes + 1).toString().padStart(2, '0')}-01`;
 
     // Buscar dados APENAS da tabela eventos_base
