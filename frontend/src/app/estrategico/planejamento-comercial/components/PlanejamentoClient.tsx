@@ -388,6 +388,15 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
     
     // Eventos realizados (com receita real > 0)
     const eventosRealizados = dados.filter(e => e.real_receita && e.real_receita > 0);
+    
+    // Contar dias únicos (não eventos) - agrupa por data
+    const datasUnicas = new Set(dados.map(e => e.data_evento));
+    const totalDiasComEvento = datasUnicas.size;
+    
+    // Contar dias únicos com eventos realizados
+    const datasRealizadas = new Set(eventosRealizados.map(e => e.data_evento));
+    const totalDiasRealizados = datasRealizadas.size;
+    
     const totalEventosRealizados = eventosRealizados.length;
     const totalEventos = dados.length;
     
@@ -426,6 +435,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
       mediaTEPlan,
       totalEventos,
       totalEventosRealizados,
+      totalDiasComEvento,
+      totalDiasRealizados,
       totalClientes,
       ticketMedioGeral,
       custoTotal,
@@ -984,7 +995,21 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Meta M1:</span> <span className="font-medium text-[hsl(var(--foreground))]">{formatarMoeda(totaisAgregados.metaM1)}</span></div>
                             <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Realizado:</span><span className={`font-medium ${totaisAgregados.realizado >= totaisAgregados.metaM1 ? 'text-green-600' : 'text-red-600'}`}>{formatarMoeda(totaisAgregados.realizado)}</span></div>
                             <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Atingido:</span><span className="font-medium">{totaisAgregados.metaM1 > 0 ? ((totaisAgregados.realizado / totaisAgregados.metaM1) * 100).toFixed(1) : '0.0'}%</span></div>
-                            <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Falta faturar:</span><span className={`font-medium ${totaisAgregados.metaM1 - totaisAgregados.realizado > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{formatarMoeda(totaisAgregados.metaM1 - totaisAgregados.realizado)}</span></div>
+                            <div className="flex justify-between">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-[hsl(var(--muted-foreground))] cursor-help underline decoration-dotted">Falta faturar:</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
+                                  <div className="text-xs">
+                                    <p>Diferença entre a Meta M1 e o Realizado até o momento</p>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                              <span className={`font-medium ${totaisAgregados.metaM1 - totaisAgregados.realizado > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                                {totaisAgregados.metaM1 - totaisAgregados.realizado < 0 ? '-' : ''}{formatarMoeda(Math.abs(totaisAgregados.metaM1 - totaisAgregados.realizado))}
+                              </span>
+                            </div>
                          </div>
                          
                          <div className="pt-3 border-t border-[hsl(var(--border))]">
@@ -994,7 +1019,21 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                          
                          <div className="pt-3 border-t border-[hsl(var(--border))] space-y-1.5">
                             <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Período:</span><span className="font-medium text-[hsl(var(--foreground))]">{meses.find(m => m.value === filtroMes)?.label} {filtroAno}</span></div>
-                            <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Eventos:</span><span className="font-medium text-[hsl(var(--foreground))]">{totaisAgregados.totalEventosRealizados} / {totaisAgregados.totalEventos}</span></div>
+                            <div className="flex justify-between">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-[hsl(var(--muted-foreground))] cursor-help underline decoration-dotted">Eventos:</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
+                                  <div className="text-xs space-y-1">
+                                    <p><span className="font-semibold">Dias com eventos realizados:</span> {totaisAgregados.totalDiasRealizados}</p>
+                                    <p><span className="font-semibold">Total de dias com eventos:</span> {totaisAgregados.totalDiasComEvento}</p>
+                                    <p className="pt-1 border-t border-[hsl(var(--border))]"><span className="font-semibold">Total de eventos (incluindo múltiplos no mesmo dia):</span> {totaisAgregados.totalEventosRealizados} / {totaisAgregados.totalEventos}</p>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                              <span className="font-medium text-[hsl(var(--foreground))]">{totaisAgregados.totalDiasRealizados} / {totaisAgregados.totalDiasComEvento}</span>
+                            </div>
                          </div>
                       </div>
                     </div>
