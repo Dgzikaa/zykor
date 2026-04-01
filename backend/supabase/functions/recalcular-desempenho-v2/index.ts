@@ -150,6 +150,11 @@ const FIELD_MAPPING: Record<string, string> = {
   media_avaliacoes_google: "media_avaliacoes_google",
   nps_geral: "nps_geral",
   nps_reservas: "nps_reservas",
+  nps_digital: "nps_digital",
+  nps_salao: "nps_salao",
+  nps_digital_respostas: "nps_digital_respostas",
+  nps_salao_respostas: "nps_salao_respostas",
+  nps_reservas_respostas: "nps_reservas_respostas",
   // Distribuicao
   perc_faturamento_ate_19h: "perc_faturamento_ate_19h",
   perc_faturamento_apos_22h: "perc_faturamento_apos_22h",

@@ -86,7 +86,7 @@ export async function calcSatisfacao(
     const npsSalao = npsSalaoData?.nps_score ?? null;
     const npsDigitalRespostas = npsDigitalData?.total_respostas ?? 0;
     const npsSalaoRespostas = npsSalaoData?.total_respostas ?? 0;
-    const npsReservasRespostas = 0; // TODO: Implementar quando houver pesquisa de reservas no Falaê
+    const npsReservasRespostas = 0;
 
     return {
       success: true,

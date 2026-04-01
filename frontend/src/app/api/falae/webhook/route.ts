@@ -171,6 +171,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Atualizar tabelas agregadas (nps_falae_diario e nps_falae_diario_pesquisa)
+    const dataReferencia = dataVisita || createdAt.split('T')[0];
+    try {
+      await Promise.all([
+        supabase.rpc('recalcular_nps_diario', {
+          p_bar_id: Number(credencial.bar_id),
+          p_data_inicio: dataReferencia,
+          p_data_fim: dataReferencia,
+        }),
+        supabase.rpc('recalcular_nps_diario_pesquisa', {
+          p_bar_id: Number(credencial.bar_id),
+          p_data_inicio: dataReferencia,
+          p_data_fim: dataReferencia,
+        }),
+      ]);
+    } catch (rpcError) {
+      console.warn('Aviso ao atualizar tabelas agregadas NPS:', rpcError);
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Webhook Falae processado',
