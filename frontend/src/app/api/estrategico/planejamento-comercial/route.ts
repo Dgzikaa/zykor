@@ -215,14 +215,20 @@ export async function GET(request: NextRequest) {
     const eventosFiltrados = eventos?.filter(evento => {
       // Parse da data no formato YYYY-MM-DD (sem timezone para evitar conversão)
       const [anoEvento, mesEvento, diaEvento] = evento.data_evento.split('-').map(Number);
+      
+      // CRITICAL FIX: Garantir que APENAS eventos do mês/ano solicitado sejam retornados
       const isCorrectMonth = mesEvento === mes && anoEvento === ano;
+      
+      if (!isCorrectMonth) {
+        return false; // Rejeitar imediatamente eventos de outros meses
+      }
       
       // ONDA 2C: Verificar se o bar opera nesse dia (via bares_config)
       const dataEvento = new Date(evento.data_evento + 'T00:00:00Z');
       const dow = dataEvento.getUTCDay();
       const barOpera = barOperaNoDia(operacaoBar, dow);
 
-      return isCorrectMonth && barOpera;
+      return barOpera;
     }) || [];
 
     if (eventosFiltrados.length === 0) {
