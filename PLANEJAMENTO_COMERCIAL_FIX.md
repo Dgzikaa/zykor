@@ -1,5 +1,9 @@
 # Correções no Planejamento Comercial
 
+## Bares
+- **bar_id = 3**: Ordinário
+- **bar_id = 4**: Deboche
+
 ## Problemas Identificados e Resolvidos
 
 ### 1. Março mostrando 37 eventos (deveria mostrar 31)
@@ -48,37 +52,22 @@ const eventosFiltrados = (eventos || []).filter(evento => {
 
 **Problema**: Não havia eventos cadastrados para esses meses.
 
-**Solução**: 
-- Criado script `scripts/inserir-eventos-direto.js` que insere 91 eventos:
-  - **Abril 2026**: 30 eventos
-  - **Maio 2026**: 31 eventos
-  - **Junho 2026**: 30 eventos
+**Solução**: Inseridos eventos para ambos os bares:
 
-**Execução**:
-```bash
-cd c:\Projects\zykor
-node scripts/inserir-eventos-direto.js
-```
+#### Ordinário (bar_id = 3)
+- **Abril 2026**: 30 eventos
+- **Maio 2026**: 31 eventos
+- **Junho 2026**: 30 eventos
+- **Total**: 91 eventos
 
-**Resultado**:
-```
-✅ Operação concluída!
-   Inseridos: 91 eventos
-   Atualizados: 0 eventos
-```
+#### Deboche (bar_id = 4)
+- **Abril 2026**: 27 eventos (exclui segundas-feiras que não opera)
+- **Total**: 27 eventos
 
-### 4. Bar não operava às segundas-feiras
+**Scripts criados**:
+- `scripts/inserir-eventos-deboche-abril.js` - Inserir eventos do Deboche
 
-**Problema**: A configuração `bares_config` tinha `opera_segunda: false`, fazendo com que eventos de segunda fossem filtrados pela API.
-
-**Solução**: Atualizada configuração para `opera_segunda: true`
-
-**Execução**:
-```bash
-node scripts/atualizar-config-bar-segunda.js
-```
-
-**Resultado**: Bar agora opera todos os dias da semana (segunda a domingo)
+**Nota**: Segundas-feiras com M1 = R$ 0,00 não foram inseridas pois o bar não opera nesses dias
 
 ### 4. Sobre a edição com cores laranja
 
