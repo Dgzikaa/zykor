@@ -67,6 +67,19 @@ node scripts/inserir-eventos-direto.js
    Atualizados: 0 eventos
 ```
 
+### 4. Bar não operava às segundas-feiras
+
+**Problema**: A configuração `bares_config` tinha `opera_segunda: false`, fazendo com que eventos de segunda fossem filtrados pela API.
+
+**Solução**: Atualizada configuração para `opera_segunda: true`
+
+**Execução**:
+```bash
+node scripts/atualizar-config-bar-segunda.js
+```
+
+**Resultado**: Bar agora opera todos os dias da semana (segunda a domingo)
+
 ### 4. Sobre a edição com cores laranja
 
 **Não é um bug** - É o comportamento padrão do sistema para indicar a célula selecionada.
