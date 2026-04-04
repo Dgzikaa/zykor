@@ -32,7 +32,7 @@ export { ScrollToTop } from './scroll-animations';
 // Utility functions
 export const debounce = (func: Function, wait: number) => {
   let timeout: NodeJS.Timeout;
-  return function executedFunction(...args: any[]) {
+  return function executedFunction(this: any, ...args: any[]) {
     const later = () => {
       clearTimeout(timeout);
       func(...args);

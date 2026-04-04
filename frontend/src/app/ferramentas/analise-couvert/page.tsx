@@ -765,7 +765,7 @@ export default function AnaliseCouvertPage() {
                     }}
                     labelStyle={{ color: '#fff' }}
                     itemStyle={{ color: '#fff' }}
-                    formatter={(value: number | undefined) => [value.toLocaleString(), 'Clientes']}
+                    formatter={(value: number | undefined) => [(value ?? 0).toLocaleString(), 'Clientes']}
                   />
                   <Bar dataKey="clientes" radius={[4, 4, 0, 0]}>
                     {dadosGraficoEvolucao.map((entry, index) => (

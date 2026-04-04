@@ -86,7 +86,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           title: '🔄 ContaHub Re-Sync Semanal Iniciado',
           webhook_type: 'contahub',
           bar_id: bar_id,
-          custom_message: `📅 **Período:** ${datasParaSincronizar[0]} a ${datasParaSincronizar[datasParaSincronizar.length - 1]}\n🍺 **Bar ID:** ${bar_id}\n⏰ **Início:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`
+          custom_message: `📅 **Período:** ${datasParaSincronizar[0]} a ${datasParaSincronizar[datasParaSincronizar.length - 1]}\n🍺 **Bar ID:** ${bar_id}\n⏰ **Início:** ${formatarDataHoraEdge(agoraEdgeFunction())}`
         })
       });
     } catch (discordError) {
@@ -194,7 +194,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           webhook_type: 'contahub',
           bar_id: bar_id,
           processed_records: summary.total_registros_coletados,
-          custom_message: `📅 **Período:** ${summary.periodo}\n📊 **Dias:** ${summary.dias_sucesso}/${summary.total_dias} re-sincronizados\n📈 **Registros:** ${summary.total_registros_coletados} coletados\n⚙️ **Processamento:** ${processedCount}/${processedData?.length || 0} processados\n${summary.dias_erro > 0 ? `\n⚠️ **Erros:** ${summary.dias_erro} dias falharam` : ''}\n⏰ **Fim:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`
+          custom_message: `📅 **Período:** ${summary.periodo}\n📊 **Dias:** ${summary.dias_sucesso}/${summary.total_dias} re-sincronizados\n📈 **Registros:** ${summary.total_registros_coletados} coletados\n⚙️ **Processamento:** ${processedCount}/${processedData?.length || 0} processados\n${summary.dias_erro > 0 ? `\n⚠️ **Erros:** ${summary.dias_erro} dias falharam` : ''}\n⏰ **Fim:** ${formatarDataHoraEdge(agoraEdgeFunction())}`
         })
       });
     } catch (discordError) {
