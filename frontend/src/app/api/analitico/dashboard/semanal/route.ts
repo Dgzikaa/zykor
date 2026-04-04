@@ -337,8 +337,10 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
           clientes_pessoas_diario_total +=
             pessoasData.total_pessoas_bruto || 0;
                   } else {
+                    console.warn('Dados de pessoas não encontrados para a data');
                   }
       } catch (error) {
+                console.error('Erro ao buscar dados de pessoas:', error);
               }
     }
 
@@ -496,8 +498,10 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
             pessoasDataDia.total_pessoas_bruto || 0;
           clientesSourceDia = 'pessoas_diario_corrigido';
                   } else {
+                    console.warn('Dados de pessoas não encontrados para o dia');
                   }
       } catch (error) {
+                console.error('Erro ao buscar dados de pessoas do dia:', error);
               }
 
       // **LÓGICA FINAL IGUAL AO DIÁRIO**
@@ -544,6 +548,7 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
     // Log dos resultados por dia
     diasSemana.forEach(dia => {
       if (dia.faturamento > 0 || dia.clientes > 0) {
+                console.log(`Dia ${dia.data}: Faturamento ${dia.faturamento}, Clientes ${dia.clientes}`);
               }
     });
 

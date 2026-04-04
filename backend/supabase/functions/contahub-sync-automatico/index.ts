@@ -4,6 +4,13 @@ import { heartbeatStart, heartbeatEnd, heartbeatError } from "../_shared/heartbe
 import { withRetry, isRetriableError } from "../_shared/retry.ts";
 import { validateFunctionEnv } from "../_shared/env-validator.ts";
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { 
+  TIMEZONE, 
+  UTC_OFFSET_STRING_COMPACT, 
+  toBRTISOCompact,
+  agoraEdgeFunction,
+  formatarDataHoraEdge 
+} from "../_shared/timezone.ts";
 
 console.log("📊 ContaHub Sync - Coleta de Dados (Processamento via pg_cron)");
 
@@ -17,7 +24,7 @@ function generateDynamicTimestamp(): string {
 // Converte data de YYYY-MM-DD para formato ISO com timezone (formato ContaHub)
 // Ex: 2024-10-15 -> 2024-10-15T00:00:00-0300
 function toContaHubDateFormat(isoDate: string): string {
-  return `${isoDate}T00:00:00-0300`;
+  return toBRTISOCompact(isoDate);
 }
 
 // Função para enviar notificação Discord
@@ -159,7 +166,7 @@ async function fetchComDivisaoPorLocal(
   dataType: string,
   extraParams: string = ''
 ): Promise<any> {
-  const contahubDate = `${dataDate}T00:00:00-0300`;
+  const contahubDate = toBRTISOCompact(dataDate);
   
   // 1. Primeiro tentar buscar tudo de uma vez
   try {
@@ -377,7 +384,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.log(`🎯 Processando dados para bar_id=${bar_id}, data=${data_date || `${data_inicio} a ${data_fim}`}`);
     
     // Enviar notificação de início
-    await sendDiscordNotification(`🚀 **Iniciando sincronização ContaHub**\n\n📊 **Dados:** ${data_date}\n🍺 **Bar ID:** ${bar_id}\n⏰ **Início:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`);
+    await sendDiscordNotification(`🚀 **Iniciando sincronização ContaHub**\n\n📊 **Dados:** ${data_date}\n🍺 **Bar ID:** ${bar_id}\n⏰ **Início:** ${formatarDataHoraEdge(agoraEdgeFunction())}`);
     
     // Configurar Supabase
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -871,7 +878,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           processed_records: summary.total_records_collected,
           bar_id: parseInt(bar_id),
           execution_time: `Dados: ${data_date}`,
-          custom_message: `📊 **Coleta ContaHub concluída**\n\n📈 **Resultados:**\n• Coletados: ${summary.collected_count}/5 tipos\n• Registros coletados: ${summary.total_records_collected}\n• Erros: ${summary.error_count}\n\n✅ **Processamento:** Iniciado automaticamente via pg_cron\n⏰ **Fim:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`
+          custom_message: `📊 **Coleta ContaHub concluída**\n\n📈 **Resultados:**\n• Coletados: ${summary.collected_count}/5 tipos\n• Registros coletados: ${summary.total_records_collected}\n• Erros: ${summary.error_count}\n\n✅ **Processamento:** Iniciado automaticamente via pg_cron\n⏰ **Fim:** ${formatarDataHoraEdge(agoraEdgeFunction())}`
         })
       });
 
@@ -884,7 +891,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.error('❌ Erro ao enviar notificação Discord ContaHub:', discordError);
     }
     
-    // 💓 Heartbeat: registrar sucesso
+    // 💓 Heartbeat: registrar sucesso e liberar lock
     await heartbeatEnd(
       supabase,
       heartbeatId,
@@ -895,7 +902,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         collected_count: summary.collected_count,
         error_count: summary.error_count,
         data_date: summary.data_date
-      }
+      },
+      undefined,
+      'contahub-sync-automatico',
+      bar_id || null,
+      true // releaseLock
     );
     
     return new Response(JSON.stringify({
@@ -915,20 +926,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } catch (error) {
     console.error('❌ Erro geral:', error);
     
-    // 💓 Heartbeat: registrar erro (precisa recriar supabase client se falhou antes)
+    // 💓 Heartbeat: registrar erro e liberar lock (precisa recriar supabase client se falhou antes)
     try {
       const supabaseUrl = Deno.env.get('SUPABASE_URL');
       const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
       if (supabaseUrl && supabaseServiceKey) {
         const supabaseForError = createClient(supabaseUrl, supabaseServiceKey);
-        await heartbeatError(supabaseForError, heartbeatId, startTime, error instanceof Error ? error : String(error));
+        await heartbeatError(
+          supabaseForError, 
+          heartbeatId, 
+          startTime, 
+          error instanceof Error ? error : String(error),
+          undefined,
+          'contahub-sync-automatico',
+          undefined,
+          true // releaseLock
+        );
       }
     } catch (hbErr) {
       console.warn('⚠️ Erro ao registrar heartbeat de erro:', hbErr);
     }
     
     // Enviar notificação de erro crítico
-    const errorMessage = `❌ **Erro crítico na sincronização ContaHub**\n\n⏰ **Tempo:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n🔥 **Erro:** ${error instanceof Error ? error.message : String(error)}`;
+    const errorMessage = `❌ **Erro crítico na sincronização ContaHub**\n\n⏰ **Tempo:** ${formatarDataHoraEdge(agoraEdgeFunction())}\n🔥 **Erro:** ${error instanceof Error ? error.message : String(error)}`;
     await sendDiscordNotification(errorMessage, true);
   
   return new Response(JSON.stringify({

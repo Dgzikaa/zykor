@@ -1,5 +1,11 @@
 /**
  * Cliente API que adiciona automaticamente headers de autenticação
+ * 
+ * ESTRATÉGIA DE AUTENTICAÇÃO:
+ * 1. JWT via cookie httpOnly `auth_token` (enviado automaticamente pelo navegador)
+ * 2. Header `x-selected-bar-id` para multi-tenancy (extraído do localStorage)
+ * 
+ * O servidor valida o JWT e aplica o bar_id do header se fornecido.
  */
 
 export interface ApiOptions {
@@ -19,10 +25,11 @@ export async function apiCall(endpoint: string, options: ApiOptions = {}) {
       ...(options.headers || {}),
     };
 
-    // Cookie httpOnly é enviado automaticamente pelo navegador
-    // Não precisa adicionar token manualmente
+    // 1. JWT: Cookie httpOnly `auth_token` é enviado automaticamente pelo navegador
+    //    Não precisa adicionar token manualmente - o navegador envia via credentials: 'include'
     
-    // Enviar apenas o ID do bar selecionado (autenticação real vai no JWT/cookie)
+    // 2. Multi-tenancy: Enviar bar_id selecionado via header
+    //    O servidor valida se o usuário tem acesso a este bar
     if (typeof window !== 'undefined') {
       const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
       if (selectedBarId) {

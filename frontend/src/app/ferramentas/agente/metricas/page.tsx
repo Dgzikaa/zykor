@@ -285,7 +285,7 @@ export default function MetricasAgentePage() {
                             borderRadius: '8px',
                             color: '#F9FAFB'
                           }}
-                          formatter={(value: number) => [`${value} queries`, 'Quantidade']}
+                          formatter={(value: number | undefined) => [`${value} queries`, 'Quantidade']}
                           labelFormatter={(label) => `${label}h`}
                         />
                         <Bar dataKey="queries" fill="#3B82F6" radius={[4, 4, 0, 0]} />
@@ -327,7 +327,7 @@ export default function MetricasAgentePage() {
                             borderRadius: '8px',
                             color: '#F9FAFB'
                           }}
-                          formatter={(value: number) => [`${value} queries`, 'Quantidade']}
+                          formatter={(value: number | undefined) => [`${value} queries`, 'Quantidade']}
                           labelFormatter={(label) => {
                             const d = new Date(label);
                             return d.toLocaleDateString('pt-BR');
@@ -386,7 +386,7 @@ export default function MetricasAgentePage() {
                             borderRadius: '8px',
                             color: '#F9FAFB'
                           }}
-                          formatter={(value: number) => [`${value} queries`, 'Quantidade']}
+                          formatter={(value: number | undefined) => [`${value} queries`, 'Quantidade']}
                         />
                       </PieChart>
                     </ResponsiveContainer>
@@ -424,7 +424,7 @@ export default function MetricasAgentePage() {
                             borderRadius: '8px',
                             color: '#F9FAFB'
                           }}
-                          formatter={(value: number, name: string) => {
+                          formatter={(value: number | undefined, name: string | undefined) => {
                             if (name === 'queries') return [`${value} queries`, 'Quantidade'];
                             if (name === 'tempo') return [`${Math.round(value as number)}ms`, 'Tempo médio'];
                             return [value, name];

@@ -41,6 +41,7 @@ async function fetchAllDataWithBuilder(queryBuilder: () => any) {
   }
   
   if (iterations > 1) {
+        console.log(`Paginação: ${iterations} iterações para buscar todos os dados`);
       }
   
   return allData;

@@ -3,8 +3,12 @@
 // Centraliza todas as operações de data/hora no timezone do Brasil
 // =====================================================
 
+export const TIMEZONE = 'America/Sao_Paulo';
 export const BRASIL_TIMEZONE = 'America/Sao_Paulo';
 export const BRASIL_LOCALE = 'pt-BR';
+export const UTC_OFFSET = -3;
+export const UTC_OFFSET_STRING = '-03:00';
+export const UTC_OFFSET_STRING_COMPACT = '-0300';
 
 // =====================================================
 // 📅 FUNÇÕES DE DATA
@@ -17,7 +21,7 @@ export const BRASIL_LOCALE = 'pt-BR';
 export function agora(): Date {
   // Método mais robusto usando Intl.DateTimeFormat
   const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: BRASIL_TIMEZONE,
+    timeZone: TIMEZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -41,6 +45,36 @@ export function agora(): Date {
 }
 
 /**
+ * Retorna Date convertido para timezone do Brasil
+ */
+export function toBRT(date: Date): Date {
+  return new Date(date.toLocaleString('en-US', { timeZone: TIMEZONE }));
+}
+
+/**
+ * Retorna a data de hoje no formato YYYY-MM-DD (Brasil)
+ */
+export function todayBRT(): string {
+  return agora().toISOString().split('T')[0];
+}
+
+/**
+ * Converte data YYYY-MM-DD para formato ISO com timezone Brasil
+ * Ex: 2024-10-15 -> 2024-10-15T00:00:00-03:00
+ */
+export function toBRTISO(dateString: string): string {
+  return `${dateString}T00:00:00${UTC_OFFSET_STRING}`;
+}
+
+/**
+ * Converte data YYYY-MM-DD para formato ISO compacto com timezone Brasil
+ * Ex: 2024-10-15 -> 2024-10-15T00:00:00-0300
+ */
+export function toBRTISOCompact(dateString: string): string {
+  return `${dateString}T00:00:00${UTC_OFFSET_STRING_COMPACT}`;
+}
+
+/**
  * Retorna a data de ontem no timezone do Brasil (formato YYYY-MM-DD)
  */
 export function dataOntemBrasil(): string {
@@ -56,7 +90,7 @@ export function dataOntemBrasil(): string {
 export function paraBrasilia(data: string | Date): Date {
   const dateObj = typeof data === 'string' ? new Date(data) : data;
   return new Date(
-    dateObj.toLocaleString('en-US', { timeZone: BRASIL_TIMEZONE })
+    dateObj.toLocaleString('en-US', { timeZone: TIMEZONE })
   );
 }
 
@@ -71,7 +105,7 @@ export function formatarData(data: string | Date): string {
     if (isNaN(dateObj.getTime())) return 'N/A';
 
     return new Intl.DateTimeFormat(BRASIL_LOCALE, {
-      timeZone: BRASIL_TIMEZONE,
+      timeZone: TIMEZONE,
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -92,7 +126,7 @@ export function formatarDataHora(data: string | Date): string {
     if (isNaN(dateObj.getTime())) return 'N/A';
 
     return new Intl.DateTimeFormat(BRASIL_LOCALE, {
-      timeZone: BRASIL_TIMEZONE,
+      timeZone: TIMEZONE,
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -115,7 +149,7 @@ export function formatarHora(data: string | Date): string {
     if (isNaN(dateObj.getTime())) return 'N/A';
 
     return new Intl.DateTimeFormat(BRASIL_LOCALE, {
-      timeZone: BRASIL_TIMEZONE,
+      timeZone: TIMEZONE,
       hour: '2-digit',
       minute: '2-digit',
     }).format(dateObj);
@@ -243,7 +277,7 @@ export function isHorarioRelatorioMatinal(): boolean {
  * Configuração padrão para Intl.DateTimeFormat (Brasil)
  */
 export const formatoBrasileiroData = {
-  timeZone: BRASIL_TIMEZONE,
+  timeZone: TIMEZONE,
   locale: BRASIL_LOCALE,
   day: '2-digit' as const,
   month: '2-digit' as const,
@@ -254,7 +288,7 @@ export const formatoBrasileiroData = {
  * Configuração padrão para Intl.DateTimeFormat com hora (Brasil)
  */
 export const formatoBrasileiroDataHora = {
-  timeZone: BRASIL_TIMEZONE,
+  timeZone: TIMEZONE,
   locale: BRASIL_LOCALE,
   day: '2-digit' as const,
   month: '2-digit' as const,
@@ -309,9 +343,10 @@ export function debugTimezone(): object {
     utc: agoraUTC.toISOString(),
     brasil: agoraBrasil.toISOString(),
     brasil_formatado: formatarDataHora(agoraBrasil),
-    timezone: BRASIL_TIMEZONE,
+    timezone: TIMEZONE,
     locale: BRASIL_LOCALE,
-    offset_horas:
-      (agoraUTC.getTime() - agoraBrasil.getTime()) / (1000 * 60 * 60),
+    offset: UTC_OFFSET_STRING,
+    offset_compact: UTC_OFFSET_STRING_COMPACT,
+    offset_horas: UTC_OFFSET,
   };
 }

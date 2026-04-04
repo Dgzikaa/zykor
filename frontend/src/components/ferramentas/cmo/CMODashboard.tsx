@@ -57,7 +57,7 @@ export default function CMODashboard() {
     }
   };
 
-  const formatarMoeda = (valor: number) => {
+  const formatarMoeda = (valor: number | undefined) => {    if (valor === undefined) return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
@@ -237,7 +237,7 @@ export default function CMODashboard() {
                   <XAxis dataKey="semana" />
                   <YAxis tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
                   <Tooltip
-                    formatter={(value: number) => formatarMoeda(value)}
+                    formatter={(value: number | undefined) => formatarMoeda(value)}
                     labelStyle={{ color: '#000' }}
                   />
                   <Legend />
@@ -274,7 +274,7 @@ export default function CMODashboard() {
                   <XAxis dataKey="semana" />
                   <YAxis tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
                   <Tooltip
-                    formatter={(value: number) => formatarMoeda(value)}
+                    formatter={(value: number | undefined) => formatarMoeda(value)}
                     labelStyle={{ color: '#000' }}
                   />
                   <Legend />

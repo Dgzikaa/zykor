@@ -25,6 +25,11 @@ export interface AIConfig {
   };
 }
 
+interface ProviderHealthStatus {
+  openai: { available: boolean; lastCheck: number; error: string | null };
+  anthropic: { available: boolean; lastCheck: number; error: string | null };
+}
+
 // Configuração padrão
 const DEFAULT_CONFIG: AIConfig = {
   provider: 'auto',
@@ -115,7 +120,7 @@ export class ZykorAI {
   private openai: OpenAI | null = null;
   private anthropic: Anthropic | null = null;
   private rateLimiter = new RateLimiter();
-  private healthStatus = {
+  private healthStatus: ProviderHealthStatus = {
     openai: { available: false, lastCheck: 0, error: null as string | null },
     anthropic: { available: false, lastCheck: 0, error: null as string | null }
   };
@@ -404,7 +409,7 @@ export class ZykorAI {
   }
 
   // Obter status dos provedores
-  getProviderStatus(): typeof this.healthStatus {
+  getProviderStatus(): ProviderHealthStatus {
     return { ...this.healthStatus };
   }
 
@@ -412,7 +417,7 @@ export class ZykorAI {
   getUsageStats(): {
     currentUsage: { requestsPerMinute: number; tokensPerMinute: number };
     limits: typeof DEFAULT_CONFIG.rateLimiting;
-    providers: typeof this.healthStatus;
+    providers: ProviderHealthStatus;
   } {
     return {
       currentUsage: this.rateLimiter.getUsage(),

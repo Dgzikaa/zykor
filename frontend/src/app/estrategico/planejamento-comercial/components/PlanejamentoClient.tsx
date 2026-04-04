@@ -813,7 +813,6 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                             if (e.key === 'Enter') salvarReservaInline(evento.evento_id, 'res_tot', parseInt(valorReservaTemp) || 0);
                                             if (e.key === 'Escape') { setEditandoReservas(null); setValorReservaTemp(''); }
                                           }}
-                                          autoFocus
                                           onClick={(e) => e.stopPropagation()}
                                         />
                                         <button
@@ -857,7 +856,6 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                             if (e.key === 'Enter') salvarReservaInline(evento.evento_id, 'res_p', parseInt(valorReservaTemp) || 0);
                                             if (e.key === 'Escape') { setEditandoReservas(null); setValorReservaTemp(''); }
                                           }}
-                                          autoFocus
                                           onClick={(e) => e.stopPropagation()}
                                         />
                                         <button

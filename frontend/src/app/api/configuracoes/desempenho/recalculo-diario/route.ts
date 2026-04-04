@@ -96,7 +96,8 @@ export async function GET(request: NextRequest) {
             resultados: falaeResultados,
           };
         }
-      } catch {
+      } catch (error) {
+        console.error('Erro ao processar reconciliação Falae:', error);
       }
 
       return NextResponse.json({

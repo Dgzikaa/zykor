@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { UTC_OFFSET_STRING, toBRTISO } from '@/lib/timezone';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -334,13 +335,13 @@ export async function GET(request: NextRequest) {
       const percentualAtivos = clientesTotaisUnicos > 0 ? (clientesAtivos / clientesTotaisUnicos) * 100 : 0;
 
       // 7. REPUTAÇÃO (média do mês - Google Reviews via Apify)
-      // Usando timezone de Brasília (-03:00) para evitar problemas de dia
+      // Usando timezone de Brasília para evitar problemas de dia
       const { data: reputacaoData, error: reputacaoError } = await supabase
         .from('google_reviews')
         .select('stars')
         .eq('bar_id', barIdNum)
-        .gte('published_at_date', inicioMes + 'T00:00:00-03:00')
-        .lte('published_at_date', fimMes + 'T23:59:59-03:00');
+        .gte('published_at_date', toBRTISO(inicioMes))
+        .lte('published_at_date', `${fimMes}T23:59:59${UTC_OFFSET_STRING}`);
 
       let reputacao = 0;
       if (!reputacaoError && reputacaoData && reputacaoData.length > 0) {

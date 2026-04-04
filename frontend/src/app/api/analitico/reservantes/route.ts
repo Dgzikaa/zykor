@@ -209,11 +209,12 @@ export async function GET(request: NextRequest) {
 				offsetVisitas += pageSizeVisitas
 			}
 			
-			if (iterationsVisitas >= MAX_ITERATIONS_VISITAS) {
-				console.warn('⚠️ API Reservantes: Limite de iterações atingido ao buscar visitas')
-			}
-		} else {
-			}
+		if (iterationsVisitas >= MAX_ITERATIONS_VISITAS) {
+			console.warn('⚠️ API Reservantes: Limite de iterações atingido ao buscar visitas')
+		}
+	} else {
+			console.warn('Nenhuma visita encontrada no período');
+		}
 
 		// Fazer match entre reservantes e visitas
 		let matchesEncontrados = 0

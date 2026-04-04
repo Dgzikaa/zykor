@@ -156,6 +156,7 @@ export async function sendJobFailureAlert(options: JobFailureAlertOptions, supab
 interface HeartbeatStartResult {
   heartbeatId: number | null;
   startTime: number;
+  lockAcquired?: boolean;
 }
 
 /**
@@ -166,18 +167,43 @@ interface HeartbeatStartResult {
  * @param barId - ID do bar sendo processado (opcional)
  * @param action - Ação específica (ex: 'sync', 'backfill') (opcional)
  * @param triggeredBy - Origem da execução: 'pgcron', 'manual', 'api', 'webhook' (default: 'pgcron')
- * @returns heartbeatId e startTime para uso no heartbeatEnd
+ * @param useLock - Se true, tenta adquirir advisory lock antes de iniciar (default: false)
+ * @param lockTimeout - Timeout em minutos para considerar lock órfão (default: 30)
+ * @returns heartbeatId, startTime e lockAcquired para uso no heartbeatEnd
  */
 export async function heartbeatStart(
   supabase: any,
   jobName: string,
   barId?: number | null,
   action?: string | null,
-  triggeredBy: string = 'pgcron'
+  triggeredBy: string = 'pgcron',
+  useLock: boolean = false,
+  lockTimeout: number = 30
 ): Promise<HeartbeatStartResult> {
   const startTime = Date.now();
   
   try {
+    // Tentar adquirir lock se solicitado
+    if (useLock) {
+      const { data: lockResult, error: lockError } = await supabase
+        .rpc('acquire_job_lock', { 
+          job_name: jobName, 
+          timeout_minutes: lockTimeout 
+        });
+
+      if (lockError) {
+        console.warn(`⚠️ [Heartbeat] Erro ao tentar adquirir lock: ${lockError.message}`);
+        return { heartbeatId: null, startTime, lockAcquired: false };
+      }
+
+      if (!lockResult) {
+        console.log(`🔒 [Heartbeat] Lock não adquirido: ${jobName} já está em execução`);
+        return { heartbeatId: null, startTime, lockAcquired: false };
+      }
+
+      console.log(`🔓 [Heartbeat] Lock adquirido: ${jobName}`);
+    }
+
     const { data, error } = await supabase
       .from('cron_heartbeats')
       .insert({
@@ -193,14 +219,26 @@ export async function heartbeatStart(
 
     if (error) {
       console.warn(`⚠️ [Heartbeat] Erro ao registrar início: ${error.message}`);
-      return { heartbeatId: null, startTime };
+      // Se falhou ao inserir mas adquiriu lock, libera o lock
+      if (useLock) {
+        await supabase.rpc('release_job_lock', { job_name: jobName });
+      }
+      return { heartbeatId: null, startTime, lockAcquired: false };
     }
 
     console.log(`💓 [Heartbeat] Iniciado: ${jobName}${barId ? ` (bar_id=${barId})` : ''} → ID ${data.id}`);
-    return { heartbeatId: data.id, startTime };
+    return { heartbeatId: data.id, startTime, lockAcquired: useLock };
   } catch (err) {
     console.warn(`⚠️ [Heartbeat] Exceção ao registrar início:`, err);
-    return { heartbeatId: null, startTime };
+    // Se falhou mas adquiriu lock, libera o lock
+    if (useLock) {
+      try {
+        await supabase.rpc('release_job_lock', { job_name: jobName });
+      } catch (releaseErr) {
+        console.warn(`⚠️ [Heartbeat] Erro ao liberar lock após exceção:`, releaseErr);
+      }
+    }
+    return { heartbeatId: null, startTime, lockAcquired: false };
   }
 }
 
@@ -214,8 +252,9 @@ export async function heartbeatStart(
  * @param recordsAffected - Quantidade de registros processados (opcional)
  * @param responseSummary - Objeto JSON com resumo da resposta (opcional)
  * @param errorMessage - Mensagem de erro se status='error' (opcional)
- * @param jobName - Nome do job (opcional, para alertas Discord)
+ * @param jobName - Nome do job (opcional, para alertas Discord e release de lock)
  * @param barId - ID do bar (opcional, para alertas Discord)
+ * @param releaseLock - Se true, libera advisory lock ao finalizar (default: false)
  */
 export async function heartbeatEnd(
   supabase: any,
@@ -226,7 +265,8 @@ export async function heartbeatEnd(
   responseSummary?: Record<string, any>,
   errorMessage?: string,
   jobName?: string,
-  barId?: number | null
+  barId?: number | null,
+  releaseLock: boolean = false
 ): Promise<void> {
   if (!heartbeatId) {
     console.warn(`⚠️ [Heartbeat] heartbeatId nulo, ignorando finalização`);
@@ -273,6 +313,16 @@ export async function heartbeatEnd(
     const statusEmoji = status === 'success' ? '✅' : status === 'partial' ? '⚠️' : '❌';
     console.log(`💓 [Heartbeat] Finalizado: ID ${heartbeatId} → ${statusEmoji} ${status} (${durationMs}ms, ${recordsAffected ?? 0} registros)`);
 
+    // Liberar lock se solicitado
+    if (releaseLock && resolvedJobName) {
+      try {
+        await supabase.rpc('release_job_lock', { job_name: resolvedJobName });
+        console.log(`🔓 [Heartbeat] Lock liberado: ${resolvedJobName}`);
+      } catch (lockErr) {
+        console.warn(`⚠️ [Heartbeat] Erro ao liberar lock:`, lockErr);
+      }
+    }
+
     // Enviar alerta Discord para status error ou partial
     if ((status === 'error' || status === 'partial') && resolvedJobName) {
       await sendJobFailureAlert({
@@ -293,8 +343,9 @@ export async function heartbeatEnd(
  * Shortcut para registrar erro rapidamente
  * Útil em blocos catch onde já se tem o heartbeatId
  * 
- * @param jobName - Nome do job (opcional, para alertas Discord)
+ * @param jobName - Nome do job (opcional, para alertas Discord e release de lock)
  * @param barId - ID do bar (opcional, para alertas Discord)
+ * @param releaseLock - Se true, libera advisory lock ao finalizar (default: false)
  */
 export async function heartbeatError(
   supabase: any,
@@ -303,8 +354,9 @@ export async function heartbeatError(
   error: Error | string,
   responseSummary?: Record<string, any>,
   jobName?: string,
-  barId?: number | null
+  barId?: number | null,
+  releaseLock: boolean = false
 ): Promise<void> {
   const errorMessage = error instanceof Error ? error.message : String(error);
-  await heartbeatEnd(supabase, heartbeatId, 'error', startTime, 0, responseSummary, errorMessage, jobName, barId);
+  await heartbeatEnd(supabase, heartbeatId, 'error', startTime, 0, responseSummary, errorMessage, jobName, barId, releaseLock);
 }

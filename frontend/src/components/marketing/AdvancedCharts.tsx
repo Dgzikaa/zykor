@@ -1,9 +1,9 @@
-ï»¿'use client';
+'use client';
 
 // ========================================
-// ğŸ“Š ADVANCED MARKETING CHARTS
+// ?? ADVANCED MARKETING CHARTS
 // ========================================
-// Componente de grÃ¡ficos avanÃ§ados para anÃ¡lise de tendÃªncias
+// Componente de gráficos avançados para análise de tendências
 // e insights de marketing social
 
 import { useState, useMemo } from 'react';
@@ -54,7 +54,7 @@ import {
 } from 'lucide-react';
 
 // ========================================
-// ğŸ¨ CORES E TEMAS
+// ?? CORES E TEMAS
 // ========================================
 const CHART_COLORS = {
   primary: '#3B82F6', // Azul
@@ -69,7 +69,7 @@ const CHART_COLORS = {
 };
 
 // ========================================
-// ğŸ“Š DADOS SIMULADOS PARA DEMONSTRAÃ‡ÃƒO
+// ?? DADOS SIMULADOS PARA DEMONSTRAÇÃO
 // ========================================
 const generateTrendData = () => {
   const months = [
@@ -103,7 +103,7 @@ const generateTrendData = () => {
 };
 
 const generateWeeklyData = () => {
-  const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'SÃ¡b', 'Dom'];
+  const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
   return days.map(day => ({
     dia: day,
@@ -116,7 +116,7 @@ const generateWeeklyData = () => {
 
 const generateEngagementBreakdown = () => [
   { tipo: 'Curtidas', valor: 2340, cor: CHART_COLORS.success },
-  { tipo: 'ComentÃ¡rios', valor: 456, cor: CHART_COLORS.primary },
+  { tipo: 'Comentários', valor: 456, cor: CHART_COLORS.primary },
   { tipo: 'Compartilhamentos', valor: 234, cor: CHART_COLORS.secondary },
   { tipo: 'Salvamentos', valor: 189, cor: CHART_COLORS.warning },
   { tipo: 'Cliques no Link', valor: 123, cor: CHART_COLORS.danger },
@@ -127,22 +127,22 @@ const generatePerformanceRadar = () => [
   { metrica: 'Engajamento', instagram: 78, facebook: 65, fullMark: 100 },
   { metrica: 'Crescimento', instagram: 92, facebook: 58, fullMark: 100 },
   {
-    metrica: 'Qualidade do ConteÃºdo',
+    metrica: 'Qualidade do Conteúdo',
     instagram: 88,
     facebook: 75,
     fullMark: 100,
   },
   {
-    metrica: 'FrequÃªncia de Posts',
+    metrica: 'Frequência de Posts',
     instagram: 75,
     facebook: 60,
     fullMark: 100,
   },
-  { metrica: 'InteraÃ§Ã£o', instagram: 82, facebook: 68, fullMark: 100 },
+  { metrica: 'Interação', instagram: 82, facebook: 68, fullMark: 100 },
 ];
 
 // ========================================
-// ğŸ“Š COMPONENTES DE GRÃFICOS
+// ?? COMPONENTES DE GRÁFICOS
 // ========================================
 interface AdvancedChartsProps {
   data?: unknown;
@@ -162,17 +162,17 @@ export default function AdvancedCharts({
   const radarData = useMemo(() => generatePerformanceRadar(), []);
 
   // ========================================
-  // ğŸ“ˆ GRÃFICO DE TENDÃŠNCIAS
+  // ?? GRÁFICO DE TENDÊNCIAS
   // ========================================
   const TrendsChart = () => (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-blue-600" />
-          TendÃªncias de Crescimento
+          Tendências de Crescimento
         </CardTitle>
         <CardDescription>
-          EvoluÃ§Ã£o dos seguidores nas principais plataformas
+          Evolução dos seguidores nas principais plataformas
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -247,7 +247,7 @@ export default function AdvancedCharts({
   );
 
   // ========================================
-  // ğŸ“Š GRÃFICO DE ENGAJAMENTO
+  // ?? GRÁFICO DE ENGAJAMENTO
   // ========================================
   const EngagementChart = () => (
     <Card>
@@ -273,7 +273,7 @@ export default function AdvancedCharts({
               stroke="#888"
             />
             <Tooltip
-              formatter={(value: unknown, name: string) => [
+              formatter={(value: unknown, name: string | undefined) => [
                 typeof value === 'number'
                   ? `${value.toFixed(2)}%`
                   : typeof value === 'string'
@@ -319,17 +319,17 @@ export default function AdvancedCharts({
   );
 
   // ========================================
-  // ğŸ¥§ BREAKDOWN DE ENGAJAMENTO
+  // ?? BREAKDOWN DE ENGAJAMENTO
   // ========================================
   const EngagementBreakdown = () => (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Share2 className="h-5 w-5 text-purple-600" />
-          Tipos de InteraÃ§Ã£o
+          Tipos de Interação
         </CardTitle>
         <CardDescription>
-          DistribuiÃ§Ã£o das formas de engajamento
+          Distribuição das formas de engajamento
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -355,7 +355,7 @@ export default function AdvancedCharts({
                   : typeof value === 'string'
                   ? value
                   : String(value),
-                'InteraÃ§Ãµes',
+                'Interações',
               ]}
             />
             <Legend />
@@ -382,7 +382,7 @@ export default function AdvancedCharts({
   );
 
   // ========================================
-  // ğŸ¯ RADAR DE PERFORMANCE
+  // ?? RADAR DE PERFORMANCE
   // ========================================
   const PerformanceRadar = () => (
     <Card>
@@ -391,7 +391,7 @@ export default function AdvancedCharts({
           <Target className="h-5 w-5 text-green-600" />
           Performance por Categoria
         </CardTitle>
-        <CardDescription>AnÃ¡lise multidimensional das mÃ©tricas</CardDescription>
+        <CardDescription>Análise multidimensional das métricas</CardDescription>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={350}>
@@ -431,7 +431,7 @@ export default function AdvancedCharts({
   );
 
   // ========================================
-  // ğŸ“… ATIVIDADE SEMANAL
+  // ?? ATIVIDADE SEMANAL
   // ========================================
   const WeeklyActivity = () => (
     <Card>
@@ -441,7 +441,7 @@ export default function AdvancedCharts({
           Atividade Semanal
         </CardTitle>
         <CardDescription>
-          PadrÃµes de engajamento por dia da semana
+          Padrões de engajamento por dia da semana
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -478,7 +478,7 @@ export default function AdvancedCharts({
   );
 
   // ========================================
-  // ğŸ“Š RENDER PRINCIPAL
+  // ?? RENDER PRINCIPAL
   // ========================================
   return (
     <div className="space-y-6">
@@ -486,17 +486,17 @@ export default function AdvancedCharts({
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">
-            ğŸ“Š AnÃ¡lise AvanÃ§ada de Marketing
+            ?? Análise Avançada de Marketing
           </h2>
           <p className="text-gray-600">
-            Insights detalhados e tendÃªncias das redes sociais
+            Insights detalhados e tendências das redes sociais
           </p>
         </div>
 
         <div className="flex gap-2">
           <Button variant="outline" size="sm">
             <Calendar className="h-4 w-4 mr-2" />
-            Ãšltimos 30 dias
+            Últimos 30 dias
           </Button>
           <Button variant="outline" size="sm">
             <BarChart3 className="h-4 w-4 mr-2" />
@@ -505,13 +505,13 @@ export default function AdvancedCharts({
         </div>
       </div>
 
-      {/* Tabs para diferentes anÃ¡lises */}
+      {/* Tabs para diferentes análises */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="trends">ğŸ“ˆ TendÃªncias</TabsTrigger>
-          <TabsTrigger value="engagement">â¤ï¸ Engajamento</TabsTrigger>
-          <TabsTrigger value="breakdown">ğŸ¥§ DistribuiÃ§Ã£o</TabsTrigger>
-          <TabsTrigger value="performance">ğŸ¯ Performance</TabsTrigger>
+          <TabsTrigger value="trends">?? Tendências</TabsTrigger>
+          <TabsTrigger value="engagement">?? Engajamento</TabsTrigger>
+          <TabsTrigger value="breakdown">?? Distribuição</TabsTrigger>
+          <TabsTrigger value="performance">?? Performance</TabsTrigger>
         </TabsList>
 
         <TabsContent value="trends" className="space-y-6">
@@ -537,12 +537,12 @@ export default function AdvancedCharts({
         </TabsContent>
       </Tabs>
 
-      {/* Insights AutomÃ¡ticos */}
+      {/* Insights Automáticos */}
       <Card className="border-l-4 border-l-blue-500">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-yellow-500" />
-            Insights AutomÃ¡ticos
+            Insights Automáticos
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -555,7 +555,7 @@ export default function AdvancedCharts({
                 </span>
               </div>
               <p className="text-sm text-green-700">
-                Instagram cresceu 23% este mÃªs, superando a meta de 15%
+                Instagram cresceu 23% este mês, superando a meta de 15%
               </p>
             </div>
 
@@ -565,7 +565,7 @@ export default function AdvancedCharts({
                 <span className="font-medium text-blue-800">Melhor Dia</span>
               </div>
               <p className="text-sm text-blue-700">
-                Sexta-feira tem o maior engajamento (34% acima da mÃ©dia)
+                Sexta-feira tem o maior engajamento (34% acima da média)
               </p>
             </div>
 
@@ -573,11 +573,11 @@ export default function AdvancedCharts({
               <div className="flex items-center gap-2 mb-2">
                 <Heart className="h-4 w-4 text-purple-600" />
                 <span className="font-medium text-purple-800">
-                  ConteÃºdo Popular
+                  Conteúdo Popular
                 </span>
               </div>
               <p className="text-sm text-purple-700">
-                Posts com drinks especiais tÃªm 45% mais curtidas
+                Posts com drinks especiais têm 45% mais curtidas
               </p>
             </div>
           </div>

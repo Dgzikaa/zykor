@@ -310,9 +310,12 @@ export async function POST(request: NextRequest) {
           });
           
           if (updateResponse.ok) {
+                        console.log('Stakeholder atualizado com sucesso');
                       } else {
+                        console.warn('Falha ao atualizar stakeholder');
                       }
         } else {
+                    console.warn('Tipo de chave PIX não identificado');
                   }
       } else {
         // Tentar criar novo stakeholder apenas se temos CPF/CNPJ

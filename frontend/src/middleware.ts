@@ -31,35 +31,41 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Para páginas (não API): verificar cookie de sessão
+  // Para páginas (não API): verificar autenticação
   if (!pathname.startsWith(API_ROUTES_PREFIX)) {
-    const sessionCookie = request.cookies.get('sgb_user');
-
-    if (!sessionCookie?.value) {
+    // Verificar cookie JWT (primário)
+    const authToken = request.cookies.get('auth_token');
+    
+    // Fallback: cookie legado (DEPRECADO)
+    const legacyCookie = request.cookies.get('sgb_user');
+    
+    // Se não tem nenhum cookie de auth, redirecionar para login
+    if (!authToken?.value && !legacyCookie?.value) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', pathname);
       return NextResponse.redirect(loginUrl);
     }
 
-    // Validar que o cookie contém dados válidos
-    try {
-      // Tentar decode (client-side usa encodeURIComponent, server-side pode não usar)
-      let rawValue = sessionCookie.value;
+    // Se tem cookie legado mas não tem JWT, permitir (será migrado no próximo login)
+    if (legacyCookie?.value) {
       try {
-        rawValue = decodeURIComponent(rawValue);
+        let rawValue = legacyCookie.value;
+        try {
+          rawValue = decodeURIComponent(rawValue);
+        } catch {
+          // Já está decodificado
+        }
+        const userData = JSON.parse(rawValue);
+        if (!userData?.email || userData?.bar_id == null) {
+          const loginUrl = new URL('/login', request.url);
+          loginUrl.searchParams.set('reason', 'invalid_session');
+          return NextResponse.redirect(loginUrl);
+        }
       } catch {
-        // Já está decodificado
-      }
-      const userData = JSON.parse(rawValue);
-      if (!userData?.email || userData?.bar_id == null) {
         const loginUrl = new URL('/login', request.url);
-        loginUrl.searchParams.set('reason', 'invalid_session');
+        loginUrl.searchParams.set('reason', 'corrupt_cookie');
         return NextResponse.redirect(loginUrl);
       }
-    } catch {
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('reason', 'corrupt_cookie');
-      return NextResponse.redirect(loginUrl);
     }
 
     return NextResponse.next();

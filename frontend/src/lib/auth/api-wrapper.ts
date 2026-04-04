@@ -1,10 +1,13 @@
 /**
  * Wrappers e helpers para facilitar migração de APIs
+ * 
+ * @deprecated Use helpers from '@/lib/auth' instead
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import type { AuthenticatedUser } from './types';
-import { authenticateRequest, validateBarAccess } from './server';
+import { getAuthenticatedUser } from './get-user';
+import { getAdminClient } from '@/lib/supabase-admin';
 
 /**
  * Wrapper simplificado para APIs que precisam de autenticação e bar_id
@@ -19,7 +22,7 @@ export function withAuth(
 ) {
   return async (request: NextRequest, ...args: any[]) => {
     // Autenticar
-    const user = await authenticateRequest(request);
+    const user = await getAuthenticatedUser(request);
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Não autorizado', code: 'AUTH_REQUIRED' },
@@ -46,7 +49,7 @@ export function withAuth(
     }
 
     // Validar acesso ao bar
-    const hasAccess = await validateBarAccess(user, bar_id);
+    const hasAccess = await validateBarAccessHelper(user.auth_id, bar_id, user.role);
     if (!hasAccess) {
       return NextResponse.json(
         {
@@ -60,6 +63,31 @@ export function withAuth(
 
     return handler(request, user, bar_id);
   };
+}
+
+/**
+ * Helper interno para validar acesso ao bar
+ */
+async function validateBarAccessHelper(
+  auth_id: string,
+  bar_id: number,
+  role: string
+): Promise<boolean> {
+  // Admin tem acesso a todos os bares
+  if (role === 'admin') {
+    return true;
+  }
+  
+  // Verificar acesso específico ao bar
+  const supabase = await getAdminClient();
+  const { data } = await supabase
+    .from('usuarios_bares')
+    .select('bar_id')
+    .eq('usuario_id', auth_id)
+    .eq('bar_id', bar_id)
+    .single();
+  
+  return !!data;
 }
 
 /**

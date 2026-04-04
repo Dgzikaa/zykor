@@ -95,45 +95,47 @@ export function PageTitleProvider({ children }: { children: ReactNode }) {
 export function usePageTitle() {
   const pathname = usePathname();
   const context = useContext(PageTitleContext);
-  if (context === undefined) {
-    // Durante SSG/pre-rendering, retornar funções vazias em vez de lançar erro
-    return {
-      pageTitle: null,
-      pageDescription: null,
-      setPageTitle: () => {},
-      setPageDescription: () => {},
-      setPageInfo: () => {},
-    };
-  }
-
+  
   const currentPath = pathname || '/';
 
   const setPageTitle = useCallback(
-    (title: string | null) => context.setPageTitleForPath(currentPath, title),
+    (title: string | null) => {
+      if (context) {
+        context.setPageTitleForPath(currentPath, title);
+      }
+    },
     [context, currentPath]
   );
+  
   const setPageDescription = useCallback(
-    (description: string | null) =>
-      context.setPageDescriptionForPath(currentPath, description),
+    (description: string | null) => {
+      if (context) {
+        context.setPageDescriptionForPath(currentPath, description);
+      }
+    },
     [context, currentPath]
   );
+  
   const setPageInfo = useCallback(
-    (title: string | null, description?: string | null) =>
-      context.setPageInfoForPath(currentPath, title, description),
+    (title: string | null, description?: string | null) => {
+      if (context) {
+        context.setPageInfoForPath(currentPath, title, description);
+      }
+    },
     [context, currentPath]
   );
 
   return useMemo(
     () => ({
-      pageTitle: context.pageTitle,
-      pageDescription: context.pageDescription,
+      pageTitle: context?.pageTitle ?? null,
+      pageDescription: context?.pageDescription ?? null,
       setPageTitle,
       setPageDescription,
       setPageInfo,
     }),
     [
-      context.pageDescription,
-      context.pageTitle,
+      context?.pageDescription,
+      context?.pageTitle,
       setPageDescription,
       setPageInfo,
       setPageTitle,

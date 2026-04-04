@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { UTC_OFFSET_STRING_COMPACT, toBRTISOCompact } from '@/lib/timezone'
 
 export const dynamic = 'force-dynamic'
 
@@ -167,7 +168,7 @@ export async function POST(request: NextRequest) {
                 // TODOS os campos que vêm da API real do TEMPO (baseado no registro real)
                 ano: date.split('-')[0],
                 dds: new Date(date).getDay().toString(),
-                dia: `${date}T00:00:00-0300`,
+                dia: toBRTISOCompact(date),
                 itm: i + 1,
                 mes: `${date.split('-')[0]}-${date.split('-')[1]}`,
                 prd: (i % 200) + 100,
@@ -180,12 +181,12 @@ export async function POST(request: NextRequest) {
                 prd_desc: `Produto ${(i % 200) + 100}`,
                 tipovenda: '',
                 usr_abriu: ['Pedro Henrique ', 'Amanda', 'Luan', 'Carlos', 'Ana'][i % 5], // Note o espaço após Pedro Henrique
-                't3-entrega': `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String(((i % 4) * 15) + Math.floor(Math.random() * 30) + 5).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}-0300`,
+                't3-entrega': `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String(((i % 4) * 15) + Math.floor(Math.random() * 30) + 5).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}${UTC_OFFSET_STRING_COMPACT}`,
                 usr_lancou: ['Pedro Henrique ', 'Amanda', 'Luan', 'Carlos', 'Ana'][i % 5],
                 diadasemana: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(date).getDay()],
                 vd_mesadesc: `${1000 + (i % 50)}`,
                 usr_entregou: ['cerva', 'garcom', 'cozinha'][i % 3],
-                't0-lancamento': `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}-0300`
+                't0-lancamento': `${date}T${String(8 + (i % 12)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}${UTC_OFFSET_STRING_COMPACT}`
               }))
             }
             break
@@ -198,7 +199,7 @@ export async function POST(request: NextRequest) {
                 cli_nome: ['Miriam Alves', 'João Silva', 'Maria Santos', 'Pedro Costa', 'Ana Lima'][i % 5],
                 tipovenda: '',
                 usr_abriu: ['Amanda', 'Luan', 'Pedro', 'Carlos', 'Ana'][i % 5],
-                cli_dtnasc: `${1960 + (i % 40)}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}T00:00:00-0300`,
+                cli_dtnasc: toBRTISOCompact(`${1960 + (i % 40)}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`),
                 $vr_couvert: Math.round((Math.random() * 30) * 100) / 100,
                 $vr_repique: Math.round((Math.random() * 10) * 100) / 100,
                 vd_mesadesc: `${1000 + (i % 50)}`,

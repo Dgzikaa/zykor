@@ -1,0 +1,9 @@
+﻿{
+  "tasks": {
+    "start": "deno run --allow-all --watch main.ts"
+  },
+  "imports": {
+    "supabase": "https://esm.sh/@supabase/supabase-js@2"
+  },
+  "verify_jwt": true
+}

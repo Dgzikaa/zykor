@@ -3,8 +3,12 @@
 // Padroniza timezone em todas as edge functions
 // =====================================================
 
+export const TIMEZONE = 'America/Sao_Paulo';
 export const BRASIL_TIMEZONE = 'America/Sao_Paulo';
 export const BRASIL_LOCALE = 'pt-BR';
+export const UTC_OFFSET = -3;
+export const UTC_OFFSET_STRING = '-03:00';
+export const UTC_OFFSET_STRING_COMPACT = '-0300';
 
 /**
  * Retorna data/hora atual no timezone do Brasil para Edge Functions
@@ -12,8 +16,37 @@ export const BRASIL_LOCALE = 'pt-BR';
 export function agoraEdgeFunction(): Date {
   // Edge functions rodam em UTC, então convertemos manualmente
   const utcNow = new Date();
-  const brasilOffset = -3; // UTC-3 (Brasília)
-  return new Date(utcNow.getTime() + (brasilOffset * 60 * 60 * 1000));
+  return new Date(utcNow.getTime() + (UTC_OFFSET * 60 * 60 * 1000));
+}
+
+/**
+ * Retorna a data de hoje no formato YYYY-MM-DD (Brasil)
+ */
+export function todayBRT(): string {
+  return agoraEdgeFunction().toISOString().split('T')[0];
+}
+
+/**
+ * Converte data YYYY-MM-DD para formato ISO com timezone Brasil
+ * Ex: 2024-10-15 -> 2024-10-15T00:00:00-03:00
+ */
+export function toBRTISO(dateString: string): string {
+  return `${dateString}T00:00:00${UTC_OFFSET_STRING}`;
+}
+
+/**
+ * Converte data YYYY-MM-DD para formato ISO compacto com timezone Brasil
+ * Ex: 2024-10-15 -> 2024-10-15T00:00:00-0300
+ */
+export function toBRTISOCompact(dateString: string): string {
+  return `${dateString}T00:00:00${UTC_OFFSET_STRING_COMPACT}`;
+}
+
+/**
+ * Retorna Date convertido para timezone do Brasil
+ */
+export function toBRT(date: Date): Date {
+  return new Date(date.toLocaleString('en-US', { timeZone: TIMEZONE }));
 }
 
 /**

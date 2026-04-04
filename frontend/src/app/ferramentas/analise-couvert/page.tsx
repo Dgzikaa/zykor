@@ -123,7 +123,7 @@ export default function AnaliseCouvertPage() {
     fetchData()
   }, [])
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | undefined) => {    if (value === undefined) return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
@@ -721,7 +721,7 @@ export default function AnaliseCouvertPage() {
                     }}
                     labelStyle={{ color: '#fff' }}
                     itemStyle={{ color: '#fff' }}
-                    formatter={(value: number) => [formatCurrency(value), 'Ticket Médio']}
+                    formatter={(value: number | undefined) => [formatCurrency(value), 'Ticket Médio']}
                   />
                   <Bar dataKey="ticket_medio" radius={[4, 4, 0, 0]}>
                     {dadosGraficoEvolucao.map((entry, index) => (
@@ -765,7 +765,7 @@ export default function AnaliseCouvertPage() {
                     }}
                     labelStyle={{ color: '#fff' }}
                     itemStyle={{ color: '#fff' }}
-                    formatter={(value: number) => [value.toLocaleString(), 'Clientes']}
+                    formatter={(value: number | undefined) => [value.toLocaleString(), 'Clientes']}
                   />
                   <Bar dataKey="clientes" radius={[4, 4, 0, 0]}>
                     {dadosGraficoEvolucao.map((entry, index) => (

@@ -3203,7 +3203,6 @@ export function DesempenhoClient({
                   salvarMetaIndividual();
                 }
               }}
-              autoFocus
               className="text-lg font-medium"
             />
             <p className="text-xs text-gray-500">

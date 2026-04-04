@@ -1,8 +1,9 @@
-﻿import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts';
 import { requireAuth } from '../_shared/auth-guard.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { agoraEdgeFunction, formatarDataHoraEdge } from '../_shared/timezone.ts';
 
 console.log("­ƒôª ContaHub Stockout Sync - Controle de Estoque (Multi-Bar)");
 
@@ -426,7 +427,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.log(`­ƒöù Base URL: ${credentials.base_url}`);
     
     // Enviar notifica├º├úo de in├¡cio
-    await sendDiscordNotification(`­ƒÜÇ **Iniciando coleta Stockout**\n\n­ƒôè **Data:** ${data_date}\n­ƒÅ¬ **Bar ID:** ${bar_id}\n­ƒÅó **Empresa:** ${empresaId}\nÔÅ░ **In├¡cio:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`);
+    await sendDiscordNotification(`­ƒÜÇ **Iniciando coleta Stockout**\n\n­ƒôè **Data:** ${data_date}\n­ƒÅ¬ **Bar ID:** ${bar_id}\n­ƒÅó **Empresa:** ${empresaId}\nÔÅ░ **In├¡cio:** ${formatarDataHoraEdge(agoraEdgeFunction())}`);
     
     // Login no ContaHub
     const sessionToken = await loginContaHub(credentials);
@@ -501,7 +502,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.log(`- % Stockout: ${summary.percentual_stockout}`);
     console.log(`- Registros processados: ${summary.registros_processados}`);
     
-    const successMessage = `✅ **Stockout processado com sucesso**\n\n🏪 **Bar ID:** ${bar_id}\n🏢 **Empresa:** ${empresaId}\n\n📊 **Resultados:**\n• Total produtos: ${summary.total_produtos}\n• Produtos ativos: ${summary.produtos_ativos}\n• Produtos inativos: ${summary.produtos_inativos}\n• % Stockout: ${summary.percentual_stockout}\n\n⏱ **Fim:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
+    const successMessage = `✅ **Stockout processado com sucesso**\n\n🏪 **Bar ID:** ${bar_id}\n🏢 **Empresa:** ${empresaId}\n\n📊 **Resultados:**\n• Total produtos: ${summary.total_produtos}\n• Produtos ativos: ${summary.produtos_ativos}\n• Produtos inativos: ${summary.produtos_inativos}\n• % Stockout: ${summary.percentual_stockout}\n\n⏱ **Fim:** ${formatarDataHoraEdge(agoraEdgeFunction())}`;
     await sendDiscordNotification(successMessage);
 
     await heartbeatEnd(supabase, heartbeatId, 'success', startTime, summary.registros_processados, { total_produtos: summary.total_produtos, percentual_stockout: summary.percentual_stockout });
@@ -520,7 +521,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     await heartbeatError(supabase, heartbeatId, startTime, error instanceof Error ? error : String(error));
     
-    const errorMessage = `❌ **Erro na coleta Stockout**\n\n⏱ **Tempo:** ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n🚨 **Erro:** ${error instanceof Error ? error.message : String(error)}`;
+    const errorMessage = `❌ **Erro na coleta Stockout**\n\n⏱ **Tempo:** ${formatarDataHoraEdge(agoraEdgeFunction())}\n🚨 **Erro:** ${error instanceof Error ? error.message : String(error)}`;
     await sendDiscordNotification(errorMessage, true);
   
     return new Response(JSON.stringify({

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 🔄 Sync Dispatcher - Dispatcher Unificado para Sincronizações
  * 
  * Centraliza sincronizações diversas (eventos, clientes, conhecimento, marketing).
@@ -43,6 +43,7 @@ serve(async (req) => {
 
   let heartbeatId: number | null = null;
   let startTime: number = Date.now();
+  let useLock = false;
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -54,12 +55,35 @@ serve(async (req) => {
 
     console.log(`🔄 Sync Dispatcher - Action: ${action}`);
 
-    const hbResult = await heartbeatStart(supabase, 'sync-dispatcher', null, action, 'pgcron');
+    // Usar lock para action 'eventos' que é crítica
+    useLock = action === 'eventos';
+    const hbResult = await heartbeatStart(
+      supabase, 
+      'sync-dispatcher', 
+      null, 
+      action, 
+      'pgcron',
+      useLock,
+      30
+    );
     heartbeatId = hbResult.heartbeatId;
     startTime = hbResult.startTime;
 
+    // Se não conseguiu o lock, abortar execução
+    if (useLock && !hbResult.lockAcquired) {
+      console.log(`🔒 Sync Dispatcher (${action}) já em execução, abortando`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: `Sync Dispatcher (${action}) já em execução`,
+          lock_acquired: false 
+        }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (!action || !ACTION_URLS[action]) {
-      await heartbeatEnd(supabase, heartbeatId, 'error', startTime, 0, { error: 'action_invalida' });
+      await heartbeatEnd(supabase, heartbeatId, 'error', startTime, 0, { error: 'action_invalida' }, undefined, 'sync-dispatcher', null, useLock);
       return new Response(
         JSON.stringify({
           success: false,
@@ -87,7 +111,7 @@ serve(async (req) => {
     
     const result = await response.json();
 
-    await heartbeatEnd(supabase, heartbeatId, response.ok ? 'success' : 'error', startTime, 1, { action, status: response.status });
+    await heartbeatEnd(supabase, heartbeatId, response.ok ? 'success' : 'error', startTime, 1, { action, status: response.status }, undefined, 'sync-dispatcher', null, useLock);
     
     return new Response(
       JSON.stringify({
@@ -105,7 +129,16 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Erro no sync dispatcher:', error);
-    await heartbeatError(supabase, heartbeatId, startTime, error instanceof Error ? error : String(error));
+    await heartbeatError(
+      supabase, 
+      heartbeatId, 
+      startTime, 
+      error instanceof Error ? error : String(error),
+      undefined,
+      'sync-dispatcher',
+      undefined,
+      useLock
+    );
     
     return new Response(
       JSON.stringify({

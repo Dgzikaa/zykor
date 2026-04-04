@@ -11,13 +11,13 @@ export interface AuthenticatedUser {
   nome: string;
   
   // Autorização
-  role: 'admin' | 'financeiro' | 'funcionario';
+  role: 'admin' | 'manager' | 'financeiro' | 'funcionario';
   bar_id: number;                // Bar atualmente selecionado
   modulos_permitidos: string[];  // SEMPRE array de strings
   
   // Status
   ativo: boolean;
-  senha_redefinida: boolean;
+  senha_redefinida?: boolean;
   
   // Metadados (opcional)
   setor?: string;

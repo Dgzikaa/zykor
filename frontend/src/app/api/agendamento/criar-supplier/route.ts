@@ -166,6 +166,7 @@ export async function POST(request: NextRequest) {
         pixKeyType: pixInfo.pixKeyType
       };
           } else if (chave_pix) {
+            console.warn('Chave PIX fornecida mas não validada:', chave_pix);
           }
 
     

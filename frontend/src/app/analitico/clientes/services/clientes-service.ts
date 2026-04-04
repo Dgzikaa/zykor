@@ -7,7 +7,7 @@ import type {
 
 const DEFAULT_CLIENTES_LIMIT = 50
 
-function barHeaders(barId: number | string): HeadersInit {
+function barHeaders(barId: number | string): Record<string, string> {
   return { 'x-selected-bar-id': String(barId) }
 }
 

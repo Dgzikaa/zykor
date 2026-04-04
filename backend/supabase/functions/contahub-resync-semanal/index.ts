@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { heartbeatStart, heartbeatEnd, heartbeatError } from "../_shared/heartbeat.ts";
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { agoraEdgeFunction, formatarDataHoraEdge } from '../_shared/timezone.ts';
 
 console.log("🔄 ContaHub Re-Sync Semanal - Atualização de Dados da Semana Anterior");
 
