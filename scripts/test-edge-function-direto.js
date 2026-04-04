@@ -18,8 +18,8 @@ async function testarEdgeFunction() {
   const body = {
     bar_id: 3,
     sync_mode: 'custom',
-    date_from: '2025-01-01',
-    date_to: '2025-01-31'
+    date_from: '2020-01-01',
+    date_to: '2030-12-31'
   }
 
   console.log('📡 URL:', url)

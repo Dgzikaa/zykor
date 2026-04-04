@@ -231,11 +231,10 @@ async function syncLancamentos(
         params.data_alteracao_de = dateFrom + 'T00:00:00'
         params.data_alteracao_ate = dateTo + 'T23:59:59'
       } else {
-        // API exige data_vencimento (required), mas também passamos data_competencia
+        // API exige data_vencimento (required)
+        // NÃO usar data_competencia pois isso filtra demais e perde lançamentos
         params.data_vencimento_de = dateFrom
         params.data_vencimento_ate = dateTo
-        params.data_competencia_de = dateFrom
-        params.data_competencia_ate = dateTo
       }
 
       const result = await fetchCA(endpoint, params, currentToken, supabase, credentials)
