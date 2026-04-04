@@ -84,7 +84,7 @@ async function upsertCredentials(
   if (existing) {
     const { error } = await supabase
       .from('api_credentials')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update({ ...updates, atualizado_em: new Date().toISOString() })
       .eq('id', existing.id)
     
     if (error) {
