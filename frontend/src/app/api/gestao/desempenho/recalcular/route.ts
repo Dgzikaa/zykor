@@ -139,26 +139,36 @@ export async function POST(request: Request) {
       // 2. ATRAÇÃO/FATURAMENTO % (Custos de Atração)
       // =============================================
 
-      const atracaoData = await fetchAllData(supabase, 'nibo_agendamentos', 'valor, categoria_nome', {
+      const atracaoData = await fetchAllData(supabase, 'lancamentos_financeiros', 'valor, categoria', {
         'gte_data_competencia': startDate,
-        'lte_data_competencia': endDate
+        'lte_data_competencia': endDate,
+        'eq_bar_id': barId
       });
 
-      const categoriasAtracao = [
-        'Atração',
-        'Atrações',
-        'Programação',
-        'Shows',
-        'Eventos',
-        'Artistas'
-      ];
+      // Categorias por bar:
+      // Ordinário (bar_id=3): Custo Artístico = "Atrações Programação", Custo Produção = "Produção Eventos"
+      // Deboche (bar_id=4): Custo Artístico = "Atrações/Eventos"
+      const categoriasArtistico = barId === 3 
+        ? ['Atrações Programação']
+        : ['Atrações/Eventos'];
+      
+      const categoriasProducao = barId === 3
+        ? ['Produção Eventos']
+        : [];
 
-      const custoAtracao = atracaoData?.filter(item => 
-        item.categoria_nome && categoriasAtracao.some(cat => 
-          item.categoria_nome.toLowerCase().includes(cat.toLowerCase())
+      const custoArtistico = atracaoData?.filter(item => 
+        item.categoria && categoriasArtistico.some(cat => 
+          item.categoria.toLowerCase().includes(cat.toLowerCase())
         )
       ).reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0) || 0;
 
+      const custoProducao = atracaoData?.filter(item => 
+        item.categoria && categoriasProducao.some(cat => 
+          item.categoria.toLowerCase().includes(cat.toLowerCase())
+        )
+      ).reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0) || 0;
+
+      const custoAtracao = custoArtistico + custoProducao;
       const atracaoFaturamentoPercent = faturamentoTotal > 0 ? (custoAtracao / faturamentoTotal) * 100 : 0;
 
       // =============================================
@@ -202,10 +212,10 @@ export async function POST(request: Request) {
           { categoria: 'Pro Labore', quantidade: 1, total: cmoTravado.pro_labore_semanal || 0 }
         );
       } else {
-        // Fallback: Calcular pelo NIBO (método antigo) se não houver simulação travada
+        // Fallback: Calcular pelo Conta Azul (método antigo) se não houver simulação travada
         const mesFimStr = `${anoFim}-${(mesFim + 1).toString().padStart(2, '0')}-01`;
         
-        const cmoData = await fetchAllData(supabase, 'nibo_agendamentos', 'valor, categoria_nome, data_competencia', {
+        const cmoData = await fetchAllData(supabase, 'lancamentos_financeiros', 'valor, categoria, data_competencia', {
           'gte_data_competencia': mesInicioStr,
           'lte_data_competencia': mesFimStr,
           'eq_bar_id': barId
@@ -223,7 +233,7 @@ export async function POST(request: Request) {
         // Calcular custos fixos proporcionais
         for (const categoria of categoriasFixas) {
           const itens = cmoData?.filter(item => 
-            item.categoria_nome && item.categoria_nome.trim() === categoria
+            item.categoria && item.categoria.trim() === categoria
           ) || [];
           
           const itensMesInicio = itens.filter(item => {
@@ -257,7 +267,7 @@ export async function POST(request: Request) {
         // Calcular custos variáveis
         for (const categoria of categoriasVariaveis) {
           const itens = cmoData?.filter(item => {
-            if (!item.categoria_nome || item.categoria_nome.trim() !== categoria) return false;
+            if (!item.categoria || item.categoria.trim() !== categoria) return false;
             const d = item.data_competencia;
             return d >= startDate && d <= endDate;
           }) || [];
