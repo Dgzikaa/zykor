@@ -349,10 +349,10 @@ export async function GET(request: NextRequest) {
         reputacao = somaRatings / reputacaoData.length;
       }
 
-      // 8. CALCULAR CMO (Custo de Mão de Obra) - buscar da tabela nibo_agendamentos
+      // 8. CALCULAR CMO (Custo de Mão de Obra) - buscar da view unificada
       const { data: cmoData, error: cmoError } = await supabase
-        .from('nibo_agendamentos')
-        .select('valor')
+        .from('lancamentos_financeiros')
+        .select('valor_bruto')
         .eq('bar_id', barIdNum)
         .gte('data_competencia', inicioMes)
         .lte('data_competencia', fimMes)
@@ -362,19 +362,19 @@ export async function GET(request: NextRequest) {
         ]);
 
       const cmoTotal = !cmoError && cmoData ? 
-        cmoData.reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0) : 0;
+        cmoData.reduce((sum, item) => sum + (parseFloat(item.valor_bruto) || 0), 0) : 0;
 
       // 9. CALCULAR % ARTÍSTICA/FATURAMENTO
       const { data: artisticaData, error: artisticaError } = await supabase
-        .from('nibo_agendamentos')
-        .select('valor')
+        .from('lancamentos_financeiros')
+        .select('valor_bruto')
         .eq('bar_id', barIdNum)
         .gte('data_competencia', inicioMes)
         .lte('data_competencia', fimMes)
         .in('categoria_nome', ['ATRAÇÕES', 'PRODUÇÃO', 'MARKETING']);
 
-      const custoArtistico = !artisticaError && artisticaData ? 
-        artisticaData.reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0) : 0;
+      const custoArtistico = !artisticaError && artisticaData ?
+        artisticaData.reduce((sum, item) => sum + (parseFloat(item.valor_bruto) || 0), 0) : 0;
       
       const percentualArtistico = faturamentoTotal > 0 ? (custoArtistico / faturamentoTotal) * 100 : 0;
 
