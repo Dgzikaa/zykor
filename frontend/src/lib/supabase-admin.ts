@@ -1,4 +1,4 @@
-﻿import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Cliente administrativo do Supabase (usa service role key)
 let adminClient: SupabaseClient | null = null;
@@ -8,14 +8,14 @@ async function getAdminClient(): Promise<SupabaseClient> {
     return adminClient;
   }
 
-  // Usar valores dos secrets do sistema (fixos e seguros)
-  const supabaseUrl = 'https://uqtgsvujwcbymjmvkjhy.supabase.co';
+  // SEMPRE usar variáveis de ambiente
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
 
-  if (!serviceRoleKey) {
+  if (!supabaseUrl || !serviceRoleKey) {
     throw new Error(
-      'SUPABASE_SERVICE_ROLE_KEY não está configurada nos secrets do sistema. Configure via MCP Supabase.'
+      'Variáveis de ambiente NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias'
     );
   }
 
