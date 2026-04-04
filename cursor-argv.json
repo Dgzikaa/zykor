@@ -1,8 +1,0 @@
-{
-  "max-memory": 16384,
-  "max-old-space-size": 16384,
-  "disable-extensions": false,
-  "disable-gpu": false,
-  "enable-logging": false,
-  "verbose": false
-}

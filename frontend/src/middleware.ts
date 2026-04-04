@@ -10,6 +10,7 @@ const PUBLIC_ROUTES = [
   '/api/auth/staff/validate',
   '/api/health',
   '/api/auth/check-user',
+  '/api/financeiro/contaazul/oauth/callback',
   '/_next',
   '/favicon.ico',
 ];
