@@ -1,3 +1,10 @@
+// [FUNÇÃO ATIVA] Gera relatórios em PDF (semanal, mensal, executivo, CMV, eventos)
+// Uso confirmado em:
+// - frontend/src/app/api/relatorio/route.ts (2 endpoints)
+// - backend/supabase/functions/discord-dispatcher/index.ts
+// - backend/supabase/functions/unified-dispatcher/index.ts
+// Última verificação: 2026-04-04
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
