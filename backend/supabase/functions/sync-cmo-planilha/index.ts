@@ -8,11 +8,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { encode as base64url } from 'https://deno.land/std@0.168.0/encoding/base64url.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
 
 const SPREADSHEET_ID = '1y4wR3dxIpfIkWQdPdfQ2V889p_NXIDCU1tGt2PWx57Y';
 
@@ -372,6 +370,8 @@ async function importarProvisoes(supabase: any, accessToken: string, barId: numb
 // ==================== HANDLER ====================
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

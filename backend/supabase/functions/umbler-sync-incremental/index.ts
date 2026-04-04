@@ -18,6 +18,8 @@ const corsHeaders = {
 const UMBLER_API = 'https://app-utalk.umbler.com/api/v1'
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

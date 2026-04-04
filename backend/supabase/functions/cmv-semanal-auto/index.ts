@@ -11,11 +11,10 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts';
+import { requireAuth } from '../_shared/auth-guard.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
 
 interface CMVRequest {
   bar_id?: number;
@@ -40,8 +39,14 @@ function getWeekDateRange(year: number, week: number): { start: string; end: str
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders }
+
+  // Validar autenticação (JWT ou CRON_SECRET)
+  const authError = requireAuth(req);
+  if (authError) return authError;);
   }
 
   // 💓 Heartbeat: variáveis no escopo externo para acesso no catch
@@ -308,8 +313,9 @@ serve(async (req) => {
         console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Compras processadas: R$ ${comprasCmvTotal.toFixed(2)}`);
 
         // 4.2. Buscar CONSUMAÇÕES (4 categorias) - valores BRUTOS (sem multiplicador)
-        // TEMPORARIAMENTE DESABILITADO: buscar de contahub_analitico (causando timeout)
-        // TODO: Investigar performance e reabilitar
+        // TODO(rodrigo/2026-04): Reabilitar busca de consumações do contahub_analitico
+        // Contexto: Desabilitado temporariamente por timeout. Usar valores da planilha CMV enquanto isso.
+        // Issue: Investigar performance da RPC get_consumos_classificados_semana
         let consumacoes = {
           total_consumo_socios: 0,
           mesa_adm_casa: 0,
@@ -377,9 +383,10 @@ serve(async (req) => {
         console.log('  ⚠️ Busca de consumos de contahub_analitico DESABILITADA (usar valores da planilha)');
         console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Consumos processados`);
 
-        // 4.3. DESABILITADO: Cálculo de estoque final da contagem
-        // Agora usamos APENAS o estoque final da planilha CMV
-        // TODO: Reabilitar quando quiser usar a planilha de contagem como fonte
+        // 4.3. Cálculo de estoque final da contagem
+        // TODO(rodrigo/2026-04): Reabilitar cálculo de estoque final da planilha de contagem
+        // Contexto: Atualmente usa apenas estoque final da planilha CMV. Código de contagem comentado abaixo.
+        // Issue: Decidir se planilha de contagem deve ser fonte primária ou secundária
         let estoqueFinalDetalhado = {
           estoque_final_cozinha: 0,
           estoque_final_bebidas: 0,

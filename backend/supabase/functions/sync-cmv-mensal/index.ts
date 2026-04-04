@@ -236,6 +236,8 @@ function formatDate(serial: number): string {
 // ====== LÓGICA PRINCIPAL ======
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

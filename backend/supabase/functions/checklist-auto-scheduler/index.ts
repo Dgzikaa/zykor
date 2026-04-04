@@ -11,8 +11,12 @@ serve(async (req) => {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
+        `, x-cron-secret`,
+      }
+
+  // Validar autenticação (JWT ou CRON_SECRET)
+  const authError = requireAuth(req);
+  if (authError) return authError;,
     })
   }
 
@@ -25,7 +29,7 @@ serve(async (req) => {
     const authHeader = req.headers.get('authorization')
     console.log('🔑 Auth header presente:', !!authHeader)
 
-    // Buscar agendamentos ativos que precisam gerar checklists
+    // Buscar agendamentos ativos que precisam gerar checklists (com nome do bar)
     const { data: agendamentosPendentes, error: errorAgendamentos } = await supabase
       .from('checklist_schedules')
       .select(`
@@ -35,6 +39,10 @@ serve(async (req) => {
           nome,
           setor,
           tipo
+        ),
+        bares!inner (
+          id,
+          nome
         )
       `)
       .eq('ativo', true)
@@ -115,6 +123,7 @@ serve(async (req) => {
         // 4. Enviar notificação WhatsApp
         if (agendamento.responsaveis_whatsapp && agendamento.responsaveis_whatsapp.length > 0) {
           try {
+            const barNome = agendamento.bares?.nome || 'Bar Principal';
             const whatsappResponse = await fetch('https://sgbv2.vercel.app/api/configuracoes/whatsapp/send', {
               method: 'POST',
               headers: {
@@ -126,7 +135,7 @@ serve(async (req) => {
                 checklist_data: {
                   checklist_id: agendamento.checklist_id,
                   checklist_nome: agendamento.checklists?.nome || agendamento.titulo,
-                  bar_nome: 'Bar Principal', // TODO: buscar nome do bar
+                  bar_nome: barNome,
                   deadline: deadline.toISOString(),
                   responsavel: 'Equipe',
                   status: 'agendado',

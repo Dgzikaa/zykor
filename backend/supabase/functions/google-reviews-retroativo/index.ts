@@ -19,6 +19,8 @@ const BAR_PLACE_IDS: Record<number, { placeId: string; name: string }> = {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

@@ -1,12 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 console.log("🔍 Stockout Processar - Aplica regras de filtragem e gera audit");
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
 
 // ============================================================================
 // SISTEMA DE FILTRAGEM v2.0 - Regras Centralizadas
@@ -182,6 +180,8 @@ function calcularCategoriaLocal(categoriaMix: string): string {
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

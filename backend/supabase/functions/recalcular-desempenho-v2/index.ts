@@ -513,15 +513,39 @@ serve(async (req: Request) => {
   const allResults: V2Result[] = [];
   const overallStartTime = Date.now();
 
+  // Usar lock apenas no modo write para evitar recálculos simultâneos
+  const useLock = mode === 'write';
+
   for (const currentBarId of barIds) {
     // Heartbeat próprio para cada bar
-    const { heartbeatId, startTime } = await heartbeatStart(
+    const { heartbeatId, startTime, lockAcquired } = await heartbeatStart(
       supabase,
       JOB_NAME,
       currentBarId,
       `${mode}-s${numeroSemana}`,
-      "manual"
+      "manual",
+      useLock,
+      30
     );
+
+    // Se não conseguiu o lock, pular este bar
+    if (useLock && !lockAcquired) {
+      console.log(`⏭️ [V2] Pulando bar ${currentBarId}: já está sendo processado`);
+      allResults.push({
+        bar_id: currentBarId,
+        ano,
+        numero_semana: numeroSemana,
+        mode,
+        write_executed: false,
+        calculators_executed: [],
+        calculators_with_error: [],
+        total_fields_calculated: 0,
+        total_fields_divergent: 0,
+        diff_summary: { significant_diffs: [], all_diffs: [] },
+        validation_errors: ['Job já em execução - lock não adquirido'],
+      });
+      continue;
+    }
 
     try {
       const result = await processBarWeek(supabase, currentBarId, ano, numeroSemana, mode);
@@ -554,7 +578,8 @@ serve(async (req: Request) => {
           ? `Calculators com erro: ${result.calculators_with_error.join(", ")}`
           : undefined,
         JOB_NAME,
-        currentBarId
+        currentBarId,
+        useLock
       );
     } catch (err) {
       console.error(`Erro ao processar bar ${currentBarId}:`, err);
@@ -565,7 +590,8 @@ serve(async (req: Request) => {
         err instanceof Error ? err : new Error(String(err)),
         { bar_id: currentBarId, ano, numero_semana: numeroSemana },
         JOB_NAME,
-        currentBarId
+        currentBarId,
+        useLock
       );
 
       allResults.push({
