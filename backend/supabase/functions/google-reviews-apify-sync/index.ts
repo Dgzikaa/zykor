@@ -1,10 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
+import { withRetry, isRetriableError } from '../_shared/retry.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  `, x-cron-secret`,
 }
 
 interface ApifyReview {
@@ -56,8 +57,14 @@ const BAR_PLACE_IDS: Record<number, { placeId: string; name: string }> = {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders }
+
+  // Validar autenticação (JWT ou CRON_SECRET)
+  const authError = requireAuth(req);
+  if (authError) return authError;)
   }
 
   let heartbeatId: number | null = null
@@ -126,20 +133,37 @@ serve(async (req) => {
             console.log(`Buscando reviews desde ${startDate} para ${barConfig.name}`)
           }
           
-          const runResponse = await fetch(
-            `https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=${apifyToken}`,
+          const runData = await withRetry(
+            async () => {
+              const runResponse = await fetch(
+                `https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=${apifyToken}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(apifyInput)
+                }
+              )
+
+              if (!runResponse.ok) {
+                const error: any = new Error(`Erro ao iniciar scraping no Apify: ${runResponse.status}`)
+                error.status = runResponse.status
+                throw error
+              }
+
+              const runData = await runResponse.json()
+              
+              if (!runData.data?.id) {
+                throw new Error('Falha ao iniciar scraping no Apify')
+              }
+
+              return runData
+            },
             {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(apifyInput)
+              maxRetries: 3,
+              baseDelayMs: 1000,
+              retryOn: isRetriableError
             }
           )
-
-          const runData = await runResponse.json()
-          
-          if (!runData.data?.id) {
-            throw new Error('Falha ao iniciar scraping no Apify')
-          }
 
           const runId = runData.data.id
           let status = 'RUNNING'
@@ -150,10 +174,27 @@ serve(async (req) => {
           while (status === 'RUNNING' && attempts < maxAttempts) {
             await new Promise(resolve => setTimeout(resolve, 5000))
             
-            const statusResponse = await fetch(
-              `https://api.apify.com/v2/actor-runs/${runId}?token=${apifyToken}`
+            const statusData = await withRetry(
+              async () => {
+                const statusResponse = await fetch(
+                  `https://api.apify.com/v2/actor-runs/${runId}?token=${apifyToken}`
+                )
+                
+                if (!statusResponse.ok) {
+                  const error: any = new Error(`Erro ao verificar status do Apify: ${statusResponse.status}`)
+                  error.status = statusResponse.status
+                  throw error
+                }
+                
+                return await statusResponse.json()
+              },
+              {
+                maxRetries: 3,
+                baseDelayMs: 1000,
+                retryOn: isRetriableError
+              }
             )
-            const statusData = await statusResponse.json()
+            
             status = statusData.data?.status || 'FAILED'
             attempts++
           }
@@ -180,15 +221,26 @@ serve(async (req) => {
         const limit = 1000
 
         while (true) {
-          const datasetResponse = await fetch(
-            `https://api.apify.com/v2/datasets/${datasetIdToUse}/items?token=${apifyToken}&offset=${offset}&limit=${limit}`
-          )
-          
-          if (!datasetResponse.ok) {
-            throw new Error(`Erro ao buscar dataset: ${datasetResponse.status}`)
-          }
+          const reviews: ApifyReview[] = await withRetry(
+            async () => {
+              const datasetResponse = await fetch(
+                `https://api.apify.com/v2/datasets/${datasetIdToUse}/items?token=${apifyToken}&offset=${offset}&limit=${limit}`
+              )
+              
+              if (!datasetResponse.ok) {
+                const error: any = new Error(`Erro ao buscar dataset: ${datasetResponse.status}`)
+                error.status = datasetResponse.status
+                throw error
+              }
 
-          const reviews: ApifyReview[] = await datasetResponse.json()
+              return await datasetResponse.json()
+            },
+            {
+              maxRetries: 3,
+              baseDelayMs: 1000,
+              retryOn: isRetriableError
+            }
+          )
           
           if (reviews.length === 0) break
           

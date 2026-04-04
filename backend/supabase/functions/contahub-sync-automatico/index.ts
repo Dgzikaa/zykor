@@ -1,13 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { heartbeatStart, heartbeatEnd, heartbeatError } from "../_shared/heartbeat.ts";
+import { withRetry, isRetriableError } from "../_shared/retry.ts";
+import { validateFunctionEnv } from "../_shared/env-validator.ts";
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 console.log("📊 ContaHub Sync - Coleta de Dados (Processamento via pg_cron)");
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
 
 function generateDynamicTimestamp(): string {
   const now = new Date();
@@ -63,60 +63,82 @@ async function sendDiscordNotification(message: string, isError: boolean = false
 async function loginContaHub(email: string, password: string): Promise<string> {
   console.log('🔐 Fazendo login no ContaHub...');
   
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-1', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const passwordSha1 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  const loginData = new URLSearchParams({
-    "usr_email": email,
-    "usr_password_sha1": passwordSha1
-  });
-  
-  const loginTimestamp = generateDynamicTimestamp();
-  const loginResponse = await fetch(`https://sp.contahub.com/rest/contahub.cmds.UsuarioCmd/login/${loginTimestamp}?emp=0`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Accept': 'application/json'
+  return await withRetry(
+    async () => {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(password);
+      const hashBuffer = await crypto.subtle.digest('SHA-1', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const passwordSha1 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      const loginData = new URLSearchParams({
+        "usr_email": email,
+        "usr_password_sha1": passwordSha1
+      });
+      
+      const loginTimestamp = generateDynamicTimestamp();
+      const loginResponse = await fetch(`https://sp.contahub.com/rest/contahub.cmds.UsuarioCmd/login/${loginTimestamp}?emp=0`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
+        },
+        body: loginData,
+      });
+      
+      if (!loginResponse.ok) {
+        const error: any = new Error(`Erro no login ContaHub: ${loginResponse.statusText}`);
+        error.status = loginResponse.status;
+        throw error;
+      }
+      
+      const setCookieHeaders = loginResponse.headers.get('set-cookie');
+      if (!setCookieHeaders) {
+        throw new Error('Cookies de sessão não encontrados no login');
+      }
+      
+      console.log('✅ Login ContaHub realizado com sucesso');
+      return setCookieHeaders;
     },
-    body: loginData,
-  });
-  
-  if (!loginResponse.ok) {
-    throw new Error(`Erro no login ContaHub: ${loginResponse.statusText}`);
-  }
-  
-  const setCookieHeaders = loginResponse.headers.get('set-cookie');
-    if (!setCookieHeaders) {
-    throw new Error('Cookies de sessão não encontrados no login');
-  }
-  
-  console.log('✅ Login ContaHub realizado com sucesso');
-  return setCookieHeaders;
+    {
+      maxRetries: 3,
+      baseDelayMs: 1000,
+      retryOn: isRetriableError
+    }
+  );
 }
 
 // Função para fazer requisições ao ContaHub
 async function fetchContaHubData(url: string, sessionToken: string) {
   console.log(`🔍 Fazendo requisição: ${url}`);
   
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Cookie': sessionToken,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Accept': 'application/json'
+  return await withRetry(
+    async () => {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Cookie': sessionToken,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
+        },
+      });
+      
+      if (!response.ok) {
+        const error: any = new Error(`Erro na requisição ContaHub: ${response.statusText}`);
+        error.status = response.status;
+        throw error;
+      }
+      
+      const responseText = await response.text();
+      return JSON.parse(responseText);
     },
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Erro na requisição ContaHub: ${response.statusText}`);
-  }
-  
-  const responseText = await response.text();
-  return JSON.parse(responseText);
+    {
+      maxRetries: 3,
+      baseDelayMs: 1000,
+      retryOn: isRetriableError
+    }
+  );
 }
 
 // Locais conhecidos do Ordinário Bar (usado para dividir queries grandes)
@@ -310,8 +332,14 @@ async function saveRawDataOnly(supabase: any, dataType: string, rawData: any, da
 // Processamento será feito via pg_cron - função removida
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders }
+
+  // Validar autenticação (JWT ou CRON_SECRET)
+  const authError = requireAuth(req);
+  if (authError) return authError;);
   }
 
   // 💓 Heartbeat: variáveis no escopo externo para acesso no catch
@@ -319,6 +347,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let startTime: number = Date.now();
 
   try {
+    // Validar variáveis de ambiente obrigatórias
+    validateFunctionEnv('contahub-sync-automatico', [
+      'SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY'
+    ]);
+
     const requestBody = await req.text();
     console.log('📊 Body recebido:', requestBody);
     

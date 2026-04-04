@@ -8,6 +8,8 @@
  * @date 2026-02-10
  */
 
+import { withRetry, isRetriableError } from './retry.ts'
+
 // Credenciais da Service Account - carregadas de variável de ambiente
 export function getCredentials(): { client_email: string; private_key: string } {
   const serviceAccountKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY')
@@ -113,21 +115,32 @@ export async function getFileMimeType(
   fileId: string,
   accessToken: string
 ): Promise<{ mimeType: string; name: string }> {
-  const metadataUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,mimeType`
-  
-  const response = await fetch(metadataUrl, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
-  })
+  return await withRetry(
+    async () => {
+      const metadataUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,mimeType`
+      
+      const response = await fetch(metadataUrl, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      })
 
-  if (!response.ok) {
-    throw new Error(`Erro ao obter metadados do arquivo: ${response.status} ${response.statusText}`)
-  }
+      if (!response.ok) {
+        const error: any = new Error(`Erro ao obter metadados do arquivo: ${response.status} ${response.statusText}`)
+        error.status = response.status
+        throw error
+      }
 
-  const data = await response.json()
-  return {
-    mimeType: data.mimeType,
-    name: data.name
-  }
+      const data = await response.json()
+      return {
+        mimeType: data.mimeType,
+        name: data.name
+      }
+    },
+    {
+      maxRetries: 3,
+      baseDelayMs: 1000,
+      retryOn: isRetriableError
+    }
+  )
 }
 
 /**
@@ -159,15 +172,26 @@ export async function downloadDriveFileAsExcel(
     console.log(`📁 Tipo: Arquivo nativo → usando ?alt=media`)
   }
   
-  const fileResponse = await fetch(downloadUrl, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
-  })
+  return await withRetry(
+    async () => {
+      const fileResponse = await fetch(downloadUrl, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      })
 
-  if (!fileResponse.ok) {
-    throw new Error(`Erro ao baixar arquivo: ${fileResponse.status} ${fileResponse.statusText}`)
-  }
+      if (!fileResponse.ok) {
+        const error: any = new Error(`Erro ao baixar arquivo: ${fileResponse.status} ${fileResponse.statusText}`)
+        error.status = fileResponse.status
+        throw error
+      }
 
-  return await fileResponse.arrayBuffer()
+      return await fileResponse.arrayBuffer()
+    },
+    {
+      maxRetries: 3,
+      baseDelayMs: 1000,
+      retryOn: isRetriableError
+    }
+  )
 }
 
 /**

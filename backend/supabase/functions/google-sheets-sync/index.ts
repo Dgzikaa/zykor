@@ -20,6 +20,8 @@ import { getGoogleAccessToken, downloadDriveFileAsExcel, parseDataBR, parseDataU
 import { getSupabaseServiceClient, getBarsAtivos, getApiConfig } from '../_shared/supabase-client.ts'
 import { handleCorsOptions, jsonResponse, errorResponse } from '../_shared/cors.ts'
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
+import { withRetry, isRetriableError } from '../_shared/retry.ts'
+import { validateFunctionEnv } from '../_shared/env-validator.ts'
 
 // ========== TIPOS ==========
 interface SyncResult {
@@ -714,8 +716,18 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return handleCorsOptions()
   }
+
+  // Validar autenticação (JWT ou CRON_SECRET)
+  const authError = requireAuth(req);
+  if (authError) return authError;
   
   try {
+    // Validar variáveis de ambiente obrigatórias
+    validateFunctionEnv('google-sheets-sync', [
+      'SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'GOOGLE_SERVICE_ACCOUNT_KEY'
+    ]);
     const body = await req.json().catch(() => ({}))
     const { action, actions, bar_id, data_inicio, data_fim } = body
     const opts = (data_inicio || data_fim) ? { data_inicio, data_fim } : undefined

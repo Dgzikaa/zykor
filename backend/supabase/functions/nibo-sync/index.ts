@@ -13,11 +13,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts';
+import { withRetry, isRetriableError } from '../_shared/retry.ts';
+import { requireAuth } from '../_shared/auth-guard.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
 
 const NIBO_BASE_URL = 'https://api.nibo.com.br/empresas/v1';
 
@@ -87,21 +87,33 @@ async function fetchNiboSchedules(
   while (true) {
     const url = `${NIBO_BASE_URL}/${endpoint}?apitoken=${apiToken}&$orderby=dueDate&$skip=${skip}&$top=${top}`;
 
-    const response = await fetch(url, {
-      headers: {
-        'accept': 'application/json',
-        'ApiToken': apiToken,
+    const { data, items } = await withRetry(
+      async () => {
+        const response = await fetch(url, {
+          headers: {
+            'accept': 'application/json',
+            'ApiToken': apiToken,
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`❌ Erro NIBO ${response.status}:`, errorText);
+          const error: any = new Error(`Erro NIBO ${response.status}: ${errorText}`);
+          error.status = response.status;
+          throw error;
+        }
+
+        const data = await response.json();
+        const items = data.items || data.value || [];
+        return { data, items };
       },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Erro NIBO ${response.status}:`, errorText);
-      throw new Error(`Erro NIBO ${response.status}: ${errorText}`);
-    }
-
-    const data = await response.json();
-    const items = data.items || data.value || [];
+      {
+        maxRetries: 3,
+        baseDelayMs: 1000,
+        retryOn: isRetriableError
+      }
+    );
 
     if (items.length === 0) {
       break;
@@ -155,22 +167,45 @@ async function fetchNiboReceipts(
   while (true) {
     const url = `${NIBO_BASE_URL}/receipts?apitoken=${apiToken}&$orderby=accrualDate&$skip=${skip}&$top=${top}`;
 
-    const response = await fetch(url, {
-      headers: {
-        'accept': 'application/json',
-        'ApiToken': apiToken,
-      },
-    });
+    let data: any;
+    let items: any[];
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Erro NIBO receipts ${response.status}:`, errorText);
+    try {
+      const result = await withRetry(
+        async () => {
+          const response = await fetch(url, {
+            headers: {
+              'accept': 'application/json',
+              'ApiToken': apiToken,
+            },
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ Erro NIBO receipts ${response.status}:`, errorText);
+            const error: any = new Error(`Erro NIBO receipts ${response.status}: ${errorText}`);
+            error.status = response.status;
+            throw error;
+          }
+
+          const data = await response.json();
+          const items = data.items || data.value || [];
+          return { data, items };
+        },
+        {
+          maxRetries: 3,
+          baseDelayMs: 1000,
+          retryOn: isRetriableError
+        }
+      );
+      
+      data = result.data;
+      items = result.items;
+    } catch (error) {
+      console.error(`❌ Erro ao buscar receipts após retries:`, error);
       // Não lançar erro, apenas retornar vazio se falhar
       return [];
     }
-
-    const data = await response.json();
-    const items = data.items || data.value || [];
 
     if (items.length === 0) {
       break;
@@ -278,8 +313,14 @@ function normalizarAgendamento(item: NiboScheduleItem, tipo: string, barId: numb
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders }
+
+  // Validar autenticação (JWT ou CRON_SECRET)
+  const authError = requireAuth(req);
+  if (authError) return authError;);
   }
 
   // 💓 Heartbeat: variáveis no escopo externo para acesso no catch
@@ -288,6 +329,12 @@ serve(async (req) => {
 
   try {
     console.log('🚀 NIBO Sync - Iniciando sincronização');
+
+    // Validar variáveis de ambiente obrigatórias
+    validateFunctionEnv('nibo-sync', [
+      'SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY'
+    ]);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
