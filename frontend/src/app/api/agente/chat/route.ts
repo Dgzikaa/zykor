@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase-server'
 import { getUserAuth } from '@/lib/auth-helper'
+import { getSupabaseFunctionsUrl } from '@/lib/supabase-functions-url'
+import { withRateLimit, RATE_LIMIT_PRESETS } from '@/lib/rate-limiter-middleware'
 
-const SUPABASE_FUNCTIONS_URL = 'https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1'
+const SUPABASE_FUNCTIONS_URL = getSupabaseFunctionsUrl()
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
-export async function POST(request: NextRequest) {
+async function handleChat(request: NextRequest) {
   try {
     // Autenticar usando o sistema de cookies/headers do projeto
     const user = await getUserAuth(request)
@@ -112,8 +114,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export const POST = withRateLimit(handleChat, RATE_LIMIT_PRESETS.AI);
+
 // Buscar histórico de conversas
-export async function GET(request: NextRequest) {
+async function handleGetHistory(request: NextRequest) {
   try {
     // Autenticar usando o sistema de cookies/headers do projeto
     const user = await getUserAuth(request)
@@ -164,3 +168,5 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+export const GET = withRateLimit(handleGetHistory, RATE_LIMIT_PRESETS.AI);

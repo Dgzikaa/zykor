@@ -90,9 +90,21 @@ export default function WebhooksPage() {
   const [isConfigurando, setIsConfigurando] = useState(false);
   const [isTestandoAuth, setIsTestandoAuth] = useState(false);
   const [authResult, setAuthResult] = useState<InterAuthResponse | null>(null);
+  // Gerar URL do webhook dinamicamente
+  const getDefaultWebhookUrl = () => {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) return '';
+      const match = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/);
+      if (!match) return '';
+      return `https://${match[1]}.supabase.co/functions/v1/inter-webhook`;
+    } catch {
+      return '';
+    }
+  };
+
   const [novoWebhook, setNovoWebhook] = useState<WebhookConfig>({
-    webhookUrl:
-      'https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/inter-webhook',
+    webhookUrl: getDefaultWebhookUrl(),
     tipoWebhook: 'pix-pagamento',
     conta_corrente: '',
   });

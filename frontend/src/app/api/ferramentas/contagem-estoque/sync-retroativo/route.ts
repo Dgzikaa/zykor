@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseFunctionUrl } from '@/lib/supabase-functions-url';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutos
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     // Chamar Edge Function com SERVICE_ROLE_KEY
     const response = await fetch(
-      `https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/sync-contagem-retroativo`,
+      getSupabaseFunctionUrl('sync-contagem-retroativo'),
       {
         method: 'POST',
         headers: {

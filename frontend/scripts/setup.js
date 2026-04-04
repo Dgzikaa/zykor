@@ -24,11 +24,13 @@ const jwtRefreshSecret = crypto.randomBytes(64).toString('hex');
 const envTemplate = `# ZYKOR - Configuração Automática - ${new Date().toISOString()}
 
 # =============================================================================
-# 🔗 SUPABASE (ATUALIZE COM SUAS CHAVES)
+# 🔗 SUPABASE (OBRIGATÓRIO - ATUALIZE COM SUAS CHAVES)
 # =============================================================================
-NEXT_PUBLIC_SUPABASE_URL=https://uqtgsvujwcbymjmvkjhy.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=SEU_ANON_KEY_AQUI
-SUPABASE_SERVICE_KEY=SEU_SERVICE_KEY_AQUI
+# ⚠️ NUNCA commite este arquivo com valores reais!
+# Obtenha suas chaves em: https://supabase.com/dashboard/project/[seu-projeto]/settings/api
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
 
 # =============================================================================
 # 🤖 IA PROVIDERS (ADICIONE PELO MENOS UM)

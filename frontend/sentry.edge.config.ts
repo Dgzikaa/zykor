@@ -3,28 +3,27 @@
 // Note that this config is unrelated to the Vercel Edge Runtime and is also required when running locally.
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
-// Sentry temporariamente desabilitado para resolver warnings de instrumentação
-// import * as Sentry from "@sentry/nextjs";
+import * as Sentry from "@sentry/nextjs";
 
-// Sentry.init({
-//   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-//   // Performance Monitoring (FREE TIER: reduzir para economizar quota)
-//   tracesSampleRate: 0.05, // 5% para edge (menor que outros)
+  // Performance Monitoring (FREE TIER: reduzir para economizar quota)
+  tracesSampleRate: 0.1, // 10% para edge (alinhado com server)
 
-//   // Environment
-//   environment: process.env.NODE_ENV,
+  // Environment
+  environment: process.env.NODE_ENV,
 
-//   // Edge optimizations (menor overhead)
-//   enableLogs: false, // Desabilitado para edge
-//   debug: false,
+  // Edge optimizations (menor overhead)
+  enableLogs: false, // Desabilitado para edge
+  debug: false,
   
-//   // Tags adicionais
-//   initialScope: {
-//     tags: {
-//       component: "edge",
-//       version: process.env.NEXT_PUBLIC_APP_VERSION || "2.0.0",
-//       platform: "zykor"
-//     },
-//   },
-// });
+  // Tags adicionais
+  initialScope: {
+    tags: {
+      component: "edge",
+      version: process.env.NEXT_PUBLIC_APP_VERSION || "2.0.0",
+      platform: "zykor"
+    },
+  },
+});

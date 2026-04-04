@@ -1,4 +1,4 @@
-﻿const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = process.env.NODE_ENV === 'development';
 const isProduction = process.env.NODE_ENV === 'production';
 const isVerboseLogging = process.env.NEXT_PUBLIC_VERBOSE_LOGS === 'true';
 
@@ -83,17 +83,18 @@ export const logger = {
     if (isDevelopment) {
       console.warn(`[${new Date().toISOString()}] WARN: ${message}`, ...args);
     } else if (isProduction) {
-      // ✅ Warnings críticos em produção
+      // ✅ Warnings críticos em produção (vão para o Sentry)
       console.warn(`[PROD-WARN] ${message}`, ...args);
     }
   },
   info: (message: string, ...args: unknown[]) => {
+    // ✅ Info apenas em desenvolvimento (não vai para Sentry em produção)
     if (isDevelopment) {
       console.info(`[${new Date().toISOString()}] INFO: ${message}`, ...args);
     }
   },
   debug: (message: string, ...args: unknown[]) => {
-    // ✅ Debug apenas em desenvolvimento
+    // ✅ Debug apenas em desenvolvimento (não vai para Sentry em produção)
     if (isDevelopment) {
       console.debug(`[${new Date().toISOString()}] DEBUG: ${message}`, ...args);
     }

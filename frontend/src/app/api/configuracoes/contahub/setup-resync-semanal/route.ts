@@ -8,6 +8,10 @@ export async function POST(request: NextRequest) {
 -- CRONJOB: RE-SINCRONIZAÇÃO SEMANAL CONTAHUB
 -- ============================================================================
 -- 
+-- ⚠️ IMPORTANTE: Antes de executar, substitua a URL abaixo pela URL do seu projeto:
+--    Substitua: https://uqtgsvujwcbymjmvkjhy.supabase.co
+--    Por: https://[SEU-PROJECT-ID].supabase.co
+-- 
 -- OBJETIVO: Re-sincronizar dados da semana anterior toda segunda-feira
 -- 
 -- PROBLEMA RESOLVIDO:

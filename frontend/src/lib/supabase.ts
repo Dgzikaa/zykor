@@ -8,12 +8,10 @@ import type { Database } from '../types/supabase';
 let supabaseClient: SupabaseClient<Database> | null = null;
 let configLoaded = false;
 
-// Configurações do projeto - URL fixa, anon key atualizada automaticamente
+// Configurações do projeto - SEMPRE usar variáveis de ambiente
 const SUPABASE_CONFIG = {
-  url: 'https://uqtgsvujwcbymjmvkjhy.supabase.co',
-  anonKey:
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdGdzdnVqd2NieW1qbXZramh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzMTExNjYsImV4cCI6MjA2Njg4NzE2Nn0.59x53jDOpNe9yVevnP-TcXr6Dkj0QjU8elJb636xV6M',
+  url: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
 };
 
 // Função para inicializar o cliente Supabase
@@ -23,6 +21,13 @@ async function initializeSupabaseClient() {
   }
 
   try {
+    // Validar variáveis de ambiente
+    if (!SUPABASE_CONFIG.url || !SUPABASE_CONFIG.anonKey) {
+      throw new Error(
+        'Variáveis de ambiente NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY são obrigatórias'
+      );
+    }
+
     // Criar cliente com configurações públicas
     supabaseClient = createSupabaseClient<Database>(
       SUPABASE_CONFIG.url,

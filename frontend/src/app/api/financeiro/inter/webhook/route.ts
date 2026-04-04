@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import https from 'https';
 import { getInterCertificates } from '@/lib/inter/certificates';
+import { getSupabaseFunctionUrl } from '@/lib/supabase-functions-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +12,7 @@ const supabase = createClient(
 );
 
 // URL do webhook no Supabase
-const WEBHOOK_URL = 'https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/inter-pix-webhook';
+const WEBHOOK_URL = getSupabaseFunctionUrl('inter-pix-webhook');
 
 // Função para obter credenciais do Inter
 async function getInterCredentials(barId: number) {

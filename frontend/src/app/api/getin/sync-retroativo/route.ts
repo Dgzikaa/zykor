@@ -16,7 +16,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Chamar a Edge Function com os parâmetros de data
-    const functionUrl = 'https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/getin-sync-continuous'
+    const { getSupabaseFunctionUrl } = await import('@/lib/supabase-functions-url');
+    const functionUrl = getSupabaseFunctionUrl('getin-sync-continuous')
     
     const response = await fetch(functionUrl, {
       method: 'POST',

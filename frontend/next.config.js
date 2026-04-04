@@ -20,9 +20,9 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
 
-  // ✅ ESLint - ignorar durante build (warnings tratados como erros)
+  // ✅ ESLint - habilitado no build para garantir qualidade
   eslint: {
-    ignoreDuringBuilds: true, // TODO: Corrigir warnings do ESLint e remover
+    ignoreDuringBuilds: false,
   },
 
   // ✅ Configurações de imagem (remotePatterns substitui domains)
@@ -196,7 +196,7 @@ const nextConfig = {
   // ✅ Configurações de compilação
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? {
-      exclude: ['error'], // Manter console.error em produção
+      exclude: ['error', 'warn'], // Manter console.error e console.warn em produção
     } : false,
   },
   

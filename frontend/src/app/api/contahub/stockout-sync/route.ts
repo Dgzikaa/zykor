@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getSupabaseFunctionUrl } from '@/lib/supabase-functions-url';
+import { withRateLimit, RATE_LIMIT_PRESETS } from '@/lib/rate-limiter-middleware';
 
 export const dynamic = 'force-dynamic'
 
@@ -93,7 +95,7 @@ async function barFuncionaNoDia(barId: number, diaSemana: number): Promise<boole
   }
 }
 
-export async function GET(request: NextRequest) {
+async function handleStockoutGet(request: NextRequest) {
   try {
     // Usar data de ontem (dados do dia anterior às 20h)
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -127,7 +129,7 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        const response = await fetch('https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/contahub-stockout-sync', {
+        const response = await fetch(getSupabaseFunctionUrl('contahub-stockout-sync'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -176,7 +178,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export const GET = withRateLimit(handleStockoutGet, RATE_LIMIT_PRESETS.INTEGRATION);
+
+async function handleStockoutPost(request: NextRequest) {
   try {
     const body = await request.json();
     const { data_date, bar_id, force } = body;
@@ -217,7 +221,7 @@ export async function POST(request: NextRequest) {
       }
       
       try {
-        const response = await fetch('https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/contahub-stockout-sync', {
+        const response = await fetch(getSupabaseFunctionUrl('contahub-stockout-sync'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -261,3 +265,5 @@ export async function POST(request: NextRequest) {
     }, { status: 500 });
   }
 }
+
+export const POST = withRateLimit(handleStockoutPost, RATE_LIMIT_PRESETS.INTEGRATION);

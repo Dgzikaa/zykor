@@ -68,10 +68,31 @@ serve(async (req) => {
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // 💓 Heartbeat: registrar início da execução
-    const hbResult = await heartbeatStart(supabase, 'cmv-semanal-auto', bar_id || null, todas_semanas ? 'todas' : 'recalculo', 'pgcron');
+    // 💓 Heartbeat: registrar início da execução com advisory lock
+    const hbResult = await heartbeatStart(
+      supabase, 
+      'cmv-semanal-auto', 
+      bar_id || null, 
+      todas_semanas ? 'todas' : 'recalculo', 
+      'pgcron',
+      true, // useLock
+      30    // timeout 30 minutos
+    );
     heartbeatId = hbResult.heartbeatId;
     startTime = hbResult.startTime;
+    
+    // Se não conseguiu o lock, abortar execução
+    if (!hbResult.lockAcquired) {
+      console.log('🔒 CMV Semanal já em execução, abortando');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: 'CMV Semanal já em execução',
+          lock_acquired: false 
+        }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Buscar bares ativos do banco (com fallback)
     let baresAtivos: number[] = [3, 4]; // Fallback

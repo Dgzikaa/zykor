@@ -15,6 +15,10 @@ export async function POST(request: NextRequest) {
     
     const cronJobSQL = `-- CONFIGURAR PG_CRON PARA CONTAHUB
 -- Execute este SQL no Supabase SQL Editor:
+-- 
+-- ⚠️ IMPORTANTE: Antes de executar, substitua a URL abaixo pela URL do seu projeto:
+--    Substitua: https://uqtgsvujwcbymjmvkjhy.supabase.co
+--    Por: https://[SEU-PROJECT-ID].supabase.co
 
 -- 1. Remover jobs antigos (se existirem)
 SELECT cron.unschedule('contahub-sync-daily-07h');

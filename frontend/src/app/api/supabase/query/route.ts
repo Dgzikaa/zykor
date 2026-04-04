@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic'
 
-const SUPABASE_PROJECT_ID = "uqtgsvujwcbymjmvkjhy";
+// Extrair project ID da URL do Supabase
+const getProjectId = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) return '';
+  const match = url.match(/https:\/\/([^.]+)\.supabase\.co/);
+  return match ? match[1] : '';
+};
+
+const SUPABASE_PROJECT_ID = getProjectId();
 
 interface Evento {
   id: number;
