@@ -149,16 +149,16 @@ export async function GET(request: NextRequest) {
 // ==================== FUNÇÕES AUXILIARES ====================
 
 /**
- * Buscar detalhes de compras do Nibo
+ * Buscar detalhes de compras do Conta Azul
  */
 async function buscarDetalhesCompras(barId: number, dataInicio: string, dataFim: string, campo: string) {
   const { data, error } = await supabase
-    .from('nibo_agendamentos')
+    .from('lancamentos_financeiros')
     .select('*')
     .eq('bar_id', barId)
     .gte('data_vencimento', dataInicio)
     .lte('data_vencimento', dataFim)
-    .eq('tipo', 'Debit')
+    .eq('tipo', 'DESPESA')
     .order('data_vencimento', { ascending: true });
 
   if (error) {
@@ -168,7 +168,7 @@ async function buscarDetalhesCompras(barId: number, dataInicio: string, dataFim:
 
   if (!data || data.length === 0) return [];
 
-  // Mapear categorias - baseado nas categorias reais do Nibo
+  // Mapear categorias - baseado nas categorias reais do Conta Azul
   const categoriasCozinha = ['Custo Comida', 'Custo Cozinha', 'COMIDA', 'ALIMENTAÇÃO'];
   const categoriasBebidas = ['Custo Bebidas', 'BEBIDAS', 'Cerveja', 'Vinho'];
   const categoriasDrinks = ['Custo Drinks', 'DESTILADOS', 'DRINKS'];
@@ -177,7 +177,7 @@ async function buscarDetalhesCompras(barId: number, dataInicio: string, dataFim:
 
   data.forEach((agendamento: any) => {
     const valor = parseFloat(agendamento.valor || 0);
-    const categoria = agendamento.categoria_nome || '';
+    const categoria = agendamento.categoria || '';
     const fornecedor = agendamento.stakeholder_nome || 'Fornecedor não especificado';
     const descricao = agendamento.descricao || agendamento.titulo || categoria;
 

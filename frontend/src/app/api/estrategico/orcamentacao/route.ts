@@ -39,10 +39,10 @@ export async function GET(request: Request) {
       console.error('Erro ao buscar dados planejados:', errorPlanejado);
     }
 
-    // 2. Buscar dados realizados do NIBO (por competência, não por pagamento)
+    // 2. Buscar dados realizados do Conta Azul (por competência, não por pagamento)
     let queryNibo = supabase
-      .from('nibo_agendamentos')
-      .select('categoria_nome, status, valor, data_competencia')
+      .from('lancamentos_financeiros')
+      .select('categoria, status, valor, data_competencia')
       .eq('bar_id', parseInt(barId))
       .gte('data_competencia', `${ano}-01-01`)
       .lte('data_competencia', `${ano}-12-31`);
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     const { data: dadosNibo, error: errorNibo } = await queryNibo;
 
     if (errorNibo) {
-      console.error('Erro ao buscar dados NIBO:', errorNibo);
+      console.error('Erro ao buscar dados Conta Azul:', errorNibo);
     }
 
     // 2.1. Buscar lançamentos manuais da DRE (não tem bar_id - são globais)
@@ -175,14 +175,14 @@ export async function GET(request: Request) {
     const valoresRealizados = new Map<string, number>();
     let receitaTotal = 0;
     
-    // Primeiro, calcular receita total para porcentagens (Nibo + Manuais)
+    // Primeiro, calcular receita total para porcentagens (Conta Azul + Manuais)
     dadosNibo?.forEach(item => {
-      if (!item.categoria_nome) return;
+      if (!item.categoria) return;
       
       const valor = Math.abs(parseFloat(item.valor) || 0);
       
       // Categorias que são receita
-      if (['Receita de Eventos', 'Stone Crédito', 'Stone Débito', 'Stone Pix', 'Dinheiro', 'Pix Direto na Conta', 'RECEITA BRUTA'].includes(item.categoria_nome)) {
+      if (['Receita de Eventos', 'Stone Crédito', 'Stone Débito', 'Stone Pix', 'Dinheiro', 'Pix Direto na Conta', 'RECEITA BRUTA'].includes(item.categoria)) {
         receitaTotal += valor;
       }
     });
@@ -197,13 +197,13 @@ export async function GET(request: Request) {
     
     // Depois, calcular valores por categoria
     dadosNibo?.forEach(item => {
-      if (!item.categoria_nome) return;
+      if (!item.categoria) return;
       
       const valorOriginal = parseFloat(item.valor) || 0;
       const valor = Math.abs(valorOriginal);
       
       // Mapear categoria normalmente
-      const categoriaNormalizada = categoriasMap.get(item.categoria_nome) || item.categoria_nome;
+      const categoriaNormalizada = categoriasMap.get(item.categoria) || item.categoria;
       
       if (!valoresRealizados.has(categoriaNormalizada)) {
         valoresRealizados.set(categoriaNormalizada, 0);

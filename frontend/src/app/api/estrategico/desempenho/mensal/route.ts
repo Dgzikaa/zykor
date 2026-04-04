@@ -117,17 +117,16 @@ export async function GET(request: NextRequest) {
       );
     }
     const { data: niboAtracaoRows, error: niboError } = await supabase
-      .from('nibo_agendamentos')
+      .from('lancamentos_financeiros')
       .select('valor')
       .eq('bar_id', barId)
-      .eq('tipo', 'despesa')
-      .eq('deletado', false)
-      .in('categoria_nome', categoriasAtracao)
+      .eq('tipo', 'DESPESA')
+      .in('categoria', categoriasAtracao)
       .gte('data_competencia', dataInicio)
       .lte('data_competencia', dataFim);
 
     if (niboError) {
-      console.error('Erro ao buscar atrações NIBO mensal:', niboError);
+      console.error('Erro ao buscar atrações Conta Azul mensal:', niboError);
     }
 
     const atracoesEventos = (niboAtracaoRows || []).reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);

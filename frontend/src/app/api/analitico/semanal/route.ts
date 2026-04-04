@@ -323,12 +323,12 @@ export async function GET(request: NextRequest) {
 
       // 6. CALCULAR CMO
             const { data: cmoData, error: cmoError } = await supabase
-        .from('nibo_agendamentos')
+        .from('lancamentos_financeiros')
         .select('valor')
         .eq('bar_id', barIdNum)
         .gte('data_competencia', inicioData)
         .lte('data_competencia', fimData)
-        .in('categoria_nome', [
+        .in('categoria', [
           'SALARIO FUNCIONARIOS', 'PROVISÃO TRABALHISTA', 'VALE TRANSPORTE',
           'FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA', 'FREELA LIMPEZA', 'FREELA SEGURANÇA'
         ]);
@@ -338,12 +338,12 @@ export async function GET(request: NextRequest) {
 
       // 7. CALCULAR % ARTÍSTICA/FATURAMENTO
             const { data: artisticaData, error: artisticaError } = await supabase
-        .from('nibo_agendamentos')
+        .from('lancamentos_financeiros')
         .select('valor')
         .eq('bar_id', barIdNum)
         .gte('data_competencia', inicioData)
         .lte('data_competencia', fimData)
-        .in('categoria_nome', ['ATRAÇÕES', 'PRODUÇÃO', 'MARKETING']);
+        .in('categoria', ['ATRAÇÕES', 'PRODUÇÃO', 'MARKETING']);
 
       const custoArtistico = !artisticaError && artisticaData ? 
         artisticaData.reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0) : 0;

@@ -292,7 +292,7 @@ serve(async (req) => {
         }
 
         console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Buscando compras NIBO...`);
-        // 4. Buscar compras do NIBO para esta semana (usando data_competencia)
+        // 4. Buscar compras do Conta Azul para esta semana (usando data_competencia)
         // CMV - Categorias de custo de mercadoria:
         // - Ordinário: CUSTO COMIDA, Custo Bebidas, Custo Drinks
         // - Deboche: CUSTO COMIDAS, CUSTO BEBIDAS, CUSTO DRINKS
@@ -300,12 +300,12 @@ serve(async (req) => {
         // - Ordinário: ALIMENTAÇÃO
         // - Deboche: Alimentação
         const { data: compras } = await supabase
-          .from('nibo_agendamentos')
-          .select('valor, categoria_nome, tipo')
+          .from('lancamentos_financeiros')
+          .select('valor, categoria, tipo')
           .eq('bar_id', barId)
           .gte('data_competencia', dataInicio)
           .lte('data_competencia', dataFim)
-          .or('categoria_nome.ilike.%custo comida%,categoria_nome.ilike.%custo bebida%,categoria_nome.ilike.%custo drink%,categoria_nome.ilike.alimenta%');
+          .or('categoria.ilike.%custo comida%,categoria.ilike.%custo bebida%,categoria.ilike.%custo drink%,categoria.ilike.alimenta%');
 
         const comprasPorCategoria = {
           cozinha: 0,    // CUSTO COMIDA / CUSTO COMIDAS
@@ -318,7 +318,7 @@ serve(async (req) => {
         compras?.forEach(c => {
           const valorBruto = parseFloat(String(c.valor)) || 0;
           const tipo = (c.tipo || '').toLowerCase();
-          const cat = (c.categoria_nome || '').toLowerCase();
+          const cat = (c.categoria || '').toLowerCase();
           
           // Se for receita (crédito/devolução), subtrai; se for despesa, soma
           const valor = tipo === 'receita' ? -valorBruto : valorBruto;

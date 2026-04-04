@@ -246,12 +246,12 @@ export async function GET(request: NextRequest) {
 
     while (hasMore) {
       const { data: pageData } = await supabase
-        .from('nibo_agendamentos')
-        .select('data_competencia, valor, categoria_nome')
+        .from('lancamentos_financeiros')
+        .select('data_competencia, valor, categoria')
         .gte('data_competencia', `${ano}-01-01`)
         .lt('data_competencia', `${ano + 1}-01-01`)
         .eq('bar_id', user.bar_id)
-        .in('categoria_nome', categoriasCMO)
+        .in('categoria', categoriasCMO)
         .order('data_competencia')
         .range(page * pageSize, (page + 1) * pageSize - 1);
 

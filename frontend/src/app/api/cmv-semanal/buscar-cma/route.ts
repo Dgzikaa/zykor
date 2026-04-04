@@ -76,26 +76,26 @@ export async function POST(request: NextRequest) {
       console.error('Erro ao buscar estoque inicial de funcionários:', err);
     }
 
-    // 2. BUSCAR COMPRAS DE ALIMENTAÇÃO (categoria "Alimentação" do NIBO)
+    // 2. BUSCAR COMPRAS DE ALIMENTAÇÃO (categoria "Alimentação" do Conta Azul)
     try {
       const dataInicioFull = data_inicio + (usarDataCriacao ? 'T00:00:00' : '');
       const dataFimFull = data_fim + (usarDataCriacao ? 'T23:59:59' : '');
 
       const queryBuilder = supabase
-        .from('nibo_agendamentos')
-        .select('categoria_nome, valor')
+        .from('lancamentos_financeiros')
+        .select('categoria, valor')
         .eq('bar_id', bar_id)
-        .eq('tipo', 'Debit');
+        .eq('tipo', 'DESPESA');
 
       const { data: comprasAlimentacao, error: errorCompras } = usarDataCriacao
-        ? await queryBuilder.gte('criado_em', dataInicioFull).lte('criado_em', dataFimFull)
+        ? await queryBuilder.gte('created_at', dataInicioFull).lte('created_at', dataFimFull)
         : await queryBuilder.gte('data_competencia', data_inicio).lte('data_competencia', data_fim);
 
       if (!errorCompras && comprasAlimentacao) {
         // Filtrar apenas categoria "Alimentação" (case-insensitive)
         resultado.compras_alimentacao = comprasAlimentacao
           .filter(item => {
-            const cat = (item.categoria_nome || '').toLowerCase();
+            const cat = (item.categoria || '').toLowerCase();
             return cat === 'alimentação' || cat === 'alimentacao';
           })
           .reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0);

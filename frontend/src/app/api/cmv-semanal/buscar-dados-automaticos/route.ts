@@ -180,18 +180,18 @@ export async function POST(request: NextRequest) {
       console.error('Erro ao buscar faturamento:', err);
     }
 
-    // 4. BUSCAR COMPRAS DO NIBO (exatamente como na planilha - alinhado com Edge Function)
-    // criterio_data: 'competencia' = data_competencia (padrão) | 'criacao' = criado_em
+    // 4. BUSCAR COMPRAS DO CONTA AZUL (exatamente como na planilha - alinhado com Edge Function)
+    // criterio_data: 'competencia' = data_competencia (padrão) | 'criacao' = created_at
     try {
       const dataInicioFull = data_inicio + (usarDataCriacao ? 'T00:00:00' : '');
       const dataFimFull = data_fim + (usarDataCriacao ? 'T23:59:59' : '');
       const queryBuilder = supabase
-        .from('nibo_agendamentos')
-        .select('categoria_nome, valor')
+        .from('lancamentos_financeiros')
+        .select('categoria, valor')
         .eq('bar_id', bar_id)
-        .eq('tipo', 'Debit');
+        .eq('tipo', 'DESPESA');
       const { data: comprasNibo, error: errorCompras } = usarDataCriacao
-        ? await queryBuilder.gte('criado_em', dataInicioFull).lte('criado_em', dataFimFull)
+        ? await queryBuilder.gte('created_at', dataInicioFull).lte('created_at', dataFimFull)
         : await queryBuilder.gte('data_competencia', data_inicio).lte('data_competencia', data_fim);
 
       if (!errorCompras && comprasNibo) {
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
         // BEBIDAS + TABACARIA = "Custo Bebidas" + "Custo Outros" (case-insensitive)
         resultado.compras_custo_bebidas = comprasNibo
           .filter(item => {
-            const cat = (item.categoria_nome || '').toLowerCase();
+            const cat = (item.categoria || '').toLowerCase();
             return cat === 'custo bebidas' || cat === 'custo outros';
           })
           .reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0);
@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
         // COZINHA = "CUSTO COMIDA" ou "Custo Comida" (case-insensitive)
         resultado.compras_custo_comida = comprasNibo
           .filter(item => {
-            const cat = (item.categoria_nome || '').toLowerCase();
+            const cat = (item.categoria || '').toLowerCase();
             return cat === 'custo comida';
           })
           .reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0);
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
         // DRINKS = "Custo Drinks" (case-insensitive)
         resultado.compras_custo_drinks = comprasNibo
           .filter(item => {
-            const cat = (item.categoria_nome || '').toLowerCase();
+            const cat = (item.categoria || '').toLowerCase();
             return cat === 'custo drinks';
           })
           .reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0);
@@ -524,24 +524,24 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 7.3. Compras de Alimentação (categoria "Alimentação" do NIBO)
+      // 7.3. Compras de Alimentação (categoria "Alimentação" do Conta Azul)
       const dataInicioFull = data_inicio + (usarDataCriacao ? 'T00:00:00' : '');
       const dataFimFull = data_fim + (usarDataCriacao ? 'T23:59:59' : '');
       
       const queryBuilder = supabase
-        .from('nibo_agendamentos')
-        .select('categoria_nome, valor')
+        .from('lancamentos_financeiros')
+        .select('categoria, valor')
         .eq('bar_id', bar_id)
-        .eq('tipo', 'Debit');
+        .eq('tipo', 'DESPESA');
 
       const { data: comprasAlimentacao } = usarDataCriacao
-        ? await queryBuilder.gte('criado_em', dataInicioFull).lte('criado_em', dataFimFull)
+        ? await queryBuilder.gte('created_at', dataInicioFull).lte('created_at', dataFimFull)
         : await queryBuilder.gte('data_competencia', data_inicio).lte('data_competencia', data_fim);
 
       if (comprasAlimentacao) {
         resultado.compras_alimentacao = comprasAlimentacao
           .filter(item => {
-            const cat = (item.categoria_nome || '').toLowerCase();
+            const cat = (item.categoria || '').toLowerCase();
             return cat === 'alimentação' || cat === 'alimentacao';
           })
           .reduce((sum, item) => sum + Math.abs(parseFloat(item.valor) || 0), 0);
