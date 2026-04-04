@@ -118,6 +118,17 @@ const defaultSidebarItems: SidebarItem[] = [
     ],
   },
   {
+    icon: Wallet,
+    label: 'Financeiro',
+    href: '/financeiro',
+    color: 'text-emerald-600 dark:text-emerald-400',
+    permission: 'gestao',
+    subItems: [
+      { icon: Building2, label: 'Conta Azul', href: '/financeiro/conta-azul', permission: 'gestao' },
+      { icon: Receipt, label: 'Contas a Pagar', href: '/financeiro/contas-a-pagar', permission: 'gestao' },
+    ],
+  },
+  {
     icon: Wrench,
     label: 'Ferramentas',
     href: '/ferramentas',

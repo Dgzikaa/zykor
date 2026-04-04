@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBar } from '@/contexts/BarContext';
-import NiboIntegrationCard from '@/components/configuracoes/NiboIntegrationCard';
+// import NiboIntegrationCard from '@/components/configuracoes/NiboIntegrationCard'; // DESATIVADO - Migrado para Conta Azul
 import ContaAzulIntegrationCard from '@/components/configuracoes/ContaAzulIntegrationCard';
 import ContaHubResyncSemanalCard from '@/components/configuracoes/ContaHubResyncSemanalCard';
 
@@ -242,7 +242,8 @@ export default function IntegracoesPage() {
           </h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ContaAzulIntegrationCard selectedBar={selectedBar} />
-            <NiboIntegrationCard selectedBar={selectedBar} />
+            {/* <NiboIntegrationCard selectedBar={selectedBar} /> */}
+            {/* NIBO DESATIVADO - Sistema migrado para Conta Azul */}
           </div>
         </div>
         {/* Lista de IntegraÃ§Ãµes */}
