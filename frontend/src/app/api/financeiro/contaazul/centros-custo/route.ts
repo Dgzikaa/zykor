@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -10,31 +10,114 @@ function getSupabaseAdmin() {
   });
 }
 
+const CONTA_AZUL_API_URL = 'https://api-v2.contaazul.com';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const barId = searchParams.get('bar_id');
+    const sync = searchParams.get('sync') === 'true';
 
     if (!barId) {
-      return NextResponse.json({ error: 'bar_id e obrigatorio' }, { status: 400 });
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
     const supabase = getSupabaseAdmin();
 
-    const { data, error } = await supabase
-      .from('contaazul_centros_custo')
-      .select('id, nome, codigo')
-      .eq('bar_id', parseInt(barId))
-      .eq('ativo', true)
-      .order('nome');
+    // Se não for para sincronizar, retorna do banco
+    if (!sync) {
+      const { data, error } = await supabase
+        .from('contaazul_centros_custo')
+        .select('*')
+        .eq('bar_id', parseInt(barId))
+        .order('nome');
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        console.error('Erro ao buscar centros de custo do banco:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ centros_custo: data || [] });
     }
 
-    return NextResponse.json({ data: data || [] });
+    // Buscar credenciais do Conta Azul
+    const { data: credentials, error: credError } = await supabase
+      .from('api_credentials')
+      .select('access_token, expires_at')
+      .eq('sistema', 'conta_azul')
+      .eq('bar_id', parseInt(barId))
+      .single();
+
+    if (credError || !credentials?.access_token) {
+      return NextResponse.json(
+        { error: 'Credenciais do Conta Azul não encontradas' },
+        { status: 404 }
+      );
+    }
+
+    // Verificar se token expirou
+    if (credentials.expires_at && new Date(credentials.expires_at) < new Date()) {
+      return NextResponse.json(
+        { error: 'Token expirado. Reconecte o Conta Azul.' },
+        { status: 401 }
+      );
+    }
+
+    // Buscar centros de custo da API do Conta Azul
+    const url = new URL(`${CONTA_AZUL_API_URL}/v1/centro-de-custo`);
+    url.searchParams.set('status', 'TODOS');
+    url.searchParams.set('page', '1');
+    url.searchParams.set('size', '500');
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        'Authorization': `Bearer ${credentials.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Erro ao buscar centros de custo do Conta Azul:', errorText);
+      return NextResponse.json(
+        { error: 'Erro ao buscar centros de custo do Conta Azul' },
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+    const centros = data.content || data.items || [];
+
+    // Sincronizar com banco local
+    const centrosParaSalvar = centros.map((centro: any) => ({
+      bar_id: parseInt(barId),
+      contaazul_id: centro.id || centro.uuid,
+      nome: centro.nome || centro.name,
+      ativo: centro.status === 'ATIVO' || centro.ativo !== false,
+      raw_data: centro,
+      sincronizado_em: new Date().toISOString()
+    }));
+
+    if (centrosParaSalvar.length > 0) {
+      const { error: upsertError } = await supabase
+        .from('contaazul_centros_custo')
+        .upsert(centrosParaSalvar, {
+          onConflict: 'contaazul_id,bar_id'
+        });
+
+      if (upsertError) {
+        console.error('Erro ao salvar centros de custo:', upsertError);
+      }
+    }
+
+    return NextResponse.json({
+      centros_custo: centrosParaSalvar,
+      total: centrosParaSalvar.length,
+      sincronizado_em: new Date().toISOString()
+    });
+
   } catch (err) {
-    console.error('[centros-custo] Erro:', err);
+    console.error('Erro ao buscar centros de custo:', err);
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
   }
 }
