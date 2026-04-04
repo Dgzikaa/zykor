@@ -16,10 +16,10 @@ async function testarEdgeFunction() {
   const url = `${SUPABASE_URL}/functions/v1/contaazul-sync`
   
   const body = {
-    bar_id: 4,
+    bar_id: 3,
     sync_mode: 'custom',
-    date_from: '2023-01-01',
-    date_to: '2023-02-28'
+    date_from: '2026-04-05',
+    date_to: '2030-12-31'
   }
 
   console.log('📡 URL:', url)
