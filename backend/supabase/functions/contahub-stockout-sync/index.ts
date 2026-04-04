@@ -280,21 +280,24 @@ async function processStockoutData(supabase: any, rawData: any, dataDate: string
     }
   }
 
-  // Salvar todos os registros de uma vez
+  // Salvar todos os registros de uma vez usando UPSERT
   if (stockoutRecords.length > 0) {
-    // Salvar na tabela antiga (compatibilidade)
+    // Salvar na tabela antiga (compatibilidade) usando UPSERT
     const { data, error } = await supabase
       .from('contahub_stockout')
-      .insert(stockoutRecords);
+      .upsert(stockoutRecords, {
+        onConflict: 'bar_id,data_consulta,prd',
+        ignoreDuplicates: false
+      });
 
     if (error) {
       console.error('ÔØî Erro ao salvar dados de stockout:', error);
       throw new Error(`Erro ao salvar stockout: ${error.message}`);
     }
 
-    console.log(`Ô£à ${stockoutRecords.length} registros de stockout salvos`);
+    console.log(`Ô£à ${stockoutRecords.length} registros de stockout salvos (UPSERT)`);
     
-    // NOVO: Salvar também na tabela RAW (v2.0) - em paralelo
+    // NOVO: Salvar também na tabela RAW (v2.0) usando UPSERT
     try {
       const horaColetaReal = new Date();
       const rawRecords = rawData.list.map((item: any) => ({
@@ -347,12 +350,15 @@ async function processStockoutData(supabase: any, rawData: any, dataDate: string
       
       const { error: errorRaw } = await supabase
         .from('contahub_stockout_raw')
-        .insert(rawRecords);
+        .upsert(rawRecords, {
+          onConflict: 'bar_id,data_consulta,prd',
+          ignoreDuplicates: false
+        });
       
       if (errorRaw) {
         console.error('⚠️ Erro ao salvar na tabela RAW (não crítico):', errorRaw);
       } else {
-        console.log(`✅ ${rawRecords.length} produtos salvos na tabela RAW (v2.0)`);
+        console.log(`✅ ${rawRecords.length} produtos salvos na tabela RAW (v2.0) usando UPSERT`);
       }
     } catch (rawError) {
       console.error('⚠️ Erro ao salvar RAW (não crítico):', rawError);
@@ -448,20 +454,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     console.log(`­ƒôè Dados recebidos do ContaHub: ${rawData?.list?.length || 0} produtos`);
     
-    // Limpar dados existentes para esta data
-    console.log(`­ƒº╣ Removendo dados existentes para bar_id=${bar_id}, data=${data_date}...`);
-    const { error: deleteError } = await supabase
-      .from('contahub_stockout')
-      .delete()
-      .eq('bar_id', bar_id)
-      .eq('data_consulta', data_date);
-    
-    if (deleteError) {
-      console.error('ÔØî Erro ao limpar dados existentes:', deleteError);
-      throw new Error(`Erro ao limpar dados: ${deleteError.message}`);
-    }
-    
-    // Processar e salvar dados
+    // Processar e salvar dados (usando UPSERT, sem DELETE prévio)
     const result = await processStockoutData(supabase, rawData, data_date, bar_id);
     
     // Calcular estatísticas (excluindo [HH], [DD] e [IN])
