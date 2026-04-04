@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -154,7 +154,7 @@ export default function ContaAzulIntegrationCard({
   };
 
   const handleConnect = () => {
-    window.open('/api/financeiro/contaazul/oauth/authorize?bar_id=' + barId, '_blank');
+    window.location.href = '/api/financeiro/contaazul/oauth/authorize?bar_id=' + barId;
   };
 
   const handleSync = async () => {
