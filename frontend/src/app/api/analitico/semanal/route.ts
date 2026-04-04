@@ -86,36 +86,42 @@ export async function GET(request: NextRequest) {
       
       // 1. FATURAMENTO TOTAL DO DIA (ContaHub + Yuzer + Sympla)
             
-      // 1.1. FATURAMENTO_PAGAMENTOS (excluindo 'Conta Assinada')
-      let contahubData: any[] = [];
+      // 1.1. CONTAHUB (usando contahub_periodo com vr_pagamentos > 0)
+      let contahubPeriodoData: any[] = [];
       let fromContahub = 0;
       let hasMoreContahub = true;
 
       while (hasMoreContahub) {
         const { data: batch, error: batchError } = await supabase
-          .from('faturamento_pagamentos')
-          .select('valor_liquido, meio')
+          .from('contahub_periodo')
+          .select('vr_pagamentos, pessoas')
           .eq('bar_id', barIdNum)
-          .gte('data_pagamento', inicioData)
-          .lte('data_pagamento', fimData)
+          .gte('vd_dtcontabil', inicioData)
+          .lte('vd_dtcontabil', fimData)
           .range(fromContahub, fromContahub + limit - 1);
 
         if (batchError) {
-          console.error('❌ Erro ao buscar batch faturamento_pagamentos:', batchError);
+          console.error('❌ Erro ao buscar batch contahub_periodo:', batchError);
           throw batchError;
         }
 
         if (!batch || batch.length === 0) {
           hasMoreContahub = false;
         } else {
-          contahubData = contahubData.concat(batch);
+          contahubPeriodoData = contahubPeriodoData.concat(batch);
           fromContahub += limit;
           hasMoreContahub = batch.length === limit;
         }
       }
 
-      const contahubFiltrado = contahubData?.filter(item => item.meio !== 'Conta Assinada') || [];
-      const faturamentoContahub = contahubFiltrado.reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0);
+      // Filtrar apenas linhas com vr_pagamentos > 0
+      const contahubComPagamento = contahubPeriodoData.filter(item => 
+        (parseFloat(item.vr_pagamentos) || 0) > 0
+      );
+      
+      const faturamentoContahub = contahubComPagamento.reduce((sum, item) => 
+        sum + (parseFloat(item.vr_pagamentos) || 0), 0
+      );
 
       // 1.2. YUZER
       let yuzerData: any[] = [];
@@ -345,16 +351,36 @@ export async function GET(request: NextRequest) {
       const percentualArtistico = faturamentoTotal > 0 ? (custoArtistico / faturamentoTotal) * 100 : 0;
 
       // 8. CALCULAR TICKET MÉDIO
-            const { data: pessoasContahub, error: pessoasError } = await supabase
-        .from('visitas')
-        .select('pessoas')
-        .eq('bar_id', barIdNum)
-        .gte('data_visita', inicioData)
-        .lte('data_visita', fimData);
-
-      const totalPessoas = !pessoasError && pessoasContahub ? 
-        pessoasContahub.reduce((sum, item) => sum + (parseInt(item.pessoas) || 0), 0) : 0;
+      // Usar pessoas já filtradas do contahub_periodo (apenas com vr_pagamentos > 0)
+      const pessoasContahub = contahubComPagamento.reduce((sum, item) => 
+        sum + (parseInt(item.pessoas) || 0), 0
+      );
       
+      // Buscar pessoas do Yuzer e Sympla
+      const { data: yuzerProdutos } = await supabase
+        .from('yuzer_produtos')
+        .select('quantidade, produto_nome')
+        .eq('bar_id', barIdNum)
+        .gte('data_evento', inicioData)
+        .lte('data_evento', fimData);
+      
+      const pessoasYuzer = yuzerProdutos?.filter(item => 
+        item.produto_nome && (
+          item.produto_nome.toLowerCase().includes('ingresso') || 
+          item.produto_nome.toLowerCase().includes('entrada')
+        )
+      ).reduce((sum, item) => sum + (parseInt(item.quantidade) || 0), 0) || 0;
+      
+      const { data: symplaParticipantes } = await supabase
+        .from('sympla_participantes')
+        .select('id')
+        .gte('data_checkin', inicioData)
+        .lte('data_checkin', fimData)
+        .eq('fez_checkin', true);
+      
+      const pessoasSympla = symplaParticipantes?.length || 0;
+      
+      const totalPessoas = pessoasContahub + pessoasYuzer + pessoasSympla;
       const ticketMedio = totalPessoas > 0 ? faturamentoTotal / totalPessoas : 0;
 
       // 9. REPUTAÇÃO (placeholder)

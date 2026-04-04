@@ -42,6 +42,7 @@ interface SyncRequest {
 // ====== FALLBACK ROW MAP (usado se banco não tiver configuração) ======
 // IMPORTANTE: Índices são 0-based (linha 4 do Excel = índice 3)
 // Este fallback usa valores do Ordinário (bar 3) como padrão seguro
+// ATENÇÃO: O Deboche tem o bloco CMA 2 linhas acima - use row_map específico no banco!
 const FALLBACK_ROW_MAP = {
   estoque_inicial: 3,
   compras: 4,
@@ -54,8 +55,8 @@ const FALLBACK_ROW_MAP = {
   outros_ajustes: 11,
   bonificacao_contrato: 12,
   outras_bonificacoes: 12,
-  cmv_real_planilha: 13,
-  cmv_teorico_pct: 15,
+  cmv_real_planilha: 14,        // Corrigido: linha 15 = índice 14
+  cmv_teorico_pct: 17,           // Corrigido: linha 18 = índice 17
   estoque_inicial_cozinha: 22,
   estoque_inicial_bebidas: 23,
   estoque_inicial_drinks: 24,
@@ -67,9 +68,9 @@ const FALLBACK_ROW_MAP = {
   mesa_banda_dj: 56,
   mesa_rh_operacao: 58,
   mesa_rh_escritorio: 59,
-  estoque_inicial_funcionarios: 67,
-  compras_alimentacao: 68,
-  estoque_final_funcionarios: 69,
+  estoque_inicial_funcionarios: 67,  // Ordinário: linha 68
+  compras_alimentacao: 68,            // Ordinário: linha 69
+  estoque_final_funcionarios: 69,    // Ordinário: linha 70
 }
 
 interface RowMapType {
@@ -347,7 +348,58 @@ serve(async (req) => {
       console.log(`\n🍺 Processando: ${barConfig.nome} (bar_id=${barConfig.bar_id})`)
       
       // BLOCO 3A: Lê row_map do banco, fallback para hardcoded
-      const rowMapFromDb = barConfig.configuracoes?.row_map_cmv_semanal as RowMapType | undefined
+      let rowMapFromDb = barConfig.configuracoes?.row_map_cmv_semanal as RowMapType | undefined
+      
+      // BLOCO 3B: Se for Deboche e não tiver row_map, criar automaticamente
+      if (barConfig.bar_id === 4 && !rowMapFromDb) {
+        console.log(`🔧 [ROW_MAP] Deboche sem configuração - criando row_map específico...`)
+        
+        const DEBOCHE_ROW_MAP = {
+          estoque_inicial: 3,
+          compras: 4,
+          estoque_final: 5,
+          consumo_socios: 6,
+          consumo_beneficios: 7,
+          consumo_rh_operacao: 8,
+          consumo_rh_escritorio: 9,
+          consumo_artista: 10,
+          outros_ajustes: 11,
+          bonificacao_contrato: 12,
+          outras_bonificacoes: 12,
+          cmv_real_planilha: 14,
+          cmv_teorico_pct: 17,
+          estoque_inicial_cozinha: 22,
+          estoque_inicial_bebidas: 23,
+          estoque_inicial_drinks: 24,
+          estoque_final_cozinha: 28,
+          estoque_final_bebidas: 29,
+          estoque_final_drinks: 30,
+          total_consumo_socios: 54,
+          mesa_beneficios_cliente: 55,
+          mesa_banda_dj: 56,
+          mesa_rh_operacao: 58,
+          mesa_rh_escritorio: 59,
+          estoque_inicial_funcionarios: 65,  // Deboche: linha 66
+          compras_alimentacao: 66,            // Deboche: linha 67
+          estoque_final_funcionarios: 67,    // Deboche: linha 68
+        }
+        
+        // Atualizar no banco
+        const configNova = {
+          ...barConfig.configuracoes,
+          row_map_cmv_semanal: DEBOCHE_ROW_MAP
+        }
+        
+        await supabase
+          .from('api_credentials')
+          .update({ configuracoes: configNova })
+          .eq('bar_id', 4)
+          .eq('sistema', 'google_sheets')
+        
+        rowMapFromDb = DEBOCHE_ROW_MAP as RowMapType
+        console.log(`✅ [ROW_MAP] Row map do Deboche criado e salvo no banco`)
+      }
+      
       const ROW_MAP: RowMapType = rowMapFromDb || FALLBACK_ROW_MAP
       
       if (rowMapFromDb) {
@@ -389,7 +441,13 @@ serve(async (req) => {
         
         logValidationResult('cmv', barConfig.bar_id, validationResult)
         
-        if (!validationResult.valid) {
+        // Validação flexível: só bloquear se for erro crítico de estrutura
+        // Mudanças de colunas (ex: Semana 1 removida) são esperadas e não devem bloquear
+        const errosCriticos = validationResult.errors?.filter(e => 
+          e.code !== 'HEADER_MISSING' && e.code !== 'COLUMN_COUNT_CHANGED'
+        ) || []
+        
+        if (!validationResult.valid && errosCriticos.length > 0) {
           throw createValidationError(validationResult)
         }
         // ========== FIM VALIDAÇÃO ==========
@@ -573,14 +631,13 @@ serve(async (req) => {
             temDados = true
           }
           
-          // CMV Real calculado pela planilha (linha 15)
+          // CMV Real calculado pela planilha (linha 15) - aceita valores negativos
+          // IMPORTANTE: A planilha pode ter ajustes manuais que não conseguimos replicar
           const cmvRealPlanilhaVal = rows[ROW_MAP.cmv_real_planilha]?.[col]
           if (cmvRealPlanilhaVal !== undefined) {
             const v = parseMonetario(cmvRealPlanilhaVal)
-            if (v !== 0) { 
-              updateData.cmv_real = v
-              temDados = true 
-            }
+            updateData.cmv_real = v
+            temDados = true
           }
           
           // CONTAS ESPECIAIS (linhas 55-60 - valores brutos para relatórios)
@@ -602,27 +659,33 @@ serve(async (req) => {
             if (v > 0) { updateData.mesa_banda_dj = v; temDados = true }
           }
           
-          // SAÍDA ALIMENTAÇÃO (funcionários)
+          // SAÍDA ALIMENTAÇÃO (funcionários) - aceitar valores >= 0
           const estIniFuncVal = rows[ROW_MAP.estoque_inicial_funcionarios]?.[col]
           if (estIniFuncVal !== undefined) {
             const v = parseMonetario(estIniFuncVal)
-            updateData.estoque_inicial_funcionarios = v
-            temDados = true
+            if (v >= 0) {
+              updateData.estoque_inicial_funcionarios = v
+              temDados = true
+            }
           }
           
-          // Compras Alimentação (funcionários)
+          // Compras Alimentação (funcionários) - aceitar valores >= 0
           const comprasAlimVal = rows[ROW_MAP.compras_alimentacao]?.[col]
           if (comprasAlimVal !== undefined) {
             const v = parseMonetario(comprasAlimVal)
-            updateData.compras_alimentacao = v
-            temDados = true
+            if (v >= 0) {
+              updateData.compras_alimentacao = v
+              temDados = true
+            }
           }
 
           const estFimFuncVal = rows[ROW_MAP.estoque_final_funcionarios]?.[col]
           if (estFimFuncVal !== undefined) {
             const v = parseMonetario(estFimFuncVal)
-            updateData.estoque_final_funcionarios = v
-            temDados = true
+            if (v >= 0) {
+              updateData.estoque_final_funcionarios = v
+              temDados = true
+            }
           }
 
           if (!temDados) continue
@@ -675,6 +738,85 @@ serve(async (req) => {
         }
 
         console.log(`✅ ${barConfig.nome}: ${semanasAtualizadas} semanas atualizadas, ${semanasErro} erros`)
+
+        // ========== RECALCULAR CMV LIMPO % ==========
+        // CMV Limpo % = CMV Real / Faturamento Líquido * 100
+        console.log(`\n🧮 Recalculando CMV Limpo %...`)
+        
+        const { data: semanasParaRecalcular } = await supabase
+          .from('cmv_semanal')
+          .select('id, cmv_real, vendas_liquidas')
+          .eq('bar_id', barConfig.bar_id)
+          .eq('ano', anoColuna)
+          .not('cmv_real', 'is', null)
+        
+        for (const sem of semanasParaRecalcular || []) {
+          const cmvLimpoPercentual = sem.vendas_liquidas > 0 
+            ? (sem.cmv_real / sem.vendas_liquidas) * 100 
+            : 0
+          
+          await supabase
+            .from('cmv_semanal')
+            .update({ 
+              cmv_limpo_percentual: cmvLimpoPercentual,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', sem.id)
+        }
+        
+        console.log(`✅ ${semanasParaRecalcular?.length || 0} semanas recalculadas`)
+
+        // ========== PROPAGAÇÃO OBRIGATÓRIA DE ESTOQUE INICIAL ==========
+        // REGRA CONTÁBIL: Estoque Inicial semana N = Estoque Final semana N-1
+        // Esta propagação roda APÓS importar os dados da planilha para garantir consistência
+        console.log(`\n🔄 Propagando estoque inicial (regra contábil)...`)
+        
+        // Buscar todas as semanas do bar ordenadas por ano/semana
+        const { data: todasSemanas } = await supabase
+          .from('cmv_semanal')
+          .select('id, ano, semana, estoque_final, estoque_final_cozinha, estoque_final_bebidas, estoque_final_drinks, estoque_final_funcionarios')
+          .eq('bar_id', barConfig.bar_id)
+          .order('ano', { ascending: true })
+          .order('semana', { ascending: true })
+
+        if (todasSemanas && todasSemanas.length > 1) {
+          let propagacoes = 0
+          
+          for (let i = 1; i < todasSemanas.length; i++) {
+            const semanaAtual = todasSemanas[i]
+            const semanaAnterior = todasSemanas[i - 1]
+            
+            // Verificar se é sequencial (mesma ano ou ano seguinte)
+            const isSequencial = 
+              (semanaAtual.ano === semanaAnterior.ano && semanaAtual.semana === semanaAnterior.semana + 1) ||
+              (semanaAtual.ano === semanaAnterior.ano + 1 && semanaAtual.semana === 1 && semanaAnterior.semana >= 52)
+            
+            if (!isSequencial) continue
+            
+            // Propagar estoque final da semana anterior como inicial da atual
+            const { error: propError } = await supabase
+              .from('cmv_semanal')
+              .update({
+                estoque_inicial: semanaAnterior.estoque_final,
+                estoque_inicial_cozinha: semanaAnterior.estoque_final_cozinha,
+                estoque_inicial_bebidas: semanaAnterior.estoque_final_bebidas,
+                estoque_inicial_drinks: semanaAnterior.estoque_final_drinks,
+                estoque_inicial_funcionarios: semanaAnterior.estoque_final_funcionarios,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', semanaAtual.id)
+            
+            if (!propError) {
+              propagacoes++
+              if (debug) {
+                console.log(`  ✅ S${semanaAtual.semana}/${semanaAtual.ano}: inicial = final S${semanaAnterior.semana} (R$ ${semanaAnterior.estoque_final?.toFixed(2) || 0})`)
+              }
+            }
+          }
+          
+          console.log(`✅ ${propagacoes} propagações de estoque inicial realizadas`)
+        }
+        // ========== FIM PROPAGAÇÃO ==========
 
         // Atualizar baseline após sync bem-sucedido
         await updateSyncBaseline(supabase, 'cmv', barConfig.bar_id, null, {

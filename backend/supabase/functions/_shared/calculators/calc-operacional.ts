@@ -46,18 +46,24 @@ export async function calcOperacional(
     const stockoutComidasCount = stockoutComidas?.produtos_stockout || 0;
     const stockoutComidasPerc = stockoutComidas?.percentual_stockout || 0;
 
-    // 2. Mix semanal via RPC
-    const { data: mixResult, error: mixError } = await supabase
-      .rpc('calcular_mix_vendas', {
-        p_bar_id: barId,
-        p_data_inicio: startDate,
-        p_data_fim: endDate
-      });
+    // 2. Mix semanal - calcular diretamente dos eventos_base (média ponderada)
+    // MOTIVO: A RPC calcular_mix_vendas usa vendas_item que pode estar incompleto
+    // ou com mapeamento incorreto. Os eventos_base já têm percent_b/d/c/happy_hour
+    // calculados corretamente pela função calculate_evento_metrics.
+    // IMPORTANTE: Usar faturamento_bar (só produtos) como peso, não real_r (produtos + couvert)
+    const { data: eventosParaMix, error: eventosError } = await supabase
+      .from('eventos_base')
+      .select('real_r, faturamento_bar, percent_b, percent_d, percent_c, percent_happy_hour')
+      .eq('bar_id', barId)
+      .gte('data_evento', startDate)
+      .lte('data_evento', endDate)
+      .eq('ativo', true)
+      .gt('real_r', 0);
 
-    if (mixError) {
+    if (eventosError) {
       return {
         success: false,
-        error: `Erro ao calcular mix: ${mixError.message}`,
+        error: `Erro ao buscar eventos para mix: ${eventosError.message}`,
         duration_ms: Date.now() - startTime,
       };
     }
@@ -67,12 +73,48 @@ export async function calcOperacional(
     let percComidaPonderado = 0;
     let percHappyHourPonderado = 0;
 
-    if (mixResult && mixResult.length > 0) {
-      const mix = mixResult[0];
-      percBebidasPonderado = parseFloat(mix.perc_bebidas) || 0;
-      percDrinksPonderado = parseFloat(mix.perc_drinks) || 0;
-      percComidaPonderado = parseFloat(mix.perc_comidas) || 0;
-      percHappyHourPonderado = parseFloat(mix.perc_happy_hour) || 0;
+    if (eventosParaMix && eventosParaMix.length > 0) {
+      // Usar faturamento_bar (só produtos) como peso, não real_r (produtos + couvert)
+      // Isso garante que o mix seja calculado sobre a mesma base que a planilha (contahub_analitico)
+      // deno-lint-ignore no-explicit-any
+      const faturamentoTotal = eventosParaMix.reduce((acc: number, e: any) => {
+        return acc + (parseFloat(String(e.faturamento_bar)) || 0);
+      }, 0);
+
+      if (faturamentoTotal > 0) {
+        // deno-lint-ignore no-explicit-any
+        const somaBebidasPonderado = eventosParaMix.reduce((acc: number, e: any) => {
+          const fat = parseFloat(String(e.faturamento_bar)) || 0;
+          const perc = parseFloat(String(e.percent_b)) || 0;
+          return acc + (perc * fat);
+        }, 0);
+
+        // deno-lint-ignore no-explicit-any
+        const somaDrinksPonderado = eventosParaMix.reduce((acc: number, e: any) => {
+          const fat = parseFloat(String(e.faturamento_bar)) || 0;
+          const perc = parseFloat(String(e.percent_d)) || 0;
+          return acc + (perc * fat);
+        }, 0);
+
+        // deno-lint-ignore no-explicit-any
+        const somaComidaPonderado = eventosParaMix.reduce((acc: number, e: any) => {
+          const fat = parseFloat(String(e.faturamento_bar)) || 0;
+          const perc = parseFloat(String(e.percent_c)) || 0;
+          return acc + (perc * fat);
+        }, 0);
+
+        // deno-lint-ignore no-explicit-any
+        const somaHappyHourPonderado = eventosParaMix.reduce((acc: number, e: any) => {
+          const fat = parseFloat(String(e.faturamento_bar)) || 0;
+          const perc = parseFloat(String(e.percent_happy_hour)) || 0;
+          return acc + (perc * fat);
+        }, 0);
+
+        percBebidasPonderado = somaBebidasPonderado / faturamentoTotal;
+        percDrinksPonderado = somaDrinksPonderado / faturamentoTotal;
+        percComidaPonderado = somaComidaPonderado / faturamentoTotal;
+        percHappyHourPonderado = somaHappyHourPonderado / faturamentoTotal;
+      }
     }
 
     // 3. Tempos de saída via RPC

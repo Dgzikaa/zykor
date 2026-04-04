@@ -63,8 +63,10 @@ export interface PlanejamentoData {
   stockout_drinks_perc: number;
   stockout_comidas_perc: number;
   
-  // Couvert
+  // Couvert (gerado: te_real * cl_real) — legado / manual
   faturamento_couvert: number;
+  /** Soma de vr_couvert no contahub_periodo (fonte correta para $ Couvert na tela) */
+  couvert_vr_contahub?: number | null;
   
   // Segmentação de clientes
   percent_clientes_novos: number | null;
@@ -134,6 +136,7 @@ export async function getPlanejamentoComercial(
         stockout_drinks_perc,
         stockout_comidas_perc,
         faturamento_couvert,
+        couvert_vr_contahub,
         t_coz,
         t_bar,
         atrasinho_cozinha,
@@ -291,6 +294,10 @@ export async function getPlanejamentoComercial(
         stockout_drinks_perc: evento.stockout_drinks_perc || 0,
         stockout_comidas_perc: evento.stockout_comidas_perc || 0,
         faturamento_couvert: evento.faturamento_couvert || 0,
+        couvert_vr_contahub:
+          evento.couvert_vr_contahub !== null && evento.couvert_vr_contahub !== undefined
+            ? Number(evento.couvert_vr_contahub)
+            : null,
         
         percent_clientes_novos: percClientesNovos,
         clientes_ativos: clientesAtivos,

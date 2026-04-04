@@ -342,11 +342,13 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
               }
     }
 
-    // Calcular clientes do ContaHub
+    // Calcular clientes do ContaHub (soma pessoas apenas com vr_pagamentos > 0)
     const periodo_com_pagamento = periodo.filter(
       (item: PeriodoData) => parseFloat(item.vr_pagamentos || '0') > 0
     );
-    const clientes_periodo_total = periodo_com_pagamento.length;
+    const clientes_periodo_total = periodo_com_pagamento.reduce(
+      (sum: number, item: PeriodoData) => sum + (parseInt(item.pessoas) || 0), 0
+    );
 
     // Clientes Yuzer (apenas ingressos)
     const pedidos_unicos_yuzer_ingresso = [
@@ -502,7 +504,9 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
       const periodo_com_pagamento_dia = periodo_dia.filter(
         (item: PeriodoData) => parseFloat(item.vr_pagamentos || '0') > 0
       );
-      const clientes_periodo_dia = periodo_com_pagamento_dia.length;
+      const clientes_periodo_dia = periodo_com_pagamento_dia.reduce(
+        (sum: number, item: PeriodoData) => sum + (parseInt(item.pessoas) || 0), 0
+      );
 
       if (clientes_pessoas_diario_dia > 0) {
         // Se há dados consolidados, usar eles COMO BASE

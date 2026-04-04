@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Package, TrendingDown, TrendingUp, RefreshCw, AlertTriangle, CheckCircle, MapPin } from 'lucide-react';
+import { Calendar, Package, TrendingDown, TrendingUp, RefreshCw, AlertTriangle, CheckCircle, MapPin, Search } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { LoadingState } from '@/components/ui/loading-state';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/contexts/PageTitleContext';
@@ -157,6 +158,7 @@ interface HistoricoData {
 export default function StockoutPage() {
   const { setPageTitle } = usePageTitle();
   const { selectedBar, isLoading: barLoading } = useBar();
+  const router = useRouter();
 
   const [selectedDate, setSelectedDate] = useState(() => {
     const yesterday = new Date();
@@ -608,6 +610,15 @@ export default function StockoutPage() {
             Análise de disponibilidade de produtos
           </p>
         </div>
+        <Button
+          onClick={() => router.push('/ferramentas/stockout/auditoria')}
+          variant="outline"
+          size="sm"
+          className="border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]"
+          leftIcon={<Search className="w-4 h-4" />}
+        >
+          Auditoria v2.0
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

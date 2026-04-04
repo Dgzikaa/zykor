@@ -104,10 +104,10 @@ export async function POST(request: Request) {
       // 1. FATURAMENTO TOTAL (ContaHub + Yuzer + Sympla)
       // =============================================
 
-      const [contahubData, yuzerData, symplaData] = await Promise.all([
-        fetchAllData(supabase, 'faturamento_pagamentos', 'valor_liquido', {
-          'gte_data_pagamento': startDate,
-          'lte_data_pagamento': endDate,
+      const [contahubPeriodoData, yuzerData, symplaData] = await Promise.all([
+        fetchAllData(supabase, 'contahub_periodo', 'vr_pagamentos, pessoas', {
+          'gte_vd_dtcontabil': startDate,
+          'lte_vd_dtcontabil': endDate,
           'eq_bar_id': barId
         }),
         fetchAllData(supabase, 'yuzer_pagamento', 'valor_liquido', {
@@ -121,7 +121,15 @@ export async function POST(request: Request) {
         })
       ]);
 
-      const faturamentoContahub = contahubData?.reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0) || 0;
+      // ContaHub: Apenas linhas com vr_pagamentos > 0
+      const contahubComPagamento = (contahubPeriodoData || []).filter(item => 
+        (parseFloat(item.vr_pagamentos) || 0) > 0
+      );
+      
+      const faturamentoContahub = contahubComPagamento.reduce((sum, item) => 
+        sum + (parseFloat(item.vr_pagamentos) || 0), 0
+      );
+      
       const faturamentoYuzer = yuzerData?.reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0) || 0;
       const faturamenteSympla = symplaData?.reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0) || 0;
       
@@ -267,12 +275,12 @@ export async function POST(request: Request) {
       // 4. CLIENTES ATENDIDOS
       // =============================================
 
-      const [contahubPessoas, yuzerProdutos, symplaParticipantes] = await Promise.all([
-        fetchAllData(supabase, 'visitas', 'pessoas', {
-          'gte_data_visita': startDate,
-          'lte_data_visita': endDate,
-          'eq_bar_id': barId
-        }),
+      // ContaHub: Soma pessoas APENAS das linhas com vr_pagamentos > 0
+      const pessoasContahub = contahubComPagamento.reduce((sum, item) => 
+        sum + (parseInt(item.pessoas) || 0), 0
+      );
+
+      const [yuzerProdutos, symplaParticipantes] = await Promise.all([
         fetchAllData(supabase, 'yuzer_produtos', 'quantidade, produto_nome', {
           'gte_data_evento': startDate,
           'lte_data_evento': endDate,
@@ -284,8 +292,6 @@ export async function POST(request: Request) {
           'eq_fez_checkin': true
         })
       ]);
-
-      const pessoasContahub = contahubPessoas?.reduce((sum, item) => sum + (parseInt(item.pessoas) || 0), 0) || 0;
       
       const pessoasYuzer = yuzerProdutos?.filter(item => 
         item.produto_nome && (
@@ -367,7 +373,21 @@ export async function POST(request: Request) {
       }
 
       // =============================================
-      // 8. ATUALIZAR REGISTRO NO BANCO
+      // 8. CALCULAR META SEMANAL (soma dos m1_r dos eventos)
+      // =============================================
+
+      const { data: eventosParaMeta } = await supabase
+        .from('eventos_base')
+        .select('m1_r')
+        .eq('bar_id', barId)
+        .gte('data_evento', startDate)
+        .lte('data_evento', endDate)
+        .eq('ativo', true);
+
+      const metaSemanal = (eventosParaMeta || []).reduce((sum, e) => sum + (parseFloat(String(e.m1_r)) || 0), 0);
+
+      // =============================================
+      // 9. ATUALIZAR REGISTRO NO BANCO
       // =============================================
 
       const dadosAtualizados = {
@@ -379,6 +399,7 @@ export async function POST(request: Request) {
         cmo: cmoPercentual, // CMO % AUTOMÁTICO (proporcional ao mês)
         perc_clientes_novos: parseFloat(percClientesNovos.toFixed(2)),
         clientes_ativos: clientesAtivosCalculado,
+        meta_semanal: metaSemanal, // RECALCULADO: soma dos m1_r dos eventos
         updated_at: new Date().toISOString(),
         
         // MANTER VALORES MANUAIS EXISTENTES
@@ -391,15 +412,12 @@ export async function POST(request: Request) {
         cmv: semana.cmv,
         cmv_rs: semana.cmv_rs,
         
-        // Meta (manual)
-        meta_semanal: semana.meta_semanal,
-        
         // Outros campos existentes
         faturamento_entrada: semana.faturamento_entrada,
         faturamento_bar: semana.faturamento_bar,
         faturamento_cmovivel: semana.faturamento_cmovivel,
         
-        observacoes: `Recalculado automaticamente em ${new Date().toLocaleString('pt-BR')} - Faturamento, Clientes, Ticket Médio, CMO, Atração, % Novos e Ativos`
+        observacoes: `Recalculado automaticamente em ${new Date().toLocaleString('pt-BR')} - Faturamento, Clientes, Ticket Médio, Meta Semanal, CMO, Atração, % Novos e Ativos`
       };
 
       const { data: atualizada, error: updateError } = await supabase

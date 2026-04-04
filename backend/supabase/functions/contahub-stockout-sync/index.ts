@@ -282,6 +282,7 @@ async function processStockoutData(supabase: any, rawData: any, dataDate: string
 
   // Salvar todos os registros de uma vez
   if (stockoutRecords.length > 0) {
+    // Salvar na tabela antiga (compatibilidade)
     const { data, error } = await supabase
       .from('contahub_stockout')
       .insert(stockoutRecords);
@@ -292,6 +293,70 @@ async function processStockoutData(supabase: any, rawData: any, dataDate: string
     }
 
     console.log(`Ô£à ${stockoutRecords.length} registros de stockout salvos`);
+    
+    // NOVO: Salvar também na tabela RAW (v2.0) - em paralelo
+    try {
+      const horaColetaReal = new Date();
+      const rawRecords = rawData.list.map((item: any) => ({
+        bar_id: barId,
+        data_consulta: dataDate,
+        hora_consulta_real: horaColetaReal.toISOString(),
+        emp: item.emp || null,
+        prd: item.prd || null,
+        loc: item.loc || null,
+        prd_desc: item.prd_desc || null,
+        prd_venda: item.prd_venda || null,
+        prd_ativo: item.prd_ativo || null,
+        prd_produzido: item.prd_produzido || null,
+        prd_unid: item.prd_unid || null,
+        prd_precovenda: item.prd_precovenda || null,
+        prd_estoque: item.prd_estoque || null,
+        prd_controlaestoque: item.prd_controlaestoque || null,
+        prd_validaestoquevenda: item.prd_validaestoquevenda || null,
+        prd_opcoes: item.prd_opcoes || null,
+        prd_venda7: item.prd_venda7 || null,
+        prd_venda30: item.prd_venda30 || null,
+        prd_venda180: item.prd_venda180 || null,
+        prd_nfencm: item.prd_nfencm || null,
+        prd_nfeorigem: item.prd_nfeorigem || null,
+        prd_nfecsosn: item.prd_nfecsosn || null,
+        prd_nfecstpiscofins: item.prd_nfecstpiscofins || null,
+        prd_nfepis: item.prd_nfepis || null,
+        prd_nfecofins: item.prd_nfecofins || null,
+        prd_nfeicms: item.prd_nfeicms || null,
+        prd_qtddouble: item.prd_qtddouble || null,
+        prd_disponivelonline: item.prd_disponivelonline || null,
+        prd_cardapioonline: item.prd_cardapioonline || null,
+        prd_semcustoestoque: item.prd_semcustoestoque || null,
+        prd_balanca: item.prd_balanca || null,
+        prd_delivery: item.prd_delivery || null,
+        prd_entregaimediata: item.prd_entregaimediata || null,
+        prd_semrepique: item.prd_semrepique || null,
+        prd_naoimprimeproducao: item.prd_naoimprimeproducao || null,
+        prd_agrupaimpressao: item.prd_agrupaimpressao || null,
+        prd_contagemehperda: item.prd_contagemehperda || null,
+        prd_naodesmembra: item.prd_naodesmembra || null,
+        prd_naoimprimeficha: item.prd_naoimprimeficha || null,
+        prd_servico: item.prd_servico || null,
+        prd_zeraestoquenacompra: item.prd_zeraestoquenacompra || null,
+        loc_desc: item.loc_desc || null,
+        loc_inativo: item.loc_inativo || null,
+        loc_statusimpressao: item.loc_statusimpressao || null,
+        raw_data: item
+      }));
+      
+      const { error: errorRaw } = await supabase
+        .from('contahub_stockout_raw')
+        .insert(rawRecords);
+      
+      if (errorRaw) {
+        console.error('⚠️ Erro ao salvar na tabela RAW (não crítico):', errorRaw);
+      } else {
+        console.log(`✅ ${rawRecords.length} produtos salvos na tabela RAW (v2.0)`);
+      }
+    } catch (rawError) {
+      console.error('⚠️ Erro ao salvar RAW (não crítico):', rawError);
+    }
   }
 
   console.log(`­ƒôè Produtos Happy Hour exclu├¡dos: ${skipped}`);

@@ -1,0 +1,28 @@
+﻿{
+  "bar_id": 3,
+  "data": "2026-03-30",
+  "eventos": [
+    {
+      "id": "test-uuid-1",
+      "event_type": "queda_ticket_medio",
+      "severity": "alta",
+      "evidence_json": [
+        "ticket_medio_dia: R$ 78.50",
+        "media_ultimas_4_semanas: R$ 92.00",
+        "variacao: -14.7%"
+      ],
+      "data": "2026-03-30"
+    },
+    {
+      "id": "test-uuid-2",
+      "event_type": "aumento_custo",
+      "severity": "media",
+      "evidence_json": [
+        "custo_total_dia: R$ 3500.00",
+        "media_ultimas_4_semanas: R$ 2800.00",
+        "variacao: +25.0%"
+      ],
+      "data": "2026-03-30"
+    }
+  ]
+}

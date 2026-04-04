@@ -279,22 +279,26 @@ serve(async (req) => {
         // ========== VALIDAÇÃO ESTRUTURAL ==========
         const baseline = await getSyncBaseline(supabase, 'contagem', barId, abaInsumos)
         
-        // Usar linha de cabeçalhos da configuração do bar
-        const validationResult = validateSheetStructure(jsonData, baseline, {
-          headerRowIndex: barConfig.linhaCabecalhos,
-          allowEmptyBaseline: true
-        })
-        
-        logValidationResult('contagem', barId, validationResult)
-        
-        if (!validationResult.valid) {
-          const errorMsg = validationResult.errors.map(e => e.message).join('; ')
-          resultados.push({
-            bar_id: barId,
-            error: `VALIDATION_FAILED: ${errorMsg}`,
-            validation_details: validationResult
+        // Se baseline estiver ativo, validar estrutura
+        if (baseline && baseline.is_active) {
+          const validationResult = validateSheetStructure(jsonData, baseline, {
+            headerRowIndex: barConfig.linhaCabecalhos,
+            allowEmptyBaseline: true
           })
-          continue
+          
+          logValidationResult('contagem', barId, validationResult)
+          
+          if (!validationResult.valid) {
+            const errorMsg = validationResult.errors.map(e => e.message).join('; ')
+            resultados.push({
+              bar_id: barId,
+              error: `VALIDATION_FAILED: ${errorMsg}`,
+              validation_details: validationResult
+            })
+            continue
+          }
+        } else {
+          console.log(`  ⚠️ Validação desabilitada para Bar ${barId} - processando sem validação`)
         }
         // ========== FIM VALIDAÇÃO ==========
         
@@ -766,26 +770,11 @@ async function calcularEstoquesSemanaais(
 
       if (!primeiroDia?.length || !ultimoDia?.length) continue
 
-      // Calcular estoques por categoria
-      let estoqueInicialCozinha = 0
-      let estoqueInicialBebidas = 0
-      let estoqueInicialDrinks = 0
+      // Calcular apenas estoque final (último dia com dados da semana)
       let estoqueFinalCozinha = 0
       let estoqueFinalBebidas = 0
       let estoqueFinalDrinks = 0
 
-      // Estoque inicial (primeiro dia com dados da semana)
-      const dataPrimeiro = primeiroDia[0].data_contagem
-      const dadosPrimeiroDia = primeiroDia.filter((d: any) => d.data_contagem === dataPrimeiro)
-      
-      for (const item of dadosPrimeiroDia) {
-        const valor = (item.estoque_final || 0) * (item.custo_unitario || 0)
-        if (isCmvCozinha(item.categoria)) estoqueInicialCozinha += valor
-        if (isCmvBebidas(item.categoria)) estoqueInicialBebidas += valor
-        if (isCmvDrinks(item.categoria)) estoqueInicialDrinks += valor
-      }
-
-      // Estoque final (último dia com dados da semana)
       const dataUltimo = ultimoDia[0].data_contagem
       const dadosUltimoDia = ultimoDia.filter((d: any) => d.data_contagem === dataUltimo)
       
@@ -796,11 +785,9 @@ async function calcularEstoquesSemanaais(
         if (isCmvDrinks(item.categoria)) estoqueFinalDrinks += valor
       }
 
-      // Totais
-      const estoqueInicial = estoqueInicialCozinha + estoqueInicialBebidas + estoqueInicialDrinks
       const estoqueFinal = estoqueFinalCozinha + estoqueFinalBebidas + estoqueFinalDrinks
 
-      // Atualizar cmv_semanal (se existir)
+      // Atualizar cmv_semanal (se existir) - APENAS estoque final
       const { data: cmvExistente } = await supabase
         .from('cmv_semanal')
         .select('id')
@@ -810,10 +797,6 @@ async function calcularEstoquesSemanaais(
 
       if (cmvExistente) {
         const updateData: any = {
-          estoque_inicial: estoqueInicial,
-          estoque_inicial_cozinha: estoqueInicialCozinha,
-          estoque_inicial_bebidas: estoqueInicialBebidas,
-          estoque_inicial_drinks: estoqueInicialDrinks,
           estoque_final: estoqueFinal,
           estoque_final_cozinha: estoqueFinalCozinha,
           estoque_final_bebidas: estoqueFinalBebidas,
@@ -830,8 +813,43 @@ async function calcularEstoquesSemanaais(
           console.error(`❌ Erro ao atualizar cmv_semanal: ${updateError.message}`)
         } else {
           console.log(`  ✅ CMV Semanal atualizado: Bar ${barId}, Semana ${semanaInicio}`)
-          console.log(`     Estoque Inicial: R$ ${estoqueInicial.toFixed(2)} (Coz: ${estoqueInicialCozinha.toFixed(2)}, Beb: ${estoqueInicialBebidas.toFixed(2)}, Dri: ${estoqueInicialDrinks.toFixed(2)})`)
           console.log(`     Estoque Final: R$ ${estoqueFinal.toFixed(2)} (Coz: ${estoqueFinalCozinha.toFixed(2)}, Beb: ${estoqueFinalBebidas.toFixed(2)}, Dri: ${estoqueFinalDrinks.toFixed(2)})`)
+          
+          // REGRA CONTÁBIL: Propagar estoque final como inicial da próxima semana
+          const proximaSemanaInicio = new Date(semanaInicio + 'T12:00:00Z')
+          proximaSemanaInicio.setDate(proximaSemanaInicio.getDate() + 7)
+          const proximaSemanaStr = proximaSemanaInicio.toISOString().split('T')[0]
+          
+          const { data: proximaSemana } = await supabase
+            .from('cmv_semanal')
+            .select('id, estoque_final_funcionarios')
+            .eq('bar_id', barId)
+            .eq('semana', proximaSemanaStr)
+            .single()
+          
+          if (proximaSemana) {
+            // Buscar estoque final de funcionários da semana atual para propagar
+            const { data: semanaAtualCMA } = await supabase
+              .from('cmv_semanal')
+              .select('estoque_final_funcionarios')
+              .eq('bar_id', barId)
+              .eq('semana', semanaInicio)
+              .single()
+            
+            await supabase
+              .from('cmv_semanal')
+              .update({
+                estoque_inicial: estoqueFinal,
+                estoque_inicial_cozinha: estoqueFinalCozinha,
+                estoque_inicial_bebidas: estoqueFinalBebidas,
+                estoque_inicial_drinks: estoqueFinalDrinks,
+                estoque_inicial_funcionarios: semanaAtualCMA?.estoque_final_funcionarios || 0,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', proximaSemana.id)
+            
+            console.log(`  🔄 Propagado para próxima semana: ${proximaSemanaStr}`)
+          }
         }
       } else {
         console.log(`  ⚠️ CMV Semanal não existe: Bar ${barId}, Semana ${semanaInicio} - será criado pelo cmv-semanal-auto`)

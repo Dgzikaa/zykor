@@ -793,25 +793,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // 🔄 ATUALIZAR CACHE DE CLIENTE_ESTATISTICAS
     console.log('\n📊 Atualizando cache de cliente_estatisticas...');
     try {
-      // Usar UPSERT para atualizar cache incremental (mais eficiente que TRUNCATE)
-      const { error: cacheError } = await supabase.rpc('refresh_cliente_estatisticas', { p_bar_id: bar_id });
+      // Usar função UPSERT que não faz DELETE (compatível com trigger de proteção)
+      const { error: cacheError } = await supabase.rpc('refresh_cliente_estatisticas_upsert', { 
+        p_bar_id: bar_id,
+        p_data_visita: data_date 
+      });
       
       if (cacheError) {
-        console.warn('⚠️ Erro ao atualizar cache via RPC, tentando método direto...');
-        
-        // Fallback: Atualizar apenas clientes que tiveram visitas na data sincronizada
-        const { error: updateError } = await supabase.rpc('refresh_cliente_estatisticas_incremental', { 
-          p_bar_id: bar_id,
-          p_data_visita: data_date 
-        });
-        
-        if (updateError) {
-          console.error('❌ Erro ao atualizar cache de clientes:', updateError);
-        } else {
-          console.log('✅ Cache de clientes atualizado (incremental)');
-        }
+        console.error('❌ Erro ao atualizar cache de clientes:', cacheError);
       } else {
-        console.log('✅ Cache de clientes atualizado com sucesso');
+        console.log('✅ Cache de clientes atualizado (upsert)');
       }
     } catch (cacheErr) {
       console.error('❌ Erro ao atualizar cache de clientes:', cacheErr);

@@ -84,8 +84,9 @@ export async function POST(request: NextRequest) {
         const cmvPercentual = fatBruto > 0 ? (cmvReal / fatBruto) * 100 : 0;
 
         // 6. Calcular CMV Limpo %
-        const fatCmvivel = cmv.faturamento_cmvivel || 0;
-        const cmvLimpoPercentual = fatCmvivel > 0 ? (cmvReal / fatCmvivel) * 100 : 0;
+        // CMV Limpo % = CMV Real / Faturamento Líquido * 100
+        const fatLiquido = cmv.vendas_liquidas || 0;
+        const cmvLimpoPercentual = fatLiquido > 0 ? (cmvReal / fatLiquido) * 100 : 0;
 
         // 7. Calcular GAP
         const gap = cmvLimpoPercentual - (cmv.cmv_teorico_percentual || 0);

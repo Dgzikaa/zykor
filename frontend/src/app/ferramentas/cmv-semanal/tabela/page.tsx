@@ -225,10 +225,10 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         id: 'estoque_inicial',
         label: 'Estoque Inicial',
         metricas: [
-          { key: 'estoque_inicial', label: 'TOTAL', status: 'calculado', fonte: 'Manual (Excel)', calculo: 'Cozinha + Drinks + Bebidas', formato: 'moeda' },
-          { key: 'estoque_inicial_cozinha', label: 'Cozinha', status: 'manual', fonte: 'Manual (Excel)', calculo: 'Inserido manualmente', formato: 'moeda', editavel: true },
-          { key: 'estoque_inicial_drinks', label: 'Drinks', status: 'manual', fonte: 'Manual (Excel)', calculo: 'Inserido manualmente', formato: 'moeda', editavel: true },
-          { key: 'estoque_inicial_bebidas', label: 'Bebidas', status: 'manual', fonte: 'Manual (Excel)', calculo: 'Inserido manualmente', formato: 'moeda', editavel: true },
+          { key: 'estoque_inicial', label: 'TOTAL', status: 'calculado', fonte: 'Calculado', calculo: 'Cozinha + Drinks + Bebidas', formato: 'moeda' },
+          { key: 'estoque_inicial_cozinha', label: 'Cozinha', status: 'auto', fonte: 'Planilha CMV', calculo: 'Sincronizado da planilha', formato: 'moeda' },
+          { key: 'estoque_inicial_drinks', label: 'Drinks', status: 'auto', fonte: 'Planilha CMV', calculo: 'Sincronizado da planilha', formato: 'moeda' },
+          { key: 'estoque_inicial_bebidas', label: 'Bebidas', status: 'auto', fonte: 'Planilha CMV', calculo: 'Sincronizado da planilha', formato: 'moeda' },
         ]
       },
       {
@@ -246,10 +246,10 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         id: 'estoque_final',
         label: '(-) Estoque Final',
         metricas: [
-          { key: 'estoque_final', label: 'TOTAL', status: 'calculado', fonte: 'Manual (Excel)', calculo: 'Cozinha + Drinks + Bebidas', formato: 'moeda' },
-          { key: 'estoque_final_cozinha', label: 'Cozinha', status: 'manual', fonte: 'Manual (Excel)', calculo: 'Inserido manualmente', formato: 'moeda', editavel: true },
-          { key: 'estoque_final_drinks', label: 'Drinks', status: 'manual', fonte: 'Manual (Excel)', calculo: 'Inserido manualmente', formato: 'moeda', editavel: true },
-          { key: 'estoque_final_bebidas', label: 'Bebidas', status: 'manual', fonte: 'Manual (Excel)', calculo: 'Inserido manualmente', formato: 'moeda', editavel: true },
+          { key: 'estoque_final', label: 'TOTAL', status: 'calculado', fonte: 'Calculado', calculo: 'Cozinha + Drinks + Bebidas', formato: 'moeda' },
+          { key: 'estoque_final_cozinha', label: 'Cozinha', status: 'auto', fonte: 'Planilha CMV', calculo: 'Sincronizado da planilha', formato: 'moeda' },
+          { key: 'estoque_final_drinks', label: 'Drinks', status: 'auto', fonte: 'Planilha CMV', calculo: 'Sincronizado da planilha', formato: 'moeda' },
+          { key: 'estoque_final_bebidas', label: 'Bebidas', status: 'auto', fonte: 'Planilha CMV', calculo: 'Sincronizado da planilha', formato: 'moeda' },
         ]
       },
       {
@@ -288,7 +288,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
           { key: 'cmv_real', label: 'CMV R$', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial + Compras - Est.Final - Consumos - Bonificações', formato: 'moeda' },
           { key: 'cmv_percentual', label: 'CMV Real (%)', status: 'calculado', fonte: 'Calculado', calculo: 'CMV R$ / Faturamento Bruto × 100', formato: 'percentual' },
           { key: 'cmv_limpo_percentual', label: 'CMV Limpo (%)', status: 'calculado', fonte: 'Calculado', calculo: '(CMV R$ / Fat. Líquido) × 100', formato: 'percentual' },
-          { key: 'cmv_teorico_percentual', label: 'CMV Teórico/Meta (%)', status: 'manual', fonte: 'Planilha', calculo: 'Valor meta definido', formato: 'percentual' },
+          { key: 'cmv_teorico_percentual', label: 'CMV Teórico/Meta (%)', status: 'manual', fonte: 'Planilha', calculo: 'Valor meta definido', formato: 'percentual', editavel: true },
         ]
       }
     ]
@@ -467,6 +467,7 @@ export default function CMVSemanalTabelaPage() {
       setSincronizandoNibo(false);
     }
   };
+
 
   // Carregar dados
   const carregarDados = useCallback(async () => {

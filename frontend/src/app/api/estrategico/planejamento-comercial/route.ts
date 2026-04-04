@@ -186,6 +186,8 @@ export async function GET(request: NextRequest) {
         res_p,
         faturamento_couvert_manual,
         faturamento_bar_manual,
+        faturamento_couvert,
+        couvert_vr_contahub,
         calculado_em,
         precisa_recalculo,
         versao_calculo
@@ -363,6 +365,11 @@ export async function GET(request: NextRequest) {
         c_art: evento.c_art || 0,
         c_prod: evento.c_prod || 0,
         percent_art_fat: evento.percent_art_fat || 0,
+        faturamento_couvert: evento.faturamento_couvert || 0,
+        couvert_vr_contahub:
+          evento.couvert_vr_contahub !== null && evento.couvert_vr_contahub !== undefined
+            ? Number(evento.couvert_vr_contahub)
+            : null,
         
         // Percentuais
         percent_b: evento.percent_b || 0,

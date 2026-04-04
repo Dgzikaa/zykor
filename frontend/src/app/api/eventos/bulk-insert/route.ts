@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       dia_semana: evento.dia_semana,
       m1_r: evento.m1_r,
       ativo: true,
-      precisa_recalculo: false,
+      precisa_recalculo: true,
       versao_calculo: 1
     }));
 

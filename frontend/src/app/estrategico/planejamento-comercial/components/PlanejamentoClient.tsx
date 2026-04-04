@@ -71,6 +71,7 @@ interface EventoEdicaoCompleta {
   res_p: number;
   c_art: number;
   c_prod: number;
+  couvert_vr_contahub?: number | null;
   percent_b: number;
   percent_d: number;
   percent_c: number;
@@ -104,6 +105,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
   const router = useRouter();
+  
+  console.log('🔍 selectedBar:', selectedBar, 'id:', selectedBar?.id);
   
   const [dados, setDados] = useState<PlanejamentoData[]>(initialData);
   const [filtroMes, setFiltroMes] = useState(serverMes);
@@ -469,12 +472,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
             <div className="flex gap-4">
               <div className="flex-1 hidden md:block">
                 {/* Tabela Completa */}
-                <div className="bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-xl shadow-sm overflow-auto max-h-[calc(100vh-120px)]">
-                  <table className="text-[10px] w-full min-w-max" style={{borderCollapse: 'separate', borderSpacing: 0}}>
+                <div className="bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-xl shadow-sm overflow-x-auto overflow-y-auto max-h-[calc(100vh-120px)]" style={{position: 'relative'}}>
+                  <table className="text-[10px] w-full min-w-max" style={{borderCollapse: 'separate', borderSpacing: 0, position: 'relative'}}>
                     <thead className="bg-[hsl(var(--muted))]">
                       {/* Primeira linha - Grupos colapsáveis */}
                       <tr className="sticky top-0 z-30 bg-[hsl(var(--muted))] border-b-2 border-[hsl(var(--border))]">
-                        <th colSpan={5} className="border-r-2 border-[hsl(var(--border))] bg-[hsl(var(--muted))]/95 sticky left-0 z-40" style={{minWidth: '446px'}}></th>
+                        <th colSpan={5} className="border-r-2 border-[hsl(var(--border))] !bg-[hsl(var(--muted))] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{width: '446px', minWidth: '446px', maxWidth: '446px', position: 'sticky', left: 0, zIndex: 40}}></th>
 
                         {/* Grupo CLIENTES */}
                         <th
@@ -534,11 +537,11 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                       {/* Segunda linha - Headers principais e subcolunas */}
                       <tr className="sticky top-[32px] z-30 bg-[hsl(var(--muted))] border-b border-[hsl(var(--border))]">
                         {/* Colunas Fixas (5 primeiras: Data, Dia, Artista, Receita Real, Meta M1) */}
-                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-0 bg-[hsl(var(--muted))] z-40" style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>Data</th>
-                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[48px] bg-[hsl(var(--muted))] z-40" style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>Dia</th>
-                        <th className="px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[86px] bg-[hsl(var(--muted))] z-40" style={{width: '140px', minWidth: '140px', maxWidth: '140px'}}>Artista</th>
-                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] sticky left-[226px] bg-[hsl(var(--muted))] z-40" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Receita Real</th>
-                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))] sticky left-[336px] bg-[hsl(var(--muted))] z-40" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Meta M1</th>
+                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] !bg-[hsl(var(--muted))] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{width: '48px', minWidth: '48px', maxWidth: '48px', position: 'sticky', left: 0, zIndex: 40}}>Data</th>
+                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] !bg-[hsl(var(--muted))] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{width: '38px', minWidth: '38px', maxWidth: '38px', position: 'sticky', left: '48px', zIndex: 40}}>Dia</th>
+                        <th className="px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))] !bg-[hsl(var(--muted))] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{width: '140px', minWidth: '140px', maxWidth: '140px', position: 'sticky', left: '86px', zIndex: 40}}>Artista</th>
+                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] !bg-[hsl(var(--muted))] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{width: '110px', minWidth: '110px', maxWidth: '110px', position: 'sticky', left: '226px', zIndex: 40}}>Receita Real</th>
+                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))] !bg-[hsl(var(--muted))] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{width: '110px', minWidth: '110px', maxWidth: '110px', position: 'sticky', left: '336px', zIndex: 40}}>Meta M1</th>
                         
                         {/* Subcolunas CLIENTES */}
                         {gruposAbertos.clientes ? (
@@ -567,8 +570,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         {gruposAbertos.artistico ? (
                           <>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Custo Artístico</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>$ Couvert</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Art/Fat</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>
+                              {selectedBar?.id === 4 ? '$ Couvert' : 'Custo Produção'}
+                            </th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
+                              {selectedBar?.id === 4 ? 'Couv/Art' : '% Art/Fat'}
+                            </th>
                           </>
                         ) : (
                           <th className="border-r border-[hsl(var(--border))]"></th>
@@ -699,15 +706,20 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             }`}
                           >
                             {/* Colunas Fixas (Data, Dia, Artista, Receita Real, Meta M1) */}
-                            <td className={`px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))] sticky left-0 z-10 transition-colors ${linhaHighlight === idx ? 'bg-blue-200 dark:bg-blue-800/60' : 'bg-[hsl(var(--background))] group-hover:bg-blue-100/70 dark:group-hover:bg-blue-900/30'}`} style={{width: '48px', minWidth: '48px', maxWidth: '48px'}}>{evento.data_curta}</td>
-                            <td className={`px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] sticky left-[48px] z-10 transition-colors ${linhaHighlight === idx ? 'bg-blue-200 dark:bg-blue-800/60' : 'bg-[hsl(var(--background))] group-hover:bg-blue-100/70 dark:group-hover:bg-blue-900/30'}`} style={{width: '38px', minWidth: '38px', maxWidth: '38px'}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
-                            <td className={`px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))] sticky left-[86px] z-10 truncate transition-colors ${linhaHighlight === idx ? 'bg-blue-200 dark:bg-blue-800/60' : 'bg-[hsl(var(--background))] group-hover:bg-blue-100/70 dark:group-hover:bg-blue-900/30'}`} style={{width: '140px', minWidth: '140px', maxWidth: '140px'}} title={evento.evento_nome || 'Sem atração'}>{evento.evento_nome || '-'}</td>
+                            <td className={`px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))] transition-colors shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] ${linhaHighlight === idx ? '!bg-blue-200 dark:!bg-blue-800' : '!bg-white dark:!bg-gray-900 group-hover:!bg-blue-100/70 dark:group-hover:!bg-blue-900/30'}`} style={{width: '48px', minWidth: '48px', maxWidth: '48px', position: 'sticky', left: 0, zIndex: 20}}>{evento.data_curta}</td>
+                            <td className={`px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] transition-colors shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] ${linhaHighlight === idx ? '!bg-blue-200 dark:!bg-blue-800' : '!bg-white dark:!bg-gray-900 group-hover:!bg-blue-100/70 dark:group-hover:!bg-blue-900/30'}`} style={{width: '38px', minWidth: '38px', maxWidth: '38px', position: 'sticky', left: '48px', zIndex: 20}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
+                            <td className={`px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))] truncate transition-colors shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] ${linhaHighlight === idx ? '!bg-blue-200 dark:!bg-blue-800' : '!bg-white dark:!bg-gray-900 group-hover:!bg-blue-100/70 dark:group-hover:!bg-blue-900/30'}`} style={{width: '140px', minWidth: '140px', maxWidth: '140px', position: 'sticky', left: '86px', zIndex: 20}} title={evento.evento_nome || 'Sem atração'}>{evento.evento_nome || '-'}</td>
                             <td 
-                              onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('real_receita'); }}
-                              className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] sticky left-[226px] z-10 transition-colors cursor-pointer ${
-                                linhaHighlight === idx ? 'bg-blue-200 dark:bg-blue-800/60' : 'bg-[hsl(var(--background))] group-hover:bg-blue-100/70 dark:group-hover:bg-blue-900/30'
-                              } ${colunaHighlight === 'real_receita' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : ''}`} 
-                              style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setLinhaHighlight(idx); 
+                                setColunaHighlight(prev => prev === 'real_receita' ? null : 'real_receita');
+                              }}
+                              className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] transition-colors cursor-pointer shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] ${
+                                colunaHighlight === 'real_receita' ? '!bg-blue-50 dark:!bg-blue-900 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' :
+                                linhaHighlight === idx ? '!bg-blue-200 dark:!bg-blue-800' : '!bg-white dark:!bg-gray-900 group-hover:!bg-blue-100/70 dark:group-hover:!bg-blue-900/30'
+                              }`}
+                              style={{width: '110px', minWidth: '110px', maxWidth: '110px', position: 'sticky', left: '226px', zIndex: 20}}>
                               {evento.real_receita > 0 ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -750,26 +762,43 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                               )}
                             </td>
                             <td 
-                              onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('m1_receita'); }}
-                              className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] sticky left-[336px] z-10 cursor-pointer transition-colors ${
-                                linhaHighlight === idx ? 'bg-blue-200 dark:bg-blue-800/60' : 'bg-[hsl(var(--background))] group-hover:bg-blue-100/70 dark:group-hover:bg-blue-900/30'
-                              } ${colunaHighlight === 'm1_receita' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : ''}`} 
-                              style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setLinhaHighlight(idx); 
+                                setColunaHighlight(prev => prev === 'm1_receita' ? null : 'm1_receita');
+                              }}
+                              className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] ${
+                                colunaHighlight === 'm1_receita' ? '!bg-blue-50 dark:!bg-blue-900 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' :
+                                linhaHighlight === idx ? '!bg-blue-200 dark:!bg-blue-800' : '!bg-white dark:!bg-gray-900 group-hover:!bg-blue-100/70 dark:group-hover:!bg-blue-900/30'
+                              }`}
+                              style={{width: '110px', minWidth: '110px', maxWidth: '110px', position: 'sticky', left: '336px', zIndex: 20}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
                             
                             {/* Grupo CLIENTES */}
                             {gruposAbertos.clientes ? (
                               <>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('clientes_plan'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'clientes_plan' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'clientes_plan' ? null : 'clientes_plan');
+                                  }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'clientes_plan' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.clientes_plan || '-'}</td>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('clientes_real'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'clientes_real' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'clientes_real' ? null : 'clientes_real');
+                                  }}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'clientes_real' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.ci_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.clientes_real || '-'}</span></td>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('res_tot'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'res_tot' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'res_tot' ? null : 'res_tot');
+                                  }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'res_tot' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>
                                   {selectedBar?.id === 4 ? (
                                     editandoReservas?.id === evento.evento_id && editandoReservas?.campo === 'res_tot' ? (
@@ -808,8 +837,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                   )}
                                 </td>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('res_p'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'res_p' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'res_p' ? null : 'res_p');
+                                  }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'res_p' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>
                                   {selectedBar?.id === 4 ? (
                                     editandoReservas?.id === evento.evento_id && editandoReservas?.campo === 'res_p' ? (
@@ -856,16 +889,28 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             {gruposAbertos.ticket ? (
                               <>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('te_real'); }}
-                                  className={`px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'te_real' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'te_real' ? null : 'te_real');
+                                  }}
+                                  className={`px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'te_real' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.te_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.te_real > 0 ? formatarMoeda(evento.te_real) : '-'}</span></td>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('tb_real'); }}
-                                  className={`px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'tb_real' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'tb_real' ? null : 'tb_real');
+                                  }}
+                                  className={`px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'tb_real' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.tb_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.tb_real > 0 ? formatarMoeda(evento.tb_real) : '-'}</span></td>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('t_medio'); }}
-                                  className={`px-2 py-1.5 text-right text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 't_medio' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 't_medio' ? null : 't_medio');
+                                  }}
+                                  className={`px-2 py-1.5 text-right text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 't_medio' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.t_medio_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_medio > 0 ? formatarMoeda(evento.t_medio) : '-'}</span></td>
                               </>
                             ) : (
@@ -876,17 +921,64 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             {gruposAbertos.artistico ? (
                               <>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('c_art'); }}
-                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_art' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'c_art' ? null : 'c_art');
+                                  }}
+                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_art' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_art > 0 ? formatarMoeda(evento.c_art) : '-'}</td>
+                                
+                                {selectedBar?.id === 4 ? (
+                                  <td 
+                                    onClick={(e) => { 
+                                      e.stopPropagation(); 
+                                      setLinhaHighlight(idx); 
+                                      setColunaHighlight(prev => prev === 'couvert_vr' ? null : 'couvert_vr');
+                                    }}
+                                    className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'couvert_vr' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                    style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>
+                                      {evento.couvert_vr_contahub !== null && evento.couvert_vr_contahub !== undefined && evento.couvert_vr_contahub > 0 
+                                        ? formatarMoeda(evento.couvert_vr_contahub) 
+                                        : '-'}
+                                  </td>
+                                ) : (
+                                  <td 
+                                    onClick={(e) => { 
+                                      e.stopPropagation(); 
+                                      setLinhaHighlight(idx); 
+                                      setColunaHighlight(prev => prev === 'c_prod' ? null : 'c_prod');
+                                    }}
+                                    className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_prod' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                    style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_prod > 0 ? formatarMoeda(evento.c_prod) : '-'}</td>
+                                )}
+                                
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('faturamento_couvert'); }}
-                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'faturamento_couvert' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
-                                  style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.faturamento_couvert > 0 ? formatarMoeda(evento.faturamento_couvert) : '-'}</td>
-                                <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('percent_art_fat'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_art_fat' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
-                                  style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}><span className={`font-semibold ${evento.percent_art_fat_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.percent_art_fat > 0 ? formatarPercentual(evento.percent_art_fat) : '-'}</span></td>
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'percent_art_fat' ? null : 'percent_art_fat');
+                                  }}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_art_fat' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
+                                    {selectedBar?.id === 4 ? (
+                                      <span className={`font-semibold ${
+                                        evento.c_art > 0 && evento.couvert_vr_contahub && (evento.couvert_vr_contahub / evento.c_art) >= 1
+                                          ? 'text-green-600 dark:text-green-400'
+                                          : evento.c_art > 0
+                                            ? 'text-red-600 dark:text-red-400'
+                                            : 'text-[hsl(var(--muted-foreground))]'
+                                      }`}>
+                                        {evento.c_art > 0 && evento.couvert_vr_contahub
+                                          ? formatarPercentual((evento.couvert_vr_contahub / evento.c_art) * 100)
+                                          : evento.c_art > 0 ? '0,0%' : '-'}
+                                      </span>
+                                    ) : (
+                                      <span className={`font-semibold ${evento.percent_art_fat_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                        {evento.percent_art_fat > 0 ? formatarPercentual(evento.percent_art_fat) : '-'}
+                                      </span>
+                                    )}
+                                  </td>
                               </>
                             ) : (
                               <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
@@ -896,32 +988,60 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             {gruposAbertos.producao ? (
                               <>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('percent_b'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_b' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'percent_b' ? null : 'percent_b');
+                                  }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_b' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_b > 0 ? formatarPercentual(evento.percent_b) : '-'}</td>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('percent_d'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_d' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'percent_d' ? null : 'percent_d');
+                                  }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_d' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_d > 0 ? formatarPercentual(evento.percent_d) : '-'}</td>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('percent_c'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_c' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'percent_c' ? null : 'percent_c');
+                                  }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_c' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_c > 0 ? formatarPercentual(evento.percent_c) : '-'}</td>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('atrasao_cozinha'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'atrasao_cozinha' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'atrasao_cozinha' ? null : 'atrasao_cozinha');
+                                  }}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'atrasao_cozinha' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_cozinha <= 10 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_cozinha > 0 ? formatarContagem(evento.atrasao_cozinha) : '-'}</span></td>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('atrasao_bar'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'atrasao_bar' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'atrasao_bar' ? null : 'atrasao_bar');
+                                  }}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'atrasao_bar' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_bar <= 50 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_bar > 0 ? formatarContagem(evento.atrasao_bar) : '-'}</span></td>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('stockout_drinks'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_drinks' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'stockout_drinks' ? null : 'stockout_drinks');
+                                  }}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_drinks' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_drinks_perc <= 10 ? 'text-green-600 dark:text-green-400' : evento.stockout_drinks_perc <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_drinks_perc > 0 ? formatarPercentual(evento.stockout_drinks_perc) : '-'}</span></td>
                                 <td 
-                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight('stockout_comidas'); }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_comidas' ? 'bg-amber-100 dark:bg-amber-900/40 ring-2 ring-inset ring-amber-500' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setLinhaHighlight(idx); 
+                                    setColunaHighlight(prev => prev === 'stockout_comidas' ? null : 'stockout_comidas');
+                                  }}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_comidas' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_comidas_perc <= 10 ? 'text-green-600 dark:text-green-400' : evento.stockout_comidas_perc <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_comidas_perc > 0 ? formatarPercentual(evento.stockout_comidas_perc) : '-'}</span></td>
                               </>
                             ) : (

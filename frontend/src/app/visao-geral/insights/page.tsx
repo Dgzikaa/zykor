@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LoadingState } from '@/components/ui/loading-state';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import InsightsV2Card from '@/components/dashboard/InsightsV2Card';
 import { 
   Brain, 
   Lightbulb, 
@@ -197,6 +198,11 @@ export default function InsightsAgentePage() {
               </>
             )}
           </Button>
+        </div>
+
+        {/* Insights V2 Card */}
+        <div className="mb-6">
+          <InsightsV2Card barId={3} showActions={true} maxInsights={10} />
         </div>
 
         {/* Stats */}

@@ -27,21 +27,22 @@ export async function POST(request: NextRequest) {
     console.log(`📅 Período: ${dataInicio} até ${dataFim} (${daysBack} dias)`);
     console.log(`🏪 Bar ID: ${barId}`);
 
-    // Chamar a API de sync existente
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-                    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    // Importar a lógica da API de sync diretamente
+    const { POST: syncPost } = await import('../sync/route');
     
-    const syncResponse = await fetch(`${baseUrl}/api/falae/sync`, {
+    const mockRequest = new NextRequest('http://localhost:3001/api/falae/sync', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({
         bar_id: barId,
         days_back: daysBack,
       }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
     });
 
+    const syncResponse = await syncPost(mockRequest);
+    
     if (!syncResponse.ok) {
       const errorText = await syncResponse.text();
       throw new Error(`Erro na sincronização: ${syncResponse.status} - ${errorText}`);

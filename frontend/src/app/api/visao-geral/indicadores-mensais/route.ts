@@ -70,37 +70,42 @@ export async function GET(request: NextRequest) {
       // 1. FATURAMENTO TOTAL DO MÊS (ContaHub + Yuzer + Sympla)
       const limit = 1000; // Limite para paginação
       
-      // 1.1. CONTAHUB (excluindo 'Conta Assinada')
-      let contahubData: any[] = [];
+      // 1.1. CONTAHUB (usando contahub_periodo com vr_pagamentos > 0)
+      let contahubPeriodoData: any[] = [];
       let fromContahub = 0;
       let hasMoreContahub = true;
 
       while (hasMoreContahub) {
         const { data: batch, error: batchError } = await supabase
-          .from('faturamento_pagamentos')
-          .select('valor_liquido, meio')
+          .from('contahub_periodo')
+          .select('vr_pagamentos, pessoas')
           .eq('bar_id', barIdNum)
-          .gte('data_pagamento', inicioMes)
-          .lte('data_pagamento', fimMes)
+          .gte('vd_dtcontabil', inicioMes)
+          .lte('vd_dtcontabil', fimMes)
           .range(fromContahub, fromContahub + limit - 1);
 
         if (batchError) {
-          console.error('❌ Erro ao buscar batch faturamento_pagamentos:', batchError);
+          console.error('❌ Erro ao buscar batch contahub_periodo:', batchError);
           throw batchError;
         }
 
         if (!batch || batch.length === 0) {
           hasMoreContahub = false;
         } else {
-          contahubData = contahubData.concat(batch);
+          contahubPeriodoData = contahubPeriodoData.concat(batch);
           fromContahub += limit;
           hasMoreContahub = batch.length === limit;
         }
       }
 
-      // Filtrar para excluir 'Conta Assinada' (consumo de sócios)
-      const contahubFiltrado = contahubData?.filter(item => item.meio !== 'Conta Assinada') || [];
-      const faturamentoContahub = contahubFiltrado.reduce((sum, item) => sum + (parseFloat(item.valor_liquido) || 0), 0);
+      // Filtrar apenas linhas com vr_pagamentos > 0
+      const contahubComPagamento = contahubPeriodoData.filter(item => 
+        (parseFloat(item.vr_pagamentos) || 0) > 0
+      );
+      
+      const faturamentoContahub = contahubComPagamento.reduce((sum, item) => 
+        sum + (parseFloat(item.vr_pagamentos) || 0), 0
+      );
 
       // 1.2. YUZER
       let yuzerData: any[] = [];
@@ -373,18 +378,37 @@ export async function GET(request: NextRequest) {
       const percentualArtistico = faturamentoTotal > 0 ? (custoArtistico / faturamentoTotal) * 100 : 0;
 
       // 10. CALCULAR TICKET MÉDIO CORRETO
-      // Ticket médio = Faturamento / Número de pessoas (não clientes únicos)
-      // Buscar pessoas da tabela visitas
-      const { data: pessoasContahub, error: pessoasError } = await supabase
-        .from('visitas')
-        .select('pessoas')
-        .eq('bar_id', barIdNum)
-        .gte('data_visita', inicioMes)
-        .lte('data_visita', fimMes);
-
-      const totalPessoas = !pessoasError && pessoasContahub ? 
-        pessoasContahub.reduce((sum, item) => sum + (parseInt(item.pessoas) || 0), 0) : 0;
+      // Ticket médio = Faturamento / Número de pessoas (apenas com vr_pagamentos > 0)
+      // Usar pessoas já filtradas do contahub_periodo
+      const pessoasContahub = contahubComPagamento.reduce((sum, item) => 
+        sum + (parseInt(item.pessoas) || 0), 0
+      );
       
+      // Buscar pessoas do Yuzer e Sympla (se houver)
+      const { data: yuzerProdutos } = await supabase
+        .from('yuzer_produtos')
+        .select('quantidade, produto_nome')
+        .eq('bar_id', barIdNum)
+        .gte('data_evento', inicioMes)
+        .lte('data_evento', fimMes);
+      
+      const pessoasYuzer = yuzerProdutos?.filter(item => 
+        item.produto_nome && (
+          item.produto_nome.toLowerCase().includes('ingresso') || 
+          item.produto_nome.toLowerCase().includes('entrada')
+        )
+      ).reduce((sum, item) => sum + (parseInt(item.quantidade) || 0), 0) || 0;
+      
+      const { data: symplaParticipantes } = await supabase
+        .from('sympla_participantes')
+        .select('id')
+        .gte('data_checkin', inicioMes)
+        .lte('data_checkin', fimMes)
+        .eq('fez_checkin', true);
+      
+      const pessoasSympla = symplaParticipantes?.length || 0;
+      
+      const totalPessoas = pessoasContahub + pessoasYuzer + pessoasSympla;
       const ticketMedio = totalPessoas > 0 ? faturamentoTotal / totalPessoas : 0;
 
       indicadoresPorMes.push({

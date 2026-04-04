@@ -70,7 +70,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}))
-    const { bar_id, run_new_scrape = false, dataset_id } = body
+    const { bar_id, run_new_scrape = false, dataset_id, retroativo = false } = body
 
     const hbResult = await heartbeatStart(supabase, 'google-reviews-apify-sync', bar_id || null, null, 'pgcron')
     heartbeatId = hbResult.heartbeatId
@@ -107,25 +107,31 @@ serve(async (req) => {
           // Executar nova coleta no Apify
           console.log(`Iniciando nova coleta para ${barConfig.name}...`)
           
-          // Calcular data de início - buscar reviews dos últimos 14 dias para garantir cobertura
-          // Sem limite de maxReviews para trazer TODAS as reviews do período
-          const startDate = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-          console.log(`Buscando TODAS as reviews desde ${startDate} para ${barConfig.name} (sem limite)`)
+          // Se retroativo=true, buscar TODO o histórico (sem limite de data)
+          // Caso contrário, buscar apenas últimos 14 dias (comportamento padrão)
+          const apifyInput: Record<string, unknown> = {
+            startUrls: [{
+              url: `https://www.google.com/maps/place/?q=place_id:${barConfig.placeId}`
+            }],
+            maxReviews: retroativo ? 50000 : 9999,
+            language: 'pt-BR',
+            reviewsSort: 'newest'
+          }
+          
+          if (retroativo) {
+            console.log(`🔄 RETROATIVO: Buscando TODO o histórico de reviews para ${barConfig.name} (sem limite de data)`)
+          } else {
+            const startDate = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            apifyInput.reviewsStartDate = startDate
+            console.log(`Buscando reviews desde ${startDate} para ${barConfig.name}`)
+          }
           
           const runResponse = await fetch(
             `https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=${apifyToken}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                startUrls: [{
-                  url: `https://www.google.com/maps/place/?q=place_id:${barConfig.placeId}`
-                }],
-                maxReviews: 9999,
-                language: 'pt-BR',
-                reviewsSort: 'newest',
-                reviewsStartDate: startDate
-              })
+              body: JSON.stringify(apifyInput)
             }
           )
 
@@ -138,7 +144,8 @@ serve(async (req) => {
           const runId = runData.data.id
           let status = 'RUNNING'
           let attempts = 0
-          const maxAttempts = 60
+          // Retroativo pode demorar mais (até 30 min), padrão 5 min
+          const maxAttempts = retroativo ? 360 : 60
 
           while (status === 'RUNNING' && attempts < maxAttempts) {
             await new Promise(resolve => setTimeout(resolve, 5000))
@@ -190,7 +197,9 @@ serve(async (req) => {
 
           console.log(`Carregadas ${allReviews.length} reviews...`)
 
-          if (allReviews.length > 10000) break
+          // Limite maior para retroativo (50k), padrão 10k
+          const maxToProcess = retroativo ? 50000 : 10000
+          if (allReviews.length > maxToProcess) break
         }
 
         console.log(`Total de ${allReviews.length} reviews para processar`)

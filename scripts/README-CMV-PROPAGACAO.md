@@ -21,17 +21,9 @@ Isso vale para:
 - Estoque por categoria (Cozinha, Bebidas, Drinks)
 - Estoque de funcionários (CMA)
 
-## Como Corrigir o Histórico
+## Como Corrigir o Histórico (UMA VEZ)
 
-### Opção 1: Interface Web (Recomendado)
-
-1. Acesse: `https://zykor.com.br/ferramentas/cmv-semanal/tabela`
-2. Selecione o bar (Ordinário ou Deboche)
-3. Clique no botão verde **"Propagar Estoque"**
-4. Aguarde a confirmação
-5. Verifique que os valores estão corretos
-
-### Opção 2: Script PowerShell
+### Script PowerShell
 
 ```powershell
 # Ordinário (bar_id 3)
@@ -42,22 +34,17 @@ Isso vale para:
 ```
 
 O script:
-1. Ajusta o row_map do Deboche (se necessário)
-2. Propaga os estoques
+1. Chama a Edge Function `cmv-propagar-estoque`
+2. Aplica a regra contábil em todas as semanas
 3. Valida a consistência
 4. Mostra erros se houver
 
-### Opção 3: API Direta
+### Ou Aguarde o Próximo Sync
 
-```bash
-# Propagar estoque
-curl -X POST http://localhost:3000/api/cmv-semanal/propagar-estoque \
-  -H "Content-Type: application/json" \
-  -d '{"bar_id": 3, "ano": 2026}'
-
-# Ajustar row_map do Deboche (uma vez)
-curl -X POST http://localhost:3000/api/cmv-semanal/ajustar-rowmap-deboche
-```
+Quando rodar qualquer um destes, a correção será aplicada **automaticamente**:
+- Job `cmv-semanal-auto` (roda automaticamente)
+- Sincronização da planilha CMV
+- Atualização de contagem de estoque
 
 ## Correção Específica do Deboche
 
@@ -74,9 +61,7 @@ O sistema usava o mapeamento do Ordinário para ambos, então lia a linha **erra
 
 ### Solução
 
-A função `cmv-ajustar-rowmap-deboche` atualiza o `row_map_cmv_semanal` no banco para o Deboche, corrigindo os índices do CMA.
-
-**O botão "Propagar Estoque" já faz isso automaticamente** quando o bar selecionado é o Deboche.
+O `sync-cmv-sheets` agora **cria automaticamente** o `row_map_cmv_semanal` correto para o Deboche no primeiro sync, com os índices ajustados do CMA.
 
 ## Manutenção Automática
 
@@ -93,17 +78,14 @@ O sistema **automaticamente** propaga os estoques (CMV + CMA) para manter a cons
 1. `backend/supabase/functions/cmv-semanal-auto/index.ts`
 2. `backend/supabase/functions/sync-cmv-sheets/index.ts`
 3. `backend/supabase/functions/sync-contagem-sheets/index.ts`
-4. `backend/supabase/functions/cmv-propagar-estoque/index.ts` (novo)
-5. `backend/supabase/functions/cmv-ajustar-rowmap-deboche/index.ts` (novo)
-
-### Frontend (APIs e UI)
-6. `frontend/src/app/api/cmv-semanal/propagar-estoque/route.ts` (novo)
-7. `frontend/src/app/api/cmv-semanal/ajustar-rowmap-deboche/route.ts` (novo)
-8. `frontend/src/app/ferramentas/cmv-semanal/tabela/page.tsx`
+4. `backend/supabase/functions/cmv-propagar-estoque/index.ts` (novo - para correção única)
 
 ### Scripts e Docs
-9. `scripts/test-cmv-propagacao.ps1` (novo)
-10. `CMV_ESTOQUE_PROPAGACAO_FIX.md` (este arquivo)
+5. `scripts/test-cmv-propagacao.ps1` (novo)
+6. `scripts/README-CMV-PROPAGACAO.md` (este arquivo)
+7. `CMV_ESTOQUE_PROPAGACAO_FIX.md`
+8. `CMV_CORRECOES_COMPLETAS.md`
+9. `GUIA_RAPIDO_CMV_PROPAGACAO.md`
 
 ## Validação Pós-Deploy
 
@@ -134,9 +116,9 @@ O sistema **automaticamente** propaga os estoques (CMV + CMA) para manter a cons
 
 ### "CMA do Deboche ainda está errado"
 
-1. Verifique se o row_map foi ajustado: consultar `api_credentials` onde `bar_id = 4`
-2. Rode novamente o sync da planilha CMV
-3. Rode a propagação de estoque
+1. Rode o sync da planilha CMV (cria o row_map automaticamente)
+2. Aguarde o próximo job automático (aplica a propagação)
+3. Ou rode o script de correção: `.\scripts\test-cmv-propagacao.ps1 -BarId 4 -Ano 2026`
 
 ### "Valores negativos no CMV"
 
