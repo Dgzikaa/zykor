@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
     authUrl.searchParams.set('state', state);
     authUrl.searchParams.set('scope', OAUTH_SCOPE);
+    authUrl.searchParams.set('prompt', 'login');
 
     return NextResponse.redirect(authUrl.toString());
 
