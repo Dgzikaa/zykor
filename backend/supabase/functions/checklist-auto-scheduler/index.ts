@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -7,17 +8,7 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 serve(async (req) => {
   // Configurar CORS
   if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-        `, x-cron-secret`,
-      }
-
-  // Validar autenticação (JWT ou CRON_SECRET)
-  const authError = requireAuth(req);
-  if (authError) return authError;,
-    })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   try {
@@ -201,8 +192,8 @@ serve(async (req) => {
 
     return new Response(JSON.stringify(resultado), {
       headers: {
+        ...getCorsHeaders(req),
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
       },
       status: 200,
     })
@@ -216,8 +207,8 @@ serve(async (req) => {
       timestamp: new Date().toISOString()
     }), {
       headers: {
+        ...getCorsHeaders(req),
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
       },
       status: 500,
     })

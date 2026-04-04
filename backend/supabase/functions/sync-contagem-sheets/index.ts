@@ -11,6 +11,7 @@ import {
   isValidationError
 } from '../_shared/sheets-validation.ts'
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 /**
  * 📦 EDGE FUNCTION - SYNC-CONTAGEM-SHEETS
@@ -32,11 +33,6 @@ import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbe
  * @version 2.0.0
  * @date 2026-03-19
  */
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
 
 /**
  * Normaliza texto removendo acentos e caracteres especiais
@@ -161,10 +157,9 @@ function isCmvDrinks(categoria: string): boolean {
 }
 
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   let heartbeatId: number | null = null
@@ -216,7 +211,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         success: false,
         error: 'Nenhuma configuração de Google Sheets encontrada'
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }), { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } })
     }
 
     console.log(`📋 ${credenciais.length} configurações encontradas`)
@@ -652,7 +647,7 @@ serve(async (req) => {
       resultados,
       timestamp: new Date().toISOString()
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }
     })
 
   } catch (error) {
@@ -664,7 +659,7 @@ serve(async (req) => {
       timestamp: new Date().toISOString()
     }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }
     })
   }
 })

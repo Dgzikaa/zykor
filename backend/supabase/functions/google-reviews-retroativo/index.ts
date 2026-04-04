@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 // Configuração dos bares e seus Place IDs
 const BAR_PLACE_IDS: Record<number, { placeId: string; name: string }> = {
@@ -19,10 +15,8 @@ const BAR_PLACE_IDS: Record<number, { placeId: string; name: string }> = {
 }
 
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
-
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   const supabase = createClient(
@@ -113,7 +107,7 @@ serve(async (req) => {
           message: 'Jobs iniciados! Use action=status para verificar o progresso.',
           results
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -127,7 +121,7 @@ serve(async (req) => {
       if (!imports || imports.length === 0) {
         return new Response(
           JSON.stringify({ success: true, message: 'Nenhum job em andamento', imports: [] }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
 
@@ -196,7 +190,7 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true, results }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 

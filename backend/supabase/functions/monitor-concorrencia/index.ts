@@ -8,10 +8,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 // ========================================
 // CONFIGURAÇÃO DE BUSCA
@@ -471,10 +468,8 @@ function processarEventos(eventosRaw: any[]): any[] {
 // HANDLER PRINCIPAL
 // ========================================
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
-
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: getCorsHeaders(req) })
   }
 
   let heartbeatId: number | null = null
@@ -603,7 +598,7 @@ serve(async (req) => {
         timestamp: new Date().toISOString()
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 200
       }
     )
@@ -618,7 +613,7 @@ serve(async (req) => {
         timestamp: new Date().toISOString()
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 500
       }
     )

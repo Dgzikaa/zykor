@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 /**
  * UMBLER SYNC INCREMENTAL
@@ -9,19 +10,11 @@ import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbe
  * Vantagem: Ja retorna latestMessages embutidas
  */
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
-
 const UMBLER_API = 'https://app-utalk.umbler.com/api/v1'
 
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
-
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   let heartbeatId: number | null = null
@@ -56,7 +49,7 @@ serve(async (req) => {
     if (configError || !config) {
       return new Response(
         JSON.stringify({ success: false, error: 'Config Umbler nao encontrada' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }, status: 400 }
       )
     }
 
@@ -113,7 +106,7 @@ serve(async (req) => {
             url: chatsUrl,
             batch: batchCount
           }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+          { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }, status: 500 }
         )
       }
 
@@ -242,7 +235,7 @@ serve(async (req) => {
         sincronizacao_completa: !hasMore,
         erros: allErros.length > 0 ? allErros.slice(0, 20) : undefined
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
@@ -250,7 +243,7 @@ serve(async (req) => {
     await heartbeatError(supabase, heartbeatId, startTime, error instanceof Error ? error : String(error))
     return new Response(
       JSON.stringify({ success: false, error: String(error) }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }, status: 500 }
     )
   }
 })

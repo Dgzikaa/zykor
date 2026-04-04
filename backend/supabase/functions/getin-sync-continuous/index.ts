@@ -1,11 +1,7 @@
-﻿import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  `, x-cron-secret`,
-}
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 interface GetinReservation {
   id: string
@@ -49,14 +45,8 @@ interface GetinResponse {
 }
 
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
-
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders }
-
-  // Validar autenticação (JWT ou CRON_SECRET)
-  const authError = requireAuth(req);
-  if (authError) return authError;)
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   // 💓 Heartbeat: variáveis no escopo externo para acesso no catch
@@ -281,7 +271,7 @@ serve(async (req) => {
         }
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 200,
       },
     )
@@ -305,7 +295,7 @@ serve(async (req) => {
         error: error.message
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 500,
       },
     )

@@ -16,10 +16,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 interface SyncRequest {
   bar_id?: number
@@ -236,10 +233,9 @@ function formatDate(serial: number): string {
 // ====== LÓGICA PRINCIPAL ======
 
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   let heartbeatId: number | null = null
@@ -295,7 +291,7 @@ serve(async (req) => {
     if (baresConfig.length === 0) {
       return new Response(
         JSON.stringify({ success: false, error: 'Nenhum bar com cmv_spreadsheet_id configurado' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -451,7 +447,7 @@ serve(async (req) => {
         resultados_por_bar: resultadosPorBar,
         timestamp: new Date().toISOString()
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
 
   } catch (error: any) {
@@ -459,7 +455,7 @@ serve(async (req) => {
     await heartbeatError(supabase, heartbeatId, startTime, error)
     return new Response(
       JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
   }
 })

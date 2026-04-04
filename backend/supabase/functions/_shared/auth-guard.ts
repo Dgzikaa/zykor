@@ -78,9 +78,34 @@ export function validateCronOrJWT(req: Request): boolean {
  * @returns Response de erro se não autenticado, null se autenticado
  */
 export function requireAuth(req: Request, requireCronSecret = false): Response | null {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
+  // Import getCorsHeaders locally to avoid circular dependency
+  const getCorsHeadersLocal = (r: Request): Record<string, string> => {
+    const origin = r.headers.get('Origin') || '';
+    const cronSecret = r.headers.get('x-cron-secret');
+    const ALLOWED_ORIGINS = [
+      Deno.env.get('FRONTEND_URL') || 'https://zykor.vercel.app',
+      'https://zykor.com.br',
+      'http://localhost:3001',
+      'http://localhost:3000',
+    ];
+    
+    if (!origin && cronSecret) {
+      return {
+        'Access-Control-Allow-Origin': ALLOWED_ORIGINS[0],
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret, x-selected-bar-id, x-user-id, x-webhook-secret, x-inter-webhook-secret, x-api-key',
+        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
+        'Access-Control-Max-Age': '86400',
+      };
+    }
+    
+    const isAllowed = ALLOWED_ORIGINS.some(allowed => origin === allowed);
+    
+    return {
+      'Access-Control-Allow-Origin': isAllowed ? origin : ALLOWED_ORIGINS[0],
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret, x-selected-bar-id, x-user-id, x-webhook-secret, x-inter-webhook-secret, x-api-key',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
+      'Access-Control-Max-Age': '86400',
+    };
   };
   
   if (requireCronSecret) {
@@ -90,7 +115,7 @@ export function requireAuth(req: Request, requireCronSecret = false): Response |
         JSON.stringify({ error: 'Unauthorized: Invalid or missing CRON_SECRET' }),
         { 
           status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          headers: { ...getCorsHeadersLocal(req), 'Content-Type': 'application/json' } 
         }
       );
     }
@@ -101,7 +126,7 @@ export function requireAuth(req: Request, requireCronSecret = false): Response |
         JSON.stringify({ error: 'Unauthorized: Invalid or missing authentication' }),
         { 
           status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          headers: { ...getCorsHeadersLocal(req), 'Content-Type': 'application/json' } 
         }
       );
     }
@@ -118,9 +143,34 @@ export function requireAuth(req: Request, requireCronSecret = false): Response |
  * @returns Response de erro se não autenticado, null se autenticado
  */
 export function requireWebhookAuth(req: Request, webhookType: string): Response | null {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-webhook-secret',
+  // Import getCorsHeaders locally to avoid circular dependency
+  const getCorsHeadersLocal = (r: Request): Record<string, string> => {
+    const origin = r.headers.get('Origin') || '';
+    const webhookSecret = r.headers.get('x-webhook-secret');
+    const ALLOWED_ORIGINS = [
+      Deno.env.get('FRONTEND_URL') || 'https://zykor.vercel.app',
+      'https://zykor.com.br',
+      'http://localhost:3001',
+      'http://localhost:3000',
+    ];
+    
+    if (!origin && webhookSecret) {
+      return {
+        'Access-Control-Allow-Origin': ALLOWED_ORIGINS[0],
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret, x-selected-bar-id, x-user-id, x-webhook-secret, x-inter-webhook-secret, x-api-key',
+        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
+        'Access-Control-Max-Age': '86400',
+      };
+    }
+    
+    const isAllowed = ALLOWED_ORIGINS.some(allowed => origin === allowed);
+    
+    return {
+      'Access-Control-Allow-Origin': isAllowed ? origin : ALLOWED_ORIGINS[0],
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret, x-selected-bar-id, x-user-id, x-webhook-secret, x-inter-webhook-secret, x-api-key',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
+      'Access-Control-Max-Age': '86400',
+    };
   };
   
   if (!validateWebhookSecret(req, webhookType)) {
@@ -130,7 +180,7 @@ export function requireWebhookAuth(req: Request, webhookType: string): Response 
       }),
       { 
         status: 401, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...getCorsHeadersLocal(req), 'Content-Type': 'application/json' } 
       }
     );
   }

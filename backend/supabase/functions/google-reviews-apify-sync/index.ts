@@ -2,11 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
 import { withRetry, isRetriableError } from '../_shared/retry.ts'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  `, x-cron-secret`,
-}
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 interface ApifyReview {
   reviewId: string
@@ -57,10 +53,8 @@ const BAR_PLACE_IDS: Record<number, { placeId: string; name: string }> = {
 }
 
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
-
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders }
+    return new Response('ok', { headers: getCorsHeaders(req) })
 
   // Validar autenticação (JWT ou CRON_SECRET)
   const authError = requireAuth(req);
@@ -376,7 +370,7 @@ serve(async (req) => {
         timestamp: new Date().toISOString()
       }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 200
       }
     )
@@ -390,7 +384,7 @@ serve(async (req) => {
         error: error.message 
       }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 400
       }
     )
