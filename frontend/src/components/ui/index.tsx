@@ -44,7 +44,7 @@ export const debounce = (func: Function, wait: number) => {
 
 export const throttle = (func: Function, limit: number) => {
   let inThrottle: boolean;
-  return function executedFunction(...args: any[]) {
+  return function executedFunction(this: any, ...args: any[]) {
     if (!inThrottle) {
       func.apply(this, args);
       inThrottle = true;

@@ -1169,7 +1169,7 @@ export function ComparativoSemanal() {
                           <LabelList 
                             dataKey={dia.toLowerCase()}
                             position="top" 
-                            formatter={(value: number | undefined | null) => (value && value > 0) ? `R$ ${(value / 1000).toFixed(0)}k` : ''}
+                            formatter={(value: any) => (value && value > 0) ? `R$ ${(value / 1000).toFixed(0)}k` : ''}
                             className="text-xs fill-gray-600 dark:fill-gray-300"
                           />
                         </Bar>
@@ -1243,7 +1243,7 @@ export function ComparativoSemanal() {
                       <LabelList 
                         dataKey="valor_total" 
                         position="top" 
-                        formatter={(value: number | undefined | null) => `R$ ${(value / 1000).toFixed(0)}k`}
+                        formatter={(value: any) => `R$ ${(value / 1000).toFixed(0)}k`}
                         className="text-xs fill-gray-600 dark:fill-gray-300"
                       />
                       {dadosValorTotal.map((entry, index) => (
