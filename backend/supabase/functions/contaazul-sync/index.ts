@@ -113,7 +113,7 @@ async function refreshToken(supabase: SupabaseClient, credentials: ApiCredential
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
         expires_at: expiresAt.toISOString(),
-        updated_at: new Date().toISOString()
+        atualizado_em: new Date().toISOString()
       })
       .eq('id', credentials.id)
 
@@ -253,35 +253,48 @@ async function syncLancamentos(
       console.log('[contaazul-sync] ' + tipo + ' pagina ' + pagina + '/' + totalPaginas + ' - ' + itens.length + ' itens')
 
       if (itens.length > 0) {
-        const lancamentos = itens.map((item: any) => ({
-          contaazul_id: item.id,
-          contaazul_evento_id: item.id_evento || null,
-          bar_id: barId,
-          tipo: tipo,
-          status: item.status || 'PENDENTE',
-          descricao: item.descricao || null,
-          observacao: item.observacao || null,
-          valor_bruto: parseFloat(item.valor_bruto || item.valor || 0),
-          valor_liquido: item.valor_liquido ? parseFloat(item.valor_liquido) : null,
-          valor_pago: item.valor_pago ? parseFloat(item.valor_pago) : 0,
-          data_vencimento: item.data_vencimento || null,
-          data_competencia: item.data_competencia || null,
-          data_pagamento: item.data_pagamento || null,
-          data_pagamento_previsto: item.data_pagamento_previsto || null,
-          categoria_id: item.categoria?.id || null,
-          categoria_nome: item.categoria?.nome || null,
-          centro_custo_id: item.centro_custo?.id || item.centros_custo?.[0]?.id || null,
-          centro_custo_nome: item.centro_custo?.nome || item.centros_custo?.[0]?.nome || null,
-          pessoa_id: item.contato?.id || null,
-          pessoa_nome: item.contato?.nome || null,
-          conta_financeira_id: item.conta_financeira?.id || null,
-          conta_financeira_nome: item.conta_financeira?.nome || null,
-          metodo_pagamento: item.metodo_pagamento || null,
-          conciliado: item.conciliado || false,
-          data_alteracao_ca: item.data_alteracao || null,
-          raw_data: item,
-          updated_at: new Date().toISOString()
-        }))
+        const lancamentos = itens.map((item: any) => {
+          const valorTotal = item.total ? parseFloat(item.total) / 100 : 0
+          const valorPago = item.pago ? parseFloat(item.pago) / 100 : 0
+          const valorNaoPago = item.nao_pago ? parseFloat(item.nao_pago) / 100 : 0
+          
+          return {
+            contaazul_id: item.id,
+            contaazul_evento_id: item.id_evento || null,
+            bar_id: barId,
+            tipo: tipo,
+            status: item.status || 'PENDENTE',
+            status_traduzido: item.status_traduzido || null,
+            descricao: item.descricao || null,
+            observacao: item.observacao || null,
+            valor_bruto: valorTotal,
+            valor_liquido: valorTotal - valorNaoPago,
+            valor_pago: valorPago,
+            valor_nao_pago: valorNaoPago,
+            data_vencimento: item.data_vencimento || null,
+            data_competencia: item.data_competencia || null,
+            data_pagamento: item.data_pagamento || null,
+            data_pagamento_previsto: item.data_pagamento_previsto || null,
+            data_criacao_ca: item.data_criacao || null,
+            data_alteracao_ca: item.data_alteracao || null,
+            categoria_id: item.categorias?.[0]?.id || null,
+            categoria_nome: item.categorias?.[0]?.nome || null,
+            todas_categorias: item.categorias || null,
+            centro_custo_id: item.centros_de_custo?.[0]?.id || null,
+            centro_custo_nome: item.centros_de_custo?.[0]?.nome || null,
+            todos_centros_custo: item.centros_de_custo || null,
+            pessoa_id: item.fornecedor?.id || item.cliente?.id || null,
+            pessoa_nome: item.fornecedor?.nome || item.cliente?.nome || null,
+            conta_financeira_id: item.conta_financeira?.id || null,
+            conta_financeira_nome: item.conta_financeira?.nome || null,
+            conta_financeira: item.conta_financeira || null,
+            metodo_pagamento: item.metodo_pagamento || null,
+            conciliado: item.conciliado || false,
+            renegociacao: item.renegociacao || null,
+            raw_data: item,
+            updated_at: new Date().toISOString()
+          }
+        })
 
         const { error } = await supabase
           .from('contaazul_lancamentos')
