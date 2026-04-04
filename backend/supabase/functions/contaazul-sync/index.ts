@@ -231,8 +231,11 @@ async function syncLancamentos(
         params.data_alteracao_de = dateFrom + 'T00:00:00'
         params.data_alteracao_ate = dateTo + 'T23:59:59'
       } else {
+        // API exige data_vencimento (required), mas também passamos data_competencia
         params.data_vencimento_de = dateFrom
         params.data_vencimento_ate = dateTo
+        params.data_competencia_de = dateFrom
+        params.data_competencia_ate = dateTo
       }
 
       const result = await fetchCA(endpoint, params, currentToken, supabase, credentials)
@@ -368,7 +371,7 @@ async function syncCategorias(
 
   const { error } = await supabase
     .from('contaazul_categorias')
-    .upsert(categorias, { onConflict: 'contaazul_id' })
+    .upsert(categorias, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
   if (error) {
     console.error('[contaazul-sync] Erro ao inserir categorias:', error)
@@ -418,7 +421,7 @@ async function syncCentrosCusto(
 
   const { error } = await supabase
     .from('contaazul_centros_custo')
-    .upsert(centros, { onConflict: 'contaazul_id' })
+    .upsert(centros, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
   if (error) {
     console.error('[contaazul-sync] Erro ao inserir centros de custo:', error)
@@ -437,59 +440,85 @@ async function syncPessoas(
   barId: number
 ): Promise<number> {
   
-  console.log('[contaazul-sync] Buscando pessoas (fornecedores)...')
-
   let totalCount = 0
-  let pagina = 1
-  let totalPaginas = 1
 
-  while (pagina <= totalPaginas) {
-    const result = await fetchCA(
-      '/v1/pessoas',
-      { pagina: String(pagina), tamanho_pagina: String(PAGE_SIZE), tipo_perfil: 'Fornecedor' },
-      accessToken,
-      supabase,
-      credentials
-    )
+  // Buscar fornecedores
+  console.log('[contaazul-sync] Buscando fornecedores...')
+  const fornecedoresResult = await fetchCA(
+    '/v1/fornecedores',
+    { page: '1', size: '500' },
+    accessToken,
+    supabase,
+    credentials
+  )
 
-    if (!result) {
-      console.error('[contaazul-sync] Falha ao buscar pessoas pagina ' + pagina)
-      break
-    }
+  if (fornecedoresResult) {
+    const fornecedores = fornecedoresResult.data.content || fornecedoresResult.data.items || fornecedoresResult.data || []
+    console.log('[contaazul-sync] Fornecedores encontrados: ' + fornecedores.length)
 
-    const itens = result.data.itens || result.data || []
-    totalPaginas = Math.ceil((result.data.itens_totais || itens.length) / PAGE_SIZE)
-
-    console.log('[contaazul-sync] Pessoas pagina ' + pagina + '/' + totalPaginas + ' - ' + itens.length + ' itens')
-
-    if (itens.length > 0) {
-      const pessoas = itens.map((item: any) => ({
-        contaazul_id: item.id,
+    if (fornecedores.length > 0) {
+      const pessoas = fornecedores.map((item: any) => ({
+        contaazul_id: item.id || item.uuid,
         bar_id: barId,
-        nome: item.nome,
-        tipo_pessoa: item.tipo_pessoa || null,
-        documento: item.documento || item.cpf || item.cnpj || null,
-        email: item.email || null,
-        telefone: item.telefone_celular || item.telefone_comercial || null,
-        perfil: 'Fornecedor',
-        ativo: item.ativo !== false,
+        nome: item.nome || item.name || item.razao_social,
+        tipo_pessoa: item.tipo_pessoa || item.person_type || (item.cpf ? 'FISICA' : 'JURIDICA'),
+        documento: item.cpf || item.cnpj || item.cpf_cnpj || item.document,
+        email: item.email,
+        telefone: item.telefone || item.phone || item.celular,
+        perfil: 'FORNECEDOR',
+        ativo: item.ativo !== false && item.status !== 'INATIVO',
         updated_at: new Date().toISOString()
       }))
 
       const { error } = await supabase
         .from('contaazul_pessoas')
-        .upsert(pessoas, { onConflict: 'contaazul_id' })
+        .upsert(pessoas, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
       if (error) {
-        console.error('[contaazul-sync] Erro ao inserir pessoas:', error)
+        console.error('[contaazul-sync] Erro ao inserir fornecedores:', error)
       } else {
         totalCount += pessoas.length
       }
     }
+  }
 
-    pagina++
-    if (pagina <= totalPaginas) {
-      await new Promise(resolve => setTimeout(resolve, 200))
+  // Buscar clientes
+  console.log('[contaazul-sync] Buscando clientes...')
+  const clientesResult = await fetchCA(
+    '/v1/clientes',
+    { page: '1', size: '500' },
+    accessToken,
+    supabase,
+    credentials
+  )
+
+  if (clientesResult) {
+    const clientes = clientesResult.data.content || clientesResult.data.items || clientesResult.data || []
+    console.log('[contaazul-sync] Clientes encontrados: ' + clientes.length)
+
+    if (clientes.length > 0) {
+      const pessoas = clientes.map((item: any) => ({
+        contaazul_id: item.id || item.uuid,
+        bar_id: barId,
+        nome: item.nome || item.name || item.razao_social,
+        tipo_pessoa: item.tipo_pessoa || item.person_type || (item.cpf ? 'FISICA' : 'JURIDICA'),
+        documento: item.cpf || item.cnpj || item.cpf_cnpj || item.document,
+        email: item.email,
+        telefone: item.telefone || item.phone || item.celular,
+        perfil: 'CLIENTE',
+        ativo: item.ativo !== false && item.status !== 'INATIVO',
+        updated_at: new Date().toISOString()
+      }))
+
+      const { error } = await supabase
+        .from('contaazul_pessoas')
+        .upsert(pessoas, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
+
+      if (error) {
+        console.error('[contaazul-sync] Erro ao inserir clientes:', error)
+      } else {
+        totalCount += pessoas.length
+      }
     }
   }
 
@@ -541,7 +570,7 @@ async function syncContasFinanceiras(
 
   const { error } = await supabase
     .from('contaazul_contas_financeiras')
-    .upsert(contas, { onConflict: 'contaazul_id' })
+    .upsert(contas, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
   if (error) {
     console.error('[contaazul-sync] Erro ao inserir contas financeiras:', error)
@@ -731,12 +760,14 @@ serve(async (req: Request) => {
       erros: 0
     }
 
-    // Sync auxiliares primeiro (apenas em full_sync)
-    if (body.sync_mode === 'full_sync') {
+    // Sync auxiliares primeiro (full_sync e daily_incremental)
+    if (body.sync_mode === 'full_sync' || body.sync_mode === 'daily_incremental') {
+      console.log('[contaazul-sync] Sincronizando dados auxiliares...')
       stats.categorias = await syncCategorias(supabase, credentials, accessToken, barId)
       stats.centros_custo = await syncCentrosCusto(supabase, credentials, accessToken, barId)
       stats.pessoas = await syncPessoas(supabase, credentials, accessToken, barId)
       stats.contas_financeiras = await syncContasFinanceiras(supabase, credentials, accessToken, barId)
+      console.log('[contaazul-sync] Dados auxiliares sincronizados')
     }
 
     // Sync lancamentos
