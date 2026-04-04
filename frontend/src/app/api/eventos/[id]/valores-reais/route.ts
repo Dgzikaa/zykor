@@ -198,7 +198,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         .select('valor, local_desc, grupo_desc')
         .eq('data_venda', eventoData.data_evento)
         .eq('bar_id', user.bar_id)
-        .not('grupo_desc', 'in', '("Mercadorias- Compras","Insumos","Uso Interno")');
+        .not('grupo_desc', 'in', '("Mercadorias- Compras","Insumos","Uso Interno")')
+        .limit(10000);
 
       if (!contahubError && contahubData && contahubData.length > 0) {
         // Calcular totais por categoria

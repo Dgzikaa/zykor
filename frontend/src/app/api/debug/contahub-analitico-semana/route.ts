@@ -25,7 +25,8 @@ export async function POST(request: NextRequest) {
       .select('trn_dtgerencial, categoria_produto, valor_final')
       .eq('bar_id', bar_id)
       .gte('trn_dtgerencial', data_inicio)
-      .lte('trn_dtgerencial', data_fim);
+      .lte('trn_dtgerencial', data_fim)
+      .limit(50000);
 
     if (vendasError) {
       return NextResponse.json({ 

@@ -212,11 +212,14 @@ export async function fetchDataForIntent(
     }
 
     case 'produto': {
+      const hoje = new Date();
       const { data: vendasRaw } = await supabase
         .from('vendas_item')
         .select('produto_desc, grupo_desc, quantidade, valor')
         .eq('bar_id', barId)
-        .gte('data_venda', inicioSemana.toISOString().split('T')[0]);
+        .gte('data_venda', inicioSemana.toISOString().split('T')[0])
+        .lte('data_venda', hoje.toISOString().split('T')[0])
+        .limit(5000);
 
       const vendas = (vendasRaw || []).map(v => ({
         prd_desc: v.produto_desc,

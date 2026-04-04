@@ -253,6 +253,15 @@ export function createToolExecutor(supabase: SupabaseClient, barId: number) {
     switch (call.name) {
       case 'consultar_faturamento': {
         const { data_inicio, data_fim } = call.args as { data_inicio: string; data_fim: string };
+        
+        // Validar período máximo de 90 dias
+        const inicio = new Date(data_inicio);
+        const fim = new Date(data_fim);
+        const diffDias = Math.ceil((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDias > 90) {
+          return { error: 'Período máximo permitido: 90 dias' };
+        }
+        
         const { data } = await supabase
           .from('eventos_base')
           .select('data_evento, real_r, cl_real, t_medio, nome')
@@ -275,6 +284,15 @@ export function createToolExecutor(supabase: SupabaseClient, barId: number) {
 
       case 'consultar_clientes': {
         const { data_inicio, data_fim } = call.args as { data_inicio: string; data_fim: string };
+        
+        // Validar período máximo de 90 dias
+        const inicio = new Date(data_inicio);
+        const fim = new Date(data_fim);
+        const diffDias = Math.ceil((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDias > 90) {
+          return { error: 'Período máximo permitido: 90 dias' };
+        }
+        
         const { data } = await supabase
           .from('eventos_base')
           .select('data_evento, cl_real, t_medio, real_r, nome')
@@ -331,7 +349,16 @@ export function createToolExecutor(supabase: SupabaseClient, barId: number) {
 
       case 'consultar_produtos_top': {
         const { data_inicio, data_fim } = call.args as { data_inicio: string; data_fim: string };
-        const limite = (call.args as { limite?: number }).limite || 10;
+        const limite = Math.min((call.args as { limite?: number }).limite || 10, 20);
+        
+        // Validar período máximo de 30 dias
+        const inicio = new Date(data_inicio);
+        const fim = new Date(data_fim);
+        const diffDias = Math.ceil((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDias > 30) {
+          return { error: 'Período máximo permitido: 30 dias' };
+        }
+        
         const { data } = await supabase
           .from('vendas_item')
           .select('produto_desc, quantidade, valor')
@@ -439,6 +466,15 @@ export function createToolExecutor(supabase: SupabaseClient, barId: number) {
 
       case 'consultar_tempos_producao': {
         const { data_inicio, data_fim } = call.args as { data_inicio: string; data_fim: string };
+        
+        // Validar período máximo de 30 dias
+        const inicio = new Date(data_inicio);
+        const fim = new Date(data_fim);
+        const diffDias = Math.ceil((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDias > 30) {
+          return { error: 'Período máximo permitido: 30 dias' };
+        }
+        
         const { data: tempos } = await supabase.rpc('calcular_tempo_saida', {
           p_bar_id: barId, p_data_inicio: data_inicio, p_data_fim: data_fim
         });
@@ -450,6 +486,15 @@ export function createToolExecutor(supabase: SupabaseClient, barId: number) {
 
       case 'consultar_mix_vendas': {
         const { data_inicio, data_fim } = call.args as { data_inicio: string; data_fim: string };
+        
+        // Validar período máximo de 30 dias
+        const inicio = new Date(data_inicio);
+        const fim = new Date(data_fim);
+        const diffDias = Math.ceil((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDias > 30) {
+          return { error: 'Período máximo permitido: 30 dias' };
+        }
+        
         const { data } = await supabase.rpc('calcular_mix_vendas', {
           p_bar_id: barId, p_data_inicio: data_inicio, p_data_fim: data_fim
         });
@@ -457,7 +502,7 @@ export function createToolExecutor(supabase: SupabaseClient, barId: number) {
       }
 
       case 'consultar_desempenho_semanal': {
-        const numSemanas = (call.args as { semanas?: number }).semanas || 4;
+        const numSemanas = Math.min((call.args as { semanas?: number }).semanas || 4, 12);
         const { data } = await supabase
           .from('desempenho_semanal')
           .select('*')

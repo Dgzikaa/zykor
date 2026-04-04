@@ -82,7 +82,8 @@ export async function GET(request: NextRequest) {
         .lte('data_venda', data_fim)
         .eq('bar_id', bar_id)
         .not('grupo_desc', 'in', '("Insumos","Mercadorias- Compras","Uso Interno")')
-        .gt('quantidade', 0);
+        .gt('quantidade', 0)
+        .limit(10000);
 
       if (errorFallback) throw errorFallback;
 

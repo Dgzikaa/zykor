@@ -756,7 +756,8 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
           .select('produto_desc, grupo_desc, quantidade, valor, data_venda')
           .eq('bar_id', 3)
           .gte('data_venda', periodo.start)
-          .lte('data_venda', periodo.end);
+          .lte('data_venda', periodo.end)
+          .limit(5000);
         produtos = data;
         fonte = 'vendas_item (Dias normais)';
       }
@@ -890,7 +891,8 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
           .eq('bar_id', 3)
           .gt('pessoas', 0)
           .gte('data_visita', periodo.start)
-          .lte('data_visita', periodo.end);
+          .lte('data_visita', periodo.end)
+          .limit(500);
         clientes = data;
         fonte = 'visitas (Dias normais)';
       }
@@ -1105,7 +1107,9 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
         .select('pessoas, data_visita')
         .eq('bar_id', 3)
         .gt('pessoas', 0)
-        .order('data_visita', { ascending: false });
+        .gte('data_visita', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+        .order('data_visita', { ascending: false })
+        .limit(1000);
 
       const clientesUnicos = new Set(clientes?.map(c => c.pessoas) || []).size;
       const totalRegistros = clientes?.length || 0;
@@ -1137,7 +1141,9 @@ async function getBasicFallback(message: string): Promise<AssistantResponse> {
       const { data: totalClientes } = await supabase
         .from('visitas')
         .select('pessoas')
-        .gt('pessoas', 0);
+        .gt('pessoas', 0)
+        .gte('data_visita', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+        .limit(1000);
 
       const clientesUnicos = new Set(totalClientes?.map(item => item.pessoas) || []).size;
 

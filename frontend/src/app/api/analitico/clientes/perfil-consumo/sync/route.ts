@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
           .select('produto_desc, grupo_desc, quantidade, valor, data_venda')
           .eq('bar_id', barId)
           .in('data_venda', datasArray)
+          .limit(5000)
 
         if (itensError) {
           console.warn(`⚠️ Erro ao buscar itens para ${telefone}:`, itensError)
@@ -281,6 +282,7 @@ export async function POST(request: NextRequest) {
 
         // Log de progresso
         if (processados % 100 === 0) {
+            console.log(`Processados ${processados} perfis...`);
           }
       }
 
