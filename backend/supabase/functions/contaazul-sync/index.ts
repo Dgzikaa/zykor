@@ -259,9 +259,10 @@ async function syncLancamentos(
       if (itens.length > 0) {
         console.log('[contaazul-sync] Preparando ' + itens.length + ' lancamentos para upsert...')
         const lancamentos = itens.map((item: any) => {
-          const valorTotal = item.total ? parseFloat(item.total) / 100 : 0
-          const valorPago = item.pago ? parseFloat(item.pago) / 100 : 0
-          const valorNaoPago = item.nao_pago ? parseFloat(item.nao_pago) / 100 : 0
+          // API Conta Azul retorna valores JÁ em reais, não precisa dividir por 100
+          const valorTotal = item.total ? Number(item.total) : 0
+          const valorPago = item.pago ? Number(item.pago) : 0
+          const valorNaoPago = item.nao_pago ? Number(item.nao_pago) : 0
           
           return {
             contaazul_id: item.id,
@@ -639,11 +640,11 @@ async function updateSyncLog(
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return handleCorsOptions()
+    return handleCorsOptions(req)
   }
 
   if (req.method !== 'POST') {
-    return errorResponse('Metodo nao permitido. Use POST.', null, 405)
+    return errorResponse('Metodo nao permitido. Use POST.', req, undefined, 405)
   }
 
   const supabase = getSupabaseClient()
@@ -656,11 +657,11 @@ serve(async (req: Request) => {
     const body: SyncRequest = await req.json()
 
     if (!body.bar_id) {
-      return errorResponse('bar_id e obrigatorio', null, 400)
+      return errorResponse('bar_id e obrigatorio', req, undefined, 400)
     }
 
     if (!body.sync_mode) {
-      return errorResponse('sync_mode e obrigatorio', null, 400)
+      return errorResponse('sync_mode e obrigatorio', req, undefined, 400)
     }
 
     barId = body.bar_id
@@ -680,12 +681,12 @@ serve(async (req: Request) => {
 
     if (credError || !credentials) {
       await heartbeatError(supabase, heartbeatId, startTime, 'Credenciais nao encontradas', {}, 'contaazul-sync', barId)
-      return errorResponse('Credenciais Conta Azul nao encontradas para bar_id=' + barId, null, 404)
+      return errorResponse('Credenciais Conta Azul nao encontradas para bar_id=' + barId, req, undefined, 404)
     }
 
     if (!credentials.access_token) {
       await heartbeatError(supabase, heartbeatId, startTime, 'Token nao disponivel', {}, 'contaazul-sync', barId)
-      return errorResponse('Access token nao disponivel. Reconecte via OAuth.', null, 401)
+      return errorResponse('Access token nao disponivel. Reconecte via OAuth.', req, undefined, 401)
     }
 
     // Verificar expiracao
@@ -697,7 +698,7 @@ serve(async (req: Request) => {
         const newToken = await refreshToken(supabase, credentials)
         if (!newToken) {
           await heartbeatError(supabase, heartbeatId, startTime, 'Falha ao renovar token', {}, 'contaazul-sync', barId)
-          return errorResponse('Token expirado e falha ao renovar. Reconecte via OAuth.', null, 401)
+          return errorResponse('Token expirado e falha ao renovar. Reconecte via OAuth.', req, undefined, 401)
         }
         accessToken = newToken
       }
@@ -738,14 +739,14 @@ serve(async (req: Request) => {
 
       case 'custom':
         if (!body.date_from || !body.date_to) {
-          return errorResponse('date_from e date_to sao obrigatorios para sync_mode=custom', null, 400)
+          return errorResponse('date_from e date_to sao obrigatorios para sync_mode=custom', req, undefined, 400)
         }
         dateFrom = body.date_from
         dateTo = body.date_to
         break
 
       default:
-        return errorResponse('sync_mode invalido: ' + body.sync_mode, null, 400)
+        return errorResponse('sync_mode invalido: ' + body.sync_mode, req, undefined, 400)
     }
 
     console.log('[contaazul-sync] Iniciando sync ' + body.sync_mode + ' para bar_id=' + barId)
@@ -800,7 +801,7 @@ serve(async (req: Request) => {
       period: { from: dateFrom, to: dateTo },
       stats,
       duration_seconds: Math.round((Date.now() - startTime) / 1000)
-    })
+    }, req)
 
   } catch (err) {
     console.error('[contaazul-sync] Erro nao tratado:', err)
@@ -813,6 +814,6 @@ serve(async (req: Request) => {
 
     await heartbeatError(supabase, heartbeatId, startTime, errorMessage, {}, 'contaazul-sync', barId)
 
-    return errorResponse('Erro interno', err, 500)
+    return errorResponse('Erro interno', req, err, 500)
   }
 })
