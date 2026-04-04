@@ -12,10 +12,10 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-async function buscarTodoPeriodo() {
-  console.log('🔍 Buscando TODO o período do Conta Azul\n')
+async function buscarReceitas() {
+  console.log('🔍 Buscando Contas a RECEBER do Deboche\n')
 
-  // Buscar credenciais do Deboche (bar_id=4)
+  // Buscar credenciais do Deboche
   const { data: creds } = await supabase
     .from('api_credentials')
     .select('*')
@@ -28,7 +28,7 @@ async function buscarTodoPeriodo() {
     return
   }
 
-  // Buscar com período MUITO amplo (desde 2020 até 2030)
+  // Buscar com período amplo
   const params = new URLSearchParams({
     pagina: '1',
     tamanho_pagina: '10',
@@ -36,7 +36,7 @@ async function buscarTodoPeriodo() {
     data_vencimento_ate: '2030-12-31'
   })
 
-  const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params}`
+  const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${params}`
 
   console.log('📡 Buscando primeiro lote...')
   const response = await fetch(url, {
@@ -56,12 +56,6 @@ async function buscarTodoPeriodo() {
 
   console.log('\n📋 Total de itens na API:', data.itens_totais)
 
-  // Pegar alguns exemplos para ver as datas
-  console.log('\n📅 Primeiros 5 lançamentos (para ver datas):')
-  data.itens?.slice(0, 5).forEach((item, i) => {
-    console.log(`   ${i+1}. Venc: ${item.data_vencimento}, Comp: ${item.data_competencia}, Valor: R$ ${item.total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`)
-  })
-
   // Buscar TODOS os itens para somar
   console.log('\n🔄 Buscando TODOS os lançamentos...')
   let totalValor = 0
@@ -69,8 +63,6 @@ async function buscarTodoPeriodo() {
   let pagina = 1
   const tamanhoPagina = 1000
   let hasMore = true
-  let minData = null
-  let maxData = null
 
   while (hasMore) {
     const params2 = new URLSearchParams({
@@ -80,7 +72,7 @@ async function buscarTodoPeriodo() {
       data_vencimento_ate: '2030-12-31'
     })
 
-    const url2 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params2}`
+    const url2 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${params2}`
     
     const response2 = await fetch(url2, {
       headers: {
@@ -94,11 +86,6 @@ async function buscarTodoPeriodo() {
     if (data2.itens && data2.itens.length > 0) {
       for (const item of data2.itens) {
         totalValor += Number(item.total)
-        
-        // Rastrear datas
-        const dataComp = item.data_competencia
-        if (!minData || dataComp < minData) minData = dataComp
-        if (!maxData || dataComp > maxData) maxData = dataComp
       }
       
       totalItens += data2.itens.length
@@ -118,13 +105,23 @@ async function buscarTodoPeriodo() {
   console.log('\n📊 RESUMO FINAL:')
   console.log('   Total de lançamentos:', totalItens)
   console.log('   Valor total (soma):', `R$ ${totalValor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`)
-  console.log('   Data mais antiga:', minData)
-  console.log('   Data mais recente:', maxData)
   
   console.log('\n🔍 Comparação:')
   console.log('   API totais.todos:', data.totais?.todos ? `R$ ${data.totais.todos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}` : 'N/A')
   console.log('   Soma dos itens:', `R$ ${totalValor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`)
   console.log('   Diferença:', data.totais?.todos ? `R$ ${(data.totais.todos - totalValor).toLocaleString('pt-BR', {minimumFractionDigits: 2})}` : 'N/A')
+  
+  console.log('\n📦 No banco Supabase temos:')
+  const { data: dbData } = await supabase
+    .from('contaazul_lancamentos')
+    .select('valor_bruto')
+    .eq('bar_id', 4)
+    .eq('tipo', 'RECEITA')
+  
+  const dbTotal = dbData?.reduce((sum, item) => sum + parseFloat(item.valor_bruto), 0) || 0
+  console.log('   Total no banco:', dbData?.length || 0, 'lançamentos')
+  console.log('   Valor no banco:', `R$ ${dbTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`)
+  console.log('   Diferença API vs Banco:', `${totalItens - (dbData?.length || 0)} lançamentos, R$ ${(totalValor - dbTotal).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`)
 }
 
-buscarTodoPeriodo().catch(console.error)
+buscarReceitas().catch(console.error)
