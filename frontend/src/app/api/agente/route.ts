@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { withRateLimit, RATE_LIMIT_PRESETS } from '@/lib/rate-limiter-middleware';
 
 import { getCacheKey, getFromCache, setCache } from './lib/cache';
 import { ChatContext } from './lib/types';
@@ -12,7 +13,7 @@ import { chamarAgenteSQLExpert } from './lib/sql-expert-fallback';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-export async function POST(request: NextRequest) {
+async function handleAgentPost(request: NextRequest) {
   const startTime = Date.now();
   let cacheHit = false;
   
@@ -235,7 +236,9 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function PATCH(request: NextRequest) {
+export const POST = withRateLimit(handleAgentPost, RATE_LIMIT_PRESETS.AI);
+
+async function handleAgentPatch(request: NextRequest) {
   try {
     const body = await request.json();
     const { metricaId, rating, feedback } = body;
@@ -269,7 +272,9 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export const PATCH = withRateLimit(handleAgentPatch, RATE_LIMIT_PRESETS.AI);
+
+async function handleAgentGet(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('sessionId');
@@ -321,3 +326,5 @@ export async function GET(request: NextRequest) {
     }, { status: 500 });
   }
 }
+
+export const GET = withRateLimit(handleAgentGet, RATE_LIMIT_PRESETS.AI);

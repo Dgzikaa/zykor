@@ -2,14 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { headers } from 'next/headers';
 import { getSupabaseClient } from '@/lib/supabase';
+import { getServerUser, isServerAdmin } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic'
-
-// Interfaces para tipagem adequada
-interface UserData {
-  bar_id: number;
-  permissao: string;
-}
 
 interface WhatsAppConfig {
   id?: string;
@@ -103,11 +98,8 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // TODO: Obter permissão do JWT/cookie quando implementado
-    const permissao = 'admin'; // Placeholder - a autenticação real deve ser via JWT
-
-    // Verificar permissões
-    if (permissao !== 'admin') {
+    const isAdmin = await isServerAdmin();
+    if (!isAdmin) {
       return NextResponse.json(
         { error: 'Apenas admins podem visualizar configurações' },
         { status: 403 }
@@ -194,11 +186,8 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // TODO: Obter permissão do JWT/cookie quando implementado
-    const permissao = 'admin'; // Placeholder - a autenticação real deve ser via JWT
-
-    // Verificar permissões (apenas admin pode criar)
-    if (permissao !== 'admin') {
+    const isAdmin = await isServerAdmin();
+    if (!isAdmin) {
       return NextResponse.json(
         { error: 'Apenas admins podem configurar WhatsApp' },
         { status: 403 }
@@ -310,11 +299,8 @@ export async function PUT(request: NextRequest) {
       );
     }
     
-    // TODO: Obter permissão do JWT/cookie quando implementado
-    const permissao = 'admin'; // Placeholder - a autenticação real deve ser via JWT
-
-    // Verificar permissões
-    if (permissao !== 'admin') {
+    const isAdmin = await isServerAdmin();
+    if (!isAdmin) {
       return NextResponse.json(
         { error: 'Apenas admins podem alterar configurações' },
         { status: 403 }
@@ -431,11 +417,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
     
-    // TODO: Obter permissão do JWT/cookie quando implementado
-    const permissao = 'admin'; // Placeholder - a autenticação real deve ser via JWT
-
-    // Verificar permissões (apenas admin)
-    if (permissao !== 'admin') {
+    const isAdmin = await isServerAdmin();
+    if (!isAdmin) {
       return NextResponse.json(
         { error: 'Apenas admins podem deletar configurações' },
         { status: 403 }

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { withRateLimit, RATE_LIMIT_PRESETS } from '@/lib/rate-limiter-middleware';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function POST(request: NextRequest) {
+async function handleForgotPassword(request: NextRequest) {
   try {
     const { email } = await request.json();
 
@@ -113,3 +114,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withRateLimit(handleForgotPassword, RATE_LIMIT_PRESETS.AUTH);

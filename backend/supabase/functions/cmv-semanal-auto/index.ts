@@ -749,14 +749,18 @@ serve(async (req) => {
 
     console.log(`\n✅ Processamento concluído: ${semanasProcessadas} semanas atualizadas, ${semanasCriadas} criadas`);
 
-    // 💓 Heartbeat: registrar sucesso
+    // 💓 Heartbeat: registrar sucesso e liberar lock
     await heartbeatEnd(
       supabase,
       heartbeatId,
       'success',
       startTime,
       semanasProcessadas + semanasCriadas,
-      { semanas_processadas: semanasProcessadas, semanas_criadas: semanasCriadas }
+      { semanas_processadas: semanasProcessadas, semanas_criadas: semanasCriadas },
+      undefined,
+      'cmv-semanal-auto',
+      bar_id || null,
+      true // releaseLock
     );
 
     return new Response(
@@ -777,12 +781,21 @@ serve(async (req) => {
   } catch (error) {
     console.error('❌ Erro ao processar CMV:', error);
     
-    // 💓 Heartbeat: registrar erro
+    // 💓 Heartbeat: registrar erro e liberar lock
     try {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
       const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabaseForError = createClient(supabaseUrl, serviceKey);
-      await heartbeatError(supabaseForError, heartbeatId, startTime, error instanceof Error ? error : String(error));
+      await heartbeatError(
+        supabaseForError, 
+        heartbeatId, 
+        startTime, 
+        error instanceof Error ? error : String(error),
+        undefined,
+        'cmv-semanal-auto',
+        undefined,
+        true // releaseLock
+      );
     } catch (hbErr) {
       console.warn('⚠️ Erro ao registrar heartbeat de erro:', hbErr);
     }

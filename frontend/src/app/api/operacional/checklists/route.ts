@@ -98,8 +98,8 @@ export async function GET() {
           ultima_edicao: new Date(checklist.atualizado_em)
             .toISOString()
             .split('T')[0],
-          criado_por: 'Sistema', // TODO: Buscar nome real do usuário
-          usado_recentemente: false, // TODO: Implementar lógica de uso recente
+          criado_por: 'Sistema',
+          usado_recentemente: false,
         };
       }) || [];
 

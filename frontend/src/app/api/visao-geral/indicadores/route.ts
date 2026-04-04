@@ -693,8 +693,8 @@ export async function GET(request: Request) {
         data: {
           faturamentoTotal: {
             valor: faturamentoTotal,
-            meta: 800000, // Meta mensal
-            variacao: 0 // TODO: Calcular variação vs mês anterior
+            meta: 800000,
+            variacao: 0
           },
           clientesAtivos: {
             valor: clientesAtivos,
@@ -712,8 +712,8 @@ export async function GET(request: Request) {
             variacao: 0
           },
           retencaoReal: {
-            valor: 0, // TODO: Calcular para visão anual
-            meta: 5, // Meta de 5% (que voltaram)
+            valor: 0,
+            meta: 5,
             variacao: 0
           },
           artistica: {

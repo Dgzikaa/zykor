@@ -7,10 +7,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateRefreshToken, generateToken } from '@/lib/auth/jwt';
 import { getAdminClient } from '@/lib/supabase-admin';
 import type { AuthenticatedUser } from '@/lib/auth/types';
+import { withRateLimit, RATE_LIMIT_PRESETS } from '@/lib/rate-limiter-middleware';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest) {
+async function handleRefresh(request: NextRequest) {
   try {
     // Extrair refresh token do cookie ou body
     const refreshToken = 
@@ -93,3 +94,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withRateLimit(handleRefresh, RATE_LIMIT_PRESETS.AUTH);

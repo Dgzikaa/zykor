@@ -9,10 +9,11 @@ import { getAdminClient } from '@/lib/supabase-admin';
 import { generateToken, generateRefreshToken } from '@/lib/auth/jwt';
 import type { AuthenticatedUser } from '@/lib/auth/types';
 import crypto from 'crypto';
+import { withRateLimit, RATE_LIMIT_PRESETS } from '@/lib/rate-limiter-middleware';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest) {
+async function handleLogin(request: NextRequest) {
   // Capturar informações do cliente
   const forwarded = request.headers.get('x-forwarded-for');
   const clientIp = forwarded
@@ -270,3 +271,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withRateLimit(handleLogin, RATE_LIMIT_PRESETS.AUTH);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { withRateLimit, RATE_LIMIT_PRESETS } from '@/lib/rate-limiter-middleware';
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +29,7 @@ async function getBaresAtivos(): Promise<number[] | null> {
   return bares;
 }
 
-export async function POST(request: NextRequest) {
+async function handleSyncManual(request: NextRequest) {
   try {
     const body = await request.json();
     const { data_date, bar_id } = body;
@@ -96,9 +97,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export const POST = withRateLimit(handleSyncManual, RATE_LIMIT_PRESETS.INTEGRATION);
+
+async function handleGetInfo() {
   return NextResponse.json({
     message: 'Endpoint para sincronização manual do ContaHub',
     usage: 'POST com {"data_date": "2025-08-21"} ou sem body para usar ontem'
   });
 }
+
+export const GET = withRateLimit(handleGetInfo, RATE_LIMIT_PRESETS.PUBLIC);
