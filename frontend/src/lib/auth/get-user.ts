@@ -10,8 +10,9 @@
 import { NextRequest } from 'next/server';
 import { validateToken } from './jwt';
 import { getAdminClient } from '@/lib/supabase-admin';
-
 import type { AuthenticatedUser } from './types';
+
+export type { AuthenticatedUser };
 
 
 /**
