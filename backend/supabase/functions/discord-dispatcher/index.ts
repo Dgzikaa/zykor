@@ -12,11 +12,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts';
+import { requireAuth } from '../_shared/auth-guard.ts';
+import { validateFunctionEnv } from '../_shared/env-validator.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
 
 const ACTION_URLS: Record<string, string> = {
   'notification': '/functions/v1/discord-notification',
@@ -30,18 +30,29 @@ interface DispatcherRequest {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders }
+
+  // Validar autenticação (JWT ou CRON_SECRET)
+  const authError = requireAuth(req);
+  if (authError) return authError;);
   }
 
   let heartbeatId: number | null = null;
   let startTime: number = Date.now();
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const supabase = createClient(supabaseUrl, serviceKey);
-
   try {
+    // Validar variáveis de ambiente obrigatórias
+    validateFunctionEnv('discord-dispatcher', [
+      'SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY'
+    ]);
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, serviceKey);
     const body: DispatcherRequest = await req.json();
     const { action, ...params } = body;
 

@@ -16,12 +16,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-webhook-secret, x-inter-webhook-secret',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { validateFunctionEnv } from '../_shared/env-validator.ts';
 
 interface InterPixWebhookPayload {
   codigoSolicitacao?: string;
@@ -39,6 +35,7 @@ interface InterPixWebhookPayload {
 serve(async (req) => {
   const requestId = crypto.randomUUID().slice(0, 8);
   const timestamp = new Date().toISOString();
+  const corsHeaders = getCorsHeaders(req);
   
   console.log(`[${requestId}] ${timestamp} - inter-pix-webhook: ${req.method} request received`);
 
@@ -55,6 +52,12 @@ serve(async (req) => {
   }
 
   try {
+    // Validar variáveis de ambiente obrigatórias
+    validateFunctionEnv('inter-pix-webhook', [
+      'SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY'
+    ]);
+
     // =====================================================
     // VALIDAÇÃO DE SEGURANÇA - WEBHOOK SECRET
     // =====================================================

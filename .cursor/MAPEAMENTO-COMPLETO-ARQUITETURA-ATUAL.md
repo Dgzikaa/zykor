@@ -28,8 +28,8 @@
 | 15 | google-reviews-apify-sync | `backend/supabase/functions/google-reviews-apify-sync/` | Reviews Google/TripAdvisor | ✅ SIM |
 | 16 | checklist-auto-scheduler | `backend/supabase/functions/checklist-auto-scheduler/` | Agenda checklists | ✅ SIM |
 | 17 | atualizar-fichas-tecnicas | `backend/supabase/functions/atualizar-fichas-tecnicas/` | Fichas técnicas produtos | ⚠️ POUCO |
-| 18 | relatorio-pdf | `backend/supabase/functions/relatorio-pdf/` | Gera PDFs | ❌ NÃO |
-| 19 | contahub-sync-automatico | `backend/supabase/functions/contahub-sync-automatico/` | **DUPLICADO?** | ❌ ? |
+| 18 | relatorio-pdf | `backend/supabase/functions/relatorio-pdf/` | Gera PDFs (semanal, executivo, CMV) | ✅ SIM (frontend + dispatchers) |
+| 19 | contahub-sync-automatico | `backend/supabase/functions/contahub-sync-automatico/` | Sync ContaHub (ativo, substitui contahub-sync) | ✅ SIM |
 
 ### Cron Jobs (27 ativos)
 
@@ -79,7 +79,7 @@
 ## 🚨 PROBLEMAS IDENTIFICADOS
 
 ### 1. Edge Functions Duplicadas
-- `contahub-sync` vs `contahub-sync-automatico` - **VERIFICAR SE SÃO DUPLICADOS**
+- ✅ **RESOLVIDO**: `contahub-sync` arquivado em `_archived/`, `contahub-sync-automatico` é o ativo
 
 ### 2. Edge Functions que não existem mas são chamadas
 - ❌ `contahub-processor` (chamado por crons 12 e 13) - **NÃO EXISTE!**

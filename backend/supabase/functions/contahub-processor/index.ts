@@ -1,12 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { validateFunctionEnv } from '../_shared/env-validator.ts';
 
 console.log("🔄 ContaHub Processor - Processa dados raw salvos");
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
 
 // Tamanho do batch para inserções (evitar timeout com muitos registros)
 const BATCH_SIZE = 500;
@@ -125,15 +124,9 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
     // Processar cada tipo de dados usando INSERT (mais seguro para multi-bar)
     switch (dataType) {
       case 'analitico':
-        // Primeiro deletar registros existentes para essa data/bar
-        console.log(`🗑️ Deletando registros analitico existentes para ${dataDate}...`);
-        await supabase
-          .from('contahub_analitico')
-          .delete()
-          .eq('bar_id', barId)
-          .eq('trn_dtgerencial', dataDate);
+        // ✅ UPSERT: Atualiza se existir, insere se não existir (sem DELETE)
+        console.log(`🔄 Processando registros analitico com UPSERT para ${dataDate}...`);
         
-        // Depois inserir novos registros em batch
         const analiticoRecords = records.map((item: any) => ({
           vd_mesadesc: item.vd_mesadesc || '',
           vd_localizacao: item.vd_localizacao || '',
@@ -166,25 +159,27 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         if (analiticoRecords.length > 0) {
           console.log(`📊 Processando ${analiticoRecords.length} registros de analitico em batches...`);
           
-          // Usar inserção em batches para evitar timeout
-          const analiticoBatchResult = await insertInBatches(supabase, 'contahub_analitico', analiticoRecords);
+          // ✅ Usar UPSERT em batches (seguro, sem DELETE)
+          const analiticoBatchResult = await upsertInBatches(
+            supabase, 
+            'contahub_analitico', 
+            analiticoRecords,
+            'bar_id,trn_dtgerencial,trn,itm'
+          );
           
           if (analiticoBatchResult.errors > 0) {
             console.error(`⚠️ Analitico processado com ${analiticoBatchResult.errors} erros`);
             errors = analiticoBatchResult.errors;
           } else {
             processedCount = analiticoBatchResult.count;
-            console.log(`✅ Analitico: ${processedCount} registros inseridos com sucesso`);
+            console.log(`✅ Analitico: ${processedCount} registros upserted com sucesso`);
           }
         }
         break;
 
       case 'periodo':
-        await supabase
-          .from('contahub_periodo')
-          .delete()
-          .eq('bar_id', barId)
-          .eq('dt_gerencial', dataDate);
+        // ✅ UPSERT: Atualiza se existir, insere se não existir (sem DELETE)
+        console.log(`🔄 Processando registros periodo com UPSERT para ${dataDate}...`);
         
         const periodoRecords = records.map((item: any) => {
           // Calcular data real baseada no ultimo_pedido (vd_hrultimo)
@@ -220,25 +215,27 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         }});
         
         if (periodoRecords.length > 0) {
-          const { error } = await supabase
-            .from('contahub_periodo')
-            .insert(periodoRecords);
+          // ✅ Usar UPSERT (seguro, sem DELETE)
+          const periodoBatchResult = await upsertInBatches(
+            supabase,
+            'contahub_periodo',
+            periodoRecords,
+            'bar_id,dt_gerencial,vd_mesadesc,tipovenda'
+          );
           
-          if (error) {
-            console.error(`❌ Erro ao inserir período:`, error.message);
-            return { success: true, count: 0, errors: periodoRecords.length, errorMessage: error.message, errorDetails: JSON.stringify(error) };
+          if (periodoBatchResult.errors > 0) {
+            console.error(`⚠️ Periodo processado com ${periodoBatchResult.errors} erros`);
+            return { success: true, count: periodoBatchResult.count, errors: periodoBatchResult.errors };
           } else {
-            processedCount = periodoRecords.length;
+            processedCount = periodoBatchResult.count;
+            console.log(`✅ Periodo: ${processedCount} registros upserted com sucesso`);
           }
         }
         break;
 
       case 'fatporhora':
-        await supabase
-          .from('contahub_fatporhora')
-          .delete()
-          .eq('bar_id', barId)
-          .eq('vd_dtgerencial', dataDate);
+        // ✅ UPSERT: Atualiza se existir, insere se não existir (sem DELETE)
+        console.log(`🔄 Processando registros fatporhora com UPSERT para ${dataDate}...`);
         
         const fatporhoraRecords = records.map((item: any) => ({
           vd_dtgerencial: item.vd_dtgerencial || dataDate,
@@ -253,26 +250,27 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         }));
         
         if (fatporhoraRecords.length > 0) {
-          const { error } = await supabase
-            .from('contahub_fatporhora')
-            .insert(fatporhoraRecords);
+          // ✅ Usar UPSERT (seguro, sem DELETE)
+          const fatBatchResult = await upsertInBatches(
+            supabase,
+            'contahub_fatporhora',
+            fatporhoraRecords,
+            'bar_id,vd_dtgerencial,hora'
+          );
           
-          if (error) {
-            console.error(`❌ Erro ao inserir fatporhora:`, error.message);
-            errors = fatporhoraRecords.length;
+          if (fatBatchResult.errors > 0) {
+            console.error(`⚠️ Fatporhora processado com ${fatBatchResult.errors} erros`);
+            errors = fatBatchResult.errors;
           } else {
-            processedCount = fatporhoraRecords.length;
+            processedCount = fatBatchResult.count;
+            console.log(`✅ Fatporhora: ${processedCount} registros upserted com sucesso`);
           }
         }
         break;
 
       case 'pagamentos':
-        console.log(`🗑️ Deletando registros pagamentos existentes para ${dataDate}...`);
-        await supabase
-          .from('contahub_pagamentos')
-          .delete()
-          .eq('bar_id', barId)
-          .eq('dt_gerencial', dataDate);
+        // ✅ UPSERT: Atualiza se existir, insere se não existir (sem DELETE)
+        console.log(`🔄 Processando registros pagamentos com UPSERT para ${dataDate}...`);
         
         const pagamentosRecords = records.map((item: any) => {
           // Calcular data real baseada no hr_lancamento
@@ -312,26 +310,27 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         if (pagamentosRecords.length > 0) {
           console.log(`📊 Processando ${pagamentosRecords.length} registros de pagamentos em batches...`);
           
-          // Usar inserção em batches para evitar timeout
-          const pagamentosBatchResult = await insertInBatches(supabase, 'contahub_pagamentos', pagamentosRecords);
+          // ✅ Usar UPSERT em batches (seguro, sem DELETE)
+          const pagamentosBatchResult = await upsertInBatches(
+            supabase,
+            'contahub_pagamentos',
+            pagamentosRecords,
+            'bar_id,dt_gerencial,trn,vd,pag'
+          );
           
           if (pagamentosBatchResult.errors > 0) {
             console.error(`⚠️ Pagamentos processado com ${pagamentosBatchResult.errors} erros`);
             return { success: true, count: pagamentosBatchResult.count, errors: pagamentosBatchResult.errors };
           } else {
             processedCount = pagamentosBatchResult.count;
-            console.log(`✅ Pagamentos: ${processedCount} registros inseridos com sucesso`);
+            console.log(`✅ Pagamentos: ${processedCount} registros upserted com sucesso`);
           }
         }
         break;
 
       case 'tempo':
-        console.log(`🗑️ Deletando registros tempo existentes para ${dataDate}...`);
-        await supabase
-          .from('contahub_tempo')
-          .delete()
-          .eq('bar_id', barId)
-          .eq('data', dataDate);
+        // ✅ UPSERT: Atualiza se existir, insere se não existir (sem DELETE)
+        console.log(`🔄 Processando registros tempo com UPSERT para ${dataDate}...`);
         
         const tempoRecords = records.map((item: any) => {
           // Calcular data real baseada no t0_lancamento
@@ -379,25 +378,27 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         if (tempoRecords.length > 0) {
           console.log(`📊 Processando ${tempoRecords.length} registros de tempo em batches...`);
           
-          // Usar inserção em batches para evitar timeout
-          const batchResult = await insertInBatches(supabase, 'contahub_tempo', tempoRecords);
+          // ✅ Usar UPSERT em batches (seguro, sem DELETE)
+          const batchResult = await upsertInBatches(
+            supabase,
+            'contahub_tempo',
+            tempoRecords,
+            'bar_id,data,itm'
+          );
           
           if (batchResult.errors > 0) {
             console.error(`⚠️ Tempo processado com ${batchResult.errors} erros`);
             return { success: true, count: batchResult.count, errors: batchResult.errors };
           } else {
             processedCount = batchResult.count;
-            console.log(`✅ Tempo: ${processedCount} registros inseridos com sucesso`);
+            console.log(`✅ Tempo: ${processedCount} registros upserted com sucesso`);
           }
         }
         break;
 
       case 'prodporhora':
-        await supabase
-          .from('contahub_prodporhora')
-          .delete()
-          .eq('bar_id', barId)
-          .eq('data_gerencial', dataDate);
+        // ✅ UPSERT: Atualiza se existir, insere se não existir (sem DELETE)
+        console.log(`🔄 Processando registros prodporhora com UPSERT para ${dataDate}...`);
         
         const prodporhoraRecords = records.map((item: any) => ({
           data_gerencial: item.data_gerencial || dataDate,
@@ -414,28 +415,27 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         }));
         
         if (prodporhoraRecords.length > 0) {
-          const { error } = await supabase
-            .from('contahub_prodporhora')
-            .insert(prodporhoraRecords);
+          // ✅ Usar UPSERT (seguro, sem DELETE)
+          const prodBatchResult = await upsertInBatches(
+            supabase,
+            'contahub_prodporhora',
+            prodporhoraRecords,
+            'bar_id,data_gerencial,hora,produto_id'
+          );
           
-          if (error) {
-            console.error(`❌ Erro ao inserir prodporhora:`, error.message);
-            errors = prodporhoraRecords.length;
+          if (prodBatchResult.errors > 0) {
+            console.error(`⚠️ Prodporhora processado com ${prodBatchResult.errors} erros`);
+            errors = prodBatchResult.errors;
           } else {
-            processedCount = prodporhoraRecords.length;
+            processedCount = prodBatchResult.count;
+            console.log(`✅ Prodporhora: ${processedCount} registros upserted com sucesso`);
           }
         }
         break;
 
       case 'vendas':
-        // 🆕 Processamento COMPLETO de dados do getTurnoVendas
-        console.log(`📊 Processando vendas com TODOS os campos...`);
-        
-        await supabase
-          .from('contahub_vendas')
-          .delete()
-          .eq('bar_id', barId)
-          .eq('dt_gerencial', dataDate);
+        // ✅ UPSERT: Atualiza se existir, insere se não existir (sem DELETE)
+        console.log(`🔄 Processando vendas com UPSERT para ${dataDate}...`);
         
         const vendasRecords = records.map((item: any) => {
           // Parser de timestamp do ContaHub: "2025-12-14T16:54:17-0300"
@@ -575,12 +575,8 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         break;
 
       case 'cancelamentos':
-        console.log(`🗑️ Deletando registros cancelamentos existentes para ${dataDate}...`);
-        await supabase
-          .from('contahub_cancelamentos')
-          .delete()
-          .eq('bar_id', barId)
-          .eq('data', dataDate);
+        // ✅ UPSERT: Atualiza se existir, insere se não existir (sem DELETE)
+        console.log(`🔄 Processando registros cancelamentos com UPSERT para ${dataDate}...`);
         
         const cancelamentosRecords = records.map((item: any) => {
           const custototal = parseFloat(item.custototal || item.custo_total || item.custo || 0) || 0;
@@ -623,23 +619,27 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
+    // Validar variáveis de ambiente obrigatórias
+    validateFunctionEnv('contahub-processor', [
+      'SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY'
+    ]);
+
     const requestBody = await req.text();
     console.log('📥 Body recebido:', requestBody);
     
     const { data_date, bar_id = 3, data_types, process_all = false } = JSON.parse(requestBody || '{}');
     
     // Configurar Supabase
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Variáveis do Supabase não encontradas');
-    }
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     

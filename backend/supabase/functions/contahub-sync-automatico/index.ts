@@ -389,16 +389,31 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // 💓 Heartbeat: registrar início da execução
+    // 💓 Heartbeat: registrar início da execução com advisory lock
     const hbResult = await heartbeatStart(
       supabase,
       'contahub-sync-automatico',
       bar_id || null,
       data_inicio && data_fim ? 'backfill' : 'sync',
-      'pgcron'
+      'pgcron',
+      true, // useLock
+      30    // timeout 30 minutos
     );
     heartbeatId = hbResult.heartbeatId;
     startTime = hbResult.startTime;
+    
+    // Se não conseguiu o lock, abortar execução
+    if (!hbResult.lockAcquired) {
+      console.log('🔒 Sync já em execução para este bar, abortando');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: 'Sync já em execução para este bar',
+          lock_acquired: false 
+        }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
     
     // Resolver emp_id do ContaHub:
     // 1) payload (emp_id/contahub_emp_id), 2) bares.config.contahub_emp_id, 3) api_credentials.empresa_id
