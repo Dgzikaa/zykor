@@ -13,11 +13,14 @@ async function testarAPI() {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   // Buscar access_token
+  const barId = process.argv[2] ? parseInt(process.argv[2]) : 3;
+  console.log(`🔍 Testando bar_id=${barId}\n`);
+  
   const { data: cred } = await supabase
     .from('api_credentials')
     .select('access_token, client_id')
     .eq('sistema', 'conta_azul')
-    .eq('bar_id', 3)
+    .eq('bar_id', barId)
     .single();
 
   if (!cred?.access_token) {

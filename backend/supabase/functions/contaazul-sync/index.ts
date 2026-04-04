@@ -251,8 +251,10 @@ async function syncLancamentos(
       totalPaginas = Math.ceil((data.itens_totais || 0) / PAGE_SIZE)
 
       console.log('[contaazul-sync] ' + tipo + ' pagina ' + pagina + '/' + totalPaginas + ' - ' + itens.length + ' itens')
+      console.log('[contaazul-sync] bar_id=' + barId + ', total_itens_api=' + (data.itens_totais || 0))
 
       if (itens.length > 0) {
+        console.log('[contaazul-sync] Preparando ' + itens.length + ' lancamentos para upsert...')
         const lancamentos = itens.map((item: any) => {
           const valorTotal = item.total ? parseFloat(item.total) / 100 : 0
           const valorPago = item.pago ? parseFloat(item.pago) / 100 : 0
@@ -296,13 +298,18 @@ async function syncLancamentos(
           }
         })
 
-        const { error } = await supabase
+        console.log('[contaazul-sync] Executando upsert de ' + lancamentos.length + ' registros...')
+        console.log('[contaazul-sync] Primeiro registro:', JSON.stringify(lancamentos[0]))
+        
+        const { error, data: upsertData } = await supabase
           .from('contaazul_lancamentos')
-          .upsert(lancamentos, { onConflict: 'contaazul_id' })
+          .upsert(lancamentos, { onConflict: 'contaazul_id,bar_id' })
+          .select('id')
 
         if (error) {
-          console.error('[contaazul-sync] Erro ao inserir lancamentos:', error)
+          console.error('[contaazul-sync] Erro ao inserir lancamentos:', JSON.stringify(error))
         } else {
+          console.log('[contaazul-sync] Upsert OK: ' + (upsertData?.length || lancamentos.length) + ' registros')
           totalCount += lancamentos.length
         }
       }
