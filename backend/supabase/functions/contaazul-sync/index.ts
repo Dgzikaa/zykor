@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Edge Function: contaazul-sync
  * 
  * Sincroniza dados financeiros do Conta Azul para tabelas locais.
@@ -625,7 +625,7 @@ serve(async (req: Request) => {
     const { data: credentials, error: credError } = await supabase
       .from('api_credentials')
       .select('*')
-      .eq('sistema', 'contaazul')
+      .eq('sistema', 'conta_azul')
       .eq('bar_id', barId)
       .single()
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Edge Function: contaazul-auth
  * 
  * Gerencia o fluxo OAuth 2.0 do Conta Azul.
@@ -62,7 +62,7 @@ async function getCredentials(supabase: SupabaseClient, barId: number): Promise<
   const { data, error } = await supabase
     .from('api_credentials')
     .select('*')
-    .eq('sistema', 'contaazul')
+    .eq('sistema', 'conta_azul')
     .eq('bar_id', barId)
     .single()
   
@@ -96,8 +96,7 @@ async function upsertCredentials(
       .from('api_credentials')
       .insert({
         bar_id: barId,
-        sistema: 'contaazul',
-        provider: 'contaazul',
+        sistema: 'conta_azul',
         ativo: true,
         ...updates
       })

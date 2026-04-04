@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       { num: 13, inicio: '2026-03-23', fim: '2026-03-29' },
     ];
 
-    const resultados = [];
+    const resultados: any[] = [];
 
     for (const semana of semanas) {
       // Buscar vendas_item

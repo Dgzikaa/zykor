@@ -92,7 +92,7 @@ const MOTIVOS_EXCLUSAO: Record<string, string> = {
 
 export default function StockoutAuditoriaPage() {
   const { setPageTitle } = usePageTitle();
-  const { selectedBar: contextBar, isLoading: barLoading, bars } = useBar();
+  const { selectedBar: contextBar, isLoading: barLoading, availableBars: bars } = useBar();
 
   const [selectedBarId, setSelectedBarId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => {

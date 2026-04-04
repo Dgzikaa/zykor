@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, RefreshCw, Copy, CheckCircle, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, RefreshCw, Copy, CheckCircle, AlertCircle, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function ContaHubResyncSemanalCard() {

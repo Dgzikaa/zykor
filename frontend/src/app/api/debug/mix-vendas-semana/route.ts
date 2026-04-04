@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
     } : null;
 
     // 5. Se recalcular=true, atualizar o banco
-    let updateResult = null;
+    let updateResult: any = null;
     if (recalcular && mixRPCResult) {
       const { data: updated, error: updateError } = await supabase
         .from('desempenho_semanal')

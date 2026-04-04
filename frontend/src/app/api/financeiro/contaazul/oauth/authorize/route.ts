@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const { data: credentials, error } = await supabase
       .from('api_credentials')
       .select('client_id, scopes')
-      .eq('sistema', 'contaazul')
+      .eq('sistema', 'conta_azul')
       .eq('bar_id', parseInt(barId))
       .single();
 
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     const { error: updateError } = await supabase
       .from('api_credentials')
       .update({ scopes: state, updated_at: new Date().toISOString() })
-      .eq('sistema', 'contaazul')
+      .eq('sistema', 'conta_azul')
       .eq('bar_id', parseInt(barId));
 
     if (updateError) {
