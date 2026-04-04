@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CALC-CUSTOS - Calculator de Custos e Despesas
  * 
  * Calcula custos de atracao, couvert, comissao e cancelamentos.
@@ -32,7 +32,7 @@ async function getCategoriasAtracao(
   return data.map((row: any) => row.nome_categoria);
 }
 
-async function getCustoAtracaoContaAzul(
+async function getCustoAtracao(
   supabase: any,
   barId: number,
   startDate: string,
@@ -40,7 +40,7 @@ async function getCustoAtracaoContaAzul(
   categoriasAtracao: string[]
 ): Promise<{ valor: number; count: number }> {
   const { data, error } = await supabase
-    .from('contaazul_lancamentos')
+    .from('lancamentos_financeiros')
     .select('valor_bruto')
     .eq('bar_id', barId)
     .eq('tipo', 'DESPESA')
@@ -49,44 +49,13 @@ async function getCustoAtracaoContaAzul(
     .lte('data_competencia', endDate);
 
   if (error) {
-    console.warn('[calc-custos] Erro ao buscar Conta Azul:', error.message);
+    console.warn('[calc-custos] Erro ao buscar lancamentos:', error.message);
     return { valor: 0, count: 0 };
   }
 
   const items = data || [];
   const valor = items.reduce(
     (sum: number, item: any) => sum + (parseFloat(item.valor_bruto) || 0), 0
-  );
-
-  return { valor, count: items.length };
-}
-
-// TRANSICAO: remover fallback nibo_agendamentos apos cutover completo
-async function getCustoAtracaoNiboFallback(
-  supabase: any,
-  barId: number,
-  startDate: string,
-  endDate: string,
-  categoriasAtracao: string[]
-): Promise<{ valor: number; count: number }> {
-  const { data, error } = await supabase
-    .from('nibo_agendamentos')
-    .select('valor')
-    .eq('bar_id', barId)
-    .eq('tipo', 'despesa')
-    .eq('deletado', false)
-    .in('categoria_nome', categoriasAtracao)
-    .gte('data_competencia', startDate)
-    .lte('data_competencia', endDate);
-
-  if (error) {
-    console.warn('[calc-custos] Erro ao buscar NIBO fallback:', error.message);
-    return { valor: 0, count: 0 };
-  }
-
-  const items = data || [];
-  const valor = items.reduce(
-    (sum: number, item: any) => sum + (parseFloat(item.valor) || 0), 0
   );
 
   return { valor, count: items.length };
@@ -126,20 +95,10 @@ export async function calcCustos(
     let custoAtracao = 0;
     let fonte = 'contaazul';
 
-    // Tentar Conta Azul primeiro
-    const caResult = await getCustoAtracaoContaAzul(supabase, barId, startDate, endDate, categoriasAtracao);
-    
-    if (caResult.count > 0) {
-      custoAtracao = caResult.valor;
-      console.log('[calc-custos] Custo atracao do Conta Azul: R$' + custoAtracao.toFixed(2) + ' (' + caResult.count + ' registros)');
-    } else {
-      // TRANSICAO: remover fallback nibo_agendamentos apos cutover completo
-      console.log('[calc-custos] Conta Azul sem dados, tentando NIBO fallback...');
-      const niboResult = await getCustoAtracaoNiboFallback(supabase, barId, startDate, endDate, categoriasAtracao);
-      custoAtracao = niboResult.valor;
-      fonte = 'nibo';
-      console.log('[calc-custos] Custo atracao do NIBO fallback: R$' + custoAtracao.toFixed(2) + ' (' + niboResult.count + ' registros)');
-    }
+    // Buscar da view unificada (Conta Azul + Nibo)
+    const result = await getCustoAtracao(supabase, barId, startDate, endDate, categoriasAtracao);
+    custoAtracao = result.valor;
+    console.log('[calc-custos] Custo atracao: R$' + custoAtracao.toFixed(2) + ' (' + result.count + ' registros)');
 
     const custoAtracaoFaturamento = faturamentoTotal > 0
       ? (custoAtracao / faturamentoTotal) * 100
