@@ -39,15 +39,20 @@ export async function GET(request: NextRequest) {
     const uuid = crypto.randomUUID();
     const state = barId + '_' + uuid;
 
+    console.log('[authorize] Gerando state para bar_id=' + barId + ', state=' + state);
+
     const { error: updateError } = await supabase
       .from('api_credentials')
-      .update({ scopes: state, updated_at: new Date().toISOString() })
+      .update({ scopes: state, atualizado_em: new Date().toISOString() })
       .eq('sistema', 'conta_azul')
       .eq('bar_id', parseInt(barId));
 
     if (updateError) {
       console.error('[authorize] Erro ao salvar state:', updateError);
+      return NextResponse.json({ error: 'Erro ao salvar state: ' + updateError.message }, { status: 500 });
     }
+
+    console.log('[authorize] State salvo com sucesso');
 
     const authUrl = new URL(CONTA_AZUL_AUTH_URL + '/login');
     authUrl.searchParams.set('response_type', 'code');
