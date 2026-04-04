@@ -32,6 +32,7 @@ export async function getUserAuth(
       }
 
       // Tentar pegar dados do usuário do cookie
+      // TODO(rodrigo/2026-05): Remover sgb_user quando migração estiver completa
       const cookieValue = request.cookies.get('sgb_user')?.value;
       if (cookieValue) {
         userData = cookieValue;

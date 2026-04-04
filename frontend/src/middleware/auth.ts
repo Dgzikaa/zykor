@@ -69,6 +69,7 @@ export async function authenticateUser(
     }
 
     // PRIORIDADE 2: Cookie sgb_user (fallback)
+    // TODO(rodrigo/2026-05): Remover sgb_user quando migração estiver completa
     if (!authenticatedUser) {
       const userCookie = request.cookies.get('sgb_user')?.value;
       

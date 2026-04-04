@@ -48,6 +48,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     let debounceTimer: NodeJS.Timeout | null = null;
 
     const handleStorageChange = (e: StorageEvent) => {
+      // TODO(rodrigo/2026-05): sgb_user é mantido apenas como cache, fonte de verdade é JWT via /api/auth/me
       if (e.key === 'sgb_user') {
         // Verificar se houve um reload de bar muito recente
         const lastReload = sessionStorage.getItem('last_bar_reload');
@@ -130,7 +131,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             bar_id: selectedBarId ? parseInt(selectedBarId) : data.user.bar_id,
           };
           setUser(userDataToSave);
-          // Salvar no localStorage apenas para cache (não é fonte de verdade)
+          // TODO(rodrigo/2026-05): sgb_user mantido apenas como cache, fonte de verdade é JWT
           localStorage.setItem('sgb_user', JSON.stringify(userDataToSave));
         } else {
           setUser(null);
@@ -153,6 +154,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                 bar_id: selectedBarId ? parseInt(selectedBarId) : retryData.user.bar_id,
               };
               setUser(userDataToSave);
+              // TODO(rodrigo/2026-05): sgb_user mantido apenas como cache
               localStorage.setItem('sgb_user', JSON.stringify(userDataToSave));
               return;
             }
@@ -161,6 +163,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
         // Refresh falhou ou retry falhou — redirecionar ao login
         setUser(null);
+        // TODO(rodrigo/2026-05): Limpar cache sgb_user
         localStorage.removeItem('sgb_user');
 
         if (!window.location.pathname.startsWith('/login')) {
@@ -170,11 +173,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Erro ao carregar dados do usuário:', error);
       // Tentar fallback para localStorage (compatibilidade)
+      // TODO(rodrigo/2026-05): Fallback sgb_user será removido após migração completa
       try {
         const userData = localStorage.getItem('sgb_user');
         if (userData) {
           const parsedUser = JSON.parse(userData);
           if (parsedUser && parsedUser.id && parsedUser.email) {
+            console.warn('⚠️ Usando cache sgb_user como fallback');
             setUser(parsedUser);
           } else {
             setUser(null);
@@ -195,6 +200,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     try {
       setUser(userData);
       // Only update localStorage on client side
+      // TODO(rodrigo/2026-05): sgb_user mantido apenas como cache
       if (typeof window !== 'undefined') {
         localStorage.setItem('sgb_user', JSON.stringify(userData));
         // Disparar evento customizado para notificar outros componentes
@@ -210,6 +216,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       const updatedUser = { ...user, modulos_permitidos: newPermissions };
       setUser(updatedUser);
       // Only update localStorage on client side
+      // TODO(rodrigo/2026-05): sgb_user mantido apenas como cache
       if (typeof window !== 'undefined') {
         localStorage.setItem('sgb_user', JSON.stringify(updatedUser));
       }
@@ -228,7 +235,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      // Chamar API de logout para limpar cookies
+      // Chamar API de logout para limpar cookies (auth_token + sgb_user)
       await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
@@ -237,6 +244,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       
       // Only clear localStorage on client side
+      // TODO(rodrigo/2026-05): sgb_user será removido após migração completa
       if (typeof window !== 'undefined') {
         localStorage.removeItem('sgb_user');
         localStorage.removeItem('sgb_selected_bar_id');

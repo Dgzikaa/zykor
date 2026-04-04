@@ -65,12 +65,13 @@ export default function LoginPage() {
       if (typeof window === 'undefined') return;
 
       try {
+        // TODO(rodrigo/2026-05): sgb_user é apenas cache, fonte de verdade é JWT
         const userData = localStorage.getItem('sgb_user');
         if (userData) {
           // Validar se os dados são válidos (não apenas se existem)
           const user = JSON.parse(userData);
           if (user && user.email && user.nome) {
-            console.log('✅ Usuário já logado, redirecionando...', user.nome);
+            console.log('✅ Usuário já logado (cache), redirecionando...', user.nome);
             const destination = returnUrl
               ? decodeURIComponent(returnUrl)
               : '/home';
@@ -168,7 +169,8 @@ export default function LoginPage() {
           return;
         }
 
-        // Salvar dados do usuário no localStorage (cookie já setado pelo servidor)
+        // Salvar dados do usuário no localStorage como cache (cookie JWT já setado pelo servidor)
+        // TODO(rodrigo/2026-05): sgb_user mantido apenas como cache
         const { syncAuthData } = await import('@/lib/cookies');
         syncAuthData(userData as any);
 

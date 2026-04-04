@@ -73,6 +73,7 @@ export async function getBarIdServer(): Promise<number | null> {
   }
 
   // Fallback: bar_id embedded in sgb_user cookie (written server-side at login)
+  // TODO(rodrigo/2026-05): Remover sgb_user quando migração estiver completa
   const userCookie = cookieStore.get('sgb_user');
   if (userCookie) {
     try {

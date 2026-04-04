@@ -261,7 +261,8 @@ function UsuariosPage() {
             modulos_permitidos: formData.modulos_permitidos
           };
           
-          // Atualizar localStorage
+          // Atualizar localStorage (cache)
+          // TODO(rodrigo/2026-05): sgb_user mantido apenas como cache
           safeLocalStorage.setItem('sgb_user', JSON.stringify(updatedUser));
           
           // Disparar evento para atualizar contexto de permissões

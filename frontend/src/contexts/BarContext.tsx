@@ -52,6 +52,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
   const hasLoadedBarsRef = useRef(false);
 
   // Função auxiliar para sincronizar as permissões do bar selecionado no localStorage
+  // TODO(rodrigo/2026-05): sgb_user mantido apenas como cache, fonte de verdade é JWT
   const syncBarPermissions = (bar: Bar) => {
     if (typeof window === 'undefined' || isSyncingRef.current) return;
     
@@ -122,6 +123,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
             userEmail = session.user.email;
           } else {
             // Fallback: tentar localStorage
+            // TODO(rodrigo/2026-05): Fallback sgb_user será removido após migração completa
             const storedUser = localStorage.getItem('sgb_user');
             if (storedUser) {
               try {

@@ -131,7 +131,7 @@ export async function fetchFP(url: string, options: RequestInit = {}) {
           
           // Limpar localStorage e redirecionar
           localStorage.removeItem('sgb_session')
-          localStorage.removeItem('sgb_user')
+          localStorage.removeItem('sgb_user') // Cache
           
           toast.error('Sessão expirada', {
             description: 'Faça login novamente para continuar.'
@@ -148,7 +148,7 @@ export async function fetchFP(url: string, options: RequestInit = {}) {
         
         // Limpar e redirecionar
         localStorage.removeItem('sgb_session')
-        localStorage.removeItem('sgb_user')
+        localStorage.removeItem('sgb_user') // Cache
         
         toast.error('Sessão expirada', {
           description: 'Faça login novamente.'

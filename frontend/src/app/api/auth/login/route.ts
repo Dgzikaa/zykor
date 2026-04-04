@@ -242,6 +242,7 @@ async function handleLogin(request: NextRequest) {
     });
 
     // Manter cookie sgb_user para compatibilidade (temporário)
+    // TODO(rodrigo/2026-05): Remover sgb_user quando migração estiver completa
     const userCookie = {
       id: usuarioPrincipal.id,
       auth_id: usuarioPrincipal.auth_id,
@@ -255,7 +256,7 @@ async function handleLogin(request: NextRequest) {
 
     response.cookies.set('sgb_user', JSON.stringify(userCookie), {
       ...cookieOptions,
-      httpOnly: false,
+      httpOnly: false, // Não httpOnly para permitir leitura client-side (cache)
     });
 
     return response;

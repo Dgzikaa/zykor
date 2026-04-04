@@ -32,15 +32,16 @@ export default function AuthGuard({
       if (!user) {
         // Verificação dupla para evitar loop infinito
         try {
+          // TODO(rodrigo/2026-05): sgb_user é apenas cache, fonte de verdade é JWT via UserContext
           const userData = localStorage.getItem('sgb_user');
           console.log(
-            '🔍 AuthGuard: Verificando localStorage...',
+            '🔍 AuthGuard: Verificando cache localStorage...',
             userData ? 'Dados encontrados' : 'Nenhum dado'
           );
 
           if (userData) {
             const parsedUser = JSON.parse(userData);
-            console.log('🔍 AuthGuard: Dados parseados:', parsedUser);
+            console.log('🔍 AuthGuard: Dados parseados (cache):', parsedUser);
 
             if (
               parsedUser &&

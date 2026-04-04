@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getSupabaseClient } from '@/lib/supabase';
 
 interface UserInfo {
   id: number;
@@ -26,30 +25,48 @@ export function useAuth() {
 
     async function loadUserInfo() {
       try {
-        // Primeiro verificar localStorage
-        const storedUser = localStorage.getItem('sgb_user');
-        if (storedUser) {
-          try {
-            const userData = JSON.parse(storedUser);
-            if (userData && userData.nome && userData.email) {
-              setUser(userData);
-              if (mounted) {
-                setLoading(false);
-              }
-              return;
-            } else {
-              localStorage.removeItem('sgb_user');
-            }
-          } catch (parseError) {
-            localStorage.removeItem('sgb_user');
+        // Buscar dados do servidor via JWT (fonte de verdade)
+        const response = await fetch('/api/auth/me', {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            throw new Error('Usuário não autenticado - faça login novamente');
           }
+          throw new Error('Erro ao carregar informações do usuário');
         }
 
-        // Se chegou até aqui, não há dados válidos no localStorage
-        throw new Error('Usuário não logado - faça login novamente');
+        const data = await response.json();
+        if (data.success && data.user) {
+          if (mounted) {
+            setUser(data.user);
+            // Manter cache no localStorage para uso offline/fallback
+            localStorage.setItem('sgb_user', JSON.stringify(data.user));
+          }
+        } else {
+          throw new Error('Dados do usuário inválidos');
+        }
       } catch (err) {
         console.error('❌ Erro ao carregar informações do usuário:', err);
         setError(err instanceof Error ? err.message : 'Erro desconhecido');
+        
+        // Fallback: tentar localStorage se API falhar
+        try {
+          const storedUser = localStorage.getItem('sgb_user');
+          if (storedUser) {
+            const userData = JSON.parse(storedUser);
+            if (userData && userData.nome && userData.email) {
+              console.warn('⚠️ Usando dados em cache do localStorage');
+              if (mounted) {
+                setUser(userData);
+              }
+              return;
+            }
+          }
+        } catch {
+          // Ignorar erros de fallback
+        }
       } finally {
         if (mounted) {
           setLoading(false);

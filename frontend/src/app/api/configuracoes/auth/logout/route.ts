@@ -50,14 +50,18 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
 
-    // Limpar cookie httpOnly
-    response.cookies.set('sgb_user', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/',
-      expires: new Date(0), // Data no passado para expirar imediatamente
-    });
+    // Limpar TODOS os cookies de autenticação
+    // TODO(rodrigo/2026-05): Após migração completa, manter apenas auth_token e refresh_token
+    const cookiesToDelete = ['auth_token', 'refresh_token', 'sgb_user', 'sgb_bar_id', 'sgb_bar_nome'];
+    for (const name of cookiesToDelete) {
+      response.cookies.set(name, '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/',
+        expires: new Date(0),
+      });
+    }
 
     return response;
   } catch (error) {

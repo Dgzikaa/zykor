@@ -305,6 +305,7 @@ export async function POST(request: NextRequest) {
     const nextResponse = NextResponse.json(response);
 
     // Salvar cookie com dados básicos do usuário (para middleware)
+    // TODO(rodrigo/2026-05): Remover sgb_user quando migração estiver completa
     const userCookie = {
       id: usuarioPrincipal.id,
       email: usuarioPrincipal.email,
@@ -313,7 +314,7 @@ export async function POST(request: NextRequest) {
     };
 
     nextResponse.cookies.set('sgb_user', JSON.stringify(userCookie), {
-      httpOnly: false, // Permitir acesso via JavaScript
+      httpOnly: false, // Permitir acesso via JavaScript (cache)
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       maxAge: 60 * 60 * 24 * 7, // 7 dias

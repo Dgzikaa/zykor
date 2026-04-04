@@ -1,6 +1,8 @@
 // Utilitários para gerenciamento de cookies de autenticação
+// TODO(rodrigo/2026-05): sgb_user é DEPRECADO - fonte de verdade é JWT via auth_token
+// Mantido apenas como cache client-side durante migração
 
-export const AUTH_COOKIE_NAME = 'sgb_user';
+export const AUTH_COOKIE_NAME = 'sgb_user'; // DEPRECADO
 export const BAR_COOKIE_NAME = 'sgb_bar_id';
 
 export interface UserCookie {
@@ -61,11 +63,12 @@ export const getAuthCookie = (): UserCookie | null => {
 export const clearAuthCookie = () => {
   try {
     const pastDate = 'Thu, 01 Jan 1970 00:00:00 UTC';
-    document.cookie = `${AUTH_COOKIE_NAME}=; expires=${pastDate}; path=/`;
+    // TODO(rodrigo/2026-05): Após migração, manter apenas auth_token e refresh_token
+    document.cookie = `${AUTH_COOKIE_NAME}=; expires=${pastDate}; path=/`; // DEPRECADO
     document.cookie = `auth_token=; expires=${pastDate}; path=/`;
     document.cookie = `refresh_token=; expires=${pastDate}; path=/`;
     document.cookie = `${BAR_COOKIE_NAME}=; expires=${pastDate}; path=/`;
-    localStorage.removeItem('sgb_user');
+    localStorage.removeItem('sgb_user'); // Cache
     localStorage.removeItem('sgb_session');
     localStorage.removeItem('sgb_selected_bar_id');
   } catch (error) {
@@ -76,10 +79,12 @@ export const clearAuthCookie = () => {
 /**
  * Sincronizar dados de autenticação após login.
  * NÃO seta o cookie sgb_user aqui — o servidor já seta via Set-Cookie header.
- * Apenas salva em localStorage para uso client-side rápido.
+ * Apenas salva em localStorage para uso client-side rápido (cache).
+ * TODO(rodrigo/2026-05): sgb_user mantido apenas como cache durante migração
  */
 export const syncAuthData = (userData: any, session?: any) => {
   try {
+    // Salvar no localStorage apenas como cache (fonte de verdade é JWT)
     localStorage.setItem('sgb_user', JSON.stringify(userData));
     if (session) {
       localStorage.setItem('sgb_session', JSON.stringify(session));
@@ -99,6 +104,7 @@ export const syncAuthData = (userData: any, session?: any) => {
 };
 
 // Re-exportar setAuthCookie para compatibilidade, mas idealmente não usar
+// TODO(rodrigo/2026-05): DEPRECADO - não usar, servidor seta via Set-Cookie
 export const setAuthCookie = (userData: UserCookie) => {
   try {
     const value = JSON.stringify(userData);

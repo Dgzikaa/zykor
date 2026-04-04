@@ -37,6 +37,7 @@ export function middleware(request: NextRequest) {
     const authToken = request.cookies.get('auth_token');
     
     // Fallback: cookie legado (DEPRECADO)
+    // TODO(rodrigo/2026-05): Remover sgb_user quando migração estiver completa
     const legacyCookie = request.cookies.get('sgb_user');
     
     // Se não tem nenhum cookie de auth, redirecionar para login
@@ -46,8 +47,9 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // Se tem cookie legado mas não tem JWT, permitir (será migrado no próximo login)
-    if (legacyCookie?.value) {
+    // Se tem cookie legado mas não tem JWT, permitir mas logar warning
+    if (legacyCookie?.value && !authToken?.value) {
+      console.warn('⚠️ Sessão legada detectada (sgb_user sem auth_token). Usuário deve fazer login novamente.');
       try {
         let rawValue = legacyCookie.value;
         try {

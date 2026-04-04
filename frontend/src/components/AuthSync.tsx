@@ -6,10 +6,11 @@ import { syncAuthData } from '@/lib/cookies';
 /**
  * Componente para sincronizar automaticamente dados de autenticação
  * entre localStorage e cookies para que o middleware funcione corretamente
+ * TODO(rodrigo/2026-05): sgb_user mantido apenas como cache durante migração
  */
 export default function AuthSync() {
   useEffect(() => {
-    // Função para sincronizar dados
+    // Função para sincronizar dados (cache)
     const syncUserData = () => {
       try {
         const userData = localStorage.getItem('sgb_user');

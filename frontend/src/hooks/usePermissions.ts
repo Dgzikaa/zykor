@@ -31,8 +31,8 @@ export function usePermissions(): PermissionsHook {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    // Carregar dados do usuário do localStorage
-    const loadUserData = () => {
+    // Carregar dados do usuário via JWT (fonte de verdade)
+    const loadUserData = async () => {
       if (!isClient) {
         setLoading(false);
         setIsInitialized(true);
@@ -40,12 +40,29 @@ export function usePermissions(): PermissionsHook {
       }
 
       try {
+        // Buscar dados do servidor via JWT
+        const response = await fetch('/api/auth/me', {
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.user) {
+            setUser(data.user);
+            // Manter cache no localStorage
+            safeLocalStorage.setItem('sgb_user', JSON.stringify(data.user));
+            setLoading(false);
+            setIsInitialized(true);
+            return;
+          }
+        }
+
+        // Se API falhou, tentar fallback do localStorage
         const userData = safeLocalStorage.getItem('sgb_user');
-        
         if (userData) {
           const parsedUser = JSON.parse(userData);
-          
           if (parsedUser && parsedUser.id && parsedUser.email && parsedUser.modulos_permitidos) {
+            console.warn('⚠️ Usando dados em cache do localStorage');
             setUser(parsedUser);
             setLoading(false);
             setIsInitialized(true);
@@ -65,6 +82,24 @@ export function usePermissions(): PermissionsHook {
         }
       } catch (error) {
         console.error('Erro ao carregar dados do usuário:', error);
+        
+        // Fallback para localStorage em caso de erro
+        try {
+          const userData = safeLocalStorage.getItem('sgb_user');
+          if (userData) {
+            const parsedUser = JSON.parse(userData);
+            if (parsedUser && parsedUser.id && parsedUser.email) {
+              console.warn('⚠️ Usando dados em cache do localStorage após erro');
+              setUser(parsedUser);
+              setLoading(false);
+              setIsInitialized(true);
+              return;
+            }
+          }
+        } catch {
+          // Ignorar erro de fallback
+        }
+        
         safeLocalStorage.removeItem('sgb_user');
         setUser(null);
         setLoading(false);
