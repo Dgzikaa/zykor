@@ -116,6 +116,8 @@ const FIELD_MAPPING: Record<string, string> = {
   mesas_presentes: "mesas_presentes",
   reservas_totais: "reservas_totais",
   reservas_presentes: "reservas_presentes",
+  desconto_total: "desconto_total",
+  desconto_percentual: "desconto_percentual",
   // Custos
   custo_atracao_faturamento: "custo_atracao_faturamento",
   couvert_atracoes: "couvert_atracoes",

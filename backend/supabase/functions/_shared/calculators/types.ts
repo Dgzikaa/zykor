@@ -36,6 +36,8 @@ export interface FaturamentoResult {
   mesas_presentes: number;
   reservas_totais: number;
   reservas_presentes: number;
+  desconto_total: number;
+  desconto_percentual: number;
 }
 
 export interface CustosResult {

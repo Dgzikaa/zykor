@@ -35,6 +35,18 @@ export async function calcFaturamento(
 
     const eventos = eventosData || [];
 
+    // Buscar descontos do período
+    const { data: descontosData, error: descontosError } = await supabase
+      .from('contahub_analitico')
+      .select('desconto')
+      .eq('bar_id', barId)
+      .gte('trn_dtgerencial', startDate)
+      .lte('trn_dtgerencial', endDate);
+
+    const descontoTotal = (descontosData || []).reduce(
+      (sum: number, row: any) => sum + (parseFloat(row.desconto) || 0), 0
+    );
+
     const faturamentoTotal = eventos.reduce((sum: number, item: any) => sum + (parseFloat(item.real_r) || 0), 0);
     const faturamentoEntrada = eventos.reduce((sum: number, item: any) => sum + (parseFloat(item.faturamento_entrada) || 0), 0);
     const faturamentoBar = eventos.reduce((sum: number, item: any) => sum + (parseFloat(item.faturamento_bar) || 0), 0);
@@ -47,6 +59,11 @@ export async function calcFaturamento(
     const reservasPresentes = eventos.reduce((sum: number, item: any) => sum + (parseInt(item.res_p) || 0), 0);
     const mesasTotais = eventos.reduce((sum: number, item: any) => sum + (parseInt(item.num_mesas_tot) || 0), 0);
     const mesasPresentes = eventos.reduce((sum: number, item: any) => sum + (parseInt(item.num_mesas_presentes) || 0), 0);
+
+    // Calcular percentual de desconto sobre faturamento bruto
+    const descontoPercentual = faturamentoTotal > 0
+      ? (descontoTotal / faturamentoTotal) * 100
+      : 0;
 
     return {
       success: true,
@@ -63,6 +80,8 @@ export async function calcFaturamento(
         mesas_presentes: mesasPresentes,
         reservas_totais: reservasTotais,
         reservas_presentes: reservasPresentes,
+        desconto_total: descontoTotal,
+        desconto_percentual: Math.round(descontoPercentual * 100) / 100,
       },
       duration_ms: Date.now() - startTime,
     };
