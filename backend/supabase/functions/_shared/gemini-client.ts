@@ -6,6 +6,7 @@
  */
 
 import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai@0.21.0';
+import { withRetry, isRetriableError } from './retry.ts';
 
 export interface GeminiConfig {
   model?: string;
@@ -92,52 +93,61 @@ export async function generateGeminiResponse(
   config: GeminiConfig = {},
   history?: GeminiMessage[]
 ): Promise<string> {
-  try {
-    const apiKey = Deno.env.get('GEMINI_API_KEY');
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY não configurada');
-    }
-
-    // Usar API v1 diretamente - modelo estável de 2026
-    const model = config.model || 'gemini-2.0-flash-exp';
-    const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
-    
-    const requestBody = {
-      contents: [{
-        parts: [{ text: prompt }]
-      }],
-      generationConfig: {
-        temperature: config.temperature ?? 0.7,
-        topP: config.topP ?? 0.95,
-        topK: config.topK ?? 40,
-        maxOutputTokens: config.maxOutputTokens ?? 8192,
+  return await withRetry(
+    async () => {
+      const apiKey = Deno.env.get('GEMINI_API_KEY');
+      if (!apiKey) {
+        throw new Error('GEMINI_API_KEY não configurada');
       }
-    };
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
+      // Usar API v1 diretamente - modelo estável de 2026
+      const model = config.model || 'gemini-2.0-flash-exp';
+      const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+      
+      const requestBody = {
+        contents: [{
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          temperature: config.temperature ?? 0.7,
+          topP: config.topP ?? 0.95,
+          topK: config.topK ?? 40,
+          maxOutputTokens: config.maxOutputTokens ?? 8192,
+        }
+      };
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API Gemini retornou ${response.status}: ${errorText}`);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const error: any = new Error(`API Gemini retornou ${response.status}: ${errorText}`);
+        error.status = response.status;
+        throw error;
+      }
+
+      const data = await response.json();
+      
+      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+        throw new Error('Resposta inválida da API Gemini');
+      }
+
+      return data.candidates[0].content.parts[0].text;
+    },
+    {
+      maxRetries: 3,
+      baseDelayMs: 1000,
+      retryOn: (error) => {
+        // Retry em erros 429 (rate limit) e 5xx (server errors)
+        return isRetriableError(error);
+      }
     }
-
-    const data = await response.json();
-    
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      throw new Error('Resposta inválida da API Gemini');
-    }
-
-    return data.candidates[0].content.parts[0].text;
-  } catch (error) {
-    console.error('❌ Erro ao gerar resposta do Gemini:', error);
-    throw new Error(`Erro na API Gemini: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-  }
+  );
 }
 
 /**
@@ -238,18 +248,29 @@ export async function generateWithTools(
 
     console.log(`🔄 [Tool Use] Iteração ${i + 1}/${maxIterations}`);
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    });
+    const data = await withRetry(
+      async () => {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Gemini API ${response.status}: ${errorText}`);
-    }
+        if (!response.ok) {
+          const errorText = await response.text();
+          const error: any = new Error(`Gemini API ${response.status}: ${errorText}`);
+          error.status = response.status;
+          throw error;
+        }
 
-    const data = await response.json();
+        return await response.json();
+      },
+      {
+        maxRetries: 3,
+        baseDelayMs: 1000,
+        retryOn: isRetriableError
+      }
+    );
     const candidate = data.candidates?.[0];
     
     if (!candidate?.content?.parts) {

@@ -1,7 +1,7 @@
 # ZYKOR - CONTEXTO COMPLETO DO SISTEMA
 
-> **LEIA ESTE ARQUIVO EM CADA NOVO CHAT!**  
-> Última atualização: **27/02/2026 - 11:45 BRT**
+> **LEIA ESTE ARQUIVO EM CADA NOVO CHAT!**
+> Última atualização: **04/04/2026 - 20:00 BRT**
 
 ---
 
@@ -41,8 +41,8 @@
 
 | Métrica | Quantidade | Observação |
 |---------|------------|------------|
-| **Cron Jobs** | 27 | Redução de 40% |
-| **Edge Functions** | 38 (Supabase) / 12 (local) | Redução de 66% |
+| **Cron Jobs** | 12 | Reorganizado 04/04/2026 |
+| **Edge Functions** | 37 (Supabase) / 12 (local) | Redução de 66%; nibo-sync deletado do código, pendente remoção do Supabase |
 | **Database Functions** | 61 | Redução de 75% |
 | **Páginas Frontend** | 131 | Redução de 5 páginas duplicadas |
 | **Componentes UI** | 61 | Consolidação de Cards e Loading |
@@ -2227,7 +2227,7 @@ curl "https://zykor.vercel.app/api/exploracao/agente-diario?secret=zykor-cron-se
 | Sistema | Função | Status | Edge Function |
 |---------|--------|--------|---------------|
 | **ContaHub** | Faturamento, PAX, Tickets | ✅ ATIVO | contahub-sync |
-| **NIBO** | Custos, Pagamentos | ✅ ATIVO | integracao-dispatcher |
+| **Conta Azul** | Custos, Pagamentos (Substituiu NIBO) | ✅ ATIVO | integracao-dispatcher |
 | **Discord** | Notificações | ✅ ATIVO | discord-dispatcher |
 | **Gemini** | Análise IA | ✅ ATIVO | agente-dispatcher |
 | **Yuzer** | Reservas | 🔄 INTEGRANDO | integracao-dispatcher |
@@ -2235,6 +2235,8 @@ curl "https://zykor.vercel.app/api/exploracao/agente-diario?secret=zykor-cron-se
 | **GetIn** | Lista/Entrada | 🔄 INTEGRANDO | integracao-dispatcher |
 | **ZigPay** | Pagamentos/KDS | 📋 PLANEJADO | - |
 | **Pluggy** | Open Finance | 📋 PLANEJADO | - |
+
+**Nota sobre NIBO**: NIBO removido em 04/2026. Substituído pelo Conta Azul. Tabelas nibo_* mantidas para dados históricos.
 
 ### Agendamentos Principais (pg_cron)
 
@@ -2249,7 +2251,6 @@ curl "https://zykor.vercel.app/api/exploracao/agente-diario?secret=zykor-cron-se
 | 09:00 | desempenho-semanal-auto | Atualiza desempenho_semanal |
 | 10:00 | agente-analise-diaria | Análise IA diária |
 | **10:00** | **agente-exploracao-semanal** | **🆕 Exploração semanal (segundas)** |
-| 10:00 | nibo-sync | Sync NIBO |
 | **11:00** | **agente-exploracao-mensal** | **🆕 Exploração mensal (dia 1)** |
 | 18:00 | sync-contagem | Contagem estoque |
 | 20:00 | stockout-sync | Rupturas |
@@ -3268,3 +3269,39 @@ module.exports = {
 - **Framework**: Next.js 14+
 - **Conexão**: Via REST API do Supabase (não usa conexão direta ao PostgreSQL)
 - **Deploy**: Automático via GitHub (branch main)
+
+---
+
+## ATUALIZAÇÕES 04/04/2026 — AUDITORIA COMPLETA
+
+### Correções de Dados (BLOCO 1)
+- **Cancelamentos**: Bug corrigido no `contahub-processor` — `custototal` era sempre R$0 porque lia campo inexistente do raw data. Agora calcula `SUM(itm_vrcheio * itm_qtd)` dos itens. 5.244 registros recalculados.
+- **Descontos**: Adicionadas colunas `desconto_total` e `desconto_percentual` em `desempenho_semanal`. Cálculo implementado em `calc-faturamento.ts`. Backfill histórico executado.
+- **Stockout**: Validação de anomalias implementada em `calc-operacional.ts`. Detecta dias com coleta incompleta (<20 produtos) ou stockout alto (>50%). Coluna `alertas_dados` (JSONB) adicionada em `desempenho_semanal`.
+- **Atração**: Alerta automático quando custo de atração < 3% do faturamento. Dados dependem de lançamentos corretos no Conta Azul.
+
+### Migração NIBO → Conta Azul (BLOCO 2)
+- **25 arquivos deletados**: Rotas API NIBO, componente NiboIntegrationCard, edge function nibo-sync
+- **30+ arquivos modificados**: Referências NIBO removidas de services, hooks, páginas, dispatchers
+- **Módulo de agendamento**: Desabilitado com banner "Em migração para Conta Azul"
+- **Tabelas mantidas**: nibo_agendamentos (webhook PIX), nibo_categorias, etc. — marcadas como DEPRECATED
+- **Dados financeiros**: Já fluem 100% via Conta Azul → `contaazul_lancamentos` → VIEW `lancamentos_financeiros`
+
+### Colunas Novas em desempenho_semanal
+- `desconto_total` NUMERIC — Total de descontos em R$
+- `desconto_percentual` NUMERIC — Descontos como % do faturamento
+- `alertas_dados` JSONB — Array de alertas automáticos sobre qualidade de dados
+
+### Cron Jobs (12 ativos)
+- Reorganizados para evitar race conditions (migration 20260404)
+- `processar-alertas-discord` corrigido para 2h (era 30min)
+- Todos usam `current_setting()` para service_role_key (nenhum hardcoded)
+
+### Segurança e Qualidade (15 correções)
+- JWT verification habilitado em todas as edge functions
+- CORS com whitelist de origens
+- Rate limiting com 5 presets
+- Retry com exponential backoff + jitter
+- Advisory locks contra execução duplicada
+- Env validation em todas as edge functions
+- Auth guard unificado (`validateCronOrJWT`)

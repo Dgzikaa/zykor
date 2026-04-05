@@ -331,7 +331,12 @@ Bar ID: ${bar_id}`;
     );
 
   } catch (error) {
-    console.error('❌ Erro no agente dispatcher:', error);
+    console.error('❌ agente-dispatcher erro:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
+    
     await heartbeatError(supabase, heartbeatId, startTime, error instanceof Error ? error : String(error));
     
     return new Response(
