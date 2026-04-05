@@ -104,6 +104,11 @@ export async function calcCustos(
       ? (custoAtracao / faturamentoTotal) * 100
       : 0;
 
+    // Alerta quando custo de atração é muito baixo (< 3% do faturamento)
+    if (custoAtracaoFaturamento < 3 && faturamentoTotal > 10000) {
+      console.warn(`⚠️ Atração muito baixa: ${custoAtracaoFaturamento.toFixed(1)}% (R$ ${custoAtracao.toFixed(2)}) para faturamento de R$ ${faturamentoTotal.toFixed(2)}. Verificar lançamentos no Conta Azul.`);
+    }
+
     // 3. Cancelamentos
     const { data: cancelRows, error: cancelError } = await supabase
       .from('contahub_cancelamentos')
