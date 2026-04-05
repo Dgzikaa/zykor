@@ -196,17 +196,10 @@ async function fetchComDivisaoPorLocal(
       if (data?.list && Array.isArray(data.list)) {
         let addedCount = 0;
         for (const record of data.list) {
-          // Criar chave única baseada nos campos que identificam o registro
-          // Para analitico: trn + itm
-          // Para outros: adaptar conforme necessário
-          const uniqueKey = JSON.stringify({
-            trn: record.trn,
-            itm: record.itm,
-            prd: record.prd,
-            vd: record.vd,
-            cmd_id: record.cmd_id,
-            // Adicionar outros campos identificadores conforme o tipo
-          });
+          // Criar chave única usando TODOS os campos do registro
+          // Isso garante que só duplicatas EXATAS sejam removidas
+          // (mesmo item que passou por múltiplos locais)
+          const uniqueKey = JSON.stringify(record);
           
           if (!seenKeys.has(uniqueKey)) {
             seenKeys.add(uniqueKey);
