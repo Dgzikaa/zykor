@@ -1,4 +1,8 @@
-﻿export type Json =
+// NOTA: Tabelas nibo_* são legado (deprecated desde 04/2026).
+// Dados financeiros agora vêm via Conta Azul (contaazul_lancamentos).
+// As tabelas nibo_* mantidas apenas para dados históricos. Não usar em código novo.
+
+export type Json =
   | string
   | number
   | boolean
