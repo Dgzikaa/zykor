@@ -1,3 +1,10 @@
+// [DEPRECATED 2026-04-04] Esta rota usa tabela nibo_categorias que foi descontinuada.
+// A view_dre já consolida dados do Conta Azul, mas o mapeamento de categorias
+// ainda depende de nibo_categorias.
+// TODO(rodrigo/2026-05): Criar nova rota /api/financeiro/dre/mensal que use
+// contaazul_categorias com categoria_macro mapeada, ou criar tabela dre_categorias_mapeamento.
+// Por enquanto, esta rota continua funcionando para não quebrar o frontend.
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
