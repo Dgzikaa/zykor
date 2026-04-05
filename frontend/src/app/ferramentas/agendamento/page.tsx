@@ -236,73 +236,10 @@ export default function AgendamentoPage() {
       description: 'Agendamento via NIBO foi descontinuado. Migração para Conta Azul em andamento.',
       variant: 'destructive',
     });
-    return;
-    const barIdFinal = pagamento.bar_id || barId;
-    if (!barIdFinal) {
-      throw new Error('Bar não identificado.');
-    }
-
-    const valorNumerico = parseCurrencyToNumber(pagamento.valor);
-    if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) {
-      throw new Error(`Valor inválido para ${pagamento.nome_beneficiario}: ${pagamento.valor}`);
-    }
-
-    const dataPagamento = new Date(pagamento.data_pagamento).toISOString().split('T')[0];
-    const dataCompetencia = pagamento.data_competencia
-      ? new Date(pagamento.data_competencia).toISOString().split('T')[0]
-      : dataPagamento;
-
-    const agendamento = {
-      stakeholderId: stakeholder.id || undefined,
-      stakeholder_nome: stakeholder.name || pagamento.nome_beneficiario,
-      stakeholder_document: stakeholder.document || pagamento.cpf_cnpj || undefined,
-      stakeholder_pix_key: stakeholder.pixKey || pagamento.chave_pix || undefined,
-      dueDate: dataPagamento,
-      scheduleDate: dataPagamento,
-      categoria_id: pagamento.categoria_id,
-      categoria_nome: pagamento.categoria_nome,
-      centro_custo_id: pagamento.centro_custo_id || null,
-      centro_custo_nome: pagamento.centro_custo_nome,
-      accrualDate: dataCompetencia,
-      value: valorNumerico,
-      description: pagamento.descricao || `Pagamento PIX para ${pagamento.nome_beneficiario}`,
-      reference: pagamento.codigo_solic || undefined,
-      bar_id: barIdFinal,
-      bar_nome: pagamento.bar_nome || barNome,
-      criado_por_id: pagamento.criado_por_id || user?.auth_id,
-      criado_por_nome: pagamento.criado_por_nome || user?.nome || user?.email,
-    };
-
-    const response = await fetch('/api/financeiro/nibo/schedules', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(agendamento),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Erro ${response.status}: ${response.statusText} - ${errorText}`);
-    }
-
-    const data = await response.json();
-
-    if (data.success) {
-      setPagamentos(prev =>
-        prev.map(p =>
-          p.id === pagamento.id
-            ? {
-                ...p,
-                nibo_agendamento_id: data.data.id,
-                updated_at: new Date().toISOString(),
-                atualizado_por_id: user?.auth_id,
-                atualizado_por_nome: user?.nome || user?.email || 'Usuário',
-              }
-            : p
-        )
-      );
-    } else {
-      throw new Error(data.error || 'Erro desconhecido na resposta do NIBO');
-    }
+    
+    // Evitar warnings de variáveis não usadas
+    void pagamento;
+    void stakeholder;
   };
 
   const agendarPagamentos = async () => {
