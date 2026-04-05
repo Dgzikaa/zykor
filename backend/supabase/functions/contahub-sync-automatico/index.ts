@@ -183,6 +183,7 @@ async function fetchComDivisaoPorLocal(
   
   // 2. Se falhou, dividir por LOCAL (filtro mais eficiente)
   const allRecords: any[] = [];
+  const seenKeys = new Set<string>(); // Para deduplicar registros
   
   for (const local of LOCAIS_CONTAHUB) {
     try {
@@ -193,8 +194,27 @@ async function fetchComDivisaoPorLocal(
       
       const data = await fetchContaHubData(url, sessionToken);
       if (data?.list && Array.isArray(data.list)) {
-        allRecords.push(...data.list);
-        console.log(`✅ Local "${local || '(vazio)'}": ${data.list.length} registros`);
+        let addedCount = 0;
+        for (const record of data.list) {
+          // Criar chave única baseada nos campos que identificam o registro
+          // Para analitico: trn + itm
+          // Para outros: adaptar conforme necessário
+          const uniqueKey = JSON.stringify({
+            trn: record.trn,
+            itm: record.itm,
+            prd: record.prd,
+            vd: record.vd,
+            cmd_id: record.cmd_id,
+            // Adicionar outros campos identificadores conforme o tipo
+          });
+          
+          if (!seenKeys.has(uniqueKey)) {
+            seenKeys.add(uniqueKey);
+            allRecords.push(record);
+            addedCount++;
+          }
+        }
+        console.log(`✅ Local "${local || '(vazio)'}": ${data.list.length} registros (${addedCount} únicos)`);
       }
       
       // Pequeno delay entre requisições para não sobrecarregar
@@ -204,7 +224,7 @@ async function fetchComDivisaoPorLocal(
     }
   }
   
-  console.log(`📊 Total ${dataType} consolidado: ${allRecords.length} registros`);
+  console.log(`📊 Total ${dataType} consolidado: ${allRecords.length} registros únicos (de ${allRecords.length + seenKeys.size - allRecords.length} coletados)`);
   return { list: allRecords };
 }
 
