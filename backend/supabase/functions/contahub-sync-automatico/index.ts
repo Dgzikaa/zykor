@@ -4,6 +4,7 @@ import { heartbeatStart, heartbeatEnd, heartbeatError } from "../_shared/heartbe
 import { withRetry, isRetriableError } from "../_shared/retry.ts";
 import { validateFunctionEnv } from "../_shared/env-validator.ts";
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { requireAuth } from '../_shared/auth-guard.ts';
 import { 
   TIMEZONE, 
   UTC_OFFSET_STRING_COMPACT, 
