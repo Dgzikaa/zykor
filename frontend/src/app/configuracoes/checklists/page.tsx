@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,11 +46,11 @@ export default function ConfiguracaoChecklistsPage() {
   const [filtro, setFiltro] = useState('');
   const [tipoFiltro, setTipoFiltro] = useState('todos');
 
-  const carregarChecklists = async () => {
+  const carregarChecklists = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch('/api/operacional/checklists');
-      
+
       if (response.ok) {
         const data = await response.json();
         setChecklists(data.data || data || []);
@@ -62,12 +62,11 @@ export default function ConfiguracaoChecklistsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     carregarChecklists();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [carregarChecklists]);
 
   const checklistsFiltrados = checklists.filter((checklist) => {
     const matchFiltro =

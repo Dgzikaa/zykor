@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,7 @@ export default function AgendamentoDebugPage() {
     });
   };
 
-  const carregarCredenciais = async () => {
+  const carregarCredenciais = useCallback(async () => {
     if (!barId) return;
     setLoadingCredenciais(true);
     try {
@@ -56,7 +56,7 @@ export default function AgendamentoDebugPage() {
     } finally {
       setLoadingCredenciais(false);
     }
-  };
+  }, [barId, credencialSelecionadaId, toast]);
 
   const rodarDiagnostico = async () => {
     if (!barId) {
@@ -98,8 +98,7 @@ export default function AgendamentoDebugPage() {
 
   useEffect(() => {
     carregarCredenciais();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [barId]);
+  }, [carregarCredenciais]);
 
   return (
     <ProtectedRoute requiredModule="financeiro">

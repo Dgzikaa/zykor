@@ -681,32 +681,9 @@ export default function CMVSemanalPage() {
     if (modalAberto) {
       calcularValoresAutomaticos();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    formData.estoque_inicial,
-    formData.compras_periodo,
-    formData.estoque_final,
-    formData.consumo_socios,
-    formData.consumo_beneficios,
-    formData.consumo_adm,
-    formData.consumo_rh,
-    formData.consumo_artista,
-    formData.outros_ajustes,
-    formData.ajuste_bonificacoes,
-    formData.faturamento_cmvivel,
-    formData.cmv_teorico_percentual,
-    formData.total_consumo_socios,
-    formData.mesa_beneficios_cliente,
-    formData.mesa_banda_dj,
-    formData.chegadeira,
-    formData.mesa_adm_casa,
-    formData.estoque_final_cozinha,
-    formData.estoque_final_bebidas,
-    formData.estoque_final_drinks,
-    formData.compras_custo_comida,
-    formData.compras_custo_bebidas,
-    formData.compras_custo_outros,
-    formData.compras_custo_drinks,
+    modalAberto,
+    calcularValoresAutomaticos,
   ]);
 
   useEffect(() => {
@@ -737,8 +714,7 @@ export default function CMVSemanalPage() {
     if (selectedBar && user) {
       carregarCMVs();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBar, user, anoFiltro, statusFiltro]);
+  }, [selectedBar, user, anoFiltro, statusFiltro, carregarCMVs]);
 
   if (loading) {
     return (

@@ -398,8 +398,7 @@ export default function ClientesPage() {
 
   useEffect(() => {
     fetchClientes()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buscaAplicada])
+  }, [buscaAplicada, fetchClientes])
 
   const handleWhatsAppClick = (nome: string, telefone: string | null) => {
     if (!telefone) {

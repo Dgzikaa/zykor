@@ -20,10 +20,9 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
 
-  // ⚠️ ESLint - temporariamente desabilitado no build (warnings estavam quebrando deploy)
-  // TODO: Re-habilitar após corrigir warnings de react-hooks/exhaustive-deps e jsx-a11y
+  // ✅ ESLint - habilitado no build (react-hooks/exhaustive-deps warnings foram corrigidos)
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
 
   // ✅ Configurações de imagem (remotePatterns substitui domains)
@@ -203,9 +202,4 @@ const nextConfig = {
   
   // ✅ Configurações de performance
   onDemandEntries: {
-    maxInactiveAge: 25 * 1000,
-    pagesBufferLength: 2,
-  },
-};
-
-module.exports = nextConfig;
+    maxI

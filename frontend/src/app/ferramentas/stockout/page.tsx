@@ -442,9 +442,9 @@ export default function StockoutPage() {
       console.log('⏳ Aguardando bar ser carregado...', { barLoading, selectedBar });
       return;
     }
-    
+
     console.log('🏪 Bar selecionado:', selectedBar.nome, '(ID:', selectedBar.id, ')');
-    
+
     if (activeTab === 'diario') {
       if (modoAnalise === 'unica' && selectedDate) {
         console.log('🚀 Carregando dados iniciais para:', selectedDate);
@@ -456,8 +456,7 @@ export default function StockoutPage() {
     } else if (activeTab === 'historico') {
       buscarHistoricoStockout();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, modoAnalise, selectedBar?.id, barLoading]);
+  }, [activeTab, modoAnalise, selectedBar?.id, barLoading, selectedDate, filtrosAtivos, dataInicioDiaria, dataFimDiaria]);
 
   const formatarData = (data: string) => {
     if (!data || data.includes('a')) return data; // Se já está formatado ou é um range
