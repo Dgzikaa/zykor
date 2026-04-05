@@ -46,6 +46,39 @@ export async function calcOperacional(
     const stockoutComidasCount = stockoutComidas?.produtos_stockout || 0;
     const stockoutComidasPerc = stockoutComidas?.percentual_stockout || 0;
 
+    // Validação: detectar dias com dados anômalos
+    const { data: dailyCheck, error: dailyCheckError } = await supabase
+      .from('contahub_stockout_filtrado')
+      .select('data_consulta, categoria_local, prd_venda')
+      .eq('bar_id', barId)
+      .gte('data_consulta', startDate)
+      .lte('data_consulta', endDate);
+
+    if (!dailyCheckError && dailyCheck) {
+      // Agrupar por dia
+      const dailyStats = new Map<string, { total: number, stockout: number }>();
+      for (const row of dailyCheck) {
+        const key = row.data_consulta;
+        if (!dailyStats.has(key)) dailyStats.set(key, { total: 0, stockout: 0 });
+        const stat = dailyStats.get(key)!;
+        stat.total++;
+        if (row.prd_venda === 'N') stat.stockout++;
+      }
+
+      // Alertar se algum dia tem anomalias
+      let diasComPoucoProduto = 0;
+      for (const [day, stat] of dailyStats) {
+        if (stat.total < 20) {
+          console.warn(`⚠️ STOCKOUT ANOMALIA: ${day} tem apenas ${stat.total} produtos (esperado ~80+). Coleta pode estar incompleta.`);
+          diasComPoucoProduto++;
+        }
+        const pct = (stat.stockout / stat.total) * 100;
+        if (pct > 50) {
+          console.warn(`⚠️ STOCKOUT ALTO: ${day} tem ${pct.toFixed(1)}% stockout (${stat.stockout}/${stat.total}). Verificar dados.`);
+        }
+      }
+    }
+
     // 2. Mix semanal - calcular diretamente dos eventos_base (média ponderada)
     // MOTIVO: A RPC calcular_mix_vendas usa vendas_item que pode estar incompleto
     // ou com mapeamento incorreto. Os eventos_base já têm percent_b/d/c/happy_hour
