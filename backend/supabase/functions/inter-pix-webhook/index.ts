@@ -195,10 +195,12 @@ serve(async (req) => {
 
     const statusInterno = statusMap[body.status] || 'desconhecido';
 
-    // Tentar atualizar em nibo_agendamentos primeiro (usando inter_codigo_solicitacao)
+    // Atualizar status em agendamentos (tabela legado mantida para webhook PIX)
+    // TODO: renomear tabela para 'agendamentos' no futuro
+    const AGENDAMENTOS_TABLE = 'nibo_agendamentos';
     if (body.codigoSolicitacao) {
       const { data: agendamento, error: agendamentoError } = await supabase
-        .from('nibo_agendamentos')
+        .from(AGENDAMENTOS_TABLE)
         .update({
           inter_status: body.status,
           inter_data_aprovacao: body.dataHora,
@@ -211,9 +213,9 @@ serve(async (req) => {
         .maybeSingle();
 
       if (agendamentoError) {
-        console.error(`[${requestId}] Error updating nibo_agendamentos:`, agendamentoError);
+        console.error(`[${requestId}] Error updating ${AGENDAMENTOS_TABLE}:`, agendamentoError);
       } else if (agendamento) {
-        console.log(`[${requestId}] Updated nibo_agendamentos ID ${agendamento.id}: ${body.status}`);
+        console.log(`[${requestId}] Updated ${AGENDAMENTOS_TABLE} ID ${agendamento.id}: ${body.status}`);
       }
     }
 

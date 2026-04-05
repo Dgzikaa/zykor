@@ -1,14 +1,14 @@
-﻿/**
+/**
  * 🎯 Unified Dispatcher - Dispatcher Central do Zykor
  * 
  * Consolida os 4 dispatchers anteriores em um único ponto de entrada:
- * - integracao: yuzer, sympla, nibo, getin
+ * - integracao: yuzer, sympla, getin (nibo removido)
  * - sync: eventos, clientes, conhecimento, marketing
  * - discord: notification, command, pdf
  * - webhook: umbler, google-reviews
  * 
  * Request format:
- * { "domain": "integracao", "action": "nibo", ...params }
+ * { "domain": "integracao", "action": "yuzer", ...params }
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -23,7 +23,7 @@ const ACTION_URLS: Record<string, Record<string, string>> = {
   integracao: {
     'yuzer': '/functions/v1/yuzer-sync',
     'sympla': '/functions/v1/sympla-sync',
-    'nibo': '/functions/v1/nibo-sync',
+    // 'nibo': removido - substituído pelo Conta Azul
     'getin': '/functions/v1/getin-sync-continuous',
   },
   sync: {

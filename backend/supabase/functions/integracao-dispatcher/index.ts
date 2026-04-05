@@ -1,14 +1,14 @@
-﻿/**
+/**
  * 🔗 Integração Dispatcher - Dispatcher Unificado para Integrações Externas
  * 
- * Centraliza chamadas para integrações externas (Yuzer, Sympla, NIBO, GetIn).
+ * Centraliza chamadas para integrações externas (Yuzer, Sympla, GetIn).
  * Mantém compatibilidade com funções existentes através de redirecionamento.
  * 
  * Actions disponíveis:
  * - yuzer: Sincronização Yuzer
  * - sympla: Sincronização Sympla
- * - nibo: Sincronização NIBO
  * - getin: Sincronização GetIn
+ * (nibo removido - substituído pelo Conta Azul)
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -22,7 +22,7 @@ import { getCorsHeaders } from '../_shared/cors.ts';
 const ACTION_URLS: Record<string, string> = {
   'yuzer': '/functions/v1/yuzer-sync',
   'sympla': '/functions/v1/sympla-sync',
-  'nibo': '/functions/v1/nibo-sync',
+  // 'nibo': removido - substituído pelo Conta Azul
   'getin': '/functions/v1/getin-sync-continuous',
 };
 
@@ -64,7 +64,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: `Action inválida: ${action}. Use: yuzer, sympla, nibo, getin`,
+          error: `Action inválida: ${action}. Use: yuzer, sympla, getin`,
         }),
         { 
           status: 400,
