@@ -33,7 +33,7 @@ const ACTION_URLS: Record<string, Record<string, string>> = {
     'marketing': '/functions/v1/sync-marketing-meta',
   },
   discord: {
-    'notification': '/functions/v1/discord-notification',
+    'notification': '/functions/v1/discord-dispatcher',
     'command': '/functions/v1/discord-commands',
     'pdf': '/functions/v1/relatorio-pdf',
   },
@@ -61,12 +61,12 @@ serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders }
+    return new Response('ok', { headers: corsHeaders });
+  }
 
   // Validar autenticação (JWT ou CRON_SECRET)
   const authError = requireAuth(req);
-  if (authError) return authError;);
-  }
+  if (authError) return authError;
 
   let heartbeatId: number | null = null;
   let startTime: number = Date.now();

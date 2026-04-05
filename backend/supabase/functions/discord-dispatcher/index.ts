@@ -19,7 +19,7 @@ import { getCorsHeaders } from '../_shared/cors.ts';
 
 
 const ACTION_URLS: Record<string, string> = {
-  'notification': '/functions/v1/discord-notification',
+  // 'notification' é processado inline (não redireciona)
   'command': '/functions/v1/discord-commands',
   'pdf': '/functions/v1/relatorio-pdf',
 };
@@ -33,12 +33,12 @@ serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders }
+    return new Response('ok', { headers: corsHeaders });
+  }
 
   // Validar autenticação (JWT ou CRON_SECRET)
   const authError = requireAuth(req);
-  if (authError) return authError;);
-  }
+  if (authError) return authError;
 
   let heartbeatId: number | null = null;
   let startTime: number = Date.now();
@@ -62,7 +62,7 @@ serve(async (req) => {
     heartbeatId = hbResult.heartbeatId;
     startTime = hbResult.startTime;
 
-    if (!action || !ACTION_URLS[action]) {
+    if (!action || (!ACTION_URLS[action] && action !== 'notification')) {
       await heartbeatEnd(supabase, heartbeatId, 'error', startTime, 0, { error: 'action_invalida' });
       return new Response(
         JSON.stringify({
@@ -76,6 +76,56 @@ serve(async (req) => {
       );
     }
     
+    // Handler inline para notification (não redireciona)
+    if (action === 'notification') {
+      const webhookUrl = Deno.env.get('DISCORD_WEBHOOK_URL');
+      if (!webhookUrl) {
+        await heartbeatEnd(supabase, heartbeatId, 'error', startTime, 0, { error: 'webhook_url_missing' });
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'DISCORD_WEBHOOK_URL não configurada',
+          }),
+          { 
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      const { title, custom_message, webhook_type } = params;
+      const discordPayload = {
+        embeds: [{
+          title: title || 'Notificação Zykor',
+          description: custom_message || 'Sem detalhes',
+          color: title?.includes('✅') ? 0x00ff00 : title?.includes('⚠️') ? 0xffa500 : 0x0099ff,
+          timestamp: new Date().toISOString()
+        }]
+      };
+
+      const webhookResponse = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(discordPayload)
+      });
+
+      await heartbeatEnd(supabase, heartbeatId, webhookResponse.ok ? 'success' : 'error', startTime, 1, { action, status: webhookResponse.status });
+
+      return new Response(
+        JSON.stringify({
+          success: webhookResponse.ok,
+          action: 'notification',
+          webhook_status: webhookResponse.status,
+          timestamp: new Date().toISOString(),
+        }),
+        { 
+          status: webhookResponse.ok ? 200 : 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+    
+    // Para outras actions, redirecionar
     const targetUrl = `${supabaseUrl}${ACTION_URLS[action]}`;
     
     console.log(`🔄 Redirecionando para: ${targetUrl}`);

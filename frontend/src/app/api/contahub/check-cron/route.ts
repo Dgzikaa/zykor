@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     if (execute) {
       // Chamar a Edge Function do Supabase
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/contahub-sync`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/contahub-sync-automatico`,
         {
           method: 'POST',
           headers: {
@@ -26,7 +26,6 @@ export async function GET(request: NextRequest) {
             'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
           },
           body: JSON.stringify({
-            action: 'sync',
             data_date: targetDate,
             bar_id: 3, // Ordinário Bar
           }),

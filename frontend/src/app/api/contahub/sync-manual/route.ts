@@ -52,15 +52,14 @@ async function handleSyncManual(request: NextRequest) {
 
     for (const barIdItem of baresParaSincronizar) {
       try {
-        // Usar nova função consolidada contahub-sync com action=sync
-        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/contahub-sync`, {
+        // Usar função contahub-sync-automatico
+        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/contahub-sync-automatico`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
           },
           body: JSON.stringify({
-            action: 'sync',
             data_date: targetDate,
             bar_id: barIdItem
           })

@@ -342,12 +342,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders }
+    return new Response('ok', { headers: corsHeaders });
+  }
 
   // Validar autenticação (JWT ou CRON_SECRET)
   const authError = requireAuth(req);
-  if (authError) return authError;);
-  }
+  if (authError) return authError;
 
   // 💓 Heartbeat: variáveis no escopo externo para acesso no catch
   let heartbeatId: number | null = null;
@@ -866,13 +866,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     // 🚀 CHAMAR DISCORD NOTIFICATION para CONTAHUB
     try {
-      const discordResponse = await fetch('https://uqtgsvujwcbymjmvkjhy.supabase.co/functions/v1/discord-notification', {
+      const discordResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/discord-dispatcher`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
         },
         body: JSON.stringify({
+          action: 'notification',
           title: summary.error_count === 0 ? '✅ ContaHub Sync Concluído' : '⚠️ ContaHub Sync com Erros',
           webhook_type: 'contahub',
           processed_records: summary.total_records_collected,
