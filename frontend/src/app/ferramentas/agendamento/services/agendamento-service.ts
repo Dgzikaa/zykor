@@ -223,68 +223,15 @@ export async function verificarCredenciais(
 export async function loadCategorias(
   barId: number
 ): Promise<AgendamentoResult<NiboCategoria[]>> {
-  if (!barId) {
-    return { ok: false, error: 'bar_id é obrigatório' };
-  }
-
-  try {
-    const url = `/api/financeiro/nibo/categorias?bar_id=${encodeURIComponent(String(barId))}&somente_pagamento=true`;
-    const res = await fetch(url);
-    const json = (await safeJson<{
-      success?: boolean;
-      categorias?: NiboCategoria[];
-      error?: string;
-    }>(res)) ?? { categorias: [] };
-
-    if (!res.ok || json.success === false) {
-      return {
-        ok: false,
-        error: json.error || `Erro ${res.status} ao carregar categorias`,
-        status: res.status,
-      };
-    }
-
-    return { ok: true, data: json.categorias ?? [] };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : 'Falha de rede ao carregar categorias',
-    };
-  }
+  // DESABILITADO: NIBO foi substituído pelo Conta Azul
+  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
 }
 
 export async function loadCentrosCusto(
   barId: number
 ): Promise<AgendamentoResult<NiboCentroCusto[]>> {
-  if (!barId) {
-    return { ok: false, error: 'bar_id é obrigatório' };
-  }
-
-  try {
-    const res = await fetch(
-      `/api/financeiro/nibo/centros-custo?bar_id=${encodeURIComponent(String(barId))}`
-    );
-    const json = (await safeJson<{
-      success?: boolean;
-      centrosCusto?: NiboCentroCusto[];
-      error?: string;
-    }>(res)) ?? { centrosCusto: [] };
-
-    if (!res.ok || json.success === false) {
-      return {
-        ok: false,
-        error: json.error || `Erro ${res.status} ao carregar centros de custo`,
-        status: res.status,
-      };
-    }
-
-    return { ok: true, data: json.centrosCusto ?? [] };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : 'Falha de rede ao carregar centros de custo',
-    };
-  }
+  // DESABILITADO: NIBO foi substituído pelo Conta Azul
+  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
 }
 
 export async function loadInterCredenciais(
@@ -326,185 +273,29 @@ export async function carregarRevisaoNIBO(
   offset: number,
   limit: number
 ): Promise<AgendamentoResult<CarregarRevisaoNiboData>> {
-  if (!barId) {
-    return { ok: false, error: 'bar_id é obrigatório' };
-  }
-
-  try {
-    const params = new URLSearchParams({
-      bar_id: String(barId),
-      sem_competencia: 'true',
-      offset: String(offset),
-      limit: String(limit),
-    });
-    const res = await fetch(`/api/financeiro/nibo/schedules?${params.toString()}`);
-    const json = await safeJson<{
-      success?: boolean;
-      data?: RevisaoNiboItem[];
-      total?: number;
-      hasMore?: boolean;
-      offset?: number;
-      limit?: number;
-      error?: string;
-    }>(res);
-
-    if (!json || json.success === false) {
-      return {
-        ok: false,
-        error: json?.error || `Erro ${res.status} ao carregar revisão NIBO`,
-        status: res.status,
-      };
-    }
-
-    const items = json.data ?? [];
-    return {
-      ok: true,
-      data: {
-        items,
-        total: json.total ?? items.length,
-        hasMore: json.hasMore ?? false,
-        offset: json.offset ?? offset,
-        limit: json.limit ?? limit,
-      },
-    };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : 'Falha de rede ao carregar revisão NIBO',
-    };
-  }
+  // DESABILITADO: NIBO foi substituído pelo Conta Azul
+  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
 }
 
 export async function buscarStakeholder(
   document: string
 ): Promise<AgendamentoResult<StakeholderNibo[]>> {
-  const documentoLimpo = limparDocumento(document);
-  if (!documentoLimpo || documentoLimpo.length < 11) {
-    return { ok: false, error: 'CPF/CNPJ inválido ou incompleto' };
-  }
-
-  try {
-    const res = await fetch(
-      `/api/financeiro/nibo/stakeholders?q=${encodeURIComponent(documentoLimpo)}`
-    );
-    const json = (await safeJson<{
-      success?: boolean;
-      data?: StakeholderNibo[];
-      error?: string;
-    }>(res)) ?? { data: [] };
-
-    if (!res.ok) {
-      return {
-        ok: false,
-        error: json.error || `Erro ${res.status} ao buscar stakeholder`,
-        status: res.status,
-      };
-    }
-
-    if (json.success === false) {
-      return {
-        ok: false,
-        error: json.error || 'Falha ao buscar stakeholder',
-        status: res.status,
-      };
-    }
-
-    return { ok: true, data: json.data ?? [] };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : 'Falha de rede ao buscar stakeholder',
-    };
-  }
+  // DESABILITADO: NIBO foi substituído pelo Conta Azul
+  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
 }
 
 export async function criarStakeholder(
   data: CriarStakeholderParams
 ): Promise<AgendamentoResult<CriarStakeholderData>> {
-  try {
-    const res = await fetch('/api/agendamento/criar-supplier', {
-      method: 'POST',
-      headers: JSON_HEADERS,
-      body: JSON.stringify({
-        nome: data.nome,
-        chave_pix: data.chave_pix,
-        bar_id: data.bar_id,
-      }),
-    });
-
-    const json = (await safeJson<{
-      success?: boolean;
-      supplier?: CriarStakeholderSupplier;
-      error?: string;
-      jaExistia?: boolean;
-      pixIncluido?: boolean;
-      message?: string;
-    }>(res)) ?? { success: false, error: 'Resposta inválida' };
-
-    if (!res.ok || !json.success || !json.supplier) {
-      return {
-        ok: false,
-        error: json.error || `Erro ${res.status} ao criar supplier`,
-        status: res.status,
-      };
-    }
-
-    return {
-      ok: true,
-      data: {
-        supplier: json.supplier,
-        jaExistia: json.jaExistia,
-        pixIncluido: json.pixIncluido,
-        message: json.message,
-      },
-    };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : 'Falha de rede ao criar stakeholder',
-    };
-  }
+  // DESABILITADO: NIBO foi substituído pelo Conta Azul
+  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
 }
 
 export async function agendarPagamentoNoNibo(
   agendamento: AgendamentoNiboParams
 ): Promise<AgendamentoResult<AgendamentoNiboCriado>> {
-  try {
-    const res = await fetch('/api/financeiro/nibo/schedules', {
-      method: 'POST',
-      headers: JSON_HEADERS,
-      body: JSON.stringify(agendamento),
-    });
-
-    const json = (await safeJson<{
-      success?: boolean;
-      data?: AgendamentoNiboCriado;
-      error?: string;
-    }>(res)) ?? { success: false };
-
-    if (!res.ok) {
-      return {
-        ok: false,
-        error: json.error || `Erro ${res.status}: ${res.statusText}`,
-        status: res.status,
-      };
-    }
-
-    if (!json.success || !json.data?.id) {
-      return {
-        ok: false,
-        error: json.error || 'Resposta inválida do NIBO ao agendar',
-        status: res.status,
-      };
-    }
-
-    return { ok: true, data: json.data };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : 'Falha de rede ao agendar no NIBO',
-    };
-  }
+  // DESABILITADO: NIBO foi substituído pelo Conta Azul
+  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
 }
 
 export async function enviarParaInter(
@@ -555,46 +346,6 @@ export async function atualizarChavePix(
   stakeholderId: string,
   data: PixKeyParams
 ): Promise<AgendamentoResult<AtualizarStakeholderPixData>> {
-  if (!stakeholderId) {
-    return { ok: false, error: 'stakeholderId é obrigatório' };
-  }
-
-  try {
-    const body: Record<string, unknown> = {
-      name: data.name,
-      document: data.document,
-      pixKey: data.pixKey,
-      pixKeyType: data.pixKeyType,
-    };
-    if (data.bar_id != null) {
-      body.bar_id = data.bar_id;
-    }
-
-    const res = await fetch(`/api/financeiro/nibo/stakeholders/${encodeURIComponent(stakeholderId)}`, {
-      method: 'PUT',
-      headers: JSON_HEADERS,
-      body: JSON.stringify(body),
-    });
-
-    const json = (await safeJson<{
-      success?: boolean;
-      data?: AtualizarStakeholderPixData;
-      error?: string;
-    }>(res)) ?? { success: false };
-
-    if (!res.ok || !json.success) {
-      return {
-        ok: false,
-        error: json.error || `Erro ${res.status} ao atualizar chave PIX`,
-        status: res.status,
-      };
-    }
-
-    return { ok: true, data: json.data ?? {} };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : 'Falha de rede ao atualizar chave PIX',
-    };
-  }
+  // DESABILITADO: NIBO foi substituído pelo Conta Azul
+  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
 }

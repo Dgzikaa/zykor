@@ -230,6 +230,13 @@ export default function AgendamentoPage() {
   };
 
   const agendarPagamentoNoNibo = async (pagamento: PagamentoAgendamento, stakeholder: Stakeholder) => {
+    // DESABILITADO: NIBO foi substituído pelo Conta Azul
+    toast({
+      title: 'Funcionalidade desabilitada',
+      description: 'Agendamento via NIBO foi descontinuado. Migração para Conta Azul em andamento.',
+      variant: 'destructive',
+    });
+    return;
     const barIdFinal = pagamento.bar_id || barId;
     if (!barIdFinal) {
       throw new Error('Bar não identificado.');
@@ -635,13 +642,16 @@ export default function AgendamentoPage() {
             }}
           />
 
-          {barId && credenciaisDisponiveis.verificado && credenciaisDisponiveis.nibo && credenciaisDisponiveis.inter && (
-            <div className="mb-6 p-3 bg-muted/40 border border-border rounded-lg">
+          {barId && credenciaisDisponiveis.verificado && (
+            <div className="mb-6 p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-foreground" />
-                <span className="text-sm text-foreground font-medium">
-                  Bar ativo: {barNome} - Credenciais NIBO e Inter configuradas
-                </span>
+                <AlertCircle className="w-4 h-4 text-yellow-700 dark:text-yellow-400" />
+                <div className="text-sm text-yellow-700 dark:text-yellow-400">
+                  <strong>Módulo em migração para Conta Azul</strong>
+                  <p className="text-xs mt-1">
+                    O NIBO foi substituído pelo Conta Azul. Funcionalidades de agendamento estão temporariamente desabilitadas.
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -761,7 +771,7 @@ export default function AgendamentoPage() {
                         <div className="w-full border-t border-gray-300 dark:border-gray-600" />
                       </div>
                       <div className="relative flex justify-center">
-                        <span className="px-2 bg-white dark:bg-gray-800 text-xs text-gray-500">ou via NIBO</span>
+                        <span className="px-2 bg-white dark:bg-gray-800 text-xs text-gray-500">migração em andamento</span>
                       </div>
                     </div>
 
@@ -771,7 +781,7 @@ export default function AgendamentoPage() {
                       className="w-full btn-primary"
                     >
                       <Play className="w-4 h-4 mr-2" />
-                      {credenciaisDisponiveis.nibo ? 'Agendar no NIBO' : 'Agendar (Local)'}
+                      Agendar (Desabilitado)
                     </Button>
 
                     <Button
