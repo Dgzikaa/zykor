@@ -255,8 +255,7 @@ export function permissionErrorResponse(
 export const PROTECTED_ROUTES = [
   '/api/configuracoes',
   '/api/configuracoes/dashboard',
-  '/api/nibo-auth',
-  '/api/nibo-sync',
+  // Rotas NIBO removidas (substituído pelo Conta Azul)
 ];
 
 // Lista de rotas públicas (podem ser acessadas sem auth)

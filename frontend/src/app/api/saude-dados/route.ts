@@ -49,14 +49,8 @@ export async function GET(request: NextRequest) {
       console.error('Erro ao buscar bloqueados:', bloqueadosError)
     }
 
-    // Buscar status das sincronizações
-    const { data: niboSync } = await supabase
-      .from('nibo_agendamentos')
-      .select('atualizado_em')
-      .eq('bar_id', barId)
-      .order('atualizado_em', { ascending: false })
-      .limit(1)
-      .single()
+    // NIBO descontinuado - dados mantidos apenas para histórico
+    const niboSync = null;
 
     const { data: contahubSync } = await supabase
       .from('faturamento_pagamentos')
@@ -80,11 +74,8 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .single()
 
-    // Contar registros de cada sistema
-    const { count: niboCount } = await supabase
-      .from('nibo_agendamentos')
-      .select('*', { count: 'exact', head: true })
-      .eq('bar_id', barId)
+    // NIBO descontinuado
+    const niboCount = 0;
 
     const { count: contahubCount } = await supabase
       .from('faturamento_pagamentos')
@@ -93,10 +84,10 @@ export async function GET(request: NextRequest) {
 
     const statusSyncs = [
       {
-        sistema: 'Nibo',
-        ultima_sync: niboSync?.atualizado_em || null,
-        status: niboSync ? 'ok' : 'sem dados',
-        registros: niboCount || 0
+        sistema: 'Nibo (descontinuado)',
+        ultima_sync: null,
+        status: 'substituído pelo Conta Azul',
+        registros: 0
       },
       {
         sistema: 'ContaHub',

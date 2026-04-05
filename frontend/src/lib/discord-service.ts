@@ -318,22 +318,17 @@ export class DiscordService {
     return await this.sendNotification(notificationData);
   }
 
+  /**
+   * @deprecated NIBO foi substituído pelo Conta Azul em 04/2026
+   */
   static async sendNiboNotification(
     barId: string,
     title: string,
     description: string,
     fields?: DiscordField[]
   ) {
-    const notificationData: DiscordNotificationData = {
-      title,
-      description,
-      color: 0x0066cc,
-      fields,
-      bar_id: barId,
-      webhook_type: 'nibo',
-    };
-
-    return await this.sendNotification(notificationData);
+    console.warn('⚠️ sendNiboNotification() está deprecated. NIBO foi substituído pelo Conta Azul.');
+    return false;
   }
 
   static async sendEmbed(embed: DiscordEmbed): Promise<boolean> {

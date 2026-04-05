@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
       data_pagamento,
       bar_id,
       inter_credencial_id,
-      agendamento_id // ID do nibo_agendamentos para atualizar com o código de solicitação
+      agendamento_id // ID da tabela de agendamentos (legado) para atualizar com o código de solicitação
     } = body;
 
     // Validar bar_id - OBRIGATÓRIO
@@ -312,8 +312,9 @@ export async function POST(request: NextRequest) {
         console.error('[INTER-PIX] Erro ao salvar no banco:', insertError);
       }
 
-      // Se tiver agendamento_id, atualizar o nibo_agendamentos com o código de solicitação
+      // Se tiver agendamento_id, atualizar a tabela de agendamentos com o código de solicitação
       // Isso permite que o webhook encontre o agendamento quando receber a confirmação
+      // NOTA: Tabela nibo_agendamentos mantida para compatibilidade com webhook PIX
       if (agendamento_id) {
         const { error: updateError } = await supabase
           .from('nibo_agendamentos')

@@ -23,14 +23,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Verificar credencial NIBO
-    const { data: niboCredencial } = await supabase
-      .from('api_credentials')
-      .select('id, sistema')
-      .eq('sistema', 'nibo')
-      .eq('bar_id', barId)
-      .eq('ativo', true)
-      .single();
+    // NIBO foi substituído pelo Conta Azul - sempre retorna false
+    const niboCredencial = null;
 
     // Verificar credencial Inter
     const { data: interCredencial } = await supabase
@@ -46,13 +40,9 @@ export async function GET(request: NextRequest) {
       bar_id: barId,
       nibo: !!niboCredencial,
       inter: !!interCredencial,
-      mensagem: !niboCredencial && !interCredencial
-        ? 'Nenhuma credencial configurada para este bar'
-        : !niboCredencial
-        ? 'Credencial NIBO não configurada'
-        : !interCredencial
+      mensagem: !interCredencial
         ? 'Credencial Inter não configurada'
-        : 'Todas as credenciais configuradas',
+        : 'Credencial Inter configurada (NIBO descontinuado)',
     };
 
     return NextResponse.json(resultado);

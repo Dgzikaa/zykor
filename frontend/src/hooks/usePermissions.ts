@@ -335,8 +335,8 @@ export function usePermissions(): PermissionsHook {
         reservas: 'reservas',
         reservas_recorrencia: 'reservas_recorrencia',
 
-        // NIBO
-        nibo_contabil: 'nibo_contabil',
+        // NIBO (deprecated - substituído pelo Conta Azul)
+        // nibo_contabil: 'nibo_contabil',
 
         // ContaHub
         contahub_teste: 'contahub_teste',
