@@ -22,6 +22,8 @@ const CONTA_AZUL_API_URL = 'https://api-v2.contaazul.com'
 const CONTA_AZUL_AUTH_URL = 'https://auth.contaazul.com'
 const REQUEST_TIMEOUT_MS = 25000
 const PAGE_SIZE = 200
+const SAFE_TIMEOUT_MS = 120000 // 120s (30s antes do limite de 150s do Supabase)
+const MAX_RECORDS_PER_SYNC = 500 // Limitar registros por execução
 
 interface SyncRequest {
   bar_id: number
@@ -204,8 +206,9 @@ async function syncLancamentos(
   barId: number,
   dateFrom: string,
   dateTo: string,
-  useAlteracaoFilter: boolean
-): Promise<{ count: number; newToken?: string }> {
+  useAlteracaoFilter: boolean,
+  functionStartTime: number
+): Promise<{ count: number; newToken?: string; timedOut?: boolean }> {
   
   let totalCount = 0
   let currentToken = accessToken
@@ -222,6 +225,17 @@ async function syncLancamentos(
     console.log('[contaazul-sync] Buscando ' + tipo + '...')
 
     while (pagina <= totalPaginas) {
+      // Verificar timeout safety
+      if (Date.now() - functionStartTime > SAFE_TIMEOUT_MS) {
+        console.warn('[contaazul-sync] ⚠️ Approaching timeout, saving progress and stopping')
+        return { count: totalCount, newToken: currentToken !== accessToken ? currentToken : undefined, timedOut: true }
+      }
+
+      // Verificar limite de registros por execução
+      if (totalCount >= MAX_RECORDS_PER_SYNC) {
+        console.warn(`[contaazul-sync] ⚠️ Limite de ${MAX_RECORDS_PER_SYNC} registros atingido. Próxima execução continuará.`)
+        return { count: totalCount, newToken: currentToken !== accessToken ? currentToken : undefined, timedOut: false }
+      }
       const params: Record<string, string> = {
         pagina: String(pagina),
         tamanho_pagina: String(PAGE_SIZE)
@@ -257,7 +271,19 @@ async function syncLancamentos(
 
       if (itens.length > 0) {
         console.log('[contaazul-sync] Preparando ' + itens.length + ' lancamentos para upsert...')
-        const lancamentos = itens.map((item: any) => {
+        
+        // Processar em batches de 500 para evitar timeout em upserts grandes
+        const BATCH_SIZE = 500
+        const totalBatches = Math.ceil(itens.length / BATCH_SIZE)
+        
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batchStart = batchIdx * BATCH_SIZE
+          const batchEnd = Math.min(batchStart + BATCH_SIZE, itens.length)
+          const batchItens = itens.slice(batchStart, batchEnd)
+          
+          console.log(`[contaazul-sync] Processando batch ${batchIdx + 1}/${totalBatches} (${batchItens.length} itens)`)
+          
+        const lancamentos = batchItens.map((item: any) => {
           // API Conta Azul retorna valores JÁ em reais, não precisa dividir por 100
           const valorTotal = item.total ? Number(item.total) : 0
           const valorPago = item.pago ? Number(item.pago) : 0
@@ -301,19 +327,22 @@ async function syncLancamentos(
           }
         })
 
-        console.log('[contaazul-sync] Executando upsert de ' + lancamentos.length + ' registros...')
-        console.log('[contaazul-sync] Primeiro registro:', JSON.stringify(lancamentos[0]))
-        
-        const { error, data: upsertData } = await supabase
-          .from('contaazul_lancamentos')
-          .upsert(lancamentos, { onConflict: 'contaazul_id,bar_id' })
-          .select('id')
+          console.log('[contaazul-sync] Executando upsert de ' + lancamentos.length + ' registros...')
+          if (batchIdx === 0) {
+            console.log('[contaazul-sync] Primeiro registro:', JSON.stringify(lancamentos[0]))
+          }
+          
+          const { error, data: upsertData } = await supabase
+            .from('contaazul_lancamentos')
+            .upsert(lancamentos, { onConflict: 'contaazul_id,bar_id' })
+            .select('id')
 
-        if (error) {
-          console.error('[contaazul-sync] Erro ao inserir lancamentos:', JSON.stringify(error))
-        } else {
-          console.log('[contaazul-sync] Upsert OK: ' + (upsertData?.length || lancamentos.length) + ' registros')
-          totalCount += lancamentos.length
+          if (error) {
+            console.error('[contaazul-sync] Erro ao inserir lancamentos batch ' + (batchIdx + 1) + ':', JSON.stringify(error))
+          } else {
+            console.log('[contaazul-sync] Upsert OK batch ' + (batchIdx + 1) + ': ' + (upsertData?.length || lancamentos.length) + ' registros')
+            totalCount += lancamentos.length
+          }
         }
       }
 
@@ -778,9 +807,15 @@ serve(async (req: Request) => {
       barId,
       dateFrom,
       dateTo,
-      useAlteracaoFilter
+      useAlteracaoFilter,
+      startTime
     )
     stats.lancamentos = lancResult.count
+    
+    // Se houve timeout ou limite atingido, registrar no log
+    if (lancResult.timedOut) {
+      console.warn('[contaazul-sync] ⚠️ Sync interrompido por timeout safety')
+    }
 
     // Atualizar log
     if (logId) {
