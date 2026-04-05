@@ -273,9 +273,9 @@ export async function getPlanejamentoComercial(
         tb_real: evento.tb_real || 0,
         t_medio: evento.t_medio || 0,
         
-        c_art: evento.c_art || 0,
-        c_prod: evento.c_prod || 0,
-        percent_art_fat: evento.percent_art_fat || 0,
+        c_art: Number(evento.c_art) || 0,
+        c_prod: Number(evento.c_prod) || 0,
+        percent_art_fat: Number(evento.percent_art_fat) || 0,
         
         percent_b: evento.percent_b || 0,
         percent_d: evento.percent_d || 0,

@@ -579,9 +579,36 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         console.log(`🔄 Processando registros cancelamentos com UPSERT para ${dataDate}...`);
         
         const cancelamentosRecords = records.map((item: any) => {
-          const custototal = parseFloat(item.custototal || item.custo_total || item.custo || 0) || 0;
+          // Calcular custototal a partir dos itens individuais no array raw_data
+          let custototal = 0;
+
+          // O raw_data do ContaHub é um array de itens cancelados
+          const itens = Array.isArray(item.raw_data) ? item.raw_data : [];
+
+          if (itens.length > 0) {
+            // Somar itm_vrcheio * itm_qtd de cada item
+            custototal = itens.reduce((sum: number, subItem: any) => {
+              const valor = parseFloat(subItem.itm_vrcheio || subItem.valor_cheio || subItem.valor || 0) || 0;
+              const qtd = parseFloat(subItem.itm_qtd || subItem.quantidade || subItem.qtd || 1) || 1;
+              return sum + (valor * qtd);
+            }, 0);
+          } else {
+            // Fallback: tentar ler campos diretos do item (caso estrutura seja diferente)
+            custototal = parseFloat(item.custototal || item.custo_total || item.vlr_total || item.valor_total || 0) || 0;
+
+            // Se ainda 0, tentar calcular de campos individuais
+            if (custototal === 0) {
+              const valor = parseFloat(item.itm_vrcheio || item.valor_cheio || 0) || 0;
+              const qtd = parseFloat(item.itm_qtd || item.quantidade || 1) || 1;
+              if (valor > 0) {
+                custototal = valor * qtd;
+              }
+            }
+          }
+
           const itemData = item.data || item.dt_gerencial || item.data_gerencial || dataDate;
           const dataFinal = typeof itemData === 'string' ? itemData.split('T')[0].split(' ')[0] : dataDate;
+
           return {
             bar_id: barId,
             data: dataFinal,
