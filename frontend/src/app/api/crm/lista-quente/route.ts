@@ -76,12 +76,17 @@ interface CriteriosSegmentacao {
 
 // Função para obter data em timezone de Brasília (UTC-3)
 function getHojeBrasilia(): Date {
+  // Brasília está em UTC-3 (180 minutos atrás de UTC)
+  // getTimezoneOffset() retorna minutos que devemos ADICIONAR ao horário local para obter UTC
+  // Para Brasília: queremos UTC - 3 horas = UTC - 180 minutos
+  
   const agora = new Date();
-  // Converter para Brasília (UTC-3)
-  const offsetBrasilia = -3 * 60; // -3 horas em minutos
-  const offsetLocal = agora.getTimezoneOffset(); // offset local em minutos
-  const diffMinutos = offsetBrasilia - (-offsetLocal);
-  return new Date(agora.getTime() + diffMinutos * 60 * 1000);
+  const offsetUTC = agora.getTimezoneOffset(); // Ex: 0 para UTC, 180 para UTC-3
+  const offsetBrasilia = 180; // Brasília está 180 minutos atrás de UTC (UTC-3)
+  
+  // Ajustar para Brasília
+  const diffMinutos = offsetBrasilia - offsetUTC;
+  return new Date(agora.getTime() - diffMinutos * 60 * 1000);
 }
 
 // Função para calcular início e fim de uma semana ISO
@@ -246,11 +251,6 @@ export async function GET(request: NextRequest) {
 
     // Usar timezone de Brasília para cálculos de data
     const hojeBrasilia = getHojeBrasilia();
-    console.log('[DEBUG] Data Brasília:', {
-      hojeBrasilia: hojeBrasilia.toISOString(),
-      hojeUTC: new Date().toISOString(),
-      offsetBrasilia: hojeBrasilia.getTimezoneOffset()
-    });
     
     // Calcular data limite baseado na janela OU semana específica
     let dataLimiteStr: string;
@@ -396,20 +396,8 @@ export async function GET(request: NextRequest) {
     // Aplicar todos os filtros
     let clientesFiltrados = Array.from(clientesMap.values());
     
-    console.log('[DEBUG] Início dos filtros:', {
-      totalClientesUnicos: clientesFiltrados.length,
-      criterios: criterios,
-      primeiroCliente: clientesFiltrados[0] ? {
-        nome: clientesFiltrados[0].nome,
-        visitas: clientesFiltrados[0].visitas.length,
-        ultimaVisita: clientesFiltrados[0].ultimaVisita?.toISOString(),
-        primeiraVisita: clientesFiltrados[0].primeiraVisita?.toISOString()
-      } : null
-    });
-    
     // Filtro: Mínimo de visitas total
     clientesFiltrados = clientesFiltrados.filter(c => c.visitas.length >= criterios.minVisitasTotal);
-    console.log('[DEBUG] Após filtro minVisitasTotal:', clientesFiltrados.length);
     
     // Filtro: Máximo de visitas total
     if (criterios.maxVisitasTotal !== undefined) {
@@ -461,21 +449,7 @@ export async function GET(request: NextRequest) {
       hojeBrasiliaCorte.setHours(0, 0, 0, 0);
       const dataCorte = new Date(hojeBrasiliaCorte);
       dataCorte.setDate(dataCorte.getDate() - criterios.ultimaVisitaMinDias);
-      
-      console.log('[DEBUG] Filtro ultimaVisitaMinDias:', {
-        criterio: criterios.ultimaVisitaMinDias,
-        hojeBrasilia: hojeBrasiliaCorte.toISOString(),
-        dataCorte: dataCorte.toISOString(),
-        clientesAntes: clientesFiltrados.length,
-        primeiroCliente: clientesFiltrados[0] ? {
-          nome: clientesFiltrados[0].nome,
-          ultimaVisita: clientesFiltrados[0].ultimaVisita?.toISOString(),
-          passaFiltro: clientesFiltrados[0].ultimaVisita && clientesFiltrados[0].ultimaVisita < dataCorte
-        } : null
-      });
-      
       clientesFiltrados = clientesFiltrados.filter(c => c.ultimaVisita && c.ultimaVisita < dataCorte);
-      console.log('[DEBUG] Clientes após filtro ultimaVisitaMinDias:', clientesFiltrados.length);
     }
     if (criterios.ultimaVisitaMaxDias !== undefined) {
       // Cliente recente: última visita nos últimos X dias
@@ -484,21 +458,7 @@ export async function GET(request: NextRequest) {
       hojeBrasiliaCorte.setHours(0, 0, 0, 0);
       const dataCorte = new Date(hojeBrasiliaCorte);
       dataCorte.setDate(dataCorte.getDate() - criterios.ultimaVisitaMaxDias);
-      
-      console.log('[DEBUG] Filtro ultimaVisitaMaxDias:', {
-        criterio: criterios.ultimaVisitaMaxDias,
-        hojeBrasilia: hojeBrasiliaCorte.toISOString(),
-        dataCorte: dataCorte.toISOString(),
-        clientesAntes: clientesFiltrados.length,
-        primeiroCliente: clientesFiltrados[0] ? {
-          nome: clientesFiltrados[0].nome,
-          ultimaVisita: clientesFiltrados[0].ultimaVisita?.toISOString(),
-          passaFiltro: clientesFiltrados[0].ultimaVisita && clientesFiltrados[0].ultimaVisita >= dataCorte
-        } : null
-      });
-      
       clientesFiltrados = clientesFiltrados.filter(c => c.ultimaVisita && c.ultimaVisita >= dataCorte);
-      console.log('[DEBUG] Clientes após filtro ultimaVisitaMaxDias:', clientesFiltrados.length);
     }
     
     // Filtro: Cliente Novo (primeira visita nos últimos X dias)
