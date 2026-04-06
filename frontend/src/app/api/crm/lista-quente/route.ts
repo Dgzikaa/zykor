@@ -621,13 +621,45 @@ export async function GET(request: NextRequest) {
     if (apenasResumo || !criterios.diaSemana) {
       const resumoPorDia: Record<string, any> = {};
       
+      // Calcular total de clientes por dia SEM filtros (apenas com janela de tempo)
+      const todosClientesSemFiltros = Array.from(clientesMap.values());
+      
+      // Encontrar a última data de cada dia da semana na janela
+      const ultimaDataPorDia: Record<string, Date | null> = {};
       Object.keys(diasSemanaLabels).forEach(dia => {
+        const diaSemanaNum = Object.keys(diasSemanaMap).find(k => diasSemanaMap[parseInt(k)] === dia);
+        if (diaSemanaNum) {
+          const datasDoDia = todosRegistros
+            .filter(r => new Date(r.data_visita + 'T12:00:00Z').getUTCDay() === parseInt(diaSemanaNum))
+            .map(r => new Date(r.data_visita + 'T12:00:00Z'));
+          ultimaDataPorDia[dia] = datasDoDia.length > 0 ? new Date(Math.max(...datasDoDia.map(d => d.getTime()))) : null;
+        }
+      });
+      
+      Object.keys(diasSemanaLabels).forEach(dia => {
+        // Clientes que foram no dia (sem filtros de segmentação)
+        const todosClientesDoDia = todosClientesSemFiltros.filter(c => c.diasSemana[dia] >= 1);
+        
+        // Clientes que foram especificamente na última ocorrência do dia
+        const ultimaData = ultimaDataPorDia[dia];
+        const clientesUltimaOcorrencia = ultimaData 
+          ? todosClientesSemFiltros.filter(c => 
+              c.visitas.some(v => 
+                v.data.toISOString().split('T')[0] === ultimaData.toISOString().split('T')[0]
+              )
+            )
+          : [];
+        
+        // Clientes que foram no dia E passam pelos filtros de segmentação
         const clientesDoDia = clientesFiltrados.filter(c => c.diasSemana[dia] >= criterios.minVisitasDia);
         clientesDoDia.sort((a, b) => b.diasSemana[dia] - a.diasSemana[dia]);
         
         resumoPorDia[dia] = {
           label: diasSemanaLabels[dia],
-          totalClientes: clientesDoDia.length,
+          totalClientes: clientesDoDia.length, // Clientes filtrados
+          totalClientesSemFiltro: todosClientesDoDia.length, // Total sem filtros (qualquer ocorrência)
+          totalClientesUltimaOcorrencia: clientesUltimaOcorrencia.length, // NOVO: Clientes da última vez
+          ultimaOcorrencia: ultimaData ? ultimaData.toISOString().split('T')[0] : null,
           ticketMedioSegmento: clientesDoDia.length > 0 
             ? Math.round(clientesDoDia.reduce((sum, c) => sum + c.ticketMedio, 0) / clientesDoDia.length) 
             : 0,
