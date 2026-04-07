@@ -1,8 +1,12 @@
-{
+﻿{
   "crons": [
     {
       "path": "/api/configuracoes/credenciais/nibo-sync-simple",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/configuracoes/cron/falae-reconciliacao",
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/configuracoes/desempenho/automacao-semanal",
@@ -27,6 +31,9 @@
   ],
   "functions": {
     "src/app/api/configuracoes/credenciais/nibo-sync/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/configuracoes/cron/falae-reconciliacao/route.ts": {
       "maxDuration": 300
     },
     "src/app/api/configuracoes/desempenho/automacao-semanal/route.ts": {
