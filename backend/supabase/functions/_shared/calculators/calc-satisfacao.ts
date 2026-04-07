@@ -44,12 +44,13 @@ export async function calcSatisfacao(
     const numeroSemana = semana?.numero_semana;
 
     let npsGeral: number | null = null;
+    // 🔒 nps_reservas é MANUAL - não calculamos aqui, retornamos null para não sobrescrever
     let npsReservas: number | null = null;
 
     if (numeroSemana) {
       const { data: npsAgregado, error: npsError } = await supabase
         .from('nps_agregado_semanal')
-        .select('nps_geral, nps_reservas')
+        .select('nps_geral')
         .eq('bar_id', barId)
         .eq('ano', String(ano))
         .eq('numero_semana', numeroSemana)
@@ -64,7 +65,7 @@ export async function calcSatisfacao(
       }
 
       npsGeral = npsAgregado?.nps_geral ?? null;
-      npsReservas = npsAgregado?.nps_reservas ?? null;
+      // nps_reservas permanece null - campo manual preenchido pelo time de marketing
     }
 
     // 3. NPS por pesquisa via RPC (Falaê: NPS Digital, Salão)
@@ -86,7 +87,8 @@ export async function calcSatisfacao(
     const npsSalao = npsSalaoData?.nps_score ?? null;
     const npsDigitalRespostas = npsDigitalData?.total_respostas ?? 0;
     const npsSalaoRespostas = npsSalaoData?.total_respostas ?? 0;
-    const npsReservasRespostas = 0;
+    // 🔒 nps_reservas_respostas é MANUAL - retornamos null para não sobrescrever
+    const npsReservasRespostas = null;
 
     return {
       success: true,
@@ -94,12 +96,12 @@ export async function calcSatisfacao(
         avaliacoes_5_google_trip: avaliacoes5,
         media_avaliacoes_google: mediaGoogle,
         nps_geral: npsGeral,
-        nps_reservas: npsReservas,
+        nps_reservas: npsReservas, // null - campo manual
         nps_digital: npsDigital,
         nps_salao: npsSalao,
         nps_digital_respostas: npsDigitalRespostas,
         nps_salao_respostas: npsSalaoRespostas,
-        nps_reservas_respostas: npsReservasRespostas,
+        nps_reservas_respostas: npsReservasRespostas, // null - campo manual
       },
       duration_ms: Date.now() - startTime,
     };

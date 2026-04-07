@@ -195,6 +195,9 @@ export async function PUT(request: Request) {
     const marketingData: Record<string, any> = {};
     const desempenhoData: Record<string, any> = {};
     
+    // 🔒 Campos manuais que vão direto para desempenho_semanal (não marketing_semanal)
+    const MANUAL_DESEMPENHO_FIELDS = ['nps_reservas', 'nps_reservas_respostas'];
+    
     for (const [key, value] of Object.entries(updateData)) {
       if (MARKETING_FIELDS.includes(key)) {
         marketingData[key] = value;

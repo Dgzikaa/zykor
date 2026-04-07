@@ -412,7 +412,7 @@ export async function POST(request: Request) {
         meta_semanal: metaSemanal, // RECALCULADO: soma dos m1_r dos eventos
         updated_at: new Date().toISOString(),
         
-        // MANTER VALORES MANUAIS EXISTENTES
+        // 🔒 MANTER VALORES MANUAIS EXISTENTES (NÃO SOBRESCREVER)
         // Reservas (manuais)
         reservas_totais: semana.reservas_totais,
         reservas_presentes: semana.reservas_presentes,
@@ -421,6 +421,41 @@ export async function POST(request: Request) {
         cmv_limpo: semana.cmv_limpo,
         cmv: semana.cmv,
         cmv_rs: semana.cmv_rs,
+        
+        // NPS Reservas (manual)
+        nps_reservas: semana.nps_reservas,
+        nps_reservas_respostas: semana.nps_reservas_respostas,
+        
+        // Marketing Orgânico (manual)
+        o_num_posts: semana.o_num_posts,
+        o_alcance: semana.o_alcance,
+        o_interacao: semana.o_interacao,
+        o_compartilhamento: semana.o_compartilhamento,
+        o_engajamento: semana.o_engajamento,
+        o_num_stories: semana.o_num_stories,
+        o_visu_stories: semana.o_visu_stories,
+        
+        // Marketing Pago - Meta (manual)
+        m_valor_investido: semana.m_valor_investido,
+        m_alcance: semana.m_alcance,
+        m_frequencia: semana.m_frequencia,
+        m_cpm: semana.m_cpm,
+        m_cliques: semana.m_cliques,
+        m_ctr: semana.m_ctr,
+        m_custo_por_clique: semana.m_custo_por_clique,
+        m_conversas_iniciadas: semana.m_conversas_iniciadas,
+        
+        // Google Ads (manual)
+        g_valor_investido: semana.g_valor_investido,
+        g_impressoes: semana.g_impressoes,
+        g_cliques: semana.g_cliques,
+        g_ctr: semana.g_ctr,
+        g_solicitacoes_rotas: semana.g_solicitacoes_rotas,
+        
+        // GMN - Google Meu Negócio (manual)
+        gmn_total_acoes: semana.gmn_total_acoes,
+        gmn_total_visualizacoes: semana.gmn_total_visualizacoes,
+        gmn_solicitacoes_rotas: semana.gmn_solicitacoes_rotas,
         
         // Outros campos existentes
         faturamento_entrada: semana.faturamento_entrada,

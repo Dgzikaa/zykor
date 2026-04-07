@@ -140,7 +140,9 @@ const FIELD_MAPPING: Record<string, string> = {
   qtde_itens_bar: "qtde_itens_bar",
   qtde_itens_cozinha: "qtde_itens_cozinha",
   atrasinhos_bar: "atrasinhos_bar",
+  atrasinhos_bar_perc: "atrasinhos_bar_perc",
   atrasinhos_cozinha: "atrasinhos_cozinha",
+  atrasinhos_cozinha_perc: "atrasinhos_cozinha_perc",
   atraso_bar: "atraso_bar",
   atraso_cozinha: "atraso_cozinha",
   atrasos_bar: "atrasos_bar",
@@ -172,6 +174,40 @@ const TOLERANCE_PERCENT = 1; // 1% de tolerância para diffs significativos
 
 // Feature Flag - Kill Switch para escrita
 const ENABLE_V2_WRITE = Deno.env.get("ENABLE_V2_WRITE") === "true";
+
+// 🔒 CAMPOS MANUAIS - Não devem ser sobrescritos pelo recálculo automático
+// Estes campos são preenchidos manualmente pelo time de marketing e devem ser preservados
+const MANUAL_FIELDS = [
+  "nps_reservas",           // NPS de Reservas (preenchido manualmente)
+  "nps_reservas_respostas", // Respostas NPS Reservas (manual)
+  // Marketing Orgânico (todos manuais)
+  "o_num_posts",
+  "o_alcance",
+  "o_interacao",
+  "o_compartilhamento",
+  "o_engajamento",
+  "o_num_stories",
+  "o_visu_stories",
+  // Marketing Pago - Meta (todos manuais)
+  "m_valor_investido",
+  "m_alcance",
+  "m_frequencia",
+  "m_cpm",
+  "m_cliques",
+  "m_ctr",
+  "m_custo_por_clique",
+  "m_conversas_iniciadas",
+  // Google Ads (todos manuais)
+  "g_valor_investido",
+  "g_impressoes",
+  "g_cliques",
+  "g_ctr",
+  "g_solicitacoes_rotas",
+  // GMN - Google Meu Negócio (todos manuais)
+  "gmn_total_acoes",
+  "gmn_total_visualizacoes",
+  "gmn_solicitacoes_rotas",
+] as const;
 
 function validateWriteMode(mode: V2Mode): void {
   if (mode === "write" && !ENABLE_V2_WRITE) {
@@ -372,6 +408,14 @@ async function processBarWeek(
     const updatePayload: Record<string, number | null> = {};
     for (const [calcKey, dbKey] of Object.entries(FIELD_MAPPING)) {
       if (calcKey in calculatedValues) {
+        // 🔒 PROTEÇÃO: Não sobrescrever campos manuais se já existirem no banco
+        if (MANUAL_FIELDS.includes(dbKey as any)) {
+          // Se o campo manual já existe no banco e não é null, preservar o valor
+          if (registroAtual && registroAtual[dbKey] !== null && registroAtual[dbKey] !== undefined) {
+            console.log(`[MANUAL FIELD PRESERVED] ${dbKey} = ${registroAtual[dbKey]} (não sobrescrito)`);
+            continue; // Pular este campo, manter valor manual
+          }
+        }
         updatePayload[dbKey] = calculatedValues[calcKey];
       }
     }
@@ -393,13 +437,22 @@ async function processBarWeek(
         console.log(`[V2 WRITE] Atualizado bar ${barId}, semana ${numeroSemana}/${ano}`);
       }
     } else {
-      const insertPayload = {
+      // 🔒 PROTEÇÃO: Ao inserir novo registro, NUNCA incluir campos manuais
+      // Eles devem ser preenchidos apenas pelo usuário via frontend
+      const insertPayload: Record<string, any> = {
         bar_id: barId,
         ano,
         numero_semana: numeroSemana,
-        ...updatePayload,
         criado_em: new Date().toISOString(),
       };
+      
+      // Adicionar apenas campos calculados (não manuais)
+      for (const [key, value] of Object.entries(updatePayload)) {
+        if (key !== "atualizado_em" && !MANUAL_FIELDS.includes(key as any)) {
+          insertPayload[key] = value;
+        }
+      }
+      insertPayload["atualizado_em"] = updatePayload["atualizado_em"];
 
       const { error: insertError } = await supabase
         .from("desempenho_semanal")
@@ -410,7 +463,7 @@ async function processBarWeek(
         console.error(writeError);
       } else {
         writeExecuted = true;
-        console.log(`[V2 WRITE] Inserido bar ${barId}, semana ${numeroSemana}/${ano}`);
+        console.log(`[V2 WRITE] Inserido bar ${barId}, semana ${numeroSemana}/${ano} (campos manuais preservados como NULL)`);
       }
     }
   }
