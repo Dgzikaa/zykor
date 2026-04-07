@@ -358,6 +358,56 @@ export async function POST(request: NextRequest) {
     const npsPeriodo =
       rows.length > 0 ? Math.round(((promotores - detratores) / rows.length) * 100) : null;
 
+    // Atualizar desempenho_semanal para semana atual e anterior
+    try {
+      const hoje = new Date();
+      const semanaAtual = Math.ceil((((hoje.getTime() - new Date(Date.UTC(hoje.getUTCFullYear(), 0, 1)).getTime()) / 86400000) + 1) / 7);
+      const anoAtual = hoje.getUTCFullYear();
+
+      for (const semanaNum of [semanaAtual - 1, semanaAtual]) {
+        // Buscar dados agregados da semana
+        const { data: falaeSemanaDados } = await supabase
+          .from('nps_falae_diario')
+          .select('data_referencia, respostas_total, promotores, detratores')
+          .eq('bar_id', barId);
+
+        let totalSemana = 0;
+        let promotoresSemana = 0;
+        let detratoresSemana = 0;
+
+        for (const d of falaeSemanaDados || []) {
+          const data = new Date(`${d.data_referencia}T12:00:00`);
+          const dUtc = new Date(Date.UTC(data.getFullYear(), data.getMonth(), data.getDate()));
+          const dayNum = dUtc.getUTCDay() || 7;
+          dUtc.setUTCDate(dUtc.getUTCDate() + 4 - dayNum);
+          const yearStart = new Date(Date.UTC(dUtc.getUTCFullYear(), 0, 1));
+          const semanaCalc = Math.ceil((((dUtc.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+
+          if (semanaCalc === semanaNum) {
+            totalSemana += Number(d.respostas_total) || 0;
+            promotoresSemana += Number(d.promotores) || 0;
+            detratoresSemana += Number(d.detratores) || 0;
+          }
+        }
+
+        if (totalSemana > 0) {
+          const npsScoreSemana = Math.round(((promotoresSemana - detratoresSemana) / totalSemana) * 100);
+          await supabase
+            .from('desempenho_semanal')
+            .update({
+              nps_digital_respostas: totalSemana,
+              nps_digital: npsScoreSemana,
+              atualizado_em: new Date().toISOString(),
+            })
+            .eq('bar_id', barId)
+            .eq('ano', anoAtual)
+            .eq('numero_semana', semanaNum);
+        }
+      }
+    } catch (updateError) {
+      console.warn('Aviso ao atualizar desempenho_semanal:', updateError);
+    }
+
     return NextResponse.json({
       success: true,
       bar_id: barId,
