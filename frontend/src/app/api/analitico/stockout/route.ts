@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     // 1. Estatísticas gerais
     let query = supabase
       .from('contahub_stockout_filtrado')
-      .select('prd_venda')
+      .select('prd_venda, prd_desc')
       .eq('data_consulta', data_selecionada)
       .eq('bar_id', bar_id);
 
@@ -84,6 +84,15 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: dadosGerais, error: errorEstatisticas } = await query;
+    
+    // Filtrar "Feijoada + Sobremesa" se não for sábado (dia 6)
+    const diaSemana = new Date(data_selecionada + 'T00:00:00').getDay();
+    const dadosGeraisFiltrados = dadosGerais?.filter(p => {
+      if (p.prd_desc === 'Feijoada + Sobremesa' && diaSemana !== 6) {
+        return false; // Excluir feijoada se não for sábado
+      }
+      return true;
+    }) || [];
 
     
     if (errorEstatisticas) {
@@ -91,17 +100,17 @@ export async function POST(request: NextRequest) {
       throw new Error('Erro ao buscar estatísticas gerais');
     }
 
-    // Calcular estatísticas com NOVA LÓGICA
-    const totalProdutosAtivos = dadosGerais?.length || 0; // Total de produtos ativos
-    const countProdutosDisponiveis = dadosGerais?.filter(p => p.prd_venda === 'S').length || 0; // Ativos E venda='S'
-    const countProdutosStockout = dadosGerais?.filter(p => p.prd_venda === 'N').length || 0; // Ativos E venda='N' = STOCKOUT
+    // Calcular estatísticas com NOVA LÓGICA (usando dados filtrados)
+    const totalProdutosAtivos = dadosGeraisFiltrados.length; // Total de produtos ativos
+    const countProdutosDisponiveis = dadosGeraisFiltrados.filter(p => p.prd_venda === 'S').length; // Ativos E venda='S'
+    const countProdutosStockout = dadosGeraisFiltrados.filter(p => p.prd_venda === 'N').length; // Ativos E venda='N' = STOCKOUT
     const percentualStockout = totalProdutosAtivos > 0 ? ((countProdutosStockout / totalProdutosAtivos) * 100).toFixed(2) : '0.00';
 
     
     // 2. Análise por local de produção - usando categoria_local da view
     let queryLocais = supabase
       .from('contahub_stockout_filtrado')
-      .select('categoria_local, prd_venda')
+      .select('categoria_local, prd_venda, prd_desc')
       .eq('data_consulta', data_selecionada)
       .eq('bar_id', bar_id);
 
@@ -120,9 +129,17 @@ export async function POST(request: NextRequest) {
       throw new Error('Erro ao buscar dados por local');
     }
 
+    // Filtrar "Feijoada + Sobremesa" se não for sábado
+    const dadosLocaisFiltrados = dadosLocais?.filter(p => {
+      if (p.prd_desc === 'Feijoada + Sobremesa' && diaSemana !== 6) {
+        return false;
+      }
+      return true;
+    }) || [];
+
     // Processar dados por categoria_local (já normalizado pela view)
     const locaisMap = new Map();
-    dadosLocais?.forEach(item => {
+    dadosLocaisFiltrados.forEach(item => {
       const local = item.categoria_local || 'Sem local definido';
       if (!locaisMap.has(local)) {
         locaisMap.set(local, { total: 0, disponiveis: 0, stockout: 0 });
@@ -190,6 +207,21 @@ export async function POST(request: NextRequest) {
       throw new Error('Erro ao buscar produtos');
     }
 
+    // Filtrar "Feijoada + Sobremesa" das listas se não for sábado
+    const produtosIndisponiveisFiltrados = listaProdutosIndisponiveis?.filter(p => {
+      if (p.prd_desc === 'Feijoada + Sobremesa' && diaSemana !== 6) {
+        return false;
+      }
+      return true;
+    }) || [];
+
+    const produtosDisponiveisFiltrados = listaProdutosDisponiveis?.filter(p => {
+      if (p.prd_desc === 'Feijoada + Sobremesa' && diaSemana !== 6) {
+        return false;
+      }
+      return true;
+    }) || [];
+
     return NextResponse.json({
       success: true,
       data: {
@@ -203,8 +235,8 @@ export async function POST(request: NextRequest) {
           percentual_disponibilidade: `${(100 - parseFloat(percentualStockout)).toFixed(2)}%`
         },
         produtos: {
-          inativos: listaProdutosIndisponiveis || [],
-          ativos: listaProdutosDisponiveis || []
+          inativos: produtosIndisponiveisFiltrados,
+          ativos: produtosDisponiveisFiltrados
         },
         grupos: {
           inativos: (analiseLocais || []).filter((local: any) => local.perc_stockout > 0),
