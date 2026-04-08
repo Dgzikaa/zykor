@@ -182,64 +182,66 @@ export default function CMVSemanalPage() {
 
   // Calcular todos os valores automaticamente
   const calcularValoresAutomaticos = useCallback(() => {
-    const dados = { ...formData };
-    
-    // 1. Calcular consumos baseados nas contas especiais
-    // Consumo Sócios = Total Consumo Sócios * fatorCmv
-    dados.consumo_socios = (dados.total_consumo_socios || 0) * fatorCmv;
-    
-    // Consumo Benefícios = (Mesa Benefícios Cliente + Chegadeira) * 0.33
-    dados.consumo_beneficios = ((dados.mesa_beneficios_cliente || 0) + (dados.chegadeira || 0)) * 0.33;
-    
-    // Consumo ADM = Mesa ADM/Casa * fatorCmv
-    dados.consumo_adm = (dados.mesa_adm_casa || 0) * fatorCmv;
-    
-    // Consumo Artista = Mesa da Banda/DJ * fatorCmv
-    dados.consumo_artista = (dados.mesa_banda_dj || 0) * fatorCmv;
-    
-    // 2. Calcular estoque final total
-    dados.estoque_final = (dados.estoque_final_cozinha || 0) + 
-                          (dados.estoque_final_bebidas || 0) + 
-                          (dados.estoque_final_drinks || 0);
-    
-    // 3. Calcular compras do período total
-    dados.compras_periodo = (dados.compras_custo_comida || 0) + 
-                            (dados.compras_custo_bebidas || 0) + 
-                            (dados.compras_custo_outros || 0) + 
-                            (dados.compras_custo_drinks || 0);
-    
-    // 4. Calcular CMV Real
-    // CMV Real = (Estoque Inicial + Compras - Estoque Final) - 
-    //            (Consumo Sócios + Consumo Benefícios + Consumo ADM + Consumo RH + Consumo Artista + Outros Ajustes) +
-    //            Ajuste Bonificações (bonificações aumentam o CMV - descontos recebidos)
-    const cmvBruto = (dados.estoque_inicial || 0) + 
-                     (dados.compras_periodo || 0) - 
-                     (dados.estoque_final || 0);
-    
-    const totalConsumos = (dados.consumo_socios || 0) + 
-                          (dados.consumo_beneficios || 0) + 
-                          (dados.consumo_adm || 0) + 
-                          (dados.consumo_rh || 0) + 
-                          (dados.consumo_artista || 0) + 
-                          (dados.outros_ajustes || 0);
-    
-    dados.cmv_real = cmvBruto - totalConsumos + (dados.ajuste_bonificacoes || 0);
-    
-    // 5. Calcular CMV Limpo (%) e CMV Real (%)
-    // CMV Limpo = (CMV Real / Faturamento CMVível) * 100
-    if ((dados.faturamento_cmvivel || 0) > 0) {
-      dados.cmv_limpo_percentual = ((dados.cmv_real || 0) / (dados.faturamento_cmvivel || 1)) * 100;
-    }
-    // CMV Real % = CMV R$ / Faturamento Bruto × 100 (nunca copiar teórico)
-    const fatBruto = dados.vendas_brutas || dados.faturamento_bruto || 0;
-    dados.cmv_percentual = fatBruto > 0 ? ((dados.cmv_real || 0) / fatBruto) * 100 : 0;
-    
-    // 6. Calcular GAP
-    // GAP = CMV Limpo - CMV Teórico
-    dados.gap = (dados.cmv_limpo_percentual || 0) - (dados.cmv_teorico_percentual || 0);
-    
-    setFormData(dados);
-  }, [formData]);
+    setFormData(prev => {
+      const dados = { ...prev };
+      
+      // 1. Calcular consumos baseados nas contas especiais
+      // Consumo Sócios = Total Consumo Sócios * fatorCmv
+      dados.consumo_socios = (dados.total_consumo_socios || 0) * fatorCmv;
+      
+      // Consumo Benefícios = (Mesa Benefícios Cliente + Chegadeira) * 0.33
+      dados.consumo_beneficios = ((dados.mesa_beneficios_cliente || 0) + (dados.chegadeira || 0)) * 0.33;
+      
+      // Consumo ADM = Mesa ADM/Casa * fatorCmv
+      dados.consumo_adm = (dados.mesa_adm_casa || 0) * fatorCmv;
+      
+      // Consumo Artista = Mesa da Banda/DJ * fatorCmv
+      dados.consumo_artista = (dados.mesa_banda_dj || 0) * fatorCmv;
+      
+      // 2. Calcular estoque final total
+      dados.estoque_final = (dados.estoque_final_cozinha || 0) + 
+                            (dados.estoque_final_bebidas || 0) + 
+                            (dados.estoque_final_drinks || 0);
+      
+      // 3. Calcular compras do período total
+      dados.compras_periodo = (dados.compras_custo_comida || 0) + 
+                              (dados.compras_custo_bebidas || 0) + 
+                              (dados.compras_custo_outros || 0) + 
+                              (dados.compras_custo_drinks || 0);
+      
+      // 4. Calcular CMV Real
+      // CMV Real = (Estoque Inicial + Compras - Estoque Final) - 
+      //            (Consumo Sócios + Consumo Benefícios + Consumo ADM + Consumo RH + Consumo Artista + Outros Ajustes) +
+      //            Ajuste Bonificações (bonificações aumentam o CMV - descontos recebidos)
+      const cmvBruto = (dados.estoque_inicial || 0) + 
+                       (dados.compras_periodo || 0) - 
+                       (dados.estoque_final || 0);
+      
+      const totalConsumos = (dados.consumo_socios || 0) + 
+                            (dados.consumo_beneficios || 0) + 
+                            (dados.consumo_adm || 0) + 
+                            (dados.consumo_rh || 0) + 
+                            (dados.consumo_artista || 0) + 
+                            (dados.outros_ajustes || 0);
+      
+      dados.cmv_real = cmvBruto - totalConsumos + (dados.ajuste_bonificacoes || 0);
+      
+      // 5. Calcular CMV Limpo (%) e CMV Real (%)
+      // CMV Limpo = (CMV Real / Faturamento CMVível) * 100
+      if ((dados.faturamento_cmvivel || 0) > 0) {
+        dados.cmv_limpo_percentual = ((dados.cmv_real || 0) / (dados.faturamento_cmvivel || 1)) * 100;
+      }
+      // CMV Real % = CMV R$ / Faturamento Bruto × 100 (nunca copiar teórico)
+      const fatBruto = dados.vendas_brutas || dados.faturamento_bruto || 0;
+      dados.cmv_percentual = fatBruto > 0 ? ((dados.cmv_real || 0) / fatBruto) * 100 : 0;
+      
+      // 6. Calcular GAP
+      // GAP = CMV Limpo - CMV Teórico
+      dados.gap = (dados.cmv_limpo_percentual || 0) - (dados.cmv_teorico_percentual || 0);
+      
+      return dados;
+    });
+  }, [fatorCmv]);
 
   // Sincronizar tudo: NIBO + Planilha CMV (FUNÇÃO UNIFICADA)
   const sincronizarTudo = async () => {
@@ -421,6 +423,9 @@ export default function CMVSemanalPage() {
           ...resultado.data
         }));
 
+        // Calcular valores automaticamente após carregar dados
+        setTimeout(() => calcularValoresAutomaticos(), 100);
+
         toast({
           title: "✅ Dados carregados",
           description: "Dados automáticos foram carregados com sucesso",
@@ -571,11 +576,52 @@ export default function CMVSemanalPage() {
     setSalvando(true);
 
     try {
-      // Recalcular antes de salvar
-      calcularValoresAutomaticos();
+      // Calcular valores finais antes de salvar
+      const dadosCalculados = { ...formData };
+      
+      // 1. Calcular consumos baseados nas contas especiais
+      dadosCalculados.consumo_socios = (dadosCalculados.total_consumo_socios || 0) * fatorCmv;
+      dadosCalculados.consumo_beneficios = ((dadosCalculados.mesa_beneficios_cliente || 0) + (dadosCalculados.chegadeira || 0)) * 0.33;
+      dadosCalculados.consumo_adm = (dadosCalculados.mesa_adm_casa || 0) * fatorCmv;
+      dadosCalculados.consumo_artista = (dadosCalculados.mesa_banda_dj || 0) * fatorCmv;
+      
+      // 2. Calcular estoque final total
+      dadosCalculados.estoque_final = (dadosCalculados.estoque_final_cozinha || 0) + 
+                                      (dadosCalculados.estoque_final_bebidas || 0) + 
+                                      (dadosCalculados.estoque_final_drinks || 0);
+      
+      // 3. Calcular compras do período total
+      dadosCalculados.compras_periodo = (dadosCalculados.compras_custo_comida || 0) + 
+                                        (dadosCalculados.compras_custo_bebidas || 0) + 
+                                        (dadosCalculados.compras_custo_outros || 0) + 
+                                        (dadosCalculados.compras_custo_drinks || 0);
+      
+      // 4. Calcular CMV Real
+      const cmvBruto = (dadosCalculados.estoque_inicial || 0) + 
+                       (dadosCalculados.compras_periodo || 0) - 
+                       (dadosCalculados.estoque_final || 0);
+      
+      const totalConsumos = (dadosCalculados.consumo_socios || 0) + 
+                            (dadosCalculados.consumo_beneficios || 0) + 
+                            (dadosCalculados.consumo_adm || 0) + 
+                            (dadosCalculados.consumo_rh || 0) + 
+                            (dadosCalculados.consumo_artista || 0) + 
+                            (dadosCalculados.outros_ajustes || 0);
+      
+      dadosCalculados.cmv_real = cmvBruto - totalConsumos + (dadosCalculados.ajuste_bonificacoes || 0);
+      
+      // 5. Calcular CMV Limpo (%) e CMV Real (%)
+      if ((dadosCalculados.faturamento_cmvivel || 0) > 0) {
+        dadosCalculados.cmv_limpo_percentual = ((dadosCalculados.cmv_real || 0) / (dadosCalculados.faturamento_cmvivel || 1)) * 100;
+      }
+      const fatBruto = dadosCalculados.vendas_brutas || dadosCalculados.faturamento_bruto || 0;
+      dadosCalculados.cmv_percentual = fatBruto > 0 ? ((dadosCalculados.cmv_real || 0) / fatBruto) * 100 : 0;
+      
+      // 6. Calcular GAP
+      dadosCalculados.gap = (dadosCalculados.cmv_limpo_percentual || 0) - (dadosCalculados.cmv_teorico_percentual || 0);
 
       const registro = {
-        ...formData,
+        ...dadosCalculados,
         bar_id: selectedBar.id,
         responsavel: user?.nome || ''
       };
@@ -676,16 +722,6 @@ export default function CMVSemanalPage() {
     }
   };
 
-  // Recalcular quando formData mudar
-  useEffect(() => {
-    if (modalAberto) {
-      calcularValoresAutomaticos();
-    }
-  }, [
-    modalAberto,
-    calcularValoresAutomaticos,
-  ]);
-
   useEffect(() => {
     setPageTitle('📊 CMV Semanal');
     return () => setPageTitle('');
@@ -714,7 +750,8 @@ export default function CMVSemanalPage() {
     if (selectedBar && user) {
       carregarCMVs();
     }
-  }, [selectedBar, user, anoFiltro, statusFiltro, carregarCMVs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBar, user, anoFiltro, statusFiltro]);
 
   if (loading) {
     return (
