@@ -892,7 +892,7 @@ export default function CMOUnificadoPage() {
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-muted-foreground">Simulado vs NIBO</p>
+                      <p className="text-sm text-muted-foreground">Simulado vs Realizado</p>
                       <div className="flex items-center gap-2">
                         {getStatusIcon(comparativo?.status || 'ok')}
                         <p className="text-2xl font-bold">{comparativo?.percentual_diferenca?.toFixed(0) || 0}%</p>
@@ -911,7 +911,7 @@ export default function CMOUnificadoPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Comparativo por Categoria - {MESES[mesAtual - 1]?.label}/{anoAtual}</CardTitle>
-                <CardDescription>CMO Simulado vs Realizado no NIBO</CardDescription>
+                <CardDescription>CMO Simulado vs Realizado (Conta Azul)</CardDescription>
               </CardHeader>
               <CardContent>
                 {!comparativo?.detalhes?.length ? (
@@ -931,7 +931,7 @@ export default function CMOUnificadoPage() {
                         </div>
                         <div className="grid grid-cols-3 gap-4 text-sm">
                           <div>
-                            <p className="text-muted-foreground">NIBO (Real)</p>
+                            <p className="text-muted-foreground">Conta Azul (Real)</p>
                             <p className="font-medium">{formatarMoeda(item.valor_nibo)}</p>
                           </div>
                           <div>

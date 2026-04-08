@@ -15,12 +15,18 @@ export async function GET(request: NextRequest) {
     const mes = searchParams.get('mes') || (new Date().getMonth() + 1).toString();
     const barId = searchParams.get('bar_id');
 
-    // Buscar dados da view_dre
-    const { data: dreData, error: dreError } = await supabase
+    // Buscar dados da view_dre (filtrado por bar_id quando disponível)
+    let dreQuery = supabase
       .from('view_dre')
       .select('*')
       .eq('ano', parseInt(ano))
       .eq('mes', parseInt(mes));
+
+    if (barId) {
+      dreQuery = dreQuery.eq('bar_id', parseInt(barId));
+    }
+
+    const { data: dreData, error: dreError } = await dreQuery;
 
     if (dreError) {
       console.error('Erro ao buscar view_dre:', dreError);

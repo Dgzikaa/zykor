@@ -190,25 +190,18 @@ export default function DrePage() {
       const barIdParam = `&bar_id=${selectedBar.id}`;
       console.log(`🔍 [DRE] Buscando dados para Bar: ${selectedBar.nome} (ID: ${selectedBar.id})`);
       
-      // Buscar estrutura de categorias, dados consolidados e detalhes do Nibo em paralelo
-      const [categoriasResponse, dreResponse, niboResponse] = await Promise.all([
-        fetch('/api/financeiro/nibo-categorias'),
-        fetch(`/api/financeiro/dre-simples?ano=${year}&mes=${month}${barIdParam}`),
-        fetch(`/api/financeiro/nibo/dre-monthly-detailed?year=${year}&month=${month}${barIdParam}`)
+      // Buscar categorias do Conta Azul e dados DRE em paralelo
+      const [categoriasResponse, dreResponse] = await Promise.all([
+        fetch(`/api/financeiro/dre-categorias?bar_id=${selectedBar.id}&ano=${year}&mes=${month}`),
+        fetch(`/api/financeiro/dre-simples?ano=${year}&mes=${month}${barIdParam}`)
       ]);
       
-      if (!categoriasResponse.ok || !dreResponse.ok) {
+      if (!dreResponse.ok) {
         throw new Error('Erro ao buscar dados da DRE');
       }
       
-      const categoriasResult = await categoriasResponse.json();
+      const categoriasResult = categoriasResponse.ok ? await categoriasResponse.json() : { categorias_por_macro: {} };
       const dreResult = await dreResponse.json();
-      
-      // Dados detalhados do Nibo (pode falhar, não é crítico)
-      let niboResult = null;
-      if (niboResponse.ok) {
-        niboResult = await niboResponse.json();
-      }
       
       // Criar mapa de valores por categoria
       const valoresPorCategoria = new Map();
@@ -231,51 +224,34 @@ export default function DrePage() {
         'Sócios'
       ];
       
-      // Construir estrutura completa baseada em nibo_categorias na ordem específica
+      // Construir estrutura completa baseada nas categorias do Conta Azul, na ordem específica
       const macroCategorias = ordemMacroCategorias.map(macroNome => {
         const categoriasDetalhe = categoriasResult.categorias_por_macro?.[macroNome] || [];
         const valorMacro = valoresPorCategoria.get(macroNome) || 0;
         const isEntrada = valorMacro > 0;
         
-        // Buscar dados detalhados do Nibo para esta macro-categoria
-        const niboMacro = (niboResult as any)?.macroCategorias?.find((m: any) => m.nome === macroNome);
-        
-        // Mapear subcategorias com valores reais do Nibo + dados manuais
+        // Subcategorias vêm da rota dre-categorias (Conta Azul), com valores reais
         const subcategorias = categoriasDetalhe.map(cat => {
-          const niboCategoria = niboMacro?.categorias?.find(nc => nc.nome === cat.categoria_nome);
-          
-          // Buscar lançamentos manuais para esta categoria específica
-          const lancamentosManuais = dreResult.lancamentos_manuais?.filter(l => 
+          const lancamentosManuais = dreResult.lancamentos_manuais?.filter((l: any) =>
             l.categoria === cat.categoria_nome
           ) || [];
           
           const valorManualEntradas = lancamentosManuais
-            .filter(l => l.valor > 0)
-            .reduce((sum, l) => sum + l.valor, 0);
+            .filter((l: any) => l.valor > 0)
+            .reduce((sum: number, l: any) => sum + l.valor, 0);
             
           const valorManualSaidas = Math.abs(lancamentosManuais
-            .filter(l => l.valor < 0)
-            .reduce((sum, l) => sum + l.valor, 0));
+            .filter((l: any) => l.valor < 0)
+            .reduce((sum: number, l: any) => sum + l.valor, 0));
           
-          if (niboCategoria || valorManualEntradas > 0 || valorManualSaidas > 0) {
-            // Combinar valores do Nibo + manuais
-            // Para saídas: Nibo já vem como positivo, manuais negativos devem ser convertidos para positivos
-            const totalSaidas = (niboCategoria?.saidas || 0) + valorManualSaidas;
-            const totalEntradas = (niboCategoria?.entradas || 0) + valorManualEntradas;
-            
-            return {
-              nome: cat.categoria_nome,
-              entradas: totalEntradas,
-              saidas: totalSaidas
-            };
-          } else {
-            // Fallback: distribuir proporcionalmente se não há dados específicos
-            return {
-              nome: cat.categoria_nome,
-              entradas: isEntrada ? Math.abs(valorMacro) / categoriasDetalhe.length : 0,
-              saidas: isEntrada ? 0 : Math.abs(valorMacro) / categoriasDetalhe.length
-            };
-          }
+          const totalEntradas = (cat.entradas || 0) + valorManualEntradas;
+          const totalSaidas = (cat.saidas || 0) + valorManualSaidas;
+          
+          return {
+            nome: cat.categoria_nome,
+            entradas: totalEntradas,
+            saidas: totalSaidas
+          };
         });
         
         return {
@@ -433,16 +409,10 @@ export default function DrePage() {
   async function fetchHistoricalData() {
     setLoadingHistorical(true);
     try {
-      // Usar a API monthly para evolução temporal real
-      const response = await fetch(`/api/financeiro/nibo/dre-monthly-2025`);
+      const response = await fetch(`/api/financeiro/dre-yearly-consolidated?year=${year - 1}&bar_id=${selectedBar?.id}`);
       if (response.ok) {
         const result = await response.json();
-        
-        // Usar os dados mensais reais para o gráfico
-        const historicalDataArray = result.monthlyData || [];
-        
-        setHistoricalData(historicalDataArray);
-        console.log('📊 Dados mensais carregados:', historicalDataArray.length, 'meses');
+        setHistoricalData(result.monthlyData || []);
       }
     } catch (err) {
       console.error('Erro ao buscar dados históricos:', err);
@@ -454,21 +424,10 @@ export default function DrePage() {
   async function fetchConsolidatedData() {
     setLoadingConsolidated(true);
     try {
-      // Usar a API yearly detailed
-      const response = await fetch(`/api/financeiro/nibo/dre-yearly-detailed?year=2025`);
+      const response = await fetch(`/api/financeiro/dre-yearly-consolidated?year=${year}&bar_id=${selectedBar?.id}`);
       if (response.ok) {
         const result = await response.json();
-        
-        // Criar um array com os dados de 2025 para a tabela consolidada
-        const consolidatedDataArray = [{
-          month: 1,
-          year: 2025,
-          monthName: 'Janeiro',
-          macroCategorias: result.macroCategorias || [], // Agora temos macro-categorias detalhadas
-          ebitda: Number(result.ebitda) || 0
-        }];
-        
-        setConsolidatedData(consolidatedDataArray);
+        setConsolidatedData(result.consolidatedData || []);
       }
     } catch (err) {
       console.error('Erro ao buscar dados consolidados:', err);

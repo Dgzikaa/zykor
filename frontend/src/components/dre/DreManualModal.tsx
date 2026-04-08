@@ -91,11 +91,11 @@ export default function DreManualModal({
     }
   })
 
-  // Carregar categorias do Nibo
+  // Carregar categorias do Conta Azul
   const fetchCategorias = async () => {
     setLoadingCategorias(true)
     try {
-      const response = await fetch('/api/financeiro/nibo-categorias')
+      const response = await fetch('/api/financeiro/dre-categorias')
       if (!response.ok) {
         throw new Error('Erro ao carregar categorias')
       }
@@ -103,7 +103,7 @@ export default function DreManualModal({
       setCategorias(data)
     } catch (error) {
       console.error('Erro ao carregar categorias:', error)
-      toast.error('Erro ao carregar categorias do Nibo')
+      toast.error('Erro ao carregar categorias do Conta Azul')
     } finally {
       setLoadingCategorias(false)
     }

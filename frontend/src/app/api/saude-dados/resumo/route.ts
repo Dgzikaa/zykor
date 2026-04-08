@@ -40,12 +40,13 @@ export async function GET(request: NextRequest) {
     const ontem = new Date()
     ontem.setDate(ontem.getDate() - 1)
 
+    // Verificar syncs do Conta Azul nas últimas 24h
     const { data: syncs } = await supabase
-      .from('nibo_logs_sincronizacao')
-      .select('status')
-      .gte('data_inicio', ontem.toISOString())
+      .from('contaazul_lancamentos')
+      .select('id')
+      .gte('created_at', ontem.toISOString())
 
-    const syncsOk = syncs?.filter(s => s.status !== 'erro').length || 0
+    const syncsOk = syncs?.length || 0
     const syncsTotal = syncs?.length || 0
 
     // Dias bloqueados

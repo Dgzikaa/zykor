@@ -188,7 +188,7 @@ export default function ConsultasPage() {
       }
 
       const response = await fetch(
-        `/api/financeiro/nibo/consultas/lancamentos-retroativos?${params}`,
+        `/api/financeiro/contaazul/consultas/lancamentos-retroativos?${params}`,
         { signal }
       );
       const data = await response.json();
@@ -305,7 +305,7 @@ export default function ConsultasPage() {
         <div className="mb-4 sm:mb-6">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
             <Search className="w-6 h-6 text-muted-foreground" />
-            Consultas NIBO
+            Consultas Conta Azul
           </h1>
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             Consulte lançamentos retroativos e analise padrões de registro
