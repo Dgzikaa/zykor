@@ -84,9 +84,9 @@ export async function GET(request: NextRequest) {
 
     const statusSyncs = [
       {
-        sistema: 'Nibo (descontinuado)',
+        sistema: 'Conta Azul',
         ultima_sync: null,
-        status: 'substituído pelo Conta Azul',
+        status: 'integrado via lancamentos_financeiros',
         registros: 0
       },
       {

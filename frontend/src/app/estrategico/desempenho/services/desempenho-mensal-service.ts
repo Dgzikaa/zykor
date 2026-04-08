@@ -56,8 +56,8 @@ async function getDadosMensais(
     .gte('data_evento', dataInicio)
     .lte('data_evento', dataFim);
 
-  // Excluir dias de Carnaval 2026 (13-17/02) para Ordinário (bar_id=3)
-  if (barId === 3 && ano === 2026 && mes === 2) {
+  // Excluir dias de Carnaval 2026 (13-17/02) para ambos os bares
+  if (ano === 2026 && mes === 2) {
     query = query.not('data_evento', 'in', '("2026-02-13","2026-02-14","2026-02-15","2026-02-16","2026-02-17")');
   }
 

@@ -32,21 +32,19 @@ export async function GET(request: NextRequest) {
       erros: 0
     })
 
-    // Nibo
-    const { data: niboData, error: niboError } = await supabase
-      .from('nibo_logs_sincronizacao')
-      .select('data_inicio, status, registros_erro')
-      .gte('data_inicio', ontemStr)
-      .order('data_inicio', { ascending: false })
-      .limit(5)
+    // Conta Azul — verificar último lançamento importado
+    const { data: contaazulData } = await supabase
+      .from('contaazul_lancamentos')
+      .select('created_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
 
-    const niboErros = niboData?.filter(n => n.status === 'erro').length || 0
     syncStatus.push({
-      sistema: 'Nibo',
-      ultima_sync: niboData?.[0]?.data_inicio ? new Date(niboData[0].data_inicio).toLocaleString('pt-BR') : 'N/A',
-      status: niboErros === 0 ? 'ok' : 'error',
-      registros: niboData?.length || 0,
-      erros: niboErros
+      sistema: 'Conta Azul',
+      ultima_sync: contaazulData?.[0]?.created_at ? new Date(contaazulData[0].created_at).toLocaleString('pt-BR') : 'N/A',
+      status: contaazulData && contaazulData.length > 0 ? 'ok' : 'warning',
+      registros: contaazulData?.length || 0,
+      erros: 0
     })
 
     // Sympla

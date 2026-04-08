@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     });
 
     const catalogo: Array<{ id: string; label: string; aliases?: string[] }> = [
-      { id: 'nibo', label: 'NIBO' },
+      { id: 'contaazul', label: 'Conta Azul' },
       { id: 'inter', label: 'Inter', aliases: ['banco_inter'] },
       { id: 'contahub', label: 'ContaHub' },
       { id: 'falae', label: 'Falae' },

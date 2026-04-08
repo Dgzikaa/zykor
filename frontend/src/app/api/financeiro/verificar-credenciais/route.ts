@@ -38,11 +38,11 @@ export async function GET(request: NextRequest) {
     const resultado = {
       success: true,
       bar_id: barId,
-      nibo: !!niboCredencial,
+      nibo: false,
       inter: !!interCredencial,
       mensagem: !interCredencial
         ? 'Credencial Inter não configurada'
-        : 'Credencial Inter configurada (NIBO descontinuado)',
+        : 'Credencial Inter configurada',
     };
 
     return NextResponse.json(resultado);
