@@ -32,7 +32,7 @@ interface HealthData {
     total_eventos: number;
     eventos_ultimos_7_dias: number;
     alertas_abertos: number;
-    ultima_sincronizacao_nibo: string | null;
+    ultima_sincronizacao_contaazul: string | null;
     ultima_sincronizacao_contahub: string | null;
     database_size_mb: number;
   };
@@ -304,7 +304,7 @@ export default function MonitoramentoPage() {
                     <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                       <p className="text-sm text-gray-600 dark:text-gray-400">Conta Azul</p>
                       <p className="font-medium text-gray-900 dark:text-white">
-                        {formatarDistancia(health?.metrics.ultima_sincronizacao_nibo)}
+                        {formatarDistancia(health?.metrics.ultima_sincronizacao_contaazul)}
                       </p>
                     </div>
                     <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -408,3 +408,4 @@ export default function MonitoramentoPage() {
     </div>
   );
 }
+

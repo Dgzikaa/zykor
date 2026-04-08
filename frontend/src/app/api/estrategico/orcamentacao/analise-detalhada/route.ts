@@ -86,8 +86,8 @@ export async function GET(request: Request) {
       endDate = `${ano}-12-31`;
     }
 
-    // Buscar TODOS os dados do Conta Azul para o período
-    const niboData = await fetchAllData(supabase, 'contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia, data_pagamento', {
+    // Buscar lan�amentos do Conta Azul para o período
+    const lancamentosData = await fetchAllData(supabase, 'contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia, data_pagamento', {
       'eq_bar_id': parseInt(barId),
       'gte_data_competencia': startDate,
       'lte_data_competencia': endDate
@@ -111,7 +111,7 @@ export async function GET(request: Request) {
     const categoriasNaoEncontradas: string[] = [];
 
     // Análise das categorias disponíveis no banco
-    niboData?.forEach(item => {
+    lancamentosData?.forEach(item => {
       if (!item.categoria_nome) return;
       
       const categoria = item.categoria_nome;
@@ -209,7 +209,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       periodo: { inicio: startDate, fim: endDate },
-      total_registros: niboData?.length || 0,
+      total_registros: lancamentosData?.length || 0,
       categorias_disponiveis: categoriasArray,
       categorias_nao_encontradas: categoriasNaoEncontradas,
       sugestoes_mapeamento: sugestoesMapeamento,
@@ -250,3 +250,4 @@ function calcularSimilaridade(str1: string, str2: string): number {
   
   return (commonChars / maxLength) * 100;
 }
+

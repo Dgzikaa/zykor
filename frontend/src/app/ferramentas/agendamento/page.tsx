@@ -232,7 +232,7 @@ export default function AgendamentoPage() {
     // DESABILITADO: NIBO foi substituído pelo Conta Azul
     toast({
       title: 'Funcionalidade desabilitada',
-      description: 'Agendamento via NIBO foi descontinuado. Use o Conta Azul.',
+      description: 'Funcionalidade de agendamento temporariamente desabilitada.',
       variant: 'destructive',
     });
     
@@ -870,5 +870,6 @@ export default function AgendamentoPage() {
     </ProtectedRoute>
   );
 }
+
 
 

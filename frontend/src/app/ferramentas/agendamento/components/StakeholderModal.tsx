@@ -127,7 +127,7 @@ export function StakeholderModal({
 
       toast({
         title: '✅ Stakeholder cadastrado!',
-        description: result.data.message || 'Cadastro concluído no NIBO',
+        description: result.data.message || 'Cadastro concluído no Conta Azul',
       });
       onClose();
     } catch (e) {

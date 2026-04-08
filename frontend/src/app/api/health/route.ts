@@ -19,7 +19,7 @@ interface HealthCheck {
     total_eventos: number;
     eventos_ultimos_7_dias: number;
     alertas_abertos: number;
-    ultima_sincronizacao_nibo: string | null;
+    ultima_sincronizacao_contaazul: string | null;
     ultima_sincronizacao_contahub: string | null;
     database_size_mb: number;
   };
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
         total_eventos: 0,
         eventos_ultimos_7_dias: 0,
         alertas_abertos: 0,
-        ultima_sincronizacao_nibo: null,
+        ultima_sincronizacao_contaazul: null,
         ultima_sincronizacao_contahub: null,
         database_size_mb: 0
       },
@@ -212,7 +212,7 @@ async function getMetrics(supabase: any): Promise<HealthCheck['metrics']> {
           (SELECT COUNT(*) FROM eventos_base WHERE ativo = true) as total_eventos,
           (SELECT COUNT(*) FROM eventos_base WHERE data_evento >= CURRENT_DATE - 7) as eventos_7_dias,
           (SELECT COUNT(*) FROM sistema_alertas WHERE resolvido_em IS NULL) as alertas_abertos,
-          (SELECT MAX(created_at) FROM contaazul_lancamentos) as ultima_sync_nibo,
+          (SELECT MAX(created_at) FROM contaazul_lancamentos) as ultima_sync_contaazul,
           (SELECT MAX(data_coleta) FROM contahub_raw_data) as ultima_sync_contahub,
           (SELECT pg_database_size(current_database()) / 1024 / 1024) as db_size_mb
       `
@@ -224,7 +224,7 @@ async function getMetrics(supabase: any): Promise<HealthCheck['metrics']> {
       total_eventos: parseInt(result?.total_eventos || '0'),
       eventos_ultimos_7_dias: parseInt(result?.eventos_7_dias || '0'),
       alertas_abertos: parseInt(result?.alertas_abertos || '0'),
-      ultima_sincronizacao_nibo: result?.ultima_sync_nibo || null,
+      ultima_sincronizacao_contaazul: result?.ultima_sync_contaazul || null,
       ultima_sincronizacao_contahub: result?.ultima_sync_contahub || null,
       database_size_mb: parseInt(result?.db_size_mb || '0')
     };
@@ -234,9 +234,10 @@ async function getMetrics(supabase: any): Promise<HealthCheck['metrics']> {
       total_eventos: 0,
       eventos_ultimos_7_dias: 0,
       alertas_abertos: 0,
-      ultima_sincronizacao_nibo: null,
+      ultima_sincronizacao_contaazul: null,
       ultima_sincronizacao_contahub: null,
       database_size_mb: 0
     };
   }
 }
+

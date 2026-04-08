@@ -725,7 +725,7 @@ export default function CMVSemanalTabelaPage() {
              (semana.estoque_final_bebidas || 0);
       return somaDetalhados > 0 ? somaDetalhados : (semana.estoque_final || 0);
     }
-    // Compras = soma dos sub-itens OU valor total do banco (da planilha/NIBO)
+    // Compras = soma dos sub-itens OU valor total do banco (da planilha/Conta Azul)
     if (key === 'compras_periodo') {
       const somaDetalhados = (semana.compras_custo_comida || 0) +
              (semana.compras_custo_drinks || 0) +
@@ -1594,3 +1594,4 @@ export default function CMVSemanalTabelaPage() {
     </div>
   );
 }
+

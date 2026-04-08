@@ -1,5 +1,5 @@
-/**
- * Chamadas HTTP da página de agendamento (NIBO / Inter / fluxos auxiliares).
+﻿/**
+ * Chamadas HTTP da página de agendamento (Inter / fluxos auxiliares).
  * Mantém respostas tipadas e erros normalizados sem depender de UI (toast).
  */
 
@@ -28,7 +28,7 @@ async function safeJson<T>(response: Response): Promise<T | null> {
 export interface VerificarCredenciaisData {
   success?: boolean;
   bar_id?: number;
-  nibo: boolean;
+  
   inter: boolean;
   mensagem?: string;
   error?: string;
@@ -36,7 +36,7 @@ export interface VerificarCredenciaisData {
 
 export interface NiboCategoria {
   id: string;
-  nibo_id?: string | null;
+  
   bar_id?: number;
   categoria_nome?: string;
   categoria_macro?: string | null;
@@ -130,7 +130,7 @@ export interface AgendamentoNiboParams {
 export interface AgendamentoNiboCriado {
   id: string;
   local_id?: string;
-  nibo_id?: string;
+  
   [key: string]: unknown;
 }
 
@@ -191,8 +191,7 @@ export async function verificarCredenciais(
       `/api/financeiro/verificar-credenciais?bar_id=${encodeURIComponent(String(barId))}`
     );
     const json = (await safeJson<VerificarCredenciaisData>(res)) ?? {
-      nibo: false,
-      inter: false,
+            inter: false,
       error: 'Resposta vazia',
     };
 
@@ -208,8 +207,7 @@ export async function verificarCredenciais(
       ok: true,
       data: {
         ...json,
-        nibo: Boolean(json.nibo),
-        inter: Boolean(json.inter),
+                inter: Boolean(json.inter),
       },
     };
   } catch (e) {
@@ -223,15 +221,13 @@ export async function verificarCredenciais(
 export async function loadCategorias(
   barId: number
 ): Promise<AgendamentoResult<NiboCategoria[]>> {
-  // DESABILITADO: NIBO foi substituído pelo Conta Azul
-  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
+    return { ok: false, error: 'Funcionalidade não disponível nesta versão.' };
 }
 
 export async function loadCentrosCusto(
   barId: number
 ): Promise<AgendamentoResult<NiboCentroCusto[]>> {
-  // DESABILITADO: NIBO foi substituído pelo Conta Azul
-  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
+    return { ok: false, error: 'Funcionalidade não disponível nesta versão.' };
 }
 
 export async function loadInterCredenciais(
@@ -268,34 +264,30 @@ export async function loadInterCredenciais(
   }
 }
 
-export async function carregarRevisaoNIBO(
+export async function carregarRevisaoAgendamento(
   barId: number,
   offset: number,
   limit: number
 ): Promise<AgendamentoResult<CarregarRevisaoNiboData>> {
-  // DESABILITADO: NIBO foi substituído pelo Conta Azul
-  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
+    return { ok: false, error: 'Funcionalidade não disponível nesta versão.' };
 }
 
 export async function buscarStakeholder(
   document: string
 ): Promise<AgendamentoResult<StakeholderNibo[]>> {
-  // DESABILITADO: NIBO foi substituído pelo Conta Azul
-  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
+    return { ok: false, error: 'Funcionalidade não disponível nesta versão.' };
 }
 
 export async function criarStakeholder(
   data: CriarStakeholderParams
 ): Promise<AgendamentoResult<CriarStakeholderData>> {
-  // DESABILITADO: NIBO foi substituído pelo Conta Azul
-  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
+    return { ok: false, error: 'Funcionalidade não disponível nesta versão.' };
 }
 
-export async function agendarPagamentoNoNibo(
+export async function agendarPagamento(
   agendamento: AgendamentoNiboParams
 ): Promise<AgendamentoResult<AgendamentoNiboCriado>> {
-  // DESABILITADO: NIBO foi substituído pelo Conta Azul
-  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
+    return { ok: false, error: 'Funcionalidade não disponível nesta versão.' };
 }
 
 export async function enviarParaInter(
@@ -346,6 +338,7 @@ export async function atualizarChavePix(
   stakeholderId: string,
   data: PixKeyParams
 ): Promise<AgendamentoResult<AtualizarStakeholderPixData>> {
-  // DESABILITADO: NIBO foi substituído pelo Conta Azul
-  return { ok: false, error: 'Funcionalidade desabilitada. NIBO foi substituído pelo Conta Azul.' };
+    return { ok: false, error: 'Funcionalidade não disponível nesta versão.' };
 }
+
+

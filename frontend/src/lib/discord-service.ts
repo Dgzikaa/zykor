@@ -424,3 +424,4 @@ export function minutosAteProximoRelatorio(): number {
   const diffMs = proximo.getTime() - agora.getTime();
   return Math.ceil(diffMs / (1000 * 60));
 }
+
