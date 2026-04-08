@@ -476,11 +476,12 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         if (tempoRecords.length > 0) {
           console.log(`📊 Processando ${tempoRecords.length} registros de tempo em batches...`);
           
-          // ✅ Usar INSERT em batches (sem índice único)
-          const batchResult = await insertInBatches(
+          // ✅ Usar UPSERT para evitar duplicados (índice único: bar_id, data, itm, prd, vd_mesadesc)
+          const batchResult = await upsertInBatches(
             supabase,
             'contahub_tempo',
-            tempoRecords
+            tempoRecords,
+            'bar_id,data,itm,prd,vd_mesadesc'
           );
           
           if (batchResult.errors > 0) {
@@ -488,7 +489,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
             return { success: true, count: batchResult.count, errors: batchResult.errors };
           } else {
             processedCount = batchResult.count;
-            console.log(`✅ Tempo: ${processedCount} registros inseridos com sucesso`);
+            console.log(`✅ Tempo: ${processedCount} registros inseridos/atualizados com sucesso`);
           }
         }
         break;
