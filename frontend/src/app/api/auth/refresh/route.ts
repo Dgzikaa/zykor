@@ -1,32 +1,28 @@
 /**
- * API para refresh de token JWT
- * Gera novo access token usando refresh token
+ * API para renovar token JWT usando refresh token
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { validateRefreshToken, generateToken } from '@/lib/auth/jwt';
 import { getAdminClient } from '@/lib/supabase-admin';
-import type { AuthenticatedUser } from '@/lib/auth/types';
-import { withRateLimit, RATE_LIMIT_PRESETS } from '@/lib/rate-limiter-middleware';
 
 export const dynamic = 'force-dynamic';
 
-async function handleRefresh(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    // Extrair refresh token do cookie ou body
-    const refreshToken = 
-      request.cookies.get('refresh_token')?.value ||
-      (await request.json().catch(() => ({}))).refresh_token;
+    // Pegar refresh token do cookie
+    const refreshToken = request.cookies.get('refresh_token')?.value;
 
     if (!refreshToken) {
       return NextResponse.json(
-        { success: false, error: 'Refresh token não fornecido' },
+        { success: false, error: 'Refresh token não encontrado' },
         { status: 401 }
       );
     }
 
     // Validar refresh token
     const decoded = validateRefreshToken(refreshToken);
+
     if (!decoded) {
       return NextResponse.json(
         { success: false, error: 'Refresh token inválido ou expirado' },
@@ -35,11 +31,11 @@ async function handleRefresh(request: NextRequest) {
     }
 
     // Buscar dados atualizados do usuário
-    const supabase = await getAdminClient();
-    const { data: usuario, error } = await supabase
+    const adminClient = await getAdminClient();
+    const { data: usuario, error } = await adminClient
       .from('usuarios')
       .select('*')
-      .eq('auth_id', decoded.auth_id)
+      .eq('id', decoded.user_id)
       .eq('ativo', true)
       .single();
 
@@ -60,12 +56,12 @@ async function handleRefresh(request: NextRequest) {
       );
     }
 
-    // Gerar novo access token
+    // Gerar novo token JWT
     const newToken = generateToken({
       user_id: usuario.id,
       auth_id: usuario.auth_id,
       email: usuario.email,
-      bar_id: decoded.bar_id, // Manter bar_id do refresh token
+      bar_id: decoded.bar_id,
       role: usuario.role,
       modulos_permitidos: modulosPermitidos,
     });
@@ -76,23 +72,25 @@ async function handleRefresh(request: NextRequest) {
       token: newToken,
     });
 
-    // Salvar novo token em cookie
-    response.cookies.set('auth_token', newToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+    // Configurações de cookie
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
+      secure: isProduction,
+      sameSite: 'lax' as const,
       maxAge: 60 * 60 * 24 * 7, // 7 dias
       path: '/',
-    });
+      httpOnly: true,
+    };
+
+    // Atualizar cookie de token
+    response.cookies.set('auth_token', newToken, cookieOptions);
 
     return response;
   } catch (error) {
-    console.error('❌ Erro ao fazer refresh do token:', error);
+    console.error('Erro ao renovar token:', error);
     return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
+      { success: false, error: 'Erro ao renovar token' },
       { status: 500 }
     );
   }
 }
-
-export const POST = withRateLimit(handleRefresh, RATE_LIMIT_PRESETS.AUTH);

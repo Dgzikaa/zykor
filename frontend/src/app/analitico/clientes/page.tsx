@@ -991,7 +991,7 @@ export default function ClientesPage() {
                         <Card className="card-dark">
                           <CardContent className="p-4 text-center">
                             <div className="text-2xl font-bold text-orange-500">{((segmentoResumo as any).estatisticas.totalClientes ?? 0).toLocaleString('pt-BR')}</div>
-                            <div className="text-xs text-muted-foreground">Clientes no Segmento</div>
+                            <div className="text-xs text-muted-foreground">Clientes Filtrados</div>
                           </CardContent>
                         </Card>
                         <Card className="card-dark">

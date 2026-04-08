@@ -23,7 +23,7 @@ const CONTA_AZUL_AUTH_URL = 'https://auth.contaazul.com'
 const REQUEST_TIMEOUT_MS = 25000
 const PAGE_SIZE = 200
 const SAFE_TIMEOUT_MS = 120000 // 120s (30s antes do limite de 150s do Supabase)
-const MAX_RECORDS_PER_SYNC = 500 // Limitar registros por execução
+const MAX_RECORDS_PER_SYNC = 10000 // Limitar registros por execução (aumentado para capturar todos)
 
 interface SyncRequest {
   bar_id: number
@@ -231,11 +231,11 @@ async function syncLancamentos(
         return { count: totalCount, newToken: currentToken !== accessToken ? currentToken : undefined, timedOut: true }
       }
 
-      // Verificar limite de registros por execução
-      if (totalCount >= MAX_RECORDS_PER_SYNC) {
-        console.warn(`[contaazul-sync] ⚠️ Limite de ${MAX_RECORDS_PER_SYNC} registros atingido. Próxima execução continuará.`)
-        return { count: totalCount, newToken: currentToken !== accessToken ? currentToken : undefined, timedOut: false }
-      }
+      // Verificar limite de registros por execução (desabilitado para sincronização completa)
+      // if (totalCount >= MAX_RECORDS_PER_SYNC) {
+      //   console.warn(`[contaazul-sync] ⚠️ Limite de ${MAX_RECORDS_PER_SYNC} registros atingido. Próxima execução continuará.`)
+      //   return { count: totalCount, newToken: currentToken !== accessToken ? currentToken : undefined, timedOut: false }
+      // }
       const params: Record<string, string> = {
         pagina: String(pagina),
         tamanho_pagina: String(PAGE_SIZE)
@@ -245,10 +245,16 @@ async function syncLancamentos(
         params.data_alteracao_de = dateFrom + 'T00:00:00'
         params.data_alteracao_ate = dateTo + 'T23:59:59'
       } else {
-        // API exige data_vencimento (required)
-        // NÃO usar data_competencia pois isso filtra demais e perde lançamentos
-        params.data_vencimento_de = dateFrom
-        params.data_vencimento_ate = dateTo
+        // API do Conta Azul exige data_vencimento (não aceita data_competencia como filtro)
+        // Buscar período amplo (3 meses) para capturar lançamentos com competência no período
+        // mas vencimento futuro. Depois filtramos por data_competencia no banco.
+        const fromDate = new Date(dateFrom)
+        fromDate.setMonth(fromDate.getMonth() - 1) // 1 mês antes
+        const toDate = new Date(dateTo)
+        toDate.setMonth(toDate.getMonth() + 2) // 2 meses depois
+        
+        params.data_vencimento_de = fromDate.toISOString().split('T')[0]
+        params.data_vencimento_ate = toDate.toISOString().split('T')[0]
       }
 
       const result = await fetchCA(endpoint, params, currentToken, supabase, credentials)
@@ -744,25 +750,30 @@ serve(async (req: Request) => {
 
     switch (body.sync_mode) {
       case 'daily_incremental':
-        const twoDaysAgo = new Date(now)
-        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
-        dateFrom = formatDate(twoDaysAgo)
+        // Buscar últimos 7 dias para capturar lançamentos com competência recente
+        // mas vencimento futuro (período amplo garante captura completa)
+        const sevenDaysAgo = new Date(now)
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+        dateFrom = formatDate(sevenDaysAgo)
         dateTo = formatDate(now)
-        useAlteracaoFilter = true
+        useAlteracaoFilter = false // Usar data_vencimento com período amplo
         break
 
       case 'full_month':
+        // Buscar mês anterior + mês atual + próximo mês
+        // para capturar todos os lançamentos independente do vencimento
         const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-        const lastDayThisMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        const lastDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0)
         dateFrom = formatDate(firstDayLastMonth)
-        dateTo = formatDate(lastDayThisMonth)
+        dateTo = formatDate(lastDayNextMonth)
         break
 
       case 'full_sync':
-        const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-        dateFrom = formatDate(firstDayThisMonth)
-        dateTo = formatDate(endOfMonth)
+        // Buscar 2 meses antes até 3 meses depois para captura completa
+        const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1)
+        const threeMonthsAhead = new Date(now.getFullYear(), now.getMonth() + 4, 0)
+        dateFrom = formatDate(twoMonthsAgo)
+        dateTo = formatDate(threeMonthsAhead)
         break
 
       case 'custom':

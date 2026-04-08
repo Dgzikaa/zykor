@@ -87,8 +87,8 @@ async function upsertDailyNps(
   >();
 
   for (const row of rows) {
-    // Usar data_visita se disponível, senão created_at
-    const day = row.data_visita || String(row.created_at).slice(0, 10);
+    // Usar created_at (data da resposta) para alinhar com o Falae
+    const day = String(row.created_at).slice(0, 10);
     if (!day) continue;
     if (!byDay.has(day)) {
       byDay.set(day, { total: 0, promotores: 0, neutros: 0, detratores: 0, somaNps: 0 });

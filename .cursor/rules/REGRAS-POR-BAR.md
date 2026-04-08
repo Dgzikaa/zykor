@@ -18,12 +18,11 @@
 │  09:00 ──► Alertas Proativos + Agente Análise Diária                                    │
 │  10:00 ──► ContaHub Sync (ambos bares) ──► Update eventos_base                          │
 │            ↳ Inclui: analitico, tempo, periodo, pagamentos, fatporhora, cancelamentos   │
-│  11:00 ──► Google Reviews Sync + NIBO Sync                                               │
+│  11:00 ──► Google Reviews Sync + Conta Azul Sync                                         │
 │  11:30 ──► Sync Contagem Estoque (ambos bares)                                          │
 │  12:00 ──► Desempenho Auto + CMV Semanal                                                 │
 │  14:00 ──► GetIn Sync (a cada 2h) + Umbler Sync                                          │
 │  15:00 ──► Alertas Proativos (tarde)                                                     │
-│  19:00 ──► NIBO Sync (2ª rodada)                                                         │
 │  19:00 ──► Stockout Sync (ambos bares)                                                   │
 │                                                                                          │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
@@ -40,7 +39,7 @@
 | **ContaHub** | `contahub-sync-automatico` | `contahub_analitico`, `contahub_tempo`, `contahub_periodo`, `contahub_pagamentos`, `contahub_fatporhora`, `contahub_cancelamentos` | `07:00 BRT` | ✅ | ✅ |
 | **ContaHub Stockout** | `contahub-stockout-sync` | `contahub_stockout` | `19:00 BRT` | ✅ | ✅ |
 | **GetIn** | `getin-sync-continuous` | `getin_reservas` → `eventos_base` | `a cada 2h` | ✅ | ❌ Sem API |
-| **NIBO** | `nibo-sync` | `nibo_agendamentos` | `08:00, 19:00` | ✅ | ✅ |
+| **Conta Azul** | `contaazul-sync` | `contaazul_lancamentos`, `contaazul_categorias`, `contaazul_centros_custo`, `contaazul_pessoas`, `contaazul_contas_financeiras` | Manual | ✅ | ✅ |
 | **Google Reviews** | `google-reviews-apify-sync` | `google_reviews` | `08:00 BRT` | ✅ | ✅ |
 | **Falaê (NPS)** | `google-sheets-sync` | `nps_falae_diario`, `nps_falae_diario_pesquisa` | `05:00 BRT` | ✅ | ✅ |
 | **Sympla** | `integracao-dispatcher` | `sympla_pedidos` | `Seg 05:00` | ✅ | ✅ |
@@ -53,7 +52,7 @@
 ## Pipeline de Cálculo
 
 ```
-ContaHub/GetIn/NIBO (APIs)
+ContaHub/GetIn/Conta Azul (APIs)
         │
         ▼
    eventos_base ◄─── Trigger: update_eventos_base_from_contahub
@@ -560,8 +559,8 @@ recalcular-desempenho-auto (Edge Function)
 │ Exibição     │ ❌ OCULTO                  │ ✅ VISÍVEL          │
 ├──────────────┴────────────────────────────┴─────────────────────┤
 │ Tipo: 🤖 AUTOMÁTICO                                              │
-│ Tabela: nibo_agendamentos                                        │
-│ Filtros: tipo = 'despesa', deletado = false                      │
+│ Tabela: contaazul_lancamentos                                    │
+│ Filtros: tipo = 'despesa', status_traduzido != 'Cancelado'       │
 │                                                                  │
 │ CATEGORIAS POR BAR:                                              │
 │ ┌───────────────────┬───────────────────┐                       │
@@ -592,7 +591,7 @@ GetIn (API) ──► getin_reservas ──► eventos_base (via sync_mesas_geti
                      │
 ContaHub ────────────┘
                      │
-NIBO ────────────────┘
+Conta Azul ──────────┘
                      │
                      ▼
               eventos_base
@@ -717,14 +716,12 @@ NIBO ────────────────┘
 | sync-eventos-diario | 10:30 | 07:30 | Eventos consolidados |
 | contahub-update-eventos-ambos | 11:00 | 08:00 | Update eventos_base |
 | google-reviews-daily-sync | 11:00 | 08:00 | Google Reviews |
-| nibo-sync-08h-ambos | 11:00 | 08:00 | NIBO 1ª rodada |
 | sync-contagem-ordinario | 11:30 | 08:30 | Contagem estoque |
 | sync-contagem-deboche | 11:35 | 08:35 | Contagem estoque |
 | desempenho-auto-diario | 12:00 | 09:00 | **DESEMPENHO SEMANAL** |
 | cmv-semanal-auto-diario | 12:00 | 09:00 | CMV Semanal |
 | getin-sync-continuo | */2h | */2h | GetIn reservas |
 | alertas-proativos-tarde | 15:00 | 12:00 | Alertas Discord |
-| nibo-sync-19h-ambos | 22:00 | 19:00 | NIBO 2ª rodada |
 | stockout-sync-diario | 22:00 | 19:00 | Stockout (ambos) |
 
 ---
@@ -737,7 +734,7 @@ BACKEND (Edge Functions):
 ├── contahub-sync-automatico/index.ts    ◄── Sync ContaHub (+ cancelamentos qry=57)
 ├── contahub-processor/index.ts          ◄── Processa dados ContaHub
 ├── getin-sync-continuous/index.ts       ◄── Sync GetIn (reservas)
-├── nibo-sync/index.ts                   ◄── Sync NIBO (custos)
+├── contaazul-sync/index.ts              ◄── Sync Conta Azul (custos)
 ├── google-reviews-apify-sync/index.ts   ◄── Sync Google Reviews
 └── google-sheets-sync/index.ts          ◄── Sync NPS/Falaê
 

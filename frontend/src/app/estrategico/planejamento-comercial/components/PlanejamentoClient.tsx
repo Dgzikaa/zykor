@@ -531,7 +531,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
 
                         {/* Grupo CLIENTES */}
                         <th
-                          colSpan={gruposAbertos.clientes ? 4 : 1}
+                          colSpan={gruposAbertos.clientes ? 3 : 1}
                           className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('clientes')}
                         >
@@ -558,7 +558,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         {/* Grupo ARTÍSTICO */}
                         <th
                           colSpan={gruposAbertos.artistico ? 3 : 1}
-                          className="px-3 py-2 text-center font-semibold text-[11px] border-r border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
+                          className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('artistico')}
                         >
                           <div className="flex items-center justify-center gap-1.5">
@@ -596,7 +596,6 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         {/* Subcolunas CLIENTES */}
                         {gruposAbertos.clientes ? (
                           <>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Clientes Planejado</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Clientes Reais</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Reservas Total</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>Reservas Presentes</th>
@@ -623,12 +622,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>
                               {selectedBar?.id === 4 ? '$ Couvert' : 'Custo Produção'}
                             </th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
                               {selectedBar?.id === 4 ? 'Couv/Art' : '% Art/Fat'}
                             </th>
                           </>
                         ) : (
-                          <th className="border-r border-[hsl(var(--border))]"></th>
+                          <th className="border-r-2 border-[hsl(var(--border))]"></th>
                         )}
 
                         {gruposAbertos.producao ? (
@@ -732,7 +731,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
 
                           // Calcular total de colunas visíveis para o separador de semana
                           const totalColunas = 5
-                            + (gruposAbertos.clientes ? 4 : 1)
+                            + (gruposAbertos.clientes ? 3 : 1)
                             + (gruposAbertos.ticket ? 3 : 1)
                             + (gruposAbertos.artistico ? 3 : 1)
                             + (gruposAbertos.producao ? 7 : 1)
@@ -820,14 +819,6 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             {/* Grupo CLIENTES */}
                             {gruposAbertos.clientes ? (
                               <>
-                                <td 
-                                  onClick={(e) => { 
-                                    e.stopPropagation(); 
-                                    setLinhaHighlight(idx); 
-                                    setColunaHighlight(prev => prev === 'clientes_plan' ? null : 'clientes_plan');
-                                  }}
-                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'clientes_plan' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
-                                  style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>{evento.clientes_plan || '-'}</td>
                                 <td 
                                   onClick={(e) => { 
                                     e.stopPropagation(); 
@@ -1001,7 +992,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'percent_art_fat' ? null : 'percent_art_fat');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_art_fat' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_art_fat' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
                                     {selectedBar?.id === 4 ? (
                                       <span className={`font-semibold ${
@@ -1023,7 +1014,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                   </td>
                               </>
                             ) : (
-                              <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
+                              <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
                             )}
 
                             {/* Grupo PRODUÇÃO */}

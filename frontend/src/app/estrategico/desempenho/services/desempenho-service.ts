@@ -138,24 +138,24 @@ export async function getSemanas(
   >();
 
   if (dataMin && dataMax) {
-    // Conta Assinada (de faturamento_pagamentos - tabela final)
-    const pagamentos = await fetchAllPaginated<{ data_pagamento: string; valor_bruto: number }>(
+    // Conta Assinada (de contahub_pagamentos_limpo - dados corretos do ContaHub)
+    const pagamentos = await fetchAllPaginated<{ dt_gerencial: string; liquido: number }>(
       supabase,
-      'faturamento_pagamentos',
-      'data_pagamento, valor_bruto',
+      'contahub_pagamentos_limpo',
+      'dt_gerencial, liquido',
       [
         { column: 'bar_id', operator: 'eq', value: barId },
         { column: 'meio', operator: 'eq', value: 'Conta Assinada' },
-        { column: 'data_pagamento', operator: 'gte', value: dataMin },
-        { column: 'data_pagamento', operator: 'lte', value: dataMax },
+        { column: 'dt_gerencial', operator: 'gte', value: dataMin },
+        { column: 'dt_gerencial', operator: 'lte', value: dataMax },
       ]
     );
 
     pagamentos.forEach(p => {
-      const semana = semanas.find(s => p.data_pagamento >= s.data_inicio && p.data_pagamento <= s.data_fim);
+      const semana = semanas.find(s => p.dt_gerencial >= s.data_inicio && p.dt_gerencial <= s.data_fim);
       if (semana) {
         const key = `${semana.ano}-${semana.numero_semana}`;
-        contaAssinadaMap.set(key, (contaAssinadaMap.get(key) || 0) + Number(p.valor_bruto || 0));
+        contaAssinadaMap.set(key, (contaAssinadaMap.get(key) || 0) + Number(p.liquido || 0));
       }
     });
 

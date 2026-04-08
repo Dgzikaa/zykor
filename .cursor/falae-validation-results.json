@@ -1,0 +1,78 @@
+{
+  "timestamp": "2026-04-07T16:53:15.299Z",
+  "summary": {
+    "total": 10,
+    "ok": 4,
+    "warnings": 6,
+    "errors": 0
+  },
+  "results": [
+    {
+      "check": "Credenciais Falaê Ativas",
+      "status": "OK",
+      "details": "2 ativas, 0 inativas",
+      "count": 2
+    },
+    {
+      "check": "Campo client_name",
+      "status": "WARNING",
+      "details": "158/181 nulos (87%)",
+      "count": 158,
+      "percentage": 87
+    },
+    {
+      "check": "Campo client_email",
+      "status": "WARNING",
+      "details": "158/181 nulos (87%)",
+      "count": 158,
+      "percentage": 87
+    },
+    {
+      "check": "Campo client_phone",
+      "status": "WARNING",
+      "details": "158/181 nulos (87%)",
+      "count": 158,
+      "percentage": 87
+    },
+    {
+      "check": "Campo data_visita",
+      "status": "WARNING",
+      "details": "100/181 nulos (55%)",
+      "count": 100,
+      "percentage": 55
+    },
+    {
+      "check": "Campo comentario",
+      "status": "WARNING",
+      "details": "101/181 nulos (56%)",
+      "count": 101,
+      "percentage": 56
+    },
+    {
+      "check": "Divergência created_at vs data_visita",
+      "status": "WARNING",
+      "details": "78/181 registros (43%)",
+      "count": 78,
+      "percentage": 43
+    },
+    {
+      "check": "Consistência Agregações",
+      "status": "OK",
+      "details": "Respostas: 170, Agregado: 170, Dif: 0 (0%)",
+      "count": 0,
+      "percentage": 0
+    },
+    {
+      "check": "Critérios Válidos",
+      "status": "OK",
+      "details": "181 respostas com critérios, 17 tipos únicos",
+      "count": 181
+    },
+    {
+      "check": "Distribuição NPS",
+      "status": "OK",
+      "details": "Score: 59, P: 121, N: 46, D: 14, Inválidos: 0",
+      "count": 181
+    }
+  ]
+}

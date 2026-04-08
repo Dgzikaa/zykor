@@ -6,11 +6,19 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { bar_id, sync_mode = 'daily_incremental' } = body;
+    const { bar_id, sync_mode = 'daily_incremental', date_from, date_to } = body;
 
     if (!bar_id) {
       return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
+
+    const payload: any = {
+      bar_id,
+      sync_mode
+    };
+
+    if (date_from) payload.date_from = date_from;
+    if (date_to) payload.date_to = date_to;
 
     const response = await fetch(
       `${SUPABASE_URL}/functions/v1/contaazul-sync`,
@@ -20,10 +28,7 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
         },
-        body: JSON.stringify({
-          bar_id,
-          sync_mode
-        })
+        body: JSON.stringify(payload)
       }
     );
 

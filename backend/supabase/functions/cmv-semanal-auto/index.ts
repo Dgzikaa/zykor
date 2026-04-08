@@ -42,12 +42,12 @@ serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders }
+    return new Response('ok', { headers: corsHeaders });
+  }
 
   // Validar autenticação (JWT ou CRON_SECRET)
   const authError = requireAuth(req);
-  if (authError) return authError;);
-  }
+  if (authError) return authError;
 
   // 💓 Heartbeat: variáveis no escopo externo para acesso no catch
   let heartbeatId: number | null = null;
@@ -300,12 +300,12 @@ serve(async (req) => {
         // - Ordinário: ALIMENTAÇÃO
         // - Deboche: Alimentação
         const { data: compras } = await supabase
-          .from('lancamentos_financeiros')
-          .select('valor, categoria, tipo')
+          .from('contaazul_lancamentos')
+          .select('valor_bruto, categoria_nome, tipo')
           .eq('bar_id', barId)
           .gte('data_competencia', dataInicio)
           .lte('data_competencia', dataFim)
-          .or('categoria.ilike.%custo comida%,categoria.ilike.%custo bebida%,categoria.ilike.%custo drink%,categoria.ilike.alimenta%');
+          .or('categoria_nome.ilike.%custo comida%,categoria_nome.ilike.%custo bebida%,categoria_nome.ilike.%custo drink%,categoria_nome.ilike.alimenta%');
 
         const comprasPorCategoria = {
           cozinha: 0,    // CUSTO COMIDA / CUSTO COMIDAS
@@ -316,9 +316,9 @@ serve(async (req) => {
 
         // Calcular: despesas são positivas, receitas (devoluções/créditos) são negativas
         compras?.forEach(c => {
-          const valorBruto = parseFloat(String(c.valor)) || 0;
+          const valorBruto = parseFloat(String(c.valor_bruto)) || 0;
           const tipo = (c.tipo || '').toLowerCase();
-          const cat = (c.categoria || '').toLowerCase();
+          const cat = (c.categoria_nome || '').toLowerCase();
           
           // Se for receita (crédito/devolução), subtrai; se for despesa, soma
           const valor = tipo === 'receita' ? -valorBruto : valorBruto;

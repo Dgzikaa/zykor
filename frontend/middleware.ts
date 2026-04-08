@@ -20,6 +20,7 @@ async function getAuthenticatedUser(request: NextRequest): Promise<User | null> 
     if (authToken) {
       const decoded = validateToken(authToken);
       if (decoded) {
+        console.log(`✅ MIDDLEWARE: Token JWT válido para ${decoded.email}`);
         return {
           id: decoded.user_id,
           email: decoded.email,
@@ -28,31 +29,39 @@ async function getAuthenticatedUser(request: NextRequest): Promise<User | null> 
           modulos_permitidos: decoded.modulos_permitidos,
           ativo: true, // Se token é válido, usuário está ativo
         };
+      } else {
+        console.log('⚠️ MIDDLEWARE: Token JWT inválido ou expirado');
       }
     }
 
     // 2. Fallback para cookie sgb_user (compatibilidade temporária)
     const sgbUserCookie = request.cookies.get('sgb_user')?.value;
     if (sgbUserCookie) {
-      const userData = JSON.parse(decodeURIComponent(sgbUserCookie));
-      // Normalizar modulos_permitidos como array
-      let modulosPermitidos: string[] = [];
-      if (Array.isArray(userData.modulos_permitidos)) {
-        modulosPermitidos = userData.modulos_permitidos;
-      } else if (typeof userData.modulos_permitidos === 'object') {
-        modulosPermitidos = Object.keys(userData.modulos_permitidos).filter(
-          k => userData.modulos_permitidos[k]
-        );
+      try {
+        const userData = JSON.parse(decodeURIComponent(sgbUserCookie));
+        // Normalizar modulos_permitidos como array
+        let modulosPermitidos: string[] = [];
+        if (Array.isArray(userData.modulos_permitidos)) {
+          modulosPermitidos = userData.modulos_permitidos;
+        } else if (typeof userData.modulos_permitidos === 'object') {
+          modulosPermitidos = Object.keys(userData.modulos_permitidos).filter(
+            k => userData.modulos_permitidos[k]
+          );
+        }
+        console.log(`✅ MIDDLEWARE: Cookie sgb_user válido para ${userData.email}`);
+        return {
+          ...userData,
+          modulos_permitidos: modulosPermitidos,
+        };
+      } catch (parseError) {
+        console.error('⚠️ MIDDLEWARE: Erro ao parsear sgb_user cookie:', parseError);
       }
-      return {
-        ...userData,
-        modulos_permitidos: modulosPermitidos,
-      };
     }
 
+    console.log('🚫 MIDDLEWARE: Nenhuma autenticação válida encontrada');
     return null;
   } catch (error) {
-    console.error('Erro ao validar autenticação:', error);
+    console.error('❌ MIDDLEWARE: Erro ao validar autenticação:', error);
     return null;
   }
 }

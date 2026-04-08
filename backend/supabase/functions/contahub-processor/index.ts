@@ -12,8 +12,8 @@ const BATCH_SIZE = 500;
 
 // ============================================
 // FUNÇÃO PARA CALCULAR DATA REAL
-// Regra: Se hr_lancamento é de um dia diferente do dt_gerencial E hora >= 15h
-// então usar a data do hr_lancamento (corrige turno aberto errado)
+// Regra: Para PAGAMENTOS, sempre usar a data real do hr_lancamento
+// Para outros tipos (período, analítico), manter dt_gerencial
 // ============================================
 function calcularDataReal(dtGerencial: string, hrLancamento: string | null | undefined): string {
   if (!hrLancamento || !dtGerencial) return dtGerencial;
@@ -30,6 +30,34 @@ function calcularDataReal(dtGerencial: string, hrLancamento: string | null | und
     // significa que o turno foi aberto errado, usar data do lançamento
     if (dataLancamento > dtGerencial && horaLancamento >= 15) {
       console.log(`📅 Corrigindo data: ${dtGerencial} → ${dataLancamento} (lançamento às ${horaLancamento}h)`);
+      return dataLancamento;
+    }
+    
+    return dtGerencial;
+  } catch (e) {
+    return dtGerencial;
+  }
+}
+
+// ============================================
+// FUNÇÃO PARA CALCULAR DATA REAL DE PAGAMENTO
+// Para pagamentos, SEMPRE usar a data do hr_lancamento se disponível
+// Isso garante que pagamentos feitos na madrugada apareçam no dia correto
+// ============================================
+function calcularDataRealPagamento(dtGerencial: string, hrLancamento: string | null | undefined): string {
+  if (!hrLancamento || !dtGerencial) return dtGerencial;
+  
+  try {
+    // Parsear hr_lancamento (formato: "2026-01-28 17:34:15" ou "2026-01-28T17:34:15")
+    const lancamentoDate = new Date(hrLancamento.replace(' ', 'T'));
+    if (isNaN(lancamentoDate.getTime())) return dtGerencial;
+    
+    const dataLancamento = lancamentoDate.toISOString().split('T')[0];
+    
+    // Se a data do lançamento é diferente da gerencial, usar data do lançamento
+    // Isso corrige pagamentos feitos na madrugada (ex: turno aberto 31/03, pago 01/04 00:52h)
+    if (dataLancamento !== dtGerencial) {
+      console.log(`💳 Corrigindo data pagamento: ${dtGerencial} → ${dataLancamento} (hr_lancamento)`);
       return dataLancamento;
     }
     
@@ -164,7 +192,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
             supabase, 
             'contahub_analitico', 
             analiticoRecords,
-            'bar_id,trn_dtgerencial,trn,itm'
+            'bar_id,trn,itm,trn_dtgerencial,vd_mesadesc,tipo,prd_desc'
           );
           
           if (analiticoBatchResult.errors > 0) {
@@ -273,12 +301,12 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         console.log(`🔄 Processando registros pagamentos com UPSERT para ${dataDate}...`);
         
         const pagamentosRecords = records.map((item: any) => {
-          // Calcular data real baseada no hr_lancamento
+          // Para pagamentos, usar SEMPRE o dt_gerencial que vem do ContaHub
+          // NÃO corrigir baseado em hr_lancamento (ContaHub já define a data correta)
           const dtGerencialOriginal = item.dt_gerencial || dataDate;
-          const dtGerencialReal = calcularDataReal(dtGerencialOriginal, item.hr_lancamento);
           
           return {
-          dt_gerencial: dtGerencialReal,
+          dt_gerencial: dtGerencialOriginal,
           vd: String(item.vd || ''),
           trn: String(item.trn || ''),
           hr_lancamento: item.hr_lancamento || '',
@@ -315,7 +343,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
             supabase,
             'contahub_pagamentos',
             pagamentosRecords,
-            'bar_id,dt_gerencial,trn,vd,pag'
+            'bar_id,vd,trn,pag'
           );
           
           if (pagamentosBatchResult.errors > 0) {
@@ -333,9 +361,76 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         console.log(`🔄 Processando registros tempo com UPSERT para ${dataDate}...`);
         
         const tempoRecords = records.map((item: any) => {
-          // Calcular data real baseada no t0_lancamento
+          // Extrair timestamps (com fallback para formato antigo)
           const t0Lancamento = item['t0-lancamento'] || item.t0_lancamento;
-          const dataReal = calcularDataReal(dataDate, t0Lancamento);
+          const t1Prodini = item['t1-prodini'] || item.t1_prodini;
+          const t2Prodfim = item['t2-prodfim'] || item.t2_prodfim;
+          const t3Entrega = item['t3-entrega'] || item.t3_entrega;
+          
+          // Calcular data real baseada no t0_lancamento (ou t1_prodini se t0 for null)
+          const dataReal = calcularDataReal(dataDate, t0Lancamento || t1Prodini);
+          
+          // Função para calcular diferença em minutos entre dois timestamps
+          const calcularDiferencaMinutos = (inicio: string | null, fim: string | null): number => {
+            if (!inicio || !fim) return 0;
+            try {
+              const dataInicio = new Date(inicio.replace(' ', 'T'));
+              const dataFim = new Date(fim.replace(' ', 'T'));
+              if (isNaN(dataInicio.getTime()) || isNaN(dataFim.getTime())) return 0;
+              return Math.round((dataFim.getTime() - dataInicio.getTime()) / 60000); // ms para minutos
+            } catch {
+              return 0;
+            }
+          };
+          
+          // Tentar usar valores do ContaHub primeiro (vêm em SEGUNDOS, converter para minutos)
+          let t0_t1 = (parseFloat(item['t0-t1'] || item.t0_t1) || 0) / 60;
+          let t0_t2 = (parseFloat(item['t0-t2'] || item.t0_t2) || 0) / 60;
+          let t0_t3 = (parseFloat(item['t0-t3'] || item.t0_t3) || 0) / 60;
+          let t1_t2 = (parseFloat(item['t1-t2'] || item.t1_t2) || 0) / 60;
+          let t1_t3 = (parseFloat(item['t1-t3'] || item.t1_t3) || 0) / 60;
+          let t2_t3 = (parseFloat(item['t2-t3'] || item.t2_t3) || 0) / 60;
+          
+          // Se t0_t3 vier com valor absurdo (> 1440 min = 24h), recalcular
+          if (t0_t3 > 1440 || t0_t3 === 0) {
+            // Se t0_lancamento existe, usar ele como base
+            if (t0Lancamento && t3Entrega) {
+              t0_t3 = calcularDiferencaMinutos(t0Lancamento, t3Entrega);
+              if (t1Prodini) t0_t1 = calcularDiferencaMinutos(t0Lancamento, t1Prodini);
+              if (t2Prodfim) t0_t2 = calcularDiferencaMinutos(t0Lancamento, t2Prodfim);
+            }
+            // Senão, usar t1_prodini como base (para dados de março em diante)
+            else if (t1Prodini) {
+              if (t2Prodfim) {
+                t1_t2 = calcularDiferencaMinutos(t1Prodini, t2Prodfim);
+                t0_t2 = t1_t2; // Aproximação
+              }
+              if (t3Entrega) {
+                t1_t3 = calcularDiferencaMinutos(t1Prodini, t3Entrega);
+                t0_t3 = t1_t3; // Aproximação
+              }
+            }
+          }
+          
+          // Calcular t2_t3 se não existir
+          if (!t2_t3 && t2Prodfim && t3Entrega) {
+            t2_t3 = calcularDiferencaMinutos(t2Prodfim, t3Entrega);
+          }
+          
+          // Determinar categoria
+          const grpLower = (item.grp_desc || '').toLowerCase();
+          const categoria = item.categoria || 
+            (grpLower.includes('cerveja') || grpLower.includes('bebida') ? 'bebida' : 
+             grpLower.includes('drink') ? 'drink' : 'comida');
+          
+          // Aplicar regra de tempo por categoria:
+          // - Drinks/Bebidas: usar t0_t3 (tempo até entrega)
+          // - Comida: usar t0_t2 (tempo até produção finalizada)
+          const tempo_final = (categoria === 'comida') ? t0_t2 : t0_t3;
+          
+          // Gerar idempotency_key único
+          const timestamp = t0Lancamento || t1Prodini || '';
+          const idempotencyKey = `${barId}_${dataReal}_${item.itm || 0}_${item.vd_mesadesc || ''}_${timestamp}`.replace(/[^a-zA-Z0-9_-]/g, '_');
           
           return {
           data: dataReal,
@@ -345,17 +440,17 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           loc_desc: item.loc_desc || '',
           vd_mesadesc: item.vd_mesadesc || '',
           vd_localizacao: item.vd_localizacao || '',
-          itm: String(item.itm || ''),
-          t0_lancamento: item['t0-lancamento'] || item.t0_lancamento || null,
-          t1_prodini: item['t1-prodini'] || item.t1_prodini || null,
-          t2_prodfim: item['t2-prodfim'] || item.t2_prodfim || null,
-          t3_entrega: item['t3-entrega'] || item.t3_entrega || null,
-          t0_t1: parseFloat(item['t0-t1'] || item.t0_t1) || 0,
-          t0_t2: parseFloat(item['t0-t2'] || item.t0_t2) || 0,
-          t0_t3: parseFloat(item['t0-t3'] || item.t0_t3) || 0,
-          t1_t2: parseFloat(item['t1-t2'] || item.t1_t2) || 0,
-          t1_t3: parseFloat(item['t1-t3'] || item.t1_t3) || 0,
-          t2_t3: parseFloat(item['t2-t3'] || item.t2_t3) || 0,
+          itm: String(item.itm || 0),
+          t0_lancamento: t0Lancamento || null,
+          t1_prodini: t1Prodini || null,
+          t2_prodfim: t2Prodfim || null,
+          t3_entrega: t3Entrega || null,
+          t0_t1,
+          t0_t2,
+          t0_t3,
+          t1_t2,
+          t1_t3,
+          t2_t3,
           prd_idexterno: item.prd_idexterno || '',
           usr_abriu: item.usr_abriu || '',
           usr_lancou: item.usr_lancou || '',
@@ -371,6 +466,9 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           hora: item.hora ? String(item.hora) : '',
           itm_qtd: parseInt(item.itm_qtd) || 0,
           bar_id: barId,
+          categoria,
+          tempo_final,
+          idempotency_key: idempotencyKey,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }});
@@ -378,12 +476,11 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         if (tempoRecords.length > 0) {
           console.log(`📊 Processando ${tempoRecords.length} registros de tempo em batches...`);
           
-          // ✅ Usar UPSERT em batches (seguro, sem DELETE)
-          const batchResult = await upsertInBatches(
+          // ✅ Usar INSERT em batches (sem índice único)
+          const batchResult = await insertInBatches(
             supabase,
             'contahub_tempo',
-            tempoRecords,
-            'bar_id,data,itm'
+            tempoRecords
           );
           
           if (batchResult.errors > 0) {
@@ -391,7 +488,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
             return { success: true, count: batchResult.count, errors: batchResult.errors };
           } else {
             processedCount = batchResult.count;
-            console.log(`✅ Tempo: ${processedCount} registros upserted com sucesso`);
+            console.log(`✅ Tempo: ${processedCount} registros inseridos com sucesso`);
           }
         }
         break;

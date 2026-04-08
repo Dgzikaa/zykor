@@ -86,8 +86,10 @@ async function fetchContaHubStockout(
 
 async function saveStockoutData(barId: number, date: string, hour: string, data: any[]): Promise<number> {
   // Filtrar produtos que não devem entrar no stockout
-  const termosExcluidos = ['happy hour', 'happyhour', 'happy-hour', 'balde', 'baldes'];
-  const locaisExcluidos = ['baldes', 'pegue e pague', 'venda volante'];
+  // NOTA: 'baldes' como LOCAL contém cervejas individuais (deve entrar)
+  // NOTA: 'Baldes' como GRUPO contém baldinhos promocionais (deve ser excluído)
+  const termosExcluidos = ['happy hour', 'happyhour', 'happy-hour'];
+  const locaisExcluidos = ['pegue e pague', 'venda volante']; // REMOVIDO 'baldes' - é local válido de cervejas
   const gruposExcluidos = ['baldes', 'happy hour', 'dose dupla', 'insumos', 'pegue e pague', 'uso interno'];
   
   const filteredData = data.filter(item => {
@@ -95,7 +97,7 @@ async function saveStockoutData(barId: number, date: string, hour: string, data:
     const locDesc = (item.loc_desc || '').toLowerCase();
     const grpDesc = (item.grp_desc || '').toLowerCase();
     
-    // Excluir por nome do produto
+    // Excluir por nome do produto (mas não 'balde' genérico, apenas termos específicos)
     const excluirPorNome = termosExcluidos.some(termo => prdDesc.includes(termo));
     
     // Excluir por local de produção

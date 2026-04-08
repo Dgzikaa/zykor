@@ -40,7 +40,7 @@ async function getCustoAtracao(
   categoriasAtracao: string[]
 ): Promise<{ valor: number; count: number }> {
   const { data, error } = await supabase
-    .from('lancamentos_financeiros')
+    .from('contaazul_lancamentos')
     .select('valor_bruto')
     .eq('bar_id', barId)
     .eq('tipo', 'DESPESA')

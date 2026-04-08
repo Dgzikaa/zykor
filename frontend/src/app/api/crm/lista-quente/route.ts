@@ -220,16 +220,11 @@ export async function GET(request: NextRequest) {
     const apenasResumo = searchParams.get('apenas_resumo') === 'true';
     
     // Extrair todos os critérios
-    const minVisitasTotalParam = searchParams.get('min_visitas_total');
-    const minVisitasTotalValue = minVisitasTotalParam ? parseInt(minVisitasTotalParam) : 2;
-    
-    console.log('[LISTA-QUENTE] min_visitas_total param:', minVisitasTotalParam, '→ value:', minVisitasTotalValue);
-    
     const criterios: CriteriosSegmentacao = {
       diasJanela: parseInt(searchParams.get('dias_janela') || '90'),
       semanaAno: searchParams.get('semana_ano') ? parseInt(searchParams.get('semana_ano')!) : undefined,
       semanaNumero: searchParams.get('semana_numero') ? parseInt(searchParams.get('semana_numero')!) : undefined,
-      minVisitasTotal: minVisitasTotalValue,
+      minVisitasTotal: parseInt(searchParams.get('min_visitas_total') || '2'),
       maxVisitasTotal: searchParams.get('max_visitas_total') ? parseInt(searchParams.get('max_visitas_total')!) : undefined,
       minVisitasDia: parseInt(searchParams.get('min_visitas_dia') || '1'),
       diaSemana: searchParams.get('dia_semana') || undefined,
@@ -642,30 +637,13 @@ export async function GET(request: NextRequest) {
       });
       
       Object.keys(diasSemanaLabels).forEach(dia => {
-        // Clientes que foram especificamente na última ocorrência do dia (SEM FILTROS - para NPS)
-        const ultimaData = ultimaDataPorDia[dia];
-        const clientesUltimaOcorrencia = ultimaData 
-          ? todosClientesSemFiltros.filter(c => 
-              c.visitas.some(v => 
-                v.data.toISOString().split('T')[0] === ultimaData.toISOString().split('T')[0]
-              )
-            )
-          : [];
-        
-        // Filtrar apenas clientes com telefone válido (para NPS)
-        const clientesUltimaOcorrenciaComFone = clientesUltimaOcorrencia.filter(c => 
-          c.telefone && c.telefone.length >= 8
-        );
-        
         // Clientes que foram no dia E passam pelos filtros de segmentação
         const clientesDoDia = clientesFiltrados.filter(c => c.diasSemana[dia] >= criterios.minVisitasDia);
         clientesDoDia.sort((a, b) => b.diasSemana[dia] - a.diasSemana[dia]);
         
         resumoPorDia[dia] = {
           label: diasSemanaLabels[dia],
-          totalClientes: clientesUltimaOcorrenciaComFone.length, // CORRIGIDO: Total da última ocorrência com fone (para NPS)
-          totalClientesFiltrados: clientesDoDia.length, // Clientes que passam pelos filtros de segmentação
-          ultimaOcorrencia: ultimaData ? ultimaData.toISOString().split('T')[0] : null,
+          totalClientes: clientesDoDia.length, // CORRIGIDO: Clientes que passam pelos filtros
           ticketMedioSegmento: clientesDoDia.length > 0 
             ? Math.round(clientesDoDia.reduce((sum, c) => sum + c.ticketMedio, 0) / clientesDoDia.length) 
             : 0,

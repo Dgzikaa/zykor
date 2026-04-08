@@ -56,41 +56,46 @@ export default function LoginPage() {
     };
 
     checkMobileDevice();
+
+    // Configurar sincronização de sessão entre abas
+    const setupSync = async () => {
+      const { setupSessionSync } = await import('@/lib/auth/session-manager');
+      setupSessionSync();
+    };
+    setupSync();
   }, []);
 
   // Verificar se usuário já está logado
   useEffect(() => {
-    const checkAuthStatus = () => {
+    const checkAuthStatus = async () => {
       // Verificar se estamos no cliente antes de acessar localStorage
       if (typeof window === 'undefined') return;
 
       try {
-        // TODO(rodrigo/2026-05): sgb_user é apenas cache, fonte de verdade é JWT
-        const userData = localStorage.getItem('sgb_user');
-        if (userData) {
-          // Validar se os dados são válidos (não apenas se existem)
-          const user = JSON.parse(userData);
-          if (user && user.email && user.nome) {
-            console.log('✅ Usuário já logado (cache), redirecionando...', user.nome);
-            const destination = returnUrl
-              ? decodeURIComponent(returnUrl)
-              : '/home';
-            setSuccess(
-              `Usuário já logado! Redirecionando para ${destination}...`
-            );
-            setTimeout(() => {
-              router.push(destination);
-            }, 1000);
-          } else {
-            // Dados inválidos, limpar localStorage
-            console.log('⚠️ Dados de usuário inválidos, limpando...');
-            localStorage.removeItem('sgb_user');
+        const { validateAndSyncSession } = await import('@/lib/auth/session-manager');
+        const isValid = await validateAndSyncSession();
+
+        if (isValid) {
+          // Sessão válida, buscar dados do usuário
+          const userData = localStorage.getItem('sgb_user');
+          if (userData) {
+            const user = JSON.parse(userData);
+            if (user && user.email && user.nome) {
+              console.log('✅ Sessão válida encontrada, redirecionando...', user.nome);
+              const destination = returnUrl
+                ? decodeURIComponent(returnUrl)
+                : '/home';
+              setSuccess(
+                `Usuário já logado! Redirecionando para ${destination}...`
+              );
+              setTimeout(() => {
+                router.push(destination);
+              }, 1000);
+            }
           }
         }
       } catch (error) {
-        console.log('🔍 Verificação de auth falhou, limpando dados:', error);
-        // Se houver erro ao parsear, limpar dados corrompidos
-        localStorage.removeItem('sgb_user');
+        console.log('🔍 Verificação de auth falhou:', error);
       }
     };
 
@@ -173,6 +178,23 @@ export default function LoginPage() {
         // TODO(rodrigo/2026-05): sgb_user mantido apenas como cache
         const { syncAuthData } = await import('@/lib/cookies');
         syncAuthData(userData as any);
+
+        // IMPORTANTE: Autenticar no Supabase Auth Client para manter sessão
+        try {
+          const { supabase } = await import('@/lib/supabase');
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password,
+          });
+          
+          if (signInError) {
+            console.error('⚠️ Erro ao registrar sessão no Supabase Auth:', signInError);
+          } else {
+            console.log('✅ Sessão registrada no Supabase Auth Client');
+          }
+        } catch (authError) {
+          console.error('⚠️ Falha ao autenticar no Supabase Auth:', authError);
+        }
 
         const destination = returnUrl ? decodeURIComponent(returnUrl) : '/home';
         setSuccess(
