@@ -65,37 +65,35 @@ export default function LoginPage() {
     setupSync();
   }, []);
 
-  // Verificar se usuário já está logado
+  // Verificar se usuário já está logado (apenas cache local, não validar sessão)
   useEffect(() => {
-    const checkAuthStatus = async () => {
+    const checkAuthStatus = () => {
       // Verificar se estamos no cliente antes de acessar localStorage
       if (typeof window === 'undefined') return;
 
       try {
-        const { validateAndSyncSession } = await import('@/lib/auth/session-manager');
-        const isValid = await validateAndSyncSession();
-
-        if (isValid) {
-          // Sessão válida, buscar dados do usuário
-          const userData = localStorage.getItem('sgb_user');
-          if (userData) {
-            const user = JSON.parse(userData);
-            if (user && user.email && user.nome) {
-              console.log('✅ Sessão válida encontrada, redirecionando...', user.nome);
-              const destination = returnUrl
-                ? decodeURIComponent(returnUrl)
-                : '/home';
-              setSuccess(
-                `Usuário já logado! Redirecionando para ${destination}...`
-              );
-              setTimeout(() => {
-                router.push(destination);
-              }, 1000);
-            }
+        // Apenas verificar se há dados em cache, não validar sessão
+        // (SessionManager já faz a validação)
+        const userData = localStorage.getItem('sgb_user');
+        const sessionToken = localStorage.getItem('sgb_session');
+        
+        if (userData && sessionToken) {
+          const user = JSON.parse(userData);
+          if (user && user.email && user.nome) {
+            console.log('✅ Sessão em cache encontrada, redirecionando...', user.nome);
+            const destination = returnUrl
+              ? decodeURIComponent(returnUrl)
+              : '/home';
+            setSuccess(
+              `Usuário já logado! Redirecionando para ${destination}...`
+            );
+            setTimeout(() => {
+              router.push(destination);
+            }, 1000);
           }
         }
       } catch (error) {
-        console.log('🔍 Verificação de auth falhou:', error);
+        console.log('🔍 Verificação de cache falhou:', error);
       }
     };
 

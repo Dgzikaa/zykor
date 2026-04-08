@@ -125,19 +125,24 @@ export function setupSessionSync() {
   if (typeof window === 'undefined') return;
 
   // Listener para mudanças no localStorage (sincronização entre abas)
-  window.addEventListener('storage', (event) => {
+  const storageListener = (event: StorageEvent) => {
     if (event.key === 'sgb_user') {
-      if (!event.newValue) {
-        // Usuário deslogou em outra aba
+      if (!event.newValue && window.location.pathname !== '/login') {
+        // Usuário deslogou em outra aba (não redirecionar se já estamos no login)
         console.log('🔄 Logout detectado em outra aba');
         clearSession();
         window.location.href = '/login';
       }
     }
-  });
+  };
+  
+  window.addEventListener('storage', storageListener);
 
   // Verificar sessão periodicamente (a cada 5 minutos)
-  setInterval(async () => {
+  const intervalId = setInterval(async () => {
+    // Não verificar se estamos na página de login
+    if (window.location.pathname === '/login') return;
+    
     const isValid = await hasValidSession();
     if (!isValid) {
       console.log('⚠️ Sessão expirada, redirecionando para login...');
@@ -145,4 +150,10 @@ export function setupSessionSync() {
       window.location.href = '/login';
     }
   }, 5 * 60 * 1000); // 5 minutos
+
+  // Retornar função de cleanup
+  return () => {
+    window.removeEventListener('storage', storageListener);
+    clearInterval(intervalId);
+  };
 }
