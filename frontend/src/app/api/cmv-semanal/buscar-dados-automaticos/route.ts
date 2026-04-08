@@ -15,7 +15,7 @@ const supabase = createClient(
  * 
  * Busca:
  * 1. Consumo dos sócios (x-corbal, etc)
- * 2. Compras do NIBO por categoria
+ * 2. Compras do Conta Azul por categoria
  * 3. Faturamento CMVível do ContaHub (vr_repique)
  * 4. Estoques por tipo_local (cozinha, salão, drinks)
  */
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       mesa_beneficios_cliente: 0,   // Clientes (inclui chegadeira)
       mesa_banda_dj: 0,             // Artistas
 
-      // Compras do NIBO
+      // Compras do Conta Azul
       compras_custo_comida: 0,
       compras_custo_bebidas: 0,
       compras_custo_outros: 0,
@@ -225,7 +225,7 @@ export async function POST(request: NextRequest) {
         resultado.compras_custo_outros = 0;
       }
     } catch (err) {
-      console.error('Erro ao buscar compras do NIBO:', err);
+      console.error('Erro ao buscar compras do Conta Azul:', err);
     }
 
     // 5. BUSCAR ESTOQUES FINAL

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 📊 CALC-DISTRIBUICAO - Calculator de Distribuição de Faturamento
  * 
  * Calcula distribuição de faturamento por horário e dia da semana.
@@ -42,7 +42,8 @@ export async function calcDistribuicao(
       const valor = parseFloat(row.valor) || 0;
       fatTotalHora += valor;
       if (hora < 19) fatAte19h += valor;
-      if (hora >= 22) fatApos22h += valor;
+      // Após 22h inclui: 22h-23h + madrugada (0h-5h)
+      if (hora >= 22 || hora <= 5) fatApos22h += valor;
     }
 
     const percFatAte19h = fatTotalHora > 0 ? (fatAte19h / fatTotalHora) * 100 : null;

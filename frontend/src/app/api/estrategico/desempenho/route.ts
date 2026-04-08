@@ -232,15 +232,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Buscar dados do Nibo para CMO
+    // Buscar dados do Conta Azul para CMO
     const categoriasCMO = [
       'SALARIO FUNCIONARIOS', 'VALE TRANSPORTE', 'ALIMENTAÇÃO', 'ADICIONAIS',
       'FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA', 'FREELA LIMPEZA',
       'FREELA SEGURANÇA', 'PRO LABORE', 'PROVISÃO TRABALHISTA'
     ];
 
-    // Buscar dados do Nibo para CMO - com paginação
-    let niboData: { data_competencia: any; valor: any; categoria_nome?: any; }[] = [];
+    // Buscar dados do Conta Azul para CMO - com paginação
+    let cmoData: { data_competencia: any; valor: any; categoria_nome?: any; }[] = [];
     page = 0;
     hasMore = true;
 
@@ -256,7 +256,7 @@ export async function GET(request: NextRequest) {
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (pageData && pageData.length > 0) {
-        niboData = [...niboData, ...pageData];
+        cmoData = [...cmoData, ...pageData];
         hasMore = pageData.length === pageSize;
         page++;
       } else {
@@ -265,12 +265,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Mapear CMO por mês/ano (competência mensal)
-    const niboMap = new Map();
-    niboData?.forEach(item => {
+    const cmoMap = new Map();
+    cmoData?.forEach(item => {
       const competencia = new Date(item.data_competencia);
       const chaveCompetencia = `${competencia.getFullYear()}-${(competencia.getMonth() + 1).toString().padStart(2, '0')}`;
       const valor = item.valor || 0;
-      niboMap.set(chaveCompetencia, (niboMap.get(chaveCompetencia) || 0) + valor);
+      cmoMap.set(chaveCompetencia, (cmoMap.get(chaveCompetencia) || 0) + valor);
     });
 
     // Debug específico removido para reduzir logs desnecessários
@@ -563,7 +563,7 @@ export async function GET(request: NextRequest) {
       const anoFim = fimSemana.getFullYear();
       
       // Buscar agendamentos do(s) mês(es) da semana
-      const agendamentosDaSemana = niboData?.filter(item => {
+      const agendamentosDaSemana = cmoData?.filter(item => {
         const dataCompetencia = new Date(item.data_competencia);
         const mesCompetencia = dataCompetencia.getMonth() + 1;
         const anoCompetencia = dataCompetencia.getFullYear();

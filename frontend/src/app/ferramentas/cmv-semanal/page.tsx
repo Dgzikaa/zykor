@@ -243,7 +243,7 @@ export default function CMVSemanalPage() {
     });
   }, [fatorCmv]);
 
-  // Sincronizar tudo: NIBO + Planilha CMV (FUNÇÃO UNIFICADA)
+  // Sincronizar tudo: Conta Azul + CMV (FUNÇÃO UNIFICADA)
   const sincronizarTudo = async () => {
     if (!selectedBar) {
       toast({
@@ -259,24 +259,7 @@ export default function CMVSemanalPage() {
     try {
       console.log('🔄 Iniciando sincronização completa...');
 
-      // 1. Sincronizar NIBO (compras) - busca dados do NIBO para o banco
-      console.log('📦 Sincronizando NIBO...');
-      const niboResponse = await fetch('/api/nibo/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          bar_id: selectedBar.id,
-          sync_mode: 'daily_complete'
-        })
-      });
-
-      if (!niboResponse.ok) {
-        console.warn('⚠️ Erro ao sincronizar NIBO, continuando...');
-      } else {
-        console.log('✅ NIBO sincronizado');
-      }
-
-      // 2. Processar CMV de TODAS as semanas (Planilha + NIBO + ContaHub → Banco)
+      // Processar CMV de TODAS as semanas (Conta Azul + ContaHub → Banco)
       console.log('📊 Processando CMV de todas as semanas...');
       const cmvResponse = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/cmv-semanal-auto`,
@@ -288,7 +271,7 @@ export default function CMVSemanalPage() {
           },
           body: JSON.stringify({ 
             bar_id: selectedBar.id,
-            todas_semanas: true // Processa TODAS as semanas da planilha
+            todas_semanas: true
           })
         }
       );
@@ -304,10 +287,9 @@ export default function CMVSemanalPage() {
 
       toast({
         title: "✅ Dados Atualizados",
-        description: resultado.message || "Planilha + NIBO sincronizados com sucesso"
+        description: resultado.message || "Conta Azul + ContaHub sincronizados com sucesso"
       });
 
-      // Recarregar CMVs após sincronização
       carregarCMVs();
 
     } catch (error) {
@@ -889,7 +871,7 @@ export default function CMVSemanalPage() {
                   </h4>
                   <p className="text-sm text-muted-foreground">
                     Não há registros de CMV com dados preenchidos para o ano selecionado. 
-                    Use o botão <strong>&quot;Atualizar Dados&quot;</strong> para sincronizar dados da planilha e NIBO, 
+                    Use o botão <strong>&quot;Atualizar Dados&quot;</strong> para sincronizar dados do Conta Azul e ContaHub, 
                     ou <strong>&quot;Processar Semana Atual&quot;</strong> para calcular o CMV da semana corrente.
                   </p>
                 </div>
@@ -1062,10 +1044,10 @@ export default function CMVSemanalPage() {
                   </h4>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Buscar dados de consumo dos sócios, compras do NIBO, faturamento do ContaHub e estoques automaticamente.
+                  Buscar dados de consumo dos sócios, compras do Conta Azul, faturamento do ContaHub e estoques automaticamente.
                 </p>
                 <div className="mt-3 flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground">Compras NIBO por:</Label>
+                  <Label className="text-xs text-muted-foreground">Compras Conta Azul por:</Label>
                   <Select value={criterioDataCompras} onValueChange={(v: 'competencia' | 'criacao') => setCriterioDataCompras(v)}>
                     <SelectTrigger className="w-[200px] h-8 text-xs">
                       <SelectValue />
@@ -1178,10 +1160,10 @@ export default function CMVSemanalPage() {
             </div>
           </ModalSection>
 
-          {/* Seção 3: Compras do NIBO */}
+          {/* Seção 3: Compras do Período */}
           <ModalSection 
-            title="🛒 Compras do Período (NIBO)" 
-            description="Compras por categoria vindas do NIBO"
+            title="🛒 Compras do Período (Conta Azul)" 
+            description="Compras por categoria vindas do Conta Azul"
           >
             <ModalFormGrid columns={4}>
               <ModalField label="Custo Comida">

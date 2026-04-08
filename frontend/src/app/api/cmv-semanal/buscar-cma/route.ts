@@ -13,7 +13,7 @@ const supabase = createClient(
  * 
  * Busca:
  * 1. Estoque Inicial de insumos de funcionários (HORTIFRUTI (F), MERCADO (F), PROTEÍNA (F))
- * 2. Compras de Alimentação (categoria "Alimentação" do NIBO)
+ * 2. Compras de Alimentação (categoria "Alimentação" do Conta Azul)
  * 3. Estoque Final de insumos de funcionários
  * 
  * Fórmula: CMA = Estoque Inicial + Compras - Estoque Final

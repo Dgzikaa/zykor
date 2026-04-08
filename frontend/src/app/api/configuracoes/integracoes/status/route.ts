@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
         hasWebhook: false,
         lastActivity: null,
       },
-      nibo: {
+      contaazul: {
         status: 'not-configured',
         hasCredentials: false,
         hasWebhook: false,
@@ -157,11 +157,11 @@ export async function POST(request: NextRequest) {
       integrations.inter.status = 'active';
     }
 
-    // Verificar credenciais do NIBO
-    const niboCreds = credentials?.find(c => c.sistema === 'nibo');
-    if (niboCreds) {
-      integrations.nibo.hasCredentials = true;
-      integrations.nibo.status = 'active';
+    // Verificar credenciais do Conta Azul
+    const contaazulCreds = credentials?.find(c => c.sistema === 'contaazul');
+    if (contaazulCreds) {
+      integrations.contaazul.hasCredentials = true;
+      integrations.contaazul.status = 'active';
     }
 
     // Verificar credenciais do ContaHub
@@ -199,9 +199,9 @@ export async function POST(request: NextRequest) {
         integrations.inter.hasWebhook = true;
       }
 
-      const niboWebhook = discordWebhooks.find(w => w.webhook_type === 'nibo');
-      if (niboWebhook) {
-        integrations.nibo.hasWebhook = true;
+      const contaazulWebhook = discordWebhooks.find(w => w.webhook_type === 'contaazul');
+      if (contaazulWebhook) {
+        integrations.contaazul.hasWebhook = true;
       }
 
       const contahubWebhook = discordWebhooks.find(

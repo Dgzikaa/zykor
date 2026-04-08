@@ -235,11 +235,11 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         id: 'compras',
         label: '(+) Compras',
         metricas: [
-          { key: 'compras_periodo', label: 'TOTAL', status: 'calculado', fonte: 'NIBO', calculo: 'Cozinha + Drinks + Bebidas + Outros', formato: 'moeda', drilldown: true },
-          { key: 'compras_custo_comida', label: 'Custo Cozinha', status: 'auto', fonte: 'NIBO', calculo: 'categoria_nome = CUSTO COMIDA', formato: 'moeda', drilldown: true },
-          { key: 'compras_custo_drinks', label: 'Custo Drinks', status: 'auto', fonte: 'NIBO', calculo: 'categoria_nome = CUSTO DRINKS', formato: 'moeda', drilldown: true },
-          { key: 'compras_custo_bebidas', label: 'Custo Bebidas', status: 'auto', fonte: 'NIBO', calculo: 'Custo Bebidas', formato: 'moeda', drilldown: true },
-          { key: 'compras_custo_outros', label: 'Custo Outros', status: 'auto', fonte: 'NIBO', calculo: 'Materiais de limpeza/operação', formato: 'moeda', drilldown: true },
+          { key: 'compras_periodo', label: 'TOTAL', status: 'calculado', fonte: 'Conta Azul', calculo: 'Cozinha + Drinks + Bebidas + Outros', formato: 'moeda', drilldown: true },
+          { key: 'compras_custo_comida', label: 'Custo Cozinha', status: 'auto', fonte: 'Conta Azul', calculo: 'categoria_nome = CUSTO COMIDA', formato: 'moeda', drilldown: true },
+          { key: 'compras_custo_drinks', label: 'Custo Drinks', status: 'auto', fonte: 'Conta Azul', calculo: 'categoria_nome = CUSTO DRINKS', formato: 'moeda', drilldown: true },
+          { key: 'compras_custo_bebidas', label: 'Custo Bebidas', status: 'auto', fonte: 'Conta Azul', calculo: 'Custo Bebidas', formato: 'moeda', drilldown: true },
+          { key: 'compras_custo_outros', label: 'Custo Outros', status: 'auto', fonte: 'Conta Azul', calculo: 'Materiais de limpeza/operação', formato: 'moeda', drilldown: true },
         ]
       },
       {
@@ -305,7 +305,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         semCollapse: true,
         metricas: [
           { key: 'estoque_inicial_funcionarios', label: 'Estoque Inicial (F)', status: 'auto', fonte: 'Contagem Estoque', calculo: 'HORTIFRUTI (F) + MERCADO (F) + PROTEÍNA (F)', formato: 'moeda' },
-          { key: 'compras_alimentacao', label: '(+) Compras', status: 'auto', fonte: 'NIBO', calculo: 'categoria_nome = Alimentação', formato: 'moeda', drilldown: true },
+          { key: 'compras_alimentacao', label: '(+) Compras', status: 'auto', fonte: 'Conta Azul', calculo: 'categoria_nome = Alimentação', formato: 'moeda', drilldown: true },
           { key: 'estoque_final_funcionarios', label: '(-) Estoque Final (F)', status: 'auto', fonte: 'Contagem Estoque', calculo: 'HORTIFRUTI (F) + MERCADO (F) + PROTEÍNA (F)', formato: 'moeda' },
           { key: 'cma_total', label: 'CMA Total', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial (F) + Compras Alimentação - Est.Final (F)', formato: 'moeda' },
         ]
@@ -421,7 +421,7 @@ export default function CMVSemanalTabelaPage() {
   // Nomes dos meses
   const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-  // Sincronizar dados do NIBO
+  // Reprocessar CMV (Conta Azul + ContaHub → banco)
   const sincronizarNibo = async () => {
     if (!selectedBar?.id) {
       toast({ title: 'Erro', description: 'Selecione um bar primeiro', variant: 'destructive' });
@@ -431,35 +431,36 @@ export default function CMVSemanalTabelaPage() {
     setSincronizandoNibo(true);
 
     try {
-      // Chamar API de sincronização do NIBO
-      const response = await fetch('/api/nibo/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          bar_id: selectedBar.id,
-          sync_mode: 'daily_complete' // Sincronização completa dos últimos 3 meses
-        })
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/cmv-semanal-auto`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({ bar_id: selectedBar.id, todas_semanas: true })
+        }
+      );
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Erro ao sincronizar com NIBO');
+        throw new Error(error.error || 'Erro ao processar CMV');
       }
 
       const result = await response.json();
 
       toast({ 
-        title: '✅ NIBO Sincronizado', 
-        description: result.message || 'Dados do NIBO foram atualizados com sucesso'
+        title: '✅ Dados Atualizados', 
+        description: result.message || 'Conta Azul + ContaHub sincronizados com sucesso'
       });
 
-      // Recarregar dados após sincronização
       await carregarDados();
 
     } catch (error) {
-      console.error('Erro ao sincronizar NIBO:', error);
+      console.error('Erro ao atualizar dados Conta Azul:', error);
       toast({ 
-        title: 'Erro ao sincronizar NIBO', 
+        title: 'Erro ao atualizar dados', 
         description: error instanceof Error ? error.message : 'Falha na sincronização',
         variant: 'destructive' 
       });
@@ -1006,7 +1007,7 @@ export default function CMVSemanalTabelaPage() {
                 className="border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
               >
                 <CloudDownload className={cn("h-4 w-4 mr-2", sincronizandoNibo && "animate-pulse")} />
-                {sincronizandoNibo ? 'Sincronizando...' : 'Atualizar NIBO'}
+                {sincronizandoNibo ? 'Sincronizando...' : 'Atualizar Conta Azul'}
               </Button>
               
               <Button variant="outline" size="sm" onClick={carregarDados} disabled={loading}>

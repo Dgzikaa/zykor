@@ -302,7 +302,7 @@ export default function MonitoramentoPage() {
                   <h3 className="font-medium text-gray-900 dark:text-white mb-4">Últimas Sincronizações</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Nibo</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Conta Azul</p>
                       <p className="font-medium text-gray-900 dark:text-white">
                         {formatarDistancia(health?.metrics.ultima_sincronizacao_nibo)}
                       </p>

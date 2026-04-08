@@ -2,7 +2,7 @@
  * CALC-CUSTOS - Calculator de Custos e Despesas
  * 
  * Calcula custos de atracao, couvert, comissao e cancelamentos.
- * Fontes: contaazul_lancamentos (primario), nibo_agendamentos (fallback), visitas, contahub_cancelamentos, eventos_base
+ * Fontes: contaazul_lancamentos, visitas, contahub_cancelamentos, eventos_base
  * 
  * @version 2.0.0 - Migracao NIBO -> Conta Azul
  * @date 2026-03-24
@@ -89,13 +89,11 @@ export async function calcCustos(
       (sum: number, item: any) => sum + (parseFloat(item.real_r) || 0), 0
     );
 
-    // 2. Custo Atracao - Tentar Conta Azul primeiro, fallback para NIBO
+    // 2. Custo Atracao - via contaazul_lancamentos
     const categoriasAtracao = await getCategoriasAtracao(supabase, barId);
 
     let custoAtracao = 0;
-    let fonte = 'contaazul';
 
-    // Buscar da view unificada (Conta Azul + Nibo)
     const result = await getCustoAtracao(supabase, barId, startDate, endDate, categoriasAtracao);
     custoAtracao = result.valor;
     console.log('[calc-custos] Custo atracao: R$' + custoAtracao.toFixed(2) + ' (' + result.count + ' registros)');

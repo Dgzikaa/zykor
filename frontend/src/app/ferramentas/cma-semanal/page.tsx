@@ -408,7 +408,7 @@ export default function CMASemanalPage() {
                   }
                 />
                 <p className="text-xs text-muted-foreground">
-                  Categoria NIBO: Alimentação
+                  Categoria Conta Azul: Alimentação
                 </p>
               </div>
 
@@ -504,7 +504,7 @@ export default function CMASemanalPage() {
               e PROTEÍNA (F) da contagem de estoque
             </li>
             <li>
-              <strong>Compras:</strong> Valores da categoria &quot;Alimentação&quot; do NIBO
+              <strong>Compras:</strong> Valores da categoria &quot;Alimentação&quot; do Conta Azul
             </li>
           </ul>
         </CardContent>

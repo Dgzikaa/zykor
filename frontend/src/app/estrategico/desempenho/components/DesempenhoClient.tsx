@@ -136,8 +136,14 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         id: 'reservas',
         label: 'Reservas',
         metricas: [
-          { key: 'mesas_totais', label: 'Reservas Realizadas', status: 'auto', fonte: 'GetIn', calculo: 'Mesas reservadas / Total de pessoas reservadas', formato: 'reservas', keyPessoas: 'reservas_totais' },
-          { key: 'mesas_presentes', label: 'Reservas Presentes', status: 'auto', fonte: 'GetIn', calculo: 'Mesas presentes / Pessoas presentes', formato: 'reservas', keyPessoas: 'reservas_presentes' },
+          // Deboche usa campo manual para Reservas (até implementar API GetIn)
+          ...(barId === 4 ? [
+            { key: 'mesas_totais', label: 'Reservas Realizadas', status: 'manual' as const, fonte: 'Manual', calculo: 'Inserido manualmente até API GetIn', formato: 'reservas' as const, keyPessoas: 'reservas_totais', editavel: true },
+            { key: 'mesas_presentes', label: 'Reservas Presentes', status: 'manual' as const, fonte: 'Manual', calculo: 'Inserido manualmente até API GetIn', formato: 'reservas' as const, keyPessoas: 'reservas_presentes', editavel: true },
+          ] : [
+            { key: 'mesas_totais', label: 'Reservas Realizadas', status: 'auto' as const, fonte: 'GetIn', calculo: 'Mesas reservadas / Total de pessoas reservadas', formato: 'reservas' as const, keyPessoas: 'reservas_totais' },
+            { key: 'mesas_presentes', label: 'Reservas Presentes', status: 'auto' as const, fonte: 'GetIn', calculo: 'Mesas presentes / Pessoas presentes', formato: 'reservas' as const, keyPessoas: 'reservas_presentes' },
+          ]),
           { key: 'quebra_reservas', label: 'Quebra de Reservas', status: 'auto', fonte: 'Calculado', calculo: '(Pessoas Total - Pessoas Presentes) / Pessoas Total', formato: 'percentual' },
         ]
       }
@@ -243,7 +249,7 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
           // Couvert Total e Atrações/Eventos para comparação (Deboche) - APÓS Cancelamentos
           ...(barId === 4 ? [
             { key: 'couvert_atracoes', label: 'Couvert Total R$', status: 'auto' as const, fonte: 'visitas', calculo: 'Soma valor_couvert', formato: 'moeda' as const },
-            { key: 'atracoes_eventos', label: 'Atrações/Eventos R$', status: 'auto' as const, fonte: 'NIBO', calculo: 'Soma c_art eventos_base', formato: 'moeda' as const },
+            { key: 'atracoes_eventos', label: 'Atrações/Eventos R$', status: 'auto' as const, fonte: 'Conta Azul', calculo: 'Soma lançamentos categoria atração', formato: 'moeda' as const },
           ] : []),
         ]
       }
@@ -523,6 +529,7 @@ export function DesempenhoClient({
   const secoesNaoColapsaveis = useMemo(() => ['ovt', 'qualidade', 'vendas'], []);
   const [editando, setEditando] = useState<{ semanaId: number; campo: string } | null>(null);
   const [valorEdit, setValorEdit] = useState('');
+  const [valorEditPessoas, setValorEditPessoas] = useState('');
   const [valoresLocais, setValoresLocais] = useState<Record<string, Record<string, number>>>({});
   const [falaeDialog, setFalaeDialog] = useState<{
     aberto: boolean;
@@ -1361,7 +1368,7 @@ export function DesempenhoClient({
     };
   }, [falaeDialog.comentarios]);
 
-  // Função de atualização completa: NIBO + Planilha CMV + Refresh (FUNÇÃO UNIFICADA)
+  // Função de atualização completa: Conta Azul + CMV + Refresh (FUNÇÃO UNIFICADA)
   const atualizarTudo = async () => {
     if (!selectedBar) {
       toast({
@@ -1376,25 +1383,8 @@ export function DesempenhoClient({
 
     try {
       console.log('🔄 Iniciando atualização completa...');
-      
-      // 1. Sincronizar NIBO (compras) - busca dados do NIBO para o banco
-      console.log('📦 Sincronizando NIBO...');
-      const niboResponse = await fetch('/api/nibo/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          bar_id: selectedBar.id,
-          sync_mode: 'daily_complete'
-        })
-      });
-      
-      if (!niboResponse.ok) {
-        console.warn('⚠️ Erro ao sincronizar NIBO, continuando...');
-      } else {
-        console.log('✅ NIBO sincronizado');
-      }
 
-      // 2. Processar CMV de TODAS as semanas (Planilha + NIBO + ContaHub → Banco)
+      // 1. Processar CMV de TODAS as semanas (Conta Azul + ContaHub → Banco)
       console.log('📊 Processando CMV de todas as semanas...');
       const cmvResponse = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/cmv-semanal-auto`,
@@ -1406,7 +1396,7 @@ export function DesempenhoClient({
           },
           body: JSON.stringify({ 
             bar_id: selectedBar.id,
-            todas_semanas: true // Processa TODAS as semanas da planilha
+            todas_semanas: true
           })
         }
       );
@@ -1419,7 +1409,7 @@ export function DesempenhoClient({
         console.log('✅ CMV processado:', resultado.message);
       }
 
-      // 3. Recalcular desempenho semanal (atualiza tabela desempenho_semanal)
+      // 2. Recalcular desempenho semanal (atualiza tabela desempenho_semanal)
       console.log('📊 Recalculando desempenho semanal...');
       const desempenhoResponse = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/recalcular-desempenho-auto`,
@@ -1445,7 +1435,7 @@ export function DesempenhoClient({
 
       toast({
         title: "✅ Dados Atualizados",
-        description: "Planilha + NIBO + Desempenho sincronizados"
+        description: "Conta Azul + ContaHub + Desempenho sincronizados"
       });
 
     } catch (error) {
@@ -1460,7 +1450,7 @@ export function DesempenhoClient({
     }
   };
 
-  const salvarMetrica = async (semanaId: number, campo: string) => {
+  const salvarMetrica = async (semanaId: number, campo: string, campoPessoas?: string) => {
     if (!semanaId) {
       toast({ title: 'Erro', description: 'ID da semana/mês não encontrado', variant: 'destructive' });
       return;
@@ -1471,6 +1461,16 @@ export function DesempenhoClient({
       setEditando(null);
       toast({ title: 'Erro', description: 'Valor inválido', variant: 'destructive' });
       return;
+    }
+    
+    // Se for campo de reservas (mesas), validar também o campo de pessoas
+    let numValuePessoas: number | undefined;
+    if (campoPessoas && valorEditPessoas) {
+      numValuePessoas = parseFloat(valorEditPessoas.replace(',', '.'));
+      if (isNaN(numValuePessoas)) {
+        toast({ title: 'Erro', description: 'Valor de pessoas inválido', variant: 'destructive' });
+        return;
+      }
     }
     
     try {
@@ -1502,6 +1502,12 @@ export function DesempenhoClient({
 
         if (!response.ok) throw new Error('Erro ao salvar marketing mensal');
       } else {
+        // Preparar body com campo principal e campo de pessoas (se houver)
+        const bodyData: any = { id: semanaId, [campo]: numValue };
+        if (campoPessoas && numValuePessoas !== undefined) {
+          bodyData[campoPessoas] = numValuePessoas;
+        }
+        
         // Usar API route existente para desempenho semanal
         const response = await fetch('/api/gestao/desempenho', {
           method: 'PUT',
@@ -1509,23 +1515,29 @@ export function DesempenhoClient({
             'Content-Type': 'application/json',
             'x-selected-bar-id': String(effectiveBarId || '')
           },
-          body: JSON.stringify({ id: semanaId, [campo]: numValue })
+          body: JSON.stringify(bodyData)
         });
 
         if (!response.ok) throw new Error('Erro ao salvar');
       }
       
       // Atualizar estado local para refletir imediatamente
+      const novosValores: Record<string, number> = { [campo]: numValue };
+      if (campoPessoas && numValuePessoas !== undefined) {
+        novosValores[campoPessoas] = numValuePessoas;
+      }
+      
       setValoresLocais(prev => ({
         ...prev,
         [semanaId]: {
           ...(prev[semanaId] || {}),
-          [campo]: numValue
+          ...novosValores
         }
       }));
       
       toast({ title: 'Salvo!', description: 'Valor atualizado' });
       setEditando(null);
+      setValorEditPessoas('');
       // Não chamar router.refresh() aqui — o estado local já foi atualizado em setValoresLocais
       // router.refresh() re-executava o server component e causava troca de bar involuntária
     } catch (error) {
@@ -1834,11 +1846,21 @@ export function DesempenhoClient({
                                            {hierarquico ? (
                                               isEditandoPrincipal ? (
                                                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-white dark:bg-gray-800 shadow-lg border border-blue-300 rounded">
-                                                  <div className="flex items-center gap-1 px-1">
-                                                    <Input type="text" value={valorEdit} onChange={(e) => setValorEdit(e.target.value)} className="w-14 h-6 text-xs p-1" onKeyDown={(e) => { if (e.key === 'Enter') salvarMetrica(semana.id!, metricaPrincipal.key); if (e.key === 'Escape') setEditando(null); }} />
-                                                    <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => salvarMetrica(semana.id!, metricaPrincipal.key)}><Check className="h-3 w-3 text-emerald-600" /></Button>
-                                                    <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => setEditando(null)}><X className="h-3 w-3 text-red-600" /></Button>
-                                                  </div>
+                                                  {metricaPrincipal.formato === 'reservas' && metricaPrincipal.keyPessoas ? (
+                                                    <div className="flex items-center gap-1 px-1">
+                                                      <Input type="text" value={valorEdit} onChange={(e) => setValorEdit(e.target.value)} className="w-10 h-6 text-xs p-1" placeholder="Mesas" onKeyDown={(e) => { if (e.key === 'Enter') salvarMetrica(semana.id!, metricaPrincipal.key, metricaPrincipal.keyPessoas); if (e.key === 'Escape') setEditando(null); }} />
+                                                      <span className="text-xs text-gray-400">/</span>
+                                                      <Input type="text" value={valorEditPessoas} onChange={(e) => setValorEditPessoas(e.target.value)} className="w-10 h-6 text-xs p-1" placeholder="Pessoas" onKeyDown={(e) => { if (e.key === 'Enter') salvarMetrica(semana.id!, metricaPrincipal.key, metricaPrincipal.keyPessoas); if (e.key === 'Escape') setEditando(null); }} />
+                                                      <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => salvarMetrica(semana.id!, metricaPrincipal.key, metricaPrincipal.keyPessoas)}><Check className="h-3 w-3 text-emerald-600" /></Button>
+                                                      <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => { setEditando(null); setValorEditPessoas(''); }}><X className="h-3 w-3 text-red-600" /></Button>
+                                                    </div>
+                                                  ) : (
+                                                    <div className="flex items-center gap-1 px-1">
+                                                      <Input type="text" value={valorEdit} onChange={(e) => setValorEdit(e.target.value)} className="w-14 h-6 text-xs p-1" onKeyDown={(e) => { if (e.key === 'Enter') salvarMetrica(semana.id!, metricaPrincipal.key); if (e.key === 'Escape') setEditando(null); }} />
+                                                      <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => salvarMetrica(semana.id!, metricaPrincipal.key)}><Check className="h-3 w-3 text-emerald-600" /></Button>
+                                                      <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => setEditando(null)}><X className="h-3 w-3 text-red-600" /></Button>
+                                                    </div>
+                                                  )}
                                                 </div>
                                             ) : (
                                               <TooltipProvider>
@@ -1937,7 +1959,13 @@ export function DesempenhoClient({
                                             </TooltipProvider>
                                           )}
                                            {hierarquico && !isEditandoPrincipal && metricaPrincipal?.editavel && semana.id && (
-                                               <Button size="icon" variant="ghost" className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setEditando({ semanaId: semana.id!, campo: metricaPrincipal.key }); setValorEdit(valorPrincipal !== null && valorPrincipal !== undefined ? String(valorPrincipal).replace('.', ',') : ''); }}><Pencil className="h-3 w-3 text-blue-600" /></Button>
+                                               <Button size="icon" variant="ghost" className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { 
+                                                 setEditando({ semanaId: semana.id!, campo: metricaPrincipal.key }); 
+                                                 setValorEdit(valorPrincipal !== null && valorPrincipal !== undefined ? String(valorPrincipal).replace('.', ',') : ''); 
+                                                 if (metricaPrincipal.formato === 'reservas' && metricaPrincipal.keyPessoas) {
+                                                   setValorEditPessoas(valorPessoasPrincipal !== null && valorPessoasPrincipal !== undefined ? String(valorPessoasPrincipal).replace('.', ',') : '');
+                                                 }
+                                               }}><Pencil className="h-3 w-3 text-blue-600" /></Button>
                                            )}
                                         </div>
                                      )}
@@ -1979,11 +2007,21 @@ export function DesempenhoClient({
                                            <div key={metrica.key} className={cn("relative flex items-center justify-center px-2 border-b border-gray-100 dark:border-gray-700 group", isAtual ? "bg-emerald-50/30 dark:bg-emerald-900/10" : "bg-gray-50/50 dark:bg-gray-800/50")} style={{ height: '32px' }}>
                                               {isEditandoCell ? (
                                                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-white dark:bg-gray-800 shadow-lg border border-blue-300 rounded">
-                                                  <div className="flex items-center gap-1 px-1">
-                                                    <Input type="text" value={valorEdit} onChange={(e) => setValorEdit(e.target.value)} className="w-14 h-6 text-xs p-1" onKeyDown={(e) => { if (e.key === 'Enter') salvarMetrica(semana.id!, metrica.key); if (e.key === 'Escape') setEditando(null); }} />
-                                                    <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => salvarMetrica(semana.id!, metrica.key)}><Check className="h-3 w-3 text-emerald-600" /></Button>
-                                                    <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => setEditando(null)}><X className="h-3 w-3 text-red-600" /></Button>
-                                                  </div>
+                                                  {metrica.formato === 'reservas' && metrica.keyPessoas ? (
+                                                    <div className="flex items-center gap-1 px-1">
+                                                      <Input type="text" value={valorEdit} onChange={(e) => setValorEdit(e.target.value)} className="w-10 h-6 text-xs p-1" placeholder="Mesas" onKeyDown={(e) => { if (e.key === 'Enter') salvarMetrica(semana.id!, metrica.key, metrica.keyPessoas); if (e.key === 'Escape') setEditando(null); }} />
+                                                      <span className="text-xs text-gray-400">/</span>
+                                                      <Input type="text" value={valorEditPessoas} onChange={(e) => setValorEditPessoas(e.target.value)} className="w-10 h-6 text-xs p-1" placeholder="Pessoas" onKeyDown={(e) => { if (e.key === 'Enter') salvarMetrica(semana.id!, metrica.key, metrica.keyPessoas); if (e.key === 'Escape') setEditando(null); }} />
+                                                      <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => salvarMetrica(semana.id!, metrica.key, metrica.keyPessoas)}><Check className="h-3 w-3 text-emerald-600" /></Button>
+                                                      <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => { setEditando(null); setValorEditPessoas(''); }}><X className="h-3 w-3 text-red-600" /></Button>
+                                                    </div>
+                                                  ) : (
+                                                    <div className="flex items-center gap-1 px-1">
+                                                      <Input type="text" value={valorEdit} onChange={(e) => setValorEdit(e.target.value)} className="w-14 h-6 text-xs p-1" onKeyDown={(e) => { if (e.key === 'Enter') salvarMetrica(semana.id!, metrica.key); if (e.key === 'Escape') setEditando(null); }} />
+                                                      <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => salvarMetrica(semana.id!, metrica.key)}><Check className="h-3 w-3 text-emerald-600" /></Button>
+                                                      <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => setEditando(null)}><X className="h-3 w-3 text-red-600" /></Button>
+                                                    </div>
+                                                  )}
                                                 </div>
                                               ) : metrica.temTooltipGoogle5Estrelas && semana.data_inicio && semana.data_fim ? (
                                                 <button
@@ -2202,7 +2240,13 @@ export function DesempenhoClient({
                                                </TooltipProvider>
                                              )}
                                               {!isEditandoCell && metrica.editavel && semana.id && (
-                                                 <Button size="icon" variant="ghost" className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setEditando({ semanaId: semana.id!, campo: metrica.key }); setValorEdit(valor?.toString().replace('.', ',') || ''); }}><Pencil className="h-3 w-3 text-blue-600" /></Button>
+                                                 <Button size="icon" variant="ghost" className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { 
+                                                   setEditando({ semanaId: semana.id!, campo: metrica.key }); 
+                                                   setValorEdit(valor?.toString().replace('.', ',') || ''); 
+                                                   if (metrica.formato === 'reservas' && metrica.keyPessoas) {
+                                                     setValorEditPessoas(valorPessoas?.toString().replace('.', ',') || '');
+                                                   }
+                                                 }}><Pencil className="h-3 w-3 text-blue-600" /></Button>
                                               )}
                                            </div>
                                         )
