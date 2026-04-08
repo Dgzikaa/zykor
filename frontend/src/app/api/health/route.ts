@@ -212,7 +212,7 @@ async function getMetrics(supabase: any): Promise<HealthCheck['metrics']> {
           (SELECT COUNT(*) FROM eventos_base WHERE ativo = true) as total_eventos,
           (SELECT COUNT(*) FROM eventos_base WHERE data_evento >= CURRENT_DATE - 7) as eventos_7_dias,
           (SELECT COUNT(*) FROM sistema_alertas WHERE resolvido_em IS NULL) as alertas_abertos,
-          (SELECT MAX(criado_em) FROM nibo_logs_sincronizacao WHERE status = 'sucesso') as ultima_sync_nibo,
+          (SELECT MAX(created_at) FROM contaazul_lancamentos) as ultima_sync_nibo,
           (SELECT MAX(data_coleta) FROM contahub_raw_data) as ultima_sync_contahub,
           (SELECT pg_database_size(current_database()) / 1024 / 1024) as db_size_mb
       `

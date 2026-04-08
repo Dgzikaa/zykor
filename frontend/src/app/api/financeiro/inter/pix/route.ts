@@ -314,7 +314,7 @@ export async function POST(request: NextRequest) {
 
       // Se tiver agendamento_id, atualizar a tabela de agendamentos com o código de solicitação
       // Isso permite que o webhook encontre o agendamento quando receber a confirmação
-      // NOTA: Tabela nibo_agendamentos mantida para compatibilidade com webhook PIX
+      // NOTA: Tabela nibo_agendamentos é a tabela de agendamentos legados (mantida para o webhook PIX funcionar)
       if (agendamento_id) {
         const { error: updateError } = await supabase
           .from('nibo_agendamentos')

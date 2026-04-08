@@ -135,12 +135,12 @@ export async function getIndicadoresMensais(
     clientesUnicosSet.forEach(c => { if (set90d.has(c)) clientesAtivos++; });
 
     // CMO e Artístico
-    const { data: niboBatch } = await supabase.from('lancamentos_financeiros').select('valor, categoria')
+    const { data: lancamentosBatch } = await supabase.from('lancamentos_financeiros').select('valor, categoria')
       .eq('bar_id', barId).gte('data_competencia', inicioMes).lte('data_competencia', fimMes);
     
-    const cmoTotal = niboBatch?.filter(i => ['SALARIO FUNCIONARIOS', 'PROVISÃO TRABALHISTA', 'VALE TRANSPORTE', 'FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA', 'FREELA LIMPEZA', 'FREELA SEGURANÇA'].includes(i.categoria))
+    const cmoTotal = lancamentosBatch?.filter(i => ['SALARIO FUNCIONARIOS', 'PROVISÃO TRABALHISTA', 'VALE TRANSPORTE', 'FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA', 'FREELA LIMPEZA', 'FREELA SEGURANÇA'].includes(i.categoria))
       .reduce((s, i) => s + (parseFloat(i.valor) || 0), 0) || 0;
-    const cArt = niboBatch?.filter(i => ['ATRAÇÕES', 'PRODUÇÃO', 'MARKETING'].includes(i.categoria))
+    const cArt = lancamentosBatch?.filter(i => ['ATRAÇÕES', 'PRODUÇÃO', 'MARKETING'].includes(i.categoria))
       .reduce((s, i) => s + (parseFloat(i.valor) || 0), 0) || 0;
 
     // Reputação (Google Reviews - Apify) - usando timezone de Brasília (-03:00)

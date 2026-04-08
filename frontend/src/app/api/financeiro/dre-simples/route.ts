@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
       .eq('mes', parseInt(mes));
 
     if (barId) {
-      dreQuery = dreQuery.eq('bar_id', parseInt(barId));
+      // Incluir registros do bar específico + registros globais (bar_id NULL = legado sem bar)
+      dreQuery = dreQuery.or(`bar_id.eq.${parseInt(barId)},bar_id.is.null`);
     }
 
     const { data: dreData, error: dreError } = await dreQuery;
@@ -36,15 +37,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Buscar lançamentos manuais do mês
-    const { data: lancamentosManuais, error: manuaisError } = await supabase
+    const inicioMes = `${ano}-${mes.padStart(2, '0')}-01`;
+    const fimMes = mes === '12'
+      ? `${parseInt(ano) + 1}-01-01`
+      : `${ano}-${(parseInt(mes) + 1).toString().padStart(2, '0')}-01`;
+
+    // Buscar lançamentos manuais do mês (do bar específico + globais legados)
+    let manuaisQuery = supabase
       .from('dre_manual')
       .select('*')
-      .gte('data_competencia', `${ano}-${mes.padStart(2, '0')}-01`)
-      .lt('data_competencia', mes === '12' 
-        ? `${parseInt(ano) + 1}-01-01` 
-        : `${ano}-${(parseInt(mes) + 1).toString().padStart(2, '0')}-01`)
+      .gte('data_competencia', inicioMes)
+      .lt('data_competencia', fimMes)
       .order('data_competencia', { ascending: false });
+
+    if (barId) {
+      manuaisQuery = manuaisQuery.or(`bar_id.eq.${parseInt(barId)},bar_id.is.null`);
+    }
+
+    const { data: lancamentosManuais, error: manuaisError } = await manuaisQuery;
 
     if (manuaisError) {
       console.error('Erro ao buscar lançamentos manuais:', manuaisError);
@@ -106,6 +116,7 @@ export async function POST(request: NextRequest) {
       categoria_macro,
       observacoes,
       usuario_criacao,
+      bar_id,
     } = body;
 
     if (!data_competencia || !descricao || valor === undefined || !categoria || !categoria_macro) {
@@ -125,6 +136,7 @@ export async function POST(request: NextRequest) {
         categoria_macro,
         observacoes,
         usuario_criacao: usuario_criacao || 'Sistema',
+        bar_id: bar_id ? parseInt(bar_id) : null,
       })
       .select()
       .single();

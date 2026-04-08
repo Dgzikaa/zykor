@@ -109,7 +109,7 @@ export function NovoPagamentoForm({
       setBuscandoStakeholder(true);
       try {
         const response = await fetch(
-          `/api/financeiro/nibo/stakeholders?q=${documentoLimpo}`
+          `/api/financeiro/contaazul/stakeholders?q=${documentoLimpo}`
         );
         const data = await response.json();
 
@@ -148,7 +148,7 @@ export function NovoPagamentoForm({
             type: 'error',
             title: '❌ Stakeholder não encontrado',
             message:
-              'Cadastre o beneficiário no NIBO ou preencha os dados manualmente',
+              'Cadastre o benefici�rio no Conta Azul ou preencha os dados manualmente',
           });
         }
       } catch (e) {
@@ -418,3 +418,4 @@ export function NovoPagamentoForm({
     </div>
   );
 }
+

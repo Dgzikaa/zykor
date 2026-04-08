@@ -165,9 +165,9 @@ export const EVENTOS_RULES = {
     6: 0          // Domingo
   },
 
-  // Categorias Nibo para custos
-  // LEGADO: usar bar_categorias_custo para valores do banco
-  NIBO_CATEGORIAS: {
+  // Categorias do Conta Azul para custos de atrações
+  // Usar bar_categorias_custo para configuração por bar
+  CATEGORIAS_ATRACOES: {
     PRODUCAO_EVENTOS: 'Produção Eventos',
     ATRACOES_PROGRAMACAO: 'Atrações Programação'
   },
@@ -322,14 +322,14 @@ export async function buscarCustosNibo(dataEvento: Date, barId: number): Promise
   
   // Buscar custos de produção
   const custoProducao = await buscarCustosPorDataCompetencia(
-    EVENTOS_RULES.NIBO_CATEGORIAS.PRODUCAO_EVENTOS,
+    EVENTOS_RULES.CATEGORIAS_ATRACOES.PRODUCAO_EVENTOS,
     dataCompetencia,
     barId
   )
   
   // Buscar custos artísticos
   const custoArtistico = await buscarCustosPorDataCompetencia(
-    EVENTOS_RULES.NIBO_CATEGORIAS.ATRACOES_PROGRAMACAO,
+    EVENTOS_RULES.CATEGORIAS_ATRACOES.ATRACOES_PROGRAMACAO,
     dataCompetencia,
     barId
   )

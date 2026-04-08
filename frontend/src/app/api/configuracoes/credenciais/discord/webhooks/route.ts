@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       .eq('ativo', true)
       .in('sistema', [
         'banco_inter',
-        'nibo',
+        'contaazul',
         'contahub',
         'checklists',
         'sistema',
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     // Organizar webhooks por sistema
     const webhooks: Record<string, any> = {
       banco_inter: null,
-      nibo: null,
+      contaazul: null,
       contahub: null,
       checklists: null,
       sistema: null,

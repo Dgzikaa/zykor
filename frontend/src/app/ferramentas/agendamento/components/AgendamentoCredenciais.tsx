@@ -124,27 +124,19 @@ export function AgendamentoCredenciais({
             Credenciais incompletas para {nomeExibicao}
           </p>
           <p className="text-muted-foreground">
-            Agendamento completo (NIBO + PIX Inter) exige as duas integrações. Peça ao
+            Agendamento completo (PIX Inter) exige a integração configurada. Peça ao
             administrador para configurar o que faltar.
           </p>
           <ul className="flex flex-col gap-1 text-xs sm:text-sm">
-            <li className="flex items-center gap-2">
-              {nibo ? (
-                <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />
-              ) : (
-                <AlertCircle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
-              )}
-              <span>
-                NIBO: {nibo ? 'configurado' : 'não configurado (só agendamento local)'}
-              </span>
-            </li>
             <li className="flex items-center gap-2">
               {inter ? (
                 <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />
               ) : (
                 <AlertCircle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
               )}
-              <span>Inter (PIX): {inter ? 'configurado' : 'não configurado'}</span>
+              <span>
+                PIX Inter: {inter ? 'configurado' : 'não configurado'}
+              </span>
             </li>
           </ul>
         </div>

@@ -2,7 +2,7 @@
  * 🎯 Unified Dispatcher - Dispatcher Central do Zykor
  * 
  * Consolida os 4 dispatchers anteriores em um único ponto de entrada:
- * - integracao: yuzer, sympla, getin (nibo removido)
+ * - integracao: yuzer, sympla, getin (nibo substitu�do pelo Conta Azul)
  * - sync: eventos, clientes, conhecimento, marketing
  * - discord: notification, command, pdf
  * - webhook: umbler, google-reviews
@@ -179,3 +179,4 @@ serve(async (req) => {
     );
   }
 });
+

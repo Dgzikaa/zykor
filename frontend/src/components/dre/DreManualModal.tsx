@@ -28,6 +28,7 @@ interface DreManualModalProps {
   onLancamentoAdicionado?: () => void
   mesAno?: { mes: number; ano: number }
   editingLancamento?: LancamentoManual | null
+  barId?: number
 }
 
 interface FormData {
@@ -39,18 +40,14 @@ interface FormData {
   observacoes: string
 }
 
-interface NiboCategoria {
-  id: number
+interface ContaAzulCategoria {
   categoria_nome: string
-  categoria_macro: string
-  ativo: boolean
+  entradas: number
+  saidas: number
 }
 
-interface NiboCategoriasResponse {
-  categorias: NiboCategoria[]
-  categorias_por_macro: Record<string, NiboCategoria[]>
-  macro_categorias: string[]
-  total_categorias: number
+interface ContaAzulCategoriasResponse {
+  categorias_por_macro: Record<string, ContaAzulCategoria[]>
 }
 
 export default function DreManualModal({ 
@@ -58,12 +55,12 @@ export default function DreManualModal({
   onClose,
   onLancamentoAdicionado, 
   mesAno,
-  editingLancamento 
+  editingLancamento,
+  barId
 }: DreManualModalProps) {
-  // Usar props isOpen e onClose em vez de estado interno
   const [loading, setLoading] = useState(false)
   const [loadingCategorias, setLoadingCategorias] = useState(false)
-  const [categorias, setCategorias] = useState<NiboCategoriasResponse | null>(null)
+  const [categorias, setCategorias] = useState<ContaAzulCategoriasResponse | null>(null)
   const [categoriaFilter, setCategoriaFilter] = useState('')
   const [showCategoriaDropdown, setShowCategoriaDropdown] = useState(false)
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
@@ -95,10 +92,11 @@ export default function DreManualModal({
   const fetchCategorias = async () => {
     setLoadingCategorias(true)
     try {
-      const response = await fetch('/api/financeiro/dre-categorias')
-      if (!response.ok) {
-        throw new Error('Erro ao carregar categorias')
-      }
+      const url = barId
+        ? `/api/financeiro/dre-categorias?bar_id=${barId}`
+        : '/api/financeiro/dre-categorias'
+      const response = await fetch(url)
+      if (!response.ok) throw new Error('Erro ao carregar categorias')
       const data = await response.json()
       setCategorias(data)
     } catch (error) {
@@ -153,15 +151,23 @@ export default function DreManualModal({
     return numericValue ? (parseInt(numericValue) / 100).toString() : ''
   }
 
+  // Lista flat de categorias a partir da estrutura por macro
+  const todasCategorias = useMemo(() => {
+    if (!categorias?.categorias_por_macro) return []
+    return Object.entries(categorias.categorias_por_macro).flatMap(([macro, cats]) =>
+      cats.map(c => ({ categoria_nome: c.categoria_nome, categoria_macro: macro }))
+    ).sort((a, b) => a.categoria_nome.localeCompare(b.categoria_nome))
+  }, [categorias])
+
   // Filtrar categorias baseado no texto digitado
   const filteredCategorias = useMemo(() => {
-    if (!categorias || !categoriaFilter) return categorias?.categorias || []
-    
-    return categorias.categorias.filter(cat =>
+    if (!todasCategorias.length) return []
+    if (!categoriaFilter) return todasCategorias
+    return todasCategorias.filter(cat =>
       cat.categoria_nome.toLowerCase().includes(categoriaFilter.toLowerCase()) ||
       cat.categoria_macro.toLowerCase().includes(categoriaFilter.toLowerCase())
     )
-  }, [categorias, categoriaFilter])
+  }, [todasCategorias, categoriaFilter])
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     if (field === 'valor') {
@@ -205,7 +211,7 @@ export default function DreManualModal({
   }
 
   const handleCategoriaChange = (categoriaNome: string) => {
-    const categoria = categorias?.categorias.find(c => c.categoria_nome === categoriaNome)
+    const categoria = todasCategorias.find(c => c.categoria_nome === categoriaNome)
     setFormData(prev => ({
       ...prev,
       categoria_nome: categoriaNome,
@@ -220,8 +226,7 @@ export default function DreManualModal({
     setCategoriaFilter(value)
     setShowCategoriaDropdown(true)
     
-    // Se o valor exato existe, selecionar automaticamente
-    const exactMatch = categorias?.categorias.find(c => 
+    const exactMatch = todasCategorias.find(c => 
       c.categoria_nome.toLowerCase() === value.toLowerCase()
     )
     if (exactMatch) {
@@ -267,10 +272,11 @@ export default function DreManualModal({
           data_competencia: formData.data_competencia,
           descricao: formData.descricao,
           valor: parseFloat(formData.valor),
-          categoria: formData.categoria_nome, // Categoria específica do Nibo
-          categoria_macro: formData.categoria_macro, // Macro-categoria DRE
+          categoria: formData.categoria_nome,
+          categoria_macro: formData.categoria_macro,
           observacoes: formData.observacoes,
-          usuario_criacao: 'usuario_atual' // TODO: pegar do contexto de auth
+          usuario_criacao: 'usuario_atual',
+          bar_id: barId || null,
         })
       })
 

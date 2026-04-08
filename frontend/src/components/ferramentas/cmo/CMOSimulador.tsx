@@ -445,7 +445,7 @@ export default function CMOSimulador() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>1. Freelas (NIBO)</Label>
+              <Label>1. Freelas (Conta Azul)</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -454,7 +454,7 @@ export default function CMOSimulador() {
                 disabled={simulacaoTravada}
               />
               <p className="text-xs text-muted-foreground">
-                Soma das categorias &quot;FREELAS&quot; do NIBO
+                Soma das categorias &quot;FREELAS&quot; do Conta Azul
               </p>
             </div>
 
@@ -858,3 +858,4 @@ export default function CMOSimulador() {
     </div>
   );
 }
+

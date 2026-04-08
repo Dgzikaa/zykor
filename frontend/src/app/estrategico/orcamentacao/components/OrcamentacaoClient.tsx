@@ -295,7 +295,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                                 )}
                               </div>
                               <div className="w-px h-3 bg-gray-200" />
-                              {/* REALIZADO - somente leitura (vem do NIBO) */}
+                              {/* REALIZADO - somente leitura (vem do Conta Azul) */}
                               <div className="flex-1 flex items-center justify-center">
                                 <span className={cn("text-[9px] font-medium", sub.realizado > 0 ? "text-gray-900 dark:text-white" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sub.realizado)}</span>
                               </div>
@@ -321,3 +321,4 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     </div>
   );
 }
+

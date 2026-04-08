@@ -54,7 +54,7 @@ interface DiscordNotificationData {
   bar_id: string;
   webhook_type?:
     | 'sistema'
-    | 'nibo'
+    | 'contaazul'
     | 'checklists'
     | 'contahub'
     | 'vendas'

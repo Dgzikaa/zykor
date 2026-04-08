@@ -215,7 +215,7 @@ const ESTRUTURA_CATEGORIAS = [
   }
 ];
 
-// Mapeamento de categorias NIBO para categorias do orçamento
+// Mapeamento de categorias Conta Azul para categorias do orçamento
 const CATEGORIAS_MAP = new Map([
   // Despesas Variáveis
   ['IMPOSTO/TX MAQ/COMISSAO', 'IMPOSTO/TX MAQ/COMISSAO'],
@@ -358,7 +358,7 @@ export async function GET(request: Request) {
     // Buscar dados planejados de todos os meses de uma vez
     const anosUnicos = [...new Set(mesesParaBuscar.map(m => m.ano))];
     
-    // Calcular range de datas para buscar NIBO (primeiro e último mês do período)
+    // Calcular range de datas para buscar Conta Azul (primeiro e último mês do período)
     const primeiroMesPeriodo = mesesParaBuscar[0];
     const ultimoMesPeriodo = mesesParaBuscar[mesesParaBuscar.length - 1];
     
@@ -368,7 +368,7 @@ export async function GET(request: Request) {
     const dataInicio = `${primeiroMesPeriodo.ano}-${String(primeiroMesPeriodo.mes).padStart(2, '0')}-01`;
     const dataFim = `${ultimoMesPeriodo.ano}-${String(ultimoMesPeriodo.mes).padStart(2, '0')}-${String(ultimoDiaMes).padStart(2, '0')}`;
 
-    // 🚀 OTIMIZAÇÃO: Executar TODAS as queries em paralelo (com paginação para NIBO)
+    // 🚀 OTIMIZAÇÃO: Executar TODAS as queries em paralelo (com pagina��o para Conta Azul)
     const [
       planejadosResult,
       dadosNiboTodos,
@@ -383,11 +383,11 @@ export async function GET(request: Request) {
         .eq('bar_id', parseInt(barId))
         .in('ano', anosUnicos),
       
-      // Query 2: NIBO todos (projeção) - COM PAGINAÇÃO
-      fetchAllPaginated<{ categoria_nome: string; status: string; valor: string; data_competencia: string }>(
+      // Query 2: Conta Azul todos (projeção) - COM PAGINAÇÃO
+      fetchAllPaginated<{ categoria_nome: string; status: string; valor_bruto: string; data_competencia: string }>(
         supabase,
-        'nibo_agendamentos',
-        'categoria_nome, status, valor, data_competencia',
+        'contaazul_lancamentos',
+        'categoria_nome, status, valor_bruto, data_competencia',
         [
           { column: 'bar_id', operator: 'eq', value: parseInt(barId) },
           { column: 'data_competencia', operator: 'gte', value: dataInicio },
@@ -395,14 +395,14 @@ export async function GET(request: Request) {
         ]
       ),
       
-      // Query 3: NIBO pagos (realizado) - COM PAGINAÇÃO - usar data_pagamento
-      fetchAllPaginated<{ categoria_nome: string; status: string; valor: string; data_pagamento: string }>(
+      // Query 3: Conta Azul pagos (realizado) - COM PAGINAÇÃO - usar data_pagamento
+      fetchAllPaginated<{ categoria_nome: string; status: string; valor_bruto: string; data_pagamento: string }>(
         supabase,
-        'nibo_agendamentos',
-        'categoria_nome, status, valor, data_pagamento',
+        'contaazul_lancamentos',
+        'categoria_nome, status, valor_bruto, data_pagamento',
         [
           { column: 'bar_id', operator: 'eq', value: parseInt(barId) },
-          { column: 'status', operator: 'eq', value: 'Pago' },
+          { column: 'status', operator: 'in', value: ['PAGO', 'LIQUIDADO'] },
           { column: 'data_pagamento', operator: 'gte', value: dataInicio },
           { column: 'data_pagamento', operator: 'lte', value: dataFim }
         ]
@@ -476,13 +476,13 @@ export async function GET(request: Request) {
       // Buscar CMV calculado para este mês
       const cmvMensal = cmvMensalMap.get(`${ano}-${mes}`) || { cmvPercentual: 0, cmvValor: 0, faturamentoCmvivel: 0 };
 
-      // Filtrar dados do NIBO para este mês (TODOS - para projeção)
+      // Filtrar dados do Conta Azul para este mês (TODOS - para projeção)
       const niboTodosMes = dadosNiboTodos?.filter(item => {
         if (!item.data_competencia) return false;
         return item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes;
       }) || [];
 
-      // Filtrar dados do NIBO para este mês (PAGOS - para realizado) - usar data_pagamento
+      // Filtrar dados do Conta Azul para este mês (PAGOS - para realizado) - usar data_pagamento
       const niboPagosMes = dadosNiboPagos?.filter(item => {
         if (!item.data_pagamento) return false;
         return item.data_pagamento >= dataInicioMes && item.data_pagamento <= dataFimMes;
@@ -502,11 +502,11 @@ export async function GET(request: Request) {
       // Buscar faturamento do mês (eventos_base) - fonte de receita REALIZADA
       const faturamentoReal = faturamentoRealMap.get(`${ano}-${mes}`) || { realizado: 0, meta: 0 };
 
-      // REALIZADO de despesas = NIBO (apenas status=Pago)
+      // REALIZADO de despesas = Conta Azul (apenas status=PAGO/LIQUIDADO)
       const valoresRealizado = new Map<string, number>();
       niboPagosMes.forEach(item => {
         if (!item.categoria_nome || item.categoria_nome.trim() === '') return;
-        const valor = Math.abs(parseFloat(item.valor) || 0);
+        const valor = Math.abs(parseFloat(item.valor_bruto) || 0);
         const categoriaNormalizada = CATEGORIAS_MAP.get(item.categoria_nome) || item.categoria_nome;
         
         if (!valoresRealizado.has(categoriaNormalizada)) {
@@ -549,7 +549,7 @@ export async function GET(request: Request) {
           let planejadoValor = Number(orcamento?.valor_planejado) || 0;
           let projetadoValor = Number(orcamento?.valor_projetado) || 0;
           
-          // REALIZADO = NIBO para despesas, eventos_base para receita
+          // REALIZADO = Conta Azul para despesas, eventos_base para receita
           let realizadoValor = 0;
           if (subNome === 'RECEITA BRUTA') {
             realizadoValor = faturamentoReal.realizado;
@@ -639,3 +639,4 @@ export async function GET(request: Request) {
     );
   }
 }
+

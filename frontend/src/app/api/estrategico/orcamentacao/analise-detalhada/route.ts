@@ -86,8 +86,8 @@ export async function GET(request: Request) {
       endDate = `${ano}-12-31`;
     }
 
-    // Buscar TODOS os dados do Nibo para o período
-    const niboData = await fetchAllData(supabase, 'nibo_agendamentos', '*', {
+    // Buscar TODOS os dados do Conta Azul para o período
+    const niboData = await fetchAllData(supabase, 'contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia, data_pagamento', {
       'eq_bar_id': parseInt(barId),
       'gte_data_competencia': startDate,
       'lte_data_competencia': endDate
@@ -128,15 +128,11 @@ export async function GET(request: Request) {
       
       const cat = categoriasDisponiveis.get(categoria);
       cat.total_registros++;
-      cat.total_valor += Math.abs(parseFloat(item.valor) || 0);
+      cat.total_valor += Math.abs(parseFloat(item.valor_bruto) || 0);
       
-      if (item.status === 'Paid') {
+      if (item.status === 'PAGO' || item.status === 'LIQUIDADO') {
         cat.registros_pagos++;
-        cat.valor_pago += Math.abs(parseFloat(item.valor) || 0);
-      }
-      
-      if (item.subcategoria) {
-        cat.subcategorias.add(item.subcategoria);
+        cat.valor_pago += Math.abs(parseFloat(item.valor_bruto) || 0);
       }
     });
 

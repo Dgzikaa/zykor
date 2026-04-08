@@ -3,7 +3,7 @@ import { getAdminClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
 
-// Categorias NIBO relacionadas a CMO (normalizado para maiúsculas sem acentos)
+// Categorias do Conta Azul relacionadas a CMO (normalizado para maiúsculas sem acentos)
 const CATEGORIAS_CMO = [
   'SALÁRIO FUNCIONÁRIOS',
   'SALARIO FUNCIONARIOS',
@@ -22,7 +22,7 @@ const CATEGORIAS_CMO = [
 
 interface ComparativoCMO {
   categoria: string;
-  valor_nibo: number;
+  valor_nibo: number;   // campo mantido por compatibilidade com UI existente
   valor_simulado: number;
   diferenca: number;
   percentual_diferenca: number;
@@ -31,7 +31,7 @@ interface ComparativoCMO {
 interface ResumoComparativo {
   mes: number;
   ano: number;
-  total_nibo: number;
+  total_nibo: number;   // campo mantido por compatibilidade com UI existente
   total_simulado: number;
   diferenca_total: number;
   percentual_diferenca: number;
@@ -49,7 +49,7 @@ function normalizarCategoria(cat: string): string {
 
 /**
  * GET /api/rh/cmo-comparativo
- * Compara CMO simulado vs realizado do NIBO
+ * Compara CMO simulado vs realizado (Conta Azul via dre_manual)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -67,25 +67,28 @@ export async function GET(request: NextRequest) {
 
     const supabase = await getAdminClient();
 
-    // 1. Buscar dados do NIBO via dre_manual (tabela real com lançamentos)
-    const { data: dadosNibo, error: niboError } = await supabase
+    // 1. Buscar dados realizados via lancamentos_financeiros + dre_manual (filtrado por bar)
+    const inicioMes = `${ano}-${String(mes).padStart(2, '0')}-01`;
+    const fimMes = parseInt(mes) === 12
+      ? `${parseInt(ano) + 1}-01-01`
+      : `${ano}-${String(parseInt(mes) + 1).padStart(2, '0')}-01`;
+
+    const { data: dadosRealizados, error: realizadosError } = await supabase
       .from('dre_manual')
       .select('categoria, valor')
-      .gte('data_competencia', `${ano}-${String(mes).padStart(2, '0')}-01`)
-      .lt('data_competencia', parseInt(mes) === 12 
-        ? `${parseInt(ano) + 1}-01-01` 
-        : `${ano}-${String(parseInt(mes) + 1).padStart(2, '0')}-01`);
+      .gte('data_competencia', inicioMes)
+      .lt('data_competencia', fimMes)
+      .or(`bar_id.eq.${barId},bar_id.is.null`);
 
-    if (niboError) {
-      console.error('Erro ao buscar dados NIBO:', niboError);
+    if (realizadosError) {
+      console.error('Erro ao buscar dados realizados:', realizadosError);
     }
 
-    // Agrupar valores NIBO por categoria (normalizando)
+    // Agrupar valores realizados por categoria (normalizando)
     const valoresNibo = new Map<string, number>();
-    dadosNibo?.forEach(item => {
+    dadosRealizados?.forEach(item => {
       if (!item.categoria) return;
       const catNorm = normalizarCategoria(item.categoria);
-      // Verificar se é categoria de CMO
       const isCMO = CATEGORIAS_CMO.some(c => normalizarCategoria(c) === catNorm);
       if (isCMO) {
         const atual = valoresNibo.get(item.categoria) || 0;

@@ -89,7 +89,7 @@ export function UpdatePixKeyModal({
       };
 
       const response = await fetch(
-        `/api/financeiro/nibo/stakeholders/${stakeholder.id}`,
+        `/api/financeiro/contaazul/stakeholders/${stakeholder.id}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -116,7 +116,7 @@ export function UpdatePixKeyModal({
 
         toast({
           title: 'Chave PIX atualizada',
-          description: 'Chave PIX foi atualizada com sucesso no NIBO',
+          description: 'Chave PIX foi atualizada com sucesso no Conta Azul',
         });
       } else {
         throw new Error(data.error);
@@ -125,7 +125,7 @@ export function UpdatePixKeyModal({
       console.error('Erro ao atualizar chave PIX:', error);
       toast({
         title: 'Erro na atualização',
-        description: 'Erro ao atualizar chave PIX no NIBO',
+        description: 'Erro ao atualizar chave PIX no Conta Azul',
         variant: 'destructive',
       });
     } finally {
@@ -236,3 +236,4 @@ export function UpdatePixKeyModal({
     </Dialog>
   );
 }
+

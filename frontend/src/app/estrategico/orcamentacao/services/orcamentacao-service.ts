@@ -295,14 +295,14 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
 
   const [planejadosResult, dadosNiboTodos, dadosNiboPagos, manuaisResult, eventosResult] = await Promise.all([
     supabase.from('orcamentacao').select('*').eq('bar_id', barId).in('ano', anosUnicos),
-    fetchAllPaginated<any>(supabase, 'nibo_agendamentos', 'categoria_nome, status, valor, data_competencia', [
+    fetchAllPaginated<any>(supabase, 'contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia', [
       { column: 'bar_id', operator: 'eq', value: barId },
       { column: 'data_competencia', operator: 'gte', value: dataInicio },
       { column: 'data_competencia', operator: 'lte', value: dataFim }
     ]),
-    fetchAllPaginated<any>(supabase, 'nibo_agendamentos', 'categoria_nome, status, valor, data_pagamento', [
+    fetchAllPaginated<any>(supabase, 'contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_pagamento', [
       { column: 'bar_id', operator: 'eq', value: barId },
-      { column: 'status', operator: 'eq', value: 'Pago' },
+      { column: 'status', operator: 'in', value: ['PAGO', 'LIQUIDADO'] },
       { column: 'data_pagamento', operator: 'gte', value: dataInicio },
       { column: 'data_pagamento', operator: 'lte', value: dataFim }
     ]),
@@ -339,24 +339,24 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     const dataInicioMes = `${ano}-${mesFormatado}-01`;
     const dataFimMes = `${ano}-${mesFormatado}-${new Date(ano, mes, 0).getDate()}`;
     const cmvMensal = cmvMensalMap.get(`${ano}-${mes}`) || { cmvPercentual: 0, cmvValor: 0, faturamentoCmvivel: 0 };
-    const niboTodosMes = dadosNiboTodos.filter(item => item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes);
-    const niboPagosMes = dadosNiboPagos.filter(item => item.data_pagamento >= dataInicioMes && item.data_pagamento <= dataFimMes);
+    const lancTodosMes = dadosNiboTodos.filter(item => item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes);
+    const lancPagosMes = dadosNiboPagos.filter(item => item.data_pagamento >= dataInicioMes && item.data_pagamento <= dataFimMes);
     const manuaisMes = dadosManuais.filter(item => item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes);
     const planejadosMes = dadosPlanejados.filter(item => Number(item.ano) === Number(ano) && Number(item.mes) === Number(mes));
 
     let recProj = 0, recReal = 0;
-    niboTodosMes.forEach(it => { if (['Receita de Eventos', 'Stone Crédito', 'Stone Débito', 'Stone Pix', 'Dinheiro', 'Pix Direto na Conta', 'RECEITA BRUTA'].includes(it.categoria_nome)) recProj += Math.abs(parseFloat(it.valor) || 0); });
-    niboPagosMes.forEach(it => { if (['Receita de Eventos', 'Stone Crédito', 'Stone Débito', 'Stone Pix', 'Dinheiro', 'Pix Direto na Conta', 'RECEITA BRUTA'].includes(it.categoria_nome)) recReal += Math.abs(parseFloat(it.valor) || 0); });
+    lancTodosMes.forEach(it => { if (['Receita de Eventos', 'Stone Crédito', 'Stone Débito', 'Stone Pix', 'Dinheiro', 'Pix Direto na Conta', 'RECEITA BRUTA'].includes(it.categoria_nome)) recProj += Math.abs(parseFloat(it.valor_bruto) || 0); });
+    lancPagosMes.forEach(it => { if (['Receita de Eventos', 'Stone Crédito', 'Stone Débito', 'Stone Pix', 'Dinheiro', 'Pix Direto na Conta', 'RECEITA BRUTA'].includes(it.categoria_nome)) recReal += Math.abs(parseFloat(it.valor_bruto) || 0); });
     manuaisMes.forEach(it => { if (it.categoria_macro === 'Receita') { const val = Math.abs(parseFloat(it.valor) || 0); recProj += val; recReal += val; }});
 
     const valProj = new Map<string, number>(), valReal = new Map<string, number>();
     const process = (it: any, target: Map<string, number>) => {
       if (!it.categoria_nome) return;
       const cat = CATEGORIAS_MAP.get(it.categoria_nome) || it.categoria_nome;
-      target.set(cat, (target.get(cat) || 0) + Math.abs(parseFloat(it.valor) || 0));
+      target.set(cat, (target.get(cat) || 0) + Math.abs(parseFloat(it.valor_bruto) || 0));
     };
-    niboTodosMes.forEach(it => process(it, valProj));
-    niboPagosMes.forEach(it => process(it, valReal));
+    lancTodosMes.forEach(it => process(it, valProj));
+    lancPagosMes.forEach(it => process(it, valReal));
     manuaisMes.forEach(it => {
       let cat = it.categoria;
       if (!CATEGORIAS_MAP.has(cat) && it.categoria_macro) cat = CATEGORIAS_MAP.get(it.categoria_macro) || it.categoria_macro;
@@ -383,7 +383,7 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
         // PLANEJADO e PROJETADO = tabela orcamentacao (100% manual)
         let plan = Number(orcamento?.valor_planejado) || 0;
         let proj = Number(orcamento?.valor_projetado) || 0;
-        // REALIZADO = NIBO para despesas, eventos_base para receita
+        // REALIZADO = Conta Azul para despesas, eventos_base para receita
         let real = valReal.get(sub) || 0;
         if (sub === 'RECEITA BRUTA') {
           real = fatReal.realizado;

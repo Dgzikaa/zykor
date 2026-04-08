@@ -83,7 +83,7 @@ export function getStatusBadge(status: PagamentoAgendamento['status']) {
           variant="secondary"
           className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
         >
-          NIBO ✅ | Inter ❌
+          Inter ❌
         </Badge>
       );
     default:

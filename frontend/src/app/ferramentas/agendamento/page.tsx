@@ -105,7 +105,7 @@ export default function AgendamentoPage() {
     setIsLoadingOptions(true);
     try {
       const categoriasResponse = await fetch(
-        `/api/financeiro/nibo/categorias?bar_id=${barId}&somente_pagamento=true`
+        `/api/financeiro/contaazul/categorias?bar_id=${barId}`
       );
       const categoriasData = await categoriasResponse.json();
       if (categoriasData.categorias) {
@@ -113,7 +113,7 @@ export default function AgendamentoPage() {
       }
 
       const centrosCustoResponse = await fetch(
-        `/api/financeiro/nibo/centros-custo?bar_id=${barId}`
+        `/api/financeiro/contaazul/centros-custo?bar_id=${barId}`
       );
       const centrosCustoData = await centrosCustoResponse.json();
       if (centrosCustoData.centrosCusto) {
@@ -233,7 +233,7 @@ export default function AgendamentoPage() {
     // DESABILITADO: NIBO foi substituído pelo Conta Azul
     toast({
       title: 'Funcionalidade desabilitada',
-      description: 'Agendamento via NIBO foi descontinuado. Migração para Conta Azul em andamento.',
+      description: 'Agendamento via NIBO foi descontinuado. Use o Conta Azul.',
       variant: 'destructive',
     });
     
@@ -871,3 +871,4 @@ export default function AgendamentoPage() {
     </ProtectedRoute>
   );
 }
+

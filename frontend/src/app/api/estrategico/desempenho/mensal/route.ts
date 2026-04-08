@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
       console.error('Erro ao buscar cancelamentos mensal:', cancelError);
     }
 
-    // Atrações/Eventos mensal - soma de nibo_agendamentos (mesma lógica do semanal)
+    // Atrações/Eventos mensal - soma de contaazul_lancamentos (antes nibo_agendamentos) (mesma lógica do semanal)
     // ONDA 2B: Buscar categorias do banco - erro se não configurado
     const categoriasAtracao = await getCategoriasAtracao(supabase, barId);
     if (!categoriasAtracao) {
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
         { status: 500 }
       );
     }
-    const { data: niboAtracaoRows, error: niboError } = await supabase
+    const { data: atracaoRows, error: atracaoError } = await supabase
       .from('lancamentos_financeiros')
       .select('valor')
       .eq('bar_id', barId)
@@ -125,11 +125,11 @@ export async function GET(request: NextRequest) {
       .gte('data_competencia', dataInicio)
       .lte('data_competencia', dataFim);
 
-    if (niboError) {
-      console.error('Erro ao buscar atrações Conta Azul mensal:', niboError);
+    if (atracaoError) {
+      console.error('Erro ao buscar atrações Conta Azul mensal:', atracaoError);
     }
 
-    const atracoesEventos = (niboAtracaoRows || []).reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
+    const atracoesEventos = (atracaoRows || []).reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
     const couvertAtracoes = (couvertRows || []).reduce((sum, r) => sum + (parseFloat(r.valor_couvert) || 0), 0);
     const cancelamentos = (cancelamentosRows || []).reduce((sum, r) => sum + (parseFloat(r.custototal) || 0), 0);
 

@@ -3,7 +3,7 @@
  * 
  * Processa automaticamente o CMV semanal integrando dados de:
  * - desempenho_semanal (faturamento_total como faturamento bruto)
- * - NIBO (Compras por categoria)
+ * - Conta Azul (Compras por categoria)
  * 
  * Cria automaticamente semanas que existem no desempenho_semanal mas não no cmv_semanal.
  */
@@ -291,7 +291,7 @@ serve(async (req) => {
           semanasExistentes.add(numeroSemana);
         }
 
-        console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Buscando compras NIBO...`);
+        console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Buscando compras Conta Azul...`);
         // 4. Buscar compras do Conta Azul para esta semana (usando data_competencia)
         // CMV - Categorias de custo de mercadoria:
         // - Ordinário: CUSTO COMIDA, Custo Bebidas, Custo Drinks
@@ -813,3 +813,4 @@ serve(async (req) => {
     );
   }
 });
+

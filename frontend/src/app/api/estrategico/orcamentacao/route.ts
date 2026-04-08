@@ -304,7 +304,7 @@ export async function GET(request: Request) {
     dadosPlanejados?.forEach(item => {
       let valorRealizado = valoresRealizados.get(item.categoria_nome) || 0;
       
-      // Se não encontrou no NIBO, usa o valor realizado da tabela orçamentação (fallback)
+      // Se não encontrou no Conta Azul, usa o valor realizado da tabela orçamentação (fallback)
       if (valorRealizado === 0 && item.valor_realizado) {
         valorRealizado = Number(item.valor_realizado);
       }
@@ -328,12 +328,12 @@ export async function GET(request: Request) {
     });
 
     // Processar categorias que só têm dados realizados (sem planejamento)
-    // Lógica: 1º busca no NIBO, se não encontrar, busca na tabela orçamentação
+    // Lógica: 1º busca no Conta Azul, se não encontrar, busca na tabela orçamentação
     estruturaBase.forEach(base => {
       if (!categoriasProcessadas.has(base.categoria)) {
         let valorRealizado = valoresRealizados.get(base.categoria) || 0;
         
-        // Se não encontrou no NIBO, busca na tabela orçamentação (fallback)
+        // Se não encontrou no Conta Azul, busca na tabela orçamentação (fallback)
         if (valorRealizado === 0) {
           const dadoOrcamentacao = dadosPlanejados?.find(item => 
             item.categoria_nome === base.categoria && item.valor_realizado
