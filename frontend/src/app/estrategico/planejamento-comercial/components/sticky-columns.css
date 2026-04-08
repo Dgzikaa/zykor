@@ -1,0 +1,36 @@
+/* Forçar colunas fixas com transform - sobrescrever qualquer CSS */
+.sticky-col-1,
+.sticky-col-2,
+.sticky-col-3,
+.sticky-col-4,
+.sticky-col-5 {
+  position: relative !important;
+  z-index: 10 !important;
+  background-color: white !important;
+  transition: none !important;
+  will-change: transform !important;
+}
+
+/* Headers */
+.sticky-header-1,
+.sticky-header-2,
+.sticky-header-3,
+.sticky-header-4,
+.sticky-header-5 {
+  position: relative !important;
+  z-index: 50 !important;
+  background-color: hsl(var(--muted)) !important;
+  transition: none !important;
+  will-change: transform !important;
+}
+
+/* Garantir que a tabela não tenha position relative */
+.planejamento-table {
+  position: static !important;
+}
+
+/* Garantir que o container tenha overflow correto */
+.planejamento-container {
+  overflow: auto !important;
+  position: relative !important;
+}

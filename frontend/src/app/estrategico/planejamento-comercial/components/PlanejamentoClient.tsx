@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import './sticky-columns.css';
 import {
   Tooltip,
   TooltipContent,
@@ -115,12 +116,60 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
   const [colunaHighlight, setColunaHighlight] = useState<string | null>(null);
   const [editandoReservas, setEditandoReservas] = useState<{id: number, campo: 'res_tot' | 'res_p'} | null>(null);
   const [valorReservaTemp, setValorReservaTemp] = useState<string>('');
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
     setDados(initialData);
     setFiltroMes(serverMes);
     setFiltroAno(serverAno);
   }, [initialData, serverMes, serverAno]);
+  
+  // Solução com JavaScript para colunas fixas
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) {
+      console.log('❌ Container não encontrado');
+      return;
+    }
+    
+    console.log('✅ Container encontrado, adicionando listener de scroll');
+    console.log('📦 Container info:', {
+      scrollWidth: container.scrollWidth,
+      clientWidth: container.clientWidth,
+      hasHorizontalScroll: container.scrollWidth > container.clientWidth
+    });
+    
+    const handleScroll = (e: Event) => {
+      const target = e.target as HTMLElement;
+      const scrollLeft = target.scrollLeft;
+      
+      // Só processar se tiver scroll horizontal (scrollLeft > 0)
+      if (scrollLeft === 0 || !scrollLeft) return;
+      
+      console.log('📊 Scroll HORIZONTAL detectado:', scrollLeft, 'no elemento:', target.className);
+      
+      // Selecionar todas as células fixas
+      const fixedCells = document.querySelectorAll('.sticky-col-1, .sticky-col-2, .sticky-col-3, .sticky-col-4, .sticky-col-5, .sticky-header-1, .sticky-header-2, .sticky-header-3, .sticky-header-4, .sticky-header-5');
+      console.log('🔍 Células fixas encontradas:', fixedCells.length);
+      
+      fixedCells.forEach((cell) => {
+        const htmlCell = cell as HTMLElement;
+        htmlCell.style.transform = `translateX(${scrollLeft}px)`;
+        htmlCell.style.position = 'relative';
+      });
+    };
+    
+    // Adicionar listener no container e em todos os filhos com scroll
+    container.addEventListener('scroll', handleScroll, true);
+    
+    // Também adicionar no document para capturar qualquer scroll
+    document.addEventListener('scroll', handleScroll, true);
+    
+    return () => {
+      container.removeEventListener('scroll', handleScroll, true);
+      document.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [dados]);
   
   // Salvar reserva inline (Deboche)
   const salvarReservaInline = async (eventoId: number, campo: 'res_tot' | 'res_p', valor: number) => {
@@ -472,12 +521,13 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
             <div className="flex gap-4">
               <div className="flex-1 hidden md:block">
                 {/* Tabela Completa */}
-                <div className="bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-xl shadow-sm overflow-x-auto overflow-y-auto max-h-[calc(100vh-120px)]" style={{position: 'relative'}}>
-                  <table className="text-[10px] w-full min-w-max" style={{borderCollapse: 'separate', borderSpacing: 0, position: 'relative'}}>
+                <div className="bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-xl shadow-sm">
+                  <div ref={scrollContainerRef} className="planejamento-container overflow-auto max-h-[calc(100vh-120px)]">
+                  <table className="planejamento-table text-[10px] w-full" style={{borderCollapse: 'separate', borderSpacing: 0}}>
                     <thead className="bg-[hsl(var(--muted))]">
                       {/* Primeira linha - Grupos colapsáveis */}
                       <tr className="sticky top-0 z-30 bg-[hsl(var(--muted))] border-b-2 border-[hsl(var(--border))]">
-                        <th colSpan={5} className="border-r-2 border-[hsl(var(--border))] !bg-[hsl(var(--muted))] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{width: '446px', minWidth: '446px', maxWidth: '446px', position: 'sticky', left: 0, zIndex: 40}}></th>
+                        <th colSpan={5} className="border-r-2 border-[hsl(var(--border))] bg-[hsl(var(--muted))]"></th>
 
                         {/* Grupo CLIENTES */}
                         <th
@@ -537,11 +587,11 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                       {/* Segunda linha - Headers principais e subcolunas */}
                       <tr className="sticky top-[32px] z-30 bg-[hsl(var(--muted))] border-b border-[hsl(var(--border))]">
                         {/* Colunas Fixas (5 primeiras: Data, Dia, Artista, Receita Real, Meta M1) */}
-                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] !bg-[hsl(var(--muted))] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{width: '48px', minWidth: '48px', maxWidth: '48px', position: 'sticky', left: 0, zIndex: 40}}>Data</th>
-                        <th className="px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] !bg-[hsl(var(--muted))] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{width: '38px', minWidth: '38px', maxWidth: '38px', position: 'sticky', left: '48px', zIndex: 40}}>Dia</th>
-                        <th className="px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))] !bg-[hsl(var(--muted))] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{width: '140px', minWidth: '140px', maxWidth: '140px', position: 'sticky', left: '86px', zIndex: 40}}>Artista</th>
-                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))] !bg-[hsl(var(--muted))] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{width: '110px', minWidth: '110px', maxWidth: '110px', position: 'sticky', left: '226px', zIndex: 40}}>Receita Real</th>
-                        <th className="px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))] !bg-[hsl(var(--muted))] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{width: '110px', minWidth: '110px', maxWidth: '110px', position: 'sticky', left: '336px', zIndex: 40}}>Meta M1</th>
+                        <th className="sticky-header-1 px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '48px', minWidth: '48px'}}>Data</th>
+                        <th className="sticky-header-2 px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px'}}>Dia</th>
+                        <th className="sticky-header-3 px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '140px', minWidth: '140px'}}>Artista</th>
+                        <th className="sticky-header-4 px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px'}}>Receita Real</th>
+                        <th className="sticky-header-5 px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px'}}>Meta M1</th>
                         
                         {/* Subcolunas CLIENTES */}
                         {gruposAbertos.clientes ? (
@@ -706,20 +756,17 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             }`}
                           >
                             {/* Colunas Fixas (Data, Dia, Artista, Receita Real, Meta M1) */}
-                            <td className={`px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))] transition-colors shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] ${linhaHighlight === idx ? '!bg-blue-200 dark:!bg-blue-800' : '!bg-white dark:!bg-gray-900 group-hover:!bg-blue-100/70 dark:group-hover:!bg-blue-900/30'}`} style={{width: '48px', minWidth: '48px', maxWidth: '48px', position: 'sticky', left: 0, zIndex: 20}}>{evento.data_curta}</td>
-                            <td className={`px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] transition-colors shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] ${linhaHighlight === idx ? '!bg-blue-200 dark:!bg-blue-800' : '!bg-white dark:!bg-gray-900 group-hover:!bg-blue-100/70 dark:group-hover:!bg-blue-900/30'}`} style={{width: '38px', minWidth: '38px', maxWidth: '38px', position: 'sticky', left: '48px', zIndex: 20}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
-                            <td className={`px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))] truncate transition-colors shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] ${linhaHighlight === idx ? '!bg-blue-200 dark:!bg-blue-800' : '!bg-white dark:!bg-gray-900 group-hover:!bg-blue-100/70 dark:group-hover:!bg-blue-900/30'}`} style={{width: '140px', minWidth: '140px', maxWidth: '140px', position: 'sticky', left: '86px', zIndex: 20}} title={evento.evento_nome || 'Sem atração'}>{evento.evento_nome || '-'}</td>
+                            <td className="sticky-col-1 px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))]" style={{width: '48px', minWidth: '48px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}}>{evento.data_curta}</td>
+                            <td className="sticky-col-2 px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
+                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))] truncate" style={{width: '140px', minWidth: '140px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}} title={evento.evento_nome || 'Sem atração'}>{evento.evento_nome || '-'}</td>
                             <td 
                               onClick={(e) => { 
                                 e.stopPropagation(); 
                                 setLinhaHighlight(idx); 
                                 setColunaHighlight(prev => prev === 'real_receita' ? null : 'real_receita');
                               }}
-                              className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] transition-colors cursor-pointer shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] ${
-                                colunaHighlight === 'real_receita' ? '!bg-blue-50 dark:!bg-blue-900 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' :
-                                linhaHighlight === idx ? '!bg-blue-200 dark:!bg-blue-800' : '!bg-white dark:!bg-gray-900 group-hover:!bg-blue-100/70 dark:group-hover:!bg-blue-900/30'
-                              }`}
-                              style={{width: '110px', minWidth: '110px', maxWidth: '110px', position: 'sticky', left: '226px', zIndex: 20}}>
+                              className="sticky-col-4 px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer"
+                              style={{width: '110px', minWidth: '110px', backgroundColor: colunaHighlight === 'real_receita' ? 'rgb(239, 246, 255)' : (linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white')}}>
                               {evento.real_receita > 0 ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -767,11 +814,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                 setLinhaHighlight(idx); 
                                 setColunaHighlight(prev => prev === 'm1_receita' ? null : 'm1_receita');
                               }}
-                              className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] ${
-                                colunaHighlight === 'm1_receita' ? '!bg-blue-50 dark:!bg-blue-900 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' :
-                                linhaHighlight === idx ? '!bg-blue-200 dark:!bg-blue-800' : '!bg-white dark:!bg-gray-900 group-hover:!bg-blue-100/70 dark:group-hover:!bg-blue-900/30'
-                              }`}
-                              style={{width: '110px', minWidth: '110px', maxWidth: '110px', position: 'sticky', left: '336px', zIndex: 20}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
+                              className="sticky-col-5 px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer"
+                              style={{width: '110px', minWidth: '110px', backgroundColor: colunaHighlight === 'm1_receita' ? 'rgb(239, 246, 255)' : (linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white')}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
                             
                             {/* Grupo CLIENTES */}
                             {gruposAbertos.clientes ? (
@@ -1058,6 +1102,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         })}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </div>
 
