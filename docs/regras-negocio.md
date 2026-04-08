@@ -14,9 +14,12 @@
 4. [Stockout](#4-stockout)
 5. [CMV Semanal](#5-cmv-semanal)
 6. [Planejamento Comercial](#6-planejamento-comercial)
-7. [Campos Manuais (Nunca Sobrescrever)](#7-campos-manuais-nunca-sobrescrever)
-8. [Configurações Críticas por Bar no Banco](#8-configurações-críticas-por-bar-no-banco)
-9. [Checklist de Validação Semanal](#9-checklist-de-validação-semanal)
+7. [DRE — Demonstrativo de Resultado](#7-dre--demonstrativo-de-resultado)
+8. [CMO — Custo de Mão de Obra](#8-cmo--custo-de-mão-de-obra)
+9. [Orçamentação](#9-orçamentação)
+10. [Campos Manuais (Nunca Sobrescrever)](#10-campos-manuais-nunca-sobrescrever)
+11. [Configurações Críticas por Bar no Banco](#11-configurações-críticas-por-bar-no-banco)
+12. [Checklist de Validação Semanal](#12-checklist-de-validação-semanal)
 
 ---
 
@@ -593,7 +596,161 @@ Função: `calculate_evento_metrics`
 
 ---
 
-## 7. Campos Manuais (Nunca Sobrescrever)
+## 7. DRE — Demonstrativo de Resultado
+
+> **Fonte**: `contaazul_lancamentos` → `view_dre` → `/api/financeiro/dre-simples`  
+> **Páginas**: `/ferramentas/dre` e `/operacional/dre`
+
+### 7.1 Estrutura de Macro-Categorias (ordem de exibição)
+
+| # | Macro-Categoria | Tipo | Exemplos de Categorias |
+|---|----------------|------|----------------------|
+| 1 | Receita | Entrada | Stone, Stone Pix, Dinheiro, Pix Direto na Conta, ADICIONAIS, Receitas de Eventos |
+| 2 | Custos Variáveis | Saída | TAXA MAQUININHA, Imposto, Descontos Concedidos |
+| 3 | Custo insumos (CMV) | Saída | Custo Bebidas, Custo Comida, Custo Drinks, Custo Outros, Materiais para Revenda |
+| 4 | Mão-de-Obra | Saída | FREELA *, SALÁRIO FUNCIONÁRIOS, VALE TRANSPORTE, PRO LABORE, PROVISÃO *, COMISSÃO 10% |
+| 5 | Despesas Comerciais | Saída | Atrações Programação, Atrações/Eventos, Produção Eventos, Marketing |
+| 6 | Despesas Administrativas | Saída | Adm, Administrativo Deboche/Ordinário, Consultoria, Escritório Central |
+| 7 | Despesas Operacionais | Saída | Contratos, Manutenção, Materiais de Limpeza, Utensílios |
+| 8 | Despesas de Ocupação (Contas) | Saída | ÁGUA, ALUGUEL/CONDOMÍNIO/IPTU, Energia Elétrica, GÁS, INTERNET, LUZ |
+| 9 | Não Operacionais | Misto | Despesas Financeiras, Juros, Multas, Rendimentos |
+| 10 | Investimentos | Saída | [Investimento] *, Equipamentos, Obras |
+| 11 | Sócios | Saída | Dividendos, Aporte de capital, Empréstimos de Sócios |
+
+**Excluídos da DRE**: `Transf. de Saida`, `Pix (Excluído)` (transferências internas)
+
+### 7.2 Fórmulas
+
+```
+Receitas       = soma de categorias macro "Receita" + "Não Operacionais" positivos
+Custos         = "Custos Variáveis" + "Custo insumos (CMV)"
+Despesas       = tudo exceto Receita, Não Operacionais, Custos, Investimentos, Sócios
+Lucro Oper.    = Receitas - Custos - Despesas   (exibido como EBITDA na UI)
+```
+
+### 7.3 Fontes de Dados
+
+- **Automático**: `contaazul_lancamentos` → agrupado em `view_dre` por `bar_id, ano, mes, categoria_macro`
+- **Manual**: tabela `dre_manual` (campos: `data_competencia`, `descricao`, `valor`, `categoria`, `categoria_macro`)
+- **⚠ Bug conhecido**: `dre_manual` **não tem `bar_id`** — lançamentos manuais são globais, compartilhados entre os dois bares
+
+### 7.4 Subcategorias (Drill-down)
+
+- Servidas por `/api/financeiro/dre-categorias?bar_id=&ano=&mes=`
+- Busca direto em `contaazul_lancamentos` com totais de entradas/saídas por categoria individual
+- O mapeamento `categoria_nome → categoria_macro` está hardcoded na rota (mesma lógica da `view_dre`)
+
+### 7.5 Diferenças por Bar
+
+- Os dados são filtrados por `bar_id` corretamente na `view_dre` e em `dre-simples`
+- `dre_manual` é global — se adicionar lançamento manual, aparece nos dois bares
+
+### 7.6 Bugs Identificados
+
+| Bug | Impacto | Status |
+|-----|---------|--------|
+| `dre_manual` sem `bar_id` | Manuais aparecem nos dois bares | Comportamento atual — intencional ou não |
+| `contaazul_categorias` estava vazia | Toda DRE era "Outras Despesas" | **Corrigido** (view_dre agora usa CASE WHEN) |
+| Rotas `/api/financeiro/nibo/*` chamadas pela página | DRE estava completamente quebrada | **Corrigido** |
+
+---
+
+## 8. CMO — Custo de Mão de Obra
+
+> **Módulos**: Simulador Semanal (`/ferramentas/simulacao-cmo`) e Comparativo Mensal
+
+### 8.1 Simulador Semanal
+
+**Fontes**:
+- Leitura/gravação: `/api/cmo-semanal` com `bar_id`, `ano`, `semana`
+- Busca automática: `POST /api/cmo-semanal/buscar-automatico` (freelas e CMA do período)
+
+**Componentes do CMO**:
+```
+CMO Total = Freelas + Fixos (CLT) + CMA Alimentação + Pro Labore Semanal
+Meta padrão = R$ 45.000/semana
+```
+
+**Cálculo de custos fixos** (`calcularCustoFuncionario`):
+- CLT: `salario_liquido` por semana
+- Provisões: `provisao_certa`
+- Vale Transporte: incluso
+
+### 8.2 Comparativo Mensal (`/api/rh/cmo-comparativo`)
+
+Compara **simulado** (folha de pagamento) vs **realizado** (Conta Azul via `dre_manual`).
+
+**Mapeamento de categorias simuladas → DRE**:
+
+| Tipo Funcionário | Categoria DRE |
+|-----------------|---------------|
+| CLT | `SALÁRIO FUNCIONÁRIOS` |
+| PJ (salão/atendimento) | `FREELA ATENDIMENTO` |
+| PJ (bar) | `FREELA BAR` |
+| PJ (cozinha) | `FREELA COZINHA` |
+| PJ (limpeza) | `FREELA LIMPEZA` |
+| PJ (segurança) | `FREELA SEGURANÇA` |
+| Vale Transporte | `VALE TRANSPORTE` |
+| Provisão | `PROVISÃO TRABALHISTA` |
+
+**Status de alerta**:
+- `ok`: diferença < 10%
+- `alerta`: diferença entre 10% e 20%
+- `critico`: diferença > 20%
+
+**⚠ Bug identificado**: O realizado (Conta Azul) é buscado de `dre_manual` **sem filtro de `bar_id`** — totais do comparativo misturam os dois bares. O simulado é filtrado corretamente por `bar_id`.
+
+---
+
+## 9. Orçamentação
+
+> **Módulo**: `/estrategico/orcamentacao`  
+> **API**: `/api/estrategico/orcamentacao`
+
+### 9.1 O que calcula
+
+Comparativo de **Planejado** vs **Realizado** por categoria, com suporte a **Projetado** (estimativa revisada).
+
+### 9.2 Fontes de Dados
+
+| Dado | Fonte | Filtro `bar_id` |
+|------|-------|----------------|
+| Planejado | Tabela `orcamentacao` | ✅ Sim |
+| Realizado (automático) | `lancamentos_financeiros` por competência | ✅ Sim |
+| Realizado (manual) | `dre_manual` | ❌ **Não** — global |
+
+### 9.3 Fórmulas Importantes
+
+```
+Percentual Realizado = (valor_realizado / valor_planejado) * 100  (quando planejado > 0)
+
+Para categorias especiais (Impostos, Taxa Maquininha, CMV, Comissão):
+  valor armazenado = (valor_absoluto / receita_total) * 100  → exibido como % da receita
+```
+
+**Receita Total** (base para % de CMV/impostos):
+```
+= soma de "Receita" em lancamentos_financeiros
++ soma de manuais com categoria_macro = "Receita"
+```
+
+### 9.4 Estrutura de Categorias
+
+Mapeamento extenso de nomes do Conta Azul → categoria orçamento canônica:
+- Receitas → `Receita Total`
+- CMV → % da receita
+- Pessoal → `CMO (Mão de Obra)`
+- Fixas → categorias de despesas
+- etc.
+
+### 9.5 Diferenças por Bar
+
+- Tabela `orcamentacao` e `lancamentos_financeiros` filtradas por `bar_id` ✅
+- `dre_manual` é global — **bug confirmado**, pode distorcer análises por bar
+
+---
+
+## 10. Campos Manuais (Nunca Sobrescrever)
 
 O engine `recalcular-desempenho-v2` **protege** os seguintes campos — se já preenchidos, nunca são sobrescritos pelo recálculo automático:
 
@@ -617,7 +774,7 @@ O engine `recalcular-desempenho-v2` **protege** os seguintes campos — se já p
 
 ---
 
-## 8. Configurações Críticas por Bar no Banco
+## 11. Configurações Críticas por Bar no Banco
 
 ### 8.1 `bar_categorias_custo` — Categorias de Atração
 
@@ -663,7 +820,7 @@ Por `bar_id`. Contém `empresa_id` (emp_id) para login na API do ContaHub.
 
 ---
 
-## 9. Dívida Técnica — Duplicidade e Sobreposição
+## 12. Dívida Técnica — Duplicidade e Sobreposição
 
 Campos e tabelas legados que existem no banco mas **não devem ser usados** em código novo. Risco de sobreposição silenciosa.
 
@@ -678,7 +835,7 @@ Campos e tabelas legados que existem no banco mas **não devem ser usados** em c
 
 ---
 
-## 10. Checklist de Validação Semanal
+## 13. Checklist de Validação Semanal
 
 ### Antes de Fechar o Desempenho
 
