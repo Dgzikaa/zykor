@@ -195,52 +195,6 @@ serve(async (req) => {
 
     const statusInterno = statusMap[body.status] || 'desconhecido';
 
-    // Atualizar status em agendamentos (tabela legado mantida para webhook PIX)
-    // TODO: renomear tabela para 'agendamentos' no futuro
-    const AGENDAMENTOS_TABLE = 'nibo_agendamentos';
-    if (body.codigoSolicitacao) {
-      const { data: agendamento, error: agendamentoError } = await supabase
-        .from(AGENDAMENTOS_TABLE)
-        .update({
-          inter_status: body.status,
-          inter_data_aprovacao: body.dataHora,
-          inter_webhook_recebido_em: timestamp,
-          status: statusInterno,
-          atualizado_em: timestamp
-        })
-        .eq('inter_codigo_solicitacao', body.codigoSolicitacao)
-        .select('id, descricao')
-        .maybeSingle();
-
-      if (agendamentoError) {
-        console.error(`[${requestId}] Error updating ${AGENDAMENTOS_TABLE}:`, agendamentoError);
-      } else if (agendamento) {
-        console.log(`[${requestId}] Updated ${AGENDAMENTOS_TABLE} ID ${agendamento.id}: ${body.status}`);
-      }
-    }
-
-    // Tentar atualizar em pagamentos_agendamento também (inter_aprovacao_id)
-    if (body.codigoSolicitacao) {
-      const { data: pagamento, error: pagamentoError } = await supabase
-        .from('pagamentos_agendamento')
-        .update({
-          inter_status: body.status,
-          inter_data_hora: body.dataHora,
-          inter_motivo_rejeicao: body.motivoRejeicao,
-          status: statusInterno,
-          updated_at: timestamp
-        })
-        .eq('inter_aprovacao_id', body.codigoSolicitacao)
-        .select('id, nome_beneficiario')
-        .maybeSingle();
-
-      if (pagamentoError) {
-        console.error(`[${requestId}] Error updating pagamentos_agendamento:`, pagamentoError);
-      } else if (pagamento) {
-        console.log(`[${requestId}] Updated pagamentos_agendamento ID ${pagamento.id}: ${body.status}`);
-      }
-    }
-
     // =====================================================
     // LOG DE AUDITORIA
     // =====================================================

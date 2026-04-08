@@ -58,10 +58,9 @@ export default function AgendamentoPage() {
   const barNome = selectedBar?.nome;
 
   const [credenciaisDisponiveis, setCredenciaisDisponiveis] = useState<{
-    nibo: boolean;
     inter: boolean;
     verificado: boolean;
-  }>({ nibo: false, inter: false, verificado: false });
+  }>({ inter: false, verificado: false });
 
   const toast = useCallback(
     (options: { title: string; description?: string; variant?: 'destructive' }) => {
@@ -349,7 +348,7 @@ export default function AgendamentoPage() {
             descricao: pagamento.descricao || `Pagamento para ${pagamento.nome_beneficiario}`,
             bar_id: pagamento.bar_id || barId,
             inter_credencial_id: Number(interCredencialSelecionadaId),
-            agendamento_id: pagamento.nibo_agendamento_id,
+            agendamento_id: pagamento.agendamento_id,
           }),
         });
 
@@ -512,7 +511,7 @@ export default function AgendamentoPage() {
           descricao: pagamento.descricao || `Pagamento para ${pagamento.nome_beneficiario}`,
           bar_id: pagamento.bar_id || barId,
           inter_credencial_id: Number(interCredencialSelecionadaId),
-          agendamento_id: pagamento.nibo_agendamento_id,
+          agendamento_id: pagamento.agendamento_id,
         }),
       });
 
@@ -584,9 +583,9 @@ export default function AgendamentoPage() {
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-yellow-700 dark:text-yellow-400" />
                 <div className="text-sm text-yellow-700 dark:text-yellow-400">
-                  <strong>Módulo em migração para Conta Azul</strong>
+                  <strong>Módulo temporariamente desabilitado</strong>
                   <p className="text-xs mt-1">
-                    O NIBO foi substituído pelo Conta Azul. Funcionalidades de agendamento estão temporariamente desabilitadas.
+                    Funcionalidades de agendamento estão em manutenção. Em breve disponível.
                   </p>
                 </div>
               </div>
@@ -871,4 +870,5 @@ export default function AgendamentoPage() {
     </ProtectedRoute>
   );
 }
+
 

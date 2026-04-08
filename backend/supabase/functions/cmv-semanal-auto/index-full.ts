@@ -262,7 +262,7 @@ serve(async (req) => {
         }
 
         console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Buscando compras NIBO...`);
-        // 4. Buscar compras do NIBO para esta semana (usando data_competencia)
+        // 4. Buscar compras do Conta Azul para esta semana (usando data_competencia)
         // CMV - Categorias de custo de mercadoria:
         // - Ordinário: CUSTO COMIDA, Custo Bebidas, Custo Drinks
         // - Deboche: CUSTO COMIDAS, CUSTO BEBIDAS, CUSTO DRINKS
@@ -270,8 +270,8 @@ serve(async (req) => {
         // - Ordinário: ALIMENTAÇÃO
         // - Deboche: Alimentação
         const { data: compras } = await supabase
-          .from('nibo_agendamentos')
-          .select('valor, categoria_nome, tipo')
+          .from('contaazul_lancamentos')
+          .select('valor_bruto, categoria_nome, tipo')
           .eq('bar_id', barId)
           .gte('data_competencia', dataInicio)
           .lte('data_competencia', dataFim)

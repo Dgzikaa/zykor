@@ -6,7 +6,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { verificarCredenciais } from '../services/agendamento-service';
 
 export interface CredenciaisVerificadasResult {
-  nibo: boolean;
   inter: boolean;
 }
 
@@ -17,7 +16,7 @@ export interface AgendamentoCredenciaisProps {
 }
 
 /**
- * Verifica NIBO/Inter ao montar ou quando o bar muda; notifica o pai e exibe um aviso compacto se faltar algo.
+ * Verifica credenciais PIX Inter ao montar ou quando o bar muda; notifica o pai e exibe aviso se faltar.
  */
 export function AgendamentoCredenciais({
   barId,
@@ -28,7 +27,6 @@ export function AgendamentoCredenciais({
   notifyRef.current = onCredenciaisVerificadas;
 
   const [verificando, setVerificando] = useState(false);
-  const [nibo, setNibo] = useState(false);
   const [inter, setInter] = useState(false);
   const [concluido, setConcluido] = useState(false);
 
@@ -37,13 +35,11 @@ export function AgendamentoCredenciais({
 
     async function executar() {
       if (!barId) {
-        const result = { nibo: false, inter: false };
         if (!cancelado) {
           setVerificando(false);
-          setNibo(false);
           setInter(false);
           setConcluido(true);
-          notifyRef.current(result);
+          notifyRef.current({ inter: false });
         }
         return;
       }
@@ -55,30 +51,25 @@ export function AgendamentoCredenciais({
         const res = await verificarCredenciais(barId);
         if (cancelado) return;
 
-        const result =
-          res.ok
-            ? { nibo: res.data.nibo, inter: res.data.inter }
-            : { nibo: false, inter: false };
+        const result = res.ok
+          ? { inter: res.data.inter ?? false }
+          : { inter: false };
 
-        if (!result.nibo || !result.inter) {
+        if (!result.inter) {
           console.warn(
-            `[AGENDAMENTO] Bar ${barId}${barNome ? ` (${barNome})` : ''} não tem todas as credenciais:`,
-            result
+            `[AGENDAMENTO] Bar ${barId}${barNome ? ` (${barNome})` : ''} sem credencial Inter PIX`
           );
         }
 
-        setNibo(result.nibo);
         setInter(result.inter);
         setConcluido(true);
         notifyRef.current(result);
       } catch (e) {
         console.error('Erro ao verificar credenciais:', e);
         if (cancelado) return;
-        const result = { nibo: false, inter: false };
-        setNibo(false);
         setInter(false);
         setConcluido(true);
-        notifyRef.current(result);
+        notifyRef.current({ inter: false });
       } finally {
         if (!cancelado) setVerificando(false);
       }
@@ -99,11 +90,7 @@ export function AgendamentoCredenciais({
     );
   }
 
-  if (!concluido || !barId) {
-    return null;
-  }
-
-  if (nibo && inter) {
+  if (!concluido || !barId || inter) {
     return null;
   }
 
@@ -121,22 +108,15 @@ export function AgendamentoCredenciais({
         />
         <div className="min-w-0 space-y-2 text-sm">
           <p className="font-medium text-foreground">
-            Credenciais incompletas para {nomeExibicao}
+            PIX Inter não configurado para {nomeExibicao}
           </p>
           <p className="text-muted-foreground">
-            Agendamento completo (PIX Inter) exige a integração configurada. Peça ao
-            administrador para configurar o que faltar.
+            Configure a integração Inter PIX nas configurações para habilitar pagamentos.
           </p>
           <ul className="flex flex-col gap-1 text-xs sm:text-sm">
             <li className="flex items-center gap-2">
-              {inter ? (
-                <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />
-              ) : (
-                <AlertCircle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
-              )}
-              <span>
-                PIX Inter: {inter ? 'configurado' : 'não configurado'}
-              </span>
+              <AlertCircle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
+              <span>PIX Inter: não configurado</span>
             </li>
           </ul>
         </div>

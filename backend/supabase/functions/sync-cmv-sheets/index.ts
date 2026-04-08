@@ -472,7 +472,11 @@ serve(async (req) => {
         const colunaSemanaAno: Map<number, {semana: number, ano: number}> = new Map()
         for (let col = 1; col < headers.length; col++) {
           const numSemana = extrairNumeroSemana(String(headers[col] || ''))
-          const anoColuna = extrairAnoDeData(dateRow[col])
+          // Tenta extrair o ano da célula de data; se falhar, usa o 'ano' do request como fallback
+          let anoColuna = extrairAnoDeData(dateRow[col])
+          if (anoColuna === null && ano) {
+            anoColuna = ano
+          }
           
           if (numSemana !== null && anoColuna !== null) {
             colunaSemanaAno.set(col, { semana: numSemana, ano: anoColuna })
@@ -741,12 +745,23 @@ serve(async (req) => {
         // CMV Limpo % = CMV Real / Faturamento Líquido * 100
         console.log(`\n🧮 Recalculando CMV Limpo %...`)
         
-        const { data: semanasParaRecalcular } = await supabase
+        // Coletar os anos processados no loop (pode ser mais de um se a planilha tiver semanas de anos diferentes)
+        const anosProcessados = new Set(Array.from(colunaSemanaAno.values()).map(v => v.ano))
+        // Fallback: se nenhum ano foi processado (0 semanas), usa o 'ano' do request ou busca todos
+        const queryAnos = anosProcessados.size > 0 ? anosProcessados : (ano ? new Set([ano]) : null)
+        
+        const recalcQuery = supabase
           .from('cmv_semanal')
           .select('id, cmv_real, vendas_liquidas')
           .eq('bar_id', barConfig.bar_id)
-          .eq('ano', anoColuna)
           .not('cmv_real', 'is', null)
+        
+        // Filtrar por ano somente se tivermos anos específicos
+        if (queryAnos && queryAnos.size === 1) {
+          recalcQuery.eq('ano', Array.from(queryAnos)[0])
+        }
+        
+        const { data: semanasParaRecalcular } = await recalcQuery
         
         for (const sem of semanasParaRecalcular || []) {
           const cmvLimpoPercentual = sem.vendas_liquidas > 0 
@@ -790,6 +805,10 @@ serve(async (req) => {
               (semanaAtual.ano === semanaAnterior.ano + 1 && semanaAtual.semana === 1 && semanaAnterior.semana >= 52)
             
             if (!isSequencial) continue
+            
+            // Só propagar se a semana anterior tiver estoque_final > 0
+            // (zero = dado ausente/não calculado, não estoque vazio real)
+            if (!semanaAnterior.estoque_final || semanaAnterior.estoque_final <= 0) continue
             
             // Propagar estoque final da semana anterior como inicial da atual
             const { error: propError } = await supabase

@@ -55,32 +55,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Buscar pagamento pelo código de solicitação
-    const { data: pagamentos, error: searchError } = await supabase
-      .from('pagamentos_agendamento')
+    // Buscar pagamento pelo código de solicitação em pix_enviados (campo txid)
+    const { data: pixEnviados, error: searchError } = await supabase
+      .from('pix_enviados')
       .select('*')
-      .eq('inter_aprovacao_id', codigoSolicitacao);
+      .eq('txid', codigoSolicitacao)
+      .limit(1);
 
     if (searchError) {
-      console.error('❌ Erro ao buscar pagamento:', searchError);
-      return NextResponse.json(
-        { error: 'Erro ao buscar pagamento' },
-        { status: 500 }
-      );
+      // Retornar 200 mesmo em erro para evitar retentativas do Inter
+      console.error('❌ Erro ao buscar pagamento PIX:', searchError);
+      return NextResponse.json({ received: true, warning: 'Pagamento não localizado' });
     }
 
-    if (!pagamentos || pagamentos.length === 0) {
-      console.warn(
-        '⚠️ Pagamento não encontrado para código:',
-        codigoSolicitacao
-      );
-      return NextResponse.json(
-        { error: 'Pagamento não encontrado' },
-        { status: 404 }
-      );
+    // Se não encontrou, aceitar o webhook mesmo assim (evita retentativas)
+    if (!pixEnviados || pixEnviados.length === 0) {
+      console.warn('⚠️ Webhook Inter recebido sem pagamento correspondente:', codigoSolicitacao);
+      return NextResponse.json({ received: true, warning: 'Código não encontrado no sistema' });
     }
 
-    const pagamento: PagamentoAgendamento = pagamentos[0];
+    const pix = pixEnviados[0];
+    const pagamento: PagamentoAgendamento = {
+      id: pix.id,
+      inter_aprovacao_id: codigoSolicitacao,
+      nome_beneficiario: pix.beneficiario?.nome || destinatario?.nome || '',
+      valor: Number(pix.valor) || valor || 0,
+      descricao: descricao || '',
+      status: pix.status || '',
+      created_at: pix.created_at,
+      updated_at: pix.updated_at || pix.created_at,
+    };
 
     // Atualizar status do pagamento baseado na resposta do Inter
     let novoStatus: string;
@@ -136,14 +140,11 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    // Atualizar pagamento no banco
+    // Atualizar pagamento no banco (pix_enviados)
     const { error: updateError } = await supabase
-      .from('pagamentos_agendamento')
+      .from('pix_enviados')
       .update({
         status: novoStatus,
-        inter_status: status,
-        inter_data_hora: dataHora,
-        inter_motivo_rejeicao: motivoRejeicao,
         updated_at: new Date().toISOString(),
       })
       .eq('id', pagamento.id);

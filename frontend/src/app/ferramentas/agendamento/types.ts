@@ -20,7 +20,7 @@ export interface PagamentoAgendamento {
     | 'erro'
     | 'erro_inter';
   stakeholder_id?: string;
-  nibo_agendamento_id?: string;
+  agendamento_id?: string;
   inter_aprovacao_id?: string;
   bar_id?: number;
   bar_nome?: string;

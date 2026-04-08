@@ -312,25 +312,6 @@ export async function POST(request: NextRequest) {
         console.error('[INTER-PIX] Erro ao salvar no banco:', insertError);
       }
 
-      // Se tiver agendamento_id, atualizar a tabela de agendamentos com o código de solicitação
-      // Isso permite que o webhook encontre o agendamento quando receber a confirmação
-      // NOTA: Tabela nibo_agendamentos é a tabela de agendamentos legados (mantida para o webhook PIX funcionar)
-      if (agendamento_id) {
-        const { error: updateError } = await supabase
-          .from('nibo_agendamentos')
-          .update({
-            inter_codigo_solicitacao: codigoSolicitacao,
-            inter_end_to_end_id: resultadoPix.data?.endToEndId || null,
-            inter_status: 'AGUARDANDO_APROVACAO',
-            status: 'aguardando_aprovacao',
-            atualizado_em: new Date().toISOString()
-          })
-          .eq('id', agendamento_id);
-
-        if (updateError) {
-          console.error('[INTER-PIX] Erro ao atualizar agendamento:', updateError);
-        }
-      }
 
       return NextResponse.json({
         success: true,

@@ -39,14 +39,14 @@ serve(async (req) => {
       .limit(1);
     console.log('Teste 2: OK -', cmv?.length || 0, 'registros');
 
-    // Teste 3: Buscar nibo_agendamentos
-    console.log('Teste 3: Buscando nibo_agendamentos...');
-    const { data: nibo } = await supabase
-      .from('nibo_agendamentos')
+    // Teste 3: Buscar contaazul_lancamentos
+    console.log('Teste 3: Buscando contaazul_lancamentos...');
+    const { data: lancamentos } = await supabase
+      .from('contaazul_lancamentos')
       .select('id')
       .eq('bar_id', bar_id)
       .limit(1);
-    console.log('Teste 3: OK -', nibo?.length || 0, 'registros');
+    console.log('Teste 3: OK -', lancamentos?.length || 0, 'registros');
 
     return new Response(
       JSON.stringify({
