@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useCallback } from 'react';
 import { Search, Plus } from 'lucide-react';
@@ -19,12 +19,12 @@ import type { PagamentoAgendamento, Stakeholder } from '../types';
 const inputClass =
   'mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400';
 
-/** Remove tudo que não for dígito (CPF/CNPJ). */
+/** Remove tudo que n�o for d�gito (CPF/CNPJ). */
 export function removerFormatacaoDocumento(valor: string): string {
   return valor.replace(/\D/g, '');
 }
 
-/** Máscara dinâmica CPF ou CNPJ. */
+/** M�scara din�mica CPF ou CNPJ. */
 export function formatarDocumento(valor: string): string {
   const apenasDigitos = valor.replace(/\D/g, '');
 
@@ -139,7 +139,7 @@ export function NovoPagamentoForm({
             }));
             showToast({
               type: 'warning',
-              title: '⚠️ Stakeholder sem chave PIX',
+              title: '⚠︝ Stakeholder sem chave PIX',
               message: `${stakeholder.name} foi encontrado; informe a chave PIX manualmente`,
             });
           }
@@ -148,7 +148,7 @@ export function NovoPagamentoForm({
             type: 'error',
             title: '❌ Stakeholder não encontrado',
             message:
-              'Cadastre o benefici�rio no Conta Azul ou preencha os dados manualmente',
+              'Cadastre o benefici�rio no Conta Azul ou preencha os dados manualmente',
           });
         }
       } catch (e) {

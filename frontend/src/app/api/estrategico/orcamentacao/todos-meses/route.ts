@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+﻿import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 // Cache por 2 minutos, revalidar em background por até 10 minutos
@@ -368,7 +368,7 @@ export async function GET(request: Request) {
     const dataInicio = `${primeiroMesPeriodo.ano}-${String(primeiroMesPeriodo.mes).padStart(2, '0')}-01`;
     const dataFim = `${ultimoMesPeriodo.ano}-${String(ultimoMesPeriodo.mes).padStart(2, '0')}-${String(ultimoDiaMes).padStart(2, '0')}`;
 
-    // 🚀 OTIMIZAÇÃO: Executar TODAS as queries em paralelo (com pagina��o para Conta Azul)
+    // 🚀 OTIMIZAÇÃO: Executar TODAS as queries em paralelo (com pagina��o para Conta Azul)
     const [
       planejadosResult,
       dadosNiboTodos,

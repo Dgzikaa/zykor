@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+﻿import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic'
@@ -86,7 +86,7 @@ export async function GET(request: Request) {
       endDate = `${ano}-12-31`;
     }
 
-    // Buscar lan�amentos do Conta Azul para o período
+    // Buscar lan�amentos do Conta Azul para o período
     const lancamentosData = await fetchAllData(supabase, 'contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia, data_pagamento', {
       'eq_bar_id': parseInt(barId),
       'gte_data_competencia': startDate,
