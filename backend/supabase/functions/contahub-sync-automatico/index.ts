@@ -314,8 +314,45 @@ async function saveRawDataOnly(supabase: any, dataType: string, rawData: any, da
     const recordCount = Array.isArray(rawData?.list) ? rawData.list.length : 
                        Array.isArray(rawData) ? rawData.length : 1;
     
-    // Salvar JSON completo como está - SEM PROCESSAMENTO
-    // Usar upsert sem ignoreDuplicates para atualizar se existir
+    // CRÍTICO: Não salvar dados vazios no banco
+    // Isso evita criar registros "fantasma" que bloqueiam o processamento
+    if (recordCount === 0) {
+      console.warn(`⚠️ ${dataType}: ContaHub retornou 0 registros - NÃO salvando no banco`);
+      throw new Error(`ContaHub retornou dados vazios para ${dataType} em ${dataDate}. Dia pode não ter fechado ainda.`);
+    }
+    
+    // Calcular hash dos dados para detectar mudanças
+    const dataHash = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(JSON.stringify(rawData))
+    );
+    const hashArray = Array.from(new Uint8Array(dataHash));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    // Verificar se já existe registro para esta data
+    const { data: existingRecord } = await supabase
+      .from('contahub_raw_data')
+      .select('id, data_hash, processed')
+      .eq('bar_id', barId)
+      .eq('data_type', dataType)
+      .eq('data_date', dataDate)
+      .single();
+    
+    let needsReprocess = false;
+    let isUpdate = false;
+    
+    if (existingRecord) {
+      isUpdate = true;
+      // Se hash mudou, marcar para reprocessar
+      if (existingRecord.data_hash !== hashHex) {
+        needsReprocess = true;
+        console.log(`🔄 ${dataType}: Dados mudaram (hash diferente), marcando para reprocessar`);
+      } else {
+        console.log(`✅ ${dataType}: Dados idênticos (hash igual), mantendo como está`);
+      }
+    }
+    
+    // Salvar ou atualizar dados
     const { data, error } = await supabase
       .from('contahub_raw_data')
       .upsert({
@@ -323,7 +360,10 @@ async function saveRawDataOnly(supabase: any, dataType: string, rawData: any, da
         data_type: dataType,
         data_date: dataDate,
         raw_json: rawData,
-        processed: false
+        record_count: recordCount,
+        data_hash: hashHex,
+        processed: needsReprocess ? existingRecord.processed : false,
+        needs_reprocess: needsReprocess
       }, {
         onConflict: 'bar_id,data_type,data_date'
       })
@@ -335,8 +375,9 @@ async function saveRawDataOnly(supabase: any, dataType: string, rawData: any, da
     }
     
     const rawDataId = data && data.length > 0 ? data[0].id : 'updated';
+    const action = isUpdate ? (needsReprocess ? 'atualizado (reprocessar)' : 'mantido (sem mudanças)') : 'criado';
     
-    console.log(`✅ ${dataType} salvo: raw_data_id=${rawDataId}, registros=${recordCount}`);
+    console.log(`✅ ${dataType} ${action}: raw_data_id=${rawDataId}, registros=${recordCount}`);
     
     return {
       raw_data_id: rawDataId,
@@ -923,6 +964,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
       bar_id || null,
       true // releaseLock
     );
+    
+    // 🔄 Chamar processor automaticamente após sync bem-sucedido
+    console.log('🔄 Chamando contahub-processor automaticamente...');
+    try {
+      const processorUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/contahub-processor`;
+      const processorResponse = await fetch(processorUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          process_all: true,
+          bar_id: bar_id
+        })
+      });
+      
+      if (processorResponse.ok) {
+        console.log('✅ Processor chamado com sucesso');
+      } else {
+        console.warn(`⚠️ Processor retornou status ${processorResponse.status}`);
+      }
+    } catch (processorError) {
+      console.error('❌ Erro ao chamar processor:', processorError);
+      // Não falhar o sync se o processor falhar
+    }
     
     return new Response(JSON.stringify({
       success: true,

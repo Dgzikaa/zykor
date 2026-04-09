@@ -84,17 +84,6 @@ export async function getInterCredentials(barId: string): Promise<{
 }
 
 /**
- * Busca credenciais legadas (NIBO - descontinuado)
- * @deprecated NIBO foi substituído pelo Conta Azul em 04/2026
- */
-export async function getNiboCredentials(barId: string): Promise<{
-  api_key: string;
-} | null> {
-  console.warn('⚠️ getNiboCredentials() está deprecated. NIBO foi substituído pelo Conta Azul.');
-  return null;
-}
-
-/**
  * Busca credenciais do ContaHub
  */
 export async function getContaHubCredentials(barId: string): Promise<{

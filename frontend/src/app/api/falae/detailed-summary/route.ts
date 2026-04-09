@@ -24,7 +24,14 @@ interface NpsDetailedSummary {
   detratores: number;
   mediaNotas: number | null;
   respostas: RespostaDetalhada[];
-  criteriosMedia: { nome: string; media: number; total: number }[];
+  criteriosMedia: { 
+    nome: string; 
+    media: number; 
+    total: number;
+    promotores: number;
+    neutros: number;
+    detratores: number;
+  }[];
 }
 
 export async function GET(request: NextRequest) {
@@ -48,12 +55,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'data_inicio e data_fim são obrigatórios' }, { status: 400 });
     }
 
+    // Usar created_at como filtro principal (igual à tabela desempenho_semanal)
     let query = supabase
       .from('falae_respostas')
       .select('id, falae_id, nps, created_at, data_visita, discursive_question, client_name, client_email, search_name, criterios')
       .eq('bar_id', barId)
-      .or(`data_visita.gte.${dataInicio},and(data_visita.is.null,created_at.gte.${dataInicio})`)
-      .or(`data_visita.lte.${dataFim},and(data_visita.is.null,created_at.lte.${dataFim}T23:59:59)`)
+      .gte('created_at', `${dataInicio}T00:00:00`)
+      .lte('created_at', `${dataFim}T23:59:59`)
       .order('created_at', { ascending: false });
 
     if (searchName) {
@@ -67,10 +75,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao buscar dados' }, { status: 500 });
     }
 
-    const filtradas = (respostas || []).filter((r: any) => {
-      const dataRef = r.data_visita || r.created_at?.split('T')[0];
-      return dataRef >= dataInicio && dataRef <= dataFim;
-    }) as any[];
+    const filtradas = (respostas || []) as any[];
 
     const total = filtradas.length;
     const promotores = filtradas.filter(r => r.nps >= 9).length;
@@ -79,7 +84,8 @@ export async function GET(request: NextRequest) {
     const npsScore = total > 0 ? Math.round(((promotores - detratores) / total) * 100) : null;
     const mediaNotas = total > 0 ? Math.round((filtradas.reduce((acc, r) => acc + (r.nps || 0), 0) / total) * 10) / 10 : null;
 
-    const criteriosTotais: Record<string, { soma: number; count: number }> = {};
+    // Calcular NPS por categoria (4-5 = promotor, 3 = neutro, 1-2 = detrator)
+    const criteriosTotais: Record<string, { promotores: number; neutros: number; detratores: number; total: number }> = {};
 
     const respostasDetalhadas: RespostaDetalhada[] = filtradas.map((r: any) => {
       const criteriosArray: { nome: string; nota: number }[] = [];
@@ -93,10 +99,18 @@ export async function GET(request: NextRequest) {
               criteriosArray.push({ nome: nick, nota });
               
               if (!criteriosTotais[nick]) {
-                criteriosTotais[nick] = { soma: 0, count: 0 };
+                criteriosTotais[nick] = { promotores: 0, neutros: 0, detratores: 0, total: 0 };
               }
-              criteriosTotais[nick].soma += nota;
-              criteriosTotais[nick].count++;
+              
+              // Classificar nota: 4-5 = promotor, 3 = neutro, 1-2 = detrator
+              if (nota >= 4) {
+                criteriosTotais[nick].promotores++;
+              } else if (nota === 3) {
+                criteriosTotais[nick].neutros++;
+              } else if (nota >= 1 && nota <= 2) {
+                criteriosTotais[nick].detratores++;
+              }
+              criteriosTotais[nick].total++;
             }
           }
         });
@@ -115,12 +129,22 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Calcular NPS Score para cada categoria
     const criteriosMedia = Object.entries(criteriosTotais)
-      .map(([nome, { soma, count }]) => ({
-        nome,
-        media: Math.round((soma / count) * 10) / 10,
-        total: count,
-      }))
+      .map(([nome, stats]) => {
+        const npsCategoria = stats.total > 0 
+          ? Math.round(((stats.promotores - stats.detratores) / stats.total) * 100)
+          : 0;
+        
+        return {
+          nome,
+          media: npsCategoria, // Agora é NPS Score (0-100), não média de notas
+          total: stats.total,
+          promotores: stats.promotores,
+          neutros: stats.neutros,
+          detratores: stats.detratores,
+        };
+      })
       .sort((a, b) => b.total - a.total);
 
     const summary: NpsDetailedSummary = {

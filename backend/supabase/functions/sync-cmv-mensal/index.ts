@@ -360,8 +360,12 @@ serve(async (req) => {
             ano: info.ano,
             mes: info.mes,
             data_inicio: info.dataInicio,
-            data_fim: info.dataFim,
             updated_at: new Date().toISOString()
+          }
+          
+          // Adicionar data_fim apenas se existir
+          if (info.dataFim) {
+            updateData.data_fim = info.dataFim
           }
 
           // Extrair valores (verificando se a linha existe)
@@ -384,21 +388,35 @@ serve(async (req) => {
           updateData.gap = parsePercentual(getVal(ROW_MAP.gap, col))
           updateData.faturamento_total = parseMonetario(getVal(ROW_MAP.fat_total, col))
           updateData.cmv_real_percentual = parsePercentual(getVal(ROW_MAP.cmv_real_pct, col))
+          
+          // Campos CMA (Custo de Alimentação) - inicializar com 0 se não existirem na planilha
+          updateData.estoque_inicial_funcionarios = 0
+          updateData.compras_alimentacao = 0
+          updateData.estoque_final_funcionarios = 0
+          updateData.cma_total = 0
+          
+          // Fonte dos dados
+          updateData.fonte = 'planilha'
 
-          // Verificar se tem dados válidos
-          if (updateData.estoque_inicial === 0 && updateData.compras === 0 && updateData.cmv_real === 0) {
+          // Verificar se tem dados válidos (mais permissivo - aceita se tiver qualquer valor)
+          const temDados = updateData.estoque_inicial !== 0 || 
+                          updateData.compras !== 0 || 
+                          updateData.estoque_final !== 0 ||
+                          updateData.cmv_real !== 0 ||
+                          updateData.faturamento_cmvivel !== 0
+          
+          if (!temDados) {
             if (debug) console.log(`⏭️ ${info.ano}/${info.mes}: sem dados válidos`)
             continue
           }
 
-          if (debug) {
-            console.log(`📝 ${info.ano}/${info.mes}:`, JSON.stringify({
-              est_ini: updateData.estoque_inicial,
-              compras: updateData.compras,
-              est_fim: updateData.estoque_final,
-              cmv_real: updateData.cmv_real
-            }))
-          }
+          console.log(`📝 ${info.ano}/${info.mes}:`, JSON.stringify({
+            est_ini: updateData.estoque_inicial,
+            compras: updateData.compras,
+            est_fim: updateData.estoque_final,
+            cmv_real: updateData.cmv_real,
+            fat_cmvivel: updateData.faturamento_cmvivel
+          }))
 
           // Upsert no banco
           const { error: upsertError } = await supabase
@@ -409,8 +427,11 @@ serve(async (req) => {
 
           if (upsertError) {
             console.error(`❌ Erro ${info.ano}/${info.mes}:`, upsertError.message)
+            console.error(`   Detalhes:`, JSON.stringify(upsertError))
+            console.error(`   Dados:`, JSON.stringify(updateData))
             mesesErro++
           } else {
+            console.log(`✅ ${info.ano}/${info.mes}: sucesso`)
             mesesAtualizados++
           }
         }

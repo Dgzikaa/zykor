@@ -55,16 +55,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Buscar comissão e couvert do desempenho_semanal para enriquecer os dados
+    // Buscar comissão, couvert e faturamento_entrada do desempenho_semanal para enriquecer os dados
     const semanas = data?.map(d => d.semana) || [];
     const anos = [...new Set(data?.map(d => d.ano) || [])];
     
-    let desempenhoMap: Record<string, { comissao: number; couvert_atracoes: number }> = {};
+    let desempenhoMap: Record<string, { comissao: number; couvert_atracoes: number; faturamento_entrada: number }> = {};
     
     if (semanas.length > 0) {
       const { data: desempenhoData } = await supabase
         .from('desempenho_semanal')
-        .select('numero_semana, ano, comissao, couvert_atracoes')
+        .select('numero_semana, ano, comissao, couvert_atracoes, faturamento_entrada')
         .eq('bar_id', barId)
         .in('ano', anos)
         .in('numero_semana', semanas);
@@ -72,19 +72,21 @@ export async function GET(request: NextRequest) {
       desempenhoData?.forEach(d => {
         desempenhoMap[`${d.ano}-${d.numero_semana}`] = {
           comissao: d.comissao || 0,
-          couvert_atracoes: d.couvert_atracoes || 0
+          couvert_atracoes: d.couvert_atracoes || 0,
+          faturamento_entrada: d.faturamento_entrada || 0
         };
       });
     }
 
-    // Enriquecer dados do CMV com comissão e couvert
+    // Enriquecer dados do CMV com comissão, couvert e faturamento_entrada
     const dataEnriquecida = data?.map(item => {
       const key = `${item.ano}-${item.semana}`;
-      const desempenho = desempenhoMap[key] || { comissao: 0, couvert_atracoes: 0 };
+      const desempenho = desempenhoMap[key] || { comissao: 0, couvert_atracoes: 0, faturamento_entrada: 0 };
       return {
         ...item,
         comissao: desempenho.comissao,
-        couvert_atracoes: desempenho.couvert_atracoes
+        couvert_atracoes: desempenho.couvert_atracoes,
+        faturamento_entrada: desempenho.faturamento_entrada
       };
     }) || [];
 

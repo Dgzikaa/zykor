@@ -534,10 +534,12 @@ serve(async (req) => {
             console.log(`🔍 S${numSemana}/${anoColuna}: compras raw=${comprasVal}, parsed=${comprasNum}`)
           }
           
-          if (comprasVal !== undefined && comprasNum >= 0) {
-            updateData.compras_periodo = comprasNum
-            temDados = true
-          }
+          // REMOVIDO: Compras devem vir SEMPRE do Conta Azul, não do Sheets
+          // As compras são atualizadas pela função cmv-semanal-auto
+          // if (comprasVal !== undefined && comprasNum >= 0) {
+          //   updateData.compras_periodo = comprasNum
+          //   temDados = true
+          // }
           
           // CMV Teórico
           const cmvTeoricoVal = rows[ROW_MAP.cmv_teorico_pct]?.[col]
@@ -674,11 +676,12 @@ serve(async (req) => {
           // Compras Alimentação (funcionários) - aceitar valores >= 0
           const comprasAlimVal = rows[ROW_MAP.compras_alimentacao]?.[col]
           if (comprasAlimVal !== undefined) {
-            const v = parseMonetario(comprasAlimVal)
-            if (v >= 0) {
-              updateData.compras_alimentacao = v
-              temDados = true
-            }
+            // REMOVIDO: Compras Alimentação também vem do Conta Azul
+            // const v = parseMonetario(comprasAlimVal)
+            // if (v >= 0) {
+            //   updateData.compras_alimentacao = v
+            //   temDados = true
+            // }
           }
 
           const estFimFuncVal = rows[ROW_MAP.estoque_final_funcionarios]?.[col]

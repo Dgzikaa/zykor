@@ -627,7 +627,7 @@ export function DesempenhoClient({
       tipo: 'promotor' | 'neutro' | 'detrator';
       criterios: { nome: string; nota: number }[];
     }[];
-    criteriosMedia: { nome: string; media: number; total: number }[];
+    criteriosMedia: { nome: string; media: number; total: number; promotores?: number; neutros?: number; detratores?: number }[];
   }>({
     aberto: false,
     loading: false,
@@ -2780,10 +2780,10 @@ export function DesempenhoClient({
               </p>
             </section>
 
-            {/* Médias por Critério */}
+            {/* NPS por Categoria */}
             {npsDialog.criteriosMedia.length > 0 && (
               <section className="rounded-md border p-3">
-                <p className="text-sm font-semibold mb-3">Média por avaliação</p>
+                <p className="text-sm font-semibold mb-3">NPS por Categoria</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {npsDialog.criteriosMedia.map((c) => (
                     <div
@@ -2793,10 +2793,14 @@ export function DesempenhoClient({
                       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{c.nome}</p>
                       <p className={cn(
                         "text-lg font-bold",
-                        c.media >= 9 ? "text-green-600" : c.media >= 7 ? "text-yellow-600" : "text-red-500"
+                        c.media >= 70 ? "text-green-600" : c.media >= 50 ? "text-yellow-600" : c.media >= 0 ? "text-orange-500" : "text-red-500"
                       )}>
-                        {c.media.toFixed(1)}
-                        <span className="text-xs text-gray-400 font-normal ml-1">({c.total})</span>
+                        {c.media}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        <span className="text-green-600">{c.promotores || 0}</span> / 
+                        <span className="text-yellow-600"> {c.neutros || 0}</span> / 
+                        <span className="text-red-600"> {c.detratores || 0}</span>
                       </p>
                     </div>
                   ))}

@@ -41,8 +41,11 @@ export async function calcDistribuicao(
       const hora = parseInt(row.hora) || 0;
       const valor = parseFloat(row.valor) || 0;
       fatTotalHora += valor;
-      if (hora < 19) fatAte19h += valor;
-      // Após 22h inclui: 22h-23h + madrugada (0h-5h)
+      
+      // Até 19h: 6h-18h (exclui madrugada 0h-5h e noite 19h+)
+      if (hora >= 6 && hora < 19) fatAte19h += valor;
+      
+      // Após 22h: inclui 22h-23h + madrugada 0h-5h
       if (hora >= 22 || hora <= 5) fatApos22h += valor;
     }
 

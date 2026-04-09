@@ -11,6 +11,50 @@ console.log("🔄 ContaHub Processor - Processa dados raw salvos");
 const BATCH_SIZE = 500;
 
 // ============================================
+// FUNÇÃO PARA DELETAR DADOS EXISTENTES
+// Usada quando needs_reprocess = true (dados foram atualizados no ContaHub)
+// ============================================
+async function deletarDadosExistentes(
+  supabase: any,
+  dataType: string,
+  dataDate: string,
+  barId: number
+): Promise<void> {
+  console.log(`🗑️ Deletando dados existentes de ${dataType} para ${dataDate}...`);
+  
+  try {
+    const tabelaMap: Record<string, { tabela: string; coluna: string }> = {
+      'periodo': { tabela: 'contahub_periodo', coluna: 'dt_gerencial' },
+      'pagamentos': { tabela: 'contahub_pagamentos', coluna: 'dt_gerencial' },
+      'analitico': { tabela: 'contahub_analitico', coluna: 'trn_dtgerencial' },
+      'fatporhora': { tabela: 'contahub_fatporhora', coluna: 'dt_gerencial' },
+      'tempo': { tabela: 'contahub_tempo', coluna: 'data' },
+      'cancelamentos': { tabela: 'contahub_cancelamentos', coluna: 'data' }
+    };
+    
+    const config = tabelaMap[dataType];
+    if (!config) {
+      console.warn(`⚠️ Tipo ${dataType} não mapeado para deleção`);
+      return;
+    }
+    
+    const { error } = await supabase
+      .from(config.tabela)
+      .delete()
+      .eq('bar_id', barId)
+      .eq(config.coluna, dataDate);
+    
+    if (error) {
+      console.error(`❌ Erro ao deletar ${config.tabela}:`, error);
+    } else {
+      console.log(`✅ Dados antigos de ${config.tabela} deletados`);
+    }
+  } catch (error) {
+    console.error(`❌ Erro geral ao deletar dados:`, error);
+  }
+}
+
+// ============================================
 // FUNÇÃO PARA CALCULAR DATA REAL
 // Regra: Para PAGAMENTOS, sempre usar a data real do hr_lancamento
 // Para outros tipos (período, analítico), manter dt_gerencial
@@ -187,12 +231,11 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         if (analiticoRecords.length > 0) {
           console.log(`📊 Processando ${analiticoRecords.length} registros de analitico em batches...`);
           
-          // ✅ Usar UPSERT em batches (seguro, sem DELETE)
-          const analiticoBatchResult = await upsertInBatches(
+          // ✅ Usar INSERT simples (sem constraint, aceita duplicados do ContaHub)
+          const analiticoBatchResult = await insertInBatches(
             supabase, 
             'contahub_analitico', 
-            analiticoRecords,
-            'bar_id,trn,itm,trn_dtgerencial,vd_mesadesc,tipo,prd_desc'
+            analiticoRecords
           );
           
           if (analiticoBatchResult.errors > 0) {
@@ -200,7 +243,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
             errors = analiticoBatchResult.errors;
           } else {
             processedCount = analiticoBatchResult.count;
-            console.log(`✅ Analitico: ${processedCount} registros upserted com sucesso`);
+            console.log(`✅ Analitico: ${processedCount} registros inseridos com sucesso`);
           }
         }
         break;
@@ -243,12 +286,11 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         }});
         
         if (periodoRecords.length > 0) {
-          // ✅ Usar UPSERT (seguro, sem DELETE)
-          const periodoBatchResult = await upsertInBatches(
+          // ✅ Usar INSERT simples (sem constraint, aceita duplicados do ContaHub)
+          const periodoBatchResult = await insertInBatches(
             supabase,
             'contahub_periodo',
-            periodoRecords,
-            'bar_id,dt_gerencial,vd_mesadesc,tipovenda'
+            periodoRecords
           );
           
           if (periodoBatchResult.errors > 0) {
@@ -256,7 +298,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
             return { success: true, count: periodoBatchResult.count, errors: periodoBatchResult.errors };
           } else {
             processedCount = periodoBatchResult.count;
-            console.log(`✅ Periodo: ${processedCount} registros upserted com sucesso`);
+            console.log(`✅ Periodo: ${processedCount} registros inseridos com sucesso`);
           }
         }
         break;
@@ -278,12 +320,11 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         }));
         
         if (fatporhoraRecords.length > 0) {
-          // ✅ Usar UPSERT (seguro, sem DELETE)
-          const fatBatchResult = await upsertInBatches(
+          // ✅ Usar INSERT simples (sem constraint, aceita duplicados do ContaHub)
+          const fatBatchResult = await insertInBatches(
             supabase,
             'contahub_fatporhora',
-            fatporhoraRecords,
-            'bar_id,vd_dtgerencial,hora'
+            fatporhoraRecords
           );
           
           if (fatBatchResult.errors > 0) {
@@ -291,7 +332,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
             errors = fatBatchResult.errors;
           } else {
             processedCount = fatBatchResult.count;
-            console.log(`✅ Fatporhora: ${processedCount} registros upserted com sucesso`);
+            console.log(`✅ Fatporhora: ${processedCount} registros inseridos com sucesso`);
           }
         }
         break;
@@ -338,12 +379,11 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         if (pagamentosRecords.length > 0) {
           console.log(`📊 Processando ${pagamentosRecords.length} registros de pagamentos em batches...`);
           
-          // ✅ Usar UPSERT em batches (seguro, sem DELETE)
-          const pagamentosBatchResult = await upsertInBatches(
+          // ✅ Usar INSERT simples (sem constraint, aceita duplicados do ContaHub)
+          const pagamentosBatchResult = await insertInBatches(
             supabase,
             'contahub_pagamentos',
-            pagamentosRecords,
-            'bar_id,vd,trn,pag'
+            pagamentosRecords
           );
           
           if (pagamentosBatchResult.errors > 0) {
@@ -351,7 +391,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
             return { success: true, count: pagamentosBatchResult.count, errors: pagamentosBatchResult.errors };
           } else {
             processedCount = pagamentosBatchResult.count;
-            console.log(`✅ Pagamentos: ${processedCount} registros upserted com sucesso`);
+            console.log(`✅ Pagamentos: ${processedCount} registros inseridos com sucesso`);
           }
         }
         break;
@@ -417,11 +457,22 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
             t2_t3 = calcularDiferencaMinutos(t2Prodfim, t3Entrega);
           }
           
-          // Determinar categoria
-          const grpLower = (item.grp_desc || '').toLowerCase();
-          const categoria = item.categoria || 
-            (grpLower.includes('cerveja') || grpLower.includes('bebida') ? 'bebida' : 
-             grpLower.includes('drink') ? 'drink' : 'comida');
+          // Determinar categoria baseado em loc_desc
+          const locDesc = item.loc_desc || '';
+          let categoria = 'comida'; // default
+          
+          // Mapeamento loc_desc -> categoria
+          const drinkLocais = ['Preshh', 'Montados', 'Mexido', 'Drinks', 'Drinks Autorais', 'Shot e Dose', 'Batidos'];
+          const comidaLocais = ['Cozinha', 'Cozinha 2', 'Cozinha 1'];
+          const bebidaLocais = ['Chopp', 'Bar', 'Pegue e Pague', 'Venda Volante', 'Baldes'];
+          
+          if (drinkLocais.includes(locDesc)) {
+            categoria = 'drink';
+          } else if (bebidaLocais.includes(locDesc)) {
+            categoria = 'bebida';
+          } else if (comidaLocais.includes(locDesc)) {
+            categoria = 'comida';
+          }
           
           // Aplicar regra de tempo por categoria:
           // - Drinks/Bebidas: usar t0_t3 (tempo até entrega)
@@ -476,12 +527,11 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         if (tempoRecords.length > 0) {
           console.log(`📊 Processando ${tempoRecords.length} registros de tempo em batches...`);
           
-          // ✅ Usar UPSERT para evitar duplicados (índice único: bar_id, data, itm, prd, vd_mesadesc)
-          const batchResult = await upsertInBatches(
+          // ✅ Usar INSERT simples (sem constraint, aceita duplicados do ContaHub)
+          const batchResult = await insertInBatches(
             supabase,
             'contahub_tempo',
-            tempoRecords,
-            'bar_id,data,itm,prd,vd_mesadesc'
+            tempoRecords
           );
           
           if (batchResult.errors > 0) {
@@ -489,7 +539,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
             return { success: true, count: batchResult.count, errors: batchResult.errors };
           } else {
             processedCount = batchResult.count;
-            console.log(`✅ Tempo: ${processedCount} registros inseridos/atualizados com sucesso`);
+            console.log(`✅ Tempo: ${processedCount} registros inseridos com sucesso`);
           }
         }
         break;
@@ -513,12 +563,11 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         }));
         
         if (prodporhoraRecords.length > 0) {
-          // ✅ Usar UPSERT (seguro, sem DELETE)
-          const prodBatchResult = await upsertInBatches(
+          // ✅ Usar INSERT simples (sem constraint, aceita duplicados do ContaHub)
+          const prodBatchResult = await insertInBatches(
             supabase,
             'contahub_prodporhora',
-            prodporhoraRecords,
-            'bar_id,data_gerencial,hora,produto_id'
+            prodporhoraRecords
           );
           
           if (prodBatchResult.errors > 0) {
@@ -526,7 +575,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
             errors = prodBatchResult.errors;
           } else {
             processedCount = prodBatchResult.count;
-            console.log(`✅ Prodporhora: ${processedCount} registros upserted com sucesso`);
+            console.log(`✅ Prodporhora: ${processedCount} registros inseridos com sucesso`);
           }
         }
         break;
@@ -760,7 +809,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const requestBody = await req.text();
     console.log('📥 Body recebido:', requestBody);
     
-    const { data_date, bar_id = 3, data_types, process_all = false } = JSON.parse(requestBody || '{}');
+    const parsed = JSON.parse(requestBody || '{}');
+    const data_date = parsed.data_date;
+    const bar_id = parsed.bar_id || 3;
+    const data_types = parsed.data_types;
+    const process_all = parsed.process_all === true || parsed.process_all === 'true';
     
     // Configurar Supabase
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -773,14 +826,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       errors: [] as any[]
     };
 
-    // Se process_all = true, processar todos os dados raw pendentes
+    // Se process_all = true, processar todos os dados raw pendentes OU que precisam reprocessar
     if (process_all) {
-      console.log('🔄 Processando TODOS os dados raw pendentes...');
+      console.log(`🔄 Processando TODOS os dados raw pendentes para bar_id=${bar_id}...`);
       
       const { data: rawDataList, error: fetchError } = await supabase
         .from('contahub_raw_data')
         .select('*')
-        .eq('processed', false)
+        .eq('bar_id', bar_id)
+        .or('processed.eq.false,needs_reprocess.eq.true')
         .order('created_at', { ascending: true })
         .limit(50);
       
@@ -790,6 +844,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       
       for (const rawRecord of rawDataList || []) {
         try {
+          // Se needs_reprocess = true, deletar dados antigos antes de reprocessar
+          if (rawRecord.needs_reprocess) {
+            console.log(`🔄 Reprocessando ${rawRecord.data_type} para ${rawRecord.data_date} (dados mudaram)...`);
+            await deletarDadosExistentes(supabase, rawRecord.data_type, rawRecord.data_date, rawRecord.bar_id);
+          }
+          
           const result = await processRawData(
             supabase,
             rawRecord.data_type,
@@ -802,13 +862,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
             data_type: rawRecord.data_type,
             data_date: rawRecord.data_date,
             bar_id: rawRecord.bar_id,
-            result
+            result,
+            was_reprocessed: rawRecord.needs_reprocess || false
           });
           
           if (result.success) {
             await supabase
               .from('contahub_raw_data')
-              .update({ processed: true, processed_at: new Date().toISOString() })
+              .update({ 
+                processed: true, 
+                processed_at: new Date().toISOString(),
+                needs_reprocess: false
+              })
               .eq('id', rawRecord.id);
           }
           
@@ -880,6 +945,85 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     console.log(`📊 Processamento concluído: ${summary.total_processed} processados, ${summary.total_errors} erros`);
     
+    // Atualizar eventos_base para cada data processada
+    const uniqueDates = new Set<string>();
+    if (process_all) {
+      // Coletar todas as datas únicas processadas
+      for (const item of results.processed) {
+        if (item.data_date) {
+          uniqueDates.add(item.data_date);
+        }
+      }
+    } else if (data_date) {
+      uniqueDates.add(data_date);
+    }
+    
+    const metricsResults = [];
+    for (const dateToUpdate of uniqueDates) {
+      try {
+        console.log(`🔄 Atualizando eventos_base para ${dateToUpdate}...`);
+        
+        // Buscar ou criar evento_base para esta data
+        const { data: eventoBase, error: eventoError } = await supabase
+          .from('eventos_base')
+          .select('id')
+          .eq('bar_id', bar_id)
+          .eq('data_evento', dateToUpdate)
+          .single();
+        
+        if (eventoError && eventoError.code !== 'PGRST116') {
+          console.error(`⚠️ Erro ao buscar evento_base: ${eventoError.message}`);
+          continue;
+        }
+        
+        let eventoId: number;
+        
+        if (!eventoBase) {
+          // Criar novo evento_base
+          const { data: newEvento, error: createError } = await supabase
+            .from('eventos_base')
+            .insert({
+              bar_id,
+              data_evento: dateToUpdate,
+              nome: `Evento ${dateToUpdate}`
+            })
+            .select('id')
+            .single();
+          
+          if (createError) {
+            console.error(`⚠️ Erro ao criar evento_base: ${createError.message}`);
+            continue;
+          }
+          
+          eventoId = newEvento.id;
+          console.log(`✅ Evento_base criado: ID ${eventoId}`);
+        } else {
+          eventoId = eventoBase.id;
+        }
+        
+        // Chamar calculate_evento_metrics
+        const { error: calcError } = await supabase.rpc('calculate_evento_metrics', {
+          evento_id: eventoId
+        });
+        
+        if (calcError) {
+          console.error(`⚠️ Erro ao calcular métricas: ${calcError.message}`);
+          metricsResults.push({ date: dateToUpdate, success: false, error: calcError.message });
+        } else {
+          console.log(`✅ Métricas calculadas para ${dateToUpdate}`);
+          metricsResults.push({ date: dateToUpdate, success: true });
+        }
+        
+      } catch (error) {
+        console.error(`❌ Erro ao atualizar métricas para ${dateToUpdate}:`, error);
+        metricsResults.push({ 
+          date: dateToUpdate, 
+          success: false, 
+          error: error instanceof Error ? error.message : String(error) 
+        });
+      }
+    }
+    
     return new Response(JSON.stringify({
       success: true,
       message: 'Processamento de dados raw concluído',
@@ -888,6 +1032,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         processed: results.processed,
         errors: results.errors
       },
+      metrics_updated: metricsResults,
       timestamp: new Date().toISOString()
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

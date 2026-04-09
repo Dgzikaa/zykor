@@ -791,14 +791,6 @@ export default function CMVSemanalPage() {
                 </Button>
               </Link>
               <Button
-                onClick={sincronizarTudo}
-                disabled={sincronizando}
-                variant="outline"
-                leftIcon={sincronizando ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
-              >
-                {sincronizando ? 'Atualizando...' : 'Atualizar Dados'}
-              </Button>
-              <Button
                 onClick={processarSemanaAtual}
                 disabled={calculando}
                 variant="outline"
