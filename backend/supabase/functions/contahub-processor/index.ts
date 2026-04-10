@@ -196,8 +196,21 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
     // Processar cada tipo de dados usando INSERT (mais seguro para multi-bar)
     switch (dataType) {
       case 'analitico':
-        // ✅ UPSERT: Atualiza se existir, insere se não existir (sem DELETE)
-        console.log(`🔄 Processando registros analitico com UPSERT para ${dataDate}...`);
+        // ✅ DELETE + INSERT: Remove dados antigos e insere novos
+        console.log(`🔄 Processando registros analitico (DELETE + INSERT) para ${dataDate}...`);
+        
+        // Deletar registros existentes do dia
+        const { error: deleteErrorAnalitico } = await supabase
+          .from('contahub_analitico')
+          .delete()
+          .eq('bar_id', barId)
+          .eq('trn_dtgerencial', dataDate);
+        
+        if (deleteErrorAnalitico) {
+          console.error(`⚠️ Erro ao deletar analitico existente: ${deleteErrorAnalitico.message}`);
+        } else {
+          console.log(`🗑️ Analitico: registros antigos removidos`);
+        }
         
         const analiticoRecords = records.map((item: any) => ({
           vd_mesadesc: item.vd_mesadesc || '',
@@ -249,8 +262,21 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         break;
 
       case 'periodo':
-        // ✅ UPSERT: Atualiza se existir, insere se não existir (sem DELETE)
-        console.log(`🔄 Processando registros periodo com UPSERT para ${dataDate}...`);
+        // ✅ DELETE + INSERT: Remove dados antigos e insere novos
+        console.log(`🔄 Processando registros periodo (DELETE + INSERT) para ${dataDate}...`);
+        
+        // Deletar registros existentes do dia
+        const { error: deleteErrorPeriodo } = await supabase
+          .from('contahub_periodo')
+          .delete()
+          .eq('bar_id', barId)
+          .eq('dt_gerencial', dataDate);
+        
+        if (deleteErrorPeriodo) {
+          console.error(`⚠️ Erro ao deletar periodo existente: ${deleteErrorPeriodo.message}`);
+        } else {
+          console.log(`🗑️ Periodo: registros antigos removidos`);
+        }
         
         const periodoRecords = records.map((item: any) => {
           // Calcular data real baseada no ultimo_pedido (vd_hrultimo)
@@ -286,7 +312,6 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         }});
         
         if (periodoRecords.length > 0) {
-          // ✅ Usar INSERT simples (sem constraint, aceita duplicados do ContaHub)
           const periodoBatchResult = await insertInBatches(
             supabase,
             'contahub_periodo',
@@ -304,8 +329,21 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         break;
 
       case 'fatporhora':
-        // ✅ UPSERT: Atualiza se existir, insere se não existir (sem DELETE)
-        console.log(`🔄 Processando registros fatporhora com UPSERT para ${dataDate}...`);
+        // ✅ DELETE + INSERT: Remove dados antigos e insere novos
+        console.log(`🔄 Processando registros fatporhora (DELETE + INSERT) para ${dataDate}...`);
+        
+        // Deletar registros existentes do dia
+        const { error: deleteErrorFatporhora } = await supabase
+          .from('contahub_fatporhora')
+          .delete()
+          .eq('bar_id', barId)
+          .eq('vd_dtgerencial', dataDate);
+        
+        if (deleteErrorFatporhora) {
+          console.error(`⚠️ Erro ao deletar fatporhora existente: ${deleteErrorFatporhora.message}`);
+        } else {
+          console.log(`🗑️ Fatporhora: registros antigos removidos`);
+        }
         
         const fatporhoraRecords = records.map((item: any) => ({
           vd_dtgerencial: item.vd_dtgerencial || dataDate,
@@ -338,14 +376,27 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         break;
 
       case 'pagamentos':
-        // ✅ UPSERT: Atualiza se existir, insere se não existir (sem DELETE)
-        console.log(`🔄 Processando registros pagamentos com UPSERT para ${dataDate}...`);
+        // ✅ DELETE + INSERT: Remove dados antigos e insere novos
+        console.log(`🔄 Processando registros pagamentos (DELETE + INSERT) para ${dataDate}...`);
+
+        // Deletar registros existentes do dia
+        const { error: deleteErrorPagamentos } = await supabase
+          .from('contahub_pagamentos')
+          .delete()
+          .eq('bar_id', barId)
+          .eq('dt_gerencial', dataDate);
         
+        if (deleteErrorPagamentos) {
+          console.error(`⚠️ Erro ao deletar pagamentos existente: ${deleteErrorPagamentos.message}`);
+        } else {
+          console.log(`🗑️ Pagamentos: registros antigos removidos`);
+        }
+
         const pagamentosRecords = records.map((item: any) => {
           // Para pagamentos, usar SEMPRE o dt_gerencial que vem do ContaHub
           // NÃO corrigir baseado em hr_lancamento (ContaHub já define a data correta)
           const dtGerencialOriginal = item.dt_gerencial || dataDate;
-          
+
           return {
           dt_gerencial: dtGerencialOriginal,
           vd: String(item.vd || ''),
@@ -375,11 +426,10 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }});
-        
+
         if (pagamentosRecords.length > 0) {
           console.log(`📊 Processando ${pagamentosRecords.length} registros de pagamentos em batches...`);
-          
-          // ✅ Usar INSERT simples (sem constraint, aceita duplicados do ContaHub)
+
           const pagamentosBatchResult = await insertInBatches(
             supabase,
             'contahub_pagamentos',
@@ -397,8 +447,21 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         break;
 
       case 'tempo':
-        // ✅ UPSERT: Atualiza se existir, insere se não existir (sem DELETE)
-        console.log(`🔄 Processando registros tempo com UPSERT para ${dataDate}...`);
+        // ✅ DELETE + INSERT: Remove dados antigos e insere novos
+        console.log(`🔄 Processando registros tempo (DELETE + INSERT) para ${dataDate}...`);
+        
+        // Deletar registros existentes do dia
+        const { error: deleteErrorTempo } = await supabase
+          .from('contahub_tempo')
+          .delete()
+          .eq('bar_id', barId)
+          .eq('data', dataDate);
+        
+        if (deleteErrorTempo) {
+          console.error(`⚠️ Erro ao deletar tempo existente: ${deleteErrorTempo.message}`);
+        } else {
+          console.log(`🗑️ Tempo: registros antigos removidos`);
+        }
         
         const tempoRecords = records.map((item: any) => {
           // Extrair timestamps (com fallback para formato antigo)

@@ -155,11 +155,12 @@ export async function POST(request: NextRequest) {
 
     const analiseLocais = Array.from(locaisMap.entries()).map(([local, stats]) => ({
       local_producao: local,
+      local: local, // Adicionar campo "local" para compatibilidade com frontend
       total_produtos: stats.total,
       disponiveis: stats.disponiveis,
-      indisponiveis: stats.stockout, // Renomeado para manter compatibilidade
+      indisponiveis: stats.stockout,
       perc_stockout: stats.total > 0 ? parseFloat(((stats.stockout / stats.total) * 100).toFixed(1)) : 0
-    })).sort((a, b) => b.perc_stockout - a.perc_stockout || b.total_produtos - a.total_produtos);
+    })); // ✅ REMOVIDO O SORT! Agora mostra TODAS as categorias, mesmo com 0%
 
     // 3. Produtos em stockout (todos)
     let queryIndisponiveis = supabase

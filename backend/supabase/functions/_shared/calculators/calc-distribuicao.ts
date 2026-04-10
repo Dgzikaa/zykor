@@ -42,13 +42,14 @@ export async function calcDistribuicao(
       const valor = parseFloat(row.valor) || 0;
       fatTotalHora += valor;
       
-      // Até 19h: 6h-18h (exclui madrugada 0h-5h e noite 19h+)
-      if (hora >= 6 && hora < 19) fatAte19h += valor;
+      // Até 19h: APENAS 16h, 17h e 18h (igual ao Excel)
+      if (hora === 16 || hora === 17 || hora === 18) fatAte19h += valor;
       
       // Após 22h: inclui 22h-23h + madrugada 0h-5h
       if (hora >= 22 || hora <= 5) fatApos22h += valor;
     }
 
+    // Usar fatTotalHora (base do Excel) ao invés de eventos_base.real_r
     const percFatAte19h = fatTotalHora > 0 ? (fatAte19h / fatTotalHora) * 100 : null;
     const percFatApos22h = fatTotalHora > 0 ? (fatApos22h / fatTotalHora) * 100 : 0;
 
