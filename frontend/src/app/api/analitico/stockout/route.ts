@@ -63,16 +63,16 @@ export async function POST(request: NextRequest) {
     }
 
     
-    // IMPORTANTE: Usar a view contahub_stockout_filtrado que já tem todos os filtros aplicados
-    // Isso garante que os valores sejam idênticos ao desempenho semanal (função RPC calcular_stockout_semanal)
-    // A view inclui: filtros de locais, prefixos, grupos (via JSONB), e categoria_local normalizada
+    // IMPORTANTE: Usar contahub_stockout_processado que já tem categoria_mix preenchida
+    // e todas as regras de filtro aplicadas (incluido = true)
 
     // 1. Estatísticas gerais
     let query = supabase
-      .from('contahub_stockout_filtrado')
+      .from('contahub_stockout_processado')
       .select('prd_venda, prd_desc')
       .eq('data_consulta', data_selecionada)
-      .eq('bar_id', bar_id);
+      .eq('bar_id', bar_id)
+      .eq('incluido', true);
 
     // Aplicar filtros adicionais do usuário se existirem
     if (filtros.length > 0) {
@@ -107,12 +107,13 @@ export async function POST(request: NextRequest) {
     const percentualStockout = totalProdutosAtivos > 0 ? ((countProdutosStockout / totalProdutosAtivos) * 100).toFixed(2) : '0.00';
 
     
-    // 2. Análise por local de produção - usando categoria_local da view
+    // 2. Análise por local de produção - usando categoria_local da tabela processada
     let queryLocais = supabase
-      .from('contahub_stockout_filtrado')
+      .from('contahub_stockout_processado')
       .select('categoria_local, prd_venda, prd_desc')
       .eq('data_consulta', data_selecionada)
-      .eq('bar_id', bar_id);
+      .eq('bar_id', bar_id)
+      .eq('incluido', true);
 
     // Aplicar filtros adicionais do usuário se existirem
     if (filtros.length > 0) {
@@ -164,10 +165,11 @@ export async function POST(request: NextRequest) {
 
     // 3. Produtos em stockout (todos)
     let queryIndisponiveis = supabase
-      .from('contahub_stockout_filtrado')
-      .select('prd_desc, loc_desc, categoria_local, prd_precovenda, prd_estoque, prd_controlaestoque, prd_validaestoquevenda')
+      .from('contahub_stockout_processado')
+      .select('prd_desc, loc_desc, categoria_local, prd_precovenda, prd_estoque')
       .eq('data_consulta', data_selecionada)
       .eq('bar_id', bar_id)
+      .eq('incluido', true)
       .eq('prd_venda', 'N')
       .order('categoria_local')
       .order('prd_desc');
@@ -185,10 +187,11 @@ export async function POST(request: NextRequest) {
 
     // 4. Produtos disponíveis (todos)
     let queryDisponiveis = supabase
-      .from('contahub_stockout_filtrado')
+      .from('contahub_stockout_processado')
       .select('prd_desc, loc_desc, categoria_local, prd_precovenda, prd_estoque')
       .eq('data_consulta', data_selecionada)
       .eq('bar_id', bar_id)
+      .eq('incluido', true)
       .eq('prd_venda', 'S')
       .order('categoria_local')
       .order('prd_desc');
