@@ -154,7 +154,7 @@ serve(async (req) => {
       // Buscar dados do cliente
       const { data: cliente, error: errCliente } = await supabase
         .from('cliente_estatisticas')
-        .select('telefone, nome, total_visitas, ultima_visita, total_gasto, total_entrada, total_consumo, ticket_medio, ticket_medio_entrada, ticket_medio_consumo, tempo_medio_minutos, total_visitas_com_tempo, updated_at')
+        .select('telefone, nome, total_visitas, ultima_visita, total_gasto, total_entrada, total_consumo, ticket_medio, ticket_medio_entrada, ticket_medio_consumo, updated_at')
         .eq('bar_id', barId)
         .or(`telefone.eq.${telNormalizado},telefone.ilike.%${telNormalizado}%`)
         .limit(1)
@@ -187,7 +187,7 @@ serve(async (req) => {
       const telUltimos8 = telNormalizado.slice(-8);
       let queryHistorico = supabase
         .from('visitas')
-        .select('id, data_visita, cliente_nome, valor_pagamentos, valor_consumo, valor_produtos, valor_couvert, tempo_estadia_minutos, created_at')
+        .select('id, data_visita, cliente_nome, valor_pagamentos, valor_consumo, valor_produtos, valor_couvert, created_at')
         .eq('bar_id', barId)
         .ilike('cliente_fone', `%${telUltimos8}%`)
         .order('data_visita', { ascending: false });
@@ -218,11 +218,6 @@ serve(async (req) => {
         ticket_medio: cliente.ticket_medio ? parseFloat(cliente.ticket_medio) : 0,
         ticket_medio_entrada: cliente.ticket_medio_entrada ? parseFloat(cliente.ticket_medio_entrada) : 0,
         ticket_medio_consumo: cliente.ticket_medio_consumo ? parseFloat(cliente.ticket_medio_consumo) : 0,
-        tempo_medio_estadia_minutos: cliente.tempo_medio_minutos ? Math.round(cliente.tempo_medio_minutos) : null,
-        tempo_medio_estadia_formatado: cliente.tempo_medio_minutos
-          ? `${Math.floor(cliente.tempo_medio_minutos / 60)}h ${Math.round(cliente.tempo_medio_minutos % 60)}min`
-          : null,
-        visitas_com_tempo_registrado: cliente.total_visitas_com_tempo || 0,
         atualizado_em: cliente.updated_at
       };
 
@@ -236,8 +231,7 @@ serve(async (req) => {
             valor_pagamentos: v.valor_pagamentos ? parseFloat(v.valor_pagamentos) : 0,
             valor_consumo: v.valor_consumo ? parseFloat(v.valor_consumo) : 0,
             valor_produtos: v.valor_produtos ? parseFloat(v.valor_produtos) : 0,
-            valor_couvert: v.valor_couvert ? parseFloat(v.valor_couvert) : 0,
-            tempo_estadia_minutos: v.tempo_estadia_minutos,
+            valor_couvert: v.valor_couvert ? parseFloat(v.valor_couvert) : 0
           })),
           filtros_aplicados: {
             data_desde: dataDesde || null,
@@ -308,11 +302,6 @@ serve(async (req) => {
       ticket_medio: c.ticket_medio ? parseFloat(c.ticket_medio) : 0,
       ticket_medio_entrada: c.ticket_medio_entrada ? parseFloat(c.ticket_medio_entrada) : 0,
       ticket_medio_consumo: c.ticket_medio_consumo ? parseFloat(c.ticket_medio_consumo) : 0,
-      tempo_medio_estadia_minutos: c.tempo_medio_minutos ? Math.round(c.tempo_medio_minutos) : null,
-      tempo_medio_estadia_formatado: c.tempo_medio_minutos
-        ? `${Math.floor(c.tempo_medio_minutos / 60)}h ${Math.round(c.tempo_medio_minutos % 60)}min`
-        : null,
-      visitas_com_tempo_registrado: c.total_visitas_com_tempo || 0,
       atualizado_em: c.updated_at
     }));
 

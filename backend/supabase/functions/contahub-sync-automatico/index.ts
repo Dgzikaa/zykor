@@ -428,7 +428,66 @@ Deno.serve(async (req: Request): Promise<Response> => {
       contahub_emp_id: contahubEmpIdFromPayload 
     } = JSON.parse(requestBody || '{}');
     
-    // Se tem data_inicio e data_fim, é um backfill de range
+    // MODO RANGE: Se tem data_inicio e data_fim, processar múltiplos dias
+    if (data_inicio && data_fim && !only_cancelamentos) {
+      console.log(`🔄 Modo RANGE: Sincronizando de ${data_inicio} a ${data_fim} para bar_id=${bar_id}`);
+      
+      // Processar cada dia do range
+      const startDate = new Date(data_inicio);
+      const endDate = new Date(data_fim);
+      const results: any[] = [];
+      
+      let currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        console.log(`📅 Processando ${dateStr}...`);
+        
+        try {
+          // Chamar recursivamente para processar um dia
+          const dayResponse = await fetch(`${supabaseUrl}/functions/v1/contahub-sync-automatico`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`
+            },
+            body: JSON.stringify({
+              bar_id,
+              data_date: dateStr,
+              emp_id: empIdFromPayload,
+              contahub_emp_id: contahubEmpIdFromPayload
+            })
+          });
+          
+          if (dayResponse.ok) {
+            results.push({ date: dateStr, status: 'success' });
+          } else {
+            results.push({ date: dateStr, status: 'error', message: await dayResponse.text() });
+          }
+        } catch (error) {
+          results.push({ date: dateStr, status: 'error', message: String(error) });
+        }
+        
+        // Próximo dia
+        currentDate.setDate(currentDate.getDate() + 1);
+        
+        // Delay de 500ms entre dias para não sobrecarregar
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      return new Response(JSON.stringify({
+        success: true,
+        mode: 'range',
+        data_inicio,
+        data_fim,
+        total_dias: results.length,
+        results
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      });
+    }
+    
+    // Se tem data_inicio e data_fim, é um backfill de range (apenas cancelamentos)
     if (data_inicio && data_fim && only_cancelamentos) {
       console.log(`🔄 Modo BACKFILL: Buscando cancelamentos de ${data_inicio} a ${data_fim} para bar_id=${bar_id}`);
       // Será tratado abaixo
