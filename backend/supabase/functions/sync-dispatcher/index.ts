@@ -20,9 +20,11 @@ import { getCorsHeaders } from '../_shared/cors.ts';
 
 const ACTION_URLS: Record<string, string> = {
   'eventos': '/functions/v1/sync-eventos',
-  'clientes': '/functions/v1/sync-cliente-estatisticas',
+  // 'clientes' removido em abril/2026: cliente_estatisticas agora é VIEW
+  // calculada on-demand a partir da matview `visitas` (nao precisa mais de sync).
   'conhecimento': '/functions/v1/sync-conhecimento',
   'marketing': '/functions/v1/sync-marketing-meta',
+  'perfil-consumo': '/functions/v1/sync-cliente-perfil-consumo',
 };
 
 interface DispatcherRequest {

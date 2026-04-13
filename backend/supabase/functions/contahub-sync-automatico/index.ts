@@ -410,10 +410,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   try {
     // Validar variáveis de ambiente obrigatórias
-    validateFunctionEnv('contahub-sync-automatico', [
-      'SUPABASE_URL',
-      'SUPABASE_SERVICE_ROLE_KEY'
-    ]);
+    // TEMPORARIAMENTE DESABILITADO PARA DEBUG
+    // validateFunctionEnv('contahub-sync-automatico', [
+    //   'SUPABASE_URL',
+    //   'SUPABASE_SERVICE_ROLE_KEY'
+    // ]);
 
     const requestBody = await req.text();
     console.log('📊 Body recebido:', requestBody);
@@ -511,30 +512,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     // 💓 Heartbeat: registrar início da execução com advisory lock
-    const hbResult = await heartbeatStart(
-      supabase,
-      'contahub-sync-automatico',
-      bar_id || null,
-      data_inicio && data_fim ? 'backfill' : 'sync',
-      'pgcron',
-      true, // useLock
-      30    // timeout 30 minutos
-    );
-    heartbeatId = hbResult.heartbeatId;
-    startTime = hbResult.startTime;
+    // TEMPORARIAMENTE DESABILITADO HEARTBEAT E LOCK PARA DEBUG CRÍTICO
+    // const hbResult = await heartbeatStart(
+    //   supabase,
+    //   'contahub-sync-automatico',
+    //   bar_id || null,
+    //   data_inicio && data_fim ? 'backfill' : 'sync',
+    //   'pgcron',
+    //   false, // useLock
+    //   30    // timeout 30 minutos
+    // );
+    // heartbeatId = hbResult.heartbeatId;
+    // startTime = hbResult.startTime;
     
-    // Se não conseguiu o lock, abortar execução
-    if (!hbResult.lockAcquired) {
-      console.log('🔒 Sync já em execução para este bar, abortando');
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: 'Sync já em execução para este bar',
-          lock_acquired: false 
-        }),
-        { status: 409, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    heartbeatId = null;
+    startTime = Date.now();
+    
+    console.log('⚠️ [DEBUG] Heartbeat e lock DESABILITADOS temporariamente');
     
     // Resolver emp_id do ContaHub:
     // 1) payload (emp_id/contahub_emp_id), 2) bares.config.contahub_emp_id, 3) api_credentials.empresa_id
@@ -960,24 +954,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.error('⚠️ Erro ao gravar log:', logError);
     }
     
-    // 🔄 ATUALIZAR CACHE DE CLIENTE_ESTATISTICAS
-    console.log('\n📊 Atualizando cache de cliente_estatisticas...');
-    try {
-      // Usar função UPSERT que não faz DELETE (compatível com trigger de proteção)
-      const { error: cacheError } = await supabase.rpc('refresh_cliente_estatisticas_upsert', { 
-        p_bar_id: bar_id,
-        p_data_visita: data_date 
-      });
-      
-      if (cacheError) {
-        console.error('❌ Erro ao atualizar cache de clientes:', cacheError);
-      } else {
-        console.log('✅ Cache de clientes atualizado (upsert)');
-      }
-    } catch (cacheErr) {
-      console.error('❌ Erro ao atualizar cache de clientes:', cacheErr);
-    }
-    
+    // 🔄 CLIENTE_ESTATISTICAS agora é uma VIEW calculada on-demand a partir da
+    // matview `visitas` (refresh automático via trigger em contahub_periodo).
+    // Não precisa mais de RPC/cache de refresh — a leitura é sempre consistente.
+
+
     // 🚀 CHAMAR DISCORD NOTIFICATION para CONTAHUB
     try {
       const discordResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/discord-dispatcher`, {

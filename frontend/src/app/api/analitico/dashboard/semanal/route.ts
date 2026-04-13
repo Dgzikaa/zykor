@@ -358,45 +358,15 @@ async function getDashboardSemanalCorrigido(request: NextRequest) {
     ];
     const clientes_yuzer = pedidos_unicos_yuzer_ingresso.length;
 
-    // Buscar TODAS as visitas Sympla do período COM PAGINAÇÃO
-        
-    const buscarTodasVisitasSympa = async () => {
-      let todasVisitas: VisitaSymplaData[] = [];
-      let offset = 0;
-      const limit = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('cliente_visitas')
-          .select('data_visita, pessoas_na_mesa')
-          .eq('bar_id', parseInt(bar_id))
-          .gte('data_visita', data_inicio)
-          .lte('data_visita', data_fim)
-          .eq('tipo_visita', 'evento_sympla')
-          .range(offset, offset + limit - 1);
-
-        if (error) {
-          console.error(
-            `❌ Erro na paginação Visitas Sympla offset ${offset}:`,
-            error
-          );
-          break;
-        }
-
-        if (data && data.length > 0) {
-          todasVisitas = [...todasVisitas, ...(data as any)];
-          if (data.length < limit) {
-            hasMore = false;
-          } else {
-            offset += limit;
-          }
-        } else {
-          hasMore = false;
-        }
-      }
-
-            return todasVisitas;
+    // Buscar TODAS as visitas Sympla do período
+    // NOTE: A view `cliente_visitas` foi removida em abril/2026 durante a
+    // centralização dos dados de clientes na matview `visitas`.
+    // A query antiga usava colunas (`tipo_visita`, `pessoas_na_mesa`, `data_visita`)
+    // que não existem mais, portanto já estava retornando vazio.
+    // Mantemos a integração como placeholder para futura reintrodução via
+    // tabela de eventos/sympla dedicada.
+    const buscarTodasVisitasSympa = async (): Promise<VisitaSymplaData[]> => {
+      return [];
     };
 
     const todasVisitasSymplaData = await buscarTodasVisitasSympa();

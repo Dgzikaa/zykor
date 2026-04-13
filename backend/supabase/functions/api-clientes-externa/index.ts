@@ -262,13 +262,16 @@ serve(async (req) => {
     if (telefone) {
       // Normalizar telefone (remover caracteres não numéricos)
       const telNormalizado = telefone.replace(/\D/g, '');
+      
+      // Usar últimos 8 dígitos para busca mais flexível
+      const telUltimos8 = telNormalizado.slice(-8);
 
-      // Buscar dados do cliente
+      // Buscar dados do cliente usando ILIKE para encontrar com ou sem formatação
       const { data: cliente, error: errCliente } = await supabase
         .from('cliente_estatisticas')
         .select('telefone, nome, total_visitas, ultima_visita, total_gasto, total_entrada, total_consumo, ticket_medio, ticket_medio_entrada, ticket_medio_consumo, updated_at')
         .eq('bar_id', barId)
-        .or(`telefone.eq.${telNormalizado},telefone.ilike.%${telNormalizado}%`)
+        .ilike('telefone', `%${telUltimos8}%`)
         .limit(1)
         .maybeSingle();
 
@@ -296,7 +299,7 @@ serve(async (req) => {
       // Buscar histórico de visitas (modo histórico com filtros de data)
       // Buscar por telefone normalizado (remover hífens, espaços, +)
       // visitas armazena como "61-993196776", cliente_estatisticas como "61993196776"
-      const telUltimos8 = telNormalizado.slice(-8);
+      // telUltimos8 já foi declarado acima
       let queryHistorico = supabase
         .from('visitas')
         .select('id, data_visita, cliente_nome, valor_pagamentos, valor_consumo, valor_produtos, valor_couvert, created_at')

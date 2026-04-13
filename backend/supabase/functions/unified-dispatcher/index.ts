@@ -2,7 +2,7 @@
  * 🎯 Unified Dispatcher - Dispatcher Central do Zykor
  * 
  * Consolida os 4 dispatchers anteriores em um único ponto de entrada:
- * - integracao: yuzer, sympla, getin (nibo substitu�do pelo Conta Azul)
+ * - integracao: yuzer, sympla, getin (nibo substitu�do pelo Conta Azul)
  * - sync: eventos, clientes, conhecimento, marketing
  * - discord: notification, command, pdf
  * - webhook: umbler, google-reviews
@@ -28,9 +28,11 @@ const ACTION_URLS: Record<string, Record<string, string>> = {
   },
   sync: {
     'eventos': '/functions/v1/sync-eventos',
-    'clientes': '/functions/v1/sync-cliente-estatisticas',
+    // 'clientes' removido em abril/2026: cliente_estatisticas agora é VIEW
+    // calculada on-demand a partir da matview `visitas` (nao precisa mais de sync).
     'conhecimento': '/functions/v1/sync-conhecimento',
     'marketing': '/functions/v1/sync-marketing-meta',
+    'perfil-consumo': '/functions/v1/sync-cliente-perfil-consumo',
   },
   discord: {
     'notification': '/functions/v1/discord-dispatcher',
