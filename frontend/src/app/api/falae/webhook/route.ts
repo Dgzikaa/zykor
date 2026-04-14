@@ -55,39 +55,38 @@ export async function POST(request: NextRequest) {
 
     const rawBody = await request.text();
     const payload = rawBody ? JSON.parse(rawBody) : {};
-    const authHeader = request.headers.get('authorization') || '';
-    const tokenFromBearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-    const tokenFromHeader = request.headers.get('x-falae-token') || '';
-    const tokenFromQuery = searchParams.get('token') || '';
-    const tokenFromPayload =
-      typeof payload?.token === 'string' ? payload.token : '';
-    const token = tokenFromBearer || tokenFromHeader || tokenFromQuery || tokenFromPayload;
-
-    // Token de validação adicional do Falaê (campo "Token (Opcional)" no webhook)
+    // Token de validação do Falaê (campo "Token (Opcional)" no webhook)
     // O Falaê envia como header "token: xxx"
     const webhookTokenFromHeader = request.headers.get('token') || request.headers.get('x-webhook-token') || '';
     const webhookTokenFromQuery = searchParams.get('webhook_token') || '';
     const webhookTokenFromPayload = typeof payload?.webhook_token === 'string' ? payload.webhook_token : '';
     const webhookToken = webhookTokenFromHeader || webhookTokenFromQuery || webhookTokenFromPayload;
 
-    if (!token) {
+    // JWT Token (para identificar o bar via company_id)
+    const authHeader = request.headers.get('authorization') || '';
+    const tokenFromBearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    const tokenFromHeader = request.headers.get('x-falae-token') || '';
+    const tokenFromQuery = searchParams.get('token') || '';
+    const tokenFromPayload =
+      typeof payload?.token === 'string' ? payload.token : '';
+    const jwtToken = tokenFromBearer || tokenFromHeader || tokenFromQuery || tokenFromPayload;
+
+    // Validar: precisa de pelo menos um dos tokens (JWT ou webhook token)
+    if (!jwtToken && !webhookToken) {
       return NextResponse.json(
         {
           success: false,
           error:
-            'Token ausente. Use Authorization Bearer, x-falae-token, query ?token= ou payload.token',
+            'Token ausente. Use Authorization Bearer (JWT) ou header "token" (webhook token)',
         },
         { status: 401 }
       );
     }
 
-    const decoded = decodeJwtPayload(token);
-    const companyId =
-      typeof decoded?.company_id === 'string' ? decoded.company_id : null;
-
+    // Buscar credenciais ativas
     const { data: credenciais, error: credenciaisError } = await supabase
       .from('api_credentials')
-      .select('id, bar_id, empresa_id, api_token, ativo')
+      .select('id, bar_id, empresa_id, api_token, ativo, webhook_url')
       .eq('sistema', 'falae')
       .eq('ativo', true);
 
@@ -100,27 +99,36 @@ export async function POST(request: NextRequest) {
     }
 
     const credenciaisValidas = (credenciais || []) as any[];
+    let credencial: any = null;
 
-    const porToken = credenciaisValidas.find((row) => row.api_token === token);
-    const porEmpresa = companyId
-      ? credenciaisValidas.find((row) => row.empresa_id === companyId)
-      : null;
-    const credencial = porToken || porEmpresa;
+    // Estratégia 1: Validar por webhook token (se fornecido)
+    if (webhookToken) {
+      credencial = credenciaisValidas.find((row) => row.webhook_url === webhookToken);
+      if (credencial) {
+        console.log(`✅ Credencial encontrada via webhook token para bar ${credencial.bar_id}`);
+      }
+    }
+
+    // Estratégia 2: Validar por JWT token (fallback)
+    if (!credencial && jwtToken) {
+      const decoded = decodeJwtPayload(jwtToken);
+      const companyId = typeof decoded?.company_id === 'string' ? decoded.company_id : null;
+
+      const porToken = credenciaisValidas.find((row) => row.api_token === jwtToken);
+      const porEmpresa = companyId
+        ? credenciaisValidas.find((row) => row.empresa_id === companyId)
+        : null;
+      credencial = porToken || porEmpresa;
+
+      if (credencial) {
+        console.log(`✅ Credencial encontrada via JWT para bar ${credencial.bar_id}`);
+      }
+    }
 
     if (!credencial?.bar_id) {
       return NextResponse.json(
-        { success: false, error: 'Token sem mapeamento ativo para bar' },
+        { success: false, error: 'Token inválido ou sem mapeamento ativo para bar' },
         { status: 403 }
-      );
-    }
-
-    // Validar webhook_token se configurado na credencial
-    const webhookTokenEsperado = credencial.webhook_url || credencial.configuracoes?.webhook_token;
-    if (webhookTokenEsperado && webhookToken !== webhookTokenEsperado) {
-      console.warn(`⚠️ Webhook token inválido para bar ${credencial.bar_id}. Esperado: ${webhookTokenEsperado}, Recebido: ${webhookToken}`);
-      return NextResponse.json(
-        { success: false, error: 'Webhook token inválido' },
-        { status: 401 }
       );
     }
 
