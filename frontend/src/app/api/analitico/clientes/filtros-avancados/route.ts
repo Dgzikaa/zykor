@@ -39,84 +39,49 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const filtros: FiltrosAvancados = body.filtros || {}
 
-    // Construir query base
-    let query = `
-      SELECT 
-        cliente_fone,
-        cliente_nome,
-        cliente_email,
-        cliente_dtnasc,
-        data_visita,
-        valor_pagamentos,
-        valor_couvert,
-        valor_consumo,
-        EXTRACT(YEAR FROM AGE(data_visita::date, cliente_dtnasc)) as idade
-      FROM visitas
-      WHERE bar_id = ${barId}
-        AND cliente_fone IS NOT NULL
-        AND cliente_fone != ''
-    `
+    console.log('🔍 Filtros recebidos:', JSON.stringify(filtros, null, 2))
+    console.log('📍 Bar ID:', barId)
 
-    // Aplicar filtros de data
-    if (filtros.dataInicio) {
-      query += ` AND data_visita >= '${filtros.dataInicio}'`
-    }
-    if (filtros.dataFim) {
-      query += ` AND data_visita <= '${filtros.dataFim}'`
-    }
-
-    // Filtrar por dias da semana
-    if (filtros.diasSemana && filtros.diasSemana.length > 0) {
-      const dias = filtros.diasSemana.map(d => `'${d}'`).join(',')
-      query += ` AND EXTRACT(DOW FROM data_visita)::text IN (${dias})`
-    }
-
-    // Filtrar por idade (apenas registros com data de nascimento válida)
-    if (filtros.idadeMin !== undefined || filtros.idadeMax !== undefined) {
-      query += ` AND cliente_dtnasc IS NOT NULL`
-      query += ` AND EXTRACT(YEAR FROM AGE(data_visita::date, cliente_dtnasc)) BETWEEN 15 AND 100`
-      
-      if (filtros.idadeMin !== undefined) {
-        query += ` AND EXTRACT(YEAR FROM AGE(data_visita::date, cliente_dtnasc)) >= ${filtros.idadeMin}`
-      }
-      if (filtros.idadeMax !== undefined) {
-        query += ` AND EXTRACT(YEAR FROM AGE(data_visita::date, cliente_dtnasc)) <= ${filtros.idadeMax}`
-      }
-    }
-
-    query += ` ORDER BY data_visita DESC`
-
-    const { data: visitasRaw, error: visitasError } = await supabase
+    // Construir query do Supabase com filtros
+    let query = supabase
       .from('visitas')
       .select('cliente_fone, cliente_nome, cliente_email, cliente_dtnasc, data_visita, valor_pagamentos, valor_couvert, valor_consumo')
       .eq('bar_id', barId)
       .not('cliente_fone', 'is', null)
       .neq('cliente_fone', '')
 
+    // Aplicar filtros de data direto na query
+    if (filtros.dataInicio) {
+      query = query.gte('data_visita', filtros.dataInicio)
+      console.log('📅 Filtro data início:', filtros.dataInicio)
+    }
+    if (filtros.dataFim) {
+      query = query.lte('data_visita', filtros.dataFim)
+      console.log('📅 Filtro data fim:', filtros.dataFim)
+    }
+
+    // Ordenar por data
+    query = query.order('data_visita', { ascending: false })
+
+    const { data: visitasRaw, error: visitasError } = await query
+
     if (visitasError) {
-      console.error('Erro ao buscar visitas:', visitasError)
+      console.error('❌ Erro ao buscar visitas:', visitasError)
       return NextResponse.json({ error: 'Erro ao buscar dados' }, { status: 500 })
     }
 
     let visitas = (visitasRaw || []) as any[]
+    console.log('📊 Total de visitas retornadas (antes filtro dia):', visitas.length)
 
-    // Aplicar filtros de data
-    if (filtros.dataInicio) {
-      const dataInicioStr = filtros.dataInicio
-      visitas = visitas.filter(v => v.data_visita >= dataInicioStr)
-    }
-    if (filtros.dataFim) {
-      const dataFimStr = filtros.dataFim
-      visitas = visitas.filter(v => v.data_visita <= dataFimStr)
-    }
-
-    // Aplicar filtro de dia da semana
+    // Aplicar filtro de dia da semana em memória
     if (filtros.diasSemana && filtros.diasSemana.length > 0) {
+      const antesFiltroDia = visitas.length
       visitas = visitas.filter(v => {
         const data = new Date(v.data_visita + 'T12:00:00Z')
         const diaSemana = data.getUTCDay().toString()
         return filtros.diasSemana!.includes(diaSemana)
       })
+      console.log(`📅 Filtro dias da semana [${filtros.diasSemana.join(',')}]: ${antesFiltroDia} → ${visitas.length} visitas`)
     }
 
     // Calcular idade e filtrar

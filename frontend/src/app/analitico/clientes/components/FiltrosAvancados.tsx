@@ -104,6 +104,9 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
       if (ticketMedioMin) filtros.ticketMedioMin = parseFloat(ticketMedioMin)
       if (ticketMedioMax) filtros.ticketMedioMax = parseFloat(ticketMedioMax)
 
+      console.log('🔍 Enviando filtros:', filtros)
+      console.log('📍 Bar ID:', barId)
+
       const response = await fetch('/api/analitico/clientes/filtros-avancados', {
         method: 'POST',
         headers: {
@@ -114,10 +117,14 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao buscar dados')
+        const errorData = await response.json()
+        console.error('❌ Erro na resposta:', errorData)
+        throw new Error(errorData.error || 'Erro ao buscar dados')
       }
 
       const data = await response.json()
+      console.log('✅ Dados recebidos:', data)
+      
       setClientes(data.clientes)
       setEstatisticas(data.estatisticas)
 
