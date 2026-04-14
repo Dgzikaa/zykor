@@ -63,6 +63,12 @@ export async function POST(request: NextRequest) {
       typeof payload?.token === 'string' ? payload.token : '';
     const token = tokenFromBearer || tokenFromHeader || tokenFromQuery || tokenFromPayload;
 
+    // Token de validação adicional do Falaê (campo "Token (Opcional)" no webhook)
+    const webhookTokenFromHeader = request.headers.get('x-webhook-token') || '';
+    const webhookTokenFromQuery = searchParams.get('webhook_token') || '';
+    const webhookTokenFromPayload = typeof payload?.webhook_token === 'string' ? payload.webhook_token : '';
+    const webhookToken = webhookTokenFromHeader || webhookTokenFromQuery || webhookTokenFromPayload;
+
     if (!token) {
       return NextResponse.json(
         {
@@ -104,6 +110,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Token sem mapeamento ativo para bar' },
         { status: 403 }
+      );
+    }
+
+    // Validar webhook_token se configurado na credencial
+    const webhookTokenEsperado = credencial.webhook_url || credencial.configuracoes?.webhook_token;
+    if (webhookTokenEsperado && webhookToken !== webhookTokenEsperado) {
+      console.warn(`⚠️ Webhook token inválido para bar ${credencial.bar_id}. Esperado: ${webhookTokenEsperado}, Recebido: ${webhookToken}`);
+      return NextResponse.json(
+        { success: false, error: 'Webhook token inválido' },
+        { status: 401 }
       );
     }
 
