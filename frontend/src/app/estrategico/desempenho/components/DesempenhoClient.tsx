@@ -1299,11 +1299,18 @@ export function DesempenhoClient({
     });
     
     // Ordenar por dia da semana (Segunda -> Domingo)
-    return resultado.sort((a, b) => {
+    const sorted = resultado.sort((a, b) => {
       const ordemA = diasSemanaOrdem.indexOf(a.diaSemana);
       const ordemB = diasSemanaOrdem.indexOf(b.diaSemana);
       return ordemA - ordemB;
     });
+    
+    // Debug: verificar se os dados estão corretos
+    if (sorted.length > 0) {
+      console.log('🔍 [NPS por dia] Dados:', sorted);
+    }
+    
+    return sorted;
   }, [npsDialog.respostas]);
 
   const reviewsGoogleFiltradas = useMemo(() => {
