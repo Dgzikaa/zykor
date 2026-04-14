@@ -52,6 +52,8 @@ const diasSemanaNomes = [
 ]
 
 export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
+  console.log('🎯 Componente FiltrosAvancados renderizado! Bar ID:', barId)
+  
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -77,7 +79,13 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
   }
 
   const aplicarFiltros = async () => {
+    console.log('🚀 Função aplicarFiltros chamada!')
+    console.log('📅 Data Início:', dataInicio)
+    console.log('📅 Data Fim:', dataFim)
+    console.log('📅 Dias Semana:', diasSemana)
+    
     if (!dataInicio || !dataFim) {
+      console.log('❌ Datas não preenchidas!')
       toast({
         title: 'Datas obrigatórias',
         description: 'Selecione data de início e fim',
@@ -88,6 +96,7 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
 
     try {
       setLoading(true)
+      console.log('⏳ Loading iniciado...')
 
       const filtros: any = {
         dataInicio,
@@ -208,7 +217,9 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
 
   // Função para preencher últimos 3 domingos
   const preencherUltimos3Domingos = () => {
+    console.log('🗓️ Preenchendo últimos 3 domingos...')
     const hoje = new Date()
+    console.log('📅 Data de hoje:', hoje)
     const domingos: Date[] = []
     
     // Encontrar domingos
@@ -217,6 +228,7 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
       data.setDate(hoje.getDate() - i)
       if (data.getDay() === 0) {
         domingos.push(data)
+        console.log(`✅ Domingo encontrado: ${data.toISOString().split('T')[0]}`)
       }
       if (domingos.length === 3) break
     }
@@ -224,6 +236,9 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
     if (domingos.length >= 3) {
       const dataFimCalc = domingos[0].toISOString().split('T')[0]
       const dataInicioCalc = domingos[2].toISOString().split('T')[0]
+      console.log('📅 Data Início calculada:', dataInicioCalc)
+      console.log('📅 Data Fim calculada:', dataFimCalc)
+      
       setDataInicio(dataInicioCalc)
       setDataFim(dataFimCalc)
       setDiasSemana(['0']) // Domingo
@@ -232,6 +247,8 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
         title: 'Filtro aplicado',
         description: 'Últimos 3 domingos selecionados'
       })
+    } else {
+      console.log('❌ Não encontrou 3 domingos!')
     }
   }
 
