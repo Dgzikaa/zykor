@@ -214,6 +214,7 @@ export type PaginatedFilter =
 export interface MarketingSemanalRow {
   ano: number;
   semana: number;
+  // Orgânico
   o_num_posts?: number | null;
   o_alcance?: number | null;
   o_interacao?: number | null;
@@ -221,6 +222,7 @@ export interface MarketingSemanalRow {
   o_engajamento?: number | null;
   o_num_stories?: number | null;
   o_visu_stories?: number | null;
+  // Meta Ads
   m_valor_investido?: number | null;
   m_alcance?: number | null;
   m_frequencia?: number | null;
@@ -229,6 +231,24 @@ export interface MarketingSemanalRow {
   m_ctr?: number | null;
   m_cpc?: number | null;
   m_conversas_iniciadas?: number | null;
+  // Google Ads
+  g_valor_investido?: number | null;
+  g_impressoes?: number | null;
+  g_cliques?: number | null;
+  g_ctr?: number | null;
+  g_cpc?: number | null;
+  g_solicitacoes_rotas?: number | null;
+  g_ligacoes?: number | null;
+  g_click_reservas?: number | null;
+  // Google Meu Negócio
+  gmn_total_visualizacoes?: number | null;
+  gmn_total_acoes?: number | null;
+  gmn_solicitacoes_rotas?: number | null;
+  gmn_visu_pesquisa?: number | null;
+  gmn_visu_maps?: number | null;
+  gmn_cliques_website?: number | null;
+  gmn_ligacoes?: number | null;
+  gmn_menu_views?: number | null;
 }
 
 /** Subconjunto de `cmv_semanal` para merge no desempenho semanal */
