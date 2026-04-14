@@ -1508,6 +1508,14 @@ export function DesempenhoClient({
           bodyData[campoPessoas] = numValuePessoas;
         }
         
+        console.log('🟢 [DesempenhoClient] Salvando métrica:', {
+          campo,
+          numValue,
+          semanaId,
+          effectiveBarId,
+          bodyData
+        });
+        
         // Usar API route existente para desempenho semanal
         const response = await fetch('/api/gestao/desempenho', {
           method: 'PUT',
@@ -1518,7 +1526,13 @@ export function DesempenhoClient({
           body: JSON.stringify(bodyData)
         });
 
-        if (!response.ok) throw new Error('Erro ao salvar');
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ [DesempenhoClient] Erro ao salvar:', errorText);
+          throw new Error('Erro ao salvar');
+        }
+        
+        console.log('✅ [DesempenhoClient] Salvo com sucesso!');
       }
       
       // Atualizar estado local para refletir imediatamente

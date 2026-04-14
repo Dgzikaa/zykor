@@ -312,6 +312,20 @@ export async function getSemanas(
     const key = `${s.ano}-${s.numero_semana}`;
     const marketing = marketingMap.get(key);
     
+    // Debug: Log para semana 15
+    if (s.numero_semana === 15 && s.ano === 2026) {
+      console.log('🔍 [desempenho-service] Semana 15/2026:', {
+        key,
+        hasMarketing: !!marketing,
+        marketingData: marketing ? {
+          gmn_total_visualizacoes: marketing.gmn_total_visualizacoes,
+          gmn_total_acoes: marketing.gmn_total_acoes,
+          g_valor_investido: marketing.g_valor_investido,
+          g_impressoes: marketing.g_impressoes
+        } : null
+      });
+    }
+    
     // Conta Assinada
     const contaAssinadaValor = contaAssinadaMap.get(key) || 0;
     const contaAssinadaPerc = s.faturamento_total && s.faturamento_total > 0 
@@ -430,6 +444,7 @@ export async function getSemanas(
           })()
         : {}),
       ...(marketing ? {
+        // Orgânico
         o_num_posts: marketing.o_num_posts,
         o_alcance: marketing.o_alcance,
         o_interacao: marketing.o_interacao,
@@ -437,6 +452,7 @@ export async function getSemanas(
         o_engajamento: marketing.o_engajamento,
         o_num_stories: marketing.o_num_stories,
         o_visu_stories: marketing.o_visu_stories,
+        // Meta Ads
         m_valor_investido: marketing.m_valor_investido,
         m_alcance: marketing.m_alcance,
         m_frequencia: marketing.m_frequencia,
@@ -445,6 +461,16 @@ export async function getSemanas(
         m_ctr: marketing.m_ctr,
         m_custo_por_clique: marketing.m_cpc,
         m_conversas_iniciadas: marketing.m_conversas_iniciadas,
+        // Google Ads
+        g_valor_investido: marketing.g_valor_investido,
+        g_impressoes: marketing.g_impressoes,
+        g_cliques: marketing.g_cliques,
+        g_ctr: marketing.g_ctr,
+        g_solicitacoes_rotas: marketing.g_solicitacoes_rotas,
+        // Google Meu Negócio
+        gmn_total_visualizacoes: marketing.gmn_total_visualizacoes,
+        gmn_total_acoes: marketing.gmn_total_acoes,
+        gmn_solicitacoes_rotas: marketing.gmn_solicitacoes_rotas,
       } : {})
     } as DadosSemana;
   });

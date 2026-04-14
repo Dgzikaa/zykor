@@ -173,6 +173,14 @@ export async function PUT(request: Request) {
     const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
 
     const { id, numero_semana, ano, ...updateData } = body;
+    
+    console.log('🔵 [PUT /api/gestao/desempenho] Request recebido:', {
+      barId,
+      id,
+      numero_semana,
+      ano,
+      updateData
+    });
 
     if (!barId || !id) {
       return NextResponse.json(
@@ -212,6 +220,8 @@ export async function PUT(request: Request) {
 
     // Atualizar marketing_semanal se houver campos de marketing
     if (Object.keys(marketingData).length > 0) {
+      console.log('🔵 [PUT /api/gestao/desempenho] Campos de marketing detectados:', marketingData);
+      
       // Primeiro, buscar semana/ano do registro de desempenho
       const { data: desempenhoInfo } = await supabase
         .from('desempenho_semanal')
@@ -220,14 +230,25 @@ export async function PUT(request: Request) {
         .eq('bar_id', barId)
         .single();
 
+      console.log('🔵 [PUT /api/gestao/desempenho] Info do desempenho:', { id, barId, desempenhoInfo });
+
       if (desempenhoInfo) {
         // Atualizar marketing_semanal usando semana e ano
+        const updatePayload = {
+          ...marketingData,
+          updated_at: new Date().toISOString()
+        };
+        
+        console.log('🔵 [PUT /api/gestao/desempenho] Tentando UPDATE em marketing_semanal:', {
+          bar_id: barId,
+          semana: desempenhoInfo.numero_semana,
+          ano: desempenhoInfo.ano,
+          payload: updatePayload
+        });
+        
         const { data: mktData, error: mktError } = await supabase
           .from('marketing_semanal')
-          .update({
-            ...marketingData,
-            updated_at: new Date().toISOString()
-          })
+          .update(updatePayload)
           .eq('bar_id', barId)
           .eq('semana', desempenhoInfo.numero_semana)
           .eq('ano', desempenhoInfo.ano)
@@ -235,27 +256,35 @@ export async function PUT(request: Request) {
           .single();
 
         if (mktError) {
-          console.error('Erro ao atualizar marketing_semanal:', mktError);
+          console.error('❌ [PUT /api/gestao/desempenho] Erro ao atualizar marketing_semanal:', mktError);
           // Se não existe, criar o registro
           if (mktError.code === 'PGRST116') {
+            console.log('⚠️ [PUT /api/gestao/desempenho] Registro não existe, criando INSERT...');
+            const insertPayload = {
+              bar_id: barId,
+              semana: desempenhoInfo.numero_semana,
+              ano: desempenhoInfo.ano,
+              ...marketingData,
+              fonte: 'manual'
+            };
+            console.log('🔵 [PUT /api/gestao/desempenho] INSERT payload:', insertPayload);
+            
             const { error: insertError } = await supabase
               .from('marketing_semanal')
-              .insert({
-                bar_id: barId,
-                semana: desempenhoInfo.numero_semana,
-                ano: desempenhoInfo.ano,
-                ...marketingData,
-                fonte: 'manual'
-              });
+              .insert(insertPayload);
             if (insertError) {
+              console.error('❌ [PUT /api/gestao/desempenho] Erro ao inserir:', insertError);
               hasError = true;
               errorMessage = `Erro ao inserir marketing: ${insertError.message}`;
+            } else {
+              console.log('✅ [PUT /api/gestao/desempenho] INSERT bem-sucedido!');
             }
           } else {
             hasError = true;
             errorMessage = `Erro ao atualizar marketing: ${mktError.message}`;
           }
         } else {
+          console.log('✅ [PUT /api/gestao/desempenho] UPDATE bem-sucedido:', mktData);
           resultData = mktData;
         }
       }
