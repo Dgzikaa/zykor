@@ -19,6 +19,7 @@ import type { Cliente, Estatisticas, Reservante } from './types'
 import { ClientesStatistics } from './components/ClientesStatistics'
 import { ClientesList } from './components/ClientesList'
 import { ClienteDetalhesModal } from './components/ClienteDetalhesModal'
+import { FiltrosAvancados } from './components/FiltrosAvancados'
 import {
   fetchClientes as fetchClientesService,
   fetchReservantes as fetchReservantesService,
@@ -617,6 +618,13 @@ export default function ClientesPage() {
                       <Flame className="h-4 w-4 mr-2" />
                       Lista Quente
                     </TabsTrigger>
+                    <TabsTrigger
+                      value="filtros-avancados"
+                      className="px-4 py-2.5 text-sm font-medium transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 data-[state=active]:shadow-none !rounded-xl"
+                    >
+                      <Settings2 className="h-4 w-4 mr-2" />
+                      Filtros Avançados
+                    </TabsTrigger>
                     <Link href="/relatorios/clientes-ativos">
                       <div className="px-4 py-2.5 text-sm font-medium transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl flex items-center cursor-pointer text-muted-foreground hover:text-foreground">
                         <Activity className="h-4 w-4 mr-2" />
@@ -1105,6 +1113,10 @@ export default function ClientesPage() {
                       </Card>
                     )}
                   </div>
+                </TabsContent>
+
+                <TabsContent value="filtros-avancados" className="mt-0 p-6">
+                  <FiltrosAvancados barId={selectedBar.id} />
                 </TabsContent>
               </CardContent>
             </Card>
