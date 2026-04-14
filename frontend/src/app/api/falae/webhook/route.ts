@@ -64,6 +64,8 @@ export async function POST(request: NextRequest) {
     const token = tokenFromBearer || tokenFromHeader || tokenFromQuery || tokenFromPayload;
 
     // Token de validação adicional do Falaê (campo "Token (Opcional)" no webhook)
+    // Aceita em: header x-webhook-token, query ?webhook_token=, ou payload.webhook_token
+    // NÃO usar payload.token pois é reservado para o JWT
     const webhookTokenFromHeader = request.headers.get('x-webhook-token') || '';
     const webhookTokenFromQuery = searchParams.get('webhook_token') || '';
     const webhookTokenFromPayload = typeof payload?.webhook_token === 'string' ? payload.webhook_token : '';
