@@ -263,6 +263,9 @@ async function processStockoutData(supabase: any, rawData: any, dataDate: string
         loc_inativo: item.loc_inativo || null,
         loc_statusimpressao: item.loc_statusimpressao || null,
         
+        // Grupo do produto (usado para excluir grupos do stockout, ex: Feijoada)
+        grp_desc: item.grp_desc || null,
+        
         // Dados completos do JSON original
         raw_data: item,
         
@@ -374,12 +377,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders }
+    return new Response('ok', { headers: corsHeaders });
+  }
 
   // Validar autenticação (JWT ou CRON_SECRET)
   const authError = requireAuth(req);
-  if (authError) return authError;);
-  }
+  if (authError) return authError;
 
   let heartbeatId: number | null = null;
   let startTime: number = Date.now();

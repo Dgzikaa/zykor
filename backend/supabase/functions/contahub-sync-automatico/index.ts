@@ -1005,30 +1005,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
       true // releaseLock
     );
     
-    // 🔄 Chamar processor automaticamente após sync bem-sucedido
-    console.log('🔄 Chamando contahub-processor automaticamente...');
+    // 🔄 Processar raw_json pendente via RPC (substitui contahub-processor que não existe)
+    console.log('🔄 Processando dados pendentes via processar_raw_data_pendente...');
     try {
-      const processorUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/contahub-processor`;
-      const processorResponse = await fetch(processorUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          process_all: true,
-          bar_id: bar_id
-        })
-      });
-      
-      if (processorResponse.ok) {
-        console.log('✅ Processor chamado com sucesso');
+      const { data: processResult, error: processError } = await supabase
+        .rpc('processar_raw_data_pendente');
+
+      if (processError) {
+        console.warn(`⚠️ Erro ao processar dados pendentes: ${processError.message}`);
       } else {
-        console.warn(`⚠️ Processor retornou status ${processorResponse.status}`);
+        console.log(`✅ Dados processados: ${processResult}`);
       }
     } catch (processorError) {
-      console.error('❌ Erro ao chamar processor:', processorError);
-      // Não falhar o sync se o processor falhar
+      console.error('❌ Erro ao chamar processar_raw_data_pendente:', processorError);
+      // Não falhar o sync se o processamento falhar
     }
     
     return new Response(JSON.stringify({

@@ -116,6 +116,11 @@ export async function GET(request: NextRequest) {
     const dataFim = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
 
     // NOVA LÓGICA: Buscar dados diretamente da tabela cmv_mensal (sincronizada da planilha)
+    // MAS: Não usar cmv_mensal para o mês atual (ainda em andamento)
+    const mesAtual = new Date().getMonth() + 1;
+    const anoAtual = new Date().getFullYear();
+    const isMesAtual = (ano === anoAtual && mes === mesAtual);
+    
     const { data: cmvMensal, error: errMensal } = await supabase
       .from('cmv_mensal')
       .select('*')
@@ -124,8 +129,8 @@ export async function GET(request: NextRequest) {
       .eq('mes', mes)
       .single();
 
-    // Se tiver dados na tabela cmv_mensal, usar diretamente
-    if (cmvMensal && !errMensal) {
+    // Se tiver dados na tabela cmv_mensal E não for o mês atual, usar diretamente
+    if (cmvMensal && !errMensal && !isMesAtual) {
       // Buscar fator CMV do banco (centralizado)
       const fatorCmv = await getFatorCmv(supabase, barId);
       

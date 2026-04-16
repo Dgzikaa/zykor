@@ -168,6 +168,10 @@ const FIELD_MAPPING: Record<string, string> = {
   // Clientes
   clientes_ativos: "clientes_ativos",
   perc_clientes_novos: "perc_clientes_novos",
+  // CMV (integrado de cmv_semanal)
+  faturamento_cmovivel: "faturamento_cmovivel",
+  cmv_rs: "cmv_rs",
+  cmv: "cmv",
 };
 
 const TOLERANCE_PERCENT = 1; // 1% de tolerância para diffs significativos
@@ -353,6 +357,29 @@ async function processBarWeek(
   }
 
   const totalFieldsCalculated = Object.keys(calculatedValues).length;
+
+  // Buscar dados de CMV da tabela cmv_semanal
+  const { data: cmvData, error: cmvError } = await supabase
+    .from("cmv_semanal")
+    .select("faturamento_cmvivel, cmv_real, cmv_limpo_percentual")
+    .eq("bar_id", barId)
+    .eq("ano", ano)
+    .eq("semana", numeroSemana)
+    .maybeSingle();
+
+  if (cmvError) {
+    console.warn(`⚠️ Erro ao buscar CMV: ${cmvError.message}`);
+  }
+
+  // Integrar dados de CMV nos valores calculados
+  if (cmvData) {
+    calculatedValues["faturamento_cmovivel"] = cmvData.faturamento_cmvivel || 0;
+    calculatedValues["cmv_rs"] = cmvData.cmv_real || 0;
+    calculatedValues["cmv"] = cmvData.cmv_limpo_percentual || 0;
+    console.log(`✅ CMV integrado: faturamento_cmovivel=${cmvData.faturamento_cmvivel}, cmv_rs=${cmvData.cmv_real}, cmv=${cmvData.cmv_limpo_percentual}`);
+  } else {
+    console.warn(`⚠️ Sem dados de CMV para semana ${numeroSemana}/${ano}`);
+  }
 
   // Buscar registro atual de desempenho_semanal
   const { data: registroAtual, error: fetchError } = await supabase
@@ -569,7 +596,8 @@ serve(async (req: Request) => {
   const overallStartTime = Date.now();
 
   // Usar lock apenas no modo write para evitar recálculos simultâneos
-  const useLock = mode === 'write';
+  // TEMPORARIAMENTE DESABILITADO PARA DEBUG
+  const useLock = false; // mode === 'write';
 
   for (const currentBarId of barIds) {
     // Heartbeat próprio para cada bar

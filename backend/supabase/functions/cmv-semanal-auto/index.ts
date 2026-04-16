@@ -68,31 +68,35 @@ serve(async (req) => {
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // 💓 Heartbeat: registrar início da execução com advisory lock
-    const hbResult = await heartbeatStart(
-      supabase, 
-      'cmv-semanal-auto', 
-      bar_id || null, 
-      todas_semanas ? 'todas' : 'recalculo', 
-      'pgcron',
-      true, // useLock
-      30    // timeout 30 minutos
-    );
-    heartbeatId = hbResult.heartbeatId;
-    startTime = hbResult.startTime;
+    // 💓 Heartbeat: TEMPORARIAMENTE DESABILITADO PARA DEBUG
+    // const hbResult = await heartbeatStart(
+    //   supabase, 
+    //   'cmv-semanal-auto', 
+    //   bar_id || null, 
+    //   todas_semanas ? 'todas' : 'recalculo', 
+    //   'pgcron',
+    //   true, // useLock
+    //   30    // timeout 30 minutos
+    // );
+    // heartbeatId = hbResult.heartbeatId;
+    // startTime = hbResult.startTime;
     
-    // Se não conseguiu o lock, abortar execução
-    if (!hbResult.lockAcquired) {
-      console.log('🔒 CMV Semanal já em execução, abortando');
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: 'CMV Semanal já em execução',
-          lock_acquired: false 
-        }),
-        { status: 409, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    heartbeatId = null;
+    startTime = Date.now();
+    console.log('⚠️ [DEBUG] Heartbeat e lock DESABILITADOS temporariamente');
+    
+    // // Se não conseguiu o lock, abortar execução
+    // if (!hbResult.lockAcquired) {
+    //   console.log('🔒 CMV Semanal já em execução, abortando');
+    //   return new Response(
+    //     JSON.stringify({ 
+    //       success: false, 
+    //       message: 'CMV Semanal já em execução',
+    //       lock_acquired: false 
+    //     }),
+    //     { status: 409, headers: { 'Content-Type': 'application/json' } }
+    //   );
+    // }
 
     // Buscar bares ativos do banco (com fallback)
     let baresAtivos: number[] = [3, 4]; // Fallback
@@ -160,6 +164,7 @@ serve(async (req) => {
 
       const { data: semanasDesempenho, error: errDesempenho } = await queryDesempenho;
       console.log(`⏱️ [${Date.now() - barStartTime}ms] Semanas desempenho buscadas`);
+      console.log(`📊 [DEBUG] Semanas encontradas:`, JSON.stringify(semanasDesempenho));
 
       if (errDesempenho) {
         console.error('Erro ao buscar desempenho_semanal:', errDesempenho);
@@ -244,10 +249,36 @@ serve(async (req) => {
       for (const sem of semanasDesempenho || []) {
         const semanaStartTime = Date.now();
         const numeroSemana = sem.numero_semana;
-        const faturamentoBruto = sem.faturamento_total || 0;
-        const comissao = (sem as any).comissao || 0;
+        
+        // CORREÇÃO: Para semanas em andamento, buscar faturamento do eventos_base
+        const weekRange = getWeekDateRange(sem.ano, numeroSemana);
+        const hoje = new Date().toISOString().split('T')[0];
+        const semanaEmAndamento = weekRange.end >= hoje;
+        
+        let faturamentoBruto = sem.faturamento_total || 0;
+        let comissao = (sem as any).comissao || 0;
+        let faturamentoCouvert = (sem as any).faturamento_entrada || 0;
+        
+        // Se a semana está em andamento E o faturamento está zerado, buscar do eventos_base
+        if (semanaEmAndamento && faturamentoBruto === 0) {
+          console.log(`⚠️ Semana ${numeroSemana} em andamento - buscando faturamento do eventos_base`);
+          
+          const { data: eventosData } = await supabase
+            .from('eventos_base')
+            .select('real_r')
+            .eq('bar_id', barId)
+            .gte('data_evento', weekRange.start)
+            .lte('data_evento', weekRange.end);
+          
+          if (eventosData && eventosData.length > 0) {
+            faturamentoBruto = eventosData.reduce((sum, e) => sum + (parseFloat(e.real_r) || 0), 0);
+            console.log(`✅ Faturamento do eventos_base: R$ ${faturamentoBruto}`);
+          }
+        }
+        
         console.log(`\n⏱️ [${Date.now() - barStartTime}ms] Processando semana ${numeroSemana}...`);
-        const faturamentoCouvert = (sem as any).faturamento_entrada || 0;
+        console.log(`📊 [DEBUG] Faturamento do desempenho_semanal: R$ ${faturamentoBruto}`);
+        
         // Faturamento Limpo = Faturamento Total - Comissão - Faturamento Couvert
         // NOTA: "Faturamento Couvert" da planilha = faturamento_entrada (não couvert_atracoes)
         const faturamentoLimpo = faturamentoBruto - comissao - faturamentoCouvert;
@@ -616,6 +647,7 @@ serve(async (req) => {
         }
 
         console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Preparando update no banco...`);
+        console.log(`📊 [DEBUG] Faturamento que será salvo: R$ ${faturamentoBruto}`);
         // 9. Montar objeto de update
         const updateData: any = {
           vendas_brutas: faturamentoBruto,

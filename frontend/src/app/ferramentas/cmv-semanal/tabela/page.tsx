@@ -22,7 +22,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   ChevronDown, 
   ChevronRight, 
-  RefreshCcw, 
   Calendar,
   Eye,
   Pencil,
@@ -33,9 +32,7 @@ import {
   Calculator,
   BarChart3,
   Table2,
-  CloudDownload
 } from 'lucide-react';
-import Link from 'next/link';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/hooks/use-toast';
@@ -396,7 +393,6 @@ export default function CMVSemanalTabelaPage() {
   });
   const [editando, setEditando] = useState<{ semanaId: string; campo: string } | null>(null);
   const [valorEdit, setValorEdit] = useState('');
-  const [sincronizandoNibo, setSincronizandoNibo] = useState(false);
   
   // Modal Drill-Down
   const [modalDrillDown, setModalDrillDown] = useState<{
@@ -421,53 +417,6 @@ export default function CMVSemanalTabelaPage() {
   // Nomes dos meses
   const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-  // Reprocessar CMV (Conta Azul + ContaHub → banco)
-  const sincronizarNibo = async () => {
-    if (!selectedBar?.id) {
-      toast({ title: 'Erro', description: 'Selecione um bar primeiro', variant: 'destructive' });
-      return;
-    }
-
-    setSincronizandoNibo(true);
-
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/cmv-semanal-auto`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
-          },
-          body: JSON.stringify({ bar_id: selectedBar.id, todas_semanas: true })
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erro ao processar CMV');
-      }
-
-      const result = await response.json();
-
-      toast({ 
-        title: '✅ Dados Atualizados', 
-        description: result.message || 'Conta Azul + ContaHub sincronizados com sucesso'
-      });
-
-      await carregarDados();
-
-    } catch (error) {
-      console.error('Erro ao atualizar dados Conta Azul:', error);
-      toast({ 
-        title: 'Erro ao atualizar dados', 
-        description: error instanceof Error ? error.message : 'Falha na sincronização',
-        variant: 'destructive' 
-      });
-    } finally {
-      setSincronizandoNibo(false);
-    }
-  };
 
 
   // Carregar dados
@@ -978,42 +927,16 @@ export default function CMVSemanalTabelaPage() {
               </div>
             </div>
             
-            {/* Ações */}
-            <div className="flex items-center gap-3">
-              {/* Legenda */}
-              <div className="hidden md:flex items-center gap-3 text-xs">
-                <div className="flex items-center gap-1">
-                  <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
-                  <span className="text-gray-600 dark:text-gray-400">Verificar</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                  <span className="text-gray-600 dark:text-gray-400">Manual</span>
-                </div>
+            {/* Legenda */}
+            <div className="hidden md:flex items-center gap-3 text-xs">
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                <span className="text-gray-600 dark:text-gray-400">Verificar</span>
               </div>
-              
-              <Link href="/ferramentas/cmv-semanal">
-                <Button variant="outline" size="sm">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Listagem
-                </Button>
-              </Link>
-              
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={sincronizarNibo} 
-                disabled={sincronizandoNibo || loading}
-                className="border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-              >
-                <CloudDownload className={cn("h-4 w-4 mr-2", sincronizandoNibo && "animate-pulse")} />
-                {sincronizandoNibo ? 'Sincronizando...' : 'Atualizar Conta Azul'}
-              </Button>
-              
-              <Button variant="outline" size="sm" onClick={carregarDados} disabled={loading}>
-                <RefreshCcw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
-                Atualizar
-              </Button>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                <span className="text-gray-600 dark:text-gray-400">Manual</span>
+              </div>
             </div>
           </div>
         </div>

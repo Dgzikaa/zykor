@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Loader2, Search, Download, Users, TrendingUp, Calendar, Cake } from 'lucide-react'
+import { Loader2, Search, Download, Users, TrendingUp, Calendar, Cake, MapPin } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Checkbox } from '@/components/ui/checkbox'
+import { cn } from '@/lib/utils'
 
 interface FiltrosAvancadosProps {
   barId: number
@@ -39,6 +40,81 @@ interface Estatisticas {
   idadeMedia: number | null
   medianaIdade: number | null
   faixasEtarias: Record<string, number>
+  clientesForaBrasilia: number
+  percentualForaBrasilia: number
+  totalClientesPeriodo: number
+  percentualDoPeriodo: number | null
+}
+
+// Presets de período
+type PeriodoPreset = 'personalizado' | '7dias' | '30dias' | '3meses' | 'este_mes' | 'mes_anterior' | 'mes_especifico' | '3_domingos' | 'fins_semana'
+
+const PERIODO_PRESETS: { id: PeriodoPreset; label: string }[] = [
+  { id: '7dias', label: '7 dias' },
+  { id: '30dias', label: '30 dias' },
+  { id: '3meses', label: '3 meses' },
+  { id: 'este_mes', label: 'Este mês' },
+  { id: 'mes_anterior', label: 'Mês passado' },
+  { id: 'mes_especifico', label: 'Mês específico' },
+  { id: '3_domingos', label: '3 Domingos' },
+  { id: 'fins_semana', label: 'Fins de semana' },
+  { id: 'personalizado', label: 'Personalizado' },
+]
+
+const calcularPeriodo = (preset: PeriodoPreset, mesEspecifico?: string): { inicio: string; fim: string; dias: string[] } => {
+  const hoje = new Date()
+  const fmt = (d: Date) => d.toISOString().split('T')[0]
+
+  switch (preset) {
+    case '7dias': {
+      const inicio = new Date(hoje)
+      inicio.setDate(hoje.getDate() - 7)
+      return { inicio: fmt(inicio), fim: fmt(hoje), dias: [] }
+    }
+    case '30dias': {
+      const inicio = new Date(hoje)
+      inicio.setDate(hoje.getDate() - 30)
+      return { inicio: fmt(inicio), fim: fmt(hoje), dias: [] }
+    }
+    case '3meses': {
+      const inicio = new Date(hoje)
+      inicio.setMonth(hoje.getMonth() - 3)
+      return { inicio: fmt(inicio), fim: fmt(hoje), dias: [] }
+    }
+    case 'este_mes': {
+      const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+      return { inicio: fmt(inicio), fim: fmt(hoje), dias: [] }
+    }
+    case 'mes_anterior': {
+      const inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)
+      const fim = new Date(hoje.getFullYear(), hoje.getMonth(), 0)
+      return { inicio: fmt(inicio), fim: fmt(fim), dias: [] }
+    }
+    case 'mes_especifico': {
+      if (!mesEspecifico) return { inicio: '', fim: '', dias: [] }
+      const [ano, mes] = mesEspecifico.split('-').map(Number)
+      const inicio = new Date(ano, mes - 1, 1)
+      const fim = new Date(ano, mes, 0)
+      return { inicio: fmt(inicio), fim: fmt(fim), dias: [] }
+    }
+    case '3_domingos': {
+      const domingos: Date[] = []
+      for (let i = 0; i < 90 && domingos.length < 3; i++) {
+        const d = new Date(hoje)
+        d.setDate(hoje.getDate() - i)
+        if (d.getDay() === 0) domingos.push(d)
+      }
+      if (domingos.length < 3) return { inicio: '', fim: '', dias: ['0'] }
+      return { inicio: fmt(domingos[2]), fim: fmt(domingos[0]), dias: ['0'] }
+    }
+    case 'fins_semana': {
+      const inicio = new Date(hoje)
+      inicio.setDate(hoje.getDate() - 30)
+      return { inicio: fmt(inicio), fim: fmt(hoje), dias: ['5', '6', '0'] }
+    }
+    default:
+      return { inicio: '', fim: '', dias: [] }
+  }
 }
 
 const diasSemanaNomes = [
@@ -59,16 +135,36 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [estatisticas, setEstatisticas] = useState<Estatisticas | null>(null)
 
-  // Filtros
-  const [dataInicio, setDataInicio] = useState('')
-  const [dataFim, setDataFim] = useState('')
+  // Filtros - Período
+  const [periodoPreset, setPeriodoPreset] = useState<PeriodoPreset>('30dias')
+  const [dataInicio, setDataInicio] = useState(() => calcularPeriodo('30dias').inicio)
+  const [dataFim, setDataFim] = useState(() => calcularPeriodo('30dias').fim)
+  const [mesEspecifico, setMesEspecifico] = useState('')
   const [diasSemana, setDiasSemana] = useState<string[]>([])
+
+  // Filtros - Outros
   const [idadeMin, setIdadeMin] = useState('')
   const [idadeMax, setIdadeMax] = useState('')
   const [visitasMin, setVisitasMin] = useState('')
   const [visitasMax, setVisitasMax] = useState('')
   const [ticketMedioMin, setTicketMedioMin] = useState('')
   const [ticketMedioMax, setTicketMedioMax] = useState('')
+  const [foraDeBasilia, setForaDeBasilia] = useState(false)
+
+  const selecionarPreset = (preset: PeriodoPreset, mesEsp?: string) => {
+    setPeriodoPreset(preset)
+    if (preset === 'personalizado') return
+    const { inicio, fim, dias } = calcularPeriodo(preset, mesEsp || mesEspecifico)
+    if (inicio) setDataInicio(inicio)
+    if (fim) setDataFim(fim)
+    setDiasSemana(dias)
+  }
+
+  const onDataManual = (tipo: 'inicio' | 'fim', val: string) => {
+    if (tipo === 'inicio') setDataInicio(val)
+    else setDataFim(val)
+    setPeriodoPreset('personalizado')
+  }
 
   const toggleDiaSemana = (dia: string) => {
     setDiasSemana(prev => 
@@ -103,15 +199,14 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
         dataFim
       }
 
-      if (diasSemana.length > 0) {
-        filtros.diasSemana = diasSemana
-      }
+      if (diasSemana.length > 0) filtros.diasSemana = diasSemana
       if (idadeMin) filtros.idadeMin = parseInt(idadeMin)
       if (idadeMax) filtros.idadeMax = parseInt(idadeMax)
       if (visitasMin) filtros.visitasMin = parseInt(visitasMin)
       if (visitasMax) filtros.visitasMax = parseInt(visitasMax)
       if (ticketMedioMin) filtros.ticketMedioMin = parseFloat(ticketMedioMin)
       if (ticketMedioMax) filtros.ticketMedioMax = parseFloat(ticketMedioMax)
+      if (foraDeBasilia) filtros.foraDeBasilia = true
 
       console.log('🔍 Enviando filtros:', filtros)
       console.log('📍 Bar ID:', barId)
@@ -155,8 +250,11 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
   }
 
   const limparFiltros = () => {
-    setDataInicio('')
-    setDataFim('')
+    const p = calcularPeriodo('30dias')
+    setPeriodoPreset('30dias')
+    setDataInicio(p.inicio)
+    setDataFim(p.fim)
+    setMesEspecifico('')
     setDiasSemana([])
     setIdadeMin('')
     setIdadeMax('')
@@ -164,6 +262,7 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
     setVisitasMax('')
     setTicketMedioMin('')
     setTicketMedioMax('')
+    setForaDeBasilia(false)
     setClientes([])
     setEstatisticas(null)
   }
@@ -215,78 +314,6 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
     return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' })
   }
 
-  // Função para preencher últimos 3 domingos
-  const preencherUltimos3Domingos = () => {
-    console.log('🗓️ Preenchendo últimos 3 domingos...')
-    const hoje = new Date()
-    console.log('📅 Data de hoje:', hoje)
-    const domingos: Date[] = []
-    
-    // Encontrar domingos
-    for (let i = 0; i < 90; i++) {
-      const data = new Date(hoje)
-      data.setDate(hoje.getDate() - i)
-      if (data.getDay() === 0) {
-        domingos.push(data)
-        console.log(`✅ Domingo encontrado: ${data.toISOString().split('T')[0]}`)
-      }
-      if (domingos.length === 3) break
-    }
-
-    if (domingos.length >= 3) {
-      const dataFimCalc = domingos[0].toISOString().split('T')[0]
-      const dataInicioCalc = domingos[2].toISOString().split('T')[0]
-      console.log('📅 Data Início calculada:', dataInicioCalc)
-      console.log('📅 Data Fim calculada:', dataFimCalc)
-      
-      setDataInicio(dataInicioCalc)
-      setDataFim(dataFimCalc)
-      setDiasSemana(['0']) // Domingo
-      
-      toast({
-        title: 'Filtro aplicado',
-        description: 'Últimos 3 domingos selecionados'
-      })
-    } else {
-      console.log('❌ Não encontrou 3 domingos!')
-    }
-  }
-
-  // Função para preencher últimos 30 dias
-  const preencherUltimos30Dias = () => {
-    const hoje = new Date()
-    const dataFimCalc = hoje.toISOString().split('T')[0]
-    const data30DiasAtras = new Date(hoje)
-    data30DiasAtras.setDate(hoje.getDate() - 30)
-    const dataInicioCalc = data30DiasAtras.toISOString().split('T')[0]
-    
-    setDataInicio(dataInicioCalc)
-    setDataFim(dataFimCalc)
-    setDiasSemana([])
-    
-    toast({
-      title: 'Filtro aplicado',
-      description: 'Últimos 30 dias selecionados'
-    })
-  }
-
-  // Função para preencher fim de semana do mês
-  const preencherFimDeSemana = () => {
-    const hoje = new Date()
-    const dataFimCalc = hoje.toISOString().split('T')[0]
-    const data30DiasAtras = new Date(hoje)
-    data30DiasAtras.setDate(hoje.getDate() - 30)
-    const dataInicioCalc = data30DiasAtras.toISOString().split('T')[0]
-    
-    setDataInicio(dataInicioCalc)
-    setDataFim(dataFimCalc)
-    setDiasSemana(['5', '6', '0']) // Sexta, Sábado, Domingo
-    
-    toast({
-      title: 'Filtro aplicado',
-      description: 'Fins de semana dos últimos 30 dias'
-    })
-  }
 
   return (
     <div className="space-y-6">
@@ -308,52 +335,63 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
               <Calendar className="h-4 w-4" />
               Período
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            {/* Pills de atalho */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {PERIODO_PRESETS.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => selecionarPreset(p.id)}
+                  className={cn(
+                    'px-3 py-1 rounded-full text-xs font-medium border transition-colors',
+                    periodoPreset === p.id
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'border-border text-muted-foreground hover:border-blue-400 hover:text-blue-500'
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Input de mês específico */}
+            {periodoPreset === 'mes_especifico' && (
+              <div className="mb-3">
+                <Label htmlFor="mesEspecifico">Selecione o mês</Label>
+                <Input
+                  id="mesEspecifico"
+                  type="month"
+                  value={mesEspecifico}
+                  onChange={(e) => {
+                    setMesEspecifico(e.target.value)
+                    selecionarPreset('mes_especifico', e.target.value)
+                  }}
+                  className="mt-1 w-48"
+                />
+              </div>
+            )}
+
+            {/* Datas (sempre visíveis, editáveis manualmente) */}
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="dataInicio">Data Início *</Label>
+                <Label htmlFor="dataInicio" className="text-xs text-muted-foreground">De</Label>
                 <Input
                   id="dataInicio"
                   type="date"
                   value={dataInicio}
-                  onChange={(e) => setDataInicio(e.target.value)}
+                  onChange={(e) => onDataManual('inicio', e.target.value)}
                   className="mt-1"
                 />
               </div>
               <div>
-                <Label htmlFor="dataFim">Data Fim *</Label>
+                <Label htmlFor="dataFim" className="text-xs text-muted-foreground">Até</Label>
                 <Input
                   id="dataFim"
                   type="date"
                   value={dataFim}
-                  onChange={(e) => setDataFim(e.target.value)}
+                  onChange={(e) => onDataManual('fim', e.target.value)}
                   className="mt-1"
                 />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={preencherUltimos3Domingos}
-                  className="w-full"
-                >
-                  Últimos 3 Domingos
-                </Button>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={preencherUltimos30Dias}
-                  >
-                    30 dias
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={preencherFimDeSemana}
-                  >
-                    Fins de semana
-                  </Button>
-                </div>
               </div>
             </div>
           </div>
@@ -468,6 +506,25 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
             </div>
           </div>
 
+          {/* Localização */}
+          <div>
+            <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              Localização (opcional)
+            </h4>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="foraDeBasilia"
+                checked={foraDeBasilia}
+                onCheckedChange={(v) => setForaDeBasilia(v === true)}
+              />
+              <Label htmlFor="foraDeBasilia" className="text-sm font-normal cursor-pointer">
+                Fora de Brasília
+                <span className="ml-1.5 text-xs text-muted-foreground">(DDD diferente de 61)</span>
+              </Label>
+            </div>
+          </div>
+
           {/* Botões de Ação */}
           <div className="flex flex-wrap gap-3 pt-4 border-t border-border">
             <Button onClick={aplicarFiltros} disabled={loading}>
@@ -501,7 +558,7 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
       {/* Estatísticas */}
       {estatisticas && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Card className="card-dark hover:shadow-lg transition-shadow">
               <CardContent className="p-4 text-center">
                 <div className="text-3xl font-bold text-blue-500">
@@ -510,6 +567,16 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
                 <div className="text-xs text-muted-foreground mt-1">
                   Clientes Únicos
                 </div>
+                {estatisticas.percentualDoPeriodo !== null && (
+                  <div className="mt-1.5">
+                    <Badge variant="secondary" className="text-xs">
+                      {estatisticas.percentualDoPeriodo}% do período
+                    </Badge>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      de {estatisticas.totalClientesPeriodo.toLocaleString('pt-BR')} total
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -551,6 +618,20 @@ export function FiltrosAvancados({ barId }: FiltrosAvancadosProps) {
                 </div>
                 <div className="text-xs text-muted-foreground">
                   Total: {formatCurrency(estatisticas.totalGasto)}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="card-dark hover:shadow-lg transition-shadow border-l-2 border-l-amber-500">
+              <CardContent className="p-4 text-center">
+                <div className="text-3xl font-bold text-amber-500">
+                  {estatisticas.percentualForaBrasilia}%
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Fora de Brasília
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {estatisticas.clientesForaBrasilia.toLocaleString('pt-BR')} clientes
                 </div>
               </CardContent>
             </Card>

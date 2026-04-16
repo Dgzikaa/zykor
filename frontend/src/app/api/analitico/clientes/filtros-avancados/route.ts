@@ -15,6 +15,7 @@ interface FiltrosAvancados {
   ticketMedioMin?: number
   ticketMedioMax?: number
   genero?: string
+  foraDeBasilia?: boolean // true = DDD diferente de 61
 }
 
 export async function POST(request: NextRequest) {
@@ -73,15 +74,22 @@ export async function POST(request: NextRequest) {
     let visitas = (visitasRaw || []) as any[]
     console.log('📊 Total de visitas retornadas (antes filtro dia):', visitas.length)
 
+    // Contar clientes únicos ANTES do filtro de dia (para calcular % depois)
+    const clientesUniquesAnteDia = new Set(
+      visitas.map(v => (v.cliente_fone || '').toString().replace(/\D/g, '')).filter(Boolean)
+    ).size
+
     // Aplicar filtro de dia da semana em memória
-    if (filtros.diasSemana && filtros.diasSemana.length > 0) {
+    const diasSemanaFiltro = filtros.diasSemana ?? []
+    const filtrouDia = diasSemanaFiltro.length > 0
+    if (filtrouDia) {
       const antesFiltroDia = visitas.length
       visitas = visitas.filter(v => {
         const data = new Date(v.data_visita + 'T12:00:00Z')
         const diaSemana = data.getUTCDay().toString()
-        return filtros.diasSemana!.includes(diaSemana)
+        return diasSemanaFiltro.includes(diaSemana)
       })
-      console.log(`📅 Filtro dias da semana [${filtros.diasSemana.join(',')}]: ${antesFiltroDia} → ${visitas.length} visitas`)
+      console.log(`📅 Filtro dias da semana [${diasSemanaFiltro.join(',')}]: ${antesFiltroDia} → ${visitas.length} visitas`)
     }
 
     // Calcular idade e filtrar
@@ -178,6 +186,25 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Filtrar por Fora de Brasília (DDD ≠ 61)
+    if (filtros.foraDeBasilia) {
+      clientes = clientes.filter(c => {
+        const fone = c.telefone.replace(/\D/g, '')
+        const ddd = fone.substring(0, 2)
+        return ddd !== '61'
+      })
+    }
+
+    // Calcular % fora de Brasília (sempre, independente do filtro)
+    const totalClientesAntesFiltroBrasilia = clientes.length
+    const clientesForaBrasilia = clientes.filter(c => {
+      const fone = c.telefone.replace(/\D/g, '')
+      return fone.substring(0, 2) !== '61'
+    })
+    const percentualForaBrasilia = totalClientesAntesFiltroBrasilia > 0
+      ? Math.round((clientesForaBrasilia.length / totalClientesAntesFiltroBrasilia) * 100)
+      : 0
+
     // Calcular estatísticas
     const totalClientes = clientes.length
     const totalVisitas = clientes.reduce((sum, c) => sum + c.visitas, 0)
@@ -245,6 +272,11 @@ export async function POST(request: NextRequest) {
         ultimaVisita: c.datasVisitas[0]
       }))
 
+    // % de representatividade no período (só faz sentido quando filtrou por dia da semana)
+    const percentualDoPeriodo = filtrouDia && clientesUniquesAnteDia > 0
+      ? Math.round((totalClientes / clientesUniquesAnteDia) * 100)
+      : null
+
     return NextResponse.json({
       success: true,
       clientes: clientesFormatados,
@@ -259,7 +291,11 @@ export async function POST(request: NextRequest) {
           : 0,
         idadeMedia: idadeMedia ? Math.round(idadeMedia * 10) / 10 : null,
         medianaIdade: medianaIdade ? Math.round(medianaIdade) : null,
-        faixasEtarias
+        faixasEtarias,
+        clientesForaBrasilia: clientesForaBrasilia.length,
+        percentualForaBrasilia,
+        totalClientesPeriodo: clientesUniquesAnteDia,
+        percentualDoPeriodo
       },
       filtrosAplicados: filtros
     })

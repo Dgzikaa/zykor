@@ -127,13 +127,13 @@ export async function calcCustos(
       (sum: number, r: any) => sum + (parseFloat(r.custototal) || 0), 0
     );
 
-    // 4. Couvert e Comissao (vr_repique) - MIGRADO: visitas (domain table)
+    // 4. Couvert e Comissao (vr_repique) - FONTE CANÔNICA: contahub_periodo
     const { data: couvertComissaoRows, error: couvertError } = await supabase
-      .from('visitas')
-      .select('valor_couvert, valor_repique')
+      .from('contahub_periodo')
+      .select('vr_couvert, vr_repique')
       .eq('bar_id', barId)
-      .gte('data_visita', startDate)
-      .lte('data_visita', endDate);
+      .gte('dt_gerencial', startDate)
+      .lte('dt_gerencial', endDate);
 
     if (couvertError) {
       return {
@@ -144,11 +144,12 @@ export async function calcCustos(
     }
 
     const couvertAtracoes = (couvertComissaoRows || []).reduce(
-      (sum: number, r: any) => sum + (parseFloat(r.valor_couvert) || 0), 0
+      (sum: number, r: any) => sum + (parseFloat(r.vr_couvert) || 0), 0
     );
     const comissaoCartao = (couvertComissaoRows || []).reduce(
-      (sum: number, r: any) => sum + (parseFloat(r.valor_repique) || 0), 0
+      (sum: number, r: any) => sum + (parseFloat(r.vr_repique) || 0), 0
     );
+    console.log(`[DEBUG calc-custos] bar_id=${barId}, period=${startDate} to ${endDate}, rows=${couvertComissaoRows?.length || 0}, comissao=${comissaoCartao}, couvert=${couvertAtracoes}`);
 
     // 5. Atracoes/Eventos = custoAtracao (ja calculado)
     const atracoesEventos = custoAtracao;
