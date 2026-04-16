@@ -312,20 +312,6 @@ export async function getSemanas(
     const key = `${s.ano}-${s.numero_semana}`;
     const marketing = marketingMap.get(key);
     
-    // Debug: Log para semana 15
-    if (s.numero_semana === 15 && s.ano === 2026) {
-      console.log('🔍 [desempenho-service] Semana 15/2026:', {
-        key,
-        hasMarketing: !!marketing,
-        marketingData: marketing ? {
-          gmn_total_visualizacoes: marketing.gmn_total_visualizacoes,
-          gmn_total_acoes: marketing.gmn_total_acoes,
-          g_valor_investido: marketing.g_valor_investido,
-          g_impressoes: marketing.g_impressoes
-        } : null
-      });
-    }
-    
     // Conta Assinada
     const contaAssinadaValor = contaAssinadaMap.get(key) || 0;
     const contaAssinadaPerc = s.faturamento_total && s.faturamento_total > 0 

@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { createClient } from '@supabase/supabase-js';
 import { getFatorCmv, safeDivideCmv } from '@/lib/config/getFatorCmv';
 
 // Cache por 2 minutos para dados mensais de CMV
 export const revalidate = 120;
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 // Interface para dados CMV semanal
 interface CMVSemanal {

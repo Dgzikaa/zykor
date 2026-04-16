@@ -1416,24 +1416,35 @@ export function DesempenhoClient({
         console.log('✅ CMV processado:', resultado.message);
       }
 
-      // 2. Recalcular desempenho semanal (atualiza tabela desempenho_semanal)
-      console.log('📊 Recalculando desempenho semanal...');
+      // 2. Recalcular desempenho semanal via v2 (escreve em desempenho_semanal)
+      const anoAtual = new Date().getFullYear();
+      const semanaAtual = (() => {
+        const d = new Date();
+        const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        const dayNum = utc.getUTCDay() || 7;
+        utc.setUTCDate(utc.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+        return Math.ceil((((utc.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+      })();
       const desempenhoResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/recalcular-desempenho-auto`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/recalcular-desempenho-v2`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
-          }
+          },
+          body: JSON.stringify({
+            all_bars: true,
+            ano: anoAtual,
+            numero_semana: semanaAtual,
+            mode: 'write'
+          })
         }
       );
       
       if (!desempenhoResponse.ok) {
         console.warn('⚠️ Erro ao recalcular desempenho, continuando...');
-      } else {
-        const resultado = await desempenhoResponse.json();
-        console.log('✅ Desempenho recalculado:', resultado.message);
       }
 
       // 4. Atualizar a página
