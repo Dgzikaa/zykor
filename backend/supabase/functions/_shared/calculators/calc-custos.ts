@@ -2,7 +2,7 @@
  * CALC-CUSTOS - Calculator de Custos e Despesas
  * 
  * Calcula custos de atracao, couvert, comissao e cancelamentos.
- * Fontes: contaazul_lancamentos, visitas, contahub_cancelamentos, eventos_base
+ * Fontes: contaazul_lancamentos, visitas, bronze_contahub_vendas_cancelamentos, eventos_base
  * 
  * @version 2.0.0 - Migracao NIBO -> Conta Azul
  * @date 2026-03-24
@@ -15,6 +15,7 @@ async function getCategoriasAtracao(
   barId: number
 ): Promise<string[]> {
   const { data, error } = await supabase
+    .schema('operations')
     .from('bar_categorias_custo')
     .select('nome_categoria')
     .eq('bar_id', barId)
@@ -40,6 +41,7 @@ async function getCustoAtracao(
   categoriasAtracao: string[]
 ): Promise<{ valor: number; count: number }> {
   const { data, error } = await supabase
+    .schema('integrations')
     .from('contaazul_lancamentos')
     .select('valor_bruto')
     .eq('bar_id', barId)
@@ -70,6 +72,7 @@ export async function calcCustos(
   try {
     // 1. Buscar faturamento total para calcular % custo atracao
     const { data: eventosData, error: eventosError } = await supabase
+      .schema('operations')
       .from('eventos_base')
       .select('real_r')
       .eq('bar_id', barId)
@@ -109,7 +112,8 @@ export async function calcCustos(
 
     // 3. Cancelamentos
     const { data: cancelRows, error: cancelError } = await supabase
-      .from('contahub_cancelamentos')
+      .schema('bronze')
+      .from('bronze_contahub_avendas_cancelamentos')
       .select('custototal')
       .eq('bar_id', barId)
       .gte('data', startDate)
@@ -127,9 +131,10 @@ export async function calcCustos(
       (sum: number, r: any) => sum + (parseFloat(r.custototal) || 0), 0
     );
 
-    // 4. Couvert e Comissao (vr_repique) - FONTE CANÔNICA: contahub_periodo
+    // 4. Couvert e Comissao (vr_repique) - FONTE CANÔNICA: bronze_contahub_avendas_vendasperiodo
     const { data: couvertComissaoRows, error: couvertError } = await supabase
-      .from('contahub_periodo')
+      .schema('bronze')
+      .from('bronze_contahub_avendas_vendasperiodo')
       .select('vr_couvert, vr_repique')
       .eq('bar_id', barId)
       .gte('dt_gerencial', startDate)

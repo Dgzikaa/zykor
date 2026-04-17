@@ -40,6 +40,7 @@ export async function calcOperacional(
 
     // 2. Mix semanal - calcular diretamente dos eventos_base
     const { data: eventosParaMix, error: eventosError } = await supabase
+      .schema('operations')
       .from('eventos_base')
       .select('real_r, faturamento_bar, percent_b, percent_d, percent_c, percent_happy_hour')
       .eq('bar_id', barId)
@@ -117,9 +118,10 @@ export async function calcOperacional(
     const tempoSaidaBar = (tempoSaidaResult && tempoSaidaResult[0] && tempoSaidaResult[0].tempo_bar_minutos) || 0;
     const tempoSaidaCozinha = (tempoSaidaResult && tempoSaidaResult[0] && tempoSaidaResult[0].tempo_cozinha_minutos) || 0;
 
-    // 4. Atrasinhos direto de contahub_tempo (filtrar outliers > 60 min)
+    // 4. Atrasinhos direto de bronze_contahub_produtos_temposproducao (filtrar outliers > 60 min)
     const { data: atrasinhosData, error: atrasinhosError } = await supabase
-      .from('contahub_tempo')
+      .schema('bronze')
+      .from('bronze_contahub_produtos_temposproducao')
       .select('categoria, tempo_final')
       .eq('bar_id', barId)
       .gte('data', startDate)

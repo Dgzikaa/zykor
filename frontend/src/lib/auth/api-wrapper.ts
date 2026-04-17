@@ -81,6 +81,7 @@ async function validateBarAccessHelper(
   // Verificar acesso específico ao bar
   const supabase = await getAdminClient();
   const { data } = await supabase
+    .schema('auth_custom')
     .from('usuarios_bares')
     .select('bar_id')
     .eq('usuario_id', auth_id)

@@ -706,7 +706,7 @@ Você é um assistente SQL especializado em análise de dados de bares/casas not
 Pergunta do usuário: ${pergunta}
 
 Gere uma consulta SQL apropriada para responder a pergunta.
-Considere as tabelas: eventos_base, contahub_analitico, yuzer_produtos, sympla_pedidos.
+Considere as tabelas: eventos_base, bronze_contahub_vendas_analitico, yuzer_produtos, sympla_pedidos.
 
 Retorne apenas o SQL, sem explicações.
 `;

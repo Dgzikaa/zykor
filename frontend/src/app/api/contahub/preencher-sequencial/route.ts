@@ -62,7 +62,8 @@ export async function POST(request: NextRequest) {
         if (collectionResult.success && collectionResult.record_count > 0) {
           // Salvar dados brutos
           const { data: rawData, error: insertError } = await supabase
-            .from('contahub_raw_data')
+            .schema('bronze')
+            .from('bronze_contahub_raw_data')
             .insert({
               bar_id: barId,
               data_type: dataType,
@@ -141,23 +142,23 @@ async function getNextMissingDate(
 
     switch (dataType) {
       case 'analitico':
-        tableName = 'contahub_analitico'
+        tableName = 'bronze_contahub_vendas_analitico'
         dateField = 'trn_dtgerencial'
         break
       case 'pagamentos':
-        tableName = 'contahub_pagamentos'
+        tableName = 'bronze_contahub_financeiro_pagamentos'
         dateField = 'dt_gerencial'
         break
       case 'tempo':
-        tableName = 'contahub_tempo'
+        tableName = 'bronze_contahub_producao_tempo'
         dateField = 'data'
         break
       case 'periodo':
-        tableName = 'contahub_periodo'
+        tableName = 'bronze_contahub_vendas_periodo'
         dateField = 'dt_gerencial'
         break
       case 'fatporhora':
-        tableName = 'contahub_fatporhora'
+        tableName = 'bronze_contahub_operacional_fatporhora'
         dateField = 'vd_dtgerencial'
         break
       default:
@@ -226,11 +227,11 @@ async function checkDateExists(
     let dateField = ''
 
     switch (dataType) {
-      case 'analitico': tableName = 'contahub_analitico'; dateField = 'trn_dtgerencial'; break
-      case 'pagamentos': tableName = 'contahub_pagamentos'; dateField = 'dt_gerencial'; break
-      case 'tempo': tableName = 'contahub_tempo'; dateField = 'data'; break
-      case 'periodo': tableName = 'contahub_periodo'; dateField = 'dt_gerencial'; break
-      case 'fatporhora': tableName = 'contahub_fatporhora'; dateField = 'vd_dtgerencial'; break
+      case 'analitico': tableName = 'bronze_contahub_vendas_analitico'; dateField = 'trn_dtgerencial'; break
+      case 'pagamentos': tableName = 'bronze_contahub_financeiro_pagamentos'; dateField = 'dt_gerencial'; break
+      case 'tempo': tableName = 'bronze_contahub_producao_tempo'; dateField = 'data'; break
+      case 'periodo': tableName = 'bronze_contahub_vendas_periodo'; dateField = 'dt_gerencial'; break
+      case 'fatporhora': tableName = 'bronze_contahub_operacional_fatporhora'; dateField = 'vd_dtgerencial'; break
       default: return false
     }
 
@@ -257,11 +258,11 @@ async function countRemainingGaps(
     let dateField = ''
 
     switch (dataType) {
-      case 'analitico': tableName = 'contahub_analitico'; dateField = 'trn_dtgerencial'; break
-      case 'pagamentos': tableName = 'contahub_pagamentos'; dateField = 'dt_gerencial'; break
-      case 'tempo': tableName = 'contahub_tempo'; dateField = 'data'; break
-      case 'periodo': tableName = 'contahub_periodo'; dateField = 'dt_gerencial'; break
-      case 'fatporhora': tableName = 'contahub_fatporhora'; dateField = 'vd_dtgerencial'; break
+      case 'analitico': tableName = 'bronze_contahub_vendas_analitico'; dateField = 'trn_dtgerencial'; break
+      case 'pagamentos': tableName = 'bronze_contahub_financeiro_pagamentos'; dateField = 'dt_gerencial'; break
+      case 'tempo': tableName = 'bronze_contahub_producao_tempo'; dateField = 'data'; break
+      case 'periodo': tableName = 'bronze_contahub_vendas_periodo'; dateField = 'dt_gerencial'; break
+      case 'fatporhora': tableName = 'bronze_contahub_operacional_fatporhora'; dateField = 'vd_dtgerencial'; break
       default: return 0
     }
 

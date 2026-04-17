@@ -32,16 +32,23 @@ export async function GET(request: NextRequest) {
 
     const supabase = await getAdminClient();
 
-    // 1. Verificar contahub_raw
-    const { data: rawData, error: rawError } = await supabase
-      .from('contahub_raw')
-      .select('id, data_coleta, total_registros')
+    // 1. Verificar bronze_contahub_raw_data
+    const { data: rawDataRaw, error: rawError } = await supabase
+      .schema('bronze')
+      .from('bronze_contahub_raw_data')
+      .select('id, created_at, record_count')
       .eq('bar_id', barId)
       .eq('data_date', date)
-      .order('data_coleta', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(1);
+    
+    const rawData = rawDataRaw?.map((r: any) => ({
+      id: r.id,
+      data_coleta: r.created_at,
+      total_registros: r.record_count
+    }));
 
-    // 2. Verificar vendas_item (domain table) - MIGRADO de contahub_analitico
+    // 2. Verificar vendas_item (domain table) - MIGRADO de bronze_contahub_vendas_analitico
     const { data: vendasData, error: vendasError } = await supabase
       .from('vendas_item')
       .select('id')
@@ -57,12 +64,19 @@ export async function GET(request: NextRequest) {
       .single();
 
     // 4. Verificar última coleta bem-sucedida
-    const { data: ultimaColeta } = await supabase
-      .from('contahub_raw')
-      .select('data_date, data_coleta, total_registros')
+    const { data: ultimaColetaRaw } = await supabase
+      .schema('bronze')
+      .from('bronze_contahub_raw_data')
+      .select('data_date, created_at, record_count')
       .eq('bar_id', barId)
-      .order('data_coleta', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(5);
+    
+    const ultimaColeta = ultimaColetaRaw?.map((r: any) => ({
+      data_date: r.data_date,
+      data_coleta: r.created_at,
+      total_registros: r.record_count
+    }));
 
     const resultado = {
       data_verificada: date,

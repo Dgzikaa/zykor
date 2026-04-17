@@ -62,9 +62,9 @@ export async function GET(request: NextRequest) {
       erros: 0
     })
 
-    // Yuzer
+    // Yuzer (silver_yuzer_eventos = bronze + integrations legacy join; updated_at = synced_at)
     const { data: yuzerData } = await supabase
-      .from('yuzer_eventos')
+      .from('silver_yuzer_eventos')
       .select('updated_at')
       .order('updated_at', { ascending: false })
       .limit(1)

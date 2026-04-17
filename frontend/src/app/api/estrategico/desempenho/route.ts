@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
     // OTIMIZAÇÃO: Como estamos usando real_r da tabela eventos_base,
     // só precisamos buscar dados externos para debug/comparação
     const [yuzerData, symplaData, contahubData] = await Promise.all([
-      fetchAllDataFallback('yuzer_pagamento', 'data_evento, valor_liquido', 'data_evento'),
+      fetchAllDataFallback('silver_yuzer_pagamentos_evento', 'data_evento, valor_liquido', 'data_evento'),
       fetchAllDataFallback('sympla_resumo', 'data_evento, total_liquido', 'data_evento'), 
       fetchContaHubData()
     ]);

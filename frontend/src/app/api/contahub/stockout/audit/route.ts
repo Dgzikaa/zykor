@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
 
     // 1. Buscar resumo do audit
     const { data: auditData, error: auditError } = await (supabase as any)
+      .schema('system')
       .from('contahub_stockout_audit')
       .select('*')
       .eq('data_consulta', data_consulta)
@@ -42,7 +43,8 @@ export async function POST(request: NextRequest) {
 
     // 2. Buscar dados RAW
     let rawQuery = (supabase as any)
-      .from('contahub_stockout_raw')
+      .schema('bronze')
+      .from('bronze_contahub_operacional_stockout_raw')
       .select('id, prd, prd_desc, prd_venda, prd_ativo, prd_estoque, loc_desc, raw_data, hora_consulta_real')
       .eq('data_consulta', data_consulta)
       .eq('bar_id', bar_id);
@@ -63,7 +65,8 @@ export async function POST(request: NextRequest) {
 
     // 3. Buscar dados PROCESSADOS
     let processadoQuery = (supabase as any)
-      .from('contahub_stockout_processado')
+      .schema('silver')
+      .from('silver_contahub_operacional_stockout_processado')
       .select('raw_id, prd, prd_desc, prd_venda, prd_ativo, prd_estoque, loc_desc, categoria_mix, categoria_local, incluido, motivo_exclusao, regra_aplicada, ordem_aplicacao, versao_regras')
       .eq('data_consulta', data_consulta)
       .eq('bar_id', bar_id);

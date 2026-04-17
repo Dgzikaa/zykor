@@ -48,7 +48,7 @@ interface Estatisticas {
   total_faturamento_semana_passada: number;
   total_media_ultimas_4: number;
   total_recorde: number;
-  total_recorde_real: number; // Valor real do recorde (contahub_pagamentos)
+  total_recorde_real: number; // Valor real do recorde (bronze_contahub_financeiro_pagamentos)
   hora_pico_faturamento: number;
   max_faturamento: number;
   total_pessoas_dia: number;

@@ -68,7 +68,8 @@ export async function POST(request: NextRequest) {
 
     // 1. Estatísticas gerais
     let query = supabase
-      .from('contahub_stockout_processado')
+      .schema('silver')
+      .from('silver_contahub_operacional_stockout_processado')
       .select('prd_venda, prd_desc')
       .eq('data_consulta', data_selecionada)
       .eq('bar_id', bar_id)
@@ -109,7 +110,8 @@ export async function POST(request: NextRequest) {
     
     // 2. Análise por local de produção - usando categoria_local da tabela processada
     let queryLocais = supabase
-      .from('contahub_stockout_processado')
+      .schema('silver')
+      .from('silver_contahub_operacional_stockout_processado')
       .select('categoria_local, prd_venda, prd_desc')
       .eq('data_consulta', data_selecionada)
       .eq('bar_id', bar_id)
@@ -165,7 +167,8 @@ export async function POST(request: NextRequest) {
 
     // 3. Produtos em stockout (todos)
     let queryIndisponiveis = supabase
-      .from('contahub_stockout_processado')
+      .schema('silver')
+      .from('silver_contahub_operacional_stockout_processado')
       .select('prd_desc, loc_desc, categoria_local, prd_precovenda, prd_estoque')
       .eq('data_consulta', data_selecionada)
       .eq('bar_id', bar_id)
@@ -187,7 +190,8 @@ export async function POST(request: NextRequest) {
 
     // 4. Produtos disponíveis (todos)
     let queryDisponiveis = supabase
-      .from('contahub_stockout_processado')
+      .schema('silver')
+      .from('silver_contahub_operacional_stockout_processado')
       .select('prd_desc, loc_desc, categoria_local, prd_precovenda, prd_estoque')
       .eq('data_consulta', data_selecionada)
       .eq('bar_id', bar_id)

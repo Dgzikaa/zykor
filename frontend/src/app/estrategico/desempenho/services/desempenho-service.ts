@@ -138,10 +138,10 @@ export async function getSemanas(
   >();
 
   if (dataMin && dataMax) {
-    // Conta Assinada (de contahub_pagamentos - fonte única de verdade)
+    // Conta Assinada (de bronze_contahub_financeiro_pagamentos - fonte única de verdade)
     const pagamentos = await fetchAllPaginated<{ dt_gerencial: string; liquido: number }>(
       supabase,
-      'contahub_pagamentos',
+      'bronze_contahub_financeiro_pagamentos',
       'dt_gerencial, liquido',
       [
         { column: 'bar_id', operator: 'eq', value: barId },

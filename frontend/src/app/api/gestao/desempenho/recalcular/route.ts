@@ -105,12 +105,12 @@ export async function POST(request: Request) {
       // =============================================
 
       const [contahubPeriodoData, yuzerData, symplaData] = await Promise.all([
-        fetchAllData(supabase, 'contahub_periodo', 'vr_pagamentos, pessoas', {
+        fetchAllData(supabase, 'bronze_contahub_vendas_periodo', 'vr_pagamentos, pessoas', {
           'gte_vd_dtcontabil': startDate,
           'lte_vd_dtcontabil': endDate,
           'eq_bar_id': barId
         }),
-        fetchAllData(supabase, 'yuzer_pagamento', 'valor_liquido', {
+        fetchAllData(supabase, 'silver_yuzer_pagamentos_evento', 'valor_liquido', {
           'gte_data_evento': startDate,
           'lte_data_evento': endDate,
           'eq_bar_id': barId
@@ -291,7 +291,7 @@ export async function POST(request: Request) {
       );
 
       const [yuzerProdutos, symplaParticipantes] = await Promise.all([
-        fetchAllData(supabase, 'yuzer_produtos', 'quantidade, produto_nome', {
+        fetchAllData(supabase, 'silver_yuzer_produtos_evento', 'quantidade, produto_nome', {
           'gte_data_evento': startDate,
           'lte_data_evento': endDate,
           'eq_bar_id': barId

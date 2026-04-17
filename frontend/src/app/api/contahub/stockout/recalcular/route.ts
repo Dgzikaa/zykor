@@ -31,7 +31,8 @@ export async function POST(request: NextRequest) {
     
     for (const termo of termosExcluidos) {
       const { data: deletados, error } = await supabase
-        .from('contahub_stockout_raw')
+        .schema('bronze')
+        .from('bronze_contahub_operacional_stockout_raw')
         .delete()
         .eq('bar_id', bar_id)
         .ilike('prd_desc', `%${termo}%`)
@@ -47,7 +48,8 @@ export async function POST(request: NextRequest) {
 
     // 2. Buscar todas as datas únicas que temos dados
     const { data: datas, error: datasError } = await supabase
-      .from('contahub_stockout_raw')
+      .schema('bronze')
+      .from('bronze_contahub_operacional_stockout_raw')
       .select('data_consulta')
       .eq('bar_id', bar_id)
       .order('data_consulta', { ascending: false });
@@ -71,7 +73,8 @@ export async function POST(request: NextRequest) {
     for (const data of datasUnicas) {
       // Buscar produtos da data
       const { data: produtos, error: produtosError } = await supabase
-        .from('contahub_stockout_raw')
+        .schema('bronze')
+        .from('bronze_contahub_operacional_stockout_raw')
         .select('*')
         .eq('bar_id', bar_id)
         .eq('data_consulta', data);

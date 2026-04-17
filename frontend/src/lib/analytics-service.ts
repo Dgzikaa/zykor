@@ -239,7 +239,7 @@ export async function getTempoProducao(
     new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const dataFim = fim || new Date().toISOString().split('T')[0];
 
-  // MIGRADO: tempos_producao (domain table) em vez de contahub_tempo
+  // MIGRADO: tempos_producao (domain table) em vez de bronze_contahub_producao_tempo
   const { data: tempos } = await supabase
     .from('tempos_producao')
     .select(`
@@ -302,7 +302,7 @@ export async function getScoreSaudeGeral(bar_id: number) {
   const hoje = new Date().toISOString().split('T')[0];
   const ontem = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  // MIGRADO: faturamento_pagamentos (domain table) em vez de contahub_pagamentos
+  // MIGRADO: faturamento_pagamentos (domain table) em vez de bronze_contahub_financeiro_pagamentos
   const [vendasRes, checklistsRes] = await Promise.all([
     supabase
       .from('faturamento_pagamentos')
@@ -370,7 +370,7 @@ export async function getDashboardExecutivo(
     new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const dataFim = fim || new Date().toISOString().split('T')[0];
 
-  // MIGRADO: faturamento_pagamentos (domain table) em vez de contahub_pagamentos
+  // MIGRADO: faturamento_pagamentos (domain table) em vez de bronze_contahub_financeiro_pagamentos
   const [faturamento, checklists, whatsapp, tempos, scoreSaude] =
     await Promise.all([
       supabase

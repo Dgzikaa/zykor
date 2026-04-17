@@ -194,7 +194,7 @@ async function buscarYuzerProdutos(
   dataEvento: string
 ): Promise<any[]> {
   const { data } = await supabase
-    .from('yuzer_produtos')
+    .from('silver_yuzer_produtos_evento')
     .select('*')
     .eq('bar_id', barId)
     .eq('data_evento', dataEvento);

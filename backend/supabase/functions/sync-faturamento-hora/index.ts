@@ -1,10 +1,10 @@
 /**
  * Edge Function: sync-faturamento-hora
  * 
- * Sincroniza dados de contahub_fatporhora para a tabela de domínio faturamento_hora
+ * Sincroniza dados de bronze_contahub_operacional_fatporhora para a tabela de domínio faturamento_hora
  * 
  * Problema resolvido: Dados de faturamento por hora estavam incorretos (concentrados na hora 0)
- * Solução: Sincronizar periodicamente de contahub_fatporhora
+ * Solução: Sincronizar periodicamente de bronze_contahub_operacional_fatporhora
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -75,11 +75,12 @@ serve(async (req) => {
       console.log('✅ Dados deletados');
     }
 
-    // 2. Buscar dados de contahub_fatporhora
-    console.log('📊 Buscando dados de contahub_fatporhora...');
+    // 2. Buscar dados de bronze_contahub_avendas_vendasdiahoraanalitico
+    console.log('📊 Buscando dados de bronze_contahub_avendas_vendasdiahoraanalitico...');
     
     const { data: dadosContaHub, error: errorContaHub } = await supabase
-      .from('contahub_fatporhora')
+      .schema('bronze')
+      .from('bronze_contahub_avendas_vendasdiahoraanalitico')
       .select('bar_id, vd_dtgerencial, hora, valor')
       .gte('vd_dtgerencial', dataInicioFinal)
       .lte('vd_dtgerencial', dataFimFinal)

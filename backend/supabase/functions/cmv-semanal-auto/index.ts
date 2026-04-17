@@ -102,6 +102,7 @@ serve(async (req) => {
     let baresAtivos: number[] = [3, 4]; // Fallback
     if (!bar_id) {
       const { data: baresData } = await supabase
+        .schema('operations')
         .from('bares')
         .select('id')
         .eq('ativo', true)
@@ -365,7 +366,7 @@ serve(async (req) => {
         console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Compras processadas: R$ ${comprasCmvTotal.toFixed(2)}`);
 
         // 4.2. Buscar CONSUMAÇÕES (4 categorias) - valores BRUTOS (sem multiplicador)
-        // TODO(rodrigo/2026-04): Reabilitar busca de consumações do contahub_analitico
+        // TODO(rodrigo/2026-04): Reabilitar busca de consumações do bronze_contahub_vendas_analitico
         // Contexto: Desabilitado temporariamente por timeout. Usar valores da planilha CMV enquanto isso.
         // Issue: Investigar performance da RPC get_consumos_classificados_semana
         let consumacoes = {
@@ -432,7 +433,7 @@ serve(async (req) => {
           console.error('  ⚠️ Erro ao buscar consumações:', err);
         }
         */
-        console.log('  ⚠️ Busca de consumos de contahub_analitico DESABILITADA (usar valores da planilha)');
+        console.log('  ⚠️ Busca de consumos de bronze_contahub_vendas_analitico DESABILITADA (usar valores da planilha)');
         console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Consumos processados`);
 
         // 4.3. Cálculo de estoque final da contagem

@@ -128,7 +128,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         // Primeiro deletar registros existentes para essa data/bar
         console.log(`🗑️ Deletando registros analitico existentes para ${dataDate}...`);
         await supabase
-          .from('contahub_analitico')
+          .from('bronze_contahub_vendas_analitico')
           .delete()
           .eq('bar_id', barId)
           .eq('trn_dtgerencial', dataDate);
@@ -167,7 +167,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           console.log(`📊 Processando ${analiticoRecords.length} registros de analitico em batches...`);
           
           // Usar inserção em batches para evitar timeout
-          const analiticoBatchResult = await insertInBatches(supabase, 'contahub_analitico', analiticoRecords);
+          const analiticoBatchResult = await insertInBatches(supabase, 'bronze_contahub_vendas_analitico', analiticoRecords);
           
           if (analiticoBatchResult.errors > 0) {
             console.error(`⚠️ Analitico processado com ${analiticoBatchResult.errors} erros`);
@@ -181,7 +181,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
 
       case 'periodo':
         await supabase
-          .from('contahub_periodo')
+          .from('bronze_contahub_vendas_periodo')
           .delete()
           .eq('bar_id', barId)
           .eq('dt_gerencial', dataDate);
@@ -221,7 +221,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         
         if (periodoRecords.length > 0) {
           const { error } = await supabase
-            .from('contahub_periodo')
+            .from('bronze_contahub_vendas_periodo')
             .insert(periodoRecords);
           
           if (error) {
@@ -235,7 +235,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
 
       case 'fatporhora':
         await supabase
-          .from('contahub_fatporhora')
+          .from('bronze_contahub_operacional_fatporhora')
           .delete()
           .eq('bar_id', barId)
           .eq('vd_dtgerencial', dataDate);
@@ -254,7 +254,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         
         if (fatporhoraRecords.length > 0) {
           const { error } = await supabase
-            .from('contahub_fatporhora')
+            .from('bronze_contahub_operacional_fatporhora')
             .insert(fatporhoraRecords);
           
           if (error) {
@@ -269,7 +269,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
       case 'pagamentos':
         console.log(`🗑️ Deletando registros pagamentos existentes para ${dataDate}...`);
         await supabase
-          .from('contahub_pagamentos')
+          .from('bronze_contahub_financeiro_pagamentos')
           .delete()
           .eq('bar_id', barId)
           .eq('dt_gerencial', dataDate);
@@ -289,6 +289,8 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           mesa: item.mesa || '',
           cli: item.cli ? parseInt(item.cli) : null,
           cliente: item.cliente || item.cli_nome || '',
+          cli_fone: item.cli_fone || '',
+          cli_cpf: item.cli_cpf || '',
           vr_pagamentos: parseFloat(item['$vr_pagamentos'] || item.vr_pagamentos) || 0,
           pag: String(item.pag || ''),
           valor: parseFloat(item['$valor'] || item.valor) || 0,
@@ -313,7 +315,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           console.log(`📊 Processando ${pagamentosRecords.length} registros de pagamentos em batches...`);
           
           // Usar inserção em batches para evitar timeout
-          const pagamentosBatchResult = await insertInBatches(supabase, 'contahub_pagamentos', pagamentosRecords);
+          const pagamentosBatchResult = await insertInBatches(supabase, 'bronze_contahub_financeiro_pagamentos', pagamentosRecords);
           
           if (pagamentosBatchResult.errors > 0) {
             console.error(`⚠️ Pagamentos processado com ${pagamentosBatchResult.errors} erros`);
@@ -328,7 +330,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
       case 'tempo':
         console.log(`🗑️ Deletando registros tempo existentes para ${dataDate}...`);
         await supabase
-          .from('contahub_tempo')
+          .from('bronze_contahub_producao_tempo')
           .delete()
           .eq('bar_id', barId)
           .eq('data', dataDate);
@@ -380,7 +382,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           console.log(`📊 Processando ${tempoRecords.length} registros de tempo em batches...`);
           
           // Usar inserção em batches para evitar timeout
-          const batchResult = await insertInBatches(supabase, 'contahub_tempo', tempoRecords);
+          const batchResult = await insertInBatches(supabase, 'bronze_contahub_producao_tempo', tempoRecords);
           
           if (batchResult.errors > 0) {
             console.error(`⚠️ Tempo processado com ${batchResult.errors} erros`);
@@ -577,7 +579,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
       case 'cancelamentos':
         console.log(`🗑️ Deletando registros cancelamentos existentes para ${dataDate}...`);
         await supabase
-          .from('contahub_cancelamentos')
+          .from('bronze_contahub_vendas_cancelamentos')
           .delete()
           .eq('bar_id', barId)
           .eq('data', dataDate);
@@ -597,7 +599,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         }).filter((r: any) => r.data);
         
         if (cancelamentosRecords.length > 0) {
-          const cancelBatchResult = await insertInBatches(supabase, 'contahub_cancelamentos', cancelamentosRecords);
+          const cancelBatchResult = await insertInBatches(supabase, 'bronze_contahub_vendas_cancelamentos', cancelamentosRecords);
           if (cancelBatchResult.errors > 0) {
             console.error(`⚠️ Cancelamentos processado com ${cancelBatchResult.errors} erros`);
             errors = cancelBatchResult.errors;

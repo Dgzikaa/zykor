@@ -517,7 +517,8 @@ export async function fetchDataForIntent(
       const dataConsulta = entities.data || ontem.toISOString().split('T')[0];
       
       const { data: rupturas } = await supabase
-        .from('contahub_stockout')
+        .schema('gold')
+        .from('gold_contahub_operacional_stockout')
         .select('*')
         .eq('bar_id', barId)
         .gte('data_stockout', dataConsulta)

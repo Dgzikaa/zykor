@@ -12,6 +12,7 @@ export const GET = requireAdmin(async (request, user) => {
     
     // Buscar usuários
     const { data: usuarios, error } = await supabase
+      .schema('auth_custom')
       .from('usuarios')
       .select('*')
       .order('created_at', { ascending: false });
@@ -20,6 +21,7 @@ export const GET = requireAdmin(async (request, user) => {
 
     // Buscar relacionamentos de usuários com bares
     const { data: usuariosBares, error: baresError } = await supabase
+      .schema('auth_custom')
       .from('usuarios_bares')
       .select('usuario_id, bar_id');
 
@@ -132,6 +134,7 @@ export const POST = requireAdmin(async (request, user) => {
 
     // 2. Criar registro na tabela usuarios
     const { data: usuario, error } = await supabase
+      .schema('auth_custom')
       .from('usuarios')
       .insert({
         auth_id: authUser.user.id, // UUID do usuário criado no Auth
@@ -166,6 +169,7 @@ export const POST = requireAdmin(async (request, user) => {
     }));
 
     const { error: relError } = await supabase
+      .schema('auth_custom')
       .from('usuarios_bares')
       .insert(relacionamentos);
 
@@ -259,6 +263,7 @@ export const PUT = requireAdmin(async (request, user) => {
 
     // 1. Buscar auth_id atual para atualizar Auth
     const { data: currentUser, error: fetchError } = await supabase
+      .schema('auth_custom')
       .from('usuarios')
       .select('auth_id, email')
       .eq('id', id)
@@ -322,6 +327,7 @@ export const PUT = requireAdmin(async (request, user) => {
     }
 
     const { data: usuario, error } = await supabase
+      .schema('auth_custom')
       .from('usuarios')
       .update(updateData)
       .eq('id', id)
@@ -334,7 +340,8 @@ export const PUT = requireAdmin(async (request, user) => {
     if (baresParaAssociar.length > 0) {
       // Remover relacionamentos antigos
       const { error: deleteError } = await supabase
-        .from('usuarios_bares')
+      .schema('auth_custom')
+      .from('usuarios_bares')
         .delete()
         .eq('usuario_id', id);
 
@@ -349,7 +356,8 @@ export const PUT = requireAdmin(async (request, user) => {
       }));
 
       const { error: insertError } = await supabase
-        .from('usuarios_bares')
+      .schema('auth_custom')
+      .from('usuarios_bares')
         .insert(relacionamentos);
 
       if (insertError) {
@@ -388,6 +396,7 @@ export const DELETE = requireAdmin(async (request, user) => {
 
     // 1. Buscar dados do usuário para obter o auth_id do Auth
     const { data: usuario, error: fetchError } = await supabase
+      .schema('auth_custom')
       .from('usuarios')
       .select('auth_id, email, nome')
       .eq('id', id)
@@ -402,6 +411,7 @@ export const DELETE = requireAdmin(async (request, user) => {
 
     // 2. Excluir da tabela usuarios
     const { error: deleteTableError } = await supabase
+      .schema('auth_custom')
       .from('usuarios')
       .delete()
       .eq('id', id);

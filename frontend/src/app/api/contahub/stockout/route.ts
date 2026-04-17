@@ -166,7 +166,8 @@ async function saveStockoutData(barId: number, date: string, hour: string, data:
   }));
 
   const { error } = await supabase
-    .from('contahub_stockout')
+    .schema('gold')
+    .from('gold_contahub_operacional_stockout')
     .upsert(records, {
       onConflict: 'bar_id,data_consulta,prd',
       ignoreDuplicates: false

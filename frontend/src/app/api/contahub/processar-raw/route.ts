@@ -30,7 +30,8 @@ export async function POST(request: NextRequest) {
     // Se process_all=true, buscar todos os registros não processados
     if (body.process_all) {
       const { data: rawDataRecords, error } = await supabase
-        .from('contahub_raw_data')
+        .schema('bronze')
+        .from('bronze_contahub_raw_data')
         .select('id, data_type, data_date, record_count')
         .eq('processed', false)
         .eq('bar_id', body.bar_id)
@@ -147,7 +148,8 @@ export async function GET(request: NextRequest) {
 
     // Buscar estatísticas dos dados brutos
     const { data: stats, error } = await supabase
-      .from('contahub_raw_data')
+      .schema('bronze')
+      .from('bronze_contahub_raw_data')
       .select('data_type, processed, record_count')
       .eq('bar_id', barId)
 

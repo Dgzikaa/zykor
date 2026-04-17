@@ -113,6 +113,7 @@ async function fetchUserFromDatabase(
     const supabase = await getAdminClient();
     
     const { data: usuario, error } = await supabase
+      .schema('auth_custom')
       .from('usuarios')
       .select('*')
       .eq('auth_id', auth_id)
@@ -138,6 +139,7 @@ async function fetchUserFromDatabase(
     let barId = usuario.bar_id;
     if (!barId) {
       const { data: userBars } = await supabase
+        .schema('auth_custom')
         .from('usuarios_bares')
         .select('bar_id')
         .eq('usuario_id', usuario.auth_id)
@@ -181,6 +183,7 @@ async function validateBarAccess(
     
     // Verificar se é admin (tem acesso a todos os bares)
     const { data: usuario } = await supabase
+      .schema('auth_custom')
       .from('usuarios')
       .select('role')
       .eq('auth_id', auth_id)
@@ -192,6 +195,7 @@ async function validateBarAccess(
     
     // Verificar acesso específico ao bar
     const { data } = await supabase
+      .schema('auth_custom')
       .from('usuarios_bares')
       .select('bar_id')
       .eq('usuario_id', auth_id)

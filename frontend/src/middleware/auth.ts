@@ -53,7 +53,8 @@ export async function authenticateUser(
         // Validar se o usuário ainda existe e está ativo
         const supabase = await getAdminClient();
         const { data: usuario, error } = await supabase
-          .from('usuarios')
+      .schema('auth_custom')
+      .from('usuarios')
           .select('*')
           .eq('id', decoded.user_id)
           .eq('ativo', true)
@@ -81,7 +82,8 @@ export async function authenticateUser(
             // Validar se o usuário ainda existe e está ativo
             const supabase = await getAdminClient();
             const { data: usuario, error } = await supabase
-              .from('usuarios')
+      .schema('auth_custom')
+      .from('usuarios')
               .select('*')
               .eq('id', userData.id)
               .eq('ativo', true)
@@ -110,7 +112,8 @@ export async function authenticateUser(
 
     if (!authenticatedUser.bar_id) {
       const { data: userBars } = await supabase
-        .from('usuarios_bares')
+      .schema('auth_custom')
+      .from('usuarios_bares')
         .select('bar_id')
         .eq('usuario_id', authenticatedUser.auth_id)
         .limit(1);
@@ -126,7 +129,8 @@ export async function authenticateUser(
       const barId = parseInt(selectedBarId, 10);
       if (!isNaN(barId) && barId !== authenticatedUser.bar_id) {
         const { data: acesso } = await supabase
-          .from('usuarios_bares')
+      .schema('auth_custom')
+      .from('usuarios_bares')
           .select('bar_id')
           .eq('usuario_id', authenticatedUser.auth_id)
           .eq('bar_id', barId)

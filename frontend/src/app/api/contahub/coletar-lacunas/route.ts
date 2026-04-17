@@ -106,7 +106,8 @@ export async function POST(request: NextRequest) {
         if (collectionResult.success) {
           // Salvar dados brutos
           const { data: rawData, error: insertError } = await supabase
-            .from('contahub_raw_data')
+            .schema('bronze')
+            .from('bronze_contahub_raw_data')
             .insert({
               bar_id: barId,
               data_type: dataType,

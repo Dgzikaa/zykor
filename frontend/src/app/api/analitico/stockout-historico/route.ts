@@ -168,10 +168,11 @@ export async function POST(request: NextRequest) {
     
     // ⚡ QueryBuilder: função que cria uma nova query a cada chamada
     // Isso é necessário porque o Supabase não permite reutilizar queries com .range()
-    // IMPORTANTE: Usar view contahub_stockout_filtrado para garantir mesmos filtros do desempenho
+    // IMPORTANTE: Usar view gold_contahub_operacional_stockout_filtrado para garantir mesmos filtros do desempenho
     const createQuery = () => {
       let query = supabase
-        .from('contahub_stockout_filtrado')
+        .schema('gold')
+        .from('gold_contahub_operacional_stockout_filtrado')
         .select('data_consulta, prd_venda, loc_desc, prd_desc, categoria_local')
         .gte('data_consulta', data_inicio)
         .lte('data_consulta', data_fim)
@@ -203,7 +204,7 @@ export async function POST(request: NextRequest) {
 
     // ⚠️ NOTA: Não usar filtrarDiasAbertos aqui porque os próprios dados de stockout
     // já indicam que o bar estava operando naquele dia (sistema coletou dados).
-    // O filtro dependia de contahub_analitico que pode ter delay de sync.
+    // O filtro dependia de bronze_contahub_vendas_analitico que pode ter delay de sync.
     const dadosValidosFiltrados = dadosHistoricos;
 
     // Verificar quais datas únicas temos

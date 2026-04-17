@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
       score_saude: Math.max(0, 100 - pontosDesconto)
     };
 
-    // 10. TOP 10 PROBLEMAS - MIGRADO: vendas_item em vez de contahub_analitico
+    // 10. TOP 10 PROBLEMAS - MIGRADO: vendas_item em vez de bronze_contahub_vendas_analitico
     const { data: top10Problemas, error: erroTop10 } = await supabase.rpc('execute_raw_sql', {
       sql_query: `
         WITH problemas_ranked AS (

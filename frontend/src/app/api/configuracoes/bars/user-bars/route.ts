@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
 
     // 1. Buscar dados do usuário
     const { data: usuarioData, error: userError } = await supabase
+      .schema('auth_custom')
       .from('usuarios')
       .select('id, auth_id, email, nome, role, setor, modulos_permitidos')
       .eq('email', user.email)
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
 
     // 2. Buscar bares do usuário através de usuarios_bares (usando auth_id)
     const { data: relacoes, error: relacoesError } = await supabase
+      .schema('auth_custom')
       .from('usuarios_bares')
       .select(`
         bar_id,

@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       .single()
 
     const { data: yuzerSync } = await supabase
-      .from('yuzer_pagamento')
+      .from('silver_yuzer_pagamentos_evento')
       .select('created_at')
       .order('created_at', { ascending: false })
       .limit(1)

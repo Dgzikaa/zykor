@@ -23,7 +23,7 @@ interface ProdutoDoDia {
   hora_pico: number;
   quantidade_pico: number;
   categoria: 'normal' | 'happy_hour' | 'banda';
-  is_banda?: boolean; // Campo adicional do contahub_analitico
+  is_banda?: boolean; // Campo adicional do bronze_contahub_vendas_analitico
 }
 
 interface ResumoDoDia {

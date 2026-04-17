@@ -61,7 +61,8 @@ export async function GET(request: NextRequest) {
 
     // Stockout mensal via view filtrada (mesma lógica do semanal)
     const { data: stockoutMensal, error: stockoutError } = await supabase
-      .from('contahub_stockout_filtrado')
+      .schema('gold')
+      .from('gold_contahub_operacional_stockout_filtrado')
       .select('categoria_local, prd_venda')
       .eq('bar_id', barId)
       .gte('data_consulta', dataInicio)
@@ -95,9 +96,9 @@ export async function GET(request: NextRequest) {
       console.error('Erro ao buscar couvert mensal:', couvertError);
     }
 
-    // Cancelamentos mensal - soma dia a dia de contahub_cancelamentos
+    // Cancelamentos mensal - soma dia a dia de bronze_contahub_vendas_cancelamentos
     const { data: cancelamentosRows, error: cancelError } = await supabase
-      .from('contahub_cancelamentos')
+      .from('bronze_contahub_vendas_cancelamentos')
       .select('custototal')
       .eq('bar_id', barId)
       .gte('data', dataInicio)

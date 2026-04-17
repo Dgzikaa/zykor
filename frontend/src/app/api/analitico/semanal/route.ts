@@ -86,14 +86,15 @@ export async function GET(request: NextRequest) {
       
       // 1. FATURAMENTO TOTAL DO DIA (ContaHub + Yuzer + Sympla)
             
-      // 1.1. CONTAHUB (usando contahub_periodo com vr_pagamentos > 0)
+      // 1.1. CONTAHUB (usando bronze_contahub_vendas_periodo com vr_pagamentos > 0)
       let contahubPeriodoData: any[] = [];
       let fromContahub = 0;
       let hasMoreContahub = true;
 
       while (hasMoreContahub) {
         const { data: batch, error: batchError } = await supabase
-          .from('contahub_periodo')
+          .schema('bronze')
+          .from('bronze_contahub_avendas_vendasperiodo')
           .select('vr_pagamentos, pessoas')
           .eq('bar_id', barIdNum)
           .gte('vd_dtcontabil', inicioData)
@@ -101,7 +102,7 @@ export async function GET(request: NextRequest) {
           .range(fromContahub, fromContahub + limit - 1);
 
         if (batchError) {
-          console.error('❌ Erro ao buscar batch contahub_periodo:', batchError);
+          console.error('❌ Erro ao buscar batch bronze_contahub_vendas_periodo:', batchError);
           throw batchError;
         }
 
@@ -130,7 +131,7 @@ export async function GET(request: NextRequest) {
 
       while (hasMoreYuzer) {
         const { data: batch, error: batchError } = await supabase
-          .from('yuzer_pagamento')
+          .from('silver_yuzer_pagamentos_evento')
           .select('valor_liquido')
           .eq('bar_id', barIdNum)
           .gte('data_evento', inicioData)
@@ -351,14 +352,14 @@ export async function GET(request: NextRequest) {
       const percentualArtistico = faturamentoTotal > 0 ? (custoArtistico / faturamentoTotal) * 100 : 0;
 
       // 8. CALCULAR TICKET MÉDIO
-      // Usar pessoas já filtradas do contahub_periodo (apenas com vr_pagamentos > 0)
+      // Usar pessoas já filtradas do bronze_contahub_vendas_periodo (apenas com vr_pagamentos > 0)
       const pessoasContahub = contahubComPagamento.reduce((sum, item) => 
         sum + (parseInt(item.pessoas) || 0), 0
       );
       
       // Buscar pessoas do Yuzer e Sympla
       const { data: yuzerProdutos } = await supabase
-        .from('yuzer_produtos')
+        .from('silver_yuzer_produtos_evento')
         .select('quantidade, produto_nome')
         .eq('bar_id', barIdNum)
         .gte('data_evento', inicioData)

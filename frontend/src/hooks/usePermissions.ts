@@ -340,13 +340,13 @@ export function usePermissions(): PermissionsHook {
 
         // ContaHub
         contahub_teste: 'contahub_teste',
-        contahub_tempo: 'contahub_tempo',
+        contahub_tempo: 'bronze_contahub_producao_tempo',
         contahub_produtos: 'contahub_produtos',
         contahub_receitas: 'contahub_receitas',
-        contahub_periodo: 'contahub_periodo',
-        contahub_analitico: 'contahub_analitico',
-        contahub_pagamentos: 'contahub_pagamentos',
-        contahub_faturamento_hora: 'contahub_faturamento_hora',
+        contahub_periodo: 'bronze_contahub_vendas_periodo',
+        contahub_analitico: 'bronze_contahub_vendas_analitico',
+        contahub_pagamentos: 'bronze_contahub_financeiro_pagamentos',
+        contahub_faturamento_hora: 'bronze_contahub_operacional_fatporhora',
 
         // Visão Geral
         visao_geral_diario: 'visao_geral_diario',

@@ -109,6 +109,7 @@ export async function POST(request: NextRequest) {
 
     // Buscar dados do usuário na tabela usuarios
     const { data: usuarios, error: dbError } = await adminClient
+      .schema('auth_custom')
       .from('usuarios')
       .select('*')
       .eq('auth_id', authData.user.id)
@@ -117,13 +118,15 @@ export async function POST(request: NextRequest) {
     // Se não encontrou usuário ativo, tentar buscar qualquer usuário com esse auth_id
     if (!usuarios || usuarios.length === 0) {
       const { data: todosUsuarios } = await adminClient
-        .from('usuarios')
+      .schema('auth_custom')
+      .from('usuarios')
         .select('*')
         .eq('auth_id', authData.user.id);
 
       // Também tentar buscar por email
       const { data: usuariosPorEmail } = await adminClient
-        .from('usuarios')
+      .schema('auth_custom')
+      .from('usuarios')
         .select('*')
         .eq('email', email);
     }
@@ -140,7 +143,8 @@ export async function POST(request: NextRequest) {
     if (!usuariosAtivos || usuariosAtivos.length === 0) {
       // Verificar se existe usuário por email mas com auth_id diferente
       const { data: usuariosPorEmail } = await adminClient
-        .from('usuarios')
+      .schema('auth_custom')
+      .from('usuarios')
         .select('*')
         .eq('email', email);
 
@@ -149,7 +153,8 @@ export async function POST(request: NextRequest) {
 
         // Atualizar o auth_id na tabela para corresponder ao Supabase Auth
         const { error: updateError } = await adminClient
-          .from('usuarios')
+      .schema('auth_custom')
+      .from('usuarios')
           .update({ auth_id: authData.user.id })
           .eq('email', email);
 
@@ -164,7 +169,8 @@ export async function POST(request: NextRequest) {
         // Buscar novamente o usuário com o ID atualizado
         const { data: usuariosAtualizados, error: newDbError } =
           await adminClient
-            .from('usuarios')
+      .schema('auth_custom')
+      .from('usuarios')
             .select('*')
             .eq('auth_id', authData.user.id)
             .eq('ativo', true);
@@ -241,6 +247,7 @@ export async function POST(request: NextRequest) {
 
     // Buscar bares do usuário através da tabela usuarios_bares
     const { data: usuariosBares, error: baresError } = await adminClient
+      .schema('auth_custom')
       .from('usuarios_bares')
       .select('bar_id')
       .eq('usuario_id', usuarioPrincipal.id);

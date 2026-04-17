@@ -100,7 +100,7 @@ export async function getIndicadoresMensais(
     const [faturamentoPagBatch, yuzerBatch, symplaBatch] = await Promise.all([
       fetchAllPaginated<any>(supabase, 'faturamento_pagamentos', 'valor_liquido, meio', 
         (q) => q.eq('bar_id', barId).gte('data_pagamento', inicioMes).lte('data_pagamento', fimMes).neq('meio', 'Conta Assinada')),
-      supabase.from('yuzer_pagamento').select('valor_liquido').eq('bar_id', barId).gte('data_evento', inicioMes).lte('data_evento', fimMes),
+      supabase.from('silver_yuzer_pagamentos_evento').select('valor_liquido').eq('bar_id', barId).gte('data_evento', inicioMes).lte('data_evento', fimMes),
       supabase.from('sympla_pedidos').select('valor_liquido').gte('data_pedido', inicioMes).lte('data_pedido', fimMes)
     ]);
 

@@ -176,7 +176,8 @@ export async function GET(request: NextRequest) {
 
     // Verificar quantos dias já foram sincronizados desde 01/01/2026
     const { data: syncedDates, error } = await supabase
-      .from('contahub_raw_data')
+      .schema('bronze')
+      .from('bronze_contahub_raw_data')
       .select('data_date')
       .eq('bar_id', barId)
       .gte('data_date', '2026-01-01')

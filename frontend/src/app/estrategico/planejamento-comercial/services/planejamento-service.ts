@@ -65,7 +65,7 @@ export interface PlanejamentoData {
   
   // Couvert (gerado: te_real * cl_real) — legado / manual
   faturamento_couvert: number;
-  /** Soma de vr_couvert no contahub_periodo (fonte correta para $ Couvert na tela) */
+  /** Soma de vr_couvert no bronze_contahub_vendas_periodo (fonte correta para $ Couvert na tela) */
   couvert_vr_contahub?: number | null;
   
   // Segmentação de clientes
@@ -181,7 +181,7 @@ export async function getPlanejamentoComercial(
     let descontosYuzerPorData = new Map<string, number>();
     if (datasEventos.length > 0) {
       const { data: yuzerPagamentos } = await supabase
-        .from('yuzer_pagamento')
+        .from('silver_yuzer_pagamentos_evento')
         .select('data_evento,total_descontos')
         .eq('bar_id', barId)
         .in('data_evento', datasEventos);

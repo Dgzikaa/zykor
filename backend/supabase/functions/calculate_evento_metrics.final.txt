@@ -108,7 +108,7 @@ BEGIN
     COALESCE(SUM(CASE WHEN meio <> 'Conta Assinada' THEN liquido ELSE 0 END), 0)::NUMERIC,
     COALESCE(SUM(CASE WHEN meio = 'Conta Assinada' THEN valor ELSE 0 END), 0)::NUMERIC
   INTO v_contahub_liquido, v_conta_assinada
-  FROM contahub_pagamentos
+  FROM bronze.bronze_contahub_financeiro_pagamentosrecebidos
   WHERE dt_gerencial = evento_record.data_evento
     AND bar_id = evento_record.bar_id;
 
@@ -116,13 +116,13 @@ BEGIN
     COALESCE(SUM(CASE WHEN vr_pagamentos > 0 THEN pessoas ELSE 0 END), 0)::INTEGER AS total_pessoas_pagantes,
     COALESCE(SUM(vr_couvert), 0)::NUMERIC AS total_couvert
   INTO contahub_per
-  FROM contahub_periodo
+  FROM bronze.bronze_contahub_avendas_vendasperiodo
   WHERE dt_gerencial = evento_record.data_evento
     AND bar_id = evento_record.bar_id;
 
   SELECT COALESCE(SUM(CASE WHEN hora < 19 THEN valor ELSE 0 END), 0)::NUMERIC AS fat_ate_19h
   INTO contahub_fat
-  FROM contahub_fatporhora
+  FROM bronze.bronze_contahub_avendas_vendasdiahoraanalitico
   WHERE vd_dtgerencial = evento_record.data_evento
     AND bar_id = evento_record.bar_id;
 
@@ -208,7 +208,7 @@ BEGIN
       COALESCE(SUM(CASE WHEN categoria_mix = 'DRINK' THEN valorfinal ELSE 0 END), 0)::NUMERIC AS valor_drinks,
       COALESCE(SUM(CASE WHEN grp_desc = 'Happy Hour' THEN valorfinal ELSE 0 END), 0)::NUMERIC AS valor_happy_hour
     INTO contahub_ana
-    FROM contahub_analitico
+    FROM bronze.bronze_contahub_avendas_porproduto_analitico
     WHERE trn_dtgerencial = evento_record.data_evento
       AND bar_id = evento_record.bar_id
       AND tipo IN ('venda integral', 'com desconto', '100% desconto')
@@ -225,14 +225,14 @@ BEGIN
     IF evento_record.bar_id = 3 THEN
       WITH tempo_cozinha AS (
         SELECT t0_t2
-        FROM contahub_tempo
+        FROM bronze.bronze_contahub_produtos_temposproducao
         WHERE data = evento_record.data_evento
           AND bar_id = evento_record.bar_id
           AND loc_desc = ANY(locais_comidas)
       ),
       tempo_bar AS (
         SELECT t0_t3
-        FROM contahub_tempo
+        FROM bronze.bronze_contahub_produtos_temposproducao
         WHERE data = evento_record.data_evento
           AND bar_id = evento_record.bar_id
           AND loc_desc = ANY(locais_drinks)
@@ -248,14 +248,14 @@ BEGIN
     ELSE
       WITH tempo_cozinha AS (
         SELECT t0_t2
-        FROM contahub_tempo
+        FROM bronze.bronze_contahub_produtos_temposproducao
         WHERE data = evento_record.data_evento
           AND bar_id = evento_record.bar_id
           AND loc_desc = ANY(locais_comidas)
       ),
       tempo_bar AS (
         SELECT t0_t2
-        FROM contahub_tempo
+        FROM bronze.bronze_contahub_produtos_temposproducao
         WHERE data = evento_record.data_evento
           AND bar_id = evento_record.bar_id
           AND loc_desc = ANY(locais_bar_drinks)

@@ -57,7 +57,7 @@ export interface BusinessContext {
   principaisProdutos: string[]
   principaisEventos: string[]
   fonteDados: {
-    diasNormais: string[]      // contahub_periodo, contahub_analitico, etc.
+    diasNormais: string[]      // bronze_contahub_vendas_periodo, bronze_contahub_vendas_analitico, etc.
     domingosEventos: string[]  // yuzer_produtos, sympla_participantes, etc.
   }
 }

@@ -18,6 +18,7 @@ export async function calcFaturamento(
 
   try {
     const { data: eventosData, error } = await supabase
+      .schema('operations')
       .from('eventos_base')
       .select('data_evento, real_r, cl_real, m1_r, res_tot, res_p, num_mesas_tot, num_mesas_presentes, faturamento_entrada, faturamento_bar')
       .eq('bar_id', barId)
@@ -37,7 +38,8 @@ export async function calcFaturamento(
 
     // Buscar descontos do período
     const { data: descontosData, error: descontosError } = await supabase
-      .from('contahub_analitico')
+      .schema('bronze')
+      .from('bronze_contahub_avendas_porproduto_analitico')
       .select('desconto')
       .eq('bar_id', barId)
       .gte('trn_dtgerencial', startDate)

@@ -1,7 +1,8 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+﻿import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { validateFunctionEnv } from '../_shared/env-validator.ts';
+import { bronze, CONTAHUB_DATA_TYPE_MAP, deleteContaHubData } from '../_shared/table-refs.ts';
 
 console.log("🔄 ContaHub Processor - Processa dados raw salvos");
 
@@ -23,31 +24,12 @@ async function deletarDadosExistentes(
   console.log(`🗑️ Deletando dados existentes de ${dataType} para ${dataDate}...`);
   
   try {
-    const tabelaMap: Record<string, { tabela: string; coluna: string }> = {
-      'periodo': { tabela: 'contahub_periodo', coluna: 'dt_gerencial' },
-      'pagamentos': { tabela: 'contahub_pagamentos', coluna: 'dt_gerencial' },
-      'analitico': { tabela: 'contahub_analitico', coluna: 'trn_dtgerencial' },
-      'fatporhora': { tabela: 'contahub_fatporhora', coluna: 'dt_gerencial' },
-      'tempo': { tabela: 'contahub_tempo', coluna: 'data' },
-      'cancelamentos': { tabela: 'contahub_cancelamentos', coluna: 'data' }
-    };
+    const result = await deleteContaHubData(supabase, dataType, dataDate, barId);
     
-    const config = tabelaMap[dataType];
-    if (!config) {
-      console.warn(`⚠️ Tipo ${dataType} não mapeado para deleção`);
-      return;
-    }
-    
-    const { error } = await supabase
-      .from(config.tabela)
-      .delete()
-      .eq('bar_id', barId)
-      .eq(config.coluna, dataDate);
-    
-    if (error) {
-      console.error(`❌ Erro ao deletar ${config.tabela}:`, error);
+    if (!result.success) {
+      console.error(`❌ Erro ao deletar ${dataType}:`, result.error);
     } else {
-      console.log(`✅ Dados antigos de ${config.tabela} deletados`);
+      console.log(`✅ Dados antigos de ${dataType} deletados`);
     }
   } catch (error) {
     console.error(`❌ Erro geral ao deletar dados:`, error);
@@ -112,7 +94,7 @@ function calcularDataRealPagamento(dtGerencial: string, hrLancamento: string | n
 }
 
 // Função helper para inserir registros em batches
-async function insertInBatches(supabase: any, tableName: string, records: any[]): Promise<{ success: boolean, count: number, errors: number }> {
+async function insertInBatches(supabase: any, tableName: string, records: any[], schema: 'bronze' | 'silver' | 'gold' | 'public' = 'bronze'): Promise<{ success: boolean, count: number, errors: number }> {
   let totalInserted = 0;
   let totalErrors = 0;
   
@@ -125,6 +107,7 @@ async function insertInBatches(supabase: any, tableName: string, records: any[])
     console.log(`📦 Inserindo batch ${batchNum}/${totalBatches} (${batch.length} registros)...`);
     
     const { error } = await supabase
+      .schema(schema)
       .from(tableName)
       .insert(batch);
     
@@ -146,7 +129,7 @@ async function insertInBatches(supabase: any, tableName: string, records: any[])
 }
 
 // Função helper para upsert em batches (para tabelas com conflito)
-async function upsertInBatches(supabase: any, tableName: string, records: any[], onConflict: string): Promise<{ success: boolean, count: number, errors: number }> {
+async function upsertInBatches(supabase: any, tableName: string, records: any[], onConflict: string, schema: 'bronze' | 'silver' | 'gold' | 'public' = 'bronze'): Promise<{ success: boolean, count: number, errors: number }> {
   let totalUpserted = 0;
   let totalErrors = 0;
   
@@ -159,6 +142,7 @@ async function upsertInBatches(supabase: any, tableName: string, records: any[],
     console.log(`📦 Upsert batch ${batchNum}/${totalBatches} (${batch.length} registros)...`);
     
     const { error } = await supabase
+      .schema(schema)
       .from(tableName)
       .upsert(batch, { onConflict });
     
@@ -200,8 +184,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         console.log(`🔄 Processando registros analitico (DELETE + INSERT) para ${dataDate}...`);
         
         // Deletar registros existentes do dia
-        const { error: deleteErrorAnalitico } = await supabase
-          .from('contahub_analitico')
+        const { error: deleteErrorAnalitico } = await bronze(supabase, 'avendas_porproduto_analitico')
           .delete()
           .eq('bar_id', barId)
           .eq('trn_dtgerencial', dataDate);
@@ -247,8 +230,9 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           // ✅ Usar INSERT simples (sem constraint, aceita duplicados do ContaHub)
           const analiticoBatchResult = await insertInBatches(
             supabase, 
-            'contahub_analitico', 
-            analiticoRecords
+            'bronze_contahub_avendas_porproduto_analitico', 
+            analiticoRecords,
+            'bronze'
           );
           
           if (analiticoBatchResult.errors > 0) {
@@ -267,7 +251,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         
         // Deletar registros existentes do dia
         const { error: deleteErrorPeriodo } = await supabase
-          .from('contahub_periodo')
+          .from('bronze_contahub_avendas_vendasperiodo')
           .delete()
           .eq('bar_id', barId)
           .eq('dt_gerencial', dataDate);
@@ -314,8 +298,9 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         if (periodoRecords.length > 0) {
           const periodoBatchResult = await insertInBatches(
             supabase,
-            'contahub_periodo',
-            periodoRecords
+            'bronze_contahub_avendas_vendasperiodo',
+            periodoRecords,
+            'bronze'
           );
           
           if (periodoBatchResult.errors > 0) {
@@ -334,7 +319,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         
         // Deletar registros existentes do dia
         const { error: deleteErrorFatporhora } = await supabase
-          .from('contahub_fatporhora')
+          .from('bronze_contahub_avendas_vendasdiahoraanalitico')
           .delete()
           .eq('bar_id', barId)
           .eq('vd_dtgerencial', dataDate);
@@ -361,8 +346,9 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           // ✅ Usar INSERT simples (sem constraint, aceita duplicados do ContaHub)
           const fatBatchResult = await insertInBatches(
             supabase,
-            'contahub_fatporhora',
-            fatporhoraRecords
+            'bronze_contahub_avendas_vendasdiahoraanalitico',
+            fatporhoraRecords,
+            'bronze'
           );
           
           if (fatBatchResult.errors > 0) {
@@ -381,7 +367,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
 
         // Deletar registros existentes do dia
         const { error: deleteErrorPagamentos } = await supabase
-          .from('contahub_pagamentos')
+          .from('bronze_contahub_financeiro_pagamentosrecebidos')
           .delete()
           .eq('bar_id', barId)
           .eq('dt_gerencial', dataDate);
@@ -407,6 +393,8 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           mesa: item.mesa || '',
           cli: item.cli ? parseInt(item.cli) : null,
           cliente: item.cliente || item.cli_nome || '',
+          cli_fone: item.cli_fone || '',
+          cli_cpf: item.cli_cpf || '',
           vr_pagamentos: parseFloat(item['$vr_pagamentos'] || item.vr_pagamentos) || 0,
           pag: String(item.pag || ''),
           valor: parseFloat(item['$valor'] || item.valor) || 0,
@@ -432,8 +420,9 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
 
           const pagamentosBatchResult = await insertInBatches(
             supabase,
-            'contahub_pagamentos',
-            pagamentosRecords
+            'bronze_contahub_financeiro_pagamentosrecebidos',
+            pagamentosRecords,
+            'bronze'
           );
           
           if (pagamentosBatchResult.errors > 0) {
@@ -452,7 +441,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         
         // Deletar registros existentes do dia
         const { error: deleteErrorTempo } = await supabase
-          .from('contahub_tempo')
+          .from('bronze_contahub_produtos_temposproducao')
           .delete()
           .eq('bar_id', barId)
           .eq('data', dataDate);
@@ -593,8 +582,9 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           // ✅ Usar INSERT simples (sem constraint, aceita duplicados do ContaHub)
           const batchResult = await insertInBatches(
             supabase,
-            'contahub_tempo',
-            tempoRecords
+            'bronze_contahub_produtos_temposproducao',
+            tempoRecords,
+            'bronze'
           );
           
           if (batchResult.errors > 0) {
@@ -830,7 +820,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         }).filter((r: any) => r.data);
         
         if (cancelamentosRecords.length > 0) {
-          const cancelBatchResult = await insertInBatches(supabase, 'contahub_cancelamentos', cancelamentosRecords);
+          const cancelBatchResult = await insertInBatches(supabase, 'bronze_contahub_avendas_cancelamentos', cancelamentosRecords, 'bronze');
           if (cancelBatchResult.errors > 0) {
             console.error(`⚠️ Cancelamentos processado com ${cancelBatchResult.errors} erros`);
             errors = cancelBatchResult.errors;
@@ -894,7 +884,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.log(`🔄 Processando TODOS os dados raw pendentes para bar_id=${bar_id}...`);
       
       const { data: rawDataList, error: fetchError } = await supabase
-        .from('contahub_raw_data')
+        .schema('bronze').from('bronze_contahub_raw_data')
         .select('*')
         .eq('bar_id', bar_id)
         .or('processed.eq.false,needs_reprocess.eq.true')
@@ -931,7 +921,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           
           if (result.success) {
             await supabase
-              .from('contahub_raw_data')
+              .schema('bronze').from('bronze_contahub_raw_data')
               .update({ 
                 processed: true, 
                 processed_at: new Date().toISOString(),
@@ -959,7 +949,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       for (const dataType of typesToProcess) {
         try {
           const { data: rawRecord, error: fetchError } = await supabase
-            .from('contahub_raw_data')
+            .schema('bronze').from('bronze_contahub_raw_data')
             .select('*')
             .eq('data_type', dataType)
             .eq('data_date', data_date)
@@ -983,7 +973,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           
           if (result.success && result.count > 0) {
             await supabase
-              .from('contahub_raw_data')
+              .schema('bronze').from('bronze_contahub_raw_data')
               .update({ processed: true, processed_at: new Date().toISOString() })
               .eq('id', rawRecord.id);
           }
@@ -1028,7 +1018,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         
         // Buscar ou criar evento_base para esta data
         const { data: eventoBase, error: eventoError } = await supabase
-          .from('eventos_base')
+          .schema('operations').from('eventos_base')
           .select('id')
           .eq('bar_id', bar_id)
           .eq('data_evento', dateToUpdate)
@@ -1044,7 +1034,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         if (!eventoBase) {
           // Criar novo evento_base
           const { data: newEvento, error: createError } = await supabase
-            .from('eventos_base')
+            .schema('operations').from('eventos_base')
             .insert({
               bar_id,
               data_evento: dateToUpdate,
@@ -1085,6 +1075,35 @@ Deno.serve(async (req: Request): Promise<Response> => {
           error: error instanceof Error ? error.message : String(error) 
         });
       }
+    }
+    
+    // ============================================
+    // CHAMAR SILVER PROCESSOR após completar Bronze
+    // ============================================
+    console.log('\n🥈 Iniciando processamento Silver...');
+    
+    try {
+      const silverResponse = await fetch(`${supabaseUrl}/functions/v1/silver-processor`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          bar_id,
+          data_date: data_date || [...uniqueDates][0], // Primeira data processada
+          data_types: ['financeiro_pagamentos'] // Por enquanto só pagamentos
+        })
+      });
+      
+      if (silverResponse.ok) {
+        const silverResult = await silverResponse.json();
+        console.log('✅ Silver processor concluído:', silverResult);
+      } else {
+        console.warn('⚠️ Silver processor falhou (não crítico)');
+      }
+    } catch (silverError) {
+      console.warn('⚠️ Erro ao chamar silver processor (não crítico):', silverError);
     }
     
     return new Response(JSON.stringify({

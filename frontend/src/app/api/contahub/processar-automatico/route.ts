@@ -51,7 +51,8 @@ export async function GET(request: NextRequest) {
     
     for (const barId of barIds) {
       const { data: pendingData, error: fetchError } = await supabase
-        .from('contahub_raw_data')
+        .schema('bronze')
+        .from('bronze_contahub_raw_data')
         .select('id, data_type, data_date, bar_id')
         .eq('processed', false)
         .eq('bar_id', barId)

@@ -525,7 +525,7 @@ async function executeCustomQuery(query: string) {
     // Análise de produtos - Yuzer
     if (lowerQuery.includes('produtos') || lowerQuery.includes('yuzer_produtos')) {
       const { data, error } = await supabase
-        .from('yuzer_produtos')
+        .from('silver_yuzer_produtos_evento')
         .select('data_evento, produto, categoria, quantidade, valor_unitario, valor_total')
         .eq('bar_id', 3)
         .gte('data_evento', '2024-01-01')
@@ -539,7 +539,7 @@ async function executeCustomQuery(query: string) {
         summary: {
           total_registros: data?.length || 0,
           periodo: '2024-presente',
-          tabela: 'yuzer_produtos'
+          tabela: 'silver_yuzer_produtos_evento'
         }
       };
     }
@@ -636,7 +636,7 @@ async function executeCustomQuery(query: string) {
       const [vendas, eventos, produtos] = await Promise.all([
         supabase.from('visitas').select('data_visita, valor_pagamentos, pessoas').eq('bar_id', 3).gte('data_visita', '2024-08-01').limit(10),
         supabase.from('eventos_base').select('data_evento, artista, receita_total, publico_total').eq('bar_id', 3).order('data_evento', { ascending: false }).limit(5),
-        supabase.from('yuzer_produtos').select('produto, categoria, quantidade, valor_total').eq('bar_id', 3).gte('data_evento', '2024-08-01').limit(10)
+        supabase.from('silver_yuzer_produtos_evento').select('produto, categoria, quantidade, valor_total').eq('bar_id', 3).gte('data_evento', '2024-08-01').limit(10)
       ]);
 
       return {
@@ -740,15 +740,15 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
       let produtos, fonte;
 
       if (isDomingoContext) {
-        // DOMINGOS: Usar yuzer_produtos (eventos/shows)
+        // DOMINGOS: Usar silver_yuzer_produtos_evento (eventos/shows)
         const { data } = await supabase
-          .from('yuzer_produtos')
+          .from('silver_yuzer_produtos_evento')
           .select('produto, categoria, quantidade, valor_total, data_evento')
           .eq('bar_id', 3)
           .gte('data_evento', periodo.start)
           .lte('data_evento', periodo.end);
         produtos = data;
-        fonte = 'yuzer_produtos (Eventos/Domingos)';
+        fonte = 'silver_yuzer_produtos_evento (Eventos/Domingos)';
       } else {
         // DIAS NORMAIS: Usar vendas_item
         const { data } = await supabase

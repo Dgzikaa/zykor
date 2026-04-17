@@ -149,7 +149,7 @@ export async function verificarBarAberto(
       return resultado;
     }
 
-    // MIGRADO: vendas_item (domain table) em vez de contahub_analitico
+    // MIGRADO: vendas_item (domain table) em vez de bronze_contahub_vendas_analitico
     if (dataVerificacao < hoje) {
       const { data: movimento, error: errorMovimento } = await supabase
         .from('vendas_item')
@@ -225,7 +225,7 @@ export async function verificarMultiplasDatas(
       (registros || []).map(r => [r.data, r])
     );
 
-    // MIGRADO: vendas_item (domain table) em vez de contahub_analitico
+    // MIGRADO: vendas_item (domain table) em vez de bronze_contahub_vendas_analitico
     const { data: movimentacoes, error: errorMovimentacoes } = await supabase
       .from('vendas_item')
       .select('data_venda, valor')

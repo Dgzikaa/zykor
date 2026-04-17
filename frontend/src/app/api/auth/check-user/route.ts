@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar na tabela usuarios
     const { data: usuarios, error } = await adminClient
+      .schema('auth_custom')
       .from('usuarios')
       .select('id, email, nome, role, ativo, auth_id, modulos_permitidos')
       .eq('email', email);

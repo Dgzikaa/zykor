@@ -256,7 +256,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         const locaisExcluidos = locaisMapeamento.excluidos;
 
         const { data: stockoutData, error: stockoutError } = await supabase
-          .from('contahub_stockout')
+          .schema('gold')
+          .from('gold_contahub_operacional_stockout')
           .select('prd_ativo, prd_venda, loc_desc, prd_desc')
           .eq('data_consulta', eventoData.data_evento)
           .eq('bar_id', user.bar_id)
@@ -327,7 +328,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           const locaisExcluidosStockout = locaisMapeamentoFallback?.excluidos || [];
           
           const { data: dadosStockout } = await supabase
-            .from('contahub_stockout')
+            .schema('gold')
+            .from('gold_contahub_operacional_stockout')
             .select('prd_ativo, prd_venda, loc_desc, prd_desc')
             .eq('prd_ativo', 'S')
             .eq('data_consulta', eventoData.data_evento)

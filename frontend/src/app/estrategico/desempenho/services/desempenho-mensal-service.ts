@@ -63,9 +63,10 @@ async function getDadosMensais(
 
   const { data: eventosDiarios } = await query;
 
-  // Stockout mensal canônico por categoria_mix (fonte: contahub_stockout)
+  // Stockout mensal canônico por categoria_mix (fonte: gold_contahub_operacional_stockout)
   const { data: stockoutMensal } = await supabase
-    .from('contahub_stockout')
+    .schema('gold')
+    .from('gold_contahub_operacional_stockout')
     .select('categoria_mix, prd_venda')
     .eq('bar_id', barId)
     .gte('data_consulta', dataInicio)

@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Calcular mix ponderado usando faturamento_bar (só produtos, sem couvert)
-    // Isso garante que o mix seja calculado sobre a mesma base que a planilha (contahub_analitico)
+    // Isso garante que o mix seja calculado sobre a mesma base que a planilha (bronze_contahub_vendas_analitico)
     const faturamentoTotal = diasComFaturamento.reduce((acc, e) => {
       return acc + (parseFloat(String(e.faturamento_bar)) || 0);
     }, 0);

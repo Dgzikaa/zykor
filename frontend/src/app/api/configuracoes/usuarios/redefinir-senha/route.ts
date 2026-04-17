@@ -168,6 +168,7 @@ export async function POST(request: NextRequest) {
 
     // 5. Salvar token no banco e marcar que precisa redefinir senha
     const { error: updateError } = await supabase
+      .schema('auth_custom')
       .from('usuarios')
       .update({
         reset_token: resetToken,

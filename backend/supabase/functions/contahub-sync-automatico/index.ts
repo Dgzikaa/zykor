@@ -163,7 +163,7 @@ async function fetchComDivisaoPorLocal(
   empId: string, 
   sessionToken: string,
   generateTimestamp: () => string,
-  queryId: number, // 77=analitico, 81=tempo, 7=pagamentos, 101=fatporhora, 5=periodo
+  queryId: number, // 77=analitico, 81=tempo, 7=pagamentos, 101=fatporhora, 51=periodo
   dataType: string,
   extraParams: string = ''
 ): Promise<any> {
@@ -277,7 +277,7 @@ async function fetchFatPorHoraComDivisao(
   );
 }
 
-// Função para buscar PERIODO com divisão quando a query for muito grande
+// Função para buscar PERIODO com qryId 51 (retorna campo VD)
 async function fetchPeriodoComDivisao(
   baseUrl: string, 
   dataDate: string, 
@@ -285,10 +285,27 @@ async function fetchPeriodoComDivisao(
   sessionToken: string,
   generateTimestamp: () => string
 ): Promise<any> {
-  return fetchComDivisaoPorLocal(
-    baseUrl, dataDate, empId, sessionToken, generateTimestamp,
-    5, 'periodo', ''
-  );
+  // Para periodo, usar data sem hora (YYYY-MM-DD) e parâmetros venda/turno
+  const timestamp = generateTimestamp();
+  const url = `${baseUrl}/rest/contahub.cmds.QueryCmd/execQuery/${timestamp}?qry=51&d0=${dataDate}&d1=${dataDate}&venda=&turno=&emp=${empId}&nfe=1`;
+  
+  console.log(`🔄 Buscando periodo (qryId 51) para ${dataDate}...`);
+  console.log(`📡 URL: ${url.substring(0, 100)}...`);
+  
+  const data = await fetchContaHubData(url, sessionToken);
+  console.log(`✅ Periodo: ${data?.list?.length || 0} registros coletados`);
+  
+  // Validar se tem campo VD
+  if (data?.list && data.list.length > 0) {
+    const primeiroRegistro = data.list[0];
+    if ('vd' in primeiroRegistro) {
+      console.log(`✅ Campo VD confirmado! Primeiro VD: ${primeiroRegistro.vd}`);
+    } else {
+      console.warn(`⚠️ Campo VD NÃO encontrado nos dados! Campos disponíveis: ${Object.keys(primeiroRegistro).slice(0, 10).join(', ')}`);
+    }
+  }
+  
+  return data;
 }
 
 // Função para buscar CANCELAMENTOS com divisão quando a query for muito grande
@@ -331,7 +348,8 @@ async function saveRawDataOnly(supabase: any, dataType: string, rawData: any, da
     
     // Verificar se já existe registro para esta data
     const { data: existingRecord } = await supabase
-      .from('contahub_raw_data')
+      .schema('bronze')
+      .from('bronze_contahub_raw_data')
       .select('id, data_hash, processed')
       .eq('bar_id', barId)
       .eq('data_type', dataType)
@@ -354,7 +372,8 @@ async function saveRawDataOnly(supabase: any, dataType: string, rawData: any, da
     
     // Salvar ou atualizar dados
     const { data, error } = await supabase
-      .from('contahub_raw_data')
+      .schema('bronze')
+      .from('bronze_contahub_raw_data')
       .upsert({
         bar_id: barId,
         data_type: dataType,
@@ -556,47 +575,41 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    if (!emp_id) {
-      const { data: credComEmpresaId, error: credEmpError } = await supabase
-        .from('api_credentials')
-        .select('empresa_id')
-        .eq('bar_id', bar_id)
-        .eq('sistema', 'contahub')
-        .eq('ativo', true)
-        .order('atualizado_em', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (credEmpError) {
-        console.warn(`⚠️ Falha ao buscar empresa_id em api_credentials para bar ${bar_id}:`, credEmpError.message);
-      }
-
-      if (credComEmpresaId?.empresa_id != null) {
-        emp_id = String(credComEmpresaId.empresa_id);
-      }
+    // Buscar credenciais ContaHub de public.api_credentials
+    console.log(`🔍 [DEBUG] Buscando credenciais para bar_id=${bar_id}...`);
+    const { data: credsData, error: credsError } = await supabase
+      .from('api_credentials')
+      .select('username, password, configuracoes')
+      .eq('bar_id', bar_id)
+      .eq('sistema', 'contahub')
+      .eq('ativo', true)
+      .maybeSingle();
+    
+    if (credsError) {
+      console.error(`❌ [DEBUG] Erro ao buscar credenciais:`, credsError);
+      throw new Error(`Falha ao buscar credenciais: ${credsError.message}`);
+    }
+    
+    if (!credsData) {
+      console.error(`❌ [DEBUG] Credenciais não encontradas para bar ${bar_id}`);
+      throw new Error(`Credenciais ContaHub não encontradas para bar ${bar_id}`);
+    }
+    
+    console.log(`✅ [DEBUG] Credenciais encontradas: username=${credsData.username}, configuracoes=${JSON.stringify(credsData.configuracoes)}`);
+    
+    // Pegar emp_id de configuracoes.empresa_id
+    if (!emp_id && credsData.configuracoes?.empresa_id) {
+      emp_id = String(credsData.configuracoes.empresa_id);
     }
 
     if (!emp_id) {
-      throw new Error(`ContaHub emp_id não configurado para bar ${bar_id} (payload, bares.config e api_credentials.empresa_id)`);
+      throw new Error(`ContaHub emp_id não configurado para bar ${bar_id}`);
     }
     
     console.log(`📌 Bar ID: ${bar_id}, ContaHub emp_id: ${emp_id}`);
     
-    // Buscar credenciais do ContaHub do banco
-    const { data: contahubCreds, error: credsError } = await supabase
-      .from('api_credentials')
-      .select('username, password')
-      .eq('bar_id', bar_id)
-      .eq('sistema', 'contahub')
-      .eq('ativo', true)
-      .single();
-    
-    if (credsError || !contahubCreds) {
-      throw new Error(`Credenciais ContaHub não encontradas para bar ${bar_id}`);
-    }
-    
-    const contahubEmail = contahubCreds.username;
-    const contahubPassword = contahubCreds.password;
+    const contahubEmail = credsData.username;
+    const contahubPassword = credsData.password;
     const contahubBaseUrl = 'https://sp.contahub.com';
     
     if (!contahubEmail || !contahubPassword) {
@@ -692,12 +705,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.warn(`⚠️ Erro ao buscar turnos via API:`, turnoError);
     }
     
-    // 2. Se não encontrou via API, buscar TODOS os turnos do banco (contahub_analitico)
+    // 2. Se não encontrou via API, buscar TODOS os turnos do banco (bronze_contahub_avendas_porproduto_analitico)
     if (turnosDisponiveis.length === 0) {
       try {
         console.log(`🔍 Buscando turnos do banco de dados...`);
         const { data: turnoData, error: turnoError } = await supabase
-          .from('contahub_analitico')
+          .schema('bronze')
+          .from('bronze_contahub_avendas_porproduto_analitico')
           .select('trn')
           .eq('bar_id', bar_id)
           .gte('trn_dtgerencial', data_date)
@@ -955,7 +969,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     
     // 🔄 CLIENTE_ESTATISTICAS agora é uma VIEW calculada on-demand a partir da
-    // matview `visitas` (refresh automático via trigger em contahub_periodo).
+    // matview `visitas` (refresh automático via trigger em bronze_contahub_vendas_periodo).
     // Não precisa mais de RPC/cache de refresh — a leitura é sempre consistente.
 
 

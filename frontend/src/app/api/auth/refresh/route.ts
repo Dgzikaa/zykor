@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
     // Buscar dados atualizados do usuário
     const adminClient = await getAdminClient();
     const { data: usuario, error } = await adminClient
+      .schema('auth_custom')
       .from('usuarios')
       .select('*')
       .eq('id', decoded.user_id)

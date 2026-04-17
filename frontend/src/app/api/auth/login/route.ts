@@ -55,6 +55,7 @@ async function handleLogin(request: NextRequest) {
 
     // Buscar dados do usuário na tabela usuarios
     let { data: usuarios, error: dbError } = await adminClient
+      .schema('auth_custom')
       .from('usuarios')
       .select('*')
       .eq('auth_id', authData.user.id)
@@ -63,7 +64,8 @@ async function handleLogin(request: NextRequest) {
     if (dbError || !usuarios || usuarios.length === 0) {
       // Tentar buscar por email e atualizar auth_id
       const { data: usuariosPorEmail } = await adminClient
-        .from('usuarios')
+      .schema('auth_custom')
+      .from('usuarios')
         .select('*')
         .eq('email', email)
         .eq('ativo', true);
@@ -73,7 +75,8 @@ async function handleLogin(request: NextRequest) {
         
         // Atualizar auth_id
         await adminClient
-          .from('usuarios')
+      .schema('auth_custom')
+      .from('usuarios')
           .update({ auth_id: authData.user.id })
           .eq('email', email);
 
@@ -102,7 +105,8 @@ async function handleLogin(request: NextRequest) {
 
       // Persistir token no schema atual
       await adminClient
-        .from('usuarios')
+      .schema('auth_custom')
+      .from('usuarios')
         .update({
           reset_token: token,
           reset_token_expiry: tokenExpiry,
@@ -140,6 +144,7 @@ async function handleLogin(request: NextRequest) {
 
     // Buscar bares do usuário
     const { data: usuariosBares } = await adminClient
+      .schema('auth_custom')
       .from('usuarios_bares')
       .select('bar_id')
       .eq('usuario_id', usuarioPrincipal.auth_id);

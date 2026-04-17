@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
     // Buscar usuário pelo email e validar token
     // 1) Priorizar schema atual: usuarios
     const { data: usuariosData, error: usuariosError } = await supabase
+      .schema('auth_custom')
       .from('usuarios')
       .select('id, auth_id, email, nome, reset_token, reset_token_expiry, ativo')
       .eq('email', emailNormalizado)
@@ -127,6 +128,7 @@ export async function POST(request: NextRequest) {
 
     // Limpar token e marcar senha redefinida no schema atual
     const { error: updateUsuariosError } = await supabase
+      .schema('auth_custom')
       .from('usuarios')
       .update({
         senha_redefinida: true,
