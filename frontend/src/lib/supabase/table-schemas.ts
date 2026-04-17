@@ -251,11 +251,9 @@ export type ZykorSchema = (typeof TABLE_SCHEMAS)[ZykorTable];
 
 /**
  * Retorna o schema de uma tabela. Se a tabela nao estiver no mapa,
- * lanca erro em desenvolvimento e retorna 'public' em producao
- * (fallback para evitar que rotas legadas quebrem).
+ * loga warning em desenvolvimento e retorna 'public' (fallback para
+ * evitar que rotas legadas quebrem em producao).
  */
-export function schemaOf(table: ZykorTable): ZykorSchema;
-export function schemaOf(table: string): string;
 export function schemaOf(table: string): string {
   const schema = (TABLE_SCHEMAS as Record<string, string>)[table];
   if (!schema) {
