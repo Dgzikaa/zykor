@@ -76,26 +76,26 @@ export const POST = withAuth(async ({ user, request }) => {
   const { notificacoes } = await repos();
 
   const nova = await notificacoes.criar({
-    bar_id: String(user.bar_id),
-    usuario_id: body.usuario_id,
-    role_alvo: body.role_alvo,
-    modulo: body.modulo,
+    barId: user.bar_id,
+    usuarioId: body.usuario_id,
     tipo: body.tipo,
-    prioridade: body.prioridade,
-    categoria: body.categoria,
     titulo: body.titulo,
     mensagem: body.mensagem,
-    dados_extras: body.dados_extras,
-    acoes: body.acoes,
     canais: body.canais,
-    enviar_em: body.enviar_em
-      ? new Date(body.enviar_em).toISOString()
-      : new Date().toISOString(),
-    referencia_tipo: body.referencia_tipo,
-    referencia_id: body.referencia_id,
-    chave_duplicacao: body.chave_duplicacao,
-    criada_por: user.auth_id,
     status: 'pendente',
+    agendadaPara: body.enviar_em
+      ? new Date(body.enviar_em).toISOString()
+      : undefined,
+    criadaPor: user.auth_id,
+    roleAlvo: body.role_alvo,
+    modulo: body.modulo,
+    prioridade: body.prioridade,
+    categoria: body.categoria,
+    dadosExtras: body.dados_extras,
+    acoes: body.acoes,
+    referenciaTipo: body.referencia_tipo,
+    referenciaId: body.referencia_id,
+    chaveDuplicacao: body.chave_duplicacao,
   });
 
   // Browser notifications sao "instantaneas" — marca como enviada

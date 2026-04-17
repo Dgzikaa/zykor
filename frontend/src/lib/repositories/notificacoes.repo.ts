@@ -41,8 +41,8 @@ export class NotificacoesRepository {
     if (filtros.usuarioId) query = query.eq('usuario_id', filtros.usuarioId);
     if (filtros.status) query = query.eq('status', filtros.status);
     if (filtros.tipo) query = query.eq('tipo', filtros.tipo);
-    if (filtros.modulo) query = query.eq('dados->modulo', filtros.modulo);
-    if (filtros.prioridade) query = query.eq('dados->prioridade', filtros.prioridade);
+    if (filtros.modulo) query = query.eq('dados->>modulo', filtros.modulo);
+    if (filtros.prioridade) query = query.eq('dados->>prioridade', filtros.prioridade);
     if (filtros.dataInicio) query = query.gte('criada_em', filtros.dataInicio);
     if (filtros.dataFim) query = query.lte('criada_em', filtros.dataFim);
     if (filtros.apenasNaoLidas) query = query.in('status', ['pendente', 'enviada']);
@@ -67,11 +67,53 @@ export class NotificacoesRepository {
     return data;
   }
 
-  async criar(notificacao: Record<string, unknown>) {
+  /** Cria uma notificacao. Separa colunas diretas de campos JSONB. */
+  async criar(input: {
+    barId: number | string;
+    usuarioId?: string;
+    tipo: 'info' | 'alerta' | 'erro' | 'sucesso';
+    titulo: string;
+    mensagem: string;
+    canais: Array<'browser' | 'whatsapp' | 'email'>;
+    status?: 'pendente' | 'enviada' | 'lida';
+    agendadaPara?: string;
+    criadaPor: string;
+    roleAlvo?: 'admin' | 'financeiro' | 'funcionario';
+    modulo?: 'checklists' | 'metas' | 'relatorios' | 'dashboard' | 'sistema';
+    prioridade?: 'baixa' | 'media' | 'alta' | 'critica';
+    categoria?: string;
+    dadosExtras?: Record<string, unknown>;
+    acoes?: unknown[];
+    referenciaTipo?: string;
+    referenciaId?: string;
+    chaveDuplicacao?: string;
+  }) {
+    const dados: Record<string, unknown> = {};
+    if (input.roleAlvo) dados.role_alvo = input.roleAlvo;
+    if (input.modulo) dados.modulo = input.modulo;
+    if (input.prioridade) dados.prioridade = input.prioridade;
+    if (input.categoria) dados.categoria = input.categoria;
+    if (input.dadosExtras) dados.dados_extras = input.dadosExtras;
+    if (input.acoes) dados.acoes = input.acoes;
+    if (input.referenciaTipo) dados.referencia_tipo = input.referenciaTipo;
+    if (input.referenciaId) dados.referencia_id = input.referenciaId;
+    if (input.chaveDuplicacao) dados.chave_duplicacao = input.chaveDuplicacao;
+    dados.criada_por = input.criadaPor;
+
     const { data, error } = await this.client
       .schema('system')
       .from('notificacoes')
-      .insert(notificacao)
+      .insert({
+        bar_id: input.barId,
+        usuario_id: input.usuarioId ?? input.criadaPor,
+        tipo: input.tipo,
+        titulo: input.titulo,
+        mensagem: input.mensagem,
+        canais: input.canais,
+        status: input.status ?? 'pendente',
+        agendada_para: input.agendadaPara ?? null,
+        dados,
+      })
       .select()
       .single();
     if (error) throw new RepositoryError('notificacoes.criar', error);
@@ -122,9 +164,9 @@ export class NotificacoesRepository {
       .update({ status: 'lida', lida_em: new Date().toISOString() })
       .eq('bar_id', input.barId)
       .in('status', ['pendente', 'enviada'])
-      .or(`usuario_id.eq.${input.authId},role_alvo.eq.${input.role}`);
+      .or(`usuario_id.eq.${input.authId},dados->>role_alvo.eq.${input.role}`);
 
-    if (input.modulo) query = query.eq('modulo', input.modulo);
+    if (input.modulo) query = query.eq('dados->>modulo', input.modulo);
 
     const { count, error } = await query;
     if (error) throw new RepositoryError('notificacoes.marcarTodasLidasParaUsuario', error);
