@@ -33,18 +33,11 @@ export async function GET(
     const { id: notificationId } = await params;
     const supabase = await getAdminClient();
 
-    // Buscar notificação específica
+    // Buscar notificação específica (sem embeds cross-schema/inexistentes)
     const { data: notificacao, error } = await supabase
+      .schema('system')
       .from('notificacoes')
-      .select(
-        `
-        *,
-        usuario:usuarios_bar!usuario_id (nome, email, role),
-        logs:notificacoes_logs (
-          canal, status, tentativa, tentado_em, erro_detalhes
-        )
-      `
-      )
+      .select('*')
       .eq('id', notificationId)
       .eq('bar_id', user.bar_id)
       .single();
@@ -114,6 +107,7 @@ export async function PUT(
 
     // Buscar notificação atual
     const { data: notificacaoAtual, error: fetchError } = await supabase
+      .schema('system')
       .from('notificacoes')
       .select('usuario_id, role_alvo, status, dados_extras')
       .eq('id', notificationId)
@@ -164,6 +158,7 @@ export async function PUT(
 
     // Atualizar notificação
     const { data: notificacaoAtualizada, error: updateError } = await supabase
+      .schema('system')
       .from('notificacoes')
       .update(dadosAtualizacao)
       .eq('id', notificationId)
@@ -229,6 +224,7 @@ export async function DELETE(
 
     // Buscar notificação
     const { data: notificacao, error: fetchError } = await supabase
+      .schema('system')
       .from('notificacoes')
       .select('usuario_id, role_alvo, titulo')
       .eq('id', notificationId)
@@ -259,6 +255,7 @@ export async function DELETE(
 
     // Excluir notificação (hard delete por enquanto)
     const { error: deleteError } = await supabase
+      .schema('system')
       .from('notificacoes')
       .delete()
       .eq('id', notificationId);
@@ -355,6 +352,7 @@ async function marcarTodasComoLidas(
   const modulo = searchParams.get('modulo');
 
   let query = supabase
+    .schema('system')
     .from('notificacoes')
     .update({
       status: 'lida',
@@ -401,6 +399,7 @@ async function limparNotificacoesAntigas(
   ).toISOString();
 
   const { count, error } = await supabase
+    .schema('system')
     .from('notificacoes')
     .delete()
     .eq('bar_id', user.bar_id)

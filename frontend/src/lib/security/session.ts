@@ -216,13 +216,18 @@ export class SessionManager {
         process.env.SUPABASE_SERVICE_KEY!
       );
 
-      const { data, error } = await supabase
-        .from('usuarios_bar')
-        .select('mfa_enabled')
-        .eq('user_id', userId)
-        .single();
-
-      return data?.mfa_enabled || false;
+      // MFA ainda nao esta implementado em auth_custom.usuarios; sempre false
+      // Quando coluna mfa_enabled existir, basta descomentar abaixo.
+      // const { data } = await supabase
+      //   .schema('auth_custom')
+      //   .from('usuarios')
+      //   .select('mfa_enabled')
+      //   .eq('auth_id', userId)
+      //   .single();
+      // return data?.mfa_enabled || false;
+      void supabase;
+      void userId;
+      return false;
     } catch (error) {
       console.error('Erro ao verificar MFA:', error);
       return false;

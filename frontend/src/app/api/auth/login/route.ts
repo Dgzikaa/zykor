@@ -114,15 +114,7 @@ async function handleLogin(request: NextRequest) {
         })
         .eq('id', usuarioPrincipal.id);
 
-      // Compatibilidade: tentar salvar também em usuarios_bar (schema legado)
-      await adminClient
-        .from('usuarios_bar')
-        .update({
-          reset_token: token,
-          reset_token_expiry: tokenExpiry,
-          atualizado_em: new Date().toISOString(),
-        })
-        .eq('email', usuarioPrincipal.email);
+      // (Removido fallback para tabela legada 'usuarios_bar' que nao existe.)
 
       const protocol = request.headers.get('x-forwarded-proto') || 'https';
       const host = request.headers.get('host') || request.headers.get('x-forwarded-host');
@@ -153,6 +145,7 @@ async function handleLogin(request: NextRequest) {
 
     // Buscar dados completos dos bares
     const { data: barsData } = await adminClient
+      .schema('operations')
       .from('bares')
       .select('id, nome')
       .in('id', barIds)

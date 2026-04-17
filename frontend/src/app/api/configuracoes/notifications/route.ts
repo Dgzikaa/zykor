@@ -138,6 +138,7 @@ export async function POST(request: NextRequest) {
       // Verificar duplicação se especificado
       if (data.chave_duplicacao) {
         const { data: existente } = await supabase
+          .schema('system')
           .from('notificacoes')
           .select('id')
           .eq('bar_id', barIdStr)
@@ -179,6 +180,7 @@ export async function POST(request: NextRequest) {
       };
 
       const { data: notificacao, error: createError } = await supabase
+        .schema('system')
         .from('notificacoes')
         .insert(novaNotificacao)
         .select()
@@ -264,6 +266,7 @@ export async function GET(request: NextRequest) {
 
     // Construir query base - CORRIGIDO: usar apenas colunas existentes
     let query = supabase
+      .schema('system')
       .from('notificacoes')
       .select(
         `
@@ -448,6 +451,7 @@ async function processarEnvioBrowser(
   try {
     // Marcar como enviada (browser notifications são "instantâneas")
     await supabase
+      .schema('system')
       .from('notificacoes')
       .update({
         status: 'enviada',
@@ -455,27 +459,9 @@ async function processarEnvioBrowser(
       })
       .eq('id', notificacao.id);
 
-    // Log da entrega
-    await supabase.from('notificacoes_logs').insert({
-      notificacao_id: notificacao.id,
-      canal: 'browser',
-      status: 'sucesso',
-      tentativa: 1,
-      response_data: { browser_ready: true },
-      tempo_resposta_ms: 0,
-    });
-
+    // Nota: tabela 'notificacoes_logs' nao existe no banco; log de entrega desabilitado.
   } catch (error: unknown) {
     console.error('Erro ao processar envio browser:', error);
-
-    // Log do erro
-    await supabase.from('notificacoes_logs').insert({
-      notificacao_id: notificacao.id,
-      canal: 'browser',
-      status: 'falha',
-      tentativa: 1,
-      erro_detalhes: error instanceof Error ? error.message : String(error),
-    });
   }
 }
 
@@ -487,6 +473,7 @@ async function calcularEstatisticasRapidas(
 ) {
   // Estatísticas para o usuário logado
   const { data: minhasStats } = await supabase
+    .schema('system')
     .from('notificacoes')
     .select('status, tipo, dados')
     .eq('bar_id', barId)

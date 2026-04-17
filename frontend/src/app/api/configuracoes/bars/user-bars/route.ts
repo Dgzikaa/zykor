@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = await getAdminClient();
 
-    // 1. Buscar dados do usuário
+    // 1. Buscar dados do usuário (auth_custom)
     const { data: usuarioData, error: userError } = await supabase
       .schema('auth_custom')
       .from('usuarios')
@@ -30,14 +30,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 2. Buscar bares do usuário através de usuarios_bares (usando auth_id)
+    // 2. Buscar IDs dos bares vinculados ao usuário (auth_custom)
     const { data: relacoes, error: relacoesError } = await supabase
       .schema('auth_custom')
       .from('usuarios_bares')
-      .select(`
-        bar_id,
-        bares!inner(id, nome, ativo)
-      `)
+      .select('bar_id')
       .eq('usuario_id', usuarioData.auth_id);
 
     if (relacoesError) {
@@ -48,23 +45,49 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!relacoes || relacoes.length === 0) {
+    const barIds = ((relacoes || []) as Array<{ bar_id: number }>)
+      .map((r) => r.bar_id)
+      .filter((id): id is number => id !== null && id !== undefined);
+
+    if (barIds.length === 0) {
       return NextResponse.json(
         { error: 'Usuário não tem acesso a nenhum bar' },
         { status: 404 }
       );
     }
 
-    // 3. Filtrar apenas bares ativos e enriquecer com permissões do usuário
-    const barsEnriquecidos = relacoes
-      .filter((rel: any) => rel.bares && !Array.isArray(rel.bares) && rel.bares.ativo)
-      .map((rel: any) => ({
-        id: rel.bares.id,
-        nome: rel.bares.nome,
-        modulos_permitidos: usuarioData.modulos_permitidos || [],
-        role: usuarioData.role || 'funcionario',
-        setor: usuarioData.setor,
-      }));
+    // 3. Buscar bares ativos (operations) - embed cross-schema nao funciona
+    // no PostgREST, entao fazemos uma segunda query com schema explicito.
+    const { data: bares, error: baresError } = await supabase
+      .schema('operations')
+      .from('bares')
+      .select('id, nome, ativo')
+      .in('id', barIds)
+      .eq('ativo', true);
+
+    if (baresError) {
+      console.error('❌ API: Erro ao buscar bares:', baresError);
+      return NextResponse.json(
+        { error: 'Erro ao buscar bares' },
+        { status: 500 }
+      );
+    }
+
+    if (!bares || bares.length === 0) {
+      return NextResponse.json(
+        { error: 'Usuário não tem acesso a nenhum bar ativo' },
+        { status: 404 }
+      );
+    }
+
+    // 4. Enriquecer com permissões do usuário
+    const barsEnriquecidos = (bares as Array<{ id: number; nome: string; ativo: boolean }>).map((bar) => ({
+      id: bar.id,
+      nome: bar.nome,
+      modulos_permitidos: usuarioData.modulos_permitidos || [],
+      role: usuarioData.role || 'funcionario',
+      setor: usuarioData.setor,
+    }));
 
     return NextResponse.json({
       success: true,
