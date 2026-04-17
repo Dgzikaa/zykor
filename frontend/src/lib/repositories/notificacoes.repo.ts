@@ -139,7 +139,7 @@ export class NotificacoesRepository {
       .from('notificacoes')
       .select('status, tipo, dados')
       .eq('bar_id', input.barId)
-      .or(`usuario_id.eq.${input.authId},dados->role_alvo.eq.${input.role}`)
+      .or(`usuario_id.eq.${input.authId},dados->>role_alvo.eq.${input.role}`)
       .gte('criada_em', desde);
 
     if (error) throw new RepositoryError('notificacoes.estatisticasUltimos7Dias', error);
