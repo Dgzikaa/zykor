@@ -13,15 +13,23 @@ async function fetchAllPaginated<T>(
   table: string,
   select: string,
   filters: PaginatedFilter[],
-  pageSize: number = 1000
+  pageSize: number = 1000,
+  schema?: string
 ): Promise<T[]> {
   let allData: T[] = [];
   let from = 0;
   let hasMore = true;
 
   while (hasMore) {
-    let query = supabase
-      .from(table)
+    // Supabase tipa schema() apenas para schemas declarados no Database type.
+    // Após a migração medallion, várias tabelas vivem em schemas dinâmicos
+    // (operations, financial, integrations, crm, meta, bronze, gold).
+    // Cast pra any aqui é o padrão usado no resto do projeto pra contornar isso.
+    const base = schema
+      ? (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema(schema).from(table)
+      : supabase.from(table);
+
+    let query = base
       .select(select)
       .range(from, from + pageSize - 1);
 
@@ -37,8 +45,19 @@ async function fetchAllPaginated<T>(
     const { data, error } = await query;
 
     if (error) {
-      console.error(`Erro ao buscar ${table}:`, error);
-      break;
+      const fqn = schema ? `${schema}.${table}` : table;
+      console.error(`❌ Erro em fetchAllPaginated(${fqn}):`, {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        filters,
+      });
+      // Propaga: antes fazia 'break' silencioso e retornava parcial,
+      // o que mascarava falhas de schema/conexão como dados zerados.
+      throw new Error(
+        `Erro ao paginar ${fqn}: ${error.message} (code: ${error.code})`
+      );
     }
 
     if (data && data.length > 0) {
@@ -60,7 +79,9 @@ export async function getSemanas(
 ): Promise<{ semanas: DadosSemana[], semanaAtual: number, anoAtual: number }> {
   
   // Buscar semanas básicas
+  // NOTA: desempenho_semanal foi migrada de public para schema 'meta'.
   let query = supabase
+    .schema('meta' as never)
     .from('desempenho_semanal')
     .select('*')
     .eq('bar_id', barId)
@@ -74,8 +95,17 @@ export async function getSemanas(
   const { data: semanas, error } = await query;
 
   if (error) {
-    console.error('Erro ao buscar semanas:', error);
-    throw new Error('Erro ao buscar dados semanais');
+    console.error('❌ Erro em meta.desempenho_semanal:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      barId,
+      ano,
+    });
+    throw new Error(
+      `Erro ao carregar desempenho semanal: ${error.message} (code: ${error.code})`
+    );
   }
 
   if (!semanas || semanas.length === 0) {
@@ -85,6 +115,7 @@ export async function getSemanas(
 
   // Buscar Marketing
   let marketingQuery = supabase
+    .schema('meta' as never)
     .from('marketing_semanal')
     .select('*')
     .eq('bar_id', barId);
@@ -93,7 +124,21 @@ export async function getSemanas(
     marketingQuery = marketingQuery.eq('ano', ano);
   }
 
-  const { data: marketingData } = await marketingQuery;
+  const { data: marketingData, error: marketingError } = await marketingQuery;
+
+  if (marketingError) {
+    console.error('❌ Erro em meta.marketing_semanal:', {
+      message: marketingError.message,
+      code: marketingError.code,
+      details: marketingError.details,
+      hint: marketingError.hint,
+      barId,
+      ano,
+    });
+    throw new Error(
+      `Erro ao carregar marketing semanal: ${marketingError.message} (code: ${marketingError.code})`
+    );
+  }
 
   const marketingMap = new Map<string, MarketingSemanalRow>();
   (marketingData as MarketingSemanalRow[] | null | undefined)?.forEach((m) =>
@@ -102,6 +147,7 @@ export async function getSemanas(
 
   // Buscar CMV Semanal
   let cmvQuery = supabase
+    .schema('financial' as never)
     .from('cmv_semanal')
     .select('semana, ano, cmv_real, cmv_limpo_percentual, faturamento_cmvivel')
     .eq('bar_id', barId);
@@ -110,7 +156,21 @@ export async function getSemanas(
     cmvQuery = cmvQuery.eq('ano', ano);
   }
 
-  const { data: cmvData } = await cmvQuery;
+  const { data: cmvData, error: cmvError } = await cmvQuery;
+
+  if (cmvError) {
+    console.error('❌ Erro em financial.cmv_semanal:', {
+      message: cmvError.message,
+      code: cmvError.code,
+      details: cmvError.details,
+      hint: cmvError.hint,
+      barId,
+      ano,
+    });
+    throw new Error(
+      `Erro ao carregar CMV semanal: ${cmvError.message} (code: ${cmvError.code})`
+    );
+  }
 
   const cmvMap = new Map<string, CmvSemanalRow>();
   (cmvData as CmvSemanalRow[] | null | undefined)?.forEach((c) => cmvMap.set(`${c.ano}-${c.semana}`, c));
@@ -138,17 +198,20 @@ export async function getSemanas(
   >();
 
   if (dataMin && dataMax) {
-    // Conta Assinada (de bronze_contahub_financeiro_pagamentos - fonte única de verdade)
+    // Conta Assinada (de bronze.bronze_contahub_financeiro_pagamentosrecebidos)
+    // Tabela renomeada na migração medallion (antes: bronze_contahub_financeiro_pagamentos).
     const pagamentos = await fetchAllPaginated<{ dt_gerencial: string; liquido: number }>(
       supabase,
-      'bronze_contahub_financeiro_pagamentos',
+      'bronze_contahub_financeiro_pagamentosrecebidos',
       'dt_gerencial, liquido',
       [
         { column: 'bar_id', operator: 'eq', value: barId },
         { column: 'meio', operator: 'eq', value: 'Conta Assinada' },
         { column: 'dt_gerencial', operator: 'gte', value: dataMin },
         { column: 'dt_gerencial', operator: 'lte', value: dataMax },
-      ]
+      ],
+      1000,
+      'bronze'
     );
 
     pagamentos.forEach(p => {
@@ -159,18 +222,36 @@ export async function getSemanas(
       }
     });
 
-    // Descontos (de visitas - tabela final)
-    const descontos = await fetchAllPaginated<{ data_visita: string; valor_desconto: number; motivo_desconto: string | null }>(
+    // Descontos (antes: 'visitas', deletada na migração medallion).
+    // Substituído por bronze.bronze_contahub_avendas_vendasperiodo, que contém
+    // 1 linha por venda do ContaHub. Remapeamento de colunas:
+    //   data_visita      → vd_dtgerencial
+    //   valor_desconto   → vd_vrdescontos
+    //   motivo_desconto  → vd_motivodesconto
+    const descontosRaw = await fetchAllPaginated<{
+      vd_dtgerencial: string;
+      vd_vrdescontos: number;
+      vd_motivodesconto: string | null;
+    }>(
       supabase,
-      'visitas',
-      'data_visita, valor_desconto, motivo_desconto',
+      'bronze_contahub_avendas_vendasperiodo',
+      'vd_dtgerencial, vd_vrdescontos, vd_motivodesconto',
       [
         { column: 'bar_id', operator: 'eq', value: barId },
-        { column: 'valor_desconto', operator: 'gt', value: 0 },
-        { column: 'data_visita', operator: 'gte', value: dataMin },
-        { column: 'data_visita', operator: 'lte', value: dataMax },
-      ]
+        { column: 'vd_vrdescontos', operator: 'gt', value: 0 },
+        { column: 'vd_dtgerencial', operator: 'gte', value: dataMin },
+        { column: 'vd_dtgerencial', operator: 'lte', value: dataMax },
+      ],
+      1000,
+      'bronze'
     );
+
+    // Mapeia para o shape antigo para não tocar no resto do código de agrupamento.
+    const descontos = descontosRaw.map((d) => ({
+      data_visita: d.vd_dtgerencial,
+      valor_desconto: Number(d.vd_vrdescontos || 0),
+      motivo_desconto: d.vd_motivodesconto,
+    }));
 
     // Processar descontos (agrupamento)
     descontos.forEach(d => {
@@ -207,7 +288,7 @@ export async function getSemanas(
       }
     });
 
-    // NPS Falaê diário agregado -> semanal
+    // NPS Falaê diário agregado -> semanal (schema 'crm' após migração)
     const falaeDiario = await fetchAllPaginated<{
       data_referencia: string;
       respostas_total: number;
@@ -222,7 +303,9 @@ export async function getSemanas(
         { column: 'bar_id', operator: 'eq', value: barId },
         { column: 'data_referencia', operator: 'gte', value: dataMin },
         { column: 'data_referencia', operator: 'lte', value: dataMax },
-      ]
+      ],
+      1000,
+      'crm'
     );
 
     falaeDiario.forEach((d) => {
@@ -256,7 +339,9 @@ export async function getSemanas(
         { column: 'bar_id', operator: 'eq', value: barId },
         { column: 'created_at', operator: 'gte', value: `${dataMin}T00:00:00` },
         { column: 'created_at', operator: 'lte', value: `${dataMax}T23:59:59` },
-      ]
+      ],
+      1000,
+      'integrations'
     );
 
     falaeRespostas.forEach((r) => {

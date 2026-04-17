@@ -48,8 +48,9 @@ async function getDadosMensais(
   const ultimoDia = new Date(ano, mes, 0).getDate();
   const dataFim = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
 
-  // 1. Dados diários
+  // 1. Dados diários (eventos_base migrada para schema 'operations')
   let query = supabase
+    .schema('operations' as never)
     .from('eventos_base')
     .select('data_evento, real_r, cl_real, t_medio, percent_b, percent_d, percent_c, res_tot, res_p, num_mesas_tot, num_mesas_presentes, t_coz, t_bar, fat_19h_percent, faturamento_couvert, faturamento_bar')
     .eq('bar_id', barId)
@@ -61,7 +62,22 @@ async function getDadosMensais(
     query = query.not('data_evento', 'in', '("2026-02-13","2026-02-14","2026-02-15","2026-02-16","2026-02-17")');
   }
 
-  const { data: eventosDiarios } = await query;
+  const { data: eventosDiarios, error: eventosError } = await query;
+
+  if (eventosError) {
+    console.error('❌ Erro em operations.eventos_base (mensal):', {
+      message: eventosError.message,
+      code: eventosError.code,
+      details: eventosError.details,
+      hint: eventosError.hint,
+      barId,
+      mes,
+      ano,
+    });
+    throw new Error(
+      `Erro ao carregar eventos do mês ${mes}/${ano}: ${eventosError.message} (code: ${eventosError.code})`
+    );
+  }
 
   // Stockout mensal canônico por categoria_mix (fonte: gold_contahub_operacional_stockout)
   const { data: stockoutMensal } = await supabase
@@ -90,6 +106,7 @@ async function getDadosMensais(
   
   const desempenhoPromises = anosEnvolvidos.map(anoISO => 
     supabase
+      .schema('meta' as never)
       .from('desempenho_semanal')
       .select('*')
       .eq('bar_id', barId)
@@ -99,6 +116,7 @@ async function getDadosMensais(
 
   const marketingPromises = anosEnvolvidos.map(anoISO => 
     supabase
+      .schema('meta' as never)
       .from('marketing_semanal')
       .select('*')
       .eq('bar_id', barId)
@@ -106,8 +124,9 @@ async function getDadosMensais(
       .in('semana', semanasComProporcao.filter(s => s.anoISO === anoISO).map(s => s.semana))
   );
 
-  // 3. Buscar Conta Assinada (de faturamento_pagamentos - tabela de domínio)
+  // 3. Buscar Conta Assinada (operations.faturamento_pagamentos)
   const contaAssinadaPromise = supabase
+    .schema('operations' as never)
     .from('faturamento_pagamentos')
     .select('data_pagamento, valor_bruto')
     .eq('bar_id', barId)
@@ -115,14 +134,19 @@ async function getDadosMensais(
     .gte('data_pagamento', dataInicio)
     .lte('data_pagamento', dataFim);
 
-  // 4. Buscar Descontos (de visitas - tabela de domínio)
+  // 4. Buscar Descontos (antes: 'visitas' - DELETADA na migração medallion)
+  // Substituído por bronze.bronze_contahub_avendas_vendasperiodo:
+  //   data_visita     → vd_dtgerencial
+  //   valor_desconto  → vd_vrdescontos
+  //   motivo_desconto → vd_motivodesconto
   const descontosPromise = supabase
-    .from('visitas')
-    .select('data_visita, valor_desconto, motivo_desconto')
+    .schema('bronze' as never)
+    .from('bronze_contahub_avendas_vendasperiodo')
+    .select('vd_dtgerencial, vd_vrdescontos, vd_motivodesconto')
     .eq('bar_id', barId)
-    .gt('valor_desconto', 0)
-    .gte('data_visita', dataInicio)
-    .lte('data_visita', dataFim);
+    .gt('vd_vrdescontos', 0)
+    .gte('vd_dtgerencial', dataInicio)
+    .lte('vd_dtgerencial', dataFim);
 
   // 5. Clientes Ativos: usar RPC get_count_base_ativa com os 90 dias anteriores ao último dia do mês
   const dataFimDate = new Date(ano, mes, 0); // Último dia do mês
@@ -136,16 +160,18 @@ async function getDadosMensais(
     p_data_fim: dataFim
   });
 
-  // 6. NPS Falaê diário agregado
+  // 6. NPS Falaê diário agregado (schema 'crm')
   const falaeNpsPromise = supabase
+    .schema('crm' as never)
     .from('nps_falae_diario')
     .select('respostas_total, promotores, detratores, nps_media')
     .eq('bar_id', barId)
     .gte('data_referencia', dataInicio)
     .lte('data_referencia', dataFim);
 
-  // 7. Buscar dados de marketing mensal (preenchimento manual)
+  // 7. Buscar dados de marketing mensal (preenchimento manual, schema 'meta')
   const marketingMensalPromise = supabase
+    .schema('meta' as never)
     .from('marketing_mensal')
     .select('*')
     .eq('bar_id', barId)
@@ -181,10 +207,9 @@ async function getDadosMensais(
     (sum, p) => sum + (Number(p.valor_bruto) || 0), 0
   );
 
-  // Calcular Descontos total do mês
-  const descontosValor = (descontosResult.data || []).reduce(
-    (sum, d) => sum + (Number(d.valor_desconto) || 0), 0
-  );
+  // Calcular Descontos total do mês (coluna vd_vrdescontos do bronze)
+  const descontosValor = ((descontosResult.data || []) as { vd_vrdescontos: number | string | null }[])
+    .reduce((sum, d) => sum + (Number(d.vd_vrdescontos) || 0), 0);
 
   // Clientes Ativos: número calculado pela RPC (clientes com 2+ visitas nos últimos 90 dias até o último dia do mês)
   const clientesAtivos = clientesAtivosResult.error ? 0 : Number(clientesAtivosResult.data) || 0;
