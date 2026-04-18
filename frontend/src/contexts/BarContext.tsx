@@ -147,26 +147,38 @@ export function BarProvider({ children }: { children: ReactNode }) {
           const response = await fetch('/api/configuracoes/bars/user-bars');
 
           if (response.ok) {
-            const data = await response.json();
+            const json = await response.json();
 
-            if (data.bars && data.bars.length > 0) {
+            // A rota foi refatorada (commit 93ead5a2) para o envelope padrão
+            // success({ bars, userData }) -> { success: true, data: { bars, userData } }.
+            // Mantemos fallback para o shape antigo (data.bars) por segurança durante
+            // a transição, mas o shape canônico hoje é json.data.bars.
+            if (json.success === false) {
+              console.error('❌ Erro ao carregar bares do usuário:', json);
+              if (mounted) setIsLoading(false);
+              return;
+            }
+
+            const bars: Bar[] | undefined = json?.data?.bars ?? json?.bars;
+
+            if (bars && bars.length > 0) {
               if (mounted) {
-                setAvailableBars(data.bars);
+                setAvailableBars(bars);
 
                 // Verificar se há um bar selecionado no localStorage
                 const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
                 let barToSelect: Bar;
                 
                 if (selectedBarId) {
-                  const foundBar = data.bars.find(
+                  const foundBar = bars.find(
                     (bar: Bar) => bar.id === parseInt(selectedBarId)
                   );
                   // Se o bar selecionado não existe mais nos bares disponíveis, usar o primeiro
-                  barToSelect = foundBar || data.bars[0];
+                  barToSelect = foundBar || bars[0];
                   
                   // Se bar não encontrado, usar primeiro disponível
                 } else {
-                  barToSelect = data.bars[0];
+                  barToSelect = bars[0];
                 }
                 
                 setSelectedBar(barToSelect);
@@ -185,7 +197,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
             }
           }
         } catch (error) {
-          // Erro silencioso
+          console.error('❌ Falha ao buscar /api/configuracoes/bars/user-bars:', error);
         }
 
         if (mounted) {

@@ -559,7 +559,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         : null;
 
     const { data: barConfig, error: barError } = await supabase
-      .from('bares')
+      .schema('operations').from('bares')
       .select('config')
       .eq('id', bar_id)
       .maybeSingle();
@@ -947,25 +947,33 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.log(`- Processamento: Automático via pg_cron`);
     
     // Gravar log de sincronização
+    // medallion 2026-04-17: schema 'system' + startTime real + captura de error retornado
     try {
-      await supabase.from('sync_logs_contahub').insert({
-        bar_id,
-        data_sync: data_date,
-        status: summary.error_count === 0 ? 'sucesso' : 'parcial',
-        inicio_execucao: new Date().toISOString(),
-        fim_execucao: new Date().toISOString(),
-        total_analitico: results.collected.find(r => r.data_type === 'analitico')?.record_count || 0,
-        total_fatporhora: results.collected.find(r => r.data_type === 'fatporhora')?.record_count || 0,
-        total_pagamentos: results.collected.find(r => r.data_type === 'pagamentos')?.record_count || 0,
-        total_periodo: results.collected.find(r => r.data_type === 'periodo')?.record_count || 0,
-        total_tempo: results.collected.find(r => r.data_type === 'tempo')?.record_count || 0,
-        total_registros: summary.total_records_collected,
-        triggered_by: 'pgcron',
-        detalhes: { collected: results.collected, errors: results.errors }
-      });
-      console.log('✅ Log de sincronização gravado');
+      const { error: logErr } = await supabase
+        .schema('system').from('sync_logs_contahub')
+        .insert({
+          bar_id,
+          data_sync: data_date,
+          status: summary.error_count === 0 ? 'sucesso' : 'parcial',
+          inicio_execucao: new Date(startTime).toISOString(),
+          fim_execucao: new Date().toISOString(),
+          total_analitico: results.collected.find(r => r.data_type === 'analitico')?.record_count || 0,
+          total_fatporhora: results.collected.find(r => r.data_type === 'fatporhora')?.record_count || 0,
+          total_pagamentos: results.collected.find(r => r.data_type === 'pagamentos')?.record_count || 0,
+          total_periodo: results.collected.find(r => r.data_type === 'periodo')?.record_count || 0,
+          total_tempo: results.collected.find(r => r.data_type === 'tempo')?.record_count || 0,
+          total_registros: summary.total_records_collected,
+          triggered_by: 'pgcron',
+          detalhes: { collected: results.collected, errors: results.errors }
+        });
+      if (logErr) {
+        console.error('⚠️ Erro retornado pelo Supabase ao gravar log:', logErr.message, logErr.code, logErr.details);
+      } else {
+        console.log('✅ Log de sincronização gravado');
+      }
     } catch (logError) {
-      console.error('⚠️ Erro ao gravar log:', logError);
+      const msg = logError instanceof Error ? `${logError.message}\n${logError.stack}` : String(logError);
+      console.error('⚠️ Erro (catch) ao gravar log:', msg);
     }
     
     // 🔄 CLIENTE_ESTATISTICAS agora é uma VIEW calculada on-demand a partir da

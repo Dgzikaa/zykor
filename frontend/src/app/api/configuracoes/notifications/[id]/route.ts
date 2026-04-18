@@ -1,425 +1,120 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAdminClient } from '@/lib/supabase-admin';
-import {
-  authenticateUser,
-  authErrorResponse,
-  AuthenticatedUser,
-} from '@/middleware/auth';
 import { z } from 'zod';
+import { withAuth } from '@/lib/http/with-auth';
+import { fail, success } from '@/lib/http/responses';
+import { ForbiddenError, NotFoundError } from '@/lib/errors';
+import { repos } from '@/lib/repositories';
+
+export const dynamic = 'force-dynamic';
 
 // =====================================================
-// SCHEMAS DE VALIDAÇÃO
+// GET — buscar notificacao por id
 // =====================================================
+export const GET = withAuth(async ({ user }, ctx) => {
+  if (!user.bar_id) return fail('Bar nao selecionado', 400);
+  const { id } = await ctx!.params;
 
-const AtualizarNotificacaoSchema = z.object({
-  status: z.enum(['lida', 'descartada']).optional(),
-  dados_extras: z.record(z.string(), z.any()).optional(),
+  const { notificacoes } = await repos();
+  const notif = await notificacoes.findById(id);
+
+  if (!notif) throw new NotFoundError('Notificacao', id);
+
+  const n = notif as { usuario_id?: string; role_alvo?: string; bar_id?: string };
+  if (String(n.bar_id) !== String(user.bar_id)) {
+    throw new NotFoundError('Notificacao', id);
+  }
+
+  const podeVer =
+    n.usuario_id === user.auth_id ||
+    n.role_alvo === user.role ||
+    user.role === 'admin';
+  if (!podeVer) throw new ForbiddenError('Sem permissao para acessar esta notificacao');
+
+  return success(notif);
 });
 
 // =====================================================
-// GET - BUSCAR NOTIFICAÇÃO ESPECÍFICA
+// PUT — atualizar (marcar como lida, etc)
 // =====================================================
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // 🔐 AUTENTICAÇÃO
-    const user = await authenticateUser(request);
-    if (!user) {
-      return authErrorResponse('Usuário não autenticado');
-    }
+const AtualizarSchema = z.object({
+  status: z.enum(['lida', 'descartada']).optional(),
+  dados_extras: z.record(z.string(), z.unknown()).optional(),
+});
 
-    const { id: notificationId } = await params;
-    const supabase = await getAdminClient();
+export const PUT = withAuth(async ({ user, request }, ctx) => {
+  if (!user.bar_id) return fail('Bar nao selecionado', 400);
+  const { id } = await ctx!.params;
+  const body = AtualizarSchema.parse(await request.json());
 
-    // Buscar notificação específica (sem embeds cross-schema/inexistentes)
-    const { data: notificacao, error } = await supabase
-      .schema('system')
-      .from('notificacoes')
-      .select('*')
-      .eq('id', notificationId)
-      .eq('bar_id', user.bar_id)
-      .single();
+  const { notificacoes } = await repos();
+  const atual = await notificacoes.findById(id);
+  if (!atual) throw new NotFoundError('Notificacao', id);
 
-    if (error) {
-      console.error('Erro ao buscar notificação:', error);
-      return NextResponse.json(
-        {
-          error: 'Notificação não encontrada',
-        },
-        { status: 404 }
-      );
-    }
+  const a = atual as {
+    usuario_id?: string;
+    role_alvo?: string;
+    bar_id?: string;
+    dados_extras?: Record<string, unknown>;
+  };
+  if (String(a.bar_id) !== String(user.bar_id)) throw new NotFoundError('Notificacao', id);
 
-    // Verificar se o usuário tem acesso a esta notificação
-    const temAcesso =
-      notificacao.usuario_id === user.auth_id ||
-      notificacao.role_alvo === user.role ||
-      user.role === 'admin';
+  const podeEditar =
+    a.usuario_id === user.auth_id || a.role_alvo === user.role || user.role === 'admin';
+  if (!podeEditar) throw new ForbiddenError('Sem permissao para atualizar esta notificacao');
 
-    if (!temAcesso) {
-      return NextResponse.json(
-        {
-          error: 'Sem permissão para acessar esta notificação',
-        },
-        { status: 403 }
-      );
-    }
+  const patch: Record<string, unknown> = {};
+  if (body.status) {
+    patch.status = body.status;
+    if (body.status === 'lida') patch.lida_em = new Date().toISOString();
+  }
+  if (body.dados_extras) {
+    patch.dados_extras = { ...(a.dados_extras ?? {}), ...body.dados_extras };
+  }
 
-    return NextResponse.json({
-      success: true,
-      data: notificacao,
+  const atualizada = await notificacoes.atualizar(id, patch);
+  return success(atualizada);
+});
+
+// =====================================================
+// DELETE — excluir notificacao
+// =====================================================
+export const DELETE = withAuth(async ({ user }, ctx) => {
+  if (!user.bar_id) return fail('Bar nao selecionado', 400);
+  const { id } = await ctx!.params;
+
+  const { notificacoes } = await repos();
+  const notif = await notificacoes.findById(id);
+  if (!notif) throw new NotFoundError('Notificacao', id);
+
+  const n = notif as { usuario_id?: string; bar_id?: string };
+  if (String(n.bar_id) !== String(user.bar_id)) throw new NotFoundError('Notificacao', id);
+
+  const podeExcluir = user.role === 'admin' || n.usuario_id === user.auth_id;
+  if (!podeExcluir) throw new ForbiddenError('Sem permissao para excluir esta notificacao');
+
+  await notificacoes.excluir(id);
+  return success({ deleted: true });
+});
+
+// =====================================================
+// PATCH — acoes em massa (mark_all_read, clear_old)
+// =====================================================
+export const PATCH = withAuth(async ({ user, request }) => {
+  if (!user.bar_id) return fail('Bar nao selecionado', 400);
+
+  const url = new URL(request.url);
+  const action = url.searchParams.get('action');
+  const { notificacoes } = await repos();
+
+  if (action === 'mark_all_read') {
+    const modulo = url.searchParams.get('modulo') ?? undefined;
+    const count = await notificacoes.marcarTodasLidasParaUsuario({
+      barId: String(user.bar_id),
+      authId: user.auth_id,
+      role: user.role,
+      modulo,
     });
-  } catch (error: unknown) {
-    console.error('Erro na API de buscar notificação:', error);
-    const errorMessage =
-      error instanceof Error ? error.message : 'Erro desconhecido';
-    return NextResponse.json(
-      {
-        error: 'Erro interno do servidor',
-        details: errorMessage,
-      },
-      { status: 500 }
-    );
-  }
-}
-
-// =====================================================
-// PUT - ATUALIZAR NOTIFICAÇÃO (MARCAR COMO LIDA)
-// =====================================================
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // 🔐 AUTENTICAÇÃO
-    const user = await authenticateUser(request);
-    if (!user) {
-      return authErrorResponse('Usuário não autenticado');
-    }
-
-    const { id: notificationId } = await params;
-    const body = await request.json();
-    const data = AtualizarNotificacaoSchema.parse(body);
-
-    const supabase = await getAdminClient();
-
-    // Buscar notificação atual
-    const { data: notificacaoAtual, error: fetchError } = await supabase
-      .schema('system')
-      .from('notificacoes')
-      .select('usuario_id, role_alvo, status, dados_extras')
-      .eq('id', notificationId)
-      .eq('bar_id', user.bar_id)
-      .single();
-
-    if (fetchError || !notificacaoAtual) {
-      return NextResponse.json(
-        {
-          error: 'Notificação não encontrada',
-        },
-        { status: 404 }
-      );
-    }
-
-    // Verificar permissões
-    const temAcesso =
-      notificacaoAtual.usuario_id === user.auth_id ||
-      notificacaoAtual.role_alvo === user.role ||
-      user.role === 'admin';
-
-    if (!temAcesso) {
-      return NextResponse.json(
-        {
-          error: 'Sem permissão para atualizar esta notificação',
-        },
-        { status: 403 }
-      );
-    }
-
-    // Preparar dados de atualização
-    const dadosAtualizacao: Record<string, unknown> = {};
-
-    if (data.status) {
-      dadosAtualizacao.status = data.status;
-
-      if (data.status === 'lida') {
-        dadosAtualizacao.lida_em = new Date().toISOString();
-      }
-    }
-
-    if (data.dados_extras) {
-      dadosAtualizacao.dados_extras = {
-        ...(notificacaoAtual.dados_extras as Record<string, any> || {}),
-        ...data.dados_extras,
-      };
-    }
-
-    // Atualizar notificação
-    const { data: notificacaoAtualizada, error: updateError } = await supabase
-      .schema('system')
-      .from('notificacoes')
-      .update(dadosAtualizacao)
-      .eq('id', notificationId)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('Erro ao atualizar notificação:', updateError);
-      return NextResponse.json(
-        {
-          error: 'Erro ao atualizar notificação',
-        },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Notificação atualizada com sucesso',
-      data: notificacaoAtualizada,
-    });
-  } catch (error: unknown) {
-    console.error('Erro na API de atualizar notificação:', error);
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          error: 'Dados inválidos',
-          details: error.issues,
-        },
-        { status: 400 }
-      );
-    }
-
-    const errorMessage =
-      error instanceof Error ? error.message : 'Erro desconhecido';
-    return NextResponse.json(
-      {
-        error: 'Erro interno do servidor',
-        details: errorMessage,
-      },
-      { status: 500 }
-    );
-  }
-}
-
-// =====================================================
-// DELETE - EXCLUIR NOTIFICAÇÃO
-// =====================================================
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // 🔐 AUTENTICAÇÃO
-    const user = await authenticateUser(request);
-    if (!user) {
-      return authErrorResponse('Usuário não autenticado');
-    }
-
-    const { id: notificationId } = await params;
-    const supabase = await getAdminClient();
-
-    // Buscar notificação
-    const { data: notificacao, error: fetchError } = await supabase
-      .schema('system')
-      .from('notificacoes')
-      .select('usuario_id, role_alvo, titulo')
-      .eq('id', notificationId)
-      .eq('bar_id', user.bar_id)
-      .single();
-
-    if (fetchError || !notificacao) {
-      return NextResponse.json(
-        {
-          error: 'Notificação não encontrada',
-        },
-        { status: 404 }
-      );
-    }
-
-    // Verificar permissões (apenas admin ou próprio usuário pode excluir)
-    const podeExcluir =
-      user.role === 'admin' || notificacao.usuario_id === user.auth_id;
-
-    if (!podeExcluir) {
-      return NextResponse.json(
-        {
-          error: 'Sem permissão para excluir esta notificação',
-        },
-        { status: 403 }
-      );
-    }
-
-    // Excluir notificação (hard delete por enquanto)
-    const { error: deleteError } = await supabase
-      .schema('system')
-      .from('notificacoes')
-      .delete()
-      .eq('id', notificationId);
-
-    if (deleteError) {
-      console.error('Erro ao excluir notificação:', deleteError);
-      return NextResponse.json(
-        {
-          error: 'Erro ao excluir notificação',
-        },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Notificação excluída com sucesso',
-    });
-  } catch (error: unknown) {
-    console.error('Erro na API de excluir notificação:', error);
-    const errorMessage =
-      error instanceof Error ? error.message : 'Erro desconhecido';
-    return NextResponse.json(
-      {
-        error: 'Erro interno do servidor',
-        details: errorMessage,
-      },
-      { status: 500 }
-    );
-  }
-}
-
-// =====================================================
-// ENDPOINTS ESPECIAIS
-// =====================================================
-
-// Endpoint para marcar múltiplas notificações como lidas
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // 🔐 AUTENTICAÇÃO
-    const user = await authenticateUser(request);
-    if (!user) {
-      return authErrorResponse('Usuário não autenticado');
-    }
-
-    // notificationId removido - não utilizado
-    await params;
-
-    const { searchParams } = new URL(request.url);
-    const action = searchParams.get('action');
-
-    if (action === 'mark_all_read') {
-      return await marcarTodasComoLidas(user, request);
-    }
-
-    if (action === 'clear_old') {
-      return await limparNotificacoesAntigas(user, request);
-    }
-
-    return NextResponse.json(
-      {
-        error: 'Ação não suportada',
-      },
-      { status: 400 }
-    );
-  } catch (error: unknown) {
-    console.error('Erro na API PATCH de notificações:', error);
-    const errorMessage =
-      error instanceof Error ? error.message : 'Erro desconhecido';
-    return NextResponse.json(
-      {
-        error: 'Erro interno do servidor',
-        details: errorMessage,
-      },
-      { status: 500 }
-    );
-  }
-}
-
-// =====================================================
-// FUNÇÕES AUXILIARES
-// =====================================================
-
-async function marcarTodasComoLidas(
-  user: AuthenticatedUser,
-  request: NextRequest
-) {
-  const supabase = await getAdminClient();
-
-  const { searchParams } = new URL(request.url);
-  const modulo = searchParams.get('modulo');
-
-  let query = supabase
-    .schema('system')
-    .from('notificacoes')
-    .update({
-      status: 'lida',
-      lida_em: new Date().toISOString(),
-    })
-    .eq('bar_id', user.bar_id)
-    .in('status', ['pendente', 'enviada'])
-    .or(`usuario_id.eq.${user.auth_id},role_alvo.eq.${user.role}`);
-
-  if (modulo) {
-    query = query.eq('modulo', modulo);
+    return success({ count, message: `${count} notificacoes marcadas como lidas` });
   }
 
-  const { count, error } = await query;
-
-  if (error) {
-    console.error('Erro ao marcar todas como lidas:', error);
-    return NextResponse.json(
-      {
-        error: 'Erro ao marcar notificações como lidas',
-      },
-      { status: 500 }
-    );
-  }
-
-  return NextResponse.json({
-    success: true,
-    message: `${count} notificações marcadas como lidas`,
-    count,
-  });
-}
-
-async function limparNotificacoesAntigas(
-  user: AuthenticatedUser,
-  request: NextRequest
-) {
-  const supabase = await getAdminClient();
-
-  const { searchParams } = new URL(request.url);
-  const dias = parseInt(searchParams.get('dias') || '7');
-
-  const dataLimite = new Date(
-    Date.now() - dias * 24 * 60 * 60 * 1000
-  ).toISOString();
-
-  const { count, error } = await supabase
-    .schema('system')
-    .from('notificacoes')
-    .delete()
-    .eq('bar_id', user.bar_id)
-    .eq('status', 'lida')
-    .or(`usuario_id.eq.${user.auth_id},role_alvo.eq.${user.role}`)
-    .lt('lida_em', dataLimite);
-
-  if (error) {
-    console.error('Erro ao limpar notificações antigas:', error);
-    return NextResponse.json(
-      {
-        error: 'Erro ao limpar notificações antigas',
-      },
-      { status: 500 }
-    );
-  }
-
-  return NextResponse.json({
-    success: true,
-    message: `${count} notificações antigas removidas`,
-    count,
-  });
-}
+  return fail('Acao nao suportada', 400);
+});

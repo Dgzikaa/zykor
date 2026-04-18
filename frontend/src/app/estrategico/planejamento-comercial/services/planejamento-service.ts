@@ -10,7 +10,7 @@ export interface PlanejamentoData {
   ano: number;
   dia_formatado: string;
   data_curta: string;
-  
+
   // Dados financeiros
   real_receita: number;
   m1_receita: number;
@@ -23,32 +23,32 @@ export interface PlanejamentoData {
   yuzer_liquido?: number;
   sympla_liquido?: number;
   faturamento_total_detalhado?: number;
-  
+
   // Dados de público
   clientes_plan: number;
   clientes_real: number;
   res_tot: number;
   res_p: number;
   lot_max: number;
-  
+
   // Tickets
   te_plan: number;
   te_real: number;
   tb_plan: number;
   tb_real: number;
   t_medio: number;
-  
+
   // Custos
   c_art: number;
   c_prod: number;
   percent_art_fat: number;
-  
+
   // Percentuais
   percent_b: number;
   percent_d: number;
   percent_c: number;
   percent_happy_hour: number;
-  
+
   // Tempos e performance
   t_coz: number;
   t_bar: number;
@@ -57,25 +57,25 @@ export interface PlanejamentoData {
   atrasao_cozinha: number;
   atrasao_bar: number;
   fat_19h: number;
-  
+
   // Stockout separado por área
   percent_stockout: number;
   stockout_drinks_perc: number;
   stockout_comidas_perc: number;
-  
+
   // Couvert (gerado: te_real * cl_real) — legado / manual
   faturamento_couvert: number;
   /** Soma de vr_couvert no bronze_contahub_vendas_periodo (fonte correta para $ Couvert na tela) */
   couvert_vr_contahub?: number | null;
-  
+
   // Segmentação de clientes
   percent_clientes_novos: number | null;
   clientes_ativos: number | null;
-  
+
   // Campos manuais para domingos
   faturamento_couvert_manual?: number;
   faturamento_bar_manual?: number;
-  
+
   // Flags de performance
   real_vs_m1_green: boolean;
   ci_real_vs_plan_green: boolean;
@@ -89,25 +89,34 @@ export interface PlanejamentoData {
 }
 
 export async function getPlanejamentoComercial(
-  supabase: SupabaseClient, 
-  barId: number, 
-  mes: number, 
+  supabase: SupabaseClient,
+  barId: number,
+  mes: number,
   ano: number
 ): Promise<PlanejamentoData[]> {
-  try {
-    interface YuzerPagamentoResumo {
-      data_evento: string;
-      total_descontos: number | null;
-    }
+  // NOTA: removido try/catch externo que mascarava erros como [].
+  // Erros agora propagam para o error boundary (error.tsx), assim falhas
+  // de schema/conexão ficam visíveis em vez de virarem "Nenhum evento encontrado".
+  interface YuzerPagamentoResumo {
+    data_evento: string;
+    total_descontos: number | null;
+  }
 
-    // Calcular período
-    const dataInicio = `${ano}-${mes.toString().padStart(2, '0')}-01`;
-    const dataFinalConsulta = mes === 12 ? `${ano + 1}-01-01` : `${ano}-${(mes + 1).toString().padStart(2, '0')}-01`;
+  // Calcular período
+  const dataInicio = `${ano}-${mes.toString().padStart(2, '0')}-01`;
+  const dataFinalConsulta =
+    mes === 12
+      ? `${ano + 1}-01-01`
+      : `${ano}-${(mes + 1).toString().padStart(2, '0')}-01`;
 
-    // Buscar dados APENAS da tabela eventos_base
-    const { data: eventos, error } = await supabase
-      .from('eventos_base')
-      .select(`
+  // Buscar dados APENAS da tabela eventos_base
+  // NOTA: eventos_base foi migrada de public para o schema 'operations'
+  // no commit 027eeb29. Sem .schema('operations') a query retorna [] silenciosamente.
+  const { data: eventos, error } = await supabase
+    .schema('operations')
+    .from('eventos_base')
+    .select(
+      `
         id,
         data_evento,
         nome,
@@ -158,59 +167,82 @@ export async function getPlanejamentoComercial(
         calculado_em,
         precisa_recalculo,
         versao_calculo
-      `)
-      .eq('bar_id', barId)
-      .gte('data_evento', dataInicio)
-      .lt('data_evento', dataFinalConsulta)
-      .eq('ativo', true)
-      .order('data_evento', { ascending: true });
+      `
+    )
+    .eq('bar_id', barId)
+    .gte('data_evento', dataInicio)
+    .lt('data_evento', dataFinalConsulta)
+    .eq('ativo', true)
+    .order('data_evento', { ascending: true });
 
-    if (error) {
-      console.error('❌ Erro ao buscar eventos:', error);
-      return [];
-    }
-
-    // CRITICAL FIX: Filtrar eventos para garantir APENAS o mês/ano solicitado
-    // (evitar problemas de timezone ou dados incorretos no banco)
-    const eventosFiltrados = (eventos || []).filter(evento => {
-      const [anoEvento, mesEvento] = evento.data_evento.split('-').map(Number);
-      return mesEvento === mes && anoEvento === ano;
+  if (error) {
+    console.error('❌ Erro ao buscar eventos em operations.eventos_base:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      barId,
+      mes,
+      ano,
     });
-    const datasEventos = Array.from(new Set(eventosFiltrados.map(e => e.data_evento)));
+    // Propaga o erro para o error boundary em vez de mascarar como lista vazia.
+    // Isso garante que falhas de schema/conexão não virem "Nenhum evento encontrado"
+    // silenciosamente — o usuário vai ver a tela de erro e saberemos na hora.
+    throw new Error(
+      `Erro ao carregar planejamento comercial: ${error.message} (code: ${error.code})`
+    );
+  }
 
-    let descontosYuzerPorData = new Map<string, number>();
-    if (datasEventos.length > 0) {
-      const { data: yuzerPagamentos } = await supabase
-        .from('silver_yuzer_pagamentos_evento')
-        .select('data_evento,total_descontos')
-        .eq('bar_id', barId)
-        .in('data_evento', datasEventos);
+  // CRITICAL FIX: Filtrar eventos para garantir APENAS o mês/ano solicitado
+  // (evitar problemas de timezone ou dados incorretos no banco)
+  const eventosFiltrados = (eventos || []).filter(evento => {
+    const [anoEvento, mesEvento] = evento.data_evento.split('-').map(Number);
+    return mesEvento === mes && anoEvento === ano;
+  });
+  const datasEventos = Array.from(
+    new Set(eventosFiltrados.map(e => e.data_evento))
+  );
 
-      descontosYuzerPorData = (yuzerPagamentos || []).reduce((acc: Map<string, number>, row: YuzerPagamentoResumo) => {
+  let descontosYuzerPorData = new Map<string, number>();
+  if (datasEventos.length > 0) {
+    const { data: yuzerPagamentos } = await supabase
+      .from('silver_yuzer_pagamentos_evento')
+      .select('data_evento,total_descontos')
+      .eq('bar_id', barId)
+      .in('data_evento', datasEventos);
+
+    descontosYuzerPorData = (yuzerPagamentos || []).reduce(
+      (acc: Map<string, number>, row: YuzerPagamentoResumo) => {
         acc.set(row.data_evento, Number(row.total_descontos || 0));
         return acc;
-      }, new Map<string, number>());
-    }
-
-    // Trigger recálculo (mas não bloqueante e sem log excessivo no server component)
-    const eventosParaRecalcular = eventosFiltrados.filter(e => 
-        e.precisa_recalculo && 
-        (e.versao_calculo !== 999) && 
-        (e.real_r === 0 || e.real_r === null)
+      },
+      new Map<string, number>()
     );
-      
-    if (eventosParaRecalcular.length > 0) {
-        // Disparar recálculo em "background" (sem await)
-        // Nota: Em Server Components, isso pode não terminar se o runtime morrer, 
-        // mas é melhor do que bloquear o render.
-        // O ideal seria usar uma Task Queue, mas aqui vamos apenas tentar.
-        Promise.all(eventosParaRecalcular.map(evento => 
-            supabase.rpc('calculate_evento_metrics', { evento_id: evento.id })
-        )).catch(err => console.error('Erro no recálculo background:', err));
-    }
+  }
 
-    // Processar dados (Paralelo)
-    const dadosProcessados = await Promise.all(eventosFiltrados.map(async (evento) => {
+  // Trigger recálculo (mas não bloqueante e sem log excessivo no server component)
+  const eventosParaRecalcular = eventosFiltrados.filter(
+    e =>
+      e.precisa_recalculo &&
+      e.versao_calculo !== 999 &&
+      (e.real_r === 0 || e.real_r === null)
+  );
+
+  if (eventosParaRecalcular.length > 0) {
+    // Disparar recálculo em "background" (sem await)
+    // Nota: Em Server Components, isso pode não terminar se o runtime morrer,
+    // mas é melhor do que bloquear o render.
+    // O ideal seria usar uma Task Queue, mas aqui vamos apenas tentar.
+    Promise.all(
+      eventosParaRecalcular.map(evento =>
+        supabase.rpc('calculate_evento_metrics', { evento_id: evento.id })
+      )
+    ).catch(err => console.error('Erro no recálculo background:', err));
+  }
+
+  // Processar dados (Paralelo)
+  const dadosProcessados = await Promise.all(
+    eventosFiltrados.map(async evento => {
       // Flags de performance
       const realVsM1Green = (evento.real_r || 0) >= (evento.m1_r || 0);
       const ciRealVsPlanGreen = (evento.cl_real || 0) >= (evento.cl_plan || 0);
@@ -224,18 +256,20 @@ export async function getPlanejamentoComercial(
       const tBarGreen = (evento.t_bar || 0) <= 240;
       const fat19hGreen = (evento.fat_19h_percent || 0) >= 40;
 
-      // NOTE: Removed N+1 RPC calls for clientes_ativos and percent_clientes_novos 
+      // NOTE: Removed N+1 RPC calls for clientes_ativos and percent_clientes_novos
       // as they were causing 10s+ load times and are not currently used in the Planning UI.
       const percClientesNovos: number | null = null;
       const clientesAtivos: number | null = null;
-      
+
       const dataEvento = new Date(evento.data_evento + 'T00:00:00Z');
       const valorYuzerLiquido = Number(evento.yuzer_liquido || 0);
       const valorSymplaLiquido = Number(evento.sympla_liquido || 0);
       const valorContaAssinada = Number(evento.conta_assinada || 0);
-      const valorContahubLiquido = Number(evento.real_r || 0) - valorYuzerLiquido - valorSymplaLiquido;
+      const valorContahubLiquido =
+        Number(evento.real_r || 0) - valorYuzerLiquido - valorSymplaLiquido;
       const valorContahubBruto = valorContahubLiquido + valorContaAssinada;
-      const valorYuzerDescontos = descontosYuzerPorData.get(evento.data_evento) || 0;
+      const valorYuzerDescontos =
+        descontosYuzerPorData.get(evento.data_evento) || 0;
 
       return {
         evento_id: evento.id,
@@ -259,29 +293,30 @@ export async function getPlanejamentoComercial(
         yuzer_descontos: valorYuzerDescontos,
         yuzer_liquido: valorYuzerLiquido,
         sympla_liquido: valorSymplaLiquido,
-        faturamento_total_detalhado: valorContahubLiquido + valorYuzerLiquido + valorSymplaLiquido,
-        
+        faturamento_total_detalhado:
+          valorContahubLiquido + valorYuzerLiquido + valorSymplaLiquido,
+
         clientes_plan: evento.cl_plan || 0,
         clientes_real: evento.cl_real || 0,
         res_tot: evento.res_tot || 0,
         res_p: evento.res_p || 0,
         lot_max: evento.lot_max || 0,
-        
+
         te_plan: evento.te_plan || 0,
         te_real: evento.te_real || 0,
         tb_plan: evento.tb_plan || 0,
         tb_real: evento.tb_real || 0,
         t_medio: evento.t_medio || 0,
-        
+
         c_art: Number(evento.c_art) || 0,
         c_prod: Number(evento.c_prod) || 0,
         percent_art_fat: Number(evento.percent_art_fat) || 0,
-        
+
         percent_b: evento.percent_b || 0,
         percent_d: evento.percent_d || 0,
         percent_c: evento.percent_c || 0,
         percent_happy_hour: evento.percent_happy_hour || 0,
-        
+
         t_coz: evento.t_coz || 0,
         t_bar: evento.t_bar || 0,
         atrasinho_cozinha: evento.atrasinho_cozinha || 0,
@@ -289,22 +324,23 @@ export async function getPlanejamentoComercial(
         atrasao_cozinha: evento.atrasao_cozinha || 0,
         atrasao_bar: evento.atrasao_bar || 0,
         fat_19h: evento.fat_19h_percent || 0,
-        
+
         percent_stockout: evento.percent_stockout || 0,
         stockout_drinks_perc: evento.stockout_drinks_perc || 0,
         stockout_comidas_perc: evento.stockout_comidas_perc || 0,
         faturamento_couvert: evento.faturamento_couvert || 0,
         couvert_vr_contahub:
-          evento.couvert_vr_contahub !== null && evento.couvert_vr_contahub !== undefined
+          evento.couvert_vr_contahub !== null &&
+          evento.couvert_vr_contahub !== undefined
             ? Number(evento.couvert_vr_contahub)
             : null,
-        
+
         percent_clientes_novos: percClientesNovos,
         clientes_ativos: clientesAtivos,
-        
+
         faturamento_couvert_manual: evento.faturamento_couvert_manual,
         faturamento_bar_manual: evento.faturamento_bar_manual,
-        
+
         real_vs_m1_green: realVsM1Green,
         ci_real_vs_plan_green: ciRealVsPlanGreen,
         te_real_vs_plan_green: teRealVsPlanGreen,
@@ -313,13 +349,10 @@ export async function getPlanejamentoComercial(
         percent_art_fat_green: percentArtFatGreen,
         t_coz_green: tCozGreen,
         t_bar_green: tBarGreen,
-        fat_19h_green: fat19hGreen
+        fat_19h_green: fat19hGreen,
       };
-    }));
+    })
+  );
 
-    return dadosProcessados;
-  } catch (error) {
-    console.error('❌ Erro no serviço de planejamento:', error);
-    return [];
-  }
+  return dadosProcessados;
 }

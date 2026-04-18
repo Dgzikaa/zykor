@@ -33,11 +33,21 @@ export function useBar() {
           throw new Error('Erro ao buscar informações do bar');
         }
 
-        const data = await response.json();
-        
-        if (data.success && data.bars && data.bars.length > 0) {
+        const json = await response.json();
+
+        // A rota foi refatorada (commit 93ead5a2) para o envelope padrão
+        // success({ bars, userData }) -> { success: true, data: { bars, userData } }.
+        // Mantemos fallback para o shape antigo (json.bars) por segurança.
+        if (json.success === false) {
+          setError(json.error || 'Erro ao carregar bares do usuário');
+          return;
+        }
+
+        const bars: Bar[] | undefined = json?.data?.bars ?? json?.bars;
+
+        if (bars && bars.length > 0) {
           // Encontrar o bar do usuário
-          const userBar = data.bars.find((b: Bar) => b.id === user.bar_id) || data.bars[0];
+          const userBar = bars.find((b: Bar) => b.id === user.bar_id) || bars[0];
           setBar(userBar);
         } else {
           setError('Nenhum bar encontrado');
