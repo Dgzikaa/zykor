@@ -163,16 +163,7 @@ async function checkDatabase(supabase: any): Promise<ComponentHealth> {
 
 async function checkCronJobs(supabase: any): Promise<ComponentHealth> {
   try {
-    // Verificar últimas execuções de cron jobs importantes
-    const { data, error } = await supabase.rpc('exec_sql', {
-      query_text: `
-        SELECT 
-          COUNT(*) FILTER (WHERE status = 'succeeded' AND end_time > NOW() - INTERVAL '24 hours') as successful_24h,
-          COUNT(*) FILTER (WHERE status = 'failed' AND end_time > NOW() - INTERVAL '24 hours') as failed_24h
-        FROM cron.job_run_details
-        WHERE end_time > NOW() - INTERVAL '24 hours'
-      `
-    });
+    const { data, error } = await supabase.rpc('health_cron_stats_24h');
     
     if (error) {
       return {
@@ -181,11 +172,11 @@ async function checkCronJobs(supabase: any): Promise<ComponentHealth> {
       };
     }
     
-    const result = data?.[0];
-    const failed = parseInt(result?.failed_24h || '0');
-    const successful = parseInt(result?.successful_24h || '0');
+    const result = Array.isArray(data) ? data[0] : data;
+    const failed = Number(result?.failed_24h ?? 0);
+    const successful = Number(result?.successful_24h ?? 0);
     
-    if (failed > successful * 0.2) { // Mais de 20% de falhas
+    if (failed > successful * 0.2) {
       return {
         status: 'warning',
         message: `${failed} falhas nas últimas 24h`
@@ -207,27 +198,17 @@ async function checkCronJobs(supabase: any): Promise<ComponentHealth> {
 
 async function getMetrics(supabase: any): Promise<HealthCheck['metrics']> {
   try {
-    const { data, error } = await supabase.rpc('exec_sql', {
-      query_text: `
-        SELECT 
-          (SELECT COUNT(*) FROM eventos_base WHERE ativo = true) as total_eventos,
-          (SELECT COUNT(*) FROM eventos_base WHERE data_evento >= CURRENT_DATE - 7) as eventos_7_dias,
-          (SELECT COUNT(*) FROM sistema_alertas WHERE resolvido_em IS NULL) as alertas_abertos,
-          (SELECT MAX(created_at) FROM contaazul_lancamentos) as ultima_sync_contaazul,
-          (SELECT MAX(data_coleta) FROM contahub_raw_data) as ultima_sync_contahub,
-          (SELECT pg_database_size(current_database()) / 1024 / 1024) as db_size_mb
-      `
-    });
-    
-    const result = data?.[0];
+    const { data } = await supabase.rpc('health_metrics_snapshot');
+
+    const result = Array.isArray(data) ? data[0] : data;
     
     return {
-      total_eventos: parseInt(result?.total_eventos || '0'),
-      eventos_ultimos_7_dias: parseInt(result?.eventos_7_dias || '0'),
-      alertas_abertos: parseInt(result?.alertas_abertos || '0'),
-      ultima_sincronizacao_contaazul: result?.ultima_sync_contaazul || null,
-      ultima_sincronizacao_contahub: result?.ultima_sync_contahub || null,
-      database_size_mb: parseInt(result?.db_size_mb || '0')
+      total_eventos: Number(result?.total_eventos ?? 0),
+      eventos_ultimos_7_dias: Number(result?.eventos_7_dias ?? 0),
+      alertas_abertos: Number(result?.alertas_abertos ?? 0),
+      ultima_sincronizacao_contaazul: result?.ultima_sync_contaazul ?? null,
+      ultima_sincronizacao_contahub: result?.ultima_sync_contahub ?? null,
+      database_size_mb: Number(result?.db_size_mb ?? 0)
     };
     
   } catch (error) {

@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
 
       // Buscar TODAS as metas do bar para período semanal (com e sem semana)
       const { data: todasMetas, error } = await supabase
+        .schema('meta' as never)
         .from('metas_desempenho')
         .select('*')
         .eq('bar_id', barId)
@@ -119,6 +120,7 @@ export async function GET(request: NextRequest) {
 
     // Sem semana: comportamento original (metas globais)
     let query = supabase
+      .schema('meta' as never)
       .from('metas_desempenho')
       .select('*')
       .eq('bar_id', barId)
@@ -187,7 +189,7 @@ export async function PUT(request: NextRequest) {
         operador: m.operador && m.operador.trim() ? m.operador.trim() : '>=',
         semana,
         ano,
-        atualizado_em: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }))
       .filter((m) => Number.isFinite(m.valor_meta));
 
@@ -201,6 +203,7 @@ export async function PUT(request: NextRequest) {
     // Como Supabase não suporta onConflict com expressões, fazemos delete + insert
     for (const meta of metasValidas) {
       let deleteQuery = supabase
+        .schema('meta' as never)
         .from('metas_desempenho')
         .delete()
         .eq('bar_id', barId)
@@ -217,6 +220,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const { error: insertError } = await supabase
+      .schema('meta' as never)
       .from('metas_desempenho')
       .insert(metasValidas);
 
@@ -227,6 +231,7 @@ export async function PUT(request: NextRequest) {
 
     // Recarregar
     let reloadQuery = supabase
+      .schema('meta' as never)
       .from('metas_desempenho')
       .select('*')
       .eq('bar_id', barId)
@@ -289,6 +294,7 @@ export async function PATCH(request: NextRequest) {
 
     // Buscar meta atual para registrar valor anterior
     let buscaAtual = supabase
+      .schema('meta' as never)
       .from('metas_desempenho')
       .select('id, valor_meta')
       .eq('bar_id', barId)
@@ -309,6 +315,7 @@ export async function PATCH(request: NextRequest) {
     // Delete + Insert (para evitar problemas com onConflict e expressões COALESCE)
     if (metaAtual) {
       await supabase
+        .schema('meta' as never)
         .from('metas_desempenho')
         .delete()
         .eq('id', metaAtual.id);
@@ -328,6 +335,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { data: metaSalva, error: insertError } = await supabase
+      .schema('meta' as never)
       .from('metas_desempenho')
       .insert(dadosMeta)
       .select('id')
@@ -340,6 +348,7 @@ export async function PATCH(request: NextRequest) {
 
     // Registrar histórico
     const { error: historicoError } = await supabase
+      .schema('meta' as never)
       .from('metas_desempenho_historico')
       .insert({
         meta_id: metaSalva?.id || metaId,
