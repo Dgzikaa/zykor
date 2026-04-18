@@ -47,7 +47,7 @@ export async function buscarEventosPeriodo(
   dataFim: string
 ): Promise<EventoBase[]> {
   const { data, error } = await supabase
-    .from('eventos_base')
+    .schema('operations').from('eventos_base')
     .select('*')
     .eq('bar_id', barId)
     .gte('data_evento', dataInicio)
@@ -70,7 +70,7 @@ export async function buscarEventoPorId(
   eventoId: number
 ): Promise<EventoBase | null> {
   const { data, error } = await supabase
-    .from('eventos_base')
+    .schema('operations').from('eventos_base')
     .select('*')
     .eq('evento_id', eventoId)
     .single();
@@ -92,7 +92,7 @@ export async function buscarEventoPorData(
   dataEvento: string
 ): Promise<EventoBase | null> {
   const { data, error } = await supabase
-    .from('eventos_base')
+    .schema('operations').from('eventos_base')
     .select('*')
     .eq('bar_id', barId)
     .eq('data_evento', dataEvento)
@@ -116,7 +116,7 @@ export async function buscarEventosSemana(
   ano: number
 ): Promise<EventoBase[]> {
   const { data, error } = await supabase
-    .from('eventos_base')
+    .schema('operations').from('eventos_base')
     .select('*')
     .eq('bar_id', barId)
     .eq('semana', semana)
@@ -141,7 +141,7 @@ export async function buscarEventosMes(
   ano: number
 ): Promise<EventoBase[]> {
   const { data, error } = await supabase
-    .from('eventos_base')
+    .schema('operations').from('eventos_base')
     .select('*')
     .eq('bar_id', barId)
     .eq('mes', mes)
@@ -194,7 +194,7 @@ async function buscarYuzerProdutos(
   dataEvento: string
 ): Promise<any[]> {
   const { data } = await supabase
-    .from('silver_yuzer_produtos_evento')
+    .schema('silver').from('silver_yuzer_produtos_evento')
     .select('*')
     .eq('bar_id', barId)
     .eq('data_evento', dataEvento);
@@ -211,7 +211,7 @@ async function buscarSymplaPedidos(
   dataEvento: string
 ): Promise<any[]> {
   const { data } = await supabase
-    .from('sympla_pedidos')
+    .schema('integrations').from('sympla_pedidos')
     .select('*')
     .eq('bar_id', barId)
     .eq('data_evento', dataEvento);
@@ -228,7 +228,7 @@ async function buscarFaturamentoPagamentos(
   dataEvento: string
 ): Promise<any[]> {
   const { data } = await supabase
-    .from('faturamento_pagamentos')
+    .schema('operations').from('faturamento_pagamentos')
     .select('*')
     .eq('bar_id', barId)
     .eq('data_pagamento', dataEvento);
@@ -237,20 +237,19 @@ async function buscarFaturamentoPagamentos(
 }
 
 /**
- * Buscar visitas do evento (domain table)
+ * Buscar visitas do evento (STUB)
+ *
+ * medallion 2026-04-18: tabela 'visitas' (matview) foi removida na migracao
+ * medallion. Stub temporario retorna [] ate que cliente_estatisticas/visitas
+ * sejam recriadas como views sobre dados bronze.
  */
 async function buscarVisitas(
-  supabase: SupabaseClient,
-  barId: number,
-  dataEvento: string
+  _supabase: SupabaseClient,
+  _barId: number,
+  _dataEvento: string
 ): Promise<any[]> {
-  const { data } = await supabase
-    .from('visitas')
-    .select('*')
-    .eq('bar_id', barId)
-    .eq('data_visita', dataEvento);
-  
-  return data || [];
+  console.warn('[eventos-data] buscarVisitas chamada mas tabela foi removida na migracao medallion. Retornando array vazio.');
+  return [];
 }
 
 /**

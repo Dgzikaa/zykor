@@ -105,6 +105,26 @@ serve(async (req) => {
       });
     }
 
+    // medallion 2026-04-18: STUB temporario 503
+    // Endpoint depende de cliente_estatisticas (view) e visitas (matview),
+    // ambas removidas na migracao medallion. Reativar quando recriadas.
+    return new Response(
+      JSON.stringify({
+        status: 'service_unavailable',
+        message: 'Endpoint em manutencao pos-migracao medallion. Previsao: 48h. Contato: equipe@zykor.com.br',
+        error_code: 'MAINTENANCE_MEDALLION_MIGRATION',
+        retry_after_hours: 48
+      }),
+      {
+        status: 503,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': '172800',
+          ...corsHeaders
+        }
+      }
+    );
+
     // 2. Rate limiting
     if (!checkRateLimit(providedKey)) {
       return new Response(JSON.stringify({
