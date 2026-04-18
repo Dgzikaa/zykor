@@ -250,11 +250,11 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         console.log(`🔄 Processando registros periodo (DELETE + INSERT) para ${dataDate}...`);
         
         // Deletar registros existentes do dia
-        const { error: deleteErrorPeriodo } = await supabase
-          .from('bronze_contahub_avendas_vendasperiodo')
+        // medallion 2026-04-17: helper bronze() + coluna renomeada vd_dtgerencial
+        const { error: deleteErrorPeriodo } = await bronze(supabase, 'avendas_vendasperiodo')
           .delete()
           .eq('bar_id', barId)
-          .eq('dt_gerencial', dataDate);
+          .eq('vd_dtgerencial', dataDate);
         
         if (deleteErrorPeriodo) {
           console.error(`⚠️ Erro ao deletar periodo existente: ${deleteErrorPeriodo.message}`);
@@ -265,31 +265,28 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         const periodoRecords = records.map((item: any) => {
           // Calcular data real baseada no ultimo_pedido (vd_hrultimo)
           const ultimoPedido = item.vd_hrultimo || item.ultimo_pedido;
-          const dtGerencialOriginal = item.dt_gerencial || dataDate;
+          const dtGerencialOriginal = item.dt_gerencial || item.vd_dtgerencial || dataDate;
           const dtGerencialReal = calcularDataReal(dtGerencialOriginal, ultimoPedido);
           
           return {
-          dt_gerencial: dtGerencialReal,
+          // medallion 2026-04-17: colunas renomeadas com prefixo vd_
+          // (drops sem coluna correspondente: cht_nome, cli_dtnasc, cli_email,
+          //  motivo→vd_motivodesconto, dt_contabil, ultimo_pedido, vd_dtcontabil)
+          vd_dtgerencial: dtGerencialReal,
           tipovenda: item.tipovenda || '',
           vd_mesadesc: item.vd_mesadesc || '',
           vd_localizacao: item.vd_localizacao || '',
-          cht_nome: item.cht_nome || '',
           cli_nome: item.cli_nome || '',
-          cli_dtnasc: item.cli_dtnasc || null,
-          cli_email: item.cli_email || '',
           cli_fone: item.cli_fone || '',
-          usr_abriu: item.usr_abriu || '',
-          pessoas: parseFloat(item.pessoas) || 0,
-          qtd_itens: parseFloat(item.qtd_itens) || 0,
-          vr_pagamentos: parseFloat(item['$vr_pagamentos'] || item.vr_pagamentos || 0),
-          vr_produtos: parseFloat(item['$vr_produtos'] || item.vr_produtos || 0),
-          vr_repique: parseFloat(item['$vr_repique'] || item.vr_repique || 0),
-          vr_couvert: parseFloat(item['$vr_couvert'] || item.vr_couvert || 0),
-          vr_desconto: parseFloat(item['$vr_desconto'] || item.vr_desconto || 0),
-          motivo: item.motivo || '',
-          dt_contabil: item.dt_contabil || null,
-          ultimo_pedido: item.vd_hrultimo || item.ultimo_pedido || '',
-          vd_dtcontabil: item.vd_dtcontabil || null,
+          usrabriu: item.usr_abriu || item.usrabriu || '',
+          vd_pessoas: parseFloat(item.pessoas || item.vd_pessoas) || 0,
+          vd_qtditens: parseFloat(item.qtd_itens || item.vd_qtditens) || 0,
+          vd_vrpagamentos: parseFloat(item['$vr_pagamentos'] || item.vr_pagamentos || item.vd_vrpagamentos) || 0,
+          vd_vrprodutos: parseFloat(item['$vr_produtos'] || item.vr_produtos || item.vd_vrprodutos) || 0,
+          vd_vrrepique: parseFloat(item['$vr_repique'] || item.vr_repique || item.vd_vrrepique) || 0,
+          vd_vrcouvert: parseFloat(item['$vr_couvert'] || item.vr_couvert || item.vd_vrcouvert) || 0,
+          vd_vrdescontos: parseFloat(item['$vr_desconto'] || item.vr_desconto || item.vd_vrdescontos) || 0,
+          vd_motivodesconto: item.motivo || item.vd_motivodesconto || '',
           bar_id: barId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -318,8 +315,8 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         console.log(`🔄 Processando registros fatporhora (DELETE + INSERT) para ${dataDate}...`);
         
         // Deletar registros existentes do dia
-        const { error: deleteErrorFatporhora } = await supabase
-          .from('bronze_contahub_avendas_vendasdiahoraanalitico')
+        // medallion 2026-04-17: helper bronze()
+        const { error: deleteErrorFatporhora } = await bronze(supabase, 'avendas_vendasdiahoraanalitico')
           .delete()
           .eq('bar_id', barId)
           .eq('vd_dtgerencial', dataDate);
@@ -334,7 +331,8 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           vd_dtgerencial: item.vd_dtgerencial || dataDate,
           dds: parseInt(item.dds) || 0,
           dia: item.dia || '',
-          hora: parseInt(item.hora) || 0,
+          // medallion 2026-04-17: coluna hora eh text "HH:MM", preservar formato
+          hora: String(item.hora || ''),
           qtd: parseFloat(item.qtd) || 0,
           valor: parseFloat(item['$valor'] || item.valor) || 0,
           bar_id: barId,
@@ -366,8 +364,8 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         console.log(`🔄 Processando registros pagamentos (DELETE + INSERT) para ${dataDate}...`);
 
         // Deletar registros existentes do dia
-        const { error: deleteErrorPagamentos } = await supabase
-          .from('bronze_contahub_financeiro_pagamentosrecebidos')
+        // medallion 2026-04-17: helper bronze()
+        const { error: deleteErrorPagamentos } = await bronze(supabase, 'financeiro_pagamentosrecebidos')
           .delete()
           .eq('bar_id', barId)
           .eq('dt_gerencial', dataDate);
@@ -398,14 +396,12 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           vr_pagamentos: parseFloat(item['$vr_pagamentos'] || item.vr_pagamentos) || 0,
           pag: String(item.pag || ''),
           valor: parseFloat(item['$valor'] || item.valor) || 0,
-          taxa: parseFloat(item['$taxa'] || item.taxa) || 0,
-          perc: parseFloat(item['$perc'] || item.perc) || 0,
+          // medallion 2026-04-17: drops sem coluna correspondente (taxa, perc, dt_credito)
           liquido: parseFloat(item['$liquido'] || item.liquido) || 0,
           tipo: item.tipo || '',
           meio: item.meio || '',
           cartao: item.cartao || '',
           autorizacao: String(item.autorizacao || ''),
-          dt_credito: item.dt_credito || null,
           usr_abriu: item.usr_abriu || '',
           usr_lancou: item.usr_lancou || '',
           usr_aceitou: item.usr_aceitou || '',
@@ -440,8 +436,8 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
         console.log(`🔄 Processando registros tempo (DELETE + INSERT) para ${dataDate}...`);
         
         // Deletar registros existentes do dia
-        const { error: deleteErrorTempo } = await supabase
-          .from('bronze_contahub_produtos_temposproducao')
+        // medallion 2026-04-17: helper bronze()
+        const { error: deleteErrorTempo } = await bronze(supabase, 'produtos_temposproducao')
           .delete()
           .eq('bar_id', barId)
           .eq('data', dataDate);
@@ -554,7 +550,7 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           t1_t2,
           t1_t3,
           t2_t3,
-          prd_idexterno: item.prd_idexterno || '',
+          // medallion 2026-04-17: drop prd_idexterno (sem coluna correspondente)
           usr_abriu: item.usr_abriu || '',
           usr_lancou: item.usr_lancou || '',
           usr_produziu: item.usr_produziu || '',
@@ -569,9 +565,9 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           hora: item.hora ? String(item.hora) : '',
           itm_qtd: parseInt(item.itm_qtd) || 0,
           bar_id: barId,
-          categoria,
-          tempo_final,
-          idempotency_key: idempotencyKey,
+          // medallion 2026-04-17: drops sem coluna correspondente (categoria, tempo_final, idempotency_key)
+          // categoria/tempo_final agora vem de operations.produto_categoria_mix via JOIN nas queries
+          // idempotencyKey ainda calculado localmente (linhas acima) por se quisermos reativar UPSERT
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }});

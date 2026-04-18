@@ -146,8 +146,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     await new Promise(resolve => setTimeout(resolve, 30000));
     
     // Verificar quantos registros foram processados
+    // medallion 2026-04-17: schema 'bronze' + nome real da tabela
     const { data: processedData, error: processedError } = await supabase
-      .from('contahub_raw_data')
+      .schema('bronze').from('bronze_contahub_raw_data')
       .select('data_type, data_date, processed, record_count')
       .eq('bar_id', bar_id)
       .in('data_date', datasParaSincronizar)
