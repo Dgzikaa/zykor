@@ -96,13 +96,14 @@ export async function GET(request: NextRequest) {
       console.error('Erro ao buscar couvert mensal:', couvertError);
     }
 
-    // Cancelamentos mensal - soma dia a dia de bronze_contahub_vendas_cancelamentos
+    // Cancelamentos mensal - soma dia a dia de bronze.bronze_contahub_avendas_cancelamentos
     const { data: cancelamentosRows, error: cancelError } = await supabase
-      .from('bronze_contahub_vendas_cancelamentos')
+      .schema('bronze' as never)
+      .from('bronze_contahub_avendas_cancelamentos')
       .select('custototal')
       .eq('bar_id', barId)
-      .gte('data', dataInicio)
-      .lte('data', dataFim);
+      .gte('dt_gerencial', dataInicio)
+      .lte('dt_gerencial', dataFim);
 
     if (cancelError) {
       console.error('Erro ao buscar cancelamentos mensal:', cancelError);

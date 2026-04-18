@@ -78,11 +78,12 @@ export async function GET(request: NextRequest) {
 
       while (hasMoreContahub) {
         const { data: batch, error: batchError } = await supabase
-          .from('bronze_contahub_vendas_periodo')
-          .select('vr_pagamentos, pessoas')
+          .schema('bronze' as never)
+          .from('bronze_contahub_avendas_vendasperiodo')
+          .select('vd_vrpagamentos, vd_pessoas')
           .eq('bar_id', barIdNum)
-          .gte('vd_dtcontabil', inicioMes)
-          .lte('vd_dtcontabil', fimMes)
+          .gte('vd_dtgerencial', inicioMes)
+          .lte('vd_dtgerencial', fimMes)
           .range(fromContahub, fromContahub + limit - 1);
 
         if (batchError) {
@@ -99,13 +100,13 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Filtrar apenas linhas com vr_pagamentos > 0
+      // Filtrar apenas linhas com vd_vrpagamentos > 0
       const contahubComPagamento = contahubPeriodoData.filter(item => 
-        (parseFloat(item.vr_pagamentos) || 0) > 0
+        (parseFloat(item.vd_vrpagamentos) || 0) > 0
       );
       
       const faturamentoContahub = contahubComPagamento.reduce((sum, item) => 
-        sum + (parseFloat(item.vr_pagamentos) || 0), 0
+        sum + (parseFloat(item.vd_vrpagamentos) || 0), 0
       );
 
       // 1.2. YUZER
@@ -379,10 +380,10 @@ export async function GET(request: NextRequest) {
       const percentualArtistico = faturamentoTotal > 0 ? (custoArtistico / faturamentoTotal) * 100 : 0;
 
       // 10. CALCULAR TICKET MÉDIO CORRETO
-      // Ticket médio = Faturamento / Número de pessoas (apenas com vr_pagamentos > 0)
-      // Usar pessoas já filtradas do bronze_contahub_vendas_periodo
+      // Ticket médio = Faturamento / Número de pessoas (apenas com vd_vrpagamentos > 0)
+      // Usar pessoas já filtradas do bronze.bronze_contahub_avendas_vendasperiodo
       const pessoasContahub = contahubComPagamento.reduce((sum, item) => 
-        sum + (parseInt(item.pessoas) || 0), 0
+        sum + (parseInt(item.vd_pessoas) || 0), 0
       );
       
       // Buscar pessoas do Yuzer e Sympla (se houver)
