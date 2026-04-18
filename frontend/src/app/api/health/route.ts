@@ -122,10 +122,11 @@ async function checkDatabase(supabase: any): Promise<ComponentHealth> {
   
   try {
     const { data, error } = await supabase
-      .from('bars')
+      .schema('operations')
+      .from('bares')
       .select('id')
       .limit(1)
-      .single();
+      .maybeSingle();
     
     const latency = Date.now() - start;
     
