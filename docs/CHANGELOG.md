@@ -1,5 +1,97 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-19 (Sessão domingo noite — P3)
+
+### Fase P3: Silvers Yuzer reais
+
+#### Contexto
+
+Yuzer tinha 2 views cosméticas (`silver.silver_yuzer_pagamentos_evento`
+e `silver.silver_yuzer_produtos_evento`) que eram SELECT direto
+sobre bronze sem ETL nem persistência. Transformadas em tabelas
+físicas com ETL real.
+
+#### Novas tabelas
+
+- **`silver.yuzer_pagamentos_evento`** (38 linhas, bar 3)
+  - 1 linha por `(bar_id, evento_id)`
+  - Consolida `bronze_yuzer_pagamentos_evento` + `bronze_yuzer_estatisticas_evento`
+    + `bronze_yuzer_eventos` + `integrations.yuzer_pagamento` (descontos manuais)
+  - Meios de pagamento (credito/debito/pix/dinheiro/producao/outros) como colunas
+  - `valor_liquido = faturamento_bruto - total_descontos - aluguel_equipamentos`
+  - Derivados: `pct_credito/debito/pix/dinheiro`, `average_ticket`,
+    `cashless_consumed/inserted/residual`, `tag_price_total`
+  - Top 5 eventos validados: Carnaval Ord. 01-04/03/25 (R$ 394.811 líquido,
+    9.892 pedidos), CARNA VIRA LATA 13-16/02/26 (R$ 595.772 bruto / 4 noites)
+
+- **`silver.yuzer_produtos_evento`** (1.698 linhas, bar 3)
+  - 1 linha por `(bar_id, evento_id, produto_id)`
+  - Enriquece com `data_evento`, `nome_evento` (denormalizado)
+  - `eh_ingresso` detectado via ILIKE em subcategoria/produto_nome
+  - `ranking_valor_evento` (`ROW_NUMBER OVER PARTITION BY evento ORDER BY valor DESC`)
+  - `percentual_valor_evento` (% do faturamento do evento)
+
+#### Views de compat (zero refactor frontend)
+
+- `silver.silver_yuzer_pagamentos_evento` → view sobre `silver.yuzer_pagamentos_evento`
+- `silver.silver_yuzer_produtos_evento` → view sobre `silver.yuzer_produtos_evento`
+
+10 rotas frontend que consomem os nomes legacy continuam funcionando
+sem alteração.
+
+#### Cron
+
+- `silver-yuzer-diario` (jobid 455, `45 11 * * *` = 08:45 BRT)
+- Chama `etl_silver_yuzer_all_bars()` que processa ambos ETLs em sequência
+
+#### Migrations aplicadas P3 (8)
+
+27. `drop_views_yuzer_cosmeticas`
+28. `create_silver_yuzer_pagamentos_e_produtos_evento`
+29. `create_etl_silver_yuzer_full_e_wrapper`
+30. `fix_etl_silver_yuzer_pagamentos_alias`
+31. `fix_etl_yuzer_pagamentos_dedupe_integ`
+32. `fix_etl_yuzer_produtos_using_join`
+33. `fix_etl_yuzer_produtos_eh_ingresso_coalesce`
+34. `create_views_compat_yuzer_e_cron`
+
+#### Validações
+
+- Backfill: bar 3 = 38 pag + 1.698 prod inseridos; bar 4 = 0 (sem Yuzer)
+- Idempotência: 2ª rodada → 0 inseridos / 38 + 1.698 atualizados
+- Counts tabela vs view compat: bate 100%
+- Cross-check `SUM(produtos.valor_total)` vs `pagamentos.faturamento_bruto`:
+  diferenças entre 0,2% e 6,2% (esperadas, anotadas como débito)
+
+#### Débitos novos identificados
+
+- 4 linhas órfãs em `integrations.yuzer_pagamento` sem evento
+  bronze correspondente (investigar futuro)
+- 3 eventos com múltiplos lançamentos manuais em `integrations.yuzer_pagamento`
+  (evento_id 8448 com 4x, 12938 com 2x, 14414 com 2x); consolidados via SUM,
+  validar se intencional
+- Diferença 0-6% entre `SUM(produtos.valor_total)` vs
+  `pagamentos.faturamento_bruto` por evento (cancelados? descontos manuais
+  não atribuídos a produtos?)
+- Umbler permanece deferido — bug em bronze (`direcao` NULL em todas as
+  mensagens) bloqueia construção de `silver.umbler_atendimento_diario`
+
+#### Estado final do Silver layer
+
+- **15 tabelas silver físicas reais** (vendas_diarias, vendas_item,
+  produtos_top, faturamento_hora, faturamento_pagamentos, tempos_producao,
+  cliente_visitas, cliente_estatisticas, google_reviews_diario,
+  getin_reservas_diarias, sympla_bilheteria_diaria, nps_diario,
+  contaazul_lancamentos_diarios, yuzer_pagamentos_evento,
+  yuzer_produtos_evento)
+- **13 crons sequenciais** automatizados (07:30 adapters → 08:00-08:45 silvers)
+- Pipeline silver completo 08:00 → 08:45 BRT com 10 jobs encadeados
+- Medallion bronze → silver funcionando para 8 domínios externos
+  (ContaHub, Sympla, Falae, Google Reviews, Getin, ContaAzul, Yuzer +
+  Umbler deferido)
+
+---
+
 ## 2026-04-19 (Sessão domingo noite — continuação P1.5 + P2)
 
 ### Fase P1.5 + P2: Refactor final + Silvers externas
