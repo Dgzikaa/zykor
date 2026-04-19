@@ -1,5 +1,133 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-19 (Sessão domingo noite — continuação P1.5 + P2)
+
+### Fase P1.5 + P2: Refactor final + Silvers externas
+
+#### P1.5 — Refactor 23 rotas operations.* → silver.* explícito
+
+- 45 queries migradas em 23 arquivos
+- Padrão: `.from('X')` → `.schema('silver' as never).from('X')`
+- 4 tabelas afetadas: `vendas_item`, `faturamento_hora`,
+  `faturamento_pagamentos`, `tempos_producao`
+- Views compat em `operations.*` preservadas (futuro drop quando adapters
+  forem refatorados para escrever silver direto)
+- Cast `as never` necessário porque tipos TS gerados ainda não expõem schema silver
+- Type-check + lint OK, zero regressões
+- Commit: `e95a4dd1`
+
+#### P2 — 5 Silvers de domínios externos construídas
+
+- **`silver.google_reviews_diario`** (1.341 linhas, 2 bares — 5 anos histórico bar 4)
+  - Stars distribution, sub-ratings food/service/atmosphere, top 5 reviews exemplares JSONB
+- **`silver.getin_reservas_diarias`** (370 linhas, bar 3 only)
+  - Status breakdown, taxa comparecimento, distribuição por hora, top ocasiões
+- **`silver.sympla_bilheteria_diaria`** (23 linhas, bar 3 only)
+  - Granularidade por data DO EVENTO, lead time, UTM sources, cupons usados
+- **`silver.nps_diario`** (166 linhas, consolida Falae + nps_reservas)
+  - Multi-source (falae + getin_reservas), criterios médios, top 5 comentários
+- **`silver.contaazul_lancamentos_diarios`** (15.072 combos, 2 bares)
+  - DRE por data_competencia, granularidade (categoria, tipo)
+  - **Paridade R$ 0,00 vs bronze validada** centavo a centavo
+
+#### Pipeline diário consolidado (12 crons sequenciais)
+
+| Hora BRT | Cron | Função |
+|---|---|---|
+| 07:00 | `contahub-sync-7h-ambos` | bronze ContaHub |
+| 07:30 | `adapters-diarios` | popula 4 silvers do contahub |
+| 08:00 | `silver-vendas-diarias-diario` | oráculo agregado |
+| 08:00 | `alerta-contahub-sync-falhou` | monitoring |
+| 08:05 | `silver-cliente-visitas-diario` | granular visita |
+| 08:10 | `silver-cliente-estatisticas-diario` | 360 cliente |
+| 08:15 | `silver-produtos-top-diario` | ranking produtos |
+| 08:20 | `silver-google-reviews-diario` | reviews por dia |
+| 08:25 | `silver-getin-reservas-diario` | reservas + checkin |
+| 08:30 | `silver-sympla-bilheteria-diario` | bilheteria por evento |
+| 08:35 | `silver-nps-diario` | NPS multi-source |
+| 08:40 | `silver-contaazul-diario` | DRE por competência |
+
+**Total**: pipeline completo em 1h40 de execução diária.
+
+#### NPS consolidado
+
+- `crm.nps_falae_diario` (silver disfarçada legacy) virou view sobre
+  `silver.nps_diario` filtrada apenas Falae
+- Backup: `crm.nps_falae_diario_legacy_backup` (30 dias para rollback)
+- Silver mais abrangente que legacy: 102 dias bar 3 vs 37 do legacy
+
+#### Achados de qualidade (P2)
+
+**Bronze quality issues:**
+- ContaAzul `metodo_pagamento` NULL em 100% das linhas (sync incompleto)
+- ContaAzul `conciliado` sempre false (bronze não popula)
+- 22 lançamentos ContaAzul com `valor_pago + valor_nao_pago > valor_bruto`
+  (juros/multa, não bug do ETL)
+- Falae `data_visita` NULL em 43% (workaround via `COALESCE(data_visita, created_at)`)
+- Umbler `direcao` NULL em todas mensagens (silver.umbler deferida para P3)
+- Reviews bar 3 média 4.81★ (4.59★ bar 4 com 5 anos histórico)
+
+**Achados operacionais:**
+- Reservas Getin: **40-52% no-show** em dias de alto volume (overbooking?)
+- Sympla: cortesias dominam top eventos (75% dos tickets), receita fraca proporcionalmente
+- ContaAzul: Carnaval Vira-Lata gerou R$ 652k em 1 lançamento (20/02/2026)
+- NPS criterios: TEMPO DE ENTREGA (3.0/5) e Tempo Espera (3.9) são pontos fracos
+
+#### Migrations aplicadas (P2)
+
+18. `create_silver_google_reviews_diario` (DDL + ETL + wrapper)
+19. `fix_etl_google_reviews_ambiguous_column`
+20. `fix_etl_google_reviews_rename_cte_columns`
+21. `create_silver_getin_reservas_diarias` (DDL + ETL + wrapper)
+22. `create_silver_sympla_bilheteria_diaria_v2` (DDL + ETL + wrapper)
+23. `create_silver_nps_diario` (DDL + ETL + wrapper)
+24. `fix_etl_nps_diario_coalesce_data_visita`
+25. `migrate_crm_nps_falae_diario_to_silver_view`
+26. `create_silver_contaazul_lancamentos_diarios` (DDL + ETL + wrapper)
+
+> Crons agendados via `cron.schedule` (não conta como migration).
+
+#### Estado FINAL Silver Layer (14 tabelas reais)
+
+| # | Tabela | Linhas | Tamanho |
+|---:|---|---:|---:|
+| 1 | `silver.vendas_item` | 868k | 399 MB |
+| 2 | `silver.cliente_estatisticas` | 108k | 211 MB |
+| 3 | `silver.tempos_producao` | 676k | 207 MB |
+| 4 | `silver.cliente_visitas` | 225k | 137 MB |
+| 5 | `silver.faturamento_pagamentos` | 237k | 51 MB |
+| 6 | `silver.contaazul_lancamentos_diarios` | **15.072** | **7.5 MB** ⭐ |
+| 7 | `silver.contahub_stockout_processado` | — | 3.2 MB |
+| 8 | `silver.produtos_top` | 1.132 | 2.3 MB |
+| 9 | `silver.faturamento_hora` | 8.3k | 1.7 MB |
+| 10 | `silver.google_reviews_diario` | **1.341** | **1.6 MB** ⭐ |
+| 11 | `silver.vendas_diarias` | 795 | 392 kB |
+| 12 | `silver.getin_reservas_diarias` | **370** | <1 MB ⭐ |
+| 13 | `silver.nps_diario` | **166** | <1 MB ⭐ |
+| 14 | `silver.sympla_bilheteria_diaria` | **23** | <1 MB ⭐ |
+
+⭐ = criadas em S1+S2+P1+P2 hoje
+
+**~1.13 GB total Silver** / 12 crons sequenciais
+
+#### Views de compatibilidade ativas (5 + 4 = 9)
+
+- `crm.cliente_perfil_consumo` → silver.cliente_estatisticas (S1)
+- `public.cliente_estatisticas` → silver.cliente_estatisticas (S1)
+- `public.view_top_produtos` → silver.produtos_top (S2)
+- `crm.nps_falae_diario` → silver.nps_diario (P2)
+- `operations.{vendas_item, faturamento_hora, faturamento_pagamentos, tempos_producao}` → silver.* (P1)
+- `public.visitas` → silver.cliente_visitas (sessão sábado)
+
+#### P3 pendente (próxima sessão)
+
+- `silver.yuzer_pagamentos_evento` e `silver.yuzer_produtos_evento`
+  (ainda existem como views cosméticas, virar ETL real)
+- `silver.umbler_atendimento_diario` (após fix bronze `direcao` NULL)
+- `crm.nps_agregado_semanal` (silver disfarçada inconsistente, investigar)
+
+---
+
 ## 2026-04-19 (Sessão domingo tarde/noite)
 
 ### Fase S1 + S2 + P1: Silver layer consolidada
