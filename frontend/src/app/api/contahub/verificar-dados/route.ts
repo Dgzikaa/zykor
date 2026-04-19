@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
 
     // 2. Verificar vendas_item (domain table) - MIGRADO de bronze_contahub_vendas_analitico
     const { data: vendasData, error: vendasError } = await supabase
+      .schema('silver' as never)
       .from('vendas_item')
       .select('id')
       .eq('bar_id', barId)

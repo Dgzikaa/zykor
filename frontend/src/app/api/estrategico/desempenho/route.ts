@@ -101,6 +101,7 @@ export async function GET(request: NextRequest) {
     // Função para buscar dados do faturamento_pagamentos (agregação será feita no código)
     const fetchContaHubData = async () => {
       const { data, error } = await supabase
+        .schema('silver' as never)
         .from('faturamento_pagamentos')
         .select('data_pagamento, valor_liquido')
         .gte('data_pagamento', `${ano}-01-01`)

@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
     // 🎯 Usando vendas_item como fonte principal para contagem de produtos
     // Excluir categorias que são compras/estoque, não vendas
     const { data: dadosAnaliticos, error: errorAnalitico } = await supabase
+      .schema('silver' as never)
       .from('vendas_item')
       .select(`
         produto_desc,

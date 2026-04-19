@@ -214,6 +214,7 @@ export async function fetchDataForIntent(
     case 'produto': {
       const hoje = new Date();
       const { data: vendasRaw } = await supabase
+        .schema('silver' as never)
         .from('vendas_item')
         .select('produto_desc, grupo_desc, quantidade, valor')
         .eq('bar_id', barId)

@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
     if (error) {
       // Fallback: usar query direta sem RPC - migrado para vendas_item
       const { data: dataFallback, error: errorFallback } = await supabase
+        .schema('silver' as never)
         .from('vendas_item')
         .select('local_desc, grupo_desc, quantidade, valor, data_venda')
         .gte('data_venda', data_inicio)

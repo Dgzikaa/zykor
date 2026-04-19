@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       case 'analitico':
         // MIGRADO: vendas_item (domain table)
         query = sb
+          .schema('silver' as never)
           .from('vendas_item')
           .select('*')
           .eq('bar_id', parseInt(bar_id))
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
       case 'pagamentos':
         // MIGRADO: faturamento_pagamentos (domain table)
         query = sb
+          .schema('silver' as never)
           .from('faturamento_pagamentos')
           .select('*')
           .eq('bar_id', parseInt(bar_id))
@@ -87,6 +89,7 @@ export async function GET(request: NextRequest) {
       case 'tempo':
         // MIGRADO: tempos_producao (domain table)
         query = sb
+          .schema('silver' as never)
           .from('tempos_producao')
           .select('*')
           .eq('bar_id', parseInt(bar_id))
@@ -105,6 +108,7 @@ export async function GET(request: NextRequest) {
       case 'fatporhora':
         // MIGRADO: faturamento_hora (domain table)
         query = sb
+          .schema('silver' as never)
           .from('faturamento_hora')
           .select('*')
           .eq('bar_id', parseInt(bar_id))
@@ -124,11 +128,13 @@ export async function GET(request: NextRequest) {
         // Resumo geral de todas as tabelas - MIGRADO para domain tables
         const [analitico, pagamentos, periodo, tempo, fatporhora] = await Promise.all([
           sb
+            .schema('silver' as never)
             .from('vendas_item')
             .select('*')
             .eq('bar_id', parseInt(bar_id))
             .limit(1000),
           sb
+            .schema('silver' as never)
             .from('faturamento_pagamentos')
             .select('*')
             .eq('bar_id', parseInt(bar_id))
@@ -140,11 +146,13 @@ export async function GET(request: NextRequest) {
             .eq('bar_id', parseInt(bar_id))
             .limit(1000),
           sb
+            .schema('silver' as never)
             .from('tempos_producao')
             .select('*')
             .eq('bar_id', parseInt(bar_id))
             .limit(1000),
           sb
+            .schema('silver' as never)
             .from('faturamento_hora')
             .select('*')
             .eq('bar_id', parseInt(bar_id))

@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
 
     // 3. FATURAMENTO POR HORA (usando faturamento_hora)
     const { data: faturamentoPorHora } = await supabase
+      .schema('silver' as never)
       .from('faturamento_hora')
       .select('hora, valor')
       .eq('bar_id', barId)

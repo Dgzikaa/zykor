@@ -73,6 +73,7 @@ async function calcularMixVendasEvento(barId: number, dataEvento: string): Promi
 } | null> {
   // Buscar dados do vendas_item para esta data
   const { data: contahubData, error } = await supabase
+    .schema('silver' as never)
     .from('vendas_item')
     .select('valor, local_desc')
     .eq('bar_id', barId)

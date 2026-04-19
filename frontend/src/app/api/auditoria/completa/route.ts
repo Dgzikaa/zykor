@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
 
     // 2. VOLUME DE REGISTROS - vendas_item (domain table) - MIGRADO
     const { count: countVendasItem } = await supabase
+      .schema('silver' as never)
       .from('vendas_item')
       .select('*', { count: 'exact', head: true });
 

@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
     const niboSync = null;
 
     const { data: contahubSync } = await supabase
+      .schema('silver' as never)
       .from('faturamento_pagamentos')
       .select('atualizado_em')
       .eq('bar_id', barId)
@@ -78,6 +79,7 @@ export async function GET(request: NextRequest) {
     const niboCount = 0;
 
     const { count: contahubCount } = await supabase
+      .schema('silver' as never)
       .from('faturamento_pagamentos')
       .select('*', { count: 'exact', head: true })
       .eq('bar_id', barId)

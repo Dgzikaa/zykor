@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
     
     // 1. Buscar faturamento por hora PRIMEIRO (para não bloquear quando vendas_item está atrasado)
     const { data: faturamentoDiaAtualPre, error: errorFaturamentoDiaPre } = await supabase
+      .schema('silver' as never)
       .from('faturamento_hora')
       .select('hora, valor, quantidade')
       .eq('data_venda', data_selecionada)
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
     // 1. Buscar dados de faturamento por hora (faturamento_hora - dados oficiais)
     // Horários 17:00-23:00 do dia atual
     const { data: faturamentoDiaAtual, error: errorFaturamentoDia } = await supabase
+      .schema('silver' as never)
       .from('faturamento_hora')
       .select('hora, valor, quantidade')
       .eq('data_venda', data_selecionada)
@@ -122,6 +124,7 @@ export async function POST(request: NextRequest) {
 
     // Horários 24h, 25h, 26h (que são 00h, 01h, 02h) do mesmo dia
     const { data: faturamentoMadrugada, error: errorFaturamentoMadrugada } = await supabase
+      .schema('silver' as never)
       .from('faturamento_hora')
       .select('hora, valor, quantidade')
       .eq('data_venda', data_selecionada)
@@ -184,6 +187,7 @@ export async function POST(request: NextRequest) {
     // 3. Buscar dados da semana passada (17-23h + 24-26h)
     const semanaPassadaStr = semanaPassada.toISOString().split('T')[0];
     const { data: faturamentoSemanaPassadaDia } = await supabase
+      .schema('silver' as never)
       .from('faturamento_hora')
       .select('hora, valor, quantidade')
       .eq('data_venda', semanaPassadaStr)
@@ -199,6 +203,7 @@ export async function POST(request: NextRequest) {
 
     // 4. Buscar dados das últimas 4 semanas (17-23h + 24-26h)
     const { data: faturamentoUltimas4Raw } = await supabase
+      .schema('silver' as never)
       .from('faturamento_hora')
       .select('hora, valor, quantidade, data_venda')
       .in('data_venda', ultimas4Datas)
@@ -222,6 +227,7 @@ export async function POST(request: NextRequest) {
 
     while (hasMore) {
       const { data: pageData, error } = await supabase
+        .schema('silver' as never)
         .from('faturamento_hora')
         .select('hora, valor, quantidade, data_venda')
         .eq('bar_id', bar_id)
@@ -339,6 +345,7 @@ export async function POST(request: NextRequest) {
     let totalRecordeReal = 0;
     if (dataRecorde) {
       const { data: pagamentosRecorde } = await supabase
+        .schema('silver' as never)
         .from('faturamento_pagamentos')
         .select('valor_liquido')
         .eq('data_pagamento', dataRecorde)

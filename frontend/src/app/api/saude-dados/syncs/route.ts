@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
 
     // ContaHub (faturamento_pagamentos)
     const { data: contahubData } = await supabase
+      .schema('silver' as never)
       .from('faturamento_pagamentos')
       .select('data_pagamento, created_at')
       .order('created_at', { ascending: false })

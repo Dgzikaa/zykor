@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar dados de tempo de produção
     const { data: tempoDados, error: tempoError } = await supabase
+      .schema('silver' as never)
       .from('tempos_producao')
       .select('categoria, t1_t3')
       .eq('data_producao', data)

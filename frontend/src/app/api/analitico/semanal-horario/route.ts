@@ -203,6 +203,7 @@ export async function GET(request: NextRequest) {
       // Se há dados de período, buscar faturamento por hora
       if (dadosPeriodoData.length > 0) {
         const fatHoraQuery = supabase
+          .schema('silver' as never)
           .from('faturamento_hora')
           .select('data_venda, hora, valor')
           .in('data_venda', datasParaProcessar)
@@ -491,6 +492,7 @@ export async function GET(request: NextRequest) {
                 
         // Excluir categorias de compras/estoque
         const produtosQuery = supabase
+          .schema('silver' as never)
           .from('vendas_item')
           .select('data_venda, produto_desc, quantidade, valor, grupo_desc')
           .in('data_venda', datasComDados)

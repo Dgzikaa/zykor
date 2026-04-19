@@ -194,6 +194,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       // Buscar dados do vendas_item para recalcular percentuais
       // Excluir categorias de compras/estoque
       const { data: contahubData, error: contahubError } = await supabase
+        .schema('silver' as never)
         .from('vendas_item')
         .select('valor, local_desc, grupo_desc')
         .eq('data_venda', eventoData.data_evento)

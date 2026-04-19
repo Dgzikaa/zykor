@@ -129,6 +129,7 @@ export async function POST(request: NextRequest) {
 
         // Buscar itens consumidos nessas comandas/datas (migrado para vendas_item)
         const { data: itensConsumo, error: itensError } = await supabase
+          .schema('silver' as never)
           .from('vendas_item')
           .select('produto_desc, grupo_desc, quantidade, valor, data_venda')
           .eq('bar_id', barId)

@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar a data mais recente com dados em vendas_item
     const { data: ultimaData, error } = await supabase
+      .schema('silver' as never)
       .from('vendas_item')
       .select('data_venda')
       .eq('bar_id', parseInt(bar_id))
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
 
     // Verificar se há dados suficientes para essa data (pelo menos 100 registros)
     const { data: contagem, error: errorContagem } = await supabase
+      .schema('silver' as never)
       .from('vendas_item')
       .select('data_venda', { count: 'exact' })
       .eq('bar_id', parseInt(bar_id))

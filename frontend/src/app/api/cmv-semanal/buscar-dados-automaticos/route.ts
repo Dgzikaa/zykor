@@ -136,6 +136,7 @@ export async function POST(request: NextRequest) {
     try {
       // 3.1 Buscar faturamento (excluindo Conta Assinada - igual ao Desempenho)
       const { data: pagamentosBrutos, error: errorPagamentos } = await supabase
+        .schema('silver' as never)
         .from('faturamento_pagamentos')
         .select('valor_liquido, valor_bruto, data_pagamento, meio')
         .eq('bar_id', bar_id)

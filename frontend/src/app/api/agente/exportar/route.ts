@@ -286,6 +286,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar top produtos
     const { data: produtosRaw } = await supabase
+      .schema('silver' as never)
       .from('vendas_item')
       .select('produto_desc, quantidade, valor')
       .eq('bar_id', parseInt(barId))

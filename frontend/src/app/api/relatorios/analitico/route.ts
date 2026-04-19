@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
 
     // Excluir categorias de compras/estoque por padrão - migrado para vendas_item
     let query = (supabase as any)
+      .schema('silver' as never)
       .from('vendas_item')
       .select('*')
       .eq('bar_id', parseInt(bar_id))

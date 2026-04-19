@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
 
     // 1. TOP 20 PRODUTOS MAIS VENDIDOS (por quantidade) - migrado para vendas_item
     const { data: produtosPorQtd } = await supabase
+      .schema('silver' as never)
       .from('vendas_item')
       .select('produto_desc, quantidade, valor')
       .eq('bar_id', barId)
@@ -77,6 +78,7 @@ export async function GET(request: NextRequest) {
 
     // 3. PRODUTOS MAIS CANCELADOS (valor negativo indica cancelamento) - migrado para vendas_item
     const { data: cancelamentos } = await supabase
+      .schema('silver' as never)
       .from('vendas_item')
       .select('produto_desc, quantidade, valor')
       .eq('bar_id', barId)
@@ -106,6 +108,7 @@ export async function GET(request: NextRequest) {
     // 4. PRODUTOS QUE VENDEM JUNTOS (análise de combos) - migrado para vendas_item
     // Buscar transações do mesmo horário/data
     const { data: transacoesPorHora } = await supabase
+      .schema('silver' as never)
       .from('vendas_item')
       .select('data_venda, produto_desc, quantidade')
       .eq('bar_id', barId)
@@ -152,6 +155,7 @@ export async function GET(request: NextRequest) {
     dataLimite6Meses.setMonth(dataLimite6Meses.getMonth() - 6);
 
     const { data: vendasRecentes } = await supabase
+      .schema('silver' as never)
       .from('vendas_item')
       .select('produto_desc, quantidade, valor, data_venda')
       .eq('bar_id', barId)

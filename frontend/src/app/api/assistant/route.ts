@@ -755,6 +755,7 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
       } else {
         // DIAS NORMAIS: Usar vendas_item
         const { data } = await supabase
+          .schema('silver' as never)
           .from('vendas_item')
           .select('produto_desc, grupo_desc, quantidade, valor, data_venda')
           .eq('bar_id', 3)
@@ -817,6 +818,7 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
       const periodo = getPeriodo(lowerMessage);
       
       const { data: pagamentos } = await supabase
+        .schema('silver' as never)
         .from('faturamento_pagamentos')
         .select('meio, valor_liquido, data_pagamento')
         .eq('bar_id', 3)
@@ -962,6 +964,7 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
       const periodo = getPeriodo(lowerMessage);
       
       const { data: tempos } = await supabase
+        .schema('silver' as never)
         .from('tempos_producao')
         .select('produto_desc, t0_t3, data_producao, categoria')
         .eq('bar_id', 3)
@@ -1024,6 +1027,7 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
       const periodo = getPeriodo(lowerMessage);
       
       const { data: fatPorHora } = await supabase
+        .schema('silver' as never)
         .from('faturamento_hora')
         .select('hora, valor, data_venda')
         .eq('bar_id', 3)
