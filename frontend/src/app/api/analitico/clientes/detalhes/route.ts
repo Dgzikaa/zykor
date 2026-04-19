@@ -73,7 +73,8 @@ export async function GET(request: NextRequest) {
     const listaVariacoes = Array.from(variacoesTelefone)
     // Buscar diretamente por todas as variações do telefone usando OR
     let query = supabase
-      .from('visitas')
+      .schema('silver')
+      .from('cliente_visitas')
       .select('cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos')
       .eq('bar_id', finalBarId)
       .order('data_visita', { ascending: false })

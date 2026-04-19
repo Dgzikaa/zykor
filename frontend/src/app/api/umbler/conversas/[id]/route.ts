@@ -49,7 +49,8 @@ export async function GET(
     } | null = null;
     if (conversa.cliente_id) {
       const { data: cliente } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('id, cliente_nome, data_visita, valor_pagamentos')
         .eq('id', conversa.cliente_id)
         .single();

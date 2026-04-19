@@ -630,7 +630,8 @@ export async function GET(request: Request) {
       const dataLimite30DiasStr = dataLimite30Dias.toISOString().split('T')[0];
 
       const { data: clientesAtivosData, error: clientesAtivosError } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('cliente_fone')
         .eq('bar_id', barIdNum)
         .gte('data_visita', dataLimite30DiasStr)
@@ -653,7 +654,8 @@ export async function GET(request: Request) {
 
       // Clientes Totais do mês
       const { data: clientesTotaisData, error: clientesTotaisError } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('cliente_fone')
         .eq('bar_id', barIdNum)
         .gte('data_visita', startDate)
@@ -670,7 +672,8 @@ export async function GET(request: Request) {
 
       // Faturamento Total do mês (usando valor_pagamentos de visitas)
       const { data: faturamentoData, error: faturamentoError } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('valor_pagamentos')
         .eq('bar_id', barIdNum)
         .gte('data_visita', startDate)

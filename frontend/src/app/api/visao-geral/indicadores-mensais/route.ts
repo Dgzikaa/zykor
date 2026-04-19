@@ -183,7 +183,8 @@ export async function GET(request: NextRequest) {
 
       while (hasMoreTotais) {
         const { data: batch, error: batchError } = await supabase
-          .from('visitas')
+          .schema('silver')
+          .from('cliente_visitas')
           .select('cliente_fone')
           .eq('bar_id', barIdNum)
           .gte('data_visita', inicioMes)
@@ -218,7 +219,8 @@ export async function GET(request: NextRequest) {
 
       while (hasMoreHistorico) {
         const { data: batch, error: batchError } = await supabase
-          .from('visitas')
+          .schema('silver')
+          .from('cliente_visitas')
           .select('cliente_fone, data_visita')
           .eq('bar_id', barIdNum)
           .not('cliente_fone', 'is', null)
@@ -295,7 +297,8 @@ export async function GET(request: NextRequest) {
 
       while (hasMoreHistoricoRecente) {
         const { data: batch, error: batchError } = await supabase
-          .from('visitas')
+          .schema('silver')
+          .from('cliente_visitas')
           .select('cliente_fone')
           .eq('bar_id', barIdNum)
           .gte('data_visita', data90DiasAtrasStr)

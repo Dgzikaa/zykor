@@ -190,7 +190,8 @@ export async function GET(request: NextRequest) {
     try {
       // Buscar apenas dados de período (mais essencial)
       const periodoQuery = supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('data_visita, valor_pagamentos')
         .in('data_visita', datasParaProcessar)
         .eq('bar_id', barIdNum)
@@ -442,7 +443,8 @@ export async function GET(request: NextRequest) {
           // Reprocessar com dados ampliados (simplificado)
           for (const data of datasParaProcessar.slice(0, 5)) { // Apenas 5 datas para não dar timeout
             const { data: dadosPeriodoFallback } = await supabase
-              .from('visitas')
+              .schema('silver')
+              .from('cliente_visitas')
               .select('data_visita, valor_pagamentos')
               .eq('data_visita', data)
               .eq('bar_id', barIdNum);

@@ -109,13 +109,12 @@ export async function GET(request: NextRequest) {
         .single(),
       
       // Buscar todos os clientes (para agregar no código)
-      supabase.from('visitas')
+      supabase.schema('silver').from('cliente_visitas')
         .select('cliente_nome, valor_pagamentos, data_visita')
         .eq('bar_id', 3)
         .gte('data_visita', '2025-01-01')
         .lte('data_visita', '2025-12-31')
-        .not('cliente_nome', 'is', null)
-        .neq('cliente_nome', ''),
+        .eq('tem_nome', true),
       
       // Buscar todos os eventos (para performance por dia)
       supabase.from('eventos')

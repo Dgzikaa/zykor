@@ -144,7 +144,8 @@ export async function POST(request: NextRequest) {
 
     // 2. Buscar dados de visitas (pessoas + couvert + pagamentos + repique) - EVITAR DUPLICATAS
     const { data: dadosPeriodoRaw, error: errorPeriodo } = await supabase
-      .from('visitas')
+      .schema('silver')
+      .from('cliente_visitas')
       .select('mesa_desc, pessoas, valor_couvert, valor_pagamentos, valor_repique')
       .eq('data_visita', data_selecionada)
       .eq('bar_id', bar_id);

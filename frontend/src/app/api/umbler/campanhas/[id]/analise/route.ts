@@ -172,12 +172,13 @@ export async function GET(
 
     // 6. Buscar visitas (pessoas que foram ao bar)
     const { data: visitas } = await supabase
-      .from('visitas')
+      .schema('silver')
+      .from('cliente_visitas')
       .select('cliente_fone, data_visita, valor_pagamentos, pessoas')
       .eq('bar_id', barId)
       .gte('data_visita', dataInicioReserva)
       .lte('data_visita', dataFimReserva)
-      .not('cliente_fone', 'is', null)
+      .eq('tem_telefone', true)
       .gt('pessoas', 0);
 
     // Mapear visitas por telefone normalizado

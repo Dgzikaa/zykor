@@ -322,7 +322,8 @@ async function buscarJornadaCliente(telefone: string, barId: number) {
   
   // Buscar visitas do cliente
   const { data: visitasData, error } = await supabase
-    .from('visitas')
+    .schema('silver')
+    .from('cliente_visitas')
     .select('cliente_nome, data_visita, valor_couvert, valor_pagamentos')
     .eq('bar_id', barId)
     .ilike('cliente_fone', `%${telefoneNorm}%`)

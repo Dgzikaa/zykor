@@ -72,7 +72,8 @@ export async function GET(request: NextRequest) {
     if (!perfil) {
       // Buscar comandas do cliente (migrado para visitas)
       const { data: vendas } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('id, data_visita, cliente_nome')
         .eq('bar_id', barId)
         .in('cliente_fone', Array.from(variacoes))

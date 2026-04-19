@@ -411,7 +411,8 @@ async function buscarDetalhesEstoque(barId: number, dataInicio: string, dataFim:
 async function buscarDetalhesConsumoSocios(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
   // Sócios: sócio, socio, x-socio, x-sócio, gonza, corbal, diogo, cadu, augusto, rodrigo, digao, vinicius, vini, bueno, kaizen, caisen, joão pedro, joao pedro, jp, 3v, cantucci
   const { data, error } = await supabase
-    .from('visitas')
+    .schema('silver')
+    .from('cliente_visitas')
     .select('*')
     .eq('bar_id', barId)
     .gte('data_visita', dataInicio)
@@ -439,7 +440,8 @@ async function buscarDetalhesConsumoSocios(barId: number, dataInicio: string, da
 async function buscarDetalhesConsumoBeneficios(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
   // Clientes: aniver, anivers, aniversário, aniversario, aniversariante, niver, voucher, benefício, beneficio, mesa mágica, mágica, influencer, influ, influencia, influência, club, clube, midia, mídia, social, insta, digital, cliente, ambev, chegadeira, chegador
   const { data, error } = await supabase
-    .from('visitas')
+    .schema('silver')
+    .from('cliente_visitas')
     .select('*')
     .eq('bar_id', barId)
     .gte('data_visita', dataInicio)
@@ -467,7 +469,8 @@ async function buscarDetalhesConsumoBeneficios(barId: number, dataInicio: string
 async function buscarDetalhesConsumoAdm(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
   // Funcionários: funcionários, funcionario, rh, recursos humanos, financeiro, fin, mkt, marketing, slu, adm, administrativo, prêmio, confra
   const { data, error } = await supabase
-    .from('visitas')
+    .schema('silver')
+    .from('cliente_visitas')
     .select('*')
     .eq('bar_id', barId)
     .gte('data_visita', dataInicio)
@@ -495,7 +498,8 @@ async function buscarDetalhesConsumoAdm(barId: number, dataInicio: string, dataF
 async function buscarDetalhesConsumoArtista(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
   // Artistas: musico, músicos, dj, banda, artista, breno, benza, stz, zelia, tia, samba, sambadona, doze, boca, boka, pé, chão, segunda, resenha, pagode, roda, reconvexa, rodie, roudier, roudi, som, técnico, tecnico, pv, paulo victor, prod
   const { data, error } = await supabase
-    .from('visitas')
+    .schema('silver')
+    .from('cliente_visitas')
     .select('*')
     .eq('bar_id', barId)
     .gte('data_visita', dataInicio)
@@ -522,7 +526,8 @@ async function buscarDetalhesConsumoArtista(barId: number, dataInicio: string, d
  */
 async function buscarDetalhesChegadeira(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
   const { data, error } = await supabase
-    .from('visitas')
+    .schema('silver')
+    .from('cliente_visitas')
     .select('*')
     .eq('bar_id', barId)
     .gte('data_visita', dataInicio)
@@ -549,7 +554,8 @@ async function buscarDetalhesChegadeira(barId: number, dataInicio: string, dataF
 async function buscarDetalhesConsumoRH(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
   // RH: rh, recursos humanos (os demais funcionários estão em ADM)
   const { data, error } = await supabase
-    .from('visitas')
+    .schema('silver')
+    .from('cliente_visitas')
     .select('*')
     .eq('bar_id', barId)
     .gte('data_visita', dataInicio)
@@ -576,7 +582,8 @@ async function buscarDetalhesConsumoRH(barId: number, dataInicio: string, dataFi
  */
 async function buscarDetalhesVendas(barId: number, dataInicio: string, dataFim: string, campo: string) {
   const { data, error } = await supabase
-    .from('visitas')
+    .schema('silver')
+    .from('cliente_visitas')
     .select('*')
     .eq('bar_id', barId)
     .gte('data_visita', dataInicio)

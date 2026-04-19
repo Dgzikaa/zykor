@@ -253,7 +253,8 @@ async function calcularLTVCliente(telefone: string, barId: number = 3) {
   
   // Buscar dados de visitas
   const { data: visitasClienteData } = await supabase
-    .from('visitas')
+    .schema('silver')
+    .from('cliente_visitas')
     .select('cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos')
     .eq('bar_id', barId)
     .ilike('cliente_fone', `%${telefoneNorm}%`)
@@ -265,7 +266,8 @@ async function calcularLTVCliente(telefone: string, barId: number = 3) {
 
   // Buscar ticket médio do bar para referência
   const { data: ticketBarData } = await supabase
-    .from('visitas')
+    .schema('silver')
+    .from('cliente_visitas')
     .select('valor_couvert, valor_pagamentos')
     .eq('bar_id', barId)
     .limit(10000);

@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
 
     while (hasMore) {
       const { data: vendas, error: vendasError } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('hora_abertura, cliente_fone, valor_pagamentos, valor_couvert')
         .eq('bar_id', barId)
         .gte('data_visita', '2025-09-01')

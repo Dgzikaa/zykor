@@ -39,11 +39,11 @@ export async function GET(request: NextRequest) {
     if (statsError) {
       // Fallback para query simples se a função não existir
       const { count, error: countError } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('*', { count: 'exact', head: true })
         .eq('bar_id', barId)
-        .not('tempo_estadia_minutos', 'is', null)
-        .gt('tempo_estadia_minutos', 0)
+        .eq('tem_estadia_calculada', true)
         .lt('tempo_estadia_minutos', 720)
       
       if (countError || !count || count === 0) {
@@ -64,11 +64,11 @@ export async function GET(request: NextRequest) {
 
     // 2. Agregação por mês usando SQL (migrado para visitas)
     const { data: porMesData } = await supabase
-      .from('visitas')
+      .schema('silver')
+      .from('cliente_visitas')
       .select('data_visita, tempo_estadia_minutos')
       .eq('bar_id', barId)
-      .not('tempo_estadia_minutos', 'is', null)
-      .gt('tempo_estadia_minutos', 0)
+      .eq('tem_estadia_calculada', true)
       .lt('tempo_estadia_minutos', 720)
       .order('data_visita', { ascending: false })
       .limit(10000)
@@ -158,12 +158,12 @@ export async function GET(request: NextRequest) {
 
     // Top clientes - buscar separadamente com agregação (migrado para visitas)
     const { data: topClientesData } = await supabase
-      .from('visitas')
+      .schema('silver')
+      .from('cliente_visitas')
       .select('cliente_fone, tempo_estadia_minutos')
       .eq('bar_id', barId)
-      .not('tempo_estadia_minutos', 'is', null)
-      .not('cliente_fone', 'is', null)
-      .gt('tempo_estadia_minutos', 0)
+      .eq('tem_estadia_calculada', true)
+      .eq('tem_telefone', true)
       .lt('tempo_estadia_minutos', 720)
       .order('data_visita', { ascending: false })
       .limit(5000)

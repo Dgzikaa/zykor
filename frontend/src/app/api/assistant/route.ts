@@ -365,7 +365,8 @@ async function executeTool(toolName: string, input: any) {
     switch (toolName) {
       case 'execute_sql_query': {
         const { data, error } = await supabase
-          .from('visitas') // Usar uma tabela como base
+          .schema('silver')
+          .from('cliente_visitas') // Usar uma tabela como base
           .select('*')
           .limit(0); // Query vazia só para testar conexão
         
@@ -503,7 +504,8 @@ async function executeCustomQuery(query: string) {
     // Análise de vendas - visitas
     if (lowerQuery.includes('vendas') || lowerQuery.includes('visitas')) {
       const { data, error } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('data_visita, valor_pagamentos, pessoas, valor_desconto')
         .eq('bar_id', 3)
         .gte('data_visita', '2024-01-01')
@@ -634,7 +636,7 @@ async function executeCustomQuery(query: string) {
     if (lowerQuery.includes('geral') || lowerQuery.includes('resumo') || lowerQuery.includes('dashboard')) {
       // Buscar dados consolidados de múltiplas fontes
       const [vendas, eventos, produtos] = await Promise.all([
-        supabase.from('visitas').select('data_visita, valor_pagamentos, pessoas').eq('bar_id', 3).gte('data_visita', '2024-08-01').limit(10),
+        supabase.schema('silver').from('cliente_visitas').select('data_visita, valor_pagamentos, pessoas').eq('bar_id', 3).gte('data_visita', '2024-08-01').limit(10),
         supabase.from('eventos_base').select('data_evento, artista, receita_total, publico_total').eq('bar_id', 3).order('data_evento', { ascending: false }).limit(5),
         supabase.from('silver_yuzer_produtos_evento').select('produto, categoria, quantidade, valor_total').eq('bar_id', 3).gte('data_evento', '2024-08-01').limit(10)
       ]);
@@ -692,7 +694,8 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
       const periodo = getPeriodo(lowerMessage);
       
       const { data: faturamento } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('data_visita, valor_pagamentos')
         .eq('bar_id', 3)
         .gte('data_visita', periodo.start)
@@ -886,7 +889,8 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
       } else {
         // DIAS NORMAIS: Usar visitas
         const { data } = await supabase
-          .from('visitas')
+          .schema('silver')
+          .from('cliente_visitas')
           .select('pessoas, data_visita, valor_pagamentos')
           .eq('bar_id', 3)
           .gt('pessoas', 0)
@@ -1078,7 +1082,8 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
   if (lowerMessage.includes('vendas') || lowerMessage.includes('venda')) {
     try {
       const { data: vendas } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('data_visita, valor_pagamentos, pessoas')
         .eq('bar_id', 3)
         .gte('data_visita', '2024-01-01')
@@ -1103,7 +1108,8 @@ async function getAdvancedFallback(message: string): Promise<AssistantResponse> 
   if (lowerMessage.includes('cliente') || lowerMessage.includes('pessoa')) {
     try {
       const { data: clientes } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('pessoas, data_visita')
         .eq('bar_id', 3)
         .gt('pessoas', 0)
@@ -1139,7 +1145,8 @@ async function getBasicFallback(message: string): Promise<AssistantResponse> {
   if (message.toLowerCase().includes('visitas') || message.toLowerCase().includes('clientes') || message.toLowerCase().includes('pessoas')) {
     try {
       const { data: totalClientes } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('pessoas')
         .gt('pessoas', 0)
         .gte('data_visita', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])

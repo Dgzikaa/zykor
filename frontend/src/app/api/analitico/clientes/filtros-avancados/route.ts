@@ -45,11 +45,11 @@ export async function POST(request: NextRequest) {
 
     // Construir query do Supabase com filtros
     let query = supabase
-      .from('visitas')
+      .schema('silver')
+      .from('cliente_visitas')
       .select('cliente_fone, cliente_nome, cliente_email, cliente_dtnasc, data_visita, valor_pagamentos, valor_couvert, valor_consumo')
       .eq('bar_id', barId)
-      .not('cliente_fone', 'is', null)
-      .neq('cliente_fone', '')
+      .eq('tem_telefone', true)
 
     // Aplicar filtros de data direto na query
     if (filtros.dataInicio) {

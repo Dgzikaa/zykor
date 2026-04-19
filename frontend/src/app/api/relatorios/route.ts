@@ -68,7 +68,8 @@ export async function GET(request: NextRequest) {
       case 'periodo':
         // MIGRADO: visitas (domain table)
         query = sb
-          .from('visitas')
+          .schema('silver')
+          .from('cliente_visitas')
           .select('*')
           .eq('bar_id', parseInt(bar_id))
           .limit(limit);
@@ -133,7 +134,8 @@ export async function GET(request: NextRequest) {
             .eq('bar_id', parseInt(bar_id))
             .limit(1000),
           sb
-            .from('visitas')
+            .schema('silver')
+            .from('cliente_visitas')
             .select('*')
             .eq('bar_id', parseInt(bar_id))
             .limit(1000),

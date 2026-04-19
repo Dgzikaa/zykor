@@ -45,7 +45,8 @@ export async function GET(request: NextRequest) {
     if (novosClientesError && novosClientesError.code === '42883') {
       // Fallback: query direta via Supabase (tabela visitas)
         const { data: fallbackData, error: fallbackError } = await supabase
-          .from('visitas')
+          .schema('silver')
+          .from('cliente_visitas')
           .select('cliente_fone, data_visita')
           .eq('bar_id', barIdNum)
           .not('cliente_fone', 'is', null)

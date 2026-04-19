@@ -86,7 +86,8 @@ export async function GET(request: NextRequest) {
 
     // Couvert mensal - soma dia a dia de visitas
     const { data: couvertRows, error: couvertError } = await supabase
-      .from('visitas')
+      .schema('silver')
+      .from('cliente_visitas')
       .select('valor_couvert')
       .eq('bar_id', barId)
       .gte('data_visita', dataInicio)

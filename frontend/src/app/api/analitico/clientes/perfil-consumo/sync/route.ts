@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
     if (clientesError?.message?.includes('does not exist')) {
       // Query direta para buscar clientes com consumo identificado (migrado para visitas)
       const { data: perfisRaw, error: perfisError } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select(`
           cliente_fone,
           cliente_nome,
@@ -74,8 +75,7 @@ export async function POST(request: NextRequest) {
           id
         `)
         .eq('bar_id', barId)
-        .not('cliente_fone', 'is', null)
-        .neq('cliente_fone', '')
+        .eq('tem_telefone', true)
         .order('cliente_fone')
 
       if (perfisError) {

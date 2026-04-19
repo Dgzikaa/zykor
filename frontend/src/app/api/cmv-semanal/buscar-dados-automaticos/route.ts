@@ -98,7 +98,8 @@ export async function POST(request: NextRequest) {
 
       // Buscar TODOS os registros com motivo preenchido
       const { data: todosBrutos, error: errorTodos } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('valor_desconto, valor_produtos, data_visita, motivo_desconto')
         .eq('bar_id', bar_id)
         .gte('data_visita', data_inicio)
@@ -159,7 +160,8 @@ export async function POST(request: NextRequest) {
 
       // 3.2 Buscar dados adicionais de visitas para couvert e repique
       const { data: periodoData, error: errorPeriodo } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('valor_repique, valor_couvert, data_visita')
         .eq('bar_id', bar_id)
         .gte('data_visita', data_inicio)

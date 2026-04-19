@@ -192,11 +192,11 @@ export async function GET(request: NextRequest) {
       }
       
       const { data, error } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos')
         .eq('bar_id', barIdFilter)
-        .not('cliente_fone', 'is', null)
-        .neq('cliente_fone', '')
+        .eq('tem_telefone', true)
         .range(offset, offset + pageSize - 1)
       
       if (error) {
@@ -269,11 +269,11 @@ export async function GET(request: NextRequest) {
       tempoIterations++
       
       const { data: vendas, error: vendasError } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('cliente_fone, tempo_estadia_minutos')
         .eq('bar_id', barIdFilter)
-        .not('cliente_fone', 'is', null)
-        .neq('cliente_fone', '')
+        .eq('tem_telefone', true)
         .gt('tempo_estadia_minutos', 0)
         .lt('tempo_estadia_minutos', 720)
         .range(tempoOffset, tempoOffset + 999)

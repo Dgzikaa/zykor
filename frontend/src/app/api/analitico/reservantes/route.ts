@@ -158,10 +158,10 @@ export async function GET(request: NextRequest) {
 				iterationsVisitas++
 				
 				const { data: visitasData, error: visitasError } = await supabase
-					.from('visitas')
+					.schema('silver')
+					.from('cliente_visitas')
 					.select('cliente_fone')
-					.not('cliente_fone', 'is', null)
-					.neq('cliente_fone', '')
+					.eq('tem_telefone', true)
 					.eq('bar_id', barIdFilter)
 					.range(offsetVisitas, offsetVisitas + pageSizeVisitas - 1)
 					.order('id', { ascending: true }) // Garantir ordem consistente para paginação

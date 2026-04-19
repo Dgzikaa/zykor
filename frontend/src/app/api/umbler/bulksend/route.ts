@@ -528,12 +528,13 @@ async function getBulkSendDetails(
     
     if (incluirContaHub) {
       const { data: visitas } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('cliente_fone, data_visita, valor_pagamentos')
         .eq('bar_id', barId)
         .gte('data_visita', dataInicio)
         .lte('data_visita', dataFim)
-        .not('cliente_fone', 'is', null)
+        .eq('tem_telefone', true)
         .gt('pessoas', 0);
 
       // Mapear visitas por telefone normalizado (com todas as variações)

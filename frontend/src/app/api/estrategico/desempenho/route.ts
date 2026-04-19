@@ -172,7 +172,8 @@ export async function GET(request: NextRequest) {
 
     while (hasMore) {
       const { data: pageData } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('data_visita, valor_couvert')
         .gte('data_visita', `${ano}-01-01`)
         .lt('data_visita', `${ano + 1}-01-01`)
@@ -214,7 +215,8 @@ export async function GET(request: NextRequest) {
 
     while (hasMore) {
       const { data: pageData } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('cliente_fone, data_visita')
         .eq('bar_id', user.bar_id)
         .gte('data_visita', `${ano}-01-01`)
@@ -481,7 +483,8 @@ export async function GET(request: NextRequest) {
 
     while (hasMore) {
       const { data: pageData } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('cliente_fone, data_visita')
         .eq('bar_id', user.bar_id)
         .gte('data_visita', data3MesesAntes.toISOString().split('T')[0])

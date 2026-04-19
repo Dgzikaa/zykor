@@ -35,7 +35,8 @@ export async function GET(request: NextRequest) {
 
     // MIGRADO: visitas (domain table)
     let query = sb
-      .from('visitas')
+      .schema('silver')
+      .from('cliente_visitas')
       .select('*')
       .eq('bar_id', parseInt(bar_id))
       .limit(limit);
