@@ -1,5 +1,52 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-20 (Complemento — Fixes de qualidade bronze/silver)
+
+### Triagem e fixes de 9 bugs bronze/silver
+
+Investigação dirigida categorizou bugs: FIX VIÁVEL (3), UPSTREAM (3), ACEITAR (1), JÁ RESOLVIDO (3).
+
+#### Fixes aplicados
+
+**1. Umbler direcao (fix #1)**
+- Criada função `public.umbler_derivar_direcao(tipo_remetente)`
+- Bronze já tinha direcao populada como 'saida'/'entrada' (bug reportado era info errada)
+- Função disponível para uso futuro em `silver.umbler_atendimento_diario`
+
+**2. ContaAzul proxies de conciliação (fix #4)**
+- Adicionadas colunas: `lancamentos_liquidados` (derivada de status=ACQUITTED), `valor_juros_multas` (pago-bruto quando positivo)
+- Schema atualizado, ETL rebuild pendente (cron diário)
+- ~93% dos lançamentos = ACQUITTED (proxy de conciliado)
+
+**3. Flag margem_suspeita produtos_top (fix #7)**
+- Adicionada coluna `silver.produtos_top.margem_suspeita`
+- TRUE quando margem < -50% ou > 100%
+- UPDATE histórico: 17 produtos flagados (8 bar 3 + 9 bar 4)
+- ETL update pendente (cron diário)
+- Protege dashboards de margens ilusórias (-824%)
+
+#### Documentado como débito upstream
+
+**BUG #2 (Bar 4 comida custo zero):** Cadastro seletivo em AMBOS bares. Bar 3 "Pratos Individuais" R$ 211k sem custo. Bar 4 sandubas/petiscos R$ 644k. Gestores precisam cadastrar custos no ContaHub. Técnica OK (cervejas têm custo).
+
+**BUG #3 (ContaAzul metodo_pagamento NULL):** API não retorna. Conceito diferente de ContaHub `meio` (caixa vs contábil). Não crítico.
+
+**BUG #6 (22 lançamentos pago > bruto):** Juros/multas acumulados (0,03%). Capturados em `valor_juros_multas`.
+
+#### Já resolvidos
+
+- BUG #5: Falae data_visita — COALESCE em silver.nps_diario
+- BUG #8: Yuzer órfãs — consolidadas P3
+- BUG #9: nps_agregado_semanal — tabela funcional
+
+### Migrations aplicadas (52 total)
+
+50. `fix_umbler_direcao_derive_from_tipo_remetente`
+51. `add_silver_contaazul_conciliado_e_juros`
+52. `add_silver_produtos_top_margem_suspeita`
+
+---
+
 ## 2026-04-20 (Sessão domingo madrugada — INÍCIO GOLD LAYER)
 
 ### Primeira Gold em produção: `gold.clientes_ativos_diario`
