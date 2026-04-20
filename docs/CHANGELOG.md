@@ -1,5 +1,139 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-19 (Sessão domingo madrugada — Fase B + C + FIX tempo_estadia)
+
+### Fase B — Análise exploratória 16 Silvers
+
+Bateria de 25 queries descobertas em todas as Silvers para extrair
+insights de negócio e detectar anomalias de dados.
+
+**Achados de negócio acionáveis:**
+
+- 20 dormentes high-value com WhatsApp prontos para campanha de retenção
+  (todos R$ 1.000+ histórico, 30-74 dias off, 100% acionáveis via WhatsApp)
+- Quarta é dia preferido de 9/20 VIPs cervejeiros (bar 3) — programação
+  dedicada validada
+- Sábado 38% maior que sexta em ambos bares
+- Estadia prolongada correlaciona com gasto maior (visitas 5h+ gastam
+  ~2x médio)
+- NPS aponta "Tempo de Entrega" (4,43) e "Custo Benefício" (4,50) como
+  pontos fracos consistentes
+- Mix pagamento Yuzer estável: 53-61% crédito, 26-35% débito, 7-13% pix,
+  <2% dinheiro (pode virar regra de negócio)
+- Bar 4 negativo em 7 dos 12 meses (alerta P&L crítico)
+- Carnaval 2026: 3.000-4.100 cortesias/dia vs 100-600 ingressos pagos —
+  modelo financeiro depende inteiramente da conversão F&B no balcão
+- IMPOSTO bar 3: R$ 333k em aberto (44% pago) — risco fiscal
+
+**Bugs descobertos em Bronze (upstream, não no Silver):**
+
+- Bar 4 COMIDA: todos 66 produtos com custo R$ 0 no ContaHub
+  (gestor bar 4 não cadastrou custos — bug de cadastro, não de ETL)
+- Bar 3 bebidas/drinks/comida: alguns produtos com margem negativa
+  (custo cadastrado acima do preço)
+- ContaAzul: `metodo_pagamento` NULL em 100%, `conciliado` sempre false
+- Falae: `data_visita` NULL em 43% (já tratado via COALESCE no ETL)
+- Umbler: `direcao` NULL em todas mensagens (bloqueia silver.umbler_atendimento_diario)
+
+### Fase C (parcial) — Consolidação arquitetural
+
+**C.1 — Safety drops adiados:**
+
+- 3 backups com idade <30 dias (criados em 2026-04-19): manter até 2026-05-19
+- `operations.vendas_item` e `operations.faturamento_pagamentos`: zero
+  consumers ativos (frontend só comentário, banco zero functions/views)
+  mas mantidos como compat por enquanto
+
+**C.2 — Refactor frontend pendente (próxima sessão):**
+
+- 4 reads `crm.nps_falae_diario` → `silver.nps_diario` (mapping de colunas)
+- 10 reads `silver_yuzer_*_evento` → `.schema('silver').from('yuzer_*_evento')`
+- 2 rotas `sync` que escrevem em views legacy (CRÍTICO — antipattern):
+  - `analitico/clientes/perfil-consumo/sync` (duplica cron silver, descontinuar)
+  - `falae/sync` (upsert em `crm.nps_falae_diario` view; redirecionar ou deprecar)
+
+**C.3 — Bugs investigados:**
+
+- Bar 4 COMIDA 100% margem: confirmado bug Bronze (custo zerado em
+  3.597 linhas Batata Deboche, etc). Comparativo: [HH]Spaten 600ml tem
+  R$ 89k de custo total, comida tem zero.
+- Clientes sem perfil (756 bar 3): NÃO é bug — todos têm `total_itens=0`
+  (couvert puro / sem produtos classificáveis). NULL é correto.
+
+### FIX CRÍTICO — `tempo_estadia_minutos`
+
+**Bug identificado e corrigido nesta sessão:**
+
+ETL v1 (bug): lia `hr_lancamento`/`hr_transacao` de
+`bronze_contahub_financeiro_pagamentosrecebidos` como proxy de
+abertura/fechamento de mesa. Esses campos são **timestamps do processo
+de captura bancária** — adquirentes Cielo/Stone/Pix fazem batch ~3h
+após cada transação. Resultado: 98% das visitas com `tempo_estadia`
+concentrado em 178-182min (107.206 em 180min exatos no bar 3).
+
+Investigação forense (5 etapas) confirmou:
+
+- Pix Auto: P50 da diff `hr_transacao - hr_lancamento` = 179,5min (fixo)
+- Crédito/Débito Auto: P50 = 179,6min (batch noturno)
+- Bronze tem 2 fontes temporais reais: `pagamentosrecebidos` (errada
+  para estadia) e `produtos_temposproducao` (correta — t0_lancamento
+  até t3_entrega, timestamps reais de pedido/entrega)
+
+ETL v2 (fix): lê `t0_lancamento` e `t3_entrega` de
+`bronze_contahub_produtos_temposproducao` agregado por
+`(bar_id, dia, vd_mesadesc)`. Exclui mesas com rotação (vd distinto
+mesmo dia, 0,4% bar 3 / 3,8% bar 4) via NOT EXISTS. Flag
+`tem_estadia_calculada` agora exige `fechamento > abertura` (fix de 17
+casos com abertura=fechamento — pedidos PP instantâneos).
+
+**Validação do fix em produção:**
+
+- 225.027 visitas recalculadas em 127 segundos (~2min backfill total)
+- 915 dias processados (443 bar 3 + 472 bar 4)
+- Mediana passou de 180min → 70min
+- Visitas em 180min: 107.206 → 1.354 (-98,7%)
+- Distribuição agora realista:
+  - <15min: 30% bar 3, 21% bar 4 (PP rápido)
+  - 30-60min: 11% bar 3, 14% bar 4
+  - 1-2h: 20% bar 3, 23% bar 4
+  - 2-3h: 14% bar 3, 14% bar 4
+  - 3-5h: 14% bar 3, 12% bar 4
+  - >5h: 6-7% (sessões longas/festas)
+
+**Impacto downstream:**
+
+- `silver.cliente_visitas`: 100% rebuildado, `versao_etl = 2`
+- `silver.cliente_estatisticas`: rebuildado (108k clientes em 12s)
+  - Bar 3: média 92min, P50 72min, P95 263min (era ~180min em todos)
+  - Bar 4: média 111min, P50 86min, P95 313min
+- Análises Fase B sobre "estadia 5h+ gasta 2x" mantêm direção mas
+  com bases absolutas corretas; faixas precisam ser revistas
+
+**Migrations aplicadas (35-39):**
+
+35. `backup_etl_cliente_visitas_v1` (rename → `_v1_backup`)
+36. `create_etl_cliente_visitas_v2_with_flag_fix`
+37. `create_backfill_cliente_visitas_range_helper`
+38. `drop_shadow_v2_objects` (limpeza shadow + helper)
+39. (rebuild `cliente_estatisticas` via RPC `etl_silver_cliente_estatisticas_all_bars`)
+
+**Estratégia de rollout:**
+
+- Shadow table + função paralela testadas com 1 dia (15/04 bar 3)
+- Comparação v1 vs v2 + 10 spot checks manuais validados
+- Backfill em 10 blocos de ~60-90 dias (checkpoints intermediários)
+- Cron diário (`silver-cliente-visitas-diario` jobid 446) continua
+  funcionando — agora com lógica v2
+
+**Débito remanescente:**
+
+- Drop `etl_silver_cliente_visitas_dia_v1_backup` em 2026-04-26 após
+  validar v2 estável em produção por 7 dias
+- Análises downstream (dashboards, relatórios) podem agora usar faixas
+  reais de estadia em vez do colapso 180min
+
+---
+
 ## 2026-04-19 (Sessão domingo noite — P3)
 
 ### Fase P3: Silvers Yuzer reais
