@@ -1,5 +1,76 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-20 (Fix semântico cl_real na Gold #2)
+
+### Bug descoberto e corrigido
+
+**Sintoma**: Bar 4 exibia apenas 22% dos dias com `publico_real_consolidado > 0`, 
+vs 78% do bar 3.
+
+**Causa raiz**: `cl_real` estava sendo calculado como `COUNT(DISTINCT cliente_fone_norm) 
+FILTER (WHERE tem_telefone = true)`. Isso significava "clientes com telefone cadastrado", 
+não "público real".
+
+Bar 4 tem apenas 17,8% de visitas com telefone cadastrado (gestão operacional de 
+cadastro diferente), então `cl_real` ficava artificialmente baixo, distorcendo 
+`publico_real_consolidado`.
+
+### Fix aplicado (2 colunas novas + semântica corrigida)
+
+**1. `cl_real` corrigido:**
+- Antes: COUNT DISTINCT com filtro `tem_telefone`
+- Depois: `total_pessoas` (ContaHub total, sem filtro)
+- Agora representa: "público real da noite"
+
+**2. `cl_com_telefone` (novo):**
+- Subset de `cl_real` com telefone cadastrado
+- Usar para CRM, campanhas WhatsApp, análise retenção
+
+**3. `pct_cadastro_telefone` (novo):**
+- `cl_com_telefone / cl_real * 100`
+- KPI novo de qualidade de cadastro por bar
+
+### Impacto validado
+
+**Bar 3:**
+- Público médio/dia: 355
+- Com telefone: 330
+- % cadastro: **82,8%** (excelente)
+- % dias com público: 81,3%
+
+**Bar 4:**
+- Público médio/dia: 121
+- Com telefone: 20
+- % cadastro: **16,0%** (problema operacional)
+- % dias com público: **85,9%** (era 22,3% antes do fix) ✅
+
+### Descoberta de negócio
+
+`pct_cadastro_telefone` revela que bar 4 perde ~84% da base CRM por não 
+cadastrar telefone. Dashboard deve mostrar esse KPI para gestor priorizar 
+cadastro operacional.
+
+### Validação Carnaval preservada
+
+15/02 bar 3:
+- `cl_real` = 0 (ContaHub não processou, todo mundo via Yuzer)
+- `yuzer_ingressos` = 762
+- `sympla_checkins` = 1.362
+- **`publico_real_consolidado` = 2.124** (igual validação anterior)
+
+### Migrations aplicadas (2)
+
+61. `fix_gold_planejamento_cl_real_semantica`
+62. `update_etl_gold_planejamento_cl_real_fix`
+
+### Reprocessamento
+
+- 950 linhas reprocessadas (475 por bar)
+- Via DO block iterativo por mês
+- `versao_etl` bumped para 2
+
+---
+
 ## 2026-04-20 (Gold #2 — planejamento_comercial_diario)
 
 ### Segunda Gold em produção
