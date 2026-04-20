@@ -1,5 +1,82 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-20 (Gold #2 — planejamento_comercial_diario)
+
+### Segunda Gold em produção
+
+**Objetivo**: substituir `operations.eventos_base` (77 colunas híbridas) por 
+consolidado diário rigoroso do planejamento comercial.
+
+#### Estrutura
+
+- `gold.planejamento_comercial_diario` (74 colunas, 950 linhas)
+- Granularidade: 1 linha por `(bar_id, data_evento)`
+- ETL 3 fases: Silver core + Externos (Sympla/Yuzer) + Meta JOIN
+- Função: `public.etl_gold_planejamento_comercial_diario_full(bar, inicio, fim)`
+
+#### Descobertas importantes
+
+1. **`operations.eventos` vs `eventos_base` são MIRRORS** (497 linhas bar 3, 
+   462 bar 4). `eventos` é master editável, `eventos_base` é derivada/calculada.
+
+2. **`real_r` (ContaHub) subestima em dias de evento Yuzer**. Carnaval: ContaHub 
+   R$ 116-268 vs Yuzer R$ 80k-189k. Gold consolida fontes.
+
+3. **`yuzer_ingressos` estava errado** — guardava `count_pedidos` (~3.891) em 
+   vez de qtd real de ingressos (~762). Corrigido: agora vem de 
+   `SUM(quantidade) WHERE eh_ingresso=true` em `yuzer_produtos_evento`.
+
+#### 3 colunas consolidadas (chave da Gold)
+
+- **`faturamento_total_consolidado`** = `real_r` + `yuzer_liquido` + `sympla_liquido`
+- **`publico_real_consolidado`** = `cl_real` + `yuzer_ingressos` + `sympla_checkins`
+- **`yuzer_pedidos`** = `count_pedidos` (separado de `yuzer_ingressos` corrigido)
+
+**Validação Carnaval 2026 (15/02)**:
+- ContaHub: R$ 268
+- Yuzer: R$ 189.446 / 762 ingressos / 3.891 pedidos
+- Sympla: R$ 26.324 / 1.362 check-ins
+- **Consolidado**: R$ 216.039 faturamento, 2.124 pessoas
+
+#### Wrapper + Cron
+
+- `public.etl_gold_planejamento_comercial_diario_cron()`
+- Processa últimos 7 dias dos bares ativos
+- Cron **jobid 457**: `50 11 * * *` (08:50 BRT)
+- Log em `operations.etl_execucoes_log`
+
+#### Cobertura backfill completo
+
+- Bar 3: 475 dias (01/01/25 → 20/04/26)
+  - 80,6% dias com faturamento
+  - 78,5% dias com público
+  - R$ 19,2M faturamento total período
+- Bar 4: 475 dias (01/01/25 → 20/04/26)
+  - 85,3% dias com faturamento
+  - **22,3% dias com público** (explicado: apenas 17,8% visitas ContaHub 
+    bar 4 têm telefone cadastrado vs 91,7% bar 3 + bar 4 não tem Yuzer/Sympla 
+    na maior parte do histórico para compensar)
+
+#### Migrations aplicadas (7)
+
+53. `create_gold_planejamento_comercial_diario` (DDL)
+54. `create_etl_gold_planejamento_comercial_fase_a`
+55. `fix_etl_gold_planejamento_fase_a_tempos_schema`
+56. `fix_etl_gold_planejamento_schema_vendas_diarias`
+57. `add_etl_gold_planejamento_fase_b`
+58. `add_gold_planejamento_colunas_consolidadas`
+59. `update_etl_gold_planejamento_com_consolidados`
+60. `create_etl_log_and_wrapper_planejamento`
+
+#### Débitos Gold #2
+
+- 16 colunas não populadas ainda (tempos detalhados, mix vendas, custos 
+  manuais, observações) — aguardam dados fonte ou edição manual
+- `t_coz`/`t_bar` NULL em toda base (silver.tempos_producao schema divergente 
+  ou vazia) — investigar próxima iteração
+
+---
+
 ## 2026-04-20 (Fix tela /analitico/clientes)
 
 ### Bug corrigido: totais zerados em /analitico/clientes
