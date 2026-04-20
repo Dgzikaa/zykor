@@ -1,5 +1,69 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-20 (Refactor tela planejamento-comercial usa Gold #2)
+
+### Primeira tela migrada para consumir Gold
+
+Tela `estrategico/planejamento-comercial` migrada de `operations.eventos_base` 
+para `gold.planejamento_comercial_diario`.
+
+#### Bug crítico eliminado
+
+**Linha 268 do service** (antes):
+```typescript
+const valorContahubLiquido = Number(evento.real_r || 0) - valorYuzerLiquido - valorSymplaLiquido;
+```
+
+**Contradição**: subtrai Yuzer/Sympla de `real_r`, mas **comentário L285 dizia 
+que `real_r` JÁ INCLUI**. Bug de double-counting negativo gerava valores errados 
+em dias de evento.
+
+**Fix**: Gold separa fontes explicitamente:
+- `gold.real_r` = ContaHub puro
+- `gold.faturamento_total_consolidado` = soma já feita no ETL
+
+#### Mudanças aplicadas
+
+**planejamento-service.ts**: 359 → 290 linhas (**-69 líquido**, 154 ins / 223 del)
+
+- Query `eventos_base` (170 cols) → Gold (38 cols)
+- LEFT JOIN `eventos_base` SOMENTE para campos manuais (observacoes, c_art, 
+  c_prod, faturamento_*_manual, precisa_recalculo)
+- Removidos cálculos JS redundantes:
+  - `valorContahubLiquido` (subtração bugada)
+  - `faturamento_total_detalhado` (Gold já tem)
+  - Query extra Yuzer descontos (não mais usada)
+- Flags booleanas mantidas (apresentação)
+- Tipos TypeScript alinhados
+
+**Mapeamento de colunas**:
+- `eventos_base.real_r` (consolidado) → `gold.faturamento_total_consolidado`
+- `eventos_base.cl_real` (consolidado) → `gold.publico_real_consolidado`
+- `eventos_base.te_real` → `gold.te_real_calculado`
+- `eventos_base.tb_real` → `gold.tb_real_calculado`
+- `eventos_base.yuzer_ingressos` (bug count_pedidos) → `gold.yuzer_ingressos` (qtd real corrigida)
+
+#### Benefícios
+
+- **Bug double-counting eliminado**
+- **-69 linhas** código (simplificação)
+- **Performance**: 2 queries Gold+eventos_base vs 2 queries eventos_base+Yuzer + cálculos JS
+- **Manutenção**: lógica no ETL (single source of truth)
+- **Correção semântica**: `yuzer_ingressos` agora é quantidade real (~762), não pedidos (~3.891)
+
+#### Validação
+
+- Type-check: ✅ sem erros
+- Lint: ✅ sem erros
+- Carnaval 15/02: números preservados (R$ 216k, 2.124 pessoas)
+
+#### Débito
+
+- 4 arquivos `estrategico/desempenho*` ainda em `eventos_base` (aguardam Gold #3)
+- 20 arquivos categoria C (exploracao, auditoria, etc.) — backlog
+
+---
+
 ## 2026-04-20 (Fix semântico cl_real na Gold #2)
 
 ### Bug descoberto e corrigido

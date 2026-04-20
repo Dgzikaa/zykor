@@ -109,250 +109,181 @@ export async function getPlanejamentoComercial(
       ? `${ano + 1}-01-01`
       : `${ano}-${(mes + 1).toString().padStart(2, '0')}-01`;
 
-  // Buscar dados APENAS da tabela eventos_base
-  // NOTA: eventos_base foi migrada de public para o schema 'operations'
-  // no commit 027eeb29. Sem .schema('operations') a query retorna [] silenciosamente.
-  const { data: eventos, error } = await supabase
-    .schema('operations')
-    .from('eventos_base')
-    .select(
-      `
-        id,
-        data_evento,
-        nome,
-        dia_semana,
-        bar_id,
-        m1_r,
-        cl_plan,
-        te_plan,
-        tb_plan,
-        c_artistico_plan,
-        observacoes,
-        real_r,
-        cl_real,
-        lot_max,
-        te_real,
-        tb_real,
-        t_medio,
-        c_art,
-        c_prod,
-        percent_art_fat,
-        percent_b,
-        percent_d,
-        percent_c,
-        percent_happy_hour,
-        percent_stockout,
-        stockout_drinks_perc,
-        stockout_comidas_perc,
-        faturamento_couvert,
-        couvert_vr_contahub,
-        t_coz,
-        t_bar,
-        atrasinho_cozinha,
-        atrasinho_bar,
-        atrasao_cozinha,
-        atrasao_bar,
-        fat_19h_percent,
-        sympla_liquido,
-        sympla_checkins,
-        yuzer_liquido,
-        yuzer_ingressos,
-        conta_assinada,
-        faturamento_entrada_yuzer,
-        faturamento_bar_yuzer,
-        res_tot,
-        res_p,
-        faturamento_couvert_manual,
-        faturamento_bar_manual,
-        calculado_em,
-        precisa_recalculo,
-        versao_calculo
-      `
-    )
-    .eq('bar_id', barId)
-    .gte('data_evento', dataInicio)
-    .lt('data_evento', dataFinalConsulta)
-    .eq('ativo', true)
-    .order('data_evento', { ascending: true });
+  // REFACTOR 2026-04-20: Migrado para gold.planejamento_comercial_diario
+  // Gold ja tem consolidacao de ContaHub + Yuzer + Sympla, eliminando
+  // bug de double-counting (L268 subtraia quando real_r ja era consolidado)
+  const [{ data: eventosGold, error }, { data: eventosManuais }] = await Promise.all([
+    supabase
+      .schema('gold' as never)
+      .from('planejamento_comercial_diario')
+      .select(`
+        id, data_evento, nome, dia_semana, bar_id,
+        m1_r, cl_plan, te_plan, tb_plan, c_artistico_plan, lot_max,
+        real_r, faturamento_total_consolidado, cl_real, publico_real_consolidado,
+        te_real_calculado, tb_real_calculado, t_medio,
+        percent_b, percent_d, percent_c, percent_happy_hour,
+        percent_stockout, stockout_drinks_perc, stockout_comidas_perc,
+        faturamento_couvert, couvert_vr_contahub,
+        t_coz, t_bar, atrasinho_cozinha, atrasinho_bar, atrasao_cozinha, atrasao_bar,
+        fat_19h_percent, sympla_liquido, sympla_checkins,
+        yuzer_liquido, yuzer_ingressos, yuzer_pedidos,
+        conta_assinada, faturamento_entrada_yuzer, faturamento_bar_yuzer,
+        res_tot, res_p, cl_com_telefone, pct_cadastro_telefone
+      `)
+      .eq('bar_id', barId)
+      .gte('data_evento', dataInicio)
+      .lt('data_evento', dataFinalConsulta)
+      .eq('ativo', true)
+      .order('data_evento', { ascending: true }),
+    
+    // LEFT JOIN eventos_base SOMENTE para campos manuais editaveis
+    supabase
+      .schema('operations' as never)
+      .from('eventos_base')
+      .select('data_evento, observacoes, c_art, c_prod, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo')
+      .eq('bar_id', barId)
+      .gte('data_evento', dataInicio)
+      .lt('data_evento', dataFinalConsulta)
+  ]);
 
   if (error) {
-    console.error('❌ Erro ao buscar eventos em operations.eventos_base:', {
+    console.error('❌ Erro ao buscar Gold planejamento_comercial_diario:', {
       message: error.message,
       code: error.code,
-      details: error.details,
-      hint: error.hint,
       barId,
       mes,
       ano,
     });
-    // Propaga o erro para o error boundary em vez de mascarar como lista vazia.
-    // Isso garante que falhas de schema/conexão não virem "Nenhum evento encontrado"
-    // silenciosamente — o usuário vai ver a tela de erro e saberemos na hora.
-    throw new Error(
-      `Erro ao carregar planejamento comercial: ${error.message} (code: ${error.code})`
-    );
+    throw new Error(`Erro ao carregar planejamento comercial: ${error.message}`);
   }
 
-  // CRITICAL FIX: Filtrar eventos para garantir APENAS o mês/ano solicitado
-  // (evitar problemas de timezone ou dados incorretos no banco)
-  const eventosFiltrados = (eventos || []).filter(evento => {
+  // Merge campos manuais de eventos_base
+  const manuaisMap = new Map(
+    (eventosManuais || []).map((m: any) => [m.data_evento, m])
+  );
+
+  const eventosFiltrados = (eventosGold || []).filter(evento => {
     const [anoEvento, mesEvento] = evento.data_evento.split('-').map(Number);
     return mesEvento === mes && anoEvento === ano;
   });
-  const datasEventos = Array.from(
-    new Set(eventosFiltrados.map(e => e.data_evento))
-  );
 
-  let descontosYuzerPorData = new Map<string, number>();
-  if (datasEventos.length > 0) {
-    const { data: yuzerPagamentos } = await supabase
-      .from('silver_yuzer_pagamentos_evento')
-      .select('data_evento,total_descontos')
-      .eq('bar_id', barId)
-      .in('data_evento', datasEventos);
-
-    descontosYuzerPorData = (yuzerPagamentos || []).reduce(
-      (acc: Map<string, number>, row: YuzerPagamentoResumo) => {
-        acc.set(row.data_evento, Number(row.total_descontos || 0));
-        return acc;
-      },
-      new Map<string, number>()
-    );
-  }
-
-  // Trigger recálculo (mas não bloqueante e sem log excessivo no server component)
-  const eventosParaRecalcular = eventosFiltrados.filter(
-    e =>
-      e.precisa_recalculo &&
-      e.versao_calculo !== 999 &&
-      (e.real_r === 0 || e.real_r === null)
-  );
+  // Trigger recalculo (checando eventos_base para flag precisa_recalculo)
+  const eventosParaRecalcular = eventosFiltrados.filter((e: any) => {
+    const manual = manuaisMap.get(e.data_evento);
+    return manual?.precisa_recalculo && manual?.versao_calculo !== 999 && (e.real_r === 0 || e.real_r === null);
+  });
 
   if (eventosParaRecalcular.length > 0) {
-    // Disparar recálculo em "background" (sem await)
-    // Nota: Em Server Components, isso pode não terminar se o runtime morrer,
-    // mas é melhor do que bloquear o render.
-    // O ideal seria usar uma Task Queue, mas aqui vamos apenas tentar.
     Promise.all(
-      eventosParaRecalcular.map(evento =>
+      eventosParaRecalcular.map((evento: any) =>
         supabase.rpc('calculate_evento_metrics', { evento_id: evento.id })
       )
-    ).catch(err => console.error('Erro no recálculo background:', err));
+    ).catch(err => console.error('Erro no recalculo background:', err));
   }
 
-  // Processar dados (Paralelo)
-  const dadosProcessados = await Promise.all(
-    eventosFiltrados.map(async evento => {
-      // Flags de performance
-      const realVsM1Green = (evento.real_r || 0) >= (evento.m1_r || 0);
-      const ciRealVsPlanGreen = (evento.cl_real || 0) >= (evento.cl_plan || 0);
-      const teRealVsPlanGreen = (evento.te_real || 0) >= (evento.te_plan || 0);
-      const tbRealVsPlanGreen = (evento.tb_real || 0) >= (evento.tb_plan || 0);
-      const tMedioGreen = (evento.t_medio || 0) >= 93;
-      const percentArtFatGreen = (evento.percent_art_fat || 0) <= 15;
-      // t_coz e t_bar são médias de tempo em segundos
-      // Verde se média <= 12min (720s) coz, <= 4min (240s) bar
-      const tCozGreen = (evento.t_coz || 0) <= 720;
-      const tBarGreen = (evento.t_bar || 0) <= 240;
-      const fat19hGreen = (evento.fat_19h_percent || 0) >= 40;
+  // Processar dados (uso direto da Gold, sem calculos JS)
+  const dadosProcessados = eventosFiltrados.map((evento: any) => {
+    const manual = manuaisMap.get(evento.data_evento);
+    
+    // Flags de performance (mantidas no service, sao apresentacao)
+    const realVsM1Green = (evento.faturamento_total_consolidado || 0) >= (evento.m1_r || 0);
+    const ciRealVsPlanGreen = (evento.publico_real_consolidado || 0) >= (evento.cl_plan || 0);
+    const teRealVsPlanGreen = (evento.te_real_calculado || 0) >= (evento.te_plan || 0);
+    const tbRealVsPlanGreen = (evento.tb_real_calculado || 0) >= (evento.tb_plan || 0);
+    const tMedioGreen = (evento.t_medio || 0) >= 93;
+    const percentArtFatGreen = (evento.percent_art_fat || 0) <= 15;
+    const tCozGreen = (evento.t_coz || 0) <= 720;
+    const tBarGreen = (evento.t_bar || 0) <= 240;
+    const fat19hGreen = (evento.fat_19h_percent || 0) >= 40;
 
-      // NOTE: Removed N+1 RPC calls for clientes_ativos and percent_clientes_novos
-      // as they were causing 10s+ load times and are not currently used in the Planning UI.
-      const percClientesNovos: number | null = null;
-      const clientesAtivos: number | null = null;
+    const percClientesNovos: number | null = null;
+    const clientesAtivos: number | null = null;
 
-      const dataEvento = new Date(evento.data_evento + 'T00:00:00Z');
-      const valorYuzerLiquido = Number(evento.yuzer_liquido || 0);
-      const valorSymplaLiquido = Number(evento.sympla_liquido || 0);
-      const valorContaAssinada = Number(evento.conta_assinada || 0);
-      const valorContahubLiquido =
-        Number(evento.real_r || 0) - valorYuzerLiquido - valorSymplaLiquido;
-      const valorContahubBruto = valorContahubLiquido + valorContaAssinada;
-      const valorYuzerDescontos =
-        descontosYuzerPorData.get(evento.data_evento) || 0;
+    const dataEvento = new Date(evento.data_evento + 'T00:00:00Z');
+    
+    // Gold ja tem faturamento_total_consolidado (ContaHub + Yuzer + Sympla)
+    // real_r na Gold = ContaHub puro (nao mais consolidado)
+    const valorContahubLiquido = Number(evento.real_r || 0);
+    const valorContahubBruto = valorContahubLiquido + Number(evento.conta_assinada || 0);
 
-      return {
-        evento_id: evento.id,
-        data_evento: evento.data_evento,
-        dia_semana: evento.dia_semana || '',
-        evento_nome: evento.nome || '',
-        dia: dataEvento.getUTCDate(),
-        mes: dataEvento.getUTCMonth() + 1,
-        ano: dataEvento.getUTCFullYear(),
-        dia_formatado: dataEvento.getUTCDate().toString().padStart(2, '0'),
-        data_curta: `${dataEvento.getUTCDate().toString().padStart(2, '0')}/${(dataEvento.getUTCMonth() + 1).toString().padStart(2, '0')}`,
+    return {
+      evento_id: evento.id,
+      data_evento: evento.data_evento,
+      dia_semana: evento.dia_semana || '',
+      evento_nome: evento.nome || '',
+      dia: dataEvento.getUTCDate(),
+      mes: dataEvento.getUTCMonth() + 1,
+      ano: dataEvento.getUTCFullYear(),
+      dia_formatado: dataEvento.getUTCDate().toString().padStart(2, '0'),
+      data_curta: `${dataEvento.getUTCDate().toString().padStart(2, '0')}/${(dataEvento.getUTCMonth() + 1).toString().padStart(2, '0')}`,
 
-        // real_r JÁ INCLUI ContaHub + Sympla + Yuzer (calculado pela função calculate_evento_metrics)
-        real_receita: evento.real_r || 0,
-        m1_receita: evento.m1_r || 0,
-        contahub_bruto: valorContahubBruto,
-        conta_assinada: valorContaAssinada,
-        contahub_liquido: valorContahubLiquido,
-        yuzer_entrada: Number(evento.faturamento_entrada_yuzer || 0),
-        yuzer_bar: Number(evento.faturamento_bar_yuzer || 0),
-        yuzer_descontos: valorYuzerDescontos,
-        yuzer_liquido: valorYuzerLiquido,
-        sympla_liquido: valorSymplaLiquido,
-        faturamento_total_detalhado:
-          valorContahubLiquido + valorYuzerLiquido + valorSymplaLiquido,
+      real_receita: evento.faturamento_total_consolidado || 0,
+      m1_receita: evento.m1_r || 0,
+      contahub_bruto: valorContahubBruto,
+      conta_assinada: Number(evento.conta_assinada || 0),
+      contahub_liquido: valorContahubLiquido,
+      yuzer_entrada: Number(evento.faturamento_entrada_yuzer || 0),
+      yuzer_bar: Number(evento.faturamento_bar_yuzer || 0),
+      yuzer_descontos: 0,
+      yuzer_liquido: Number(evento.yuzer_liquido || 0),
+      sympla_liquido: Number(evento.sympla_liquido || 0),
+      faturamento_total_detalhado: evento.faturamento_total_consolidado || 0,
 
-        clientes_plan: evento.cl_plan || 0,
-        clientes_real: evento.cl_real || 0,
-        res_tot: evento.res_tot || 0,
-        res_p: evento.res_p || 0,
-        lot_max: evento.lot_max || 0,
+      clientes_plan: evento.cl_plan || 0,
+      clientes_real: evento.publico_real_consolidado || 0,
+      res_tot: evento.res_tot || 0,
+      res_p: evento.res_p || 0,
+      lot_max: evento.lot_max || 0,
 
-        te_plan: evento.te_plan || 0,
-        te_real: evento.te_real || 0,
-        tb_plan: evento.tb_plan || 0,
-        tb_real: evento.tb_real || 0,
-        t_medio: evento.t_medio || 0,
+      te_plan: evento.te_plan || 0,
+      te_real: evento.te_real_calculado || 0,
+      tb_plan: evento.tb_plan || 0,
+      tb_real: evento.tb_real_calculado || 0,
+      t_medio: evento.t_medio || 0,
 
-        c_art: Number(evento.c_art) || 0,
-        c_prod: Number(evento.c_prod) || 0,
-        percent_art_fat: Number(evento.percent_art_fat) || 0,
+      c_art: Number(manual?.c_art) || 0,
+      c_prod: Number(manual?.c_prod) || 0,
+      percent_art_fat: Number(evento.percent_art_fat) || 0,
 
-        percent_b: evento.percent_b || 0,
-        percent_d: evento.percent_d || 0,
-        percent_c: evento.percent_c || 0,
-        percent_happy_hour: evento.percent_happy_hour || 0,
+      percent_b: evento.percent_b || 0,
+      percent_d: evento.percent_d || 0,
+      percent_c: evento.percent_c || 0,
+      percent_happy_hour: evento.percent_happy_hour || 0,
 
-        t_coz: evento.t_coz || 0,
-        t_bar: evento.t_bar || 0,
-        atrasinho_cozinha: evento.atrasinho_cozinha || 0,
-        atrasinho_bar: evento.atrasinho_bar || 0,
-        atrasao_cozinha: evento.atrasao_cozinha || 0,
-        atrasao_bar: evento.atrasao_bar || 0,
-        fat_19h: evento.fat_19h_percent || 0,
+      t_coz: evento.t_coz || 0,
+      t_bar: evento.t_bar || 0,
+      atrasinho_cozinha: evento.atrasinho_cozinha || 0,
+      atrasinho_bar: evento.atrasinho_bar || 0,
+      atrasao_cozinha: evento.atrasao_cozinha || 0,
+      atrasao_bar: evento.atrasao_bar || 0,
+      fat_19h: evento.fat_19h_percent || 0,
 
-        percent_stockout: evento.percent_stockout || 0,
-        stockout_drinks_perc: evento.stockout_drinks_perc || 0,
-        stockout_comidas_perc: evento.stockout_comidas_perc || 0,
-        faturamento_couvert: evento.faturamento_couvert || 0,
-        couvert_vr_contahub:
-          evento.couvert_vr_contahub !== null &&
-          evento.couvert_vr_contahub !== undefined
-            ? Number(evento.couvert_vr_contahub)
-            : null,
+      percent_stockout: evento.percent_stockout || 0,
+      stockout_drinks_perc: evento.stockout_drinks_perc || 0,
+      stockout_comidas_perc: evento.stockout_comidas_perc || 0,
+      faturamento_couvert: evento.faturamento_couvert || 0,
+      couvert_vr_contahub:
+        evento.couvert_vr_contahub !== null && evento.couvert_vr_contahub !== undefined
+          ? Number(evento.couvert_vr_contahub)
+          : null,
 
-        percent_clientes_novos: percClientesNovos,
-        clientes_ativos: clientesAtivos,
+      percent_clientes_novos: percClientesNovos,
+      clientes_ativos: clientesAtivos,
 
-        faturamento_couvert_manual: evento.faturamento_couvert_manual,
-        faturamento_bar_manual: evento.faturamento_bar_manual,
+      faturamento_couvert_manual: manual?.faturamento_couvert_manual,
+      faturamento_bar_manual: manual?.faturamento_bar_manual,
 
-        real_vs_m1_green: realVsM1Green,
-        ci_real_vs_plan_green: ciRealVsPlanGreen,
-        te_real_vs_plan_green: teRealVsPlanGreen,
-        tb_real_vs_plan_green: tbRealVsPlanGreen,
-        t_medio_green: tMedioGreen,
-        percent_art_fat_green: percentArtFatGreen,
-        t_coz_green: tCozGreen,
-        t_bar_green: tBarGreen,
-        fat_19h_green: fat19hGreen,
-      };
-    })
-  );
+      real_vs_m1_green: realVsM1Green,
+      ci_real_vs_plan_green: ciRealVsPlanGreen,
+      te_real_vs_plan_green: teRealVsPlanGreen,
+      tb_real_vs_plan_green: tbRealVsPlanGreen,
+      t_medio_green: tMedioGreen,
+      percent_art_fat_green: percentArtFatGreen,
+      t_coz_green: tCozGreen,
+      t_bar_green: tBarGreen,
+      fat_19h_green: fat19hGreen,
+    };
+  });
 
   return dadosProcessados;
 }
