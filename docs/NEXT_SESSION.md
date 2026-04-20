@@ -1,5 +1,76 @@
 # SAVE POINT — Próxima sessão Gold Layer
 
+## DECISAO ARQUITETURAL PENDENTE — Gold por TELA vs por DOMINIO
+
+### Problema
+
+Hoje temos 2 filosofias misturadas:
+- `gold.clientes_ativos_diario` (por domínio)
+- `gold.planejamento_comercial_diario` (por tela/uso)
+
+Isso gera 3 problemas:
+1. Tela `/estrategico/planejamento` não tem dados de clientes_ativos
+2. Tela `/relatorios/clientes-ativos` usa Gold #1 (só métrica específica)
+3. Futuras Golds: qual filosofia adotar?
+
+### Decisão proposta: Filosofia B (por tela/uso)
+
+Motivo: matches como gestor pensa (por dashboard/uso), 
+não por domínio abstrato. UI não precisa fazer JOINs.
+
+### Refactor proposto (4-5h descansado)
+
+1. ALTER TABLE `gold.planejamento_comercial_diario` adicionar:
+   - `total_visitas_dia`
+   - `total_clientes_unicos_dia`
+   - `novos_clientes_dia`
+   - `retornantes_dia`
+   - `total_ativos` (snapshot base 90d)
+   - Perfis de ativos (cervejeiros, drinkeiros, etc)
+   - Deltas 7/30/90/365 de ativos
+
+2. Atualizar ETL `planejamento_comercial_diario_full` 
+   para calcular essas métricas
+
+3. Rebuild backfill (~30min)
+
+4. Migrar `/api/clientes-ativos` para consumir 
+   `gold.planejamento_comercial_diario` (não mais `clientes_ativos_diario`)
+
+5. Depreciar `gold.clientes_ativos_diario`:
+   - Criar view compat temporária
+   - Drop programado 30 dias
+
+### Implicação para Gold #3 desempenho_semanal
+
+Ela agrega `gold.planejamento_comercial_diario` por semana.
+Se planejamento tiver todas métricas, desempenho consolida 
+tudo num lugar só.
+
+### Filosofia adotada daqui pra frente
+
+Golds diárias pensadas por **TELA/USO**, não domínio:
+- `gold.planejamento_comercial_diario` = tudo que telas diárias precisam
+- `gold.desempenho_semanal` = tudo que telas semanais precisam
+- `gold.cmv_semanal_calculado` = específico CMV (caso único)
+
+### Rollback do commit 57a088c1?
+
+**NÃO fazer rollback**. Próxima sessão o refactor vai 
+re-apontar `/api/clientes-ativos` para planejamento 
+diretamente (pulando `gold.clientes_ativos_diario`).
+
+### Priorização próxima sessão
+
+1. Gold #3 `desempenho_semanal` ETL (6-7h) -- **prioridade**
+2. Refactor expansão `planejamento_comercial_diario` (4-5h)
+3. Depreciar `clientes_ativos_diario`
+
+**Total próxima sessão dedicada:** dia inteiro (12h+) 
+OU dividir em 2 sessões.
+
+---
+
 ## Estado em 20/04/2026 (segunda)
 
 18 commits aplicados. 4 Golds criadas.
