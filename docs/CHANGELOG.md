@@ -1,5 +1,71 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-20 (Gold #4 — cmv_semanal_calculado em producao)
+
+### Terceira Gold operacional
+
+`gold.cmv_semanal_calculado` substitui parte do cálculo JS de 
+`buscar-dados-automaticos/route.ts` (609 linhas).
+
+#### v1 entrega
+
+**Campos automatizados (8)**:
+- Vendas (3 cols): Gold #2 agregado semanalmente
+- Compras (5 cols): ContaAzul agrupado por categoria
+
+**v2 futura (6 consumos)**:
+- Pattern matching `motivocancdesconto` em cancelamentos
+- Schema confirmado: `itm_vrcheio`, `motivocancdesconto`
+
+**Fora da Gold** (permanecem em `financial.cmv_semanal`):
+- Estoques (entrada manual UI)
+- CMV calculado (depende de estoques)
+- Ajustes, bonificações, metadata
+
+#### Cobertura backfill
+
+- Bar 3: 68 semanas (2025-2026), R$ 19,2M vendas, R$ 4,9M compras
+- Bar 4: 69 semanas (2025-2026), R$ 4,4M vendas, R$ 1,4M compras
+- Total: **137 semanas**, R$ 23,7M faturamento rastreado
+
+#### Cron
+
+- **jobid 458**: `gold-cmv-semanal-calculado`
+- Schedule: `55 11 * * *` (08:55 BRT)
+- Janela rolante 4 semanas retroativas
+- Log em `operations.etl_execucoes_log`
+
+#### Validação
+
+Paridade vs `financial.cmv_semanal`:
+- 14/16 semanas: diff vendas < R$ 600 (0,1%)
+- Semana atual: Gold mais fresca (ETL diário vs manual)
+
+#### Migrations (3)
+
+63. `create_gold_cmv_semanal_calculado`
+64. `create_etl_gold_cmv_semanal_calculado`
+65. `simplify_etl_gold_cmv_sem_consumos_v1`
+66. `create_etl_gold_cmv_semanal_all_bars_e_cron`
+
+#### Estado Gold Layer
+
+**3 Golds operacionais**:
+1. `clientes_ativos_diario` (917 linhas, cron 08:50)
+2. `planejamento_comercial_diario` (950 linhas, cron 08:50)
+3. `cmv_semanal_calculado` (137 semanas, cron 08:55)
+
+**1 Gold legacy**: `gold_contahub_operacional_stockout`
+
+**15 crons**: 14 diários Silver (07:00-08:45) + 1 Gold trio (08:50-08:55)
+
+#### Débitos
+
+- Gold #4 v2: consumos via pattern matching (próxima iteração)
+- Refactor `cmv-semanal/buscar-dados-automaticos` (aguarda v2)
+
+---
+
 ## 2026-04-20 (Refactor tela planejamento-comercial usa Gold #2)
 
 ### Primeira tela migrada para consumir Gold
