@@ -1,5 +1,151 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-20 (Sessão domingo madrugada — INÍCIO GOLD LAYER)
+
+### Primeira Gold em produção: `gold.clientes_ativos_diario`
+
+**Objetivo**: fornecer série temporal diária do indicador crítico "clientes
+ativos" com drilldown multidimensional.
+
+**Definição unificada adotada**: cliente ativo = 2+ visitas nos últimos 90 dias
+(resolve divergência semântica histórica entre 2 RPCs legacy).
+
+#### Fase 1.1 — Fix RPCs pre-Gold
+
+Refatoradas 2 RPCs críticas que liam `public.visitas` (view legacy) para
+`silver.cliente_visitas`:
+
+- `calcular_clientes_ativos_periodo(bar_id, inicio, fim, data_90d_atras)` → v2
+- `get_count_base_ativa(bar_id, data_inicio, data_fim)` → v2
+
+Backup v1 preservado (drop 2026-04-27 se v2 estável).
+
+Paridade v1 vs v2: divergência -0,9% a -5,6% (explicada: v1 inflava por
+dedup falsa na view legacy usando `DISTINCT ON (..., valor_consumo, mesa_desc)`.
+v2 mais preciso, conta visitas reais de `cliente_visitas.id` único).
+
+#### Fase 1.2 — `gold.clientes_ativos_diario`
+
+**Estrutura:**
+
+- 31 colunas, 1 linha por `(bar_id, data_referencia)`
+- **Core**: `total_ativos`, `total_ativos_7d/30d/90d/365d_atras`,
+  `delta_7d/30d/90d/365d`, `delta_7d/30d/90d/365d_pct`
+- **Dimensão Perfil**: `ativos_cervejeiros`, `ativos_drinkeiros`,
+  `ativos_comiloes`, `ativos_ecleticos`, `ativos_sem_perfil`
+- **Dimensão Valor**: `ativos_vip` (percentil > 89), `ativos_regulares`
+  (p10-89), `ativos_casuais` (< p10)
+- **Dimensão Canais**: `ativos_com_whatsapp`, `ativos_com_email`,
+  `ativos_com_reservas_getin`
+- **Dimensão Tempo**: `ativos_novos` (primeira_visita < 30d),
+  `ativos_consolidados` (>= 30d)
+- **Base**: `total_clientes_base`, `pct_ativos_vs_base`
+
+**Cobertura backfill (histórico completo):**
+
+- Bar 3: 444 dias (2025-01-31 → 2026-04-19)
+- Bar 4: 473 dias (2025-01-02 → 2026-04-19)
+
+**Validações (100% sanidade):**
+
+- Paridade Gold vs RPC v2: diff = 0 em 6/7 snapshots mensais (1 diff=-1,
+  0,02% em 5.552 — desprezível)
+- Soma perfis = total_ativos: 0 erros em 917 linhas
+- Soma valor (VIP+reg+cas) = total_ativos: 0 erros (fix: `> 89` vs `>= 90`)
+- Soma novos = total_ativos: 0 erros
+- ativos_com_whatsapp < total_ativos: 0 violações
+
+**Evolução temporal bar 3 (crescimento realista):**
+
+| Mês | Média ativos | Pico | YoY (abr/26) |
+|-----|--------------|------|--------------|
+| 2025-02 | 144 | 357 | — |
+| 2025-06 | 1.802 | 1.993 | — |
+| 2025-10 | 3.436 | 3.626 | — |
+| 2025-12 | 5.124 | 5.648 | — |
+| 2026-01 | 5.567 | 5.687 | — |
+| 2026-04 | 5.093 | 5.149 | +265-356% |
+
+**ETL iterativa (evita timeout):**
+
+Abordagem dia-a-dia (loop PL/pgSQL chamando `get_count_base_ativa` + enriquecimento
+por `array_agg` + JOIN silver.cliente_estatisticas) ao invés de CTE gigante com
+CROSS JOIN LATERAL (que causava timeout > 30 dias).
+
+Backfill bar 3 completo: ~1,5min (11 blocos).  
+Backfill bar 4 completo: ~30s (11 blocos).
+
+**Cron diário:**
+
+- `gold-clientes-ativos-diario` (jobid 456, `50 11 * * *` = 08:50 BRT)
+- Chama `etl_gold_clientes_ativos_diario_all_bars(7)` — recalcula últimos 7 dias
+
+**Impacto:**
+
+- KPI "clientes ativos" agora disponível para drilldown por perfil, valor,
+  canal, tempo, com comparativos WoW/MoM/QoQ/YoY pré-calculados
+- Elimina necessidade de calcular on-the-fly nas rotas `/clientes-ativos`,
+  `/desempenho`, `/planejamento-comercial` (otimização futura)
+- Base para campanhas de retenção segmentadas ("VIPs ativos caindo WoW",
+  "cervejeiros sem WhatsApp", etc.)
+
+#### Migrations aplicadas (10)
+
+40. `backup_rpcs_clientes_ativos_v1`
+41. `create_rpcs_clientes_ativos_v2_unified`
+42. `fix_rpcs_clientes_ativos_v2_compat_criterio`
+43. `create_gold_clientes_ativos_diario`
+44. `create_etl_gold_clientes_ativos_diario_full` (v1)
+45. `rewrite_etl_gold_clientes_ativos_light`
+46. `fix_etl_gold_clientes_ativos_optimized`
+47. `simplify_etl_gold_clientes_ativos_remove_valor_breakdown`
+48. `restore_etl_gold_clientes_ativos_valor_breakdown_fixed`
+49. `create_etl_gold_clientes_ativos_all_bars_e_cron`
+
+#### Débitos Gold #1
+
+- Drop RPCs `_v1_backup` em 2026-04-27 se v2 estável
+- Dimensão "ativos_sem_perfil" + "ativos_ecleticos" revisão futura
+  (pode consolidar com threshold)
+
+#### Próximas Golds planejadas (prioridade)
+
+1. 🔴 `gold.planejamento_comercial_diario` (substitui `meta.eventos_base` 152 cols)
+2. 🟠 `gold.desempenho_consolidado_semanal` (substitui `meta.desempenho_semanal`)
+3. 🟠 `gold.cmv_historizado_semanal` (consolida CMV + comparativos)
+4. 🟡 `gold.clientes_360_snapshot` (otimiza `/analitico/clientes`)
+5. 🟡 `gold.segmentacao_clientes_pre_agregada` (Lista Quente + Filtros)
+6. 🟢 `gold.reservantes_agregado_historico`
+
+### Estado final sessão domingo (10h trabalho)
+
+**Commits no main (10):**
+
+- `8afbce99` — Fase 1: fantasmas + silver.vendas_diarias
+- `c6c54842` — Refactor 29 rotas visitas
+- `0f8e34c0` — CHANGELOG S1+S2+P1
+- `e95a4dd1` — Refactor 23 rotas operations
+- `eb66f0a1` — CHANGELOG P1.5+P2
+- `dafa381d` — CHANGELOG P3 Yuzer
+- `82feaeea` — fix tempo_estadia
+- `9862f6e8` — Fase C refactor
+- `705c6244` — CHANGELOG Fase C
+- **[NEW]** — Gold #1: clientes_ativos_diario
+
+**Arquitetura Medallion completa:**
+
+- **Bronze**: 8 domínios externos integrados
+- **Silver**: 16 tabelas reais (~1,13 GB), 13 crons (07:00 → 08:45 BRT)
+- **Gold**: 1 tabela produtiva (917 linhas), 1 cron (08:50 BRT)
+
+**Pipeline diário automatizado**: 07:00 adapters → 08:50 última Gold
+
+**Linhas impactadas sessão**: ~3.500+ linhas (migrations + refactors + fixes)  
+**Migrations banco**: 49 totais  
+**Rotas frontend refatoradas**: 56
+
+---
+
 ## 2026-04-19 (Fase C — Refactor frontend final)
 
 ### Eliminação de antipattern: writes em views legacy
