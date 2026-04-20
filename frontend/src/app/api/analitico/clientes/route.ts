@@ -43,13 +43,14 @@ export async function GET(request: NextRequest) {
 
     const startTime = Date.now()
     let query = supabase
+        .schema('silver' as never)
         .from('cliente_estatisticas')
         .select('*', { count: 'exact' })
         .eq('bar_id', barIdFilter)
       
       // Se tiver busca, filtrar por nome ou telefone
       if (buscaCliente) {
-        query = query.or(`nome.ilike.%${buscaCliente}%,telefone.ilike.%${buscaCliente}%`)
+        query = query.or(`cliente_nome.ilike.%${buscaCliente}%,cliente_fone_norm.ilike.%${buscaCliente}%`)
       }
       
       // Ordenar e limitar
@@ -64,27 +65,29 @@ export async function GET(request: NextRequest) {
         const tempoMs = Date.now() - startTime
         // Formatar resposta
         const clientesFormatados = clientesCache.map(c => ({
-          identificador_principal: c.telefone,
-          nome_principal: c.nome,
-          telefone: c.telefone,
-          email: null,
+          identificador_principal: c.cliente_fone_norm,
+          nome_principal: c.cliente_nome,
+          telefone: c.cliente_fone_norm,
+          email: c.cliente_email,
           sistema: 'ContaHub',
           total_visitas: c.total_visitas,
           total_visitas_geral: c.total_visitas,
           visitas_formatadas: c.total_visitas.toString(),
-          valor_total_gasto: parseFloat(c.total_gasto) || 0,
-          valor_total_entrada: parseFloat(c.total_entrada) || 0,
-          valor_total_consumo: parseFloat(c.total_consumo) || 0,
-          ticket_medio_geral: parseFloat(c.ticket_medio) || 0,
+          valor_total_gasto: (parseFloat(c.valor_total_consumo) || 0) + (parseFloat(c.valor_total_entrada) || 0),
+          valor_total_entrada: parseFloat(c.valor_total_entrada) || 0,
+          valor_total_consumo: parseFloat(c.valor_total_consumo) || 0,
+          ticket_medio_geral: c.total_visitas > 0 
+            ? ((parseFloat(c.valor_total_consumo) || 0) + (parseFloat(c.valor_total_entrada) || 0)) / c.total_visitas
+            : 0,
           ticket_medio_entrada: parseFloat(c.ticket_medio_entrada) || 0,
           ticket_medio_consumo: parseFloat(c.ticket_medio_consumo) || 0,
           ultima_visita: c.ultima_visita,
-          tempo_medio_estadia_minutos: parseFloat(c.tempo_medio_minutos) || 0,
-          tempo_medio_estadia_formatado: c.tempo_medio_minutos > 0 
-            ? `${Math.floor(c.tempo_medio_minutos / 60)}h ${Math.round(c.tempo_medio_minutos % 60)}min`
+          tempo_medio_estadia_minutos: parseFloat(c.tempo_medio_estadia_min) || 0,
+          tempo_medio_estadia_formatado: c.tempo_medio_estadia_min > 0 
+            ? `${Math.floor(c.tempo_medio_estadia_min / 60)}h ${Math.round(c.tempo_medio_estadia_min % 60)}min`
             : 'N/A',
-          tempos_estadia_detalhados: c.tempos_detalhados || [],
-          total_visitas_com_tempo: c.total_visitas_com_tempo || 0
+          tempos_estadia_detalhados: [],
+          total_visitas_com_tempo: 0
         }))
 
         // Calcular estatísticas usando agregação SQL (mais eficiente)
@@ -100,6 +103,7 @@ export async function GET(request: NextRequest) {
         if (statsError) {
           // Fallback: buscar contagem total
           const { count } = await supabase
+            .schema('silver' as never)
             .from('cliente_estatisticas')
             .select('*', { count: 'exact', head: true })
             .eq('bar_id', barIdFilter)
@@ -113,8 +117,9 @@ export async function GET(request: NextRequest) {
           
           while (hasMore) {
             const { data: statsPage } = await supabase
+              .schema('silver' as never)
               .from('cliente_estatisticas')
-              .select('total_visitas, total_gasto, total_entrada, total_consumo')
+              .select('total_visitas, valor_total_entrada, valor_total_consumo')
               .eq('bar_id', barIdFilter)
               .range(offset, offset + pageSize - 1)
             
@@ -122,9 +127,11 @@ export async function GET(request: NextRequest) {
               hasMore = false
             } else {
               totalVisitas += statsPage.reduce((sum, c) => sum + (c.total_visitas || 0), 0)
-              totalGasto += statsPage.reduce((sum, c) => sum + (parseFloat(c.total_gasto) || 0), 0)
-              totalEntrada += statsPage.reduce((sum, c) => sum + (parseFloat(c.total_entrada) || 0), 0)
-              totalConsumo += statsPage.reduce((sum, c) => sum + (parseFloat(c.total_consumo) || 0), 0)
+              totalGasto += statsPage.reduce((sum, c) => sum + 
+                (parseFloat(c.valor_total_entrada) || 0) + 
+                (parseFloat(c.valor_total_consumo) || 0), 0)
+              totalEntrada += statsPage.reduce((sum, c) => sum + (parseFloat(c.valor_total_entrada) || 0), 0)
+              totalConsumo += statsPage.reduce((sum, c) => sum + (parseFloat(c.valor_total_consumo) || 0), 0)
               
               if (statsPage.length < pageSize) {
                 hasMore = false
@@ -134,11 +141,11 @@ export async function GET(request: NextRequest) {
             }
           }
         } else if (statsAgg && statsAgg.length > 0) {
-          totalClientes = statsAgg[0].total_clientes || 0
-          totalVisitas = statsAgg[0].total_visitas || 0
-          totalGasto = parseFloat(statsAgg[0].total_gasto) || 0
-          totalEntrada = parseFloat(statsAgg[0].total_entrada) || 0
-          totalConsumo = parseFloat(statsAgg[0].total_consumo) || 0
+          totalClientes = statsAgg[0].total_clientes_unicos || 0
+          totalVisitas = statsAgg[0].total_visitas_geral || 0
+          totalGasto = parseFloat(statsAgg[0].valor_total_geral) || 0
+          totalEntrada = parseFloat(statsAgg[0].valor_total_entrada) || 0
+          totalConsumo = parseFloat(statsAgg[0].valor_total_consumo) || 0
         }
 
         return NextResponse.json({

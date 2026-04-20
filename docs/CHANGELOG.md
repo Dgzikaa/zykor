@@ -1,5 +1,50 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-20 (Fix tela /analitico/clientes)
+
+### Bug corrigido: totais zerados em /analitico/clientes
+
+**Sintoma:** Cards de topo (Total visitas, Ticket médio, 
+Ticket entrada, Ticket consumo) exibiam R$ 0. Valores 
+individuais por cliente também zerados.
+
+**Causa raiz:** Rota /api/analitico/clientes lia colunas 
+que não existem no silver.cliente_estatisticas:
+- c.telefone → correto: cliente_fone_norm
+- c.nome → correto: cliente_nome
+- c.total_gasto, c.total_entrada → não existiam
+- c.ticket_medio, c.ticket_medio_entrada → não existiam
+- c.tempo_medio_minutos → correto: tempo_medio_estadia_min
+
+**Fix (Opção B - solução completa):**
+
+1. 3 colunas novas em silver.cliente_estatisticas:
+   - valor_total_entrada (soma couvert)
+   - ticket_medio_entrada
+   - visitas_pagaram_entrada
+
+2. ETL etl_silver_cliente_estatisticas_full atualizado 
+   (versao_etl=2) agregando valor_couvert de cliente_visitas.
+
+3. Rebuild completo: 
+   - Bar 3: 100.170 clientes em 15.4s
+   - Bar 4: 8.585 clientes em 1.4s
+
+4. Rota /api/analitico/clientes com mapper correto.
+
+5. RPC get_cliente_stats_agregado criada (totais do topo).
+
+**Validação:**
+- Totais bar 3: R$ 19M geral (R$ 3M entrada + R$ 16M consumo)
+- Laiz Palhares: 54 visitas, R$ 5.291 total
+
+**Migrations aplicadas (3):**
+- add_silver_cliente_estatisticas_entrada_columns
+- fix_etl_silver_cliente_estatisticas_add_entrada
+- create_rpc_cliente_stats_agregado
+
+---
+
 ## 2026-04-20 (Complemento — Fixes de qualidade bronze/silver)
 
 ### Triagem e fixes de 9 bugs bronze/silver
