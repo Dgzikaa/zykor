@@ -66,82 +66,11 @@ async function fetchAnswersPage(
   };
 }
 
-type DailyNpsRow = {
-  created_at: string;
-  data_visita?: string | null;
-  nps: number;
-};
-
-async function upsertDailyNps(
-  supabase: any,
-  barId: number,
-  rows: DailyNpsRow[]
-): Promise<{ dias_atualizados: number; respostas_total: number }> {
-  if (!rows.length) {
-    return { dias_atualizados: 0, respostas_total: 0 };
-  }
-
-  const byDay = new Map<
-    string,
-    { total: number; promotores: number; neutros: number; detratores: number; somaNps: number }
-  >();
-
-  for (const row of rows) {
-    // Usar created_at (data da resposta) para alinhar com o Falae
-    const day = String(row.created_at).slice(0, 10);
-    if (!day) continue;
-    if (!byDay.has(day)) {
-      byDay.set(day, { total: 0, promotores: 0, neutros: 0, detratores: 0, somaNps: 0 });
-    }
-    const bucket = byDay.get(day)!;
-    const nps = Number(row.nps) || 0;
-    bucket.total += 1;
-    bucket.somaNps += nps;
-    if (nps >= 9) bucket.promotores += 1;
-    else if (nps <= 6) bucket.detratores += 1;
-    else bucket.neutros += 1;
-  }
-
-  const now = new Date().toISOString();
-  const dailyRows = Array.from(byDay.entries()).map(([dataReferencia, v]) => ({
-    bar_id: barId,
-    data_referencia: dataReferencia,
-    respostas_total: v.total,
-    promotores: v.promotores,
-    neutros: v.neutros,
-    detratores: v.detratores,
-    nps_score: v.total > 0 ? Math.round(((v.promotores - v.detratores) / v.total) * 100) : null,
-    nps_media: v.total > 0 ? Math.round((v.somaNps / v.total) * 100) / 100 : null,
-    atualizado_em: now,
-  }));
-
-  const { error } = await supabase
-    .from('nps_falae_diario')
-    .upsert(dailyRows, { onConflict: 'bar_id,data_referencia' });
-
-  if (error) {
-    throw error;
-  }
-
-  return { dias_atualizados: dailyRows.length, respostas_total: rows.length };
-}
-
-async function upsertDailyNpsFromDatabase(
-  supabase: any,
-  barId: number,
-  dateStart: string,
-  dateEnd: string
-): Promise<{ dias_atualizados: number; respostas_total: number }> {
-  const { data, error } = await supabase
-    .from('falae_respostas')
-    .select('created_at, nps')
-    .eq('bar_id', barId)
-    .gte('created_at', `${dateStart}T00:00:00`)
-    .lte('created_at', `${dateEnd}T23:59:59`);
-
-  if (error) throw error;
-  return upsertDailyNps(supabase, barId, (data || []) as DailyNpsRow[]);
-}
+// REWIRE 2026-04-19: Funcoes upsertDailyNps / upsertDailyNpsFromDatabase
+// REMOVIDAS. Anteriormente faziam upsert em crm.nps_falae_diario (view sobre
+// silver.nps_diario, nao trivialmente updatable). Cron silver-nps-diario
+// (jobid no banco, 08:35 BRT) recalcula tudo direto do bronze via
+// etl_silver_nps_diario_full.
 
 export async function POST(request: NextRequest) {
   try {
@@ -262,7 +191,7 @@ export async function POST(request: NextRequest) {
         },
         nps_periodo: null,
         detalhes,
-        nps_diario: { dias_atualizados: 0, respostas_total: 0 },
+        nps_diario: { dias_atualizados: 0, respostas_total: 0, info: 'Calculado pelo cron silver-nps-diario (08:35 BRT)' },
         nps_diario_pesquisa: { rows_affected: 0 },
         synced_at: new Date().toISOString(),
         message: 'Nenhuma resposta encontrada no período',
@@ -323,16 +252,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao persistir respostas' }, { status: 500 });
     }
 
-    let npsDiario = { dias_atualizados: 0, respostas_total: 0 };
-    try {
-      npsDiario = await upsertDailyNps(
-        supabase,
-        barId,
-        rows.map((r) => ({ created_at: r.created_at, data_visita: r.data_visita, nps: r.nps }))
-      );
-    } catch (npsError) {
-      console.error('Erro ao atualizar nps_falae_diario:', npsError);
-    }
+    // REWIRE: nps_falae_diario agora vem de silver.nps_diario via cron silver-nps-diario (08:35 BRT)
+    const npsDiario = {
+      dias_atualizados: 0,
+      respostas_total: rows.length,
+      info: 'Calculado pelo cron silver-nps-diario (08:35 BRT) a partir do bronze atualizado nesta sync',
+    };
 
     // Atualizar NPS diário por pesquisa (nova tabela separada por search_name)
     let npsDiarioPesquisa = { rows_affected: 0 };
@@ -365,17 +290,25 @@ export async function POST(request: NextRequest) {
       const anoAtual = hoje.getUTCFullYear();
 
       for (const semanaNum of [semanaAtual - 1, semanaAtual]) {
-        // Buscar dados agregados da semana
-        const { data: falaeSemanaDados } = await supabase
-          .from('nps_falae_diario')
-          .select('data_referencia, respostas_total, promotores, detratores')
-          .eq('bar_id', barId);
+        // Buscar dados agregados da semana direto do silver.nps_diario
+        // (substitui leitura legacy crm.nps_falae_diario)
+        const { data: silverNpsDados } = await supabase
+          .schema('silver' as never)
+          .from('nps_diario')
+          .select('data_referencia, total_respostas, promotores, detratores, respostas_por_source')
+          .eq('bar_id', barId) as unknown as { data: Array<{
+            data_referencia: string;
+            total_respostas: number | null;
+            promotores: number | null;
+            detratores: number | null;
+            respostas_por_source: Record<string, { total?: number; promotores?: number; detratores?: number }> | null;
+          }> | null };
 
         let totalSemana = 0;
         let promotoresSemana = 0;
         let detratoresSemana = 0;
 
-        for (const d of falaeSemanaDados || []) {
+        for (const d of silverNpsDados || []) {
           const data = new Date(`${d.data_referencia}T12:00:00`);
           const dUtc = new Date(Date.UTC(data.getFullYear(), data.getMonth(), data.getDate()));
           const dayNum = dUtc.getUTCDay() || 7;
@@ -384,9 +317,18 @@ export async function POST(request: NextRequest) {
           const semanaCalc = Math.ceil((((dUtc.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 
           if (semanaCalc === semanaNum) {
-            totalSemana += Number(d.respostas_total) || 0;
-            promotoresSemana += Number(d.promotores) || 0;
-            detratoresSemana += Number(d.detratores) || 0;
+            // Filtrar apenas respostas Falae (silver.nps_diario consolida Falae + Getin)
+            const falaeBucket = d.respostas_por_source?.falae;
+            if (falaeBucket) {
+              totalSemana += Number(falaeBucket.total) || 0;
+              promotoresSemana += Number(falaeBucket.promotores) || 0;
+              detratoresSemana += Number(falaeBucket.detratores) || 0;
+            } else {
+              // Fallback: usa totais (caso o source breakdown nao esteja populado)
+              totalSemana += Number(d.total_respostas) || 0;
+              promotoresSemana += Number(d.promotores) || 0;
+              detratoresSemana += Number(d.detratores) || 0;
+            }
           }
         }
 

@@ -3,375 +3,70 @@ import { getAdminClient } from '@/lib/supabase-admin'
 import { authenticateUser, authErrorResponse } from '@/middleware/auth'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60 // 60 segundos para processar
+export const maxDuration = 60
 
-interface ProdutoFavorito {
-  produto: string
-  categoria: string
-  quantidade: number
-  vezes_pediu: number
+interface EtlClienteEstatisticasResult {
+  clientes_processados?: number
+  clientes_inseridos?: number
+  clientes_atualizados?: number
+  clientes_vip?: number
+  clientes_com_whatsapp?: number
+  clientes_com_reservas_getin?: number
+  clientes_com_nps?: number
+  duracao_ms?: number
 }
 
-interface CategoriaFavorita {
-  categoria: string
-  quantidade: number
-  valor_total: number
-}
-
-interface PerfilCliente {
-  telefone: string
-  nome: string
-  email: string | null
-  total_visitas: number
-  total_itens_consumidos: number
-  valor_total_consumo: number
-  primeira_visita: string
-  ultima_visita: string
-  produtos_favoritos: ProdutoFavorito[]
-  categorias_favoritas: CategoriaFavorita[]
-  tags: string[]
-  ticket_medio_consumo: number
-  frequencia_mensal: number
-  dias_preferidos: string[]
-}
-
+// REWIRE 2026-04-19: rota antes calculava perfis em JS (~378 linhas)
+// duplicando logica de etl_silver_cliente_estatisticas_full + escrevia em
+// view legacy crm.cliente_perfil_consumo. Agora delega para a RPC silver
+// (PL/pgSQL otimizado, executado pelo cron diario silver-cliente-estatisticas
+// 08:10 BRT). Botao "Sincronizar perfis" da UI continua funcionando.
 export async function POST(request: NextRequest) {
   try {
-    // Autenticar usuário
     const user = await authenticateUser(request)
-    if (!user) {
-      return authErrorResponse('Usuário não autenticado')
-    }
+    if (!user) return authErrorResponse('Usuário não autenticado')
 
     const supabase = await getAdminClient()
     const body = await request.json().catch(() => ({}))
     const barId = body.bar_id
 
     if (!barId) {
-      return NextResponse.json(
-        { error: 'bar_id é obrigatório' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 })
     }
 
     const startTime = Date.now()
 
-    // 1. Buscar clientes com telefone identificado que têm consumo
-    const { data: clientesComConsumo, error: clientesError } = await supabase.rpc(
-      'get_clientes_com_perfil_consumo',
-      { p_bar_id: barId }
-    )
-
-    // Se a função não existir, criar ela primeiro
-    if (clientesError?.message?.includes('does not exist')) {
-      // Query direta para buscar clientes com consumo identificado (migrado para visitas)
-      const { data: perfisRaw, error: perfisError } = await supabase
-        .schema('silver')
-        .from('cliente_visitas')
-        .select(`
-          cliente_fone,
-          cliente_nome,
-          data_visita,
-          id
-        `)
-        .eq('bar_id', barId)
-        .eq('tem_telefone', true)
-        .order('cliente_fone')
-
-      if (perfisError) {
-        console.error('❌ Erro ao buscar clientes:', perfisError)
-        return NextResponse.json({ error: 'Erro ao buscar clientes' }, { status: 500 })
-      }
-
-      // Agrupar por telefone
-      const clientesMap = new Map<string, {
-        telefone: string
-        nome: string
-        email: string | null
-        visitaIds: Set<string>
-        datas: Set<string>
-      }>()
-
-      for (const row of perfisRaw || []) {
-        const telefone = normalizarTelefone(row.cliente_fone)
-        if (!telefone) continue
-
-        if (!clientesMap.has(telefone)) {
-          clientesMap.set(telefone, {
-            telefone,
-            nome: row.cliente_nome || 'Cliente',
-            email: null,
-            visitaIds: new Set(),
-            datas: new Set()
-          })
-        }
-
-        const cliente = clientesMap.get(telefone)!
-        if (row.id) cliente.visitaIds.add(row.id.toString())
-        if (row.data_visita) cliente.datas.add(row.data_visita)
-        
-        // Atualizar nome se for mais completo
-        if (row.cliente_nome && row.cliente_nome.length > cliente.nome.length) {
-          cliente.nome = row.cliente_nome
-        }
-      }
-
-      // 2. Para cada cliente, buscar o consumo detalhado
-      const perfisProcessados: PerfilCliente[] = []
-      let processados = 0
-
-      for (const [telefone, cliente] of clientesMap.entries()) {
-        if (cliente.visitaIds.size === 0) continue
-
-        // Buscar consumo para as visitas deste cliente
-        const visitaIdsArray = Array.from(cliente.visitaIds)
-        const datasArray = Array.from(cliente.datas)
-
-        // Buscar itens consumidos nessas comandas/datas (migrado para vendas_item)
-        const { data: itensConsumo, error: itensError } = await supabase
-          .schema('silver' as never)
-          .from('vendas_item')
-          .select('produto_desc, grupo_desc, quantidade, valor, data_venda')
-          .eq('bar_id', barId)
-          .in('data_venda', datasArray)
-          .limit(5000)
-
-        if (itensError) {
-          console.warn(`⚠️ Erro ao buscar itens para ${telefone}:`, itensError)
-          continue
-        }
-
-        if (!itensConsumo || itensConsumo.length === 0) continue
-
-        // Processar itens consumidos
-        const produtosMap = new Map<string, { categoria: string; quantidade: number; vezes: number; valor: number }>()
-        const categoriasMap = new Map<string, { quantidade: number; valor: number }>()
-        const diasMap = new Map<string, number>()
-        
-        let totalItens = 0
-        let totalValor = 0
-        const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
-
-        for (const item of itensConsumo) {
-          const produto = item.produto_desc || 'Produto'
-          const categoria = item.grupo_desc || 'Outros'
-          const qtd = parseFloat(item.quantidade) || 0
-          const valor = parseFloat(item.valor) || 0
-
-          // Ignorar insumos (produtos com [IN])
-          if (produto.startsWith('[IN]') || produto.startsWith('[PD]') || produto.startsWith('[DD]')) continue
-
-          totalItens += qtd
-          totalValor += valor
-
-          // Produtos
-          if (!produtosMap.has(produto)) {
-            produtosMap.set(produto, { categoria, quantidade: 0, vezes: 0, valor: 0 })
-          }
-          const p = produtosMap.get(produto)!
-          p.quantidade += qtd
-          p.vezes += 1
-          p.valor += valor
-
-          // Categorias
-          if (!categoriasMap.has(categoria)) {
-            categoriasMap.set(categoria, { quantidade: 0, valor: 0 })
-          }
-          const c = categoriasMap.get(categoria)!
-          c.quantidade += qtd
-          c.valor += valor
-
-          // Dias da semana
-          if (item.data_venda) {
-            const data = new Date(item.data_venda + 'T12:00:00Z')
-            const dia = diasSemana[data.getUTCDay()]
-            diasMap.set(dia, (diasMap.get(dia) || 0) + 1)
-          }
-        }
-
-        // Ordenar e pegar top 10 produtos
-        const produtosFavoritos: ProdutoFavorito[] = Array.from(produtosMap.entries())
-          .sort((a, b) => b[1].quantidade - a[1].quantidade)
-          .slice(0, 10)
-          .map(([produto, data]) => ({
-            produto,
-            categoria: data.categoria,
-            quantidade: Math.round(data.quantidade * 100) / 100,
-            vezes_pediu: data.vezes
-          }))
-
-        // Ordenar e pegar top 5 categorias
-        const categoriasFavoritas: CategoriaFavorita[] = Array.from(categoriasMap.entries())
-          .sort((a, b) => b[1].quantidade - a[1].quantidade)
-          .slice(0, 5)
-          .map(([categoria, data]) => ({
-            categoria,
-            quantidade: Math.round(data.quantidade * 100) / 100,
-            valor_total: Math.round(data.valor * 100) / 100
-          }))
-
-        // Top 2 dias preferidos
-        const diasPreferidos = Array.from(diasMap.entries())
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 2)
-          .map(([dia]) => dia)
-
-        // Gerar tags automáticas
-        const tags: string[] = []
-        
-        // Tag baseada em categoria principal
-        if (categoriasFavoritas.length > 0) {
-          const catPrincipal = categoriasFavoritas[0].categoria.toLowerCase()
-          if (catPrincipal.includes('cerveja')) tags.push('cervejeiro')
-          if (catPrincipal.includes('drink') || catPrincipal.includes('coquetel')) tags.push('drink_lover')
-          if (catPrincipal.includes('shot') || catPrincipal.includes('dose')) tags.push('destilados')
-          if (catPrincipal.includes('comida') || catPrincipal.includes('prato') || catPrincipal.includes('petisco')) tags.push('foodie')
-        }
-
-        // Tag baseada em produto favorito
-        if (produtosFavoritos.length > 0) {
-          const prodPrincipal = produtosFavoritos[0].produto.toLowerCase()
-          if (prodPrincipal.includes('spaten')) tags.push('prefere_spaten')
-          if (prodPrincipal.includes('corona')) tags.push('prefere_corona')
-          if (prodPrincipal.includes('stella')) tags.push('prefere_stella')
-          if (prodPrincipal.includes('original')) tags.push('prefere_original')
-          if (prodPrincipal.includes('gin')) tags.push('prefere_gin')
-          if (prodPrincipal.includes('whisky') || prodPrincipal.includes('chivas')) tags.push('prefere_whisky')
-        }
-
-        // Tag de frequência
-        const totalVisitas = cliente.datas.size
-        if (totalVisitas >= 20) tags.push('cliente_vip')
-        else if (totalVisitas >= 10) tags.push('cliente_frequente')
-        else if (totalVisitas >= 5) tags.push('cliente_regular')
-
-        // Tag de dia preferido
-        if (diasPreferidos.length > 0) {
-          tags.push(`frequenta_${diasPreferidos[0].toLowerCase()}`)
-        }
-
-        // Calcular métricas
-        const datasOrdenadas = Array.from(cliente.datas).sort()
-        const primeiraVisita = datasOrdenadas[0]
-        const ultimaVisita = datasOrdenadas[datasOrdenadas.length - 1]
-        
-        // Frequência mensal (visitas / meses de relacionamento)
-        const mesesRelacionamento = Math.max(1, 
-          Math.ceil((new Date(ultimaVisita).getTime() - new Date(primeiraVisita).getTime()) / (30 * 24 * 60 * 60 * 1000))
-        )
-        const frequenciaMensal = Math.round((totalVisitas / mesesRelacionamento) * 100) / 100
-
-        const perfil: PerfilCliente = {
-          telefone,
-          nome: cliente.nome,
-          email: cliente.email,
-          total_visitas: totalVisitas,
-          total_itens_consumidos: Math.round(totalItens),
-          valor_total_consumo: Math.round(totalValor * 100) / 100,
-          primeira_visita: primeiraVisita,
-          ultima_visita: ultimaVisita,
-          produtos_favoritos: produtosFavoritos,
-          categorias_favoritas: categoriasFavoritas,
-          tags,
-          ticket_medio_consumo: totalVisitas > 0 ? Math.round((totalValor / totalVisitas) * 100) / 100 : 0,
-          frequencia_mensal: frequenciaMensal,
-          dias_preferidos: diasPreferidos
-        }
-
-        perfisProcessados.push(perfil)
-        processados++
-
-        // Log de progresso
-        if (processados % 100 === 0) {
-            console.log(`Processados ${processados} perfis...`);
-          }
-      }
-
-      // 3. Upsert dos perfis no banco
-      if (perfisProcessados.length > 0) {
-        // Processar em batches de 100
-        const batchSize = 100
-        let inseridos = 0
-
-        for (let i = 0; i < perfisProcessados.length; i += batchSize) {
-          const batch = perfisProcessados.slice(i, i + batchSize)
-          
-          const { error: upsertError } = await supabase
-            .from('cliente_perfil_consumo')
-            .upsert(
-              batch.map(p => ({
-                bar_id: barId,
-                telefone: p.telefone,
-                nome: p.nome,
-                email: p.email,
-                total_visitas: p.total_visitas,
-                total_itens_consumidos: p.total_itens_consumidos,
-                valor_total_consumo: p.valor_total_consumo,
-                primeira_visita: p.primeira_visita,
-                ultima_visita: p.ultima_visita,
-                produtos_favoritos: p.produtos_favoritos,
-                categorias_favoritas: p.categorias_favoritas,
-                tags: p.tags,
-                ticket_medio_consumo: p.ticket_medio_consumo,
-                frequencia_mensal: p.frequencia_mensal,
-                dias_preferidos: p.dias_preferidos,
-                updated_at: new Date().toISOString()
-              })),
-              { onConflict: 'bar_id,telefone' }
-            )
-
-          if (upsertError) {
-            console.error('❌ Erro no upsert:', upsertError)
-          } else {
-            inseridos += batch.length
-          }
-        }
-
-        }
-
-      const tempoMs = Date.now() - startTime
-      return NextResponse.json({
-        success: true,
-        clientes_processados: perfisProcessados.length,
-        tempo_ms: tempoMs
-      })
-    }
-
-    // Se chegou aqui, a função RPC existe
-    return NextResponse.json({
-      success: true,
-      clientes_processados: clientesComConsumo?.length || 0
+    const { data, error } = await supabase.rpc('etl_silver_cliente_estatisticas_full', {
+      p_bar_id: barId,
     })
 
+    if (error) {
+      console.error('❌ Erro ETL silver cliente_estatisticas:', error)
+      return NextResponse.json(
+        { error: error.message || 'Erro ao executar ETL silver' },
+        { status: 500 }
+      )
+    }
+
+    const result: EtlClienteEstatisticasResult = (Array.isArray(data) ? data[0] : data) || {}
+    const tempoMs = Date.now() - startTime
+
+    return NextResponse.json({
+      success: true,
+      bar_id: barId,
+      clientes_processados: result.clientes_processados || 0,
+      clientes_inseridos: result.clientes_inseridos || 0,
+      clientes_atualizados: result.clientes_atualizados || 0,
+      clientes_vip: result.clientes_vip || 0,
+      clientes_com_whatsapp: result.clientes_com_whatsapp || 0,
+      clientes_com_reservas_getin: result.clientes_com_reservas_getin || 0,
+      clientes_com_nps: result.clientes_com_nps || 0,
+      duracao_ms: result.duracao_ms || tempoMs,
+      info: 'Invoca etl_silver_cliente_estatisticas_full. Cron diario roda automaticamente 08:10 BRT.',
+    })
   } catch (error) {
     console.error('❌ Erro no sync de perfil de consumo:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    const message = error instanceof Error ? error.message : 'Erro interno do servidor'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
-
-// Função para normalizar telefone
-function normalizarTelefone(telefone: string | null): string | null {
-  if (!telefone) return null
-  
-  let fone = telefone.toString().replace(/\D/g, '')
-  if (!fone || fone.length < 10) return null
-  
-  // Adicionar 9 se necessário
-  if (fone.length === 10) {
-    const ddds = ['11', '12', '13', '14', '15', '16', '17', '18', '19', '21', '22', '24', '27', '28', 
-                  '31', '32', '33', '34', '35', '37', '38', '41', '42', '43', '44', '45', '46', '47', 
-                  '48', '49', '51', '53', '54', '55', '61', '62', '63', '64', '65', '66', '67', '68', 
-                  '69', '71', '73', '74', '75', '77', '79', '81', '82', '83', '84', '85', '86', '87', 
-                  '88', '89', '91', '92', '93', '94', '95', '96', '97', '98', '99']
-    
-    if (ddds.includes(fone.substring(0, 2))) {
-      fone = fone.substring(0, 2) + '9' + fone.substring(2)
-    }
-  }
-  
-  return fone
-}
-

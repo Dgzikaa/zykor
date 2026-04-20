@@ -55,13 +55,25 @@ export async function GET(request: NextRequest) {
       variacoes.add(telefoneNormalizado.substring(0, 2) + '9' + telefoneNormalizado.substring(2))
     }
 
-    // Buscar perfil do cliente
+    // Buscar perfil do cliente direto da silver (compat: aliases preservam shape esperado pelo UI)
     const { data: perfil, error } = await supabase
-      .from('cliente_perfil_consumo')
-      .select('*')
+      .schema('silver' as never)
+      .from('cliente_estatisticas')
+      .select(`
+        id, bar_id,
+        cliente_fone_norm,
+        cliente_nome,
+        cliente_email,
+        total_visitas, total_itens_consumidos,
+        valor_total_consumo, ticket_medio_consumo,
+        primeira_visita, ultima_visita,
+        produtos_favoritos, categorias_favoritas, tags, dias_preferidos,
+        frequencia_mensal,
+        cerveja_preferida, drink_preferido, comida_preferida, perfil
+      `)
       .eq('bar_id', barId)
-      .in('telefone', Array.from(variacoes))
-      .single()
+      .in('cliente_fone_norm', Array.from(variacoes))
+      .single() as unknown as { data: Record<string, unknown> | null; error: { code?: string } | null }
 
     if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
       console.error('❌ Erro ao buscar perfil:', error)
@@ -172,8 +184,16 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // Compat: mapeia nomes silver-nativos -> legacy (telefone/nome/email) para preservar shape esperado pelo UI
+    const perfilCompat = perfil ? {
+      ...(perfil as Record<string, unknown>),
+      telefone: (perfil as Record<string, unknown>).cliente_fone_norm,
+      nome: (perfil as Record<string, unknown>).cliente_nome,
+      email: (perfil as Record<string, unknown>).cliente_email,
+    } : null
+
     return NextResponse.json({
-      perfil,
+      perfil: perfilCompat,
       fonte: 'cache'
     })
 

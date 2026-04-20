@@ -4,111 +4,89 @@ import { authenticateUser, authErrorResponse } from '@/middleware/auth'
 
 export const dynamic = 'force-dynamic'
 
+interface ProdutoFavorito { produto: string; quantidade: number }
+interface CategoriaFavorita { categoria: string; quantidade: number }
+
+interface SilverClienteEstatistica {
+  cliente_fone_norm: string | null
+  cliente_nome: string | null
+  total_visitas: number | null
+  valor_total_consumo: number | string | null
+  ticket_medio_consumo: number | string | null
+  ultima_visita: string | null
+  produtos_favoritos: ProdutoFavorito[] | null
+  categorias_favoritas: CategoriaFavorita[] | null
+  tags: string[] | null
+  dias_preferidos: string[] | null
+  eh_vip: boolean | null
+}
+
 export async function GET(request: NextRequest) {
   try {
-    // Autenticar usuário
     const user = await authenticateUser(request)
-    if (!user) {
-      return authErrorResponse('Usuário não autenticado')
-    }
+    if (!user) return authErrorResponse('Usuário não autenticado')
 
     const supabase = await getAdminClient()
 
-    // Obter bar_id do header x-selected-bar-id
     const barIdHeader = request.headers.get('x-selected-bar-id')
-    let barId: number | null = null
-    if (barIdHeader) {
-      barId = parseInt(barIdHeader, 10) || null
-    }
+    const barId = barIdHeader ? parseInt(barIdHeader, 10) || null : null
 
     if (!barId) {
-      return NextResponse.json(
-        { error: 'bar_id é obrigatório' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 })
     }
 
-    // 1. Buscar clientes com perfil de consumo ordenados por visitas
-    const { data: clientesPerfil, error: perfilError } = await supabase
-      .from('cliente_perfil_consumo')
-      .select('*')
-      .eq('bar_id', barId)
-      .order('total_visitas', { ascending: false })
-      .limit(100)
-
-    if (perfilError) {
-      console.error('❌ Erro ao buscar perfis:', perfilError)
-    }
-
-    // 2. Buscar estatísticas agregadas da tabela cliente_estatisticas
-    const { data: clientesEstatisticas, error: statsError } = await supabase
+    // Single query consolidando o que antes era 2 reads (crm.cliente_perfil_consumo + public.cliente_estatisticas)
+    const { data, error } = await supabase
+      .schema('silver' as never)
       .from('cliente_estatisticas')
-      .select('*')
+      .select(`
+        cliente_fone_norm,
+        cliente_nome,
+        total_visitas,
+        valor_total_consumo,
+        ticket_medio_consumo,
+        ultima_visita,
+        produtos_favoritos,
+        categorias_favoritas,
+        tags,
+        dias_preferidos,
+        eh_vip
+      `)
       .eq('bar_id', barId)
       .order('total_visitas', { ascending: false })
-      .limit(100)
+      .limit(100) as unknown as { data: SilverClienteEstatistica[] | null; error: { message?: string } | null }
 
-    if (statsError) {
-      console.error('❌ Erro ao buscar estatísticas:', statsError)
+    if (error) {
+      console.error('❌ Erro ao buscar clientes silver:', error)
+      return NextResponse.json({ error: 'Erro ao buscar clientes' }, { status: 500 })
     }
 
-    // 3. Mesclar dados de perfil com estatísticas
-    const clientesMap = new Map<string, any>()
+    const clientesRaw = data || []
 
-    // Primeiro, adicionar estatísticas base
-    for (const cliente of clientesEstatisticas || []) {
-      clientesMap.set(cliente.telefone, {
-        telefone: cliente.telefone,
-        nome: cliente.nome,
-        total_visitas: cliente.total_visitas,
-        total_gasto: parseFloat(cliente.total_gasto) || 0,
-        ticket_medio: parseFloat(cliente.ticket_medio) || 0,
-        ultima_visita: cliente.ultima_visita,
-        produtos_favoritos: [],
-        categorias_favoritas: [],
-        tags: [],
-        is_vip: cliente.total_visitas >= 20,
-        is_frequente: cliente.total_visitas >= 10 && cliente.total_visitas < 20,
-        is_regular: cliente.total_visitas >= 5 && cliente.total_visitas < 10
-      })
-    }
-
-    // Depois, enriquecer com perfil de consumo
-    for (const perfil of clientesPerfil || []) {
-      const cliente = clientesMap.get(perfil.telefone)
-      if (cliente) {
-        cliente.produtos_favoritos = perfil.produtos_favoritos || []
-        cliente.categorias_favoritas = perfil.categorias_favoritas || []
-        cliente.tags = perfil.tags || []
-        cliente.dias_preferidos = perfil.dias_preferidos || []
-      } else {
-        clientesMap.set(perfil.telefone, {
-          telefone: perfil.telefone,
-          nome: perfil.nome,
-          total_visitas: perfil.total_visitas,
-          total_gasto: parseFloat(perfil.valor_total_consumo) || 0,
-          ticket_medio: parseFloat(perfil.ticket_medio_consumo) || 0,
-          ultima_visita: perfil.ultima_visita,
-          produtos_favoritos: perfil.produtos_favoritos || [],
-          categorias_favoritas: perfil.categorias_favoritas || [],
-          tags: perfil.tags || [],
-          dias_preferidos: perfil.dias_preferidos || [],
-          is_vip: perfil.total_visitas >= 20,
-          is_frequente: perfil.total_visitas >= 10 && perfil.total_visitas < 20,
-          is_regular: perfil.total_visitas >= 5 && perfil.total_visitas < 10
-        })
+    // Mapper compat: preserva shape esperado pelo UI (telefone/nome/total_gasto/ticket_medio + flags is_vip/is_frequente/is_regular)
+    const clientes = clientesRaw.map((c) => {
+      const totalVisitas = Number(c.total_visitas) || 0
+      return {
+        telefone: c.cliente_fone_norm,
+        nome: c.cliente_nome,
+        total_visitas: totalVisitas,
+        total_gasto: parseFloat(String(c.valor_total_consumo || 0)) || 0,
+        ticket_medio: parseFloat(String(c.ticket_medio_consumo || 0)) || 0,
+        ultima_visita: c.ultima_visita,
+        produtos_favoritos: c.produtos_favoritos || [],
+        categorias_favoritas: c.categorias_favoritas || [],
+        tags: c.tags || [],
+        dias_preferidos: c.dias_preferidos || [],
+        is_vip: c.eh_vip === true || totalVisitas >= 20,
+        is_frequente: totalVisitas >= 10 && totalVisitas < 20,
+        is_regular: totalVisitas >= 5 && totalVisitas < 10,
       }
-    }
+    })
 
-    // Converter para array e ordenar
-    const clientes = Array.from(clientesMap.values())
-      .sort((a, b) => b.total_visitas - a.total_visitas)
-
-    // 4. Calcular estatísticas gerais
     const totalClientes = clientes.length
-    const clientesVip = clientes.filter(c => c.is_vip).length
-    const clientesFrequentes = clientes.filter(c => c.is_frequente).length
-    const clientesRegulares = clientes.filter(c => c.is_regular).length
+    const clientesVip = clientes.filter((c) => c.is_vip).length
+    const clientesFrequentes = clientes.filter((c) => c.is_frequente).length
+    const clientesRegulares = clientes.filter((c) => c.is_regular).length
 
     // Produtos mais populares (agregando todos os clientes)
     const produtosPopulares = new Map<string, { quantidade: number; clientes: number }>()
@@ -119,7 +97,7 @@ export async function GET(request: NextRequest) {
           produtosPopulares.set(key, { quantidade: 0, clientes: 0 })
         }
         const p = produtosPopulares.get(key)!
-        p.quantidade += produto.quantidade
+        p.quantidade += produto.quantidade || 0
         p.clientes += 1
       }
     }
@@ -130,10 +108,9 @@ export async function GET(request: NextRequest) {
       .map(([produto, data]) => ({
         produto,
         clientes: data.clientes,
-        quantidade_total: Math.round(data.quantidade)
+        quantidade_total: Math.round(data.quantidade),
       }))
 
-    // Tags mais comuns
     const tagsCount = new Map<string, number>()
     for (const cliente of clientes) {
       for (const tag of cliente.tags || []) {
@@ -147,23 +124,18 @@ export async function GET(request: NextRequest) {
       .map(([tag, count]) => ({ tag, count }))
 
     return NextResponse.json({
-      clientes: clientes.slice(0, 50), // Retornar top 50
+      clientes: clientes.slice(0, 50),
       estatisticas: {
         total_clientes: totalClientes,
         clientes_vip: clientesVip,
         clientes_frequentes: clientesFrequentes,
         clientes_regulares: clientesRegulares,
         top_produtos: topProdutos,
-        top_tags: topTags
-      }
+        top_tags: topTags,
+      },
     })
-
   } catch (error) {
     console.error('❌ Erro na API de clientes VIP:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }
 }
-
