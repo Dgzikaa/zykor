@@ -1,5 +1,45 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-20 (Gold #3 DDL — desempenho_semanal)
+
+### DDL aplicada (ETL próxima sessão)
+
+`gold.desempenho_semanal` criada. Substituirá `meta.desempenho_semanal` 
+(164 cols híbridas).
+
+#### v1 scope (110 colunas)
+
+- 90 cols automatizáveis (fontes Silver/Gold existem)
+- 15 cols JOIN `meta.marketing_semanal`
+- 17 cols derivadas (calculáveis no ETL)
+- 12 cols omitidas v1 (complexidade ou redundância)
+
+#### 29 cols manuais permanecem em meta.desempenho_semanal
+
+RH (8), Checklists (4), CMV estoques (3), Custos exceção (3),  
+Financeiro manual (3), Metadata (8).  
+Frontend fará LEFT JOIN quando migrar.
+
+#### 13 cols obsoletas excluídas
+
+JSONB detalhes (`atrasos_detalhes`, `cancelamentos_detalhes`), retencao 
+(complexa, v2), `tempos_saida` (schema divergente).
+
+#### Próximos passos (próxima sessão)
+
+1. ETL 11 JOINs (6 Silvers + 2 Golds + 2 Meta + 1 Bronze)
+2. Backfill 2025-2026 (~150 semanas × 2 bares)
+3. Wrapper all_bars + cron 09:00 BRT
+4. Refactor rotas `estrategico/desempenho` (2 arquivos, 1.407 linhas JS)
+
+**Estimativa**: 6-7h dedicadas próxima sessão.
+
+#### Migrations aplicadas (1)
+
+67. `create_gold_desempenho_semanal` (DDL 110 cols)
+
+---
+
 ## 2026-04-20 (Gold #4 — cmv_semanal_calculado em producao)
 
 ### Terceira Gold operacional
