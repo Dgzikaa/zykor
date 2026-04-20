@@ -1,5 +1,88 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-19 (Fase C — Refactor frontend final)
+
+### Eliminação de antipattern: writes em views legacy
+
+4 rotas refatoradas consolidando arquitetura medallion no frontend:
+
+#### A.1 — `analitico/clientes/perfil-consumo/sync` (REWIRE)
+
+378 linhas → 73 linhas.  
+Wrapper RPC chamando `etl_silver_cliente_estatisticas_full`.  
+Elimina cálculo JS duplicado (tags + grouping) que divergia da lógica
+PL/pgSQL do cron `silver-cliente-estatisticas-diario`.  
+Botão UI "Sincronizar perfis" mantém UX.
+
+#### A.2 — `falae/sync` (REWIRE PARCIAL)
+
+Removidas funções `upsertDailyNps` e `upsertDailyNpsFromDatabase` (67
+linhas) que duplicavam `silver.nps_diario`.  
+Mantido: fetch API Falae + upsert `integrations.falae_respostas` (essenciais
+para ingestão bronze).  
+Atualizado: leitura `desempenho_semanal` de `crm.nps_falae_diario` para
+`silver.nps_diario` com filtro JSONB `respostas_por_source.falae`.  
+Validados 3 callers internos (`falae/sync-retroativo`, `cron/falae-reconciliacao`,
+`desempenho/recalculo-diario`) — nenhum dependia dos side effects removidos.
+
+#### B.1 — `crm/clientes-vip` (CONSOLIDAÇÃO)
+
+2 queries paralelas → 1 query única em `silver.cliente_estatisticas`.  
+Elimina merge `Map<telefone>` em JS (antes lia `crm.cliente_perfil_consumo` +
+`public.cliente_estatisticas` views separadas).  
+Aliases preservados no mapper de compat UI: `telefone`, `nome`, `total_gasto`,
+`ticket_medio`, `is_vip`, `is_frequente`, `is_regular`.  
+169 → 144 linhas.
+
+#### B.2 — `analitico/clientes/perfil-consumo` GET (STRAIGHT SWAP)
+
+`.from('cliente_perfil_consumo')` → `.schema('silver' as never).from('cliente_estatisticas')`.  
+Atualiza `.in('telefone', ...)` para `.in('cliente_fone_norm', ...)`.  
+Mapper compat preservando `telefone`/`nome`/`email` no response para UI.
+
+### Impacto consolidado
+
+- 4 arquivos modificados
+- -371 linhas líquido (175 inserções / 546 deleções)
+- 100% das escritas em views legacy eliminadas
+- 0 breakage funcional (validado)
+- Type-check + lint: zero erros
+
+### Débitos restantes pós-Fase C
+
+- Drop `etl_silver_cliente_visitas_dia_v1_backup` em 2026-04-26 (validar
+  v2 estável 7 dias)
+- Drop 3 backups legacy em 2026-05-19 (30 dias validação):
+  - `crm.cliente_perfil_consumo_legacy_backup`
+  - `crm.nps_falae_diario_legacy_backup`
+  - `public.view_top_produtos_legacy_snapshot`
+- Refactor 10 reads `silver_yuzer_*_evento` (ganho marginal, baixa prioridade)
+- Bug Bronze ContaHub bar 4 (custos zerados — cadastro manual gestor)
+- Bug Bronze Umbler `direcao` NULL (bloqueia `silver.umbler_atendimento_diario`)
+
+### Commits da sessão domingo completa (8 total)
+
+- `8afbce99` — Fase 1: fantasmas + silver.vendas_diarias
+- `c6c54842` — Refactor 29 rotas visitas→silver
+- `0f8e34c0` — CHANGELOG S1+S2+P1
+- `e95a4dd1` — Refactor 23 rotas operations→silver
+- `eb66f0a1` — CHANGELOG P1.5+P2
+- `dafa381d` — CHANGELOG P3 (Yuzer silvers)
+- `82feaeea` — fix tempo_estadia (bug captura bancária)
+- `9862f6e8` — Fase C refactor frontend
+
+### Estado final Silver Layer
+
+- 16 tabelas silver físicas (~1.123 MB)
+- 13 crons sequenciais (07:00 → 08:45 BRT)
+- 8 domínios integrados via Medallion (ContaHub, Sympla, Falae, Google
+  Reviews, Getin, ContaAzul, Yuzer + Umbler deferido)
+- Bug crítico `tempo_estadia_minutos` corrigido em toda base (225.027 visitas)
+- 52 rotas frontend refatoradas (Onda A-F: 29 visitas + Onda G: 23 operations + Fase C: 4 syncs/reads)
+- Pipeline bronze → silver funcional e automatizado
+
+---
+
 ## 2026-04-19 (Sessão domingo madrugada — Fase B + C + FIX tempo_estadia)
 
 ### Fase B — Análise exploratória 16 Silvers
