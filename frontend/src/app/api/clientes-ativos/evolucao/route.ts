@@ -89,18 +89,16 @@ export async function GET(request: NextRequest) {
       const percentualNovos = totalClientes > 0 ? (novosClientes / totalClientes) * 100 : 0;
       const percentualRetornantes = totalClientes > 0 ? (clientesRetornantes / totalClientes) * 100 : 0;
 
-      // Calcular base ativa (clientes com 2+ visitas nos últimos 90 dias)
-      const data90diasAtras = new Date(fimMes);
-      data90diasAtras.setDate(data90diasAtras.getDate() - 90);
-      const data90Str = data90diasAtras.toISOString().split('T')[0];
+      // Buscar base ativa da Gold #1 (snapshot do último dia do mês)
+      const { data: goldData, error: errorGold } = await supabase
+        .schema('gold' as any)
+        .from('clientes_ativos_diario')
+        .select('total_ativos')
+        .eq('bar_id', barId)
+        .eq('data_referencia', fimMes)
+        .maybeSingle();
 
-      const { data: baseAtivaResult, error: errorBaseAtiva } = await supabase.rpc('get_count_base_ativa', {
-        p_bar_id: barId,
-        p_data_inicio: data90Str,
-        p_data_fim: fimMes
-      });
-
-      const baseAtiva = Number(baseAtivaResult) || 0;
+      const baseAtiva = Number(goldData?.total_ativos) || 0;
 
       // Formatar label do mês
       const mesLabel = mesData.toLocaleDateString('pt-BR', {

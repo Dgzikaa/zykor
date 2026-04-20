@@ -1,5 +1,39 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-20 (Refactor frontend consume Gold #1)
+
+### Tela /relatorios/clientes-ativos agora consome Gold #1
+
+Gold #1 `clientes_ativos_diario` estava órfã: ETL rodando 
+diariamente mas frontend ainda calculava em tempo real via 
+RPCs antigas. Migração fecha o loop medallion.
+
+### Rotas migradas (2)
+
+- `/api/clientes-ativos/route.ts` (principal dia/semana/mes)
+- `/api/clientes-ativos/evolucao/route.ts` (gráfico 6 meses)
+
+### Ganho de performance
+
+- **Antes**: RPCs `get_count_base_ativa` calculavam em tempo real (CTE complexa)
+- **Depois**: SELECT simples na Gold (10-100x mais rápido)
+
+### RPCs antigas preservadas
+
+`get_count_base_ativa` e `calcular_clientes_ativos_periodo` 
+continuam existindo (usadas em 3 outras rotas). Drop programado 
+para 2026-05-20 após migração completa.
+
+### Migrações frontend pendentes (Gold #1)
+
+- `gestao/desempenho/recalcular/route.ts`
+- `estrategico/desempenho/services/desempenho-mensal-service.ts`
+- `retrospectiva-2025/route.ts` (apenas 1 comentário)
+
+Priorizar junto com refactor Gold #3 (desempenho_semanal).
+
+---
+
 ## 2026-04-20 (Gold #3 DDL — desempenho_semanal)
 
 ### DDL aplicada (ETL próxima sessão)

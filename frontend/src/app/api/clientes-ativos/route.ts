@@ -394,23 +394,27 @@ export async function GET(request: NextRequest) {
         clientesAtivosAnterior = clientesRetornantesAnterior;
       }
     } else {
-      // SEMANA/MÊS: Base total de clientes ativos (evolução da base)
-      // Janela de 90 dias que termina no fim do período
-      const [resultBaseAtiva, resultBaseAtivaAnterior] = await Promise.all([
-        supabase.rpc('get_count_base_ativa', {
-          p_bar_id: barId,
-          p_data_inicio: data90DiasAtrasStr,
-          p_data_fim: fimAtual
-        }),
-        supabase.rpc('get_count_base_ativa', {
-          p_bar_id: barId,
-          p_data_inicio: data90DiasAtrasAnteriorStr,
-          p_data_fim: fimAnterior
-        })
+      // SEMANA/MÊS: Base total de clientes ativos (evolução da base) - USA GOLD #1
+      // Buscar snapshot do último dia do período na tabela gold.clientes_ativos_diario
+      const [goldAtual, goldAnterior] = await Promise.all([
+        supabase
+          .schema('gold' as any)
+          .from('clientes_ativos_diario')
+          .select('total_ativos')
+          .eq('bar_id', barId)
+          .eq('data_referencia', fimAtual)
+          .maybeSingle(),
+        supabase
+          .schema('gold' as any)
+          .from('clientes_ativos_diario')
+          .select('total_ativos')
+          .eq('bar_id', barId)
+          .eq('data_referencia', fimAnterior)
+          .maybeSingle()
       ]);
 
-      clientesAtivos = Number(resultBaseAtiva.data || 0);
-      clientesAtivosAnterior = Number(resultBaseAtivaAnterior.data || 0);
+      clientesAtivos = Number(goldAtual.data?.total_ativos || 0);
+      clientesAtivosAnterior = Number(goldAnterior.data?.total_ativos || 0);
     }
 
     // 8. CALCULAR VARIAÇÕES
