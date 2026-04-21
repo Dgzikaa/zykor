@@ -1,5 +1,122 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-21 (Sessão 2 parte B — ETL gold.desempenho multi-granular)
+
+### ETL consolidado de desempenho operacional + financeiro
+
+gold.desempenho agora consolida KPIs de 11 fontes com ETL automatizado.
+Substitui meta.desempenho_semanal (164 cols legacy, atualização manual).
+
+### Estrutura multi-granular (112 colunas)
+
+- granularidade: semanal | mensal | trimestral | anual
+- periodo: S16/26 | 2026-04 | 2026-Q2 | 2026
+- UNIQUE (bar_id, granularidade, periodo)
+
+### 11 Fontes integradas
+
+1. gold.planejamento (faturamento + eventos)
+2. gold.clientes_diario (ativos + % novos)
+3. gold.cmv (CMV calculado)
+4. silver.tempos_producao (tempos bar/cozinha)
+5. silver.vendas_item (mix bebida/drink/comida)
+6. silver.nps_diario (NPS geral + critérios JSONB)
+7. silver.google_reviews_diario (reviews Google)
+8. silver.silver_contahub_operacional_stockout_processado (stockout)
+9. silver.contaazul_lancamentos_diarios (custos)
+10. bronze.bronze_contaazul_lancamentos (vencidos)
+11. meta.marketing_semanal (marketing - dados esparsos)
+
+### Fórmula stockout correta descoberta
+
+Antes (errada): prd_estoque <= 0 (retornava 82-91%)
+Depois (correta): prd_venda = 'N' na view processada (retorna 11%/9.88%/7.60%)
+
+Validado contra tela /ferramentas/stockout semana 16 bar 3.
+
+### Backfill completo
+
+Semanal: 138 semanas (69 por bar, Jan/2025-Abr/2026)
+Mensal: 32 meses (16 por bar, Jan/2025-Abr/2026)
+Total: 170 linhas populadas em ~6 segundos
+Zero erros de processamento
+
+### Performance
+
+ETL semanal: ~11ms/semana
+ETL mensal: ~100ms/mês
+Cron diário: ~1.6s (últimas 3 semanas + 1 mês rolling)
+
+### Cron automatizado
+
+- Job ID 462: gold-desempenho
+- Schedule: 0 12 * * * (09:00 BRT)
+- Ordem: após clientes(08:50) + planejamento(08:50) + cmv(08:55)
+- Reprocessa: últimas 3 semanas + último mês (rolling window)
+
+### ETL Functions criadas
+
+- etl_gold_desempenho_semanal(bar_id, ano, semana)
+- etl_gold_desempenho_mensal(bar_id, ano, mes)
+- etl_gold_desempenho_semanal_range (wrapper)
+- etl_gold_desempenho_mensal_range (wrapper)
+- etl_gold_desempenho_all_bars (cron wrapper)
+
+### Sanidade validada
+
+- 0 semanas com faturamento zerado (antigas)
+- 0 CMV >100% (exceto 3 semanas início 2025 com problema fonte)
+- 0 stockout inválido (<0 ou >100%)
+- 100% cobertura temporal disponível em fontes
+
+### Observações qualidade dados
+
+- CMV semana 16/2026: 0.12% (compras bebidas R$0 - ContaAzul incompleto)
+- Stockout: disponível só a partir S14/26 (fonte recente)
+- NPS: dados esparsos 2025, consistente 2026
+- Bar 4: gold.clientes_diario precisa backfill histórico
+
+### Migrations aplicadas (10)
+
+- rename_gold_planejamento
+- rename_gold_cmv  
+- rename_gold_desempenho
+- expand_gold_desempenho_multi_granular
+- alter_gold_desempenho_numero_semana_nullable
+- create_etl_gold_desempenho_semanal (v4 final)
+- fix_etl_gold_desempenho_semanal_coalesce_nulls
+- fix_etl_gold_desempenho_semanal_google_reviews_null
+- create_etl_gold_desempenho_mensal
+- create_etl_gold_desempenho_semanal/mensal_range
+- create_etl_gold_desempenho_all_bars_cron
+
+### Débito técnico Sessão 3
+
+Refactor frontend (23 arquivos):
+- 2 services principais (desempenho-service.ts, desempenho-mensal-service.ts)
+- 7 rotas API críticas (/estrategico/desempenho/*)
+- 6 rotas secundárias (/gestao/desempenho/*)
+- 3 types/schemas
+- 5 integrações/outros
+
+Tela /estrategico/desempenho ainda consome meta.desempenho_semanal.
+Refactor para gold.desempenho = Sessão 3 (~2-3h).
+
+### Próximas sessões planejadas
+
+Sessão 3 (~3h): Refactor frontend gold.desempenho
+- 2 services (gold em vez de meta)
+- 7 rotas críticas
+- Types atualizados
+- Tela 100% funcional com Gold
+
+Sessão 4 (~1h): Cleanup final
+- DROP meta.desempenho_semanal (164 cols legacy)
+- DROP RPCs antigas (clientes_ativos_periodo, get_count_base_ativa)
+- Rotas secundárias restantes
+
+---
+
 ## 2026-04-21 (Sessão 2 parte A — Renames das 3 Golds restantes)
 
 ### Gold por TELA aplicada a todas as 4 Golds
