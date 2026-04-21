@@ -395,40 +395,31 @@ export async function GET(request: NextRequest) {
       novosClientesAnterior = goldsAnterior.reduce((s, d) => s + (Number(d.novos_clientes_dia) || 0), 0);
       clientesRetornantesAnterior = goldsAnterior.reduce((s, d) => s + (Number(d.retornantes_dia) || 0), 0);
 
-      // Total clientes únicos: COUNT DISTINCT da Silver (não é aditivo)
-      const [silverAtual, silverAnterior] = await Promise.all([
-        supabase
-          .schema('silver' as any)
-          .from('cliente_visitas')
-          .select('cliente_fone_norm')
-          .eq('bar_id', barId)
-          .eq('tem_telefone', true)
-          .gte('data_visita', inicioAtual)
-          .lte('data_visita', fimAtual),
-        supabase
-          .schema('silver' as any)
-          .from('cliente_visitas')
-          .select('cliente_fone_norm')
-          .eq('bar_id', barId)
-          .eq('tem_telefone', true)
-          .gte('data_visita', inicioAnterior)
-          .lte('data_visita', fimAnterior)
+      // Total clientes únicos: RPC COUNT DISTINCT server-side (evita paginação)
+      const [countAtual, countAnterior] = await Promise.all([
+        supabase.rpc('count_distinct_clientes_periodo', {
+          p_bar_id: barId,
+          p_data_inicio: inicioAtual,
+          p_data_fim: fimAtual
+        }),
+        supabase.rpc('count_distinct_clientes_periodo', {
+          p_bar_id: barId,
+          p_data_inicio: inicioAnterior,
+          p_data_fim: fimAnterior
+        })
       ]);
 
-      if (silverAtual.error) {
-        console.error('❌ Erro ao buscar Silver atual:', silverAtual.error);
-        throw silverAtual.error;
+      if (countAtual.error) {
+        console.error('❌ Erro ao contar clientes atual:', countAtual.error);
+        throw countAtual.error;
       }
-      if (silverAnterior.error) {
-        console.error('❌ Erro ao buscar Silver anterior:', silverAnterior.error);
-        throw silverAnterior.error;
+      if (countAnterior.error) {
+        console.error('❌ Erro ao contar clientes anterior:', countAnterior.error);
+        throw countAnterior.error;
       }
 
-      const fonesAtual = silverAtual.data || [];
-      const fonesAnterior = silverAnterior.data || [];
-
-      totalClientesAtual = new Set(fonesAtual.map(v => v.cliente_fone_norm)).size;
-      totalClientesAnterior = new Set(fonesAnterior.map(v => v.cliente_fone_norm)).size;
+      totalClientesAtual = Number(countAtual.data) || 0;
+      totalClientesAnterior = Number(countAnterior.data) || 0;
     }
 
     // ⚡ CLIENTES ATIVOS - Snapshot do último dia (sempre da Gold)
