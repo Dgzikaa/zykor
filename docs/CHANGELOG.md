@@ -1,5 +1,53 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-21 (Sessão 2 parte D — ETL v2 gold.desempenho)
+
+### Bugs corrigidos
+
+- google_reviews_total: SUM(total_reviews) em vez de MAX(place_reviews_count)
+  (antes: 6.395 snapshot, depois: 36 reviews da semana)
+- custo_atracao_faturamento: campo derivado calculado (1.19%)
+- Atrasinhos drinks: threshold 300-600s (atrasinho_drinks)
+- Atrasoes drinks: separado de bar (categoria='drink' >600s)
+- Atrasinhos cozinha: threshold 900-1200s
+- Atrasoes cozinha: >1200s
+- Tempos separados: tempo_drinks, tempo_bebidas, tempo_cozinha
+- % atrasos: atrasos_drinks_perc (7.21%), atrasos_comida_perc (21.91%)
+
+### Campos novos adicionados (15 colunas)
+
+- nps_digital, nps_salao, nps_reservas (JSONB extract por chave)
+- nps_digital_respostas, nps_salao_respostas, nps_reservas_respostas
+- tempo_drinks, tempo_bebidas (segundos, separados por categoria)
+- qtd_drinks_total, qtd_comida_total (totais para calculo %)
+- atrasinho_drinks, atrasao_drinks (thresholds 300-600 / >600)
+- atrasos_drinks_perc, atrasos_comida_perc (percentuais)
+- cancelamentos_total, cancelamentos_qtd (bronze.cancelamentos)
+
+### Campos derivados populados
+
+- qui_sab_dom, ter_qua_qui, sex_sab (splits dia semana EXTRACT dow)
+- perc_faturamento_ate_19h (de gold.planejamento.fat_19h_percent)
+- custo_atracao_faturamento ((atracoes/faturamento)*100)
+
+### Correcao dados upstream
+
+- silver.tempos_producao semana 15: 11.123 linhas convertidas min→seg (x60)
+  (bug pontual: semana unica com dados em minutos)
+
+### Backfill completo v2
+
+- Semanal: 136 semanas (67 bar 3 + 69 bar 4)
+- 2 erros numeric overflow (S5/2025, S3/2026 - investigar v3)
+- Mensal: 32 meses (sem v2 ainda, manter v1)
+
+### Estrutura final
+
+127 colunas (112 v1 + 15 v2)
+versao_etl = 2 em semanas reprocessadas
+
+---
+
 ## 2026-04-21 (Sessão 2 parte C — Refactor services consomem gold.desempenho)
 
 ### Tela /estrategico/desempenho migrada para Gold
