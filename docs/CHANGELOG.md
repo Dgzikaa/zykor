@@ -1,5 +1,107 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-21 (Sessão 1 — gold.clientes renamed + expandida)
+
+### Rename e expansão da Gold de clientes
+
+gold.clientes_ativos_diario renomeada para gold.clientes_diario 
+com 5 novas colunas de metricas diarias.
+
+### Contexto do problema
+
+Rename foi aplicado em 20/04 mas ETL functions e cron ainda 
+referenciavam nome antigo. Cron falhou silenciosamente hoje 
+(21/04 08:50 BRT), dados do dia nao foram gerados.
+
+### Fixes aplicados
+
+1. ETL etl_gold_clientes_diario_full (versao 3) - nome correto + 
+   5 novas colunas populadas
+
+2. Wrapper etl_gold_clientes_diario_all_bars renomeado
+
+3. Functions antigas dropadas:
+   - etl_gold_clientes_ativos_diario_full
+   - etl_gold_clientes_ativos_diario_all_bars
+
+4. Cron renomeado:
+   - Removido: gold-clientes-ativos-diario (jobid 456)
+   - Criado: gold-clientes-diario (jobid 459)
+   - Schedule: 50 11 * * * (08:50 BRT)
+
+5. Rebuild completo: 921 linhas (446 bar 3 + 475 bar 4)
+   - Cobertura: 2025-01-02 ate 2026-04-21
+
+### 5 colunas novas na Gold
+
+- total_visitas_dia (aditivo)
+- total_clientes_unicos_dia (nao somavel para periodo)
+- novos_clientes_dia (aditivo)
+- retornantes_dia (aditivo)
+- tempo_medio_estadia_dia
+
+### Rotas refatoradas
+
+/api/clientes-ativos/route.ts:
+- Antes: referenciava clientes_ativos_diario (tabela inexistente)
+- Depois: gold.clientes_diario + consome metricas expandidas
+- Semana/Mes: SUM novos/retornantes da Gold + COUNT DISTINCT Silver
+- Dia: mantem RPC calcular_metricas_clientes (performance OK)
+- Interface response preservada (nenhum campo alterado)
+
+/api/clientes-ativos/evolucao/route.ts:
+- Atualizada para gold.clientes_diario
+
+### Validacao
+
+Paridade SQL semana 16 bar 3 (13-19/04):
+- totalClientes: 4.346 (Silver DISTINCT)
+- novosClientes: 2.456 (Gold SUM)
+- clientesRetornantes: 1.992 (Gold SUM)
+- clientesAtivos: 5.162 (Gold snapshot)
+
+Sanidade matematica: 0 erros
+- novos + retornantes = total_clientes_unicos_dia
+- total_visitas_dia >= total_clientes_unicos_dia
+- total_visitas_dia >= 0
+
+Type-check: exit 0
+
+### Filosofia arquitetural aplicada
+
+Gold por TELA/DASHBOARD (nao por metrica especifica).
+gold.clientes absorve todos indicadores diarios de clientes:
+- Fluxo (aditivos): visitas, novos, retornantes
+- Unicos do dia (nao somavel): total_clientes_unicos_dia
+- Snapshot (pega dia desejado): total_ativos, perfis, deltas
+
+### Proximas sessoes planejadas
+
+Sessao 2 (~6h): gold.desempenho multi-granular
+- ETL 11 JOINs
+- Granularidade semanal + mensal + trimestral + anual
+- Consume: gold.clientes + gold.planejamento + gold.cmv
+- JOIN: meta.metas_desempenho (metas manuais)
+
+Sessao 3 (~2h): meta.planejamento_mensal
+- Sistema M1 substituindo Excel
+
+Sessao 4 (~1h): Cleanup drops
+- meta.desempenho_semanal (152 cols legacy)
+- RPCs antigas (clientes_ativos_periodo, get_count_base_ativa)
+
+### Debitos abertos pos-Sessao 1
+
+- 5 rotas ainda usam RPCs antigas (baixa prio, funcionam)
+- Rename restante: planejamento_comercial_diario -> planejamento,
+  cmv_semanal_calculado -> cmv (proxima sessao)
+
+### Migrations aplicadas (1)
+
+- fix_etl_gold_clientes_diario_expanded
+
+---
+
 ## 2026-04-20 (Refactor frontend consume Gold #1)
 
 ### Tela /relatorios/clientes-ativos agora consome Gold #1

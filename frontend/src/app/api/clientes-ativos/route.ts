@@ -326,96 +326,132 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ⚡ SUPER OTIMIZAÇÃO: Uma única query SQL que calcula tudo
-    const { data: metricas, error: errorMetricas } = await supabase.rpc('calcular_metricas_clientes', {
-      p_bar_id: barId,
-      p_data_inicio_atual: inicioAtual,
-      p_data_fim_atual: fimAtual,
-      p_data_inicio_anterior: inicioAnterior,
-      p_data_fim_anterior: fimAnterior
-    });
-
-    if (errorMetricas) {
-      console.error('❌ Erro ao calcular métricas:', errorMetricas);
-      throw errorMetricas;
-    }
-
-    const resultado = metricas[0];
-    const totalClientesAtual = Number(resultado.total_atual);
-    const totalClientesAnterior = Number(resultado.total_anterior);
-    const novosClientes = Number(resultado.novos_atual);
-    const clientesRetornantes = Number(resultado.retornantes_atual);
-    const novosClientesAnterior = Number(resultado.novos_anterior);
-    const clientesRetornantesAnterior = Number(resultado.retornantes_anterior);
-
-    // ⚡ CLIENTES ATIVOS - Lógica diferente por período:
-    // - DIA: Quantos dos clientes do dia são ativos (têm 2+ visitas em 90d)
-    // - SEMANA/MÊS: Base total de clientes ativos (evolução da base, janela de 90d que avança)
-    // Calcular 90 dias antes do fim do período
-    const dataRef = new Date(fimAtual + 'T00:00:00');
-    const data90DiasAtras = new Date(dataRef);
-    data90DiasAtras.setDate(dataRef.getDate() - 90);
-    const data90DiasAtrasStr = data90DiasAtras.toISOString().split('T')[0];
-    
-    // Para o período anterior
-    const dataRefAnterior = new Date(fimAnterior + 'T00:00:00');
-    const data90DiasAtrasAnterior = new Date(dataRefAnterior);
-    data90DiasAtrasAnterior.setDate(dataRefAnterior.getDate() - 90);
-    const data90DiasAtrasAnteriorStr = data90DiasAtrasAnterior.toISOString().split('T')[0];
-
-    let clientesAtivos = 0;
-    let clientesAtivosAnterior = 0;
+    // ⚡ NOVA ESTRATÉGIA: Consumir Gold diretamente para SEMANA/MÊS
+    let totalClientesAtual = 0;
+    let totalClientesAnterior = 0;
+    let novosClientes = 0;
+    let clientesRetornantes = 0;
+    let novosClientesAnterior = 0;
+    let clientesRetornantesAnterior = 0;
 
     if (periodo === 'dia') {
-      // DIA: Quantos dos clientes do dia são ativos
-      const { data: ativosData, error: errorAtivos } = await supabase.rpc('calcular_clientes_ativos_periodo', {
+      // DIA: Usar RPC (performance OK para 1 dia)
+      const { data: metricas, error: errorMetricas } = await supabase.rpc('calcular_metricas_clientes', {
         p_bar_id: barId,
-        p_data_inicio_periodo: inicioAtual,
-        p_data_fim_periodo: fimAtual,
-        p_data_90_dias_atras: data90DiasAtrasStr
+        p_data_inicio_atual: inicioAtual,
+        p_data_fim_atual: fimAtual,
+        p_data_inicio_anterior: inicioAnterior,
+        p_data_fim_anterior: fimAnterior
       });
 
-      const { data: ativosAnteriorData, error: errorAtivosAnterior } = await supabase.rpc('calcular_clientes_ativos_periodo', {
-        p_bar_id: barId,
-        p_data_inicio_periodo: inicioAnterior,
-        p_data_fim_periodo: fimAnterior,
-        p_data_90_dias_atras: data90DiasAtrasAnteriorStr
-      });
+      if (errorMetricas) {
+        console.error('❌ Erro ao calcular métricas:', errorMetricas);
+        throw errorMetricas;
+      }
 
-      if (!errorAtivos && ativosData !== null) {
-        clientesAtivos = Number(ativosData);
-      } else {
-        clientesAtivos = clientesRetornantes;
-      }
-      
-      if (!errorAtivosAnterior && ativosAnteriorData !== null) {
-        clientesAtivosAnterior = Number(ativosAnteriorData);
-      } else {
-        clientesAtivosAnterior = clientesRetornantesAnterior;
-      }
+      const resultado = metricas[0];
+      totalClientesAtual = Number(resultado.total_atual);
+      totalClientesAnterior = Number(resultado.total_anterior);
+      novosClientes = Number(resultado.novos_atual);
+      clientesRetornantes = Number(resultado.retornantes_atual);
+      novosClientesAnterior = Number(resultado.novos_anterior);
+      clientesRetornantesAnterior = Number(resultado.retornantes_anterior);
     } else {
-      // SEMANA/MÊS: Base total de clientes ativos (evolução da base) - USA GOLD #1
-      // Buscar snapshot do último dia do período na tabela gold.clientes_ativos_diario
+      // SEMANA/MÊS: Consumir Gold diretamente (métricas aditivas já calculadas)
       const [goldAtual, goldAnterior] = await Promise.all([
         supabase
           .schema('gold' as any)
-          .from('clientes_ativos_diario')
-          .select('total_ativos')
+          .from('clientes_diario')
+          .select('novos_clientes_dia, retornantes_dia, total_clientes_unicos_dia')
           .eq('bar_id', barId)
-          .eq('data_referencia', fimAtual)
-          .maybeSingle(),
+          .gte('data_referencia', inicioAtual)
+          .lte('data_referencia', fimAtual)
+          .order('data_referencia', { ascending: true }),
         supabase
           .schema('gold' as any)
-          .from('clientes_ativos_diario')
-          .select('total_ativos')
+          .from('clientes_diario')
+          .select('novos_clientes_dia, retornantes_dia, total_clientes_unicos_dia')
           .eq('bar_id', barId)
-          .eq('data_referencia', fimAnterior)
-          .maybeSingle()
+          .gte('data_referencia', inicioAnterior)
+          .lte('data_referencia', fimAnterior)
+          .order('data_referencia', { ascending: true })
       ]);
 
-      clientesAtivos = Number(goldAtual.data?.total_ativos || 0);
-      clientesAtivosAnterior = Number(goldAnterior.data?.total_ativos || 0);
+      if (goldAtual.error) {
+        console.error('❌ Erro ao buscar Gold atual:', goldAtual.error);
+        throw goldAtual.error;
+      }
+      if (goldAnterior.error) {
+        console.error('❌ Erro ao buscar Gold anterior:', goldAnterior.error);
+        throw goldAnterior.error;
+      }
+
+      const goldsAtual = goldAtual.data || [];
+      const goldsAnterior = goldAnterior.data || [];
+
+      // Aditivos: SUM
+      novosClientes = goldsAtual.reduce((s, d) => s + (Number(d.novos_clientes_dia) || 0), 0);
+      clientesRetornantes = goldsAtual.reduce((s, d) => s + (Number(d.retornantes_dia) || 0), 0);
+      novosClientesAnterior = goldsAnterior.reduce((s, d) => s + (Number(d.novos_clientes_dia) || 0), 0);
+      clientesRetornantesAnterior = goldsAnterior.reduce((s, d) => s + (Number(d.retornantes_dia) || 0), 0);
+
+      // Total clientes únicos: COUNT DISTINCT da Silver (não é aditivo)
+      const [silverAtual, silverAnterior] = await Promise.all([
+        supabase
+          .schema('silver' as any)
+          .from('cliente_visitas')
+          .select('cliente_fone_norm')
+          .eq('bar_id', barId)
+          .eq('tem_telefone', true)
+          .gte('data_visita', inicioAtual)
+          .lte('data_visita', fimAtual),
+        supabase
+          .schema('silver' as any)
+          .from('cliente_visitas')
+          .select('cliente_fone_norm')
+          .eq('bar_id', barId)
+          .eq('tem_telefone', true)
+          .gte('data_visita', inicioAnterior)
+          .lte('data_visita', fimAnterior)
+      ]);
+
+      if (silverAtual.error) {
+        console.error('❌ Erro ao buscar Silver atual:', silverAtual.error);
+        throw silverAtual.error;
+      }
+      if (silverAnterior.error) {
+        console.error('❌ Erro ao buscar Silver anterior:', silverAnterior.error);
+        throw silverAnterior.error;
+      }
+
+      const fonesAtual = silverAtual.data || [];
+      const fonesAnterior = silverAnterior.data || [];
+
+      totalClientesAtual = new Set(fonesAtual.map(v => v.cliente_fone_norm)).size;
+      totalClientesAnterior = new Set(fonesAnterior.map(v => v.cliente_fone_norm)).size;
     }
+
+    // ⚡ CLIENTES ATIVOS - Snapshot do último dia (sempre da Gold)
+    // DIA/SEMANA/MÊS: Buscar total_ativos do último dia do período
+    const [goldAtivosAtual, goldAtivosAnterior] = await Promise.all([
+      supabase
+        .schema('gold' as any)
+        .from('clientes_diario')
+        .select('total_ativos')
+        .eq('bar_id', barId)
+        .eq('data_referencia', fimAtual)
+        .maybeSingle(),
+      supabase
+        .schema('gold' as any)
+        .from('clientes_diario')
+        .select('total_ativos')
+        .eq('bar_id', barId)
+        .eq('data_referencia', fimAnterior)
+        .maybeSingle()
+    ]);
+
+    const clientesAtivos = Number(goldAtivosAtual.data?.total_ativos || 0);
+    const clientesAtivosAnterior = Number(goldAtivosAnterior.data?.total_ativos || 0);
 
     // 8. CALCULAR VARIAÇÕES
     const variacaoTotal = totalClientesAnterior > 0 

@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
       // Buscar base ativa da Gold #1 (snapshot do último dia do mês)
       const { data: goldData, error: errorGold } = await supabase
         .schema('gold' as any)
-        .from('clientes_ativos_diario')
+        .from('clientes_diario')
         .select('total_ativos')
         .eq('bar_id', barId)
         .eq('data_referencia', fimMes)
