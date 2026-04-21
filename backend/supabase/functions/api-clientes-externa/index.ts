@@ -105,26 +105,6 @@ serve(async (req) => {
       });
     }
 
-    // medallion 2026-04-18: STUB temporario 503
-    // Endpoint depende de cliente_estatisticas (view) e visitas (matview),
-    // ambas removidas na migracao medallion. Reativar quando recriadas.
-    return new Response(
-      JSON.stringify({
-        status: 'service_unavailable',
-        message: 'Endpoint em manutencao pos-migracao medallion. Previsao: 48h. Contato: equipe@zykor.com.br',
-        error_code: 'MAINTENANCE_MEDALLION_MIGRATION',
-        retry_after_hours: 48
-      }),
-      {
-        status: 503,
-        headers: {
-          'Content-Type': 'application/json',
-          'Retry-After': '172800',
-          ...corsHeaders
-        }
-      }
-    );
-
     // 2. Rate limiting
     if (!checkRateLimit(providedKey)) {
       return new Response(JSON.stringify({
@@ -172,10 +152,11 @@ serve(async (req) => {
     // MODO STATS: estatísticas gerais do bar
     // =====================================================
     if (stats) {
-      // Buscar estatísticas agregadas
+      // Buscar estatísticas agregadas da camada silver
       const { data: statsData, error: statsError } = await supabase
+        .schema('silver')
         .from('cliente_estatisticas')
-        .select('total_visitas, total_gasto, total_entrada, total_consumo, ultima_visita')
+        .select('total_visitas, valor_total_consumo, valor_total_entrada, ultima_visita, cliente_fone_norm')
         .eq('bar_id', barId);
 
       if (statsError) {
@@ -191,18 +172,20 @@ serve(async (req) => {
 
       const totalClientes = statsData?.length || 0;
       const totalVisitasGeral = statsData?.reduce((sum, c) => sum + c.total_visitas, 0) || 0;
-      const totalGastoGeral = statsData?.reduce((sum, c) => sum + parseFloat(c.total_gasto || '0'), 0) || 0;
-      const totalEntradaGeral = statsData?.reduce((sum, c) => sum + parseFloat(c.total_entrada || '0'), 0) || 0;
-      const totalConsumoGeral = statsData?.reduce((sum, c) => sum + parseFloat(c.total_consumo || '0'), 0) || 0;
+      const totalConsumoGeral = statsData?.reduce((sum, c) => sum + parseFloat(c.valor_total_consumo || '0'), 0) || 0;
+      const totalEntradaGeral = statsData?.reduce((sum, c) => sum + parseFloat(c.valor_total_entrada || '0'), 0) || 0;
+      const totalGastoGeral = totalConsumoGeral + totalEntradaGeral;
       const ticketMedioGeral = totalClientes > 0 ? totalGastoGeral / totalVisitasGeral : 0;
       
       // Clientes VIP (top 10% que mais gastam)
-      const clientesOrdenados = [...(statsData || [])].sort((a, b) => 
-        parseFloat(b.total_gasto || '0') - parseFloat(a.total_gasto || '0')
-      );
+      const clientesOrdenados = [...(statsData || [])].sort((a, b) => {
+        const gastoA = parseFloat(a.valor_total_consumo || '0') + parseFloat(a.valor_total_entrada || '0');
+        const gastoB = parseFloat(b.valor_total_consumo || '0') + parseFloat(b.valor_total_entrada || '0');
+        return gastoB - gastoA;
+      });
       const top10Percent = Math.max(1, Math.ceil(totalClientes * 0.1));
       const clientesVIP = clientesOrdenados.slice(0, top10Percent);
-      const gastoVIP = clientesVIP.reduce((sum, c) => sum + parseFloat(c.total_gasto || '0'), 0);
+      const gastoVIP = clientesVIP.reduce((sum, c) => sum + parseFloat(c.valor_total_consumo || '0') + parseFloat(c.valor_total_entrada || '0'), 0);
       const percentualGastoVIP = totalGastoGeral > 0 ? (gastoVIP / totalGastoGeral) * 100 : 0;
 
       // Data mais antiga e mais recente
@@ -211,7 +194,8 @@ serve(async (req) => {
       
       // Buscar primeira visita de todos os clientes
       const { data: primeiraVisitaData } = await supabase
-        .from('visitas')
+        .schema('silver')
+        .from('cliente_visitas')
         .select('data_visita')
         .eq('bar_id', barId)
         .order('data_visita', { ascending: true })
@@ -263,10 +247,10 @@ serve(async (req) => {
               : '0.00'
           },
           top_5_clientes: clientesOrdenados.slice(0, 5).map(c => ({
-            telefone: c.telefone,
-            nome: c.nome || 'Sem nome',
+            telefone: c.cliente_fone_norm,
+            nome: c.cliente_nome || 'Sem nome',
             total_visitas: c.total_visitas,
-            total_gasto: parseFloat(c.total_gasto || '0').toFixed(2),
+            total_gasto: (parseFloat(c.valor_total_consumo || '0') + parseFloat(c.valor_total_entrada || '0')).toFixed(2),
             ultima_visita: c.ultima_visita
           })),
           atualizado_em: new Date().toISOString()
@@ -288,10 +272,11 @@ serve(async (req) => {
 
       // Buscar dados do cliente usando ILIKE para encontrar com ou sem formatação
       const { data: cliente, error: errCliente } = await supabase
+        .schema('silver')
         .from('cliente_estatisticas')
-        .select('telefone, nome, total_visitas, ultima_visita, total_gasto, total_entrada, total_consumo, ticket_medio, ticket_medio_entrada, ticket_medio_consumo, updated_at')
+        .select('cliente_fone_norm, cliente_nome, total_visitas, ultima_visita, valor_total_consumo, valor_total_entrada, ticket_medio_consumo, ticket_medio_entrada, primeira_visita, calculado_em')
         .eq('bar_id', barId)
-        .ilike('telefone', `%${telUltimos8}%`)
+        .ilike('cliente_fone_norm', `%${telUltimos8}%`)
         .limit(1)
         .maybeSingle();
 
@@ -317,14 +302,13 @@ serve(async (req) => {
       }
 
       // Buscar histórico de visitas (modo histórico com filtros de data)
-      // Buscar por telefone normalizado (remover hífens, espaços, +)
-      // visitas armazena como "61-993196776", cliente_estatisticas como "61993196776"
-      // telUltimos8 já foi declarado acima
+      // Buscar por telefone normalizado
       let queryHistorico = supabase
-        .from('visitas')
-        .select('id, data_visita, cliente_nome, valor_pagamentos, valor_consumo, valor_produtos, valor_couvert, created_at')
+        .schema('silver')
+        .from('cliente_visitas')
+        .select('id, data_visita, cliente_nome, valor_pagamentos, valor_consumo, valor_produtos, valor_couvert, hora_abertura')
         .eq('bar_id', barId)
-        .ilike('cliente_fone', `%${telUltimos8}%`)
+        .ilike('cliente_fone_norm', `%${telUltimos8}%`)
         .order('data_visita', { ascending: false });
 
       if (dataDesde) {
@@ -343,9 +327,9 @@ serve(async (req) => {
       }
 
       // Calcular métricas adicionais
-      const primeiraVisita = historico && historico.length > 0 
+      const primeiraVisita = cliente.primeira_visita || (historico && historico.length > 0 
         ? historico[historico.length - 1].data_visita 
-        : null;
+        : null);
       
       const diasDesdeUltimaVisita = cliente.ultima_visita 
         ? Math.floor((new Date().getTime() - new Date(cliente.ultima_visita).getTime()) / (1000 * 60 * 60 * 24))
@@ -369,13 +353,20 @@ serve(async (req) => {
         status = 'em_risco';
       }
       
+      // Calcular totais e ticket médio
+      const totalConsumo = parseFloat(cliente.valor_total_consumo || '0');
+      const totalEntrada = parseFloat(cliente.valor_total_entrada || '0');
+      const totalGasto = totalConsumo + totalEntrada;
+      const ticketMedioConsumo = parseFloat(cliente.ticket_medio_consumo || '0');
+      const ticketMedioEntrada = parseFloat(cliente.ticket_medio_entrada || '0');
+      const ticketMedio = cliente.total_visitas > 0 ? totalGasto / cliente.total_visitas : 0;
+      
       // Classificar como VIP se ticket médio > R$ 150
-      const ticketMedio = cliente.ticket_medio ? parseFloat(cliente.ticket_medio) : 0;
       const isVIP = ticketMedio > 150 || cliente.total_visitas >= 10;
 
       const clienteFormatado = {
-        telefone: cliente.telefone,
-        nome: cliente.nome || 'Sem nome',
+        telefone: cliente.cliente_fone_norm,
+        nome: cliente.cliente_nome || 'Sem nome',
         total_visitas: cliente.total_visitas,
         primeira_visita: primeiraVisita,
         ultima_visita: cliente.ultima_visita,
@@ -384,13 +375,13 @@ serve(async (req) => {
         frequencia_media_dias: frequenciaMedia ? parseFloat(frequenciaMedia) : null,
         status: status,
         is_vip: isVIP,
-        total_gasto: cliente.total_gasto ? parseFloat(cliente.total_gasto) : 0,
-        total_entrada: cliente.total_entrada ? parseFloat(cliente.total_entrada) : 0,
-        total_consumo: cliente.total_consumo ? parseFloat(cliente.total_consumo) : 0,
+        total_gasto: totalGasto,
+        total_entrada: totalEntrada,
+        total_consumo: totalConsumo,
         ticket_medio: ticketMedio,
-        ticket_medio_entrada: cliente.ticket_medio_entrada ? parseFloat(cliente.ticket_medio_entrada) : 0,
-        ticket_medio_consumo: cliente.ticket_medio_consumo ? parseFloat(cliente.ticket_medio_consumo) : 0,
-        atualizado_em: cliente.updated_at
+        ticket_medio_entrada: ticketMedioEntrada,
+        ticket_medio_consumo: ticketMedioConsumo,
+        atualizado_em: cliente.calculado_em
       };
 
       // Enriquecer histórico com metadados
@@ -451,14 +442,15 @@ serve(async (req) => {
     // MODO LISTA: todos os clientes com paginação e filtros
     // =====================================================
     let query = supabase
+      .schema('silver')
       .from('cliente_estatisticas')
-      .select('telefone, nome, total_visitas, ultima_visita, total_gasto, total_entrada, total_consumo, ticket_medio, ticket_medio_entrada, ticket_medio_consumo, updated_at', { count: 'exact' })
+      .select('cliente_fone_norm, cliente_nome, total_visitas, ultima_visita, valor_total_consumo, valor_total_entrada, ticket_medio_consumo, ticket_medio_entrada, calculado_em', { count: 'exact' })
       .eq('bar_id', barId)
       .gte('total_visitas', minVisitas);
 
     // Filtro por busca (nome ou telefone)
     if (busca) {
-      query = query.or(`nome.ilike.%${busca}%,telefone.ilike.%${busca}%`);
+      query = query.or(`cliente_nome.ilike.%${busca}%,cliente_fone_norm.ilike.%${busca}%`);
     }
 
     // Filtro por data da última visita
@@ -470,10 +462,10 @@ serve(async (req) => {
     }
 
     // Ordenação
-    const orderColumn = ordenar === 'nome' ? 'nome'
+    const orderColumn = ordenar === 'nome' ? 'cliente_nome'
       : ordenar === 'ultima_visita' ? 'ultima_visita'
-      : ordenar === 'total_gasto' ? 'total_gasto'
-      : ordenar === 'total_consumo' ? 'total_consumo'
+      : ordenar === 'total_gasto' ? 'valor_total_consumo' // Ordenar por consumo como proxy
+      : ordenar === 'total_consumo' ? 'valor_total_consumo'
       : 'total_visitas';
     query = query.order(orderColumn, { ascending: ordem === 'asc' });
 
@@ -509,24 +501,27 @@ serve(async (req) => {
         status = 'em_risco';
       }
       
-      const ticketMedio = c.ticket_medio ? parseFloat(c.ticket_medio) : 0;
+      const totalConsumo = parseFloat(c.valor_total_consumo || '0');
+      const totalEntrada = parseFloat(c.valor_total_entrada || '0');
+      const totalGasto = totalConsumo + totalEntrada;
+      const ticketMedio = c.total_visitas > 0 ? totalGasto / c.total_visitas : 0;
       const isVIP = ticketMedio > 150 || c.total_visitas >= 10;
 
       return {
-        telefone: c.telefone,
-        nome: c.nome || 'Sem nome',
+        telefone: c.cliente_fone_norm,
+        nome: c.cliente_nome || 'Sem nome',
         total_visitas: c.total_visitas,
         ultima_visita: c.ultima_visita,
         dias_desde_ultima_visita: diasDesdeUltimaVisita,
         status: status,
         is_vip: isVIP,
-        total_gasto: c.total_gasto ? parseFloat(c.total_gasto) : 0,
-        total_entrada: c.total_entrada ? parseFloat(c.total_entrada) : 0,
-        total_consumo: c.total_consumo ? parseFloat(c.total_consumo) : 0,
+        total_gasto: totalGasto,
+        total_entrada: totalEntrada,
+        total_consumo: totalConsumo,
         ticket_medio: ticketMedio,
-        ticket_medio_entrada: c.ticket_medio_entrada ? parseFloat(c.ticket_medio_entrada) : 0,
-        ticket_medio_consumo: c.ticket_medio_consumo ? parseFloat(c.ticket_medio_consumo) : 0,
-        atualizado_em: c.updated_at
+        ticket_medio_entrada: parseFloat(c.ticket_medio_entrada || '0'),
+        ticket_medio_consumo: parseFloat(c.ticket_medio_consumo || '0'),
+        atualizado_em: c.calculado_em
       };
     });
 
