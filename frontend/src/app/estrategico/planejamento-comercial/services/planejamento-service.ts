@@ -109,13 +109,13 @@ export async function getPlanejamentoComercial(
       ? `${ano + 1}-01-01`
       : `${ano}-${(mes + 1).toString().padStart(2, '0')}-01`;
 
-  // REFACTOR 2026-04-20: Migrado para gold.planejamento_comercial_diario
+  // REFACTOR 2026-04-20: Migrado para gold.planejamento
   // Gold ja tem consolidacao de ContaHub + Yuzer + Sympla, eliminando
   // bug de double-counting (L268 subtraia quando real_r ja era consolidado)
   const [{ data: eventosGold, error }, { data: eventosManuais }] = await Promise.all([
     supabase
       .schema('gold' as never)
-      .from('planejamento_comercial_diario')
+      .from('planejamento')
       .select(`
         id, data_evento, nome, dia_semana, bar_id,
         m1_r, cl_plan, te_plan, tb_plan, c_artistico_plan, lot_max,
@@ -147,7 +147,7 @@ export async function getPlanejamentoComercial(
   ]);
 
   if (error) {
-    console.error('❌ Erro ao buscar Gold planejamento_comercial_diario:', {
+    console.error('❌ Erro ao buscar Gold planejamento:', {
       message: error.message,
       code: error.code,
       barId,

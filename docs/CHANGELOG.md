@@ -1,5 +1,50 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-21 (Sessão 2 parte A — Renames das 3 Golds restantes)
+
+### Gold por TELA aplicada a todas as 4 Golds
+
+Renames:
+- gold.planejamento_comercial_diario → gold.planejamento
+- gold.cmv_semanal_calculado → gold.cmv
+- gold.desempenho_semanal → gold.desempenho
+
+### Backend atualizado
+
+- 4 ETL functions recriadas com nome novo
+- 2 wrappers recriados
+- 2 crons recriados:
+  - gold-planejamento (jobid 460, 50 11 * * *)
+  - gold-cmv (jobid 461, 55 11 * * *)
+- Functions antigas dropadas (6 total)
+
+### Frontend atualizado
+
+- planejamento-service.ts: referencia gold.planejamento
+- Type-check: exit 0
+
+### Observação — gold.desempenho
+
+Rename seguro pois 23 arquivos frontend que referenciam 
+"desempenho_semanal" apontam para meta.desempenho_semanal 
+(legacy, schema meta), nao para gold.desempenho_semanal.
+Refactor dessas rotas acontece no ETL da Sessao 2 parte B.
+
+### Estado final das Golds
+
+- gold.clientes_diario (fluxo + snapshot ativos)
+- gold.planejamento (eventos diarios)
+- gold.cmv (CMV semanal)
+- gold.desempenho (multi-granular, aguardando ETL)
+
+### Migrations aplicadas (3)
+
+- rename_gold_planejamento
+- rename_gold_cmv
+- rename_gold_desempenho
+
+---
+
 ## 2026-04-21 (Sessão 1 — gold.clientes renamed + expandida)
 
 ### Rename e expansão da Gold de clientes
