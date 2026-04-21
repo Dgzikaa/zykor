@@ -78,13 +78,13 @@ export async function getSemanas(
   ano?: number
 ): Promise<{ semanas: DadosSemana[], semanaAtual: number, anoAtual: number }> {
   
-  // Buscar semanas básicas
-  // NOTA: desempenho_semanal foi migrada de public para schema 'meta'.
+  // Buscar semanas básicas de gold.desempenho (ETL automatizado)
   let query = supabase
-    .schema('meta' as never)
-    .from('desempenho_semanal')
+    .schema('gold' as never)
+    .from('desempenho')
     .select('*')
     .eq('bar_id', barId)
+    .eq('granularidade', 'semanal')
     .order('ano', { ascending: true })
     .order('numero_semana', { ascending: true });
   
@@ -92,10 +92,10 @@ export async function getSemanas(
     query = query.eq('ano', ano);
   }
 
-  const { data: semanas, error } = await query;
+  const { data: semanasGold, error } = await query;
 
   if (error) {
-    console.error('❌ Erro em meta.desempenho_semanal:', {
+    console.error('❌ Erro em gold.desempenho:', {
       message: error.message,
       code: error.code,
       details: error.details,
@@ -108,10 +108,64 @@ export async function getSemanas(
     );
   }
 
-  if (!semanas || semanas.length === 0) {
+  if (!semanasGold || semanasGold.length === 0) {
     const hoje = new Date();
     return { semanas: [], semanaAtual: getWeekNumber(hoje), anoAtual: hoje.getFullYear() };
   }
+
+  // LEFT JOIN meta.desempenho_semanal para campos manuais (RH, checklists, observacoes, audit)
+  let metaQuery = supabase
+    .schema('meta' as never)
+    .from('desempenho_semanal')
+    .select(`
+      bar_id, ano, numero_semana,
+      observacoes, alertas_dados, nota_felicidade_equipe, vagas_abertas,
+      num_testes_ps, perc_comparecimento_ps, aprovados_ps, absenteismo,
+      perc_checklist_producao, perc_checklist_rh, perc_checklist_semanal_terca,
+      quorum_pesquisa_felicidade, conciliacoes_pendentes, erros_pente_fino,
+      consumacao_sem_socio, meta_semanal, atingimento,
+      atualizado_em, atualizado_por, atualizado_por_nome
+    `)
+    .eq('bar_id', barId);
+  
+  if (ano) {
+    metaQuery = metaQuery.eq('ano', ano);
+  }
+
+  const { data: metaManuais } = await metaQuery;
+
+  // Merge Gold (automatizado) + Meta (campos manuais)
+  const metaMap = new Map<string, any>();
+  (metaManuais || []).forEach(m => 
+    metaMap.set(`${m.ano}-${m.numero_semana}`, m)
+  );
+
+  const semanas = semanasGold.map(g => {
+    const meta = metaMap.get(`${g.ano}-${g.numero_semana}`);
+    return {
+      ...g,
+      observacoes: meta?.observacoes ?? null,
+      alertas_dados: meta?.alertas_dados ?? null,
+      nota_felicidade_equipe: meta?.nota_felicidade_equipe ?? null,
+      vagas_abertas: meta?.vagas_abertas ?? null,
+      num_testes_ps: meta?.num_testes_ps ?? null,
+      perc_comparecimento_ps: meta?.perc_comparecimento_ps ?? null,
+      aprovados_ps: meta?.aprovados_ps ?? null,
+      absenteismo: meta?.absenteismo ?? null,
+      perc_checklist_producao: meta?.perc_checklist_producao ?? null,
+      perc_checklist_rh: meta?.perc_checklist_rh ?? null,
+      perc_checklist_semanal_terca: meta?.perc_checklist_semanal_terca ?? null,
+      quorum_pesquisa_felicidade: meta?.quorum_pesquisa_felicidade ?? null,
+      conciliacoes_pendentes: meta?.conciliacoes_pendentes ?? null,
+      erros_pente_fino: meta?.erros_pente_fino ?? null,
+      consumacao_sem_socio: meta?.consumacao_sem_socio ?? null,
+      meta_semanal: meta?.meta_semanal ?? null,
+      atingimento: meta?.atingimento ?? null,
+      atualizado_em: meta?.atualizado_em ?? g.calculado_em,
+      atualizado_por: meta?.atualizado_por ?? null,
+      atualizado_por_nome: meta?.atualizado_por_nome ?? 'Sistema ETL',
+    };
+  });
 
   // Buscar Marketing
   let marketingQuery = supabase

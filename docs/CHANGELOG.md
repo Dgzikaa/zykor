@@ -1,5 +1,69 @@
 # Zykor - Changelog Arquitetural
 
+## 2026-04-21 (Sessão 2 parte C — Refactor services consomem gold.desempenho)
+
+### Tela /estrategico/desempenho migrada para Gold
+
+Antes: services consumiam meta.desempenho_semanal (legacy, 
+152 cols, populada manualmente).
+
+Depois: gold.desempenho (112 cols, ETL automático diário) 
++ LEFT JOIN meta.desempenho_semanal só pros campos manuais 
+remanescentes (RH, checklists, observacoes, audit).
+
+### Services refatorados (2)
+
+- desempenho-service.ts: gold WHERE granularidade=semanal
+- desempenho-mensal-service.ts: gold WHERE granularidade=mensal  
+  (eliminou ~280 linhas de agregação JS)
+
+### Campos migrados
+
+90 campos automatizados vêm da Gold:
+- Faturamento (total, entrada, bar, couvert)
+- Clientes (atendidos, ativos, 30d/60d/90d, % novos, retenção)
+- CMV (limpo, global, teórico, percentual)
+- NPS (geral + 7 critérios)
+- Stockout (drinks, bar, comidas)
+- Mix vendas (bebidas, drinks, comida, happy hour)
+- Tempos (bar, cozinha, atrasos %)
+- Reservas (totais, presentes, quebra)
+- Google Reviews (5*, média, total)
+- Custos (14 categorias)
+- Marketing (orgânico + pago: posts, alcance, CPM, CTR)
+
+54 campos manuais continuam em LEFT JOIN meta:
+- RH: nota_felicidade_equipe, vagas_abertas, testes_ps, absenteismo
+- Checklists: producao, rh, semanal_terca
+- Financeiro: conciliacoes_pendentes, erros_pente_fino
+- Observações: observacoes, alertas_dados
+- Metas: meta_semanal, atingimento
+- Audit: atualizado_em, atualizado_por, atualizado_por_nome
+
+### Ganhos
+
+- Dados sempre atualizados (cron 09:00 BRT diário)
+- Mensal não recalcula em JS (vem pronto da Gold)
+- Paridade Gold vs Meta validada
+- Interface DadosSemana preservada (UI não precisa mudar)
+
+### Débitos abertos
+
+21 arquivos ainda referenciam meta.desempenho_semanal:
+- 7 rotas API /estrategico/desempenho (críticas)
+- 6 rotas API /gestao/desempenho (CRUD admin)
+- 3 types/schemas
+- 5 integrações/outros
+
+Migração incremental Sessão 3+.
+
+### Plano drop meta.desempenho_semanal
+
+Após refactor dos 21 arquivos restantes + validação 15-30 dias 
+produção, drop tabela legacy (Sessão 4).
+
+---
+
 ## 2026-04-21 (Sessão 2 parte B — ETL gold.desempenho multi-granular)
 
 ### ETL consolidado de desempenho operacional + financeiro
