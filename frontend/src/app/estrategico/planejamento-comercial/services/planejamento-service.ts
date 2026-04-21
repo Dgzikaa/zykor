@@ -1,5 +1,10 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
+const DIAS_SEMANA = [
+  'DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 
+  'QUINTA', 'SEXTA', 'SÁBADO'
+];
+
 export interface PlanejamentoData {
   evento_id: number;
   data_evento: string;
@@ -209,7 +214,9 @@ export async function getPlanejamentoComercial(
     return {
       evento_id: evento.id,
       data_evento: evento.data_evento,
-      dia_semana: evento.dia_semana || '',
+      dia_semana: typeof evento.dia_semana === 'number' 
+        ? DIAS_SEMANA[evento.dia_semana] 
+        : String(evento.dia_semana || ''),
       evento_nome: evento.nome || '',
       dia: dataEvento.getUTCDate(),
       mes: dataEvento.getUTCMonth() + 1,
