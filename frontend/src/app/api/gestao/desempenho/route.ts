@@ -307,7 +307,7 @@ export async function PUT(request: Request) {
         .eq('id', id)
         .eq('bar_id', barId)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Erro Supabase ao atualizar desempenho:', error);
