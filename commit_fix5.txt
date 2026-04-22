@@ -1,0 +1,12 @@
+feat(desempenho): adiciona perc_faturamento_apos_22h
+
+Completa split horario iniciado no fix db8beec5.
+- gold.planejamento: ADD COLUMN fat_apos_22h + fat_apos_22h_percent
+- ETL planejamento: calcula fat_apos_22h (hora 22-04)
+- ETL desempenho: propaga perc_faturamento_apos_22h
+
+Formula Excel: SUM(valor WHERE hora >= 22 OR hora <= 4) / SUM(valor total).
+
+Valores S14-S17: 34-49% apos 22h (esperado para bares).
+
+Rebuild gold.planejamento 28d + desempenho S14-S17/2026.
