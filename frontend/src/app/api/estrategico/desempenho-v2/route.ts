@@ -295,6 +295,38 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Validar campos condicionais por integracao
+    const CAMPO_INTEGRACAO: Record<string, string> = {
+      mesas_totais: 'getin',
+      mesas_presentes: 'getin',
+      reservas_totais: 'getin',
+      reservas_presentes: 'getin',
+      quebra_reservas: 'getin',
+      ticket_medio: 'getin',
+    };
+
+    const camposCondicionais = Object.keys(campos).filter(c => CAMPO_INTEGRACAO[c]);
+    if (camposCondicionais.length > 0) {
+      const integracoes = new Set(camposCondicionais.map(c => CAMPO_INTEGRACAO[c]));
+      for (const integ of integracoes) {
+        const { data: config } = await supabase
+          .schema('operations' as any)
+          .from('integracoes_bar')
+          .select('modo')
+          .eq('bar_id', goldRow.bar_id)
+          .eq('integracao', integ)
+          .single();
+
+        if (config?.modo?.startsWith('api')) {
+          const camposBloqueados = camposCondicionais.filter(c => CAMPO_INTEGRACAO[c] === integ);
+          return NextResponse.json(
+            { error: `Campos ${camposBloqueados.join(', ')} são automáticos para bar ${goldRow.bar_id} (${integ} = ${config.modo}). Não editável.` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     console.log(`🟢 PUT Desempenho V2: bar=${goldRow.bar_id}, S${goldRow.numero_semana}/${goldRow.ano}, campos=${Object.keys(campos).join(',')}`);
 
     // Upsert em meta.desempenho_manual

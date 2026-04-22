@@ -81,10 +81,29 @@ serve(async (req) => {
     const getinApiKey = credenciais.api_token
     console.log('✅ Credenciais carregadas')
 
+    // Buscar bares com integracao Getin ativa (modo api_*)
+    const { data: baresAtivos, error: baresError } = await supabase
+      .schema('operations')
+      .from('integracoes_bar')
+      .select('bar_id')
+      .eq('integracao', 'getin')
+      .like('modo', 'api%')
+
+    if (baresError || !baresAtivos || baresAtivos.length === 0) {
+      console.log('⚠️ Nenhum bar com API Getin ativa. Skip.')
+      await heartbeatEnd(supabase, heartbeatId, 'success', startTime, 0, { skipped: true, reason: 'no_bars_with_api' })
+      return new Response(JSON.stringify({ success: true, skipped: true }), {
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }, status: 200
+      })
+    }
+
+    const activeBarIds = baresAtivos.map(b => b.bar_id)
+    console.log(`🏪 Bares com Getin API: ${activeBarIds.join(', ')}`)
+
     // Parse request body for custom dates (optional)
     let startDate: string
     let endDate: string
-    
+
     try {
       const body = await req.json()
       startDate = body.start_date || ''
@@ -95,12 +114,12 @@ serve(async (req) => {
       endDate = ''
     }
 
-    // Calculate date range: custom or (today - 7) to (today + 60)
+    // Calculate date range: custom or (today - 30) to (today + 60)
     if (!startDate || !endDate) {
       const hoje = new Date()
       const dataInicio = new Date(hoje)
-      dataInicio.setDate(hoje.getDate() - 7) // Últimos 7 dias para capturar alterações retroativas
-      
+      dataInicio.setDate(hoje.getDate() - 30) // Últimos 30 dias para capturar alterações retroativas
+
       const dataFim = new Date(hoje)
       dataFim.setDate(hoje.getDate() + 60)
 
@@ -113,102 +132,108 @@ serve(async (req) => {
     let totalReservas = 0
     let totalSalvas = 0
     let totalErros = 0
-    let currentPage = 1
-    let hasMorePages = true
 
-    while (hasMorePages) {
-      console.log(`📡 Página ${currentPage}...`)
+    // Sincronizar cada bar ativo
+    for (const barId of activeBarIds) {
+      console.log(`\n🏪 Sincronizando bar ${barId}...`)
+      let currentPage = 1
+      let hasMorePages = true
 
-      const getinUrl = new URL('https://api.getinapis.com/apis/v2/reservations')
-      getinUrl.searchParams.set('start_date', startDate)
-      getinUrl.searchParams.set('end_date', endDate)
-      getinUrl.searchParams.set('page', currentPage.toString())
-      getinUrl.searchParams.set('per_page', '50')
+      while (hasMorePages) {
+        console.log(`📡 Bar ${barId} - Página ${currentPage}...`)
 
-      const response = await fetch(getinUrl.toString(), {
-        method: 'GET',
-        headers: {
-          'apiKey': getinApiKey,
-          'Content-Type': 'application/json',
-        },
-      })
+        const getinUrl = new URL('https://api.getinapis.com/apis/v2/reservations')
+        getinUrl.searchParams.set('start_date', startDate)
+        getinUrl.searchParams.set('end_date', endDate)
+        getinUrl.searchParams.set('page', currentPage.toString())
+        getinUrl.searchParams.set('per_page', '50')
 
-      if (!response.ok) {
-        throw new Error(`Erro API Getin: ${response.status}`)
-      }
+        const response = await fetch(getinUrl.toString(), {
+          method: 'GET',
+          headers: {
+            'apiKey': getinApiKey,
+            'Content-Type': 'application/json',
+          },
+        })
 
-      const data: GetinResponse = await response.json()
-      
-      if (!data.success || !data.data || data.data.length === 0) {
-        break
-      }
-
-      console.log(`✅ ${data.data.length} reservas encontradas`)
-      totalReservas += data.data.length
-
-      for (const reserva of data.data) {
-        try {
-          const reservaData = {
-            bar_id: 3,
-            reservation_id: reserva.id,
-            unit_id: reserva.unit_id || null,
-            sector_id: reserva.sector_id || null,
-            sector_name: reserva.sector_name || null,
-            customer_name: reserva.name || null,
-            customer_email: reserva.email || null,
-            customer_phone: reserva.mobile || null,
-            reservation_date: reserva.date,
-            reservation_time: reserva.time || null,
-            people: reserva.people || 0,
-            status: reserva.status || 'pending',
-            discount: reserva.discount || 0,
-            info: reserva.info || null,
-            no_show: reserva.no_show || false,
-            no_show_tax: reserva.no_show_tax || 0,
-            no_show_hours: reserva.no_show_hours || 0,
-            no_show_eligible: reserva.no_show_eligible || false,
-            confirmation_sent: reserva.confirmation_sent || false,
-            nps_answered: reserva.nps_answered || false,
-            nps_url: reserva.nps_url || null,
-            custom_fields: reserva.custom_fields || null,
-            monetize: reserva.monetize || null,
-            raw_data: reserva,
-            synced_at: new Date().toISOString()
-          }
-
-          const { error: upsertError } = await supabase
-            .from('bronze_getin_reservations')
-            .upsert(reservaData, {
-              onConflict: 'bar_id,reservation_id',
-              ignoreDuplicates: false
-            })
-
-          if (upsertError) {
-            console.error(`❌ Erro ${reserva.id}:`, upsertError.message)
-            totalErros++
-          } else {
-            totalSalvas++
-          }
-
-        } catch (error) {
-          console.error(`❌ Erro reserva ${reserva.id}:`, error)
-          totalErros++
+        if (!response.ok) {
+          throw new Error(`Erro API Getin bar ${barId}: ${response.status}`)
         }
-      }
 
-      // API v2 não retorna pagination, continua até não ter mais dados
-      currentPage++
-      hasMorePages = data.data.length === 50 // Se retornou 50, pode ter mais
+        const data: GetinResponse = await response.json()
 
-      if (hasMorePages) {
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        if (!data.success || !data.data || data.data.length === 0) {
+          break
+        }
+
+        console.log(`✅ ${data.data.length} reservas encontradas`)
+        totalReservas += data.data.length
+
+        for (const reserva of data.data) {
+          try {
+            const reservaData = {
+              bar_id: barId,
+              reservation_id: reserva.id,
+              unit_id: reserva.unit_id || null,
+              sector_id: reserva.sector_id || null,
+              sector_name: reserva.sector_name || null,
+              customer_name: reserva.name || null,
+              customer_email: reserva.email || null,
+              customer_phone: reserva.mobile || null,
+              reservation_date: reserva.date,
+              reservation_time: reserva.time || null,
+              people: reserva.people || 0,
+              status: reserva.status || 'pending',
+              discount: reserva.discount || 0,
+              info: reserva.info || null,
+              no_show: reserva.no_show || false,
+              no_show_tax: reserva.no_show_tax || 0,
+              no_show_hours: reserva.no_show_hours || 0,
+              no_show_eligible: reserva.no_show_eligible || false,
+              confirmation_sent: reserva.confirmation_sent || false,
+              nps_answered: reserva.nps_answered || false,
+              nps_url: reserva.nps_url || null,
+              custom_fields: reserva.custom_fields || null,
+              monetize: reserva.monetize || null,
+              raw_data: reserva,
+              synced_at: new Date().toISOString()
+            }
+
+            const { error: upsertError } = await supabase
+              .schema('bronze')
+              .from('bronze_getin_reservations')
+              .upsert(reservaData, {
+                onConflict: 'bar_id,reservation_id',
+                ignoreDuplicates: false
+              })
+
+            if (upsertError) {
+              console.error(`❌ Erro ${reserva.id}:`, upsertError.message)
+              totalErros++
+            } else {
+              totalSalvas++
+            }
+
+          } catch (error) {
+            console.error(`❌ Erro reserva ${reserva.id}:`, error)
+            totalErros++
+          }
+        }
+
+        // API v2 não retorna pagination, continua até não ter mais dados
+        currentPage++
+        hasMorePages = data.data.length === 50 // Se retornou 50, pode ter mais
+
+        if (hasMorePages) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
       }
     }
 
     // Após sincronizar, atualizar eventos_base
     console.log('🔄 Sincronizando mesas para eventos_base...')
     const { error: syncError } = await supabase.rpc('sync_mesas_getin_to_eventos')
-    
+
     if (syncError) {
       console.warn('⚠️ Erro ao sincronizar mesas:', syncError.message)
     } else {
@@ -218,6 +243,7 @@ serve(async (req) => {
     // Log sync result
     try {
       await supabase
+        .schema('integrations')
         .from('getin_sync_logs')
         .insert({
           status: 'sucesso',
@@ -228,7 +254,8 @@ serve(async (req) => {
           detalhes: {
             periodo_inicio: startDate,
             periodo_fim: endDate,
-            total_erros: totalErros
+            total_erros: totalErros,
+            bares_sincronizados: activeBarIds
           }
         })
     } catch (logError) {

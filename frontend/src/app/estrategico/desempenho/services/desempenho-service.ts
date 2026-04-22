@@ -113,14 +113,25 @@ export async function getSemanas(
     return { semanas: [], semanaAtual: getWeekNumber(hoje), anoAtual: hoje.getFullYear() };
   }
 
+  // Buscar modo de integracao do Getin para este bar
+  const { data: integConfig } = await supabase
+    .schema('operations' as never)
+    .from('integracoes_bar')
+    .select('integracao, modo')
+    .eq('bar_id', barId)
+    .eq('integracao', 'getin')
+    .single();
+
+  const getinManual = integConfig?.modo === 'manual';
+
   // LEFT JOIN meta.desempenho_manual para campos manuais (RH, checklists, observacoes, audit)
   let metaQuery = supabase
     .schema('meta' as never)
     .from('desempenho_manual')
     .select(`
       bar_id, ano, numero_semana,
-      cmo, cmv_teorico, ticket_medio, nps_reservas,
-      mesas_totais, mesas_presentes, reservas_totais, reservas_presentes,
+      cmo, cmv_teorico, nps_reservas,
+      ticket_medio, mesas_totais, mesas_presentes, reservas_totais, reservas_presentes,
       observacoes, alertas_dados, nota_felicidade_equipe, vagas_abertas,
       num_testes_ps, perc_comparecimento_ps, aprovados_ps, absenteismo,
       perc_checklist_producao, perc_checklist_rh, perc_checklist_semanal_terca,
@@ -129,7 +140,7 @@ export async function getSemanas(
       atualizado_em, atualizado_por, atualizado_por_nome
     `)
     .eq('bar_id', barId);
-  
+
   if (ano) {
     metaQuery = metaQuery.eq('ano', ano);
   }
@@ -138,7 +149,7 @@ export async function getSemanas(
 
   // Merge Gold (automatizado) + Meta (campos manuais)
   const metaMap = new Map<string, any>();
-  (metaManuais || []).forEach(m => 
+  (metaManuais || []).forEach(m =>
     metaMap.set(`${m.ano}-${m.numero_semana}`, m)
   );
 
@@ -146,15 +157,16 @@ export async function getSemanas(
     const meta = metaMap.get(`${g.ano}-${g.numero_semana}`);
     return {
       ...g,
-      // Campos editaveis: meta (manual) sobrescreve gold quando preenchido
+      // Campos puramente manuais: meta sempre ganha
       cmo: meta?.cmo ?? g.cmo,
       cmv_teorico: meta?.cmv_teorico ?? g.cmv_teorico,
-      ticket_medio: meta?.ticket_medio ?? g.ticket_medio,
       nps_reservas: meta?.nps_reservas ?? g.nps_reservas,
-      mesas_totais: meta?.mesas_totais ?? g.mesas_totais,
-      mesas_presentes: meta?.mesas_presentes ?? g.mesas_presentes,
-      reservas_totais: meta?.reservas_totais ?? g.reservas_totais,
-      reservas_presentes: meta?.reservas_presentes ?? g.reservas_presentes,
+      // Campos condicionais: se integracao = manual, meta ganha; se API, gold ganha
+      ticket_medio: getinManual ? (meta?.ticket_medio ?? g.ticket_medio) : (g.ticket_medio ?? meta?.ticket_medio),
+      mesas_totais: getinManual ? (meta?.mesas_totais ?? g.mesas_totais) : (g.mesas_totais ?? meta?.mesas_totais),
+      mesas_presentes: getinManual ? (meta?.mesas_presentes ?? g.mesas_presentes) : (g.mesas_presentes ?? meta?.mesas_presentes),
+      reservas_totais: getinManual ? (meta?.reservas_totais ?? g.reservas_totais) : (g.reservas_totais ?? meta?.reservas_totais),
+      reservas_presentes: getinManual ? (meta?.reservas_presentes ?? g.reservas_presentes) : (g.reservas_presentes ?? meta?.reservas_presentes),
       observacoes: meta?.observacoes ?? null,
       alertas_dados: meta?.alertas_dados ?? null,
       nota_felicidade_equipe: meta?.nota_felicidade_equipe ?? null,

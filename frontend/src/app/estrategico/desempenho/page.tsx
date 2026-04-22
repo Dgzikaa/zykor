@@ -26,6 +26,19 @@ export default async function DesempenhoPage({
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  // Buscar configuracao de integracoes do bar
+  const { data: integConfig } = await supabase
+    .schema('operations' as never)
+    .from('vw_bar_tem_integracao')
+    .select('getin_api, getin_modo')
+    .eq('bar_id', barId)
+    .single();
+
+  const integracoes = {
+    getin_api: integConfig?.getin_api ?? true,
+    getin_modo: integConfig?.getin_modo ?? null,
+  };
+
   let initialData: DadosSemana[] = [];
   let semanaAtual = 0;
   let anoAtual = new Date().getFullYear();
@@ -61,6 +74,7 @@ export default async function DesempenhoPage({
       anoAtual={anoAtual}
       visao={visao}
       barId={barId}
+      integracoes={integracoes}
     />
   );
 }

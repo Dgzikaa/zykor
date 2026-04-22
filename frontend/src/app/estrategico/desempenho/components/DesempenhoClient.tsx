@@ -61,7 +61,10 @@ const STATUS_COLORS = {
   nao_confiavel: { dot: 'bg-amber-500', text: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' }
 };
 
-const getSecoesConfig = (barId?: number): SecaoConfig[] => [
+const getSecoesConfig = (barId?: number, integracoes?: { getin_api?: boolean }): SecaoConfig[] => {
+const getinAuto = integracoes?.getin_api ?? (barId !== 4);
+
+return [
   {
     id: 'guardrail',
     titulo: 'GUARDRAIL - Estratégicos',
@@ -92,8 +95,8 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         id: 'ticket',
         label: 'Ticket Médio',
         metricas: [
-          // Deboche usa Ticket Médio manual (Stone) em vez do automático (ContaHub)
-          ...(barId === 4 ? [
+          // Ticket Médio: manual se bar sem API Getin, auto se com API
+          ...(!getinAuto ? [
             { key: 'ticket_medio', label: 'Ticket Médio', status: 'manual' as const, fonte: 'Stone (manual)', calculo: 'Inserido manualmente da Stone', formato: 'moeda_decimal' as const, editavel: true },
           ] : [
             { key: 'ticket_medio', label: 'Ticket Médio', status: 'auto' as const, fonte: 'eventos_base (consolidado)', calculo: 'Faturamento Total / Público Total', formato: 'moeda_decimal' as const },
@@ -136,8 +139,8 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
         id: 'reservas',
         label: 'Reservas',
         metricas: [
-          // Deboche usa campo manual para Reservas (até implementar API GetIn)
-          ...(barId === 4 ? [
+          // Reservas: manual se bar sem API Getin, auto se com API
+          ...(!getinAuto ? [
             { key: 'mesas_totais', label: 'Reservas Realizadas', status: 'manual' as const, fonte: 'Manual', calculo: 'Inserido manualmente até API GetIn', formato: 'reservas' as const, keyPessoas: 'reservas_totais', editavel: true },
             { key: 'mesas_presentes', label: 'Reservas Presentes', status: 'manual' as const, fonte: 'Manual', calculo: 'Inserido manualmente até API GetIn', formato: 'reservas' as const, keyPessoas: 'reservas_presentes', editavel: true },
           ] : [
@@ -310,6 +313,7 @@ const getSecoesConfig = (barId?: number): SecaoConfig[] => [
     ]
   }
 ];
+};
 
 // Helpers UI
 const isGrupoHierarquico = (grupo: GrupoMetricas): boolean => {
@@ -458,12 +462,18 @@ const getDataFimSemana = (dataInicio: string): string => {
 // COMPONENTE PRINCIPAL (CLIENT)
 // ============================================================================
 
+interface IntegracaoConfig {
+  getin_api: boolean;
+  getin_modo: string | null;
+}
+
 interface DesempenhoClientProps {
   initialData: DadosSemana[];
   semanaAtual: number;
   anoAtual: number;
   visao: 'semanal' | 'mensal';
   barId: number;
+  integracoes?: IntegracaoConfig;
 }
 
 export function DesempenhoClient({
@@ -471,7 +481,8 @@ export function DesempenhoClient({
   semanaAtual,
   anoAtual,
   visao,
-  barId
+  barId,
+  integracoes
 }: DesempenhoClientProps) {
   const router = useRouter();
   const { setPageTitle } = usePageTitle();
@@ -484,7 +495,7 @@ export function DesempenhoClient({
   const effectiveBarId = selectedBar?.id || barId;
 
   // Gerar configuração de seções baseada no barId
-  const SECOES = useMemo(() => getSecoesConfig(effectiveBarId), [effectiveBarId]);
+  const SECOES = useMemo(() => getSecoesConfig(effectiveBarId, integracoes), [effectiveBarId, integracoes]);
   
   const [loading, setLoading] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
