@@ -86,7 +86,7 @@ ORDER BY jobname;
         'Calcula faturamento total (ContaHub + Yuzer + Sympla)',
         'Calcula clientes atendidos e ticket médio',
         'Calcula % stockout de drinks e comidas',
-        'Atualiza tabela desempenho_semanal'
+        'Atualiza tabela gold.desempenho (ETL automatizado)'
       ],
       sql_to_execute: cronJobSQL
     };
@@ -159,7 +159,7 @@ WHERE command LIKE '%recalcular-desempenho-auto%'
 ORDER BY start_time DESC 
 LIMIT 10;
 
--- 3. Verificar dados recentes na tabela desempenho_semanal
+-- 3. Verificar dados recentes na tabela gold.desempenho
 SELECT 
   numero_semana,
   ano,
@@ -168,9 +168,10 @@ SELECT
   faturamento_total,
   clientes_atendidos,
   ticket_medio,
-  updated_at
-FROM desempenho_semanal
-WHERE updated_at >= NOW() - INTERVAL '7 days'
+  calculado_em
+FROM gold.desempenho
+WHERE granularidade = 'semanal'
+  AND calculado_em >= NOW() - INTERVAL '7 days'
 ORDER BY ano DESC, numero_semana DESC
 LIMIT 5;
 

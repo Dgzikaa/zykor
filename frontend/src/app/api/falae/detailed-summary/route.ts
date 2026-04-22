@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'data_inicio e data_fim são obrigatórios' }, { status: 400 });
     }
 
-    // Usar created_at como filtro principal (igual à tabela desempenho_semanal)
+    // Usar created_at como filtro principal
     let query = (supabase as any)
       .schema('integrations')
       .from('falae_respostas')

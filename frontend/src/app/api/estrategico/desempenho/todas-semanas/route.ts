@@ -67,11 +67,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
     }
 
-    // Buscar todas as semanas do bar, ordenadas por ano e semana
-    let query = supabase
-      .from('desempenho_semanal')
+    // Buscar todas as semanas de gold.desempenho (já inclui marketing)
+    let query = (supabase as any)
+      .schema('gold')
+      .from('desempenho')
       .select('*')
       .eq('bar_id', barId)
+      .eq('granularidade', 'semanal')
       .order('ano', { ascending: true })
       .order('numero_semana', { ascending: true });
     
@@ -85,24 +87,6 @@ export async function GET(request: NextRequest) {
       console.error('Erro ao buscar semanas:', error);
       return NextResponse.json({ error: 'Erro ao buscar dados' }, { status: 500 });
     }
-
-    // Buscar dados de marketing para mesclar
-    let marketingQuery = supabase
-      .from('marketing_semanal')
-      .select('*')
-      .eq('bar_id', barId);
-    
-    if (ano) {
-      marketingQuery = marketingQuery.eq('ano', parseInt(ano));
-    }
-
-    const { data: marketingData } = await marketingQuery;
-
-    // Criar mapa de marketing por semana/ano
-    const marketingMap = new Map<string, any>();
-    marketingData?.forEach(m => {
-      marketingMap.set(`${m.ano}-${m.semana}`, m);
-    });
 
     // Buscar dados de Conta Assinada para todas as semanas
     // Primeiro, obter as datas min/max das semanas
@@ -243,71 +227,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Mesclar dados
-    const semanasCompletas = semanas?.map(s => {
-      const marketing = marketingMap.get(`${s.ano}-${s.numero_semana}`);
-      const key = `${s.ano}-${s.numero_semana}`;
-      
-      // Conta Assinada
-      const contaAssinadaValor = contaAssinadaMap.get(key) || 0;
-      const contaAssinadaPerc = s.faturamento_total && s.faturamento_total > 0 
-        ? (contaAssinadaValor / s.faturamento_total) * 100 
-        : 0;
-      
-      // Descontos
-      const descontosData = descontosMap.get(key);
-      const descontosValor = descontosData?.valor || 0;
-      const descontosPerc = s.faturamento_total && s.faturamento_total > 0 
-        ? (descontosValor / s.faturamento_total) * 100 
-        : 0;
-      // Converter Map de detalhes para array ordenado por valor, com separação por dia
-      const descontosDetalhes = descontosData 
-        ? Array.from(descontosData.detalhes.entries())
-            .map(([motivoNormalizado, data]) => ({ 
-              motivo: data.motivo_exibicao, // Usar motivo original para exibição
-              valor: data.valor, 
-              qtd: data.qtd,
-              por_dia: Array.from(data.por_dia.entries())
-                .map(([dia, diaData]) => ({ 
-                  dia_semana: dia, 
-                  valor: diaData.valor, 
-                  qtd: diaData.qtd 
-                }))
-                .sort((a, b) => {
-                  // Ordenar por dia da semana (Domingo primeiro)
-                  const ordem = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-                  return ordem.indexOf(a.dia_semana) - ordem.indexOf(b.dia_semana);
-                })
-            }))
-            .sort((a, b) => b.valor - a.valor)
-        : [];
-      
-      return {
-        ...s,
-        conta_assinada_valor: contaAssinadaValor,
-        conta_assinada_perc: contaAssinadaPerc,
-        descontos_valor: descontosValor,
-        descontos_perc: descontosPerc,
-        descontos_detalhes: descontosDetalhes,
-        ...(marketing ? {
-          o_num_posts: marketing.o_num_posts,
-          o_alcance: marketing.o_alcance,
-          o_interacao: marketing.o_interacao,
-          o_compartilhamento: marketing.o_compartilhamento,
-          o_engajamento: marketing.o_engajamento,
-          o_num_stories: marketing.o_num_stories,
-          o_visu_stories: marketing.o_visu_stories,
-          m_valor_investido: marketing.m_valor_investido,
-          m_alcance: marketing.m_alcance,
-          m_frequencia: marketing.m_frequencia,
-          m_cpm: marketing.m_cpm,
-          m_cliques: marketing.m_cliques,
-          m_ctr: marketing.m_ctr,
-          m_custo_por_clique: marketing.m_cpc,
-          m_conversas_iniciadas: marketing.m_conversas_iniciadas,
-        } : {})
-      };
-    }) || [];
+    // Gold.desempenho já inclui marketing e conta assinada/descontos via service
+    const semanasCompletas = semanas || [];
 
     // Calcular semana atual ISO
     const hoje = new Date();

@@ -62,58 +62,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Buscar todas as semanas em paralelo
+    // Buscar todas as semanas em paralelo de gold.desempenho
     const promises = semanasParaBuscar.map(async ({ semana, ano: anoSemana }) => {
-      const [desempenhoResult, marketingResult] = await Promise.all([
-        supabase
-          .from('desempenho_semanal')
-          .select('*')
-          .eq('bar_id', barId)
-          .eq('numero_semana', semana)
-          .eq('ano', anoSemana)
-          .single(),
-        supabase
-          .from('marketing_semanal')
-          .select('*')
-          .eq('bar_id', barId)
-          .eq('semana', semana)
-          .eq('ano', anoSemana)
-          .single()
-      ]);
+      const desempenhoResult = await (supabase as any)
+        .schema('gold')
+        .from('desempenho')
+        .select('*')
+        .eq('bar_id', barId)
+        .eq('granularidade', 'semanal')
+        .eq('numero_semana', semana)
+        .eq('ano', anoSemana)
+        .maybeSingle();
 
       if (desempenhoResult.error && desempenhoResult.error.code !== 'PGRST116') {
         console.error(`Erro ao buscar semana ${semana}/${anoSemana}:`, desempenhoResult.error);
       }
 
-      // Mesclar dados de desempenho com marketing
-      const dadosSemana = desempenhoResult.data ? {
-        ...desempenhoResult.data,
-        ...(marketingResult.data ? {
-          o_num_posts: marketingResult.data.o_num_posts,
-          o_alcance: marketingResult.data.o_alcance,
-          o_interacao: marketingResult.data.o_interacao,
-          o_compartilhamento: marketingResult.data.o_compartilhamento,
-          o_engajamento: marketingResult.data.o_engajamento,
-          o_num_stories: marketingResult.data.o_num_stories,
-          o_visu_stories: marketingResult.data.o_visu_stories,
-          m_valor_investido: marketingResult.data.m_valor_investido,
-          m_alcance: marketingResult.data.m_alcance,
-          m_frequencia: marketingResult.data.m_frequencia,
-          m_cpm: marketingResult.data.m_cpm,
-          m_cliques: marketingResult.data.m_cliques,
-          m_ctr: marketingResult.data.m_ctr,
-          m_custo_por_clique: marketingResult.data.m_cpc,
-          m_conversas_iniciadas: marketingResult.data.m_conversas_iniciadas,
-          g_valor_investido: marketingResult.data.g_valor_investido,
-          g_impressoes: marketingResult.data.g_impressoes,
-          g_cliques: marketingResult.data.g_cliques,
-          g_ctr: marketingResult.data.g_ctr,
-          g_solicitacoes_rotas: marketingResult.data.g_solicitacoes_rotas,
-          gmn_total_acoes: marketingResult.data.gmn_total_acoes,
-          gmn_total_visualizacoes: marketingResult.data.gmn_total_visualizacoes,
-          gmn_solicitacoes_rotas: marketingResult.data.gmn_solicitacoes_rotas,
-        } : {})
-      } : null;
+      const dadosSemana = desempenhoResult.data || null;
 
       return {
         semana,
