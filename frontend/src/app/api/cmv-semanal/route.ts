@@ -55,17 +55,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Buscar comissão, couvert e faturamento_entrada do desempenho_semanal para enriquecer os dados
+    // Buscar comissão, couvert e faturamento_entrada de gold.desempenho para enriquecer os dados
     const semanas = data?.map(d => d.semana) || [];
     const anos = [...new Set(data?.map(d => d.ano) || [])];
     
     let desempenhoMap: Record<string, { comissao: number; couvert_atracoes: number; faturamento_entrada: number }> = {};
     
     if (semanas.length > 0) {
-      const { data: desempenhoData } = await supabase
-        .from('desempenho_semanal')
+      const { data: desempenhoData } = await (supabase as any)
+        .schema('gold')
+        .from('desempenho')
         .select('numero_semana, ano, comissao, couvert_atracoes, faturamento_entrada')
         .eq('bar_id', barId)
+        .eq('granularidade', 'semanal')
         .in('ano', anos)
         .in('numero_semana', semanas);
       

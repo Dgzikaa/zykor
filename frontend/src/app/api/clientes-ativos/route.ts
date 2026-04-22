@@ -173,7 +173,7 @@ export async function GET(request: NextRequest) {
       label = `Semana ${semanaAtual} (${inicioSemanaAtual.toLocaleDateString('pt-BR')} - ${fimSemanaAtual.toLocaleDateString('pt-BR')})`;
     }
 
-    // 🔒 DADOS FIXOS: Para SEMANAS PASSADAS, buscar dados salvos da tabela desempenho_semanal
+    // 🔒 DADOS FIXOS: Para SEMANAS PASSADAS, buscar dados salvos de gold.desempenho
     if (periodo === 'semana') {
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
@@ -182,10 +182,12 @@ export async function GET(request: NextRequest) {
       // Se a semana já terminou (domingo já passou), buscar dados fixos
       if (fimSemanaDate < hoje) {
         // Buscar dados fixos da semana atual e anterior
-        const { data: dadosSemana, error: errorSemana } = await supabase
-          .from('desempenho_semanal')
+        const { data: dadosSemana, error: errorSemana } = await (supabase as any)
+          .schema('gold')
+          .from('desempenho')
           .select('numero_semana, data_inicio, data_fim, perc_clientes_novos, clientes_ativos')
           .eq('bar_id', barId)
+          .eq('granularidade', 'semanal')
           .in('data_inicio', [inicioAtual, inicioAnterior])
           .order('data_inicio', { ascending: false });
 

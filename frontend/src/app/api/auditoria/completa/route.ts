@@ -26,9 +26,10 @@ export async function GET(request: NextRequest) {
       .from('cmv_semanal')
       .select('*', { count: 'exact', head: true });
 
-    // 5. VOLUME - Desempenho Semanal
-    const { count: countDesempenho } = await supabase
-      .from('desempenho_semanal')
+    // 5. VOLUME - Desempenho (Gold)
+    const { count: countDesempenho } = await (supabase as any)
+      .schema('gold')
+      .from('desempenho')
       .select('*', { count: 'exact', head: true });
 
     // 6. COBERTURA - Eventos por bar
@@ -280,7 +281,7 @@ export async function GET(request: NextRequest) {
           vendas_item: countVendasItem || 0,
           eventos_base: countEventos || 0,
           cmv_semanal: countCmv || 0,
-          desempenho_semanal: countDesempenho || 0,
+          desempenho_gold: countDesempenho || 0,
         },
         cobertura_bares: coberturaBares,
         cmv_impossiveis: (cmvImpossiveis || []) as any[],
