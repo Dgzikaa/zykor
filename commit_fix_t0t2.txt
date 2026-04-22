@@ -1,0 +1,13 @@
+fix(desempenho): comida usa t0_t2 (cozinha->balcao), drink t0_t3
+
+Formulas Excel distinguem:
+- COMIDA: coluna Z = t0_t2 (tempo ate sair da cozinha)
+- DRINK: coluna AA = t0_t3 (tempo ate entregue)
+
+ETL v2 usava t0_t3 pra ambos, inflando tempo_cozinha 
+(24 min em vez dos ~10-12 reais). Atrasos tambem ajustados.
+
+Mudancas em etl_gold_desempenho_semanal e mensal. Rebuild 
+S14-S17/2026 e mensal abril.
+
+Validacao S16: tempo_cozinha 624s (10.4min) vs 1450s anterior.
