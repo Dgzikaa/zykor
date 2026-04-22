@@ -1,0 +1,9 @@
+refactor(desempenho): deprecar rotas WRITE obsoletas (batch 1)
+
+Gold ETL calcula todos os campos automaticamente. Rotas legacy 
+viram mocks ou foram removidas.
+
+- Removido: recalcular-mix (nao usada)
+- Mock: criar-semanas (Gold ETL cria on-demand)
+- Mock: clear-all (perigoso, desabilitado)
+- Doc: sync-sheets (inativo, mock existente)

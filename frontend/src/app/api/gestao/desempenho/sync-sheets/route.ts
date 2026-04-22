@@ -1,7 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic'
+export const dynamic = 'force-dynamic';
+
+/**
+ * DEPRECATED - Sync com Google Sheets não está ativo.
+ * Rota mantida apenas por compatibilidade com UI existente.
+ * Retorna mock de sucesso. Gold.desempenho é source-of-truth.
+ */
 
 export async function POST(request: Request) {
   try {

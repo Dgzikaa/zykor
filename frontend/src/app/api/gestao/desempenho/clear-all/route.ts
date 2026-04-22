@@ -1,49 +1,22 @@
-import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic'
+export const dynamic = 'force-dynamic';
 
-export async function POST(request: Request) {
-  try {
-    const barIdHeader = request.headers.get('x-selected-bar-id');
-    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
-
-    if (!barId) {
-      return NextResponse.json(
-        { success: false, error: 'Bar não selecionado' },
-        { status: 400 }
-      );
-    }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    // Deletar todos os registros do bar
-    const { error } = await supabase
-      .from('desempenho_semanal')
-      .delete()
-      .eq('bar_id', barId);
-
-    if (error) {
-      console.error('Erro ao limpar dados:', error);
-      return NextResponse.json(
-        { success: false, error: 'Erro ao limpar dados de desempenho' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Todos os dados de desempenho foram excluídos com sucesso' 
-    });
-
-  } catch (error) {
-    console.error('Erro ao limpar dados:', error);
-    return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
-  }
+/**
+ * DEPRECATED - Limpeza de dados de desempenho
+ * 
+ * Gold.desempenho não deve ser limpa via UI pois:
+ * 1. ETL só reprocessa últimos 14 dias por padrão
+ * 2. Histórico seria perdido sem backup
+ * 3. Não há necessidade de limpar (dados são recalculados)
+ * 
+ * Rota desabilitada por segurança.
+ */
+export async function POST(request: NextRequest) {
+  return NextResponse.json({
+    success: false,
+    message: 'Operação desabilitada. Gold.desempenho não deve ser limpa via UI (ETL reprocessaria apenas 14 dias).',
+    deleted: 0,
+    note: 'Se necessário, limpar via Supabase Studio SQL Editor com backup prévio'
+  }, { status: 403 });
 }
