@@ -508,7 +508,7 @@ async function getBulkSendDetails(
         nome: r.customer_name || '',
         email: r.customer_email || '',
         telefone: r.customer_phone || '',
-        created_at: r.created_at || r.updated_at || ''
+        created_at: r.synced_at || ''
       };
       
       todasReservas.push(reservaInfo);

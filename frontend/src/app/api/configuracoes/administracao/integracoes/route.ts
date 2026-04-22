@@ -29,8 +29,8 @@ export async function GET(request: NextRequest) {
         .eq('bar_id', barId)
         .maybeSingle(),
       supabase
-        .from('getin_units')
-        .select('id, unit_id, name, slug, raw_data, reservation_config, updated_at')
+        .from('bronze_getin_units')
+        .select('unit_id, name, slug, raw_data, synced_at')
         .eq('bar_id', barId)
         .maybeSingle(),
       supabase

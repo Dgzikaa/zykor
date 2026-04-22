@@ -39,8 +39,8 @@ export async function GET(request: NextRequest) {
         .limit(1)
         .maybeSingle(),
       supabase
-        .from('getin_units')
-        .select('id')
+        .from('bronze_getin_units')
+        .select('unit_id')
         .eq('bar_id', barId)
         .limit(1)
         .maybeSingle(),
