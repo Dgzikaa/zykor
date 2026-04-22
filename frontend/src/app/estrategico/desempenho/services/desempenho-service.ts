@@ -119,6 +119,8 @@ export async function getSemanas(
     .from('desempenho_manual')
     .select(`
       bar_id, ano, numero_semana,
+      cmo, cmv_teorico, ticket_medio, nps_reservas,
+      mesas_totais, mesas_presentes, reservas_totais, reservas_presentes,
       observacoes, alertas_dados, nota_felicidade_equipe, vagas_abertas,
       num_testes_ps, perc_comparecimento_ps, aprovados_ps, absenteismo,
       perc_checklist_producao, perc_checklist_rh, perc_checklist_semanal_terca,
@@ -144,6 +146,15 @@ export async function getSemanas(
     const meta = metaMap.get(`${g.ano}-${g.numero_semana}`);
     return {
       ...g,
+      // Campos editaveis: meta (manual) sobrescreve gold quando preenchido
+      cmo: meta?.cmo ?? g.cmo,
+      cmv_teorico: meta?.cmv_teorico ?? g.cmv_teorico,
+      ticket_medio: meta?.ticket_medio ?? g.ticket_medio,
+      nps_reservas: meta?.nps_reservas ?? g.nps_reservas,
+      mesas_totais: meta?.mesas_totais ?? g.mesas_totais,
+      mesas_presentes: meta?.mesas_presentes ?? g.mesas_presentes,
+      reservas_totais: meta?.reservas_totais ?? g.reservas_totais,
+      reservas_presentes: meta?.reservas_presentes ?? g.reservas_presentes,
       observacoes: meta?.observacoes ?? null,
       alertas_dados: meta?.alertas_dados ?? null,
       nota_felicidade_equipe: meta?.nota_felicidade_equipe ?? null,

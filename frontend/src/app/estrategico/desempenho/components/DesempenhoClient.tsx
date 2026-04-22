@@ -1534,8 +1534,8 @@ export function DesempenhoClient({
           bodyData
         });
         
-        // Usar API route existente para desempenho semanal
-        const response = await fetch('/api/gestao/desempenho', {
+        // Usar API route v2 (medalion) para desempenho semanal
+        const response = await fetch('/api/estrategico/desempenho-v2', {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
