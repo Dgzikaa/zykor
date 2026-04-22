@@ -1,341 +1,76 @@
-import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseClient } from '@/lib/supabase';
 
-export const dynamic = 'force-dynamic'
+export const dynamic = 'force-dynamic';
 
-// Função para calcular número da semana ISO
-function getWeekNumber(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-}
-
-// GET - Buscar dados de desempenho
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const barIdHeader = request.headers.get('x-selected-bar-id');
-    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
-
-    if (!barId) {
-      return NextResponse.json(
-        { success: false, error: 'Bar não selecionado' },
-        { status: 400 }
-      );
+    const supabase = await getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Erro ao conectar' }, { status: 500 });
     }
 
-    const ano = searchParams.get('ano') || new Date().getFullYear().toString();
-    const mes = searchParams.get('mes');
+    const { searchParams } = new URL(request.url);
+    const barId = parseInt(searchParams.get('bar_id') || '3');
+    const semana = parseInt(searchParams.get('semana') || '16');
+    const ano = parseInt(searchParams.get('ano') || '2026');
 
-    // Usar service_role para dados administrativos (bypass RLS)
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    // Calcular semana atual
-    const hoje = new Date();
-    const semanaAtual = getWeekNumber(hoje);
-
-    // Construir query base - MOSTRAR APENAS ATÉ A SEMANA ATUAL
-    let query = (supabase as any)
-      .schema('meta')
-      .from('desempenho_manual')
+    // Buscar dados direto do gold.desempenho
+    const { data: goldData, error: goldError } = await supabase
+      .from('desempenho')
       .select('*')
       .eq('bar_id', barId)
-      .eq('ano', parseInt(ano))
-      .lte('numero_semana', semanaAtual) // 🎯 MOSTRAR SÓ ATÉ SEMANA ATUAL
-      .order('numero_semana', { ascending: false });
+      .eq('ano', ano)
+      .eq('numero_semana', semana)
+      .eq('granularidade', 'semanal')
+      .single();
 
-    // Filtrar por mês se especificado
-    if (mes && mes !== 'todos') {
-      const mesInt = parseInt(mes);
-      // Aproximação: considerar semanas 1-4 como mês 1, 5-8 como mês 2, etc.
-      const semanaInicio = (mesInt - 1) * 4 + 1;
-      const semanaFim = mesInt * 4 + 4;
-      
-      query = query
-        .gte('numero_semana', semanaInicio)
-        .lte('numero_semana', semanaFim);
+    if (goldError) {
+      console.error('Erro gold:', goldError);
     }
 
-    const { data, error } = await query;
+    // Buscar dados direto dos eventos_base
+    const { data: eventos, error: eventosError } = await supabase
+      .from('eventos_base')
+      .select('data_evento, res_tot, res_p, num_mesas_tot, num_mesas_presentes, versao_calculo')
+      .eq('bar_id', barId)
+      .gte('data_evento', `${ano}-04-13`)
+      .lte('data_evento', `${ano}-04-19`)
+      .order('data_evento');
 
-    if (error) {
-      console.error('Erro ao buscar dados:', error);
-      return NextResponse.json(
-        { success: false, error: 'Erro ao buscar dados de desempenho' },
-        { status: 500 }
-      );
+    if (eventosError) {
+      console.error('Erro eventos:', eventosError);
     }
 
-    // Calcular resumo
-    const resumo = data && data.length > 0 ? {
-      total_semanas: data.length,
-      faturamento_medio: data.reduce((acc, item) => acc + (item.faturamento_total || 0), 0) / data.length,
-      faturamento_total_ano: data.reduce((acc, item) => acc + (item.faturamento_total || 0), 0),
-      clientes_medio: data.reduce((acc, item) => acc + (item.clientes_atendidos || 0), 0) / data.length,
-      clientes_total_ano: data.reduce((acc, item) => acc + (item.clientes_atendidos || 0), 0),
-      ticket_medio_geral: data.reduce((acc, item) => acc + (item.ticket_medio || 0), 0) / data.length,
-      atingimento_medio: data.reduce((acc, item) => {
-        const atingimento = item.meta_semanal > 0 
-          ? (item.faturamento_total / item.meta_semanal) * 100 
-          : 0;
-        return acc + atingimento;
-      }, 0) / data.length,
-      cmv_medio: data.reduce((acc, item) => acc + (item.cmv_limpo || 0), 0) / data.length,
-    } : null;
+    const eventosSoma = (eventos || []).reduce((acc, e) => ({
+      total_pessoas: acc.total_pessoas + (e.res_tot || 0),
+      pessoas_presentes: acc.pessoas_presentes + (e.res_p || 0),
+      mesas_total: acc.mesas_total + (e.num_mesas_tot || 0),
+      mesas_presentes: acc.mesas_presentes + (e.num_mesas_presentes || 0)
+    }), { total_pessoas: 0, pessoas_presentes: 0, mesas_total: 0, mesas_presentes: 0 });
 
-    return NextResponse.json({ 
-      success: true, 
-      data: data || [],
-      resumo 
+    return NextResponse.json({
+      success: true,
+      debug: {
+        parametros: { barId, semana, ano },
+        gold_desempenho: {
+          reservas_totais_OLD: goldData?.reservas_totais,
+          reservas_presentes_OLD: goldData?.reservas_presentes,
+          reservas_totais_quantidade_NEW: goldData?.reservas_totais_quantidade,
+          reservas_totais_pessoas_NEW: goldData?.reservas_totais_pessoas,
+          reservas_presentes_quantidade_NEW: goldData?.reservas_presentes_quantidade,
+          reservas_presentes_pessoas_NEW: goldData?.reservas_presentes_pessoas,
+          reservas_quebra_pct: goldData?.reservas_quebra_pct,
+          calculado_em: goldData?.calculado_em
+        },
+        eventos_base_agregado: eventosSoma,
+        eventos_individuais: eventos,
+        timestamp: new Date().toISOString()
+      }
     });
 
   } catch (error) {
-    console.error('Erro na API de desempenho:', error);
-    return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE - Excluir registro de desempenho
-export async function DELETE(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    const barIdHeader = request.headers.get('x-selected-bar-id');
-    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
-
-    if (!barId || !id) {
-      return NextResponse.json(
-        { success: false, error: 'Parâmetros inválidos' },
-        { status: 400 }
-      );
-    }
-
-    // Usar service_role para dados administrativos (bypass RLS)
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    const { error } = await (supabase as any)
-      .schema('meta')
-      .from('desempenho_manual')
-      .delete()
-      .eq('id', parseInt(id))
-      .eq('bar_id', barId);
-
-    if (error) {
-      console.error('Erro ao excluir:', error);
-      return NextResponse.json(
-        { success: false, error: 'Erro ao excluir registro' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Registro excluído com sucesso' 
-    });
-
-  } catch (error) {
-    console.error('Erro ao excluir:', error);
-    return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
-  }
-}
-
-// Campos que pertencem à tabela marketing_semanal
-const MARKETING_FIELDS = [
-  'o_num_posts', 'o_alcance', 'o_interacao', 'o_curtidas', 'o_comentarios', 
-  'o_salvamentos', 'o_compartilhamento', 'o_engajamento', 'o_num_stories', 
-  'o_visu_stories', 'o_retencao_stories',
-  'm_valor_investido', 'm_alcance', 'm_impressoes', 'm_frequencia', 'm_cpm',
-  'm_cliques', 'm_ctr', 'm_cpc', 'm_conversas_iniciadas', 'm_reproducoes_25', 'm_reproducoes_75',
-  'g_valor_investido', 'g_impressoes', 'g_cliques', 'g_cpc', 'g_ctr',
-  'g_solicitacoes_rotas', 'g_ligacoes', 'g_click_reservas',
-  'gmn_total_acoes', 'gmn_total_visualizacoes', 'gmn_visu_pesquisa', 'gmn_visu_maps',
-  'gmn_cliques_website', 'gmn_ligacoes', 'gmn_solicitacoes_rotas', 'gmn_menu_views'
-];
-
-// PUT - Atualizar registro de desempenho
-export async function PUT(request: Request) {
-  try {
-    const body = await request.json();
-
-    const barIdHeader = request.headers.get('x-selected-bar-id');
-    const barId = barIdHeader ? parseInt(barIdHeader, 10) : null;
-
-    const { id, numero_semana, ano, ...updateData } = body;
-    
-    console.log('🔵 [PUT /api/gestao/desempenho] Request recebido:', {
-      barId,
-      id,
-      numero_semana,
-      ano,
-      updateData
-    });
-
-    if (!barId || !id) {
-      return NextResponse.json(
-        { success: false, error: `Parâmetros inválidos: barId=${barId}, id=${id}` },
-        { status: 400 }
-      );
-    }
-
-    // TODO: Extrair dados do usuário do JWT/cookie para auditoria
-    const userId: string | null = null;
-    const userName: string | null = null;
-
-    // Usar service_role para dados administrativos (bypass RLS)
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    // Separar campos de marketing e desempenho
-    const marketingData: Record<string, any> = {};
-    const desempenhoData: Record<string, any> = {};
-    
-    // 🔒 Campos manuais que vão direto para desempenho_manual (não marketing_semanal)
-    const MANUAL_DESEMPENHO_FIELDS = ['nps_reservas', 'nps_reservas_respostas'];
-    
-    for (const [key, value] of Object.entries(updateData)) {
-      if (MARKETING_FIELDS.includes(key)) {
-        marketingData[key] = value;
-      } else {
-        desempenhoData[key] = value;
-      }
-    }
-
-    let resultData = null;
-    let hasError = false;
-    let errorMessage = '';
-
-    // Atualizar marketing_semanal se houver campos de marketing
-    if (Object.keys(marketingData).length > 0) {
-      console.log('🔵 [PUT /api/gestao/desempenho] Campos de marketing detectados:', marketingData);
-      
-      // Primeiro, buscar semana/ano do registro de desempenho
-      const { data: desempenhoInfo } = await (supabase as any)
-        .schema('meta')
-        .from('desempenho_manual')
-        .select('numero_semana, ano')
-        .eq('id', id)
-        .eq('bar_id', barId)
-        .single();
-
-      console.log('🔵 [PUT /api/gestao/desempenho] Info do desempenho:', { id, barId, desempenhoInfo });
-
-      if (desempenhoInfo) {
-        // Atualizar marketing_semanal usando semana e ano
-        const updatePayload = {
-          ...marketingData,
-          updated_at: new Date().toISOString()
-        };
-        
-        console.log('🔵 [PUT /api/gestao/desempenho] Tentando UPDATE em marketing_semanal:', {
-          bar_id: barId,
-          semana: desempenhoInfo.numero_semana,
-          ano: desempenhoInfo.ano,
-          payload: updatePayload
-        });
-        
-        const { data: mktData, error: mktError } = await supabase
-          .from('marketing_semanal')
-          .update(updatePayload)
-          .eq('bar_id', barId)
-          .eq('semana', desempenhoInfo.numero_semana)
-          .eq('ano', desempenhoInfo.ano)
-          .select()
-          .single();
-
-        if (mktError) {
-          console.error('❌ [PUT /api/gestao/desempenho] Erro ao atualizar marketing_semanal:', mktError);
-          // Se não existe, criar o registro
-          if (mktError.code === 'PGRST116') {
-            console.log('⚠️ [PUT /api/gestao/desempenho] Registro não existe, criando INSERT...');
-            const insertPayload = {
-              bar_id: barId,
-              semana: desempenhoInfo.numero_semana,
-              ano: desempenhoInfo.ano,
-              ...marketingData,
-              fonte: 'manual'
-            };
-            console.log('🔵 [PUT /api/gestao/desempenho] INSERT payload:', insertPayload);
-            
-            const { error: insertError } = await supabase
-              .from('marketing_semanal')
-              .insert(insertPayload);
-            if (insertError) {
-              console.error('❌ [PUT /api/gestao/desempenho] Erro ao inserir:', insertError);
-              hasError = true;
-              errorMessage = `Erro ao inserir marketing: ${insertError.message}`;
-            } else {
-              console.log('✅ [PUT /api/gestao/desempenho] INSERT bem-sucedido!');
-            }
-          } else {
-            hasError = true;
-            errorMessage = `Erro ao atualizar marketing: ${mktError.message}`;
-          }
-        } else {
-          console.log('✅ [PUT /api/gestao/desempenho] UPDATE bem-sucedido:', mktData);
-          resultData = mktData;
-        }
-      }
-    }
-
-    // Atualizar desempenho_manual se houver campos de desempenho
-    if (Object.keys(desempenhoData).length > 0 && !hasError) {
-      const { data, error } = await (supabase as any)
-        .schema('meta')
-        .from('desempenho_manual')
-        .update({
-          ...desempenhoData,
-          atualizado_em: new Date().toISOString(),
-          atualizado_por: userId,
-          atualizado_por_nome: userName
-        })
-        .eq('id', id)
-        .eq('bar_id', barId)
-        .select()
-        .maybeSingle();
-
-      if (error) {
-        console.error('Erro Supabase ao atualizar desempenho:', error);
-        hasError = true;
-        errorMessage = `Erro ao atualizar desempenho: ${error.message}`;
-      } else {
-        resultData = data;
-      }
-    }
-
-    if (hasError) {
-      return NextResponse.json(
-        { success: false, error: errorMessage },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Registro atualizado com sucesso',
-      data: resultData
-    });
-
-  } catch (error) {
-    console.error('Erro geral ao atualizar:', error);
-    return NextResponse.json(
-      { success: false, error: `Erro interno: ${error instanceof Error ? error.message : String(error)}` },
-      { status: 500 }
-    );
+    console.error('Erro:', error);
+    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
   }
 }
