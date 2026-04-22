@@ -48,15 +48,15 @@ export async function GET(request: NextRequest) {
       .eq('telefone_normalizado', telefone);
 
     const { data: getinData } = await supabase
-      .from('getin_reservations')
-      .select('data, numero_convidados, nome')
-      .eq('telefone_normalizado', telefone);
+      .from('bronze_getin_reservations')
+      .select('reservation_date, people, customer_name')
+      .eq('customer_phone', telefone);
 
     if (!symplaData?.length && !getinData?.length) {
       throw new Error('Cliente não encontrado');
     }
 
-    const nomeCliente = symplaData?.[0]?.nome_completo || getinData?.[0]?.nome || 'Cliente';
+    const nomeCliente = symplaData?.[0]?.nome_completo || getinData?.[0]?.customer_name || 'Cliente';
     const totalVisitas = (symplaData?.length || 0) + (getinData?.length || 0);
 
     // Sistema de Recomendações

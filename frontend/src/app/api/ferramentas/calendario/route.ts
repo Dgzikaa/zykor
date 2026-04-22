@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     // 2. Buscar dados de reservas do Getin
     const { data: reservas, error: reservasError } = await supabase
-      .from('getin_reservations')
+      .from('bronze_getin_reservations')
       .select(`
         reservation_date,
         status,

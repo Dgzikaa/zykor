@@ -10,9 +10,9 @@ interface GetinReservation {
   unit_name: string
   sector_id: string
   sector_name: string
-  customer_name: string
-  customer_email: string
-  customer_phone: string
+  name: string
+  email: string
+  mobile: string
   date: string
   time: string
   people: number
@@ -26,6 +26,8 @@ interface GetinReservation {
   nps_answered: boolean
   nps_url: string
   info: string
+  custom_fields?: any
+  monetize?: any
   unit: {
     cover_image: string
     profile_image: string
@@ -111,44 +113,37 @@ export async function POST(request: NextRequest) {
       for (const reserva of data.data) {
         try {
           const reservaData = {
-            reservation_id: reserva.id,
-            unit_id: reserva.unit_id,
-            unit_name: reserva.unit_name,
-            sector_id: reserva.sector_id,
-            sector_name: reserva.sector_name,
             bar_id: 3,
-            customer_name: reserva.customer_name,
-            customer_email: reserva.customer_email,
-            customer_phone: reserva.customer_phone,
+            reservation_id: reserva.id,
+            unit_id: reserva.unit_id || null,
+            sector_id: reserva.sector_id || null,
+            sector_name: reserva.sector_name || null,
+            customer_name: reserva.name || null,
+            customer_email: reserva.email || null,
+            customer_phone: reserva.mobile || null,
             reservation_date: reserva.date,
-            reservation_time: reserva.time,
-            people: reserva.people,
-            status: reserva.status,
+            reservation_time: reserva.time || null,
+            people: reserva.people || 0,
+            status: reserva.status || 'pending',
             discount: reserva.discount || 0,
+            info: reserva.info || null,
             no_show: reserva.no_show || false,
             no_show_tax: reserva.no_show_tax || 0,
             no_show_hours: reserva.no_show_hours || 0,
             no_show_eligible: reserva.no_show_eligible || false,
             confirmation_sent: reserva.confirmation_sent || false,
             nps_answered: reserva.nps_answered || false,
-            nps_url: reserva.nps_url || '',
-            info: reserva.info || '',
-            unit_cover_image: reserva.unit?.cover_image || '',
-            unit_profile_image: reserva.unit?.profile_image || '',
-            unit_full_address: reserva.unit?.full_address || '',
-            unit_zipcode: reserva.unit?.zipcode || '',
-            unit_cuisine_name: reserva.unit?.cuisine_name || '',
-            unit_city_name: reserva.unit?.city_name || '',
-            unit_coordinates_lat: reserva.unit?.coordinates?.lat || 0,
-            unit_coordinates_lng: reserva.unit?.coordinates?.lng || 0,
+            nps_url: reserva.nps_url || null,
+            custom_fields: reserva.custom_fields || null,
+            monetize: reserva.monetize || null,
             raw_data: reserva,
-            updated_at: new Date().toISOString()
+            synced_at: new Date().toISOString()
           }
 
           const { error: upsertError } = await supabase
-            .from('getin_reservations')
+            .from('bronze_getin_reservations')
             .upsert(reservaData, {
-              onConflict: 'reservation_id',
+              onConflict: 'bar_id,reservation_id',
               ignoreDuplicates: false
             })
 

@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar dados do Getin para reservas (agregação será feita no código)
     const { data: getinData } = await supabase
-      .from('getin_reservations')
+      .from('bronze_getin_reservations')
       .select('reservation_date')
       .gte('reservation_date', `${ano}-01-01`)
       .lt('reservation_date', `${ano + 1}-01-01`)

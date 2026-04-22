@@ -463,11 +463,10 @@ async function getBulkSendDetails(
     const modoEfetivo = modo || (dataEvento && dataEvento <= hoje ? 'pos_evento' : 'pre_evento');
     const incluirContaHub = modoEfetivo === 'pos_evento';
 
-    // Buscar reservas do Getin no período (tabela real é getin_reservations)
-    // Incluir created_at para saber quando a reserva foi feita (timeline)
+    // Buscar reservas do Getin no período
     let reservasQuery = supabase
-      .from('getin_reservations')
-      .select('reservation_id, customer_phone, customer_name, customer_email, status, reservation_date, reservation_time, people, created_at, updated_at')
+      .from('bronze_getin_reservations')
+      .select('reservation_id, customer_phone, customer_name, customer_email, status, reservation_date, reservation_time, people, synced_at')
       .eq('bar_id', barId)
       .not('customer_phone', 'is', null);
     

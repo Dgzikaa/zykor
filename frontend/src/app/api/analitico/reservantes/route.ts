@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 		while (iterations < MAX_ITERATIONS) {
 			iterations++;
 			let query = supabase
-				.from('getin_reservations')
+				.from('bronze_getin_reservations')
 				.select('customer_name, customer_phone, reservation_date, bar_id, status, no_show')
 				.not('customer_phone', 'is', null)
 				.neq('customer_phone', '')
