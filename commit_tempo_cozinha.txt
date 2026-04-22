@@ -1,0 +1,10 @@
+fix(desempenho): adicionar campo tempo_cozinha na Gold
+
+ETL v2 calculava tempo_cozinha na CTE mas esqueceu de incluir 
+no INSERT. Coluna criada, INSERT e ON CONFLICT atualizados, 
+semanas recentes e mes atual reprocessados.
+
+Service mapeia tempo_cozinha -> tempo_saida_cozinha (UI) com 
+conversao segundos -> minutos.
+
+Tela desempenho agora mostra Tempo Comida preenchido.

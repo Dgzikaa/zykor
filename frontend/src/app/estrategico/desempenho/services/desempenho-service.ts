@@ -518,6 +518,8 @@ export async function getSemanas(
       // Mapear tempos de drinks (gold ETL v2): tempo_drinks em SEGUNDOS -> converter para MINUTOS
       tempo_saida_bar: (s as any).tempo_drinks ? Math.round(toNum((s as any).tempo_drinks)! / 60 * 100) / 100 : toNum(s.tempo_saida_bar) ?? s.tempo_saida_bar,
       tempo_drinks: toNum((s as any).tempo_drinks) ?? (s as any).tempo_drinks,
+      // Mapear tempo cozinha (gold ETL v2): tempo_cozinha em SEGUNDOS -> converter para MINUTOS
+      tempo_saida_cozinha: (s as any).tempo_cozinha ? Math.round(toNum((s as any).tempo_cozinha)! / 60 * 100) / 100 : toNum(s.tempo_saida_cozinha) ?? s.tempo_saida_cozinha,
       // Mapear atrasinhos/atrasões drinks (gold ETL v2) para os campos esperados pela UI
       atrasinhos_bar: toNum((s as any).atrasinho_drinks) ?? toNum(s.atrasinhos_bar) ?? s.atrasinhos_bar,
       atrasinho_drinks: toNum((s as any).atrasinho_drinks) ?? (s as any).atrasinho_drinks,
