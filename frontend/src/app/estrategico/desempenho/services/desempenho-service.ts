@@ -515,8 +515,8 @@ export async function getSemanas(
       ...s,
       // Mapear cancelamentos_total (gold) para cancelamentos (types)
       cancelamentos: toNum((s as any).cancelamentos_total) ?? toNum(s.cancelamentos) ?? s.cancelamentos,
-      // Mapear tempos de drinks (gold ETL v2): tempo_drinks do gold -> tempo_saida_bar da UI
-      tempo_saida_bar: toNum((s as any).tempo_drinks) ?? toNum(s.tempo_saida_bar) ?? s.tempo_saida_bar,
+      // Mapear tempos de drinks (gold ETL v2): tempo_drinks em SEGUNDOS -> converter para MINUTOS
+      tempo_saida_bar: (s as any).tempo_drinks ? Math.round(toNum((s as any).tempo_drinks)! / 60 * 100) / 100 : toNum(s.tempo_saida_bar) ?? s.tempo_saida_bar,
       tempo_drinks: toNum((s as any).tempo_drinks) ?? (s as any).tempo_drinks,
       // Mapear atrasinhos/atrasões drinks (gold ETL v2) para os campos esperados pela UI
       atrasinhos_bar: toNum((s as any).atrasinho_drinks) ?? toNum(s.atrasinhos_bar) ?? s.atrasinhos_bar,
@@ -527,8 +527,11 @@ export async function getSemanas(
       atrasos_drinks_perc: toNum((s as any).atrasos_drinks_perc) ?? (s as any).atrasos_drinks_perc,
       qtd_drinks_total: toNum((s as any).qtd_drinks_total) ?? (s as any).qtd_drinks_total,
       atrasinhos_bar_perc: toNum(s.atrasinhos_bar_perc) ?? s.atrasinhos_bar_perc,
-      atrasinhos_cozinha: toNum(s.atrasinhos_cozinha) ?? s.atrasinhos_cozinha,
+      // Mapear atrasinhos/atrasões cozinha (gold ETL v2)
+      atrasinhos_cozinha: toNum((s as any).atrasinho_cozinha) ?? toNum(s.atrasinhos_cozinha) ?? s.atrasinhos_cozinha,
       atrasinhos_cozinha_perc: toNum(s.atrasinhos_cozinha_perc) ?? s.atrasinhos_cozinha_perc,
+      atrasos_cozinha: toNum((s as any).atrasao_cozinha) ?? toNum(s.atrasos_cozinha) ?? s.atrasos_cozinha,
+      atrasos_cozinha_perc: toNum((s as any).atrasos_comida_perc) ?? toNum(s.atrasos_cozinha_perc) ?? s.atrasos_cozinha_perc,
       atraso_cozinha: toNum(s.atraso_cozinha) ?? s.atraso_cozinha,
       quebra_reservas: quebraReservas,
       conta_assinada_valor: contaAssinadaValor,
