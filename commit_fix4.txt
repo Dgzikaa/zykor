@@ -1,0 +1,25 @@
+fix(desempenho): ticket_medio + tm_entrada + tm_bar corretos
+
+3 bugs corrigidos em ETL gold.desempenho:
+
+1. ticket_medio: era AVG de medias diarias (107.20), agora 
+   SUM(fat)/SUM(pessoas) (103.70). Diferenca 3% causada por 
+   peso igual aos dias, ignorando movimento diferente.
+
+2. tm_entrada: estava DUPLICADO copiando ticket_medio (107.20). 
+   Agora calcula SUM(couvert)/SUM(pessoas) (18.86). 
+   Divergencia era 468%.
+
+3. tm_bar: era ticket_medio_vendas (por venda, 99.61). Agora 
+   (SUM(fat) - SUM(couvert))/SUM(pessoas) (84.84).
+
+Tambem: gold.planejamento agora propaga faturamento_couvert 
+(coluna nova) de silver.vendas_diarias.total_couvert_r.
+
+Rebuild: gold.planejamento 90d + gold.desempenho S14-S17/2026 
++ mensal abril. Historico 2025 rodando em background.
+
+Formulas batem com Excel:
+- Ticket: SUM(vd_vrpagamentos) / SUM(vd_pessoas WHERE pagos>0)
+- TM Entrada: SUM(vd_vrcouvert) / SUM(pessoas)
+- TM Bar: (SUM(pagamentos) - SUM(couvert)) / SUM(pessoas)
