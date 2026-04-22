@@ -1,0 +1,22 @@
+fix(mix): map_categoria_mix usa loc_desc, bate 100% Excel
+
+Silver estava classificando por grp_desc mas Excel usa loc_desc.
+Function map_categoria_mix atualizada com DE/PARA correto 
+ambos bares.
+
+BAR 3 (Ordinario):
+- DRINK: Preshh, Montados, Mexido, Drinks, Drinks Autorais, 
+  Shot e Dose, Batidos
+- COMIDA: Cozinha, Cozinha 1, Cozinha 2
+- BEBIDA: Chopp, Bar, Pegue e Pague, Venda Volante, Baldes
+
+BAR 4 (Deboche):
+- DRINK: Bar
+- BEBIDA: Salao
+- COMIDA: Cozinha, Cozinha 2
+
+Silver vendas_item rebuild S11-S17/2026.
+Validacao S15 bar 3: 68.2/18.4/13.4 (bate exato Excel).
+
+Nota: ETL desempenho tem typo faturamento_cmovivel, 
+corrigir em proximo commit.
