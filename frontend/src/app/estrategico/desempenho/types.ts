@@ -74,6 +74,11 @@ export interface DadosSemana {
   atrasos_bar_perc?: number;
   atrasos_bar_detalhes?: { dia_semana: string; itens: { nome: string; atraso_minutos: number; quantidade: number }[] }[];
   tempo_saida_bar: number;
+  tempo_drinks?: number;
+  atrasinho_drinks?: number;
+  atrasao_drinks?: number;
+  atrasos_drinks_perc?: number;
+  qtd_drinks_total?: number;
   qtde_itens_cozinha: number;
   atrasos_cozinha: number;
   atrasos_cozinha_perc?: number;

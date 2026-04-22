@@ -513,12 +513,22 @@ export async function getSemanas(
 
     return {
       ...s,
-      cancelamentos: toNum(s.cancelamentos) ?? s.cancelamentos,
-      atrasinhos_bar: toNum(s.atrasinhos_bar) ?? s.atrasinhos_bar,
+      // Mapear cancelamentos_total (gold) para cancelamentos (types)
+      cancelamentos: toNum((s as any).cancelamentos_total) ?? toNum(s.cancelamentos) ?? s.cancelamentos,
+      // Mapear tempos de drinks (gold ETL v2): tempo_drinks do gold -> tempo_saida_bar da UI
+      tempo_saida_bar: toNum((s as any).tempo_drinks) ?? toNum(s.tempo_saida_bar) ?? s.tempo_saida_bar,
+      tempo_drinks: toNum((s as any).tempo_drinks) ?? (s as any).tempo_drinks,
+      // Mapear atrasinhos/atrasões drinks (gold ETL v2) para os campos esperados pela UI
+      atrasinhos_bar: toNum((s as any).atrasinho_drinks) ?? toNum(s.atrasinhos_bar) ?? s.atrasinhos_bar,
+      atrasinho_drinks: toNum((s as any).atrasinho_drinks) ?? (s as any).atrasinho_drinks,
+      atrasos_bar: toNum((s as any).atrasao_drinks) ?? toNum(s.atrasos_bar) ?? s.atrasos_bar,
+      atrasao_drinks: toNum((s as any).atrasao_drinks) ?? (s as any).atrasao_drinks,
+      atrasos_bar_perc: toNum((s as any).atrasos_drinks_perc) ?? toNum(s.atrasos_bar_perc) ?? s.atrasos_bar_perc,
+      atrasos_drinks_perc: toNum((s as any).atrasos_drinks_perc) ?? (s as any).atrasos_drinks_perc,
+      qtd_drinks_total: toNum((s as any).qtd_drinks_total) ?? (s as any).qtd_drinks_total,
       atrasinhos_bar_perc: toNum(s.atrasinhos_bar_perc) ?? s.atrasinhos_bar_perc,
       atrasinhos_cozinha: toNum(s.atrasinhos_cozinha) ?? s.atrasinhos_cozinha,
       atrasinhos_cozinha_perc: toNum(s.atrasinhos_cozinha_perc) ?? s.atrasinhos_cozinha_perc,
-      atraso_bar: toNum(s.atraso_bar) ?? s.atraso_bar,
       atraso_cozinha: toNum(s.atraso_cozinha) ?? s.atraso_cozinha,
       quebra_reservas: quebraReservas,
       conta_assinada_valor: contaAssinadaValor,

@@ -1091,7 +1091,7 @@ export function DesempenhoClient({
 
   const abrirDetalhesGoogleReviews = useCallback(async (semana: DadosSemana, filtroEstrelas?: number) => {
     const periodo = `${formatarDataCurta(semana.data_inicio)} - ${formatarDataCurta(semana.data_fim)}`;
-    const titulo = filtroEstrelas === 5 ? 'Avaliações 5★ Google' : 'Detalhes Google Reviews';
+    const titulo = filtroEstrelas === 5 ? 'Avaliações 5★ Google' : 'Avaliações Google';
 
     setGoogleReviewsDialog(prev => ({
       ...prev,
@@ -2058,12 +2058,12 @@ export function DesempenhoClient({
                                               ) : metrica.temTooltipGoogle5Estrelas && semana.data_inicio && semana.data_fim ? (
                                                 <button
                                                   type="button"
-                                                  onClick={() => abrirDetalhesGoogleReviews(semana, 5)}
+                                                  onClick={() => abrirDetalhesGoogleReviews(semana)}
                                                   className={cn(
                                                     "text-xs text-center underline decoration-dotted hover:opacity-80 transition-opacity",
                                                     getCorMeta(verificarMeta(valor, metrica.key, metas))
                                                   )}
-                                                  title="Clique para ver avaliações 5 estrelas"
+                                                  title="Clique para ver todas as avaliações Google"
                                                 >
                                                   {valorFormatado}
                                                 </button>
