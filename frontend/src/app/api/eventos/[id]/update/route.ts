@@ -91,49 +91,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }, { status: 500 });
     }
 
-    // Atualizar desempenho_semanal com o novo total de reservas da semana
-    const { semana, ano } = getISOWeekAndYear(evento.data_evento);
-
-    // Buscar soma de reservas de todos os eventos da semana
-    const { data: desempenhoSemana } = await supabase
-      .from('desempenho_semanal')
-      .select('id, data_inicio, data_fim')
-      .eq('bar_id', evento.bar_id)
-      .eq('ano', ano)
-      .eq('numero_semana', semana)
-      .single();
-
-    if (desempenhoSemana) {
-      // Somar todas as reservas dos eventos dessa semana
-      const { data: eventosNaSemana } = await supabase
-        .from('eventos_base')
-        .select('res_tot, res_p')
-        .eq('bar_id', evento.bar_id)
-        .gte('data_evento', desempenhoSemana.data_inicio)
-        .lte('data_evento', desempenhoSemana.data_fim);
-
-      const reservasTotais = (eventosNaSemana || []).reduce((sum, e) => sum + (parseInt(e.res_tot) || 0), 0);
-      const reservasPresentes = (eventosNaSemana || []).reduce((sum, e) => sum + (parseInt(e.res_p) || 0), 0);
-
-      const { error: updateDesempenhoError } = await supabase
-        .from('desempenho_semanal')
-        .update({
-          reservas_totais: reservasTotais,
-          reservas_presentes: reservasPresentes,
-          atualizado_em: new Date().toISOString()
-        })
-        .eq('id', desempenhoSemana.id);
-
-      if (updateDesempenhoError) {
-        console.error('⚠️ Erro ao atualizar desempenho_semanal:', updateDesempenhoError);
-      }
-    }
+    // Gold ETL recalcula reservas automaticamente de gold.planejamento via cron (09:00 BRT)
+    // UPDATE manual em meta.desempenho_semanal removido - Gold recalcula de eventos_base
 
     return NextResponse.json({ 
       success: true, 
       data: eventoAtualizado,
-      message: 'Reservas atualizadas com sucesso',
-      desempenho_atualizado: !!desempenhoSemana
+      message: 'Evento atualizado com sucesso'
     });
 
   } catch (error) {

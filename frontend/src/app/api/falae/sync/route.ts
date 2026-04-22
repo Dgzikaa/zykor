@@ -283,72 +283,8 @@ export async function POST(request: NextRequest) {
     const npsPeriodo =
       rows.length > 0 ? Math.round(((promotores - detratores) / rows.length) * 100) : null;
 
-    // Atualizar desempenho_semanal para semana atual e anterior
-    try {
-      const hoje = new Date();
-      const semanaAtual = Math.ceil((((hoje.getTime() - new Date(Date.UTC(hoje.getUTCFullYear(), 0, 1)).getTime()) / 86400000) + 1) / 7);
-      const anoAtual = hoje.getUTCFullYear();
-
-      for (const semanaNum of [semanaAtual - 1, semanaAtual]) {
-        // Buscar dados agregados da semana direto do silver.nps_diario
-        // (substitui leitura legacy crm.nps_falae_diario)
-        const { data: silverNpsDados } = await supabase
-          .schema('silver' as never)
-          .from('nps_diario')
-          .select('data_referencia, total_respostas, promotores, detratores, respostas_por_source')
-          .eq('bar_id', barId) as unknown as { data: Array<{
-            data_referencia: string;
-            total_respostas: number | null;
-            promotores: number | null;
-            detratores: number | null;
-            respostas_por_source: Record<string, { total?: number; promotores?: number; detratores?: number }> | null;
-          }> | null };
-
-        let totalSemana = 0;
-        let promotoresSemana = 0;
-        let detratoresSemana = 0;
-
-        for (const d of silverNpsDados || []) {
-          const data = new Date(`${d.data_referencia}T12:00:00`);
-          const dUtc = new Date(Date.UTC(data.getFullYear(), data.getMonth(), data.getDate()));
-          const dayNum = dUtc.getUTCDay() || 7;
-          dUtc.setUTCDate(dUtc.getUTCDate() + 4 - dayNum);
-          const yearStart = new Date(Date.UTC(dUtc.getUTCFullYear(), 0, 1));
-          const semanaCalc = Math.ceil((((dUtc.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-
-          if (semanaCalc === semanaNum) {
-            // Filtrar apenas respostas Falae (silver.nps_diario consolida Falae + Getin)
-            const falaeBucket = d.respostas_por_source?.falae;
-            if (falaeBucket) {
-              totalSemana += Number(falaeBucket.total) || 0;
-              promotoresSemana += Number(falaeBucket.promotores) || 0;
-              detratoresSemana += Number(falaeBucket.detratores) || 0;
-            } else {
-              // Fallback: usa totais (caso o source breakdown nao esteja populado)
-              totalSemana += Number(d.total_respostas) || 0;
-              promotoresSemana += Number(d.promotores) || 0;
-              detratoresSemana += Number(d.detratores) || 0;
-            }
-          }
-        }
-
-        if (totalSemana > 0) {
-          const npsScoreSemana = Math.round(((promotoresSemana - detratoresSemana) / totalSemana) * 100);
-          await supabase
-            .from('desempenho_semanal')
-            .update({
-              nps_digital_respostas: totalSemana,
-              nps_digital: npsScoreSemana,
-              atualizado_em: new Date().toISOString(),
-            })
-            .eq('bar_id', barId)
-            .eq('ano', anoAtual)
-            .eq('numero_semana', semanaNum);
-        }
-      }
-    } catch (updateError) {
-      console.warn('Aviso ao atualizar desempenho_semanal:', updateError);
-    }
+    // Gold ETL recalcula NPS automaticamente de silver.nps_diario via cron (09:00 BRT)
+    // UPDATE manual em meta.desempenho_semanal removido - causava divergência
 
     return NextResponse.json({
       success: true,
