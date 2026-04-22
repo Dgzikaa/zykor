@@ -12,9 +12,10 @@ export async function GET(request: NextRequest) {
     const barId = searchParams.get('bar_id') || '3';
     const semanas = parseInt(searchParams.get('semanas') || '12');
 
-    // Buscar dados das últimas N semanas
-    const { data: dadosSemanais, error } = await supabase
-      .from('desempenho_semanal')
+    // Buscar dados das últimas N semanas de gold.desempenho
+    const { data: dadosSemanais, error } = await (supabase as any)
+      .schema('gold')
+      .from('desempenho')
       .select(`
         numero_semana,
         data_inicio,
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest) {
         nota_felicidade_equipe
       `)
       .eq('bar_id', barId)
+      .eq('granularidade', 'semanal')
       .order('data_inicio', { ascending: false })
       .limit(semanas);
 

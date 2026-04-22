@@ -199,27 +199,18 @@ export async function GET(request: NextRequest) {
     }
 
     const desempenhoPromises = Object.entries(semanasPorAno).map(([anoISO, semanas]) =>
-      supabase
-        .from('desempenho_semanal')
+      (supabase as any)
+        .schema('gold')
+        .from('desempenho')
         .select('*')
         .eq('bar_id', barId)
+        .eq('granularidade', 'semanal')
         .eq('ano', parseInt(anoISO))
         .in('numero_semana', semanas)
     );
-    
-    const marketingPromises = Object.entries(semanasPorAno).map(([anoISO, semanas]) =>
-      supabase
-        .from('marketing_semanal')
-        .select('*')
-        .eq('bar_id', barId)
-        .eq('ano', parseInt(anoISO))
-        .in('semana', semanas)
-    );
 
-    const [desempenhoResults, marketingResults] = await Promise.all([
-      Promise.all(desempenhoPromises),
-      Promise.all(marketingPromises)
-    ]);
+    const desempenhoResults = await Promise.all(desempenhoPromises);
+    const marketingResults: any[] = [];
 
     const desempenhoData = desempenhoResults.flatMap(r => r.data || []);
     const marketingData = marketingResults.flatMap(r => r.data || []);
