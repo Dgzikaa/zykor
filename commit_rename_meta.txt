@@ -1,0 +1,17 @@
+refactor(meta): rename desempenho_semanal -> desempenho_manual
+
+Gold.desempenho eh source-of-truth para campos calculados 
+automaticamente. meta.desempenho_semanal retem apenas campos 
+manuais (RH, checklists, observacoes, audit).
+
+Rename reflete uso real da tabela. 
+
+Step 1/2 para limpeza completa. Step 2 (Opcao A) migrara 
+campos manuais para schema dedicado e dropara campos legacy 
+da tabela.
+
+Referencias atualizadas em 10 arquivos (gestao/desempenho/route, 
+services/desempenho-service, types, schemas, sync-sheets, 
+componentes, README).
+
+Dados preservados: 208 registros migrados.

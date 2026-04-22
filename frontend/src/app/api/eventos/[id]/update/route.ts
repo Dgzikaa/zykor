@@ -92,7 +92,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Gold ETL recalcula reservas automaticamente de gold.planejamento via cron (09:00 BRT)
-    // UPDATE manual em meta.desempenho_semanal removido - Gold recalcula de eventos_base
+    // UPDATE manual em meta.desempenho_manual removido - Gold recalcula de eventos_base
 
     return NextResponse.json({ 
       success: true, 

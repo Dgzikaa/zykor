@@ -39,8 +39,9 @@ export async function POST(request: Request) {
     );
     
     // Buscar dados existentes para simular atualização
-    const { data: existingData } = await supabase
-      .from('desempenho_semanal')
+    const { data: existingData } = await (supabase as any)
+      .schema('meta')
+      .from('desempenho_manual')
       .select('id')
       .eq('bar_id', barId);
 

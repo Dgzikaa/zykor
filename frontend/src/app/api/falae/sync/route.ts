@@ -284,7 +284,7 @@ export async function POST(request: NextRequest) {
       rows.length > 0 ? Math.round(((promotores - detratores) / rows.length) * 100) : null;
 
     // Gold ETL recalcula NPS automaticamente de silver.nps_diario via cron (09:00 BRT)
-    // UPDATE manual em meta.desempenho_semanal removido - causava divergência
+    // UPDATE manual em meta.desempenho_manual removido - causava divergência
 
     return NextResponse.json({
       success: true,

@@ -71,7 +71,7 @@ Sistema completo de retrospectiva anual com efeitos visuais profissionais, anál
 **`/api/retrospectiva-2025`**
 
 Consolida dados de múltiplas tabelas:
-- `desempenho_semanal` - Dados financeiros e operacionais
+- `gold.desempenho` - Dados financeiros e operacionais (ETL automatizado)
 - `contahub_analitico` - Vendas por produto e categoria
 - `organizador_visao` - Visão estratégica
 - `organizador_okrs` - OKRs e metas

@@ -1416,7 +1416,7 @@ export function DesempenhoClient({
         console.log('✅ CMV processado:', resultado.message);
       }
 
-      // 2. Recalcular desempenho semanal via v2 (escreve em desempenho_semanal)
+      // 2. Recalcular desempenho semanal via v2 (escreve em gold.desempenho)
       const anoAtual = new Date().getFullYear();
       const semanaAtual = (() => {
         const d = new Date();

@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
  * REFATORADO - Recálculo via Gold ETL
  * 
  * Substitui recálculo em JavaScript (500 linhas) por chamada direta
- * ao ETL gold.desempenho_semanal.
+ * ao ETL gold.desempenho (function: etl_gold_desempenho_semanal).
  * 
  * Performance: ETL ~200ms/semana vs ~5s JS
  * Consistência: Usa mesma lógica do cron diário (09:00 BRT)

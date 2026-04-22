@@ -113,10 +113,10 @@ export async function getSemanas(
     return { semanas: [], semanaAtual: getWeekNumber(hoje), anoAtual: hoje.getFullYear() };
   }
 
-  // LEFT JOIN meta.desempenho_semanal para campos manuais (RH, checklists, observacoes, audit)
+  // LEFT JOIN meta.desempenho_manual para campos manuais (RH, checklists, observacoes, audit)
   let metaQuery = supabase
     .schema('meta' as never)
-    .from('desempenho_semanal')
+    .from('desempenho_manual')
     .select(`
       bar_id, ano, numero_semana,
       observacoes, alertas_dados, nota_felicidade_equipe, vagas_abertas,

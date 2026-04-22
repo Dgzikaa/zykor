@@ -100,7 +100,7 @@ export const TABLE_SCHEMAS = {
   // ============================================
   // META - Metas e estrategia
   // ============================================
-  desempenho_semanal: 'meta',
+  desempenho_manual: 'meta',
   marketing_mensal: 'meta',
   marketing_semanal: 'meta',
   metas_anuais: 'meta',

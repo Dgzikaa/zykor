@@ -40,8 +40,9 @@ export async function GET(request: Request) {
     const semanaAtual = getWeekNumber(hoje);
 
     // Construir query base - MOSTRAR APENAS ATÉ A SEMANA ATUAL
-    let query = supabase
-      .from('desempenho_semanal')
+    let query = (supabase as any)
+      .schema('meta')
+      .from('desempenho_manual')
       .select('*')
       .eq('bar_id', barId)
       .eq('ano', parseInt(ano))
@@ -123,8 +124,9 @@ export async function DELETE(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    const { error } = await supabase
-      .from('desempenho_semanal')
+    const { error } = await (supabase as any)
+      .schema('meta')
+      .from('desempenho_manual')
       .delete()
       .eq('id', parseInt(id))
       .eq('bar_id', barId);
@@ -203,7 +205,7 @@ export async function PUT(request: Request) {
     const marketingData: Record<string, any> = {};
     const desempenhoData: Record<string, any> = {};
     
-    // 🔒 Campos manuais que vão direto para desempenho_semanal (não marketing_semanal)
+    // 🔒 Campos manuais que vão direto para desempenho_manual (não marketing_semanal)
     const MANUAL_DESEMPENHO_FIELDS = ['nps_reservas', 'nps_reservas_respostas'];
     
     for (const [key, value] of Object.entries(updateData)) {
@@ -223,8 +225,9 @@ export async function PUT(request: Request) {
       console.log('🔵 [PUT /api/gestao/desempenho] Campos de marketing detectados:', marketingData);
       
       // Primeiro, buscar semana/ano do registro de desempenho
-      const { data: desempenhoInfo } = await supabase
-        .from('desempenho_semanal')
+      const { data: desempenhoInfo } = await (supabase as any)
+        .schema('meta')
+        .from('desempenho_manual')
         .select('numero_semana, ano')
         .eq('id', id)
         .eq('bar_id', barId)
@@ -290,10 +293,11 @@ export async function PUT(request: Request) {
       }
     }
 
-    // Atualizar desempenho_semanal se houver campos de desempenho
+    // Atualizar desempenho_manual se houver campos de desempenho
     if (Object.keys(desempenhoData).length > 0 && !hasError) {
-      const { data, error } = await supabase
-        .from('desempenho_semanal')
+      const { data, error } = await (supabase as any)
+        .schema('meta')
+        .from('desempenho_manual')
         .update({
           ...desempenhoData,
           atualizado_em: new Date().toISOString(),
