@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Erro ao buscar respostas Falaê:', error);
-      return NextResponse.json({ error: 'Erro ao buscar dados' }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao buscar dados', details: error.message, code: error.code, hint: error.hint }, { status: 500 });
     }
 
     const filtradas = (respostas || []) as any[];
@@ -167,6 +167,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Erro na API detailed-summary Falaê:', error);
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno', details: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }
