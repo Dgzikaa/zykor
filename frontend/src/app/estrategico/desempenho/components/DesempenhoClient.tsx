@@ -1275,15 +1275,21 @@ export function DesempenhoClient({
     };
   }, [npsDialog.respostas]);
   
-  // Agregação de NPS por dia
+  // Agregação de NPS por dia (agrupa por data da resposta = created_at)
   const npsPorDia = useMemo(() => {
     const porDiaMap = new Map<string, { total: number; soma: number; promotores: number; detratores: number }>();
-    const diasSemanaOrdem = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
-    
+
+    // Helper: parsear DD/MM/YYYY pra Date
+    const parseDDMMYYYY = (s: string): Date | null => {
+      const parts = s.split('/');
+      if (parts.length === 3) return new Date(+parts[2], +parts[1] - 1, +parts[0], 12, 0, 0);
+      return null;
+    };
+
     for (const r of npsDialog.respostas) {
-      const data = r.dataVisita || r.data;
+      const data = r.data; // created_at (data da resposta)
       if (!data) continue;
-      
+
       if (!porDiaMap.has(data)) {
         porDiaMap.set(data, { total: 0, soma: 0, promotores: 0, detratores: 0 });
       }
@@ -1293,35 +1299,26 @@ export function DesempenhoClient({
       if (r.tipo === 'promotor') stat.promotores += 1;
       if (r.tipo === 'detrator') stat.detratores += 1;
     }
-    
+
+    const diasNomes = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
     const resultado = Array.from(porDiaMap.entries()).map(([data, stats]) => {
-      const dateObj = new Date(data + 'T12:00:00');
-      const diaSemanaIndex = dateObj.getDay();
-      const diasNomes = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+      const dateObj = parseDDMMYYYY(data);
       const nps = stats.total > 0 ? Math.round(((stats.promotores - stats.detratores) / stats.total) * 100) : 0;
-      
+
       return {
         data,
-        diaSemana: diasNomes[diaSemanaIndex],
+        dataISO: dateObj ? dateObj.toISOString() : '',
+        diaSemana: dateObj ? diasNomes[dateObj.getDay()] : '',
+        dataFormatada: data.split('/').slice(0, 2).join('/'), // DD/MM
         total: stats.total,
         nps,
         media: stats.total > 0 ? stats.soma / stats.total : 0,
       };
     });
-    
-    // Ordenar por dia da semana (Segunda -> Domingo)
-    const sorted = resultado.sort((a, b) => {
-      const ordemA = diasSemanaOrdem.indexOf(a.diaSemana);
-      const ordemB = diasSemanaOrdem.indexOf(b.diaSemana);
-      return ordemA - ordemB;
-    });
-    
-    // Debug: verificar se os dados estão corretos
-    if (sorted.length > 0) {
-      console.log('🔍 [NPS por dia] Dados:', sorted);
-    }
-    
-    return sorted;
+
+    // Ordenar cronologicamente
+    return resultado.sort((a, b) => a.dataISO.localeCompare(b.dataISO));
   }, [npsDialog.respostas]);
 
   const reviewsGoogleFiltradas = useMemo(() => {
@@ -2881,9 +2878,8 @@ export function DesempenhoClient({
                           : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-blue-400 hover:bg-blue-50/50"
                       )}
                     >
-                      <p className="text-xs text-gray-500">{dia.diaSemana}</p>
-                      <p className="text-xs font-medium">{dia.data.split('-').slice(1).reverse().join('/')}</p>
-                      <p className="text-lg font-bold text-blue-600">{dia.total}</p>
+                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">{dia.diaSemana} {dia.dataFormatada}</p>
+                      <p className="text-lg font-bold text-blue-600">{dia.total} <span className="text-xs font-normal text-gray-400">{dia.total === 1 ? 'resp' : 'resp'}</span></p>
                       <p className={cn(
                         "text-xs font-medium",
                         dia.nps >= 50 ? "text-green-600" : dia.nps >= 0 ? "text-yellow-600" : "text-red-600"
@@ -2972,7 +2968,7 @@ export function DesempenhoClient({
                             </span>
                             <div className="text-right">
                               <span className="text-[10px] text-gray-500 block">
-                                {resp.dataVisita ? `Visita: ${resp.dataVisita}` : resp.data}
+                                {resp.data}{resp.dataVisita && resp.dataVisita !== resp.data ? ` · Visita: ${resp.dataVisita}` : ''}
                               </span>
                               {resp.clientName && (
                                 <span className="text-[10px] text-gray-400 block truncate max-w-[120px]">
