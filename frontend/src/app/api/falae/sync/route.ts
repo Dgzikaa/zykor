@@ -244,13 +244,12 @@ export async function POST(request: NextRequest) {
     });
 
     const { error: upsertError } = await supabase
-      .schema('integrations' as any)
       .from('falae_respostas')
       .upsert(rows, { onConflict: 'bar_id,falae_id' });
 
     if (upsertError) {
       console.error('Erro ao salvar respostas Falaê:', upsertError);
-      return NextResponse.json({ error: 'Erro ao persistir respostas', details: upsertError.message, code: upsertError.code }, { status: 500 });
+      return NextResponse.json({ error: 'Erro ao persistir respostas' }, { status: 500 });
     }
 
     // REWIRE: nps_falae_diario agora vem de silver.nps_diario via cron silver-nps-diario (08:35 BRT)
@@ -348,7 +347,6 @@ export async function GET(request: NextRequest) {
 
     // Buscar respostas do período
     const { data: respostas, error } = await supabase
-      .schema('integrations' as any)
       .from('falae_respostas')
       .select('nps, created_at, criterios, discursive_question')
       .eq('bar_id', barId)
