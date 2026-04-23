@@ -157,16 +157,21 @@ export async function getSemanas(
     const meta = metaMap.get(`${g.ano}-${g.numero_semana}`);
     return {
       ...g,
-      // Campos puramente manuais: meta sempre ganha
-      cmo: meta?.cmo ?? g.cmo,
+      // Campos puramente manuais: meta sempre ganha, sem fallback pro gold
+      cmo: meta?.cmo ?? null, // gold.cmo e valor R$ (Conta Azul), nao %. Nunca misturar.
       cmv_teorico: meta?.cmv_teorico ?? g.cmv_teorico,
       nps_reservas: meta?.nps_reservas ?? g.nps_reservas,
       // Campos condicionais: se integracao = manual, meta ganha; se API, gold ganha
       ticket_medio: getinManual ? (meta?.ticket_medio ?? g.ticket_medio) : (g.ticket_medio ?? meta?.ticket_medio),
+      // Reservas: cascata gold._pessoas (novo) ?? gold.legado ?? meta (bar 4)
       mesas_totais: getinManual ? (meta?.mesas_totais ?? g.mesas_totais) : (g.mesas_totais ?? meta?.mesas_totais),
       mesas_presentes: getinManual ? (meta?.mesas_presentes ?? g.mesas_presentes) : (g.mesas_presentes ?? meta?.mesas_presentes),
-      reservas_totais: getinManual ? (meta?.reservas_totais ?? g.reservas_totais) : (g.reservas_totais ?? meta?.reservas_totais),
-      reservas_presentes: getinManual ? (meta?.reservas_presentes ?? g.reservas_presentes) : (g.reservas_presentes ?? meta?.reservas_presentes),
+      reservas_totais: getinManual
+        ? (meta?.reservas_totais ?? g.reservas_totais_pessoas ?? g.reservas_totais)
+        : (g.reservas_totais_pessoas ?? g.reservas_totais ?? meta?.reservas_totais),
+      reservas_presentes: getinManual
+        ? (meta?.reservas_presentes ?? g.reservas_presentes_pessoas ?? g.reservas_presentes)
+        : (g.reservas_presentes_pessoas ?? g.reservas_presentes ?? meta?.reservas_presentes),
       observacoes: meta?.observacoes ?? null,
       alertas_dados: meta?.alertas_dados ?? null,
       nota_felicidade_equipe: meta?.nota_felicidade_equipe ?? null,
