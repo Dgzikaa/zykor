@@ -57,7 +57,6 @@ export async function GET(request: NextRequest) {
 
     // Usar created_at como filtro principal
     let query = (supabase as any)
-      .schema('integrations')
       .schema('bronze' as any).from('bronze_falae_respostas')
       .select('id, falae_id, nps, created_at, data_visita, discursive_question, client_name, client_email, search_name, criterios')
       .eq('bar_id', barId)
