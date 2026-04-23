@@ -1,8 +1,18 @@
+/**
+ * @camada silver
+ * @jobName contahub-processor
+ * @descricao Raw JSON -> tabelas tipadas
+ *
+ * Classificacao medallion mantida em ops.job_camada_mapping (ver
+ * database/migrations/2026-04-23-observability-mapping.sql). Observability
+ * via _shared/heartbeat.ts ou _shared/observability.ts.
+ */
 ﻿import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { validateFunctionEnv } from '../_shared/env-validator.ts';
 import { bronze, CONTAHUB_DATA_TYPE_MAP, deleteContaHubData } from '../_shared/table-refs.ts';
+import { trackResponse } from '../_shared/observability.ts';
 
 console.log("🔄 ContaHub Processor - Processa dados raw salvos");
 
@@ -869,7 +879,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
+
+    // 📊 Observability — camada='silver' (processa bronze raw → tabelas tipadas)
+    return await trackResponse(supabase, {
+      camada: 'silver',
+      jobName: 'contahub-processor',
+      barId: typeof bar_id === 'number' ? bar_id : Number(bar_id),
+      action: process_all ? 'process_all_pending' : 'process_specific_date',
+      triggeredBy: req.headers.get('x-triggered-by') === 'pgcron' ? 'pgcron' : 'api',
+      metadata: { data_date, process_all, data_types },
+    }, async () => {
+
     const results = {
       processed: [] as any[],
       errors: [] as any[]
@@ -1102,7 +1122,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.warn('⚠️ Erro ao chamar silver processor (não crítico):', silverError);
     }
     
-    return new Response(JSON.stringify({
+    const response = new Response(JSON.stringify({
       success: true,
       message: 'Processamento de dados raw concluído',
       summary,
@@ -1116,7 +1136,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200
     });
-    
+
+    return {
+      response,
+      rowsAffected: summary.total_processed,
+      summary: {
+        total_processed: summary.total_processed,
+        total_errors: summary.total_errors,
+        dates_processed: Array.from(uniqueDates),
+      },
+    };
+    }); // fim trackResponse
+
   } catch (error) {
     console.error('❌ Erro geral no processor:', error);
     

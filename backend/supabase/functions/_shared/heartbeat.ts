@@ -205,6 +205,7 @@ export async function heartbeatStart(
     }
 
     const { data, error } = await supabase
+      .schema('system')
       .from('cron_heartbeats')
       .insert({
         job_name: jobName,
@@ -282,6 +283,7 @@ export async function heartbeatEnd(
     
     if (!resolvedJobName && heartbeatId) {
       const { data: hbData } = await supabase
+        .schema('system')
         .from('cron_heartbeats')
         .select('job_name, bar_id')
         .eq('id', heartbeatId)
@@ -294,6 +296,7 @@ export async function heartbeatEnd(
     }
 
     const { error } = await supabase
+      .schema('system')
       .from('cron_heartbeats')
       .update({
         finished_at: new Date().toISOString(),

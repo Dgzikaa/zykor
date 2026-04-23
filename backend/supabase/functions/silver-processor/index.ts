@@ -1,7 +1,17 @@
+/**
+ * @camada silver
+ * @jobName silver-processor
+ * @descricao Silver generico
+ *
+ * Classificacao medallion mantida em ops.job_camada_mapping (ver
+ * database/migrations/2026-04-23-observability-mapping.sql). Observability
+ * via _shared/heartbeat.ts ou _shared/observability.ts.
+ */
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { requireAuth } from '../_shared/auth-guard.ts';
+import { trackResponse } from '../_shared/observability.ts';
 
 console.log("🥈 Silver Processor - Transforma Bronze → Silver");
 
@@ -22,13 +32,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const requestBody = await req.text();
     console.log('📊 Body recebido:', requestBody);
-    
-    const { 
-      bar_id, 
+
+    const {
+      bar_id,
       data_date,
       data_types = ['financeiro_pagamentos', 'vendas_periodo', 'vendas_analitico', 'producao_tempo']
     } = JSON.parse(requestBody || '{}');
-    
+
     if (!bar_id || !data_date) {
       return new Response(JSON.stringify({
         success: false,
@@ -40,6 +50,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // 📊 Observability wrapper — registra heartbeat start/end com camada='silver'
+    return await trackResponse(supabase, {
+      camada: 'silver',
+      jobName: 'silver-processor',
+      barId: Number(bar_id),
+      action: 'transform_bronze_to_silver',
+      triggeredBy: req.headers.get('x-triggered-by') === 'manual' ? 'manual' : 'api',
+      metadata: { data_date, data_types },
+    }, async () => {
     const results: any = {};
 
     console.log(`🥈 Processando Silver para bar_id=${bar_id}, data=${data_date}`);
@@ -107,7 +127,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const totalSucesso = Object.values(results).filter((r: any) => r.success).length;
     const totalErros = Object.values(results).filter((r: any) => !r.success).length;
 
-    return new Response(JSON.stringify({
+    // records_affected = soma de registros inseridos por tipo
+    const totalInseridos = Object.values(results).reduce((acc: number, r: any) => {
+      return acc + (typeof r.inserted === 'number' ? r.inserted : 0);
+    }, 0);
+
+    const response = new Response(JSON.stringify({
       success: totalErros === 0,
       bar_id,
       data_date,
@@ -121,6 +146,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200
     });
+
+    return {
+      response,
+      rowsAffected: totalInseridos,
+      summary: { total_tipos: data_types.length, sucesso: totalSucesso, erros: totalErros },
+    };
+    }); // fim trackResponse
 
   } catch (error) {
     console.error('❌ Erro fatal:', error);
