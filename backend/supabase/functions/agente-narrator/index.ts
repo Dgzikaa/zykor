@@ -1,4 +1,13 @@
 /**
+ * @camada ops
+ * @jobName agente-narrator
+ * @descricao AI V2 narrator
+ *
+ * Classificacao medallion mantida em ops.job_camada_mapping (ver
+ * database/migrations/2026-04-23-observability-mapping.sql). Observability
+ * via _shared/heartbeat.ts ou _shared/observability.ts.
+ */
+/**
  * 📖 NARRATOR LLM - Agent V2
  * 
  * Gera insights acionáveis usando LLM (Gemini) a partir de eventos detectados.

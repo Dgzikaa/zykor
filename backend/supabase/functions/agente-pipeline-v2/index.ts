@@ -1,4 +1,13 @@
 /**
+ * @camada ops
+ * @jobName agente-pipeline-v2
+ * @descricao AI V2 orquestrador
+ *
+ * Classificacao medallion mantida em ops.job_camada_mapping (ver
+ * database/migrations/2026-04-23-observability-mapping.sql). Observability
+ * via _shared/heartbeat.ts ou _shared/observability.ts.
+ */
+/**
  * 🎭 ORCHESTRATOR - Agent V2 Pipeline
  * 
  * Coordena o pipeline completo de análise de insights:

@@ -1,4 +1,13 @@
 /**
+ * @camada ops
+ * @jobName unified-dispatcher
+ * @descricao Roteador unificado
+ *
+ * Classificacao medallion mantida em ops.job_camada_mapping (ver
+ * database/migrations/2026-04-23-observability-mapping.sql). Observability
+ * via _shared/heartbeat.ts ou _shared/observability.ts.
+ */
+/**
  * 🎯 Unified Dispatcher - Dispatcher Central do Zykor
  * 
  * Consolida os 4 dispatchers anteriores em um único ponto de entrada:

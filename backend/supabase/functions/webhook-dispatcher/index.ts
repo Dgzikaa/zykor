@@ -1,3 +1,12 @@
+/**
+ * @camada ops
+ * @jobName webhook-dispatcher
+ * @descricao Roteador de webhooks
+ *
+ * Classificacao medallion mantida em ops.job_camada_mapping (ver
+ * database/migrations/2026-04-23-observability-mapping.sql). Observability
+ * via _shared/heartbeat.ts ou _shared/observability.ts.
+ */
 ﻿/**
  * 🪝 Webhook Dispatcher - Dispatcher Unificado para Webhooks
  * 
