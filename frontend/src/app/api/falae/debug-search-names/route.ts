@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar todos os search_names únicos e suas contagens
     const { data: searchNames, error } = await supabase
-      .from('falae_respostas')
+      .schema('bronze' as any).from('bronze_falae_respostas')
       .select('search_name, created_at, data_visita')
       .eq('bar_id', barId)
       .order('created_at', { ascending: false });

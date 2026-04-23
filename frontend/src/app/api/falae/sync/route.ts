@@ -244,7 +244,7 @@ export async function POST(request: NextRequest) {
     });
 
     const { error: upsertError } = await supabase
-      .from('falae_respostas')
+      .schema('bronze' as any).from('bronze_falae_respostas')
       .upsert(rows, { onConflict: 'bar_id,falae_id' });
 
     if (upsertError) {
@@ -347,7 +347,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar respostas do período
     const { data: respostas, error } = await supabase
-      .from('falae_respostas')
+      .schema('bronze' as any).from('bronze_falae_respostas')
       .select('nps, created_at, criterios, discursive_question')
       .eq('bar_id', barId)
       .gte('created_at', dataInicioStr)

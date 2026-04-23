@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar respostas da semana
     const { data: respostas, error } = await supabase
-      .from('falae_respostas')
+      .schema('bronze' as any).from('bronze_falae_respostas')
       .select('nps, created_at, criterios')
       .eq('bar_id', barId)
       .gte('created_at', inicio)

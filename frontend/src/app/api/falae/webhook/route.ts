@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
     };
 
     const { error: upsertError } = await supabase
-      .from('falae_respostas')
+      .schema('bronze' as any).from('bronze_falae_respostas')
       .upsert(row, { onConflict: 'bar_id,falae_id' });
 
     if (upsertError) {
