@@ -327,13 +327,20 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Separar campos marketing (o_*/m_*) dos campos desempenho
-    const MARKETING_PREFIXES = ['o_', 'm_'];
+    // Campos que vivem em meta.marketing_semanal (22 campos)
+    const MARKETING_FIELDS = new Set([
+      'o_num_posts', 'o_alcance', 'o_interacao', 'o_compartilhamento',
+      'o_engajamento', 'o_num_stories', 'o_visu_stories',
+      'm_valor_investido', 'm_alcance', 'm_frequencia', 'm_cpm',
+      'm_cliques', 'm_ctr', 'm_cpc', 'm_conversas_iniciadas',
+      'gmn_total_visualizacoes', 'gmn_total_acoes', 'gmn_solicitacoes_rotas',
+      'g_valor_investido', 'g_impressoes', 'g_cliques', 'g_ctr',
+    ]);
     const camposMarketing: Record<string, any> = {};
     const camposDesempenho: Record<string, any> = {};
 
     for (const [key, value] of Object.entries(campos)) {
-      if (MARKETING_PREFIXES.some(p => key.startsWith(p))) {
+      if (MARKETING_FIELDS.has(key)) {
         camposMarketing[key] = value;
       } else {
         camposDesempenho[key] = value;
