@@ -98,22 +98,22 @@ export interface DadosSemana {
   atrasinhos_detalhes?: { dia_semana: string; atrasinhos_bar: number; atrasinhos_cozinha: number; atraso_bar: number; atraso_cozinha: number }[];
   atraso_bar?: number;
   atraso_cozinha?: number;
-  atraso_detalhes?: { dia_semana: string; atrasinhos_bar: number; atrasinhos_cozinha: number; atraso_bar: number; atraso_cozinha: number }[];
-  o_num_posts: number;
-  o_alcance: number;
-  o_interacao: number;
-  o_compartilhamento: number;
-  o_engajamento: number;
-  o_num_stories: number;
-  o_visu_stories: number;
-  m_valor_investido: number;
-  m_alcance: number;
-  m_frequencia: number;
-  m_cpm: number;
-  m_cliques: number;
-  m_ctr: number;
-  m_cpc: number;
-  m_conversas_iniciadas: number;
+  // Marketing fields live in meta.marketing_semanal, not here
+  o_num_posts?: number;
+  o_alcance?: number;
+  o_interacao?: number;
+  o_compartilhamento?: number;
+  o_engajamento?: number;
+  o_num_stories?: number;
+  o_visu_stories?: number;
+  m_valor_investido?: number;
+  m_alcance?: number;
+  m_frequencia?: number;
+  m_cpm?: number;
+  m_cliques?: number;
+  m_ctr?: number;
+  m_cpc?: number;
+  m_conversas_iniciadas?: number;
   // Google Meu Negócio
   gmn_total_visualizacoes: number;
   gmn_total_acoes: number;

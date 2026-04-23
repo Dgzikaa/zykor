@@ -163,9 +163,13 @@ export async function getSemanas(
       nps_reservas: meta?.nps_reservas ?? g.nps_reservas,
       // Campos condicionais: se integracao = manual, meta ganha; se API, gold ganha
       ticket_medio: getinManual ? (meta?.ticket_medio ?? g.ticket_medio) : (g.ticket_medio ?? meta?.ticket_medio),
-      // Reservas: cascata gold._pessoas (novo) ?? gold.legado ?? meta (bar 4)
-      mesas_totais: getinManual ? (meta?.mesas_totais ?? g.mesas_totais) : (g.mesas_totais ?? meta?.mesas_totais),
-      mesas_presentes: getinManual ? (meta?.mesas_presentes ?? g.mesas_presentes) : (g.mesas_presentes ?? meta?.mesas_presentes),
+      // Reservas: cascata gold._quantidade/_pessoas (novo) ?? gold.legado ?? meta (bar 4)
+      mesas_totais: getinManual
+        ? (meta?.mesas_totais ?? g.reservas_totais_quantidade ?? g.mesas_totais)
+        : (g.reservas_totais_quantidade ?? g.mesas_totais ?? meta?.mesas_totais),
+      mesas_presentes: getinManual
+        ? (meta?.mesas_presentes ?? g.reservas_presentes_quantidade ?? g.mesas_presentes)
+        : (g.reservas_presentes_quantidade ?? g.mesas_presentes ?? meta?.mesas_presentes),
       reservas_totais: getinManual
         ? (meta?.reservas_totais ?? g.reservas_totais_pessoas ?? g.reservas_totais)
         : (g.reservas_totais_pessoas ?? g.reservas_totais ?? meta?.reservas_totais),
