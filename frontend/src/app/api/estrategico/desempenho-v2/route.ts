@@ -327,36 +327,81 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    console.log(`🟢 PUT Desempenho V2: bar=${goldRow.bar_id}, S${goldRow.numero_semana}/${goldRow.ano}, campos=${Object.keys(campos).join(',')}`);
+    // Separar campos marketing (o_*/m_*) dos campos desempenho
+    const MARKETING_PREFIXES = ['o_', 'm_'];
+    const camposMarketing: Record<string, any> = {};
+    const camposDesempenho: Record<string, any> = {};
 
-    // Upsert em meta.desempenho_manual
-    const { data: resultado, error: upsertError } = await supabase
-      .schema('meta' as any)
-      .from('desempenho_manual')
-      .upsert(
-        {
-          bar_id: goldRow.bar_id,
-          ano: goldRow.ano,
-          numero_semana: goldRow.numero_semana,
-          data_inicio: goldRow.data_inicio,
-          data_fim: goldRow.data_fim,
-          ...campos,
-          atualizado_em: new Date().toISOString(),
-        },
-        { onConflict: 'bar_id,ano,numero_semana' }
-      )
-      .select()
-      .single();
-
-    if (upsertError) {
-      console.error('❌ PUT: erro upsert meta.desempenho_manual:', upsertError);
-      return NextResponse.json(
-        { error: 'Erro ao salvar', details: upsertError.message },
-        { status: 500 }
-      );
+    for (const [key, value] of Object.entries(campos)) {
+      if (MARKETING_PREFIXES.some(p => key.startsWith(p))) {
+        camposMarketing[key] = value;
+      } else {
+        camposDesempenho[key] = value;
+      }
     }
 
-    console.log(`✅ PUT: salvo em meta.desempenho_manual id=${resultado?.id}`);
+    console.log(`🟢 PUT Desempenho V2: bar=${goldRow.bar_id}, S${goldRow.numero_semana}/${goldRow.ano}, desempenho=[${Object.keys(camposDesempenho).join(',')}], marketing=[${Object.keys(camposMarketing).join(',')}]`);
+
+    let resultado: any = null;
+
+    // Upsert campos desempenho em meta.desempenho_manual
+    if (Object.keys(camposDesempenho).length > 0) {
+      const { data, error: upsertError } = await supabase
+        .schema('meta' as any)
+        .from('desempenho_manual')
+        .upsert(
+          {
+            bar_id: goldRow.bar_id,
+            ano: goldRow.ano,
+            numero_semana: goldRow.numero_semana,
+            data_inicio: goldRow.data_inicio,
+            data_fim: goldRow.data_fim,
+            ...camposDesempenho,
+            atualizado_em: new Date().toISOString(),
+          },
+          { onConflict: 'bar_id,ano,numero_semana' }
+        )
+        .select()
+        .single();
+
+      if (upsertError) {
+        console.error('❌ PUT: erro upsert meta.desempenho_manual:', upsertError);
+        return NextResponse.json(
+          { error: 'Erro ao salvar desempenho', details: upsertError.message },
+          { status: 500 }
+        );
+      }
+      resultado = data;
+    }
+
+    // Upsert campos marketing em meta.marketing_semanal
+    if (Object.keys(camposMarketing).length > 0) {
+      const { error: mktError } = await supabase
+        .schema('meta' as any)
+        .from('marketing_semanal')
+        .upsert(
+          {
+            bar_id: goldRow.bar_id,
+            ano: goldRow.ano,
+            semana: goldRow.numero_semana,
+            data_inicio: goldRow.data_inicio,
+            data_fim: goldRow.data_fim,
+            ...camposMarketing,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'bar_id,ano,semana' }
+        );
+
+      if (mktError) {
+        console.error('❌ PUT: erro upsert meta.marketing_semanal:', mktError);
+        return NextResponse.json(
+          { error: 'Erro ao salvar marketing', details: mktError.message },
+          { status: 500 }
+        );
+      }
+    }
+
+    console.log(`✅ PUT: salvo (desempenho=${Object.keys(camposDesempenho).length} campos, marketing=${Object.keys(camposMarketing).length} campos)`);
 
     return NextResponse.json({
       success: true,
