@@ -3,7 +3,7 @@
  * Validar que APIs estão protegidas corretamente
  */
 
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from 'vitest';
 
 describe('Controle de Acesso - APIs Críticas', () => {
   const protectedEndpoints = [
