@@ -1,0 +1,202 @@
+[
+  {
+    "schemaname": "silver",
+    "relname": "tempos_producao",
+    "n_live_tup": 685908,
+    "n_dead_tup": 72914,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-04-22 07:30:20.203391-03",
+    "last_analyze": "2026-04-17 12:33:53.647883-03",
+    "last_autoanalyze": "2026-04-22 20:26:35.191689-03"
+  },
+  {
+    "schemaname": "silver",
+    "relname": "cliente_visitas",
+    "n_live_tup": 227962,
+    "n_dead_tup": 31576,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-04-19 21:10:24.800267-03",
+    "last_analyze": null,
+    "last_autoanalyze": "2026-04-24 08:05:27.562776-03"
+  },
+  {
+    "schemaname": "bronze",
+    "relname": "bronze_contahub_produtos_temposproducao",
+    "n_live_tup": 643657,
+    "n_dead_tup": 30944,
+    "last_vacuum": "2025-12-16 18:33:44.064474-03",
+    "last_autovacuum": "2026-04-18 02:21:22.89449-03",
+    "last_analyze": "2026-04-17 12:33:49.718326-03",
+    "last_autoanalyze": "2026-04-24 07:00:24.729847-03"
+  },
+  {
+    "schemaname": "silver",
+    "relname": "vendas_item",
+    "n_live_tup": 909420,
+    "n_dead_tup": 20030,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-04-22 13:10:32.087909-03",
+    "last_analyze": "2026-04-17 12:33:59.516012-03",
+    "last_autoanalyze": "2026-04-22 13:10:33.94517-03"
+  },
+  {
+    "schemaname": "silver",
+    "relname": "faturamento_pagamentos",
+    "n_live_tup": 236981,
+    "n_dead_tup": 11594,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-04-02 14:53:36.349886-03",
+    "last_analyze": "2026-04-17 12:34:01.630808-03",
+    "last_autoanalyze": "2026-04-16 13:33:32.557895-03"
+  },
+  {
+    "schemaname": "bronze",
+    "relname": "bronze_contahub_financeiro_pagamentosrecebidos",
+    "n_live_tup": 229854,
+    "n_dead_tup": 10501,
+    "last_vacuum": "2025-12-16 18:33:46.668327-03",
+    "last_autovacuum": "2026-04-18 02:21:19.693694-03",
+    "last_analyze": "2026-04-17 12:33:46.285241-03",
+    "last_autoanalyze": "2026-04-23 20:02:08.809065-03"
+  },
+  {
+    "schemaname": "bronze",
+    "relname": "bronze_contahub_avendas_vendasperiodo",
+    "n_live_tup": 227962,
+    "n_dead_tup": 8051,
+    "last_vacuum": "2025-12-16 18:33:54.896072-03",
+    "last_autovacuum": "2026-04-17 15:19:25.176504-03",
+    "last_analyze": "2026-04-19 02:14:30.124337-03",
+    "last_autoanalyze": "2026-04-21 07:01:50.412595-03"
+  },
+  {
+    "schemaname": "integrations",
+    "relname": "contaazul_lancamentos",
+    "n_live_tup": 74517,
+    "n_dead_tup": 3454,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-04-17 11:17:16.539068-03",
+    "last_analyze": "2026-04-17 12:33:54.61513-03",
+    "last_autoanalyze": "2026-04-17 12:15:17.92714-03"
+  },
+  {
+    "schemaname": "cron",
+    "relname": "job_run_details",
+    "n_live_tup": 26035,
+    "n_dead_tup": 2958,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-02-09 02:01:42.973522-03",
+    "last_analyze": "2026-04-17 12:33:56.835286-03",
+    "last_autoanalyze": "2026-02-09 02:00:42.966381-03"
+  },
+  {
+    "schemaname": "integrations",
+    "relname": "umbler_conversas",
+    "n_live_tup": 19494,
+    "n_dead_tup": 2312,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-04-13 11:01:03.267975-03",
+    "last_analyze": "2026-04-17 12:33:50.928399-03",
+    "last_autoanalyze": "2026-04-14 20:00:36.61196-03"
+  },
+  {
+    "schemaname": "integrations",
+    "relname": "umbler_mensagens",
+    "n_live_tup": 35153,
+    "n_dead_tup": 1375,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-04-14 11:00:53.852352-03",
+    "last_analyze": "2026-04-17 12:33:42.444002-03",
+    "last_autoanalyze": "2026-04-13 20:01:19.16915-03"
+  },
+  {
+    "schemaname": "integrations",
+    "relname": "google_reviews",
+    "n_live_tup": 12138,
+    "n_dead_tup": 973,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-04-14 08:00:45.862648-03",
+    "last_analyze": "2026-04-17 12:33:55.433158-03",
+    "last_autoanalyze": "2026-04-16 08:01:23.328515-03"
+  },
+  {
+    "schemaname": "gold",
+    "relname": "gold_contahub_operacional_stockout",
+    "n_live_tup": 55401,
+    "n_dead_tup": 678,
+    "last_vacuum": "2025-12-16 18:33:53.04182-03",
+    "last_autovacuum": "2026-04-15 18:19:07.012253-03",
+    "last_analyze": "2026-04-17 12:34:01.276116-03",
+    "last_autoanalyze": "2026-04-16 17:00:38.940758-03"
+  },
+  {
+    "schemaname": "bronze",
+    "relname": "bronze_contahub_avendas_cancelamentos",
+    "n_live_tup": 22010,
+    "n_dead_tup": 618,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-04-20 06:16:16.605302-03",
+    "last_analyze": "2026-04-17 12:33:40.294474-03",
+    "last_autoanalyze": "2026-04-20 07:00:17.77005-03"
+  },
+  {
+    "schemaname": "operations",
+    "relname": "contagem_estoque_insumos",
+    "n_live_tup": 201551,
+    "n_dead_tup": 498,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-03-31 09:03:22.177384-03",
+    "last_analyze": "2026-04-17 12:33:50.475007-03",
+    "last_autoanalyze": "2026-03-13 17:21:41.306861-03"
+  },
+  {
+    "schemaname": "bronze",
+    "relname": "bronze_contahub_avendas_vendasdiahoraanalitico",
+    "n_live_tup": 7876,
+    "n_dead_tup": 342,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-04-18 02:21:24.467696-03",
+    "last_analyze": "2026-04-17 12:33:47.514659-03",
+    "last_autoanalyze": "2026-04-18 02:21:24.491237-03"
+  },
+  {
+    "schemaname": "integrations",
+    "relname": "yuzer_produtos",
+    "n_live_tup": 2889,
+    "n_dead_tup": 334,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-02-25 13:06:46.434331-03",
+    "last_analyze": "2026-04-17 12:33:53.682628-03",
+    "last_autoanalyze": "2026-02-25 14:01:47.610303-03"
+  },
+  {
+    "schemaname": "bronze",
+    "relname": "bronze_contahub_raw_data",
+    "n_live_tup": 5609,
+    "n_dead_tup": 270,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-04-20 07:16:19.609344-03",
+    "last_analyze": "2026-04-17 12:33:55.534393-03",
+    "last_autoanalyze": "2026-04-19 07:01:59.650127-03"
+  },
+  {
+    "schemaname": "integrations",
+    "relname": "yuzer_fatporhora",
+    "n_live_tup": 1506,
+    "n_dead_tup": 256,
+    "last_vacuum": null,
+    "last_autovacuum": null,
+    "last_analyze": "2026-04-17 12:33:56.860647-03",
+    "last_autoanalyze": "2026-02-25 14:02:47.628663-03"
+  },
+  {
+    "schemaname": "system",
+    "relname": "cron_heartbeats",
+    "n_live_tup": 14134,
+    "n_dead_tup": 236,
+    "last_vacuum": null,
+    "last_autovacuum": "2026-04-16 17:14:36.56256-03",
+    "last_analyze": "2026-04-17 12:34:02.140701-03",
+    "last_autoanalyze": "2026-04-16 17:16:58.763551-03"
+  }
+]

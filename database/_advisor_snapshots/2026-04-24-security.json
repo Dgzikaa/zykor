@@ -1,0 +1,2738 @@
+[
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_contaazul_categorias\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_contaazul_categorias",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_contaazul_categorias"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_contaazul_centros_custo\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_contaazul_centros_custo",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_contaazul_centros_custo"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_contaazul_contas_financeiras\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_contaazul_contas_financeiras",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_contaazul_contas_financeiras"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_contaazul_lancamentos\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_contaazul_lancamentos",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_contaazul_lancamentos"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_contaazul_sync_log\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_contaazul_sync_log",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_contaazul_sync_log"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_contahub_avendas_cancelamentos\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_contahub_avendas_cancelamentos",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_contahub_avendas_cancelamentos"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_contahub_operacional_stockout_raw\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_contahub_operacional_stockout_raw",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_contahub_operacional_stockout_raw"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_falae_respostas\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_falae_respostas",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_falae_respostas"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_getin_reservations\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_getin_reservations",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_getin_reservations"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_getin_units\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_getin_units",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_getin_units"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_google_reviews\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_google_reviews",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_google_reviews"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_sympla_eventos\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_sympla_eventos",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_sympla_eventos"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_sympla_participantes\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_sympla_participantes",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_sympla_participantes"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_sympla_pedidos\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_sympla_pedidos",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_sympla_pedidos"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_sympla_sync_log\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_sympla_sync_log",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_sympla_sync_log"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_umbler_campanha_destinatarios\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_umbler_campanha_destinatarios",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_umbler_campanha_destinatarios"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_umbler_campanhas\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_umbler_campanhas",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_umbler_campanhas"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_umbler_config\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_umbler_config",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_umbler_config"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_umbler_conversas\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_umbler_conversas",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_umbler_conversas"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_umbler_mensagens\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_umbler_mensagens",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_umbler_mensagens"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_yuzer_estatisticas_evento\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_yuzer_estatisticas_evento",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_yuzer_estatisticas_evento"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_yuzer_eventos\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_yuzer_eventos",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_yuzer_eventos"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_yuzer_fatporhora\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_yuzer_fatporhora",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_yuzer_fatporhora"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_yuzer_pagamentos_evento\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_yuzer_pagamentos_evento",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_yuzer_pagamentos_evento"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_yuzer_produtos_evento\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_yuzer_produtos_evento",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_yuzer_produtos_evento"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.bronze_yuzer_sync_log\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "bronze_yuzer_sync_log",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_bronze_yuzer_sync_log"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.eventos\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "eventos",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_eventos"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`bronze.eventos_historico\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "eventos_historico",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_enabled_no_policy_bronze_eventos_historico"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`integrations.google_reviews_imports\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "google_reviews_imports",
+      "type": "table",
+      "schema": "integrations"
+    },
+    "cache_key": "rls_enabled_no_policy_integrations_google_reviews_imports"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`silver.silver_contahub_operacional_stockout_processado\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "silver_contahub_operacional_stockout_processado",
+      "type": "table",
+      "schema": "silver"
+    },
+    "cache_key": "rls_enabled_no_policy_silver_silver_contahub_operacional_stockout_processado"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`system._sync_chunk_progress\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "_sync_chunk_progress",
+      "type": "table",
+      "schema": "system"
+    },
+    "cache_key": "rls_enabled_no_policy_system__sync_chunk_progress"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`system.recalculo_eventos_log\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "recalculo_eventos_log",
+      "type": "table",
+      "schema": "system"
+    },
+    "cache_key": "rls_enabled_no_policy_system_recalculo_eventos_log"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`system.system_config\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "system_config",
+      "type": "table",
+      "schema": "system"
+    },
+    "cache_key": "rls_enabled_no_policy_system_system_config"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`auth_custom.grupos\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "grupos",
+      "type": "view",
+      "schema": "auth_custom"
+    },
+    "cache_key": "security_definer_view_auth_custom_grupos"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`gold.gold_contahub_produtos_temposproducao\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "gold_contahub_produtos_temposproducao",
+      "type": "view",
+      "schema": "gold"
+    },
+    "cache_key": "security_definer_view_gold_gold_contahub_produtos_temposproducao"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`operations.faturamento_hora\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "faturamento_hora",
+      "type": "view",
+      "schema": "operations"
+    },
+    "cache_key": "security_definer_view_operations_faturamento_hora"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`silver.silver_yuzer_eventos\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "silver_yuzer_eventos",
+      "type": "view",
+      "schema": "silver"
+    },
+    "cache_key": "security_definer_view_silver_silver_yuzer_eventos"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`auth_custom.usuarios\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "usuarios",
+      "type": "view",
+      "schema": "auth_custom"
+    },
+    "cache_key": "security_definer_view_auth_custom_usuarios"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`silver.silver_yuzer_produtos_evento\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "silver_yuzer_produtos_evento",
+      "type": "view",
+      "schema": "silver"
+    },
+    "cache_key": "security_definer_view_silver_silver_yuzer_produtos_evento"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`public.visitas\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "visitas",
+      "type": "view",
+      "schema": "public"
+    },
+    "cache_key": "security_definer_view_public_visitas"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`crm.nps_falae_diario\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "nps_falae_diario",
+      "type": "view",
+      "schema": "crm"
+    },
+    "cache_key": "security_definer_view_crm_nps_falae_diario"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`gold.gold_contahub_avendas_porproduto_analitico\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "gold_contahub_avendas_porproduto_analitico",
+      "type": "view",
+      "schema": "gold"
+    },
+    "cache_key": "security_definer_view_gold_gold_contahub_avendas_porproduto_analitico"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`public.silver_yuzer_fatporhora\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "silver_yuzer_fatporhora",
+      "type": "view",
+      "schema": "public"
+    },
+    "cache_key": "security_definer_view_public_silver_yuzer_fatporhora"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`silver.silver_yuzer_pagamentos_evento\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "silver_yuzer_pagamentos_evento",
+      "type": "view",
+      "schema": "silver"
+    },
+    "cache_key": "security_definer_view_silver_silver_yuzer_pagamentos_evento"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`silver.silver_yuzer_fatporhora\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "silver_yuzer_fatporhora",
+      "type": "view",
+      "schema": "silver"
+    },
+    "cache_key": "security_definer_view_silver_silver_yuzer_fatporhora"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`financial.view_dre\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "view_dre",
+      "type": "view",
+      "schema": "financial"
+    },
+    "cache_key": "security_definer_view_financial_view_dre"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`crm.nps_falae_diario_legacy_backup_deprecated\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "nps_falae_diario_legacy_backup_deprecated",
+      "type": "view",
+      "schema": "crm"
+    },
+    "cache_key": "security_definer_view_crm_nps_falae_diario_legacy_backup_deprecated"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`public.cliente_estatisticas\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "cliente_estatisticas",
+      "type": "view",
+      "schema": "public"
+    },
+    "cache_key": "security_definer_view_public_cliente_estatisticas"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`crm.cliente_perfil_consumo_legacy_backup_deprecated\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "cliente_perfil_consumo_legacy_backup_deprecated",
+      "type": "view",
+      "schema": "crm"
+    },
+    "cache_key": "security_definer_view_crm_cliente_perfil_consumo_legacy_backup_deprecated"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`public.silver_yuzer_eventos\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "silver_yuzer_eventos",
+      "type": "view",
+      "schema": "public"
+    },
+    "cache_key": "security_definer_view_public_silver_yuzer_eventos"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`operations.tempos_producao\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "tempos_producao",
+      "type": "view",
+      "schema": "operations"
+    },
+    "cache_key": "security_definer_view_operations_tempos_producao"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`auth_custom.usuarios_bares\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "usuarios_bares",
+      "type": "view",
+      "schema": "auth_custom"
+    },
+    "cache_key": "security_definer_view_auth_custom_usuarios_bares"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`operations.faturamento_pagamentos\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "faturamento_pagamentos",
+      "type": "view",
+      "schema": "operations"
+    },
+    "cache_key": "security_definer_view_operations_faturamento_pagamentos"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`operations.vw_bar_tem_integracao\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "vw_bar_tem_integracao",
+      "type": "view",
+      "schema": "operations"
+    },
+    "cache_key": "security_definer_view_operations_vw_bar_tem_integracao"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`public.pessoas_diario_corrigido\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "pessoas_diario_corrigido",
+      "type": "view",
+      "schema": "public"
+    },
+    "cache_key": "security_definer_view_public_pessoas_diario_corrigido"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`public.v_progresso_bronze_contahub\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "v_progresso_bronze_contahub",
+      "type": "view",
+      "schema": "public"
+    },
+    "cache_key": "security_definer_view_public_v_progresso_bronze_contahub"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`operations.vendas_item\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "vendas_item",
+      "type": "view",
+      "schema": "operations"
+    },
+    "cache_key": "security_definer_view_operations_vendas_item"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`bronze.getin_reservas\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "getin_reservas",
+      "type": "view",
+      "schema": "bronze"
+    },
+    "cache_key": "security_definer_view_bronze_getin_reservas"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`public.view_top_produtos\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "view_top_produtos",
+      "type": "view",
+      "schema": "public"
+    },
+    "cache_key": "security_definer_view_public_view_top_produtos"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`public.view_top_produtos_legacy_snapshot_deprecated\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "view_top_produtos_legacy_snapshot_deprecated",
+      "type": "view",
+      "schema": "public"
+    },
+    "cache_key": "security_definer_view_public_view_top_produtos_legacy_snapshot_deprecated"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`financial.lancamentos_financeiros\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "lancamentos_financeiros",
+      "type": "view",
+      "schema": "financial"
+    },
+    "cache_key": "security_definer_view_financial_lancamentos_financeiros"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`meta.desempenho_manual_backup_20260422_v2_deprecated\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "desempenho_manual_backup_20260422_v2_deprecated",
+      "type": "view",
+      "schema": "meta"
+    },
+    "cache_key": "security_definer_view_meta_desempenho_manual_backup_20260422_v2_deprecated"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`crm.cliente_perfil_consumo\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "cliente_perfil_consumo",
+      "type": "view",
+      "schema": "crm"
+    },
+    "cache_key": "security_definer_view_crm_cliente_perfil_consumo"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`gold.gold_contahub_operacional_stockout_filtrado\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "gold_contahub_operacional_stockout_filtrado",
+      "type": "view",
+      "schema": "gold"
+    },
+    "cache_key": "security_definer_view_gold_gold_contahub_operacional_stockout_filtrado"
+  },
+  {
+    "name": "security_definer_view",
+    "title": "Security Definer View",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects views defined with the SECURITY DEFINER property. These views enforce Postgres permissions and row level security policies (RLS) of the view creator, rather than that of the querying user",
+    "detail": "View \\`meta.desempenho_manual_backup_20260423_deprecated\\` is defined with the SECURITY DEFINER property",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view",
+    "metadata": {
+      "name": "desempenho_manual_backup_20260423_deprecated",
+      "type": "view",
+      "schema": "meta"
+    },
+    "cache_key": "security_definer_view_meta_desempenho_manual_backup_20260423_deprecated"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.etl_gold_desempenho_mensal_range\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "etl_gold_desempenho_mensal_range",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_etl_gold_desempenho_mensal_range_d1f4802111cad90df73e8841a2dde315"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.process_tempo_data\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "process_tempo_data",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_process_tempo_data_f473c0f83dbbc9e12c5e2e88611bafa4"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.process_periodo_data\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "process_periodo_data",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_process_periodo_data_4902a6f689baba22f20c3d28ec4bcd62"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.etl_gold_desempenho_semanal_range\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "etl_gold_desempenho_semanal_range",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_etl_gold_desempenho_semanal_range_e45c56913ffa89e03e757710a48b87b5"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.executar_recalculo_desempenho_v2\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "executar_recalculo_desempenho_v2",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_executar_recalculo_desempenho_v2_999cbdcf69bd22b95a3219d684ac5d94"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.get_service_role_key\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "get_service_role_key",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_get_service_role_key_5bc4f7a0007946e059b3bd4e6d49d950"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.count_distinct_clientes_periodo\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "count_distinct_clientes_periodo",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_count_distinct_clientes_periodo_e53c2c114deff7de89ab0277850c6ffd"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.recalcular_eventos_recentes\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "recalcular_eventos_recentes",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_recalcular_eventos_recentes_d0ba34ad8cb2a78285bd5f32198009c3"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.yuzer_sync_fatporhora_evento\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "yuzer_sync_fatporhora_evento",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_yuzer_sync_fatporhora_evento_a2922e6706e918a741e8f6e3f2490304"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.processar_proximo_dia_incompleto_bronze\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "processar_proximo_dia_incompleto_bronze",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_processar_proximo_dia_incompleto_bronze_ee600a799d005a4619cc7287ea043720"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.yuzer_sync_produtos_evento\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "yuzer_sync_produtos_evento",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_yuzer_sync_produtos_evento_e6d42311aa65de3e817eeefa2caad01c"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.map_categoria_mix_by_group\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "map_categoria_mix_by_group",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_map_categoria_mix_by_group_1d136b11c77359311e19f7c0f35aa8b5"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public._ensure_daily_perfil_batch\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "_ensure_daily_perfil_batch",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public__ensure_daily_perfil_batch_c8ad48eb813265756d224c1e9aec49e4"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public._process_next_perfil_chunk\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "_process_next_perfil_chunk",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public__process_next_perfil_chunk_384ac4bf160d858085ecdb20d0c808ab"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.yuzer_sync_eventos\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "yuzer_sync_eventos",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_yuzer_sync_eventos_896519540e8b3254176d1b9dfa7e91cd"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.sync_contaazul_daily\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "sync_contaazul_daily",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_sync_contaazul_daily_4eef919a7266f5925dac2cc0f61a9114"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.normalizar_telefone_br\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "normalizar_telefone_br",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_normalizar_telefone_br_5cfc179f9e62e67fedf0250568987cbc"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.acquire_job_lock\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "acquire_job_lock",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_acquire_job_lock_fc4f2f871cacd5c70d787980e908ab55"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.yuzer_sync_estatisticas_evento\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "yuzer_sync_estatisticas_evento",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_yuzer_sync_estatisticas_evento_d827f7a44b01efa1b27232706610ef2d"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.process_pagamentos_data\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "process_pagamentos_data",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_process_pagamentos_data_52c76a041a099dc8d59fdff6ef3f80db"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.daily_perfil_consumo_worker\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "daily_perfil_consumo_worker",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_daily_perfil_consumo_worker_8590ac8fa7c66665f54d37d4b7f1b2bf"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.map_categoria_mix_by_local\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "map_categoria_mix_by_local",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_map_categoria_mix_by_local_e883c7094b5caaf1f83ad217cac6f444"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.contaazul_get_parcela_detalhe\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "contaazul_get_parcela_detalhe",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_contaazul_get_parcela_detalhe_b1a5cfa565f7852cb9b2f3ac5630b60f"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.sync_contahub_ambos_bares\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "sync_contahub_ambos_bares",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_sync_contahub_ambos_bares_e3984229be45a1990e75ba982915c27d"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.validar_dados_contahub_diario\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "validar_dados_contahub_diario",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_validar_dados_contahub_diario_70d3844aab38863407a83614170da2ce"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.etl_gold_clientes_diario_all_bars\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "etl_gold_clientes_diario_all_bars",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_etl_gold_clientes_diario_all_bars_a5fb9a33452c7d58cdb99c4dbfb6d6c3"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.map_categoria_mix\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "map_categoria_mix",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_map_categoria_mix_40bd62b55d4a02b19a15cdd2dffb0343"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.sympla_get_participantes_evento\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "sympla_get_participantes_evento",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_sympla_get_participantes_evento_b41c3ea2779cec014f9326508d31ee3b"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.sympla_get_orders_evento\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "sympla_get_orders_evento",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_sympla_get_orders_evento_ab54f5108c24b50cba54aba56998f62d"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.bronze_sync_integrations_to_bronze\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "bronze_sync_integrations_to_bronze",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_bronze_sync_integrations_to_bronze_1c29fdc8ca1866296bddcdf0434fea0e"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.set_categoria_mix_contahub_stockout\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "set_categoria_mix_contahub_stockout",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_set_categoria_mix_contahub_stockout_581b80977dd371cb0cc15fbc55938bd6"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.revalidar_stockout_dia_anterior_ambos_bares_v2\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "revalidar_stockout_dia_anterior_ambos_bares_v2",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_revalidar_stockout_dia_anterior_ambos_bares_v2_7564c20b459a83c7b6cf0205d8abe721"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.yuzer_cron_descobrir_eventos\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "yuzer_cron_descobrir_eventos",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_yuzer_cron_descobrir_eventos_c762de2d622bc2652da339bdae4a591c"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`ops.tg_job_camada_mapping_updated\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "tg_job_camada_mapping_updated",
+      "type": "function",
+      "schema": "ops"
+    },
+    "cache_key": "function_search_path_mutable_ops_tg_job_camada_mapping_updated_da5ac28a58c8b4bb30209bf0d3d7082c"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.sympla_cron_processar_proximo_evento\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "sympla_cron_processar_proximo_evento",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_sympla_cron_processar_proximo_evento_e73a8b217a7269f7a6ac157bc67ae260"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.yuzer_cron_processar_proximo_evento\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "yuzer_cron_processar_proximo_evento",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_yuzer_cron_processar_proximo_evento_e8b22c0b5fb5f9d23b6d2635eef00d82"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.umbler_derivar_direcao\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "umbler_derivar_direcao",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_umbler_derivar_direcao_fa4e372341a150862d5afff31cc0f766"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.process_cancelamentos_data\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "process_cancelamentos_data",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_process_cancelamentos_data_36051cef38696cf59c2f498fec3b3875"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.update_cmv_manual_timestamp\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "update_cmv_manual_timestamp",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_update_cmv_manual_timestamp_342da920ec33c5c628664a3d16e42849"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.sync_cliente_perfil_consumo\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "sync_cliente_perfil_consumo",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_sync_cliente_perfil_consumo_0a659f12b8f043ff3dd062019d70f866"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.get_count_base_ativa_v1_backup\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "get_count_base_ativa_v1_backup",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_get_count_base_ativa_v1_backup_62d0caf2a1a093cc9c9c0c414cb5a462"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.limpar_heartbeats_antigos\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "limpar_heartbeats_antigos",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_limpar_heartbeats_antigos_4718d40da18ac6291c40c752b12c3af0"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.sympla_sync_pedidos_evento\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "sympla_sync_pedidos_evento",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_sympla_sync_pedidos_evento_56aca3c428597e21a316a990ca212420"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.sympla_sync_participantes_evento\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "sympla_sync_participantes_evento",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_sympla_sync_participantes_evento_1e615ba84fa96ee3c43bb95e7642b454"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.get_consumos_classificados_semana\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "get_consumos_classificados_semana",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_get_consumos_classificados_semana_c424e10d34fe6d08bdfea05dfbc18385"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.alertar_problemas_contahub\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "alertar_problemas_contahub",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_alertar_problemas_contahub_ec8b6227898d363596872745f3f800cf"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.normalizar_telefone_11d\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "normalizar_telefone_11d",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_normalizar_telefone_11d_83f8928933e262601ae6cb00a44dba1b"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.process_fatporhora_data\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "process_fatporhora_data",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_process_fatporhora_data_52dd027f9ef31545e34e17d35c4485d7"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`operations.tg_config_metas_planejamento_updated\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "tg_config_metas_planejamento_updated",
+      "type": "function",
+      "schema": "operations"
+    },
+    "cache_key": "function_search_path_mutable_operations_tg_config_metas_planejamento_updated_da5ac28a58c8b4bb30209bf0d3d7082c"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.get_supabase_url\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "get_supabase_url",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_get_supabase_url_406f130bab9fefbcae84227b30674fe9"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.process_analitico_data\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "process_analitico_data",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_process_analitico_data_6ebf4fcd8e327f422b0055c0de04b35a"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.rodar_adapters_diarios\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "rodar_adapters_diarios",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_rodar_adapters_diarios_64628d3bc5204e51e2511718628e869a"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.get_cron_stats_24h\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "get_cron_stats_24h",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_get_cron_stats_24h_e79933d75d5e836fe63582474454130b"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.yuzer_sync_pagamentos_evento\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "yuzer_sync_pagamentos_evento",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_yuzer_sync_pagamentos_evento_c002f7c4b3f5ca154fb2733a32e01843"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.contaazul_get_valid_token\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "contaazul_get_valid_token",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_contaazul_get_valid_token_6088bc610a5702549787c739dd1e587b"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.processar_raw_data_backfill\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "processar_raw_data_backfill",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_processar_raw_data_backfill_bc03b0bf33f1dcb1917ed896d07480cb"
+  },
+  {
+    "name": "function_search_path_mutable",
+    "title": "Function Search Path Mutable",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects functions where the search_path parameter is not set.",
+    "detail": "Function \\`public.etl_gold_desempenho_all_bars\\` has a role mutable search_path",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable",
+    "metadata": {
+      "name": "etl_gold_desempenho_all_bars",
+      "type": "function",
+      "schema": "public"
+    },
+    "cache_key": "function_search_path_mutable_public_etl_gold_desempenho_all_bars_9ef4b268464ba71770576d47ea71e1e7"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`bronze.bronze_contahub_tentativas\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "bronze_contahub_tentativas",
+      "type": "table",
+      "schema": "bronze"
+    },
+    "cache_key": "rls_disabled_in_public_bronze_bronze_contahub_tentativas"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`system.sync_logs_contahub\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "sync_logs_contahub",
+      "type": "table",
+      "schema": "system"
+    },
+    "cache_key": "rls_disabled_in_public_system_sync_logs_contahub"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`operations.produto_categoria_mix\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "produto_categoria_mix",
+      "type": "table",
+      "schema": "operations"
+    },
+    "cache_key": "rls_disabled_in_public_operations_produto_categoria_mix"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`silver.vendas_diarias\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "vendas_diarias",
+      "type": "table",
+      "schema": "silver"
+    },
+    "cache_key": "rls_disabled_in_public_silver_vendas_diarias"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`public.cmv_manual\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "cmv_manual",
+      "type": "table",
+      "schema": "public"
+    },
+    "cache_key": "rls_disabled_in_public_public_cmv_manual"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`silver.cliente_visitas\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "cliente_visitas",
+      "type": "table",
+      "schema": "silver"
+    },
+    "cache_key": "rls_disabled_in_public_silver_cliente_visitas"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`silver.cliente_estatisticas\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "cliente_estatisticas",
+      "type": "table",
+      "schema": "silver"
+    },
+    "cache_key": "rls_disabled_in_public_silver_cliente_estatisticas"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`silver.produtos_top\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "produtos_top",
+      "type": "table",
+      "schema": "silver"
+    },
+    "cache_key": "rls_disabled_in_public_silver_produtos_top"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`public.view_top_produtos_legacy_snapshot\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "view_top_produtos_legacy_snapshot",
+      "type": "table",
+      "schema": "public"
+    },
+    "cache_key": "rls_disabled_in_public_public_view_top_produtos_legacy_snapshot"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`silver.google_reviews_diario\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "google_reviews_diario",
+      "type": "table",
+      "schema": "silver"
+    },
+    "cache_key": "rls_disabled_in_public_silver_google_reviews_diario"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`silver.getin_reservas_diarias\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "getin_reservas_diarias",
+      "type": "table",
+      "schema": "silver"
+    },
+    "cache_key": "rls_disabled_in_public_silver_getin_reservas_diarias"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`silver.sympla_bilheteria_diaria\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "sympla_bilheteria_diaria",
+      "type": "table",
+      "schema": "silver"
+    },
+    "cache_key": "rls_disabled_in_public_silver_sympla_bilheteria_diaria"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`silver.nps_diario\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "nps_diario",
+      "type": "table",
+      "schema": "silver"
+    },
+    "cache_key": "rls_disabled_in_public_silver_nps_diario"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`silver.contaazul_lancamentos_diarios\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "contaazul_lancamentos_diarios",
+      "type": "table",
+      "schema": "silver"
+    },
+    "cache_key": "rls_disabled_in_public_silver_contaazul_lancamentos_diarios"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`silver.yuzer_pagamentos_evento\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "yuzer_pagamentos_evento",
+      "type": "table",
+      "schema": "silver"
+    },
+    "cache_key": "rls_disabled_in_public_silver_yuzer_pagamentos_evento"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`silver.yuzer_produtos_evento\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "yuzer_produtos_evento",
+      "type": "table",
+      "schema": "silver"
+    },
+    "cache_key": "rls_disabled_in_public_silver_yuzer_produtos_evento"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`gold.planejamento\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "planejamento",
+      "type": "table",
+      "schema": "gold"
+    },
+    "cache_key": "rls_disabled_in_public_gold_planejamento"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`operations.etl_execucoes_log\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "etl_execucoes_log",
+      "type": "table",
+      "schema": "operations"
+    },
+    "cache_key": "rls_disabled_in_public_operations_etl_execucoes_log"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`gold.cmv\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "cmv",
+      "type": "table",
+      "schema": "gold"
+    },
+    "cache_key": "rls_disabled_in_public_gold_cmv"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`gold.clientes_diario\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "clientes_diario",
+      "type": "table",
+      "schema": "gold"
+    },
+    "cache_key": "rls_disabled_in_public_gold_clientes_diario"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`gold.desempenho\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "desempenho",
+      "type": "table",
+      "schema": "gold"
+    },
+    "cache_key": "rls_disabled_in_public_gold_desempenho"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`silver.reservantes_perfil\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "reservantes_perfil",
+      "type": "table",
+      "schema": "silver"
+    },
+    "cache_key": "rls_disabled_in_public_silver_reservantes_perfil"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`operations.integracoes_bar\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "integracoes_bar",
+      "type": "table",
+      "schema": "operations"
+    },
+    "cache_key": "rls_disabled_in_public_operations_integracoes_bar"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`meta.desempenho_manual_backup_20260422_v2\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "desempenho_manual_backup_20260422_v2",
+      "type": "table",
+      "schema": "meta"
+    },
+    "cache_key": "rls_disabled_in_public_meta_desempenho_manual_backup_20260422_v2"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
+    "detail": "Table \\`meta.desempenho_manual_backup_20260423\\` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+    "metadata": {
+      "name": "desempenho_manual_backup_20260423",
+      "type": "table",
+      "schema": "meta"
+    },
+    "cache_key": "rls_disabled_in_public_meta_desempenho_manual_backup_20260423"
+  },
+  {
+    "name": "materialized_view_in_api",
+    "title": "Materialized View in API",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects materialized views that are accessible over the Data APIs.",
+    "detail": "Materialized view \\`public.view_visao_geral_anual\\` is selectable by anon or authenticated roles",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0016_materialized_view_in_api",
+    "metadata": {
+      "name": "view_visao_geral_anual",
+      "type": "materialized view",
+      "schema": "public"
+    },
+    "cache_key": "materialized_view_in_api_public_view_visao_geral_anual"
+  },
+  {
+    "name": "materialized_view_in_api",
+    "title": "Materialized View in API",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects materialized views that are accessible over the Data APIs.",
+    "detail": "Materialized view \\`gold.v_pipeline_health\\` is selectable by anon or authenticated roles",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0016_materialized_view_in_api",
+    "metadata": {
+      "name": "v_pipeline_health",
+      "type": "materialized view",
+      "schema": "gold"
+    },
+    "cache_key": "materialized_view_in_api_gold_v_pipeline_health"
+  },
+  {
+    "name": "rls_policy_always_true",
+    "title": "RLS Policy Always True",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects RLS policies that use overly permissive expressions like \\`USING (true)\\` or \\`WITH CHECK (true)\\` for UPDATE, DELETE, or INSERT operations. SELECT policies with \\`USING (true)\\` are intentionally excluded as this pattern is often used deliberately for public read access.",
+    "detail": "Table `integrations.contaazul_categorias` has an RLS policy `service_role_full_access` for `ALL` that allows unrestricted access (both USING and WITH CHECK are always true). This effectively bypasses row-level security for -.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0024_permissive_rls_policy",
+    "metadata": {
+      "name": "contaazul_categorias",
+      "qual": "true",
+      "type": "table",
+      "roles": [
+        "-"
+      ],
+      "schema": "integrations",
+      "command": "ALL",
+      "with_check": "true",
+      "policy_name": "service_role_full_access",
+      "permissive_using": true,
+      "permissive_with_check": true
+    },
+    "cache_key": "rls_policy_always_true_integrations_contaazul_categorias_service_role_full_access"
+  },
+  {
+    "name": "rls_policy_always_true",
+    "title": "RLS Policy Always True",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects RLS policies that use overly permissive expressions like \\`USING (true)\\` or \\`WITH CHECK (true)\\` for UPDATE, DELETE, or INSERT operations. SELECT policies with \\`USING (true)\\` are intentionally excluded as this pattern is often used deliberately for public read access.",
+    "detail": "Table `integrations.contaazul_centros_custo` has an RLS policy `service_role_full_access` for `ALL` that allows unrestricted access (both USING and WITH CHECK are always true). This effectively bypasses row-level security for -.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0024_permissive_rls_policy",
+    "metadata": {
+      "name": "contaazul_centros_custo",
+      "qual": "true",
+      "type": "table",
+      "roles": [
+        "-"
+      ],
+      "schema": "integrations",
+      "command": "ALL",
+      "with_check": "true",
+      "policy_name": "service_role_full_access",
+      "permissive_using": true,
+      "permissive_with_check": true
+    },
+    "cache_key": "rls_policy_always_true_integrations_contaazul_centros_custo_service_role_full_access"
+  }
+]

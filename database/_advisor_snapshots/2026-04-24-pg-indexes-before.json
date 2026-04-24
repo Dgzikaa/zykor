@@ -1,0 +1,4226 @@
+[
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agent_insights_v2",
+    "indexname": "agent_insights_v2_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agent_insights_v2_pkey ON agent_ai.agent_insights_v2 USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agent_insights_v2",
+    "indexname": "idx_agent_insights_v2_arquivado",
+    "indexdef": "CREATE INDEX idx_agent_insights_v2_arquivado ON agent_ai.agent_insights_v2 USING btree (arquivado)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agent_insights_v2",
+    "indexname": "idx_agent_insights_v2_bar_data",
+    "indexdef": "CREATE INDEX idx_agent_insights_v2_bar_data ON agent_ai.agent_insights_v2 USING btree (bar_id, data)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agent_insights_v2",
+    "indexname": "idx_agent_insights_v2_severidade",
+    "indexdef": "CREATE INDEX idx_agent_insights_v2_severidade ON agent_ai.agent_insights_v2 USING btree (severidade)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agent_insights_v2",
+    "indexname": "idx_agent_insights_v2_tipo",
+    "indexdef": "CREATE INDEX idx_agent_insights_v2_tipo ON agent_ai.agent_insights_v2 USING btree (tipo)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agent_insights_v2",
+    "indexname": "idx_agent_insights_v2_visualizado",
+    "indexdef": "CREATE INDEX idx_agent_insights_v2_visualizado ON agent_ai.agent_insights_v2 USING btree (visualizado)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_alertas",
+    "indexname": "agente_alertas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_alertas_pkey ON agent_ai.agente_alertas USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_alertas",
+    "indexname": "idx_agente_alertas_bar_id_new",
+    "indexdef": "CREATE INDEX idx_agente_alertas_bar_id_new ON agent_ai.agente_alertas USING btree (bar_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_alertas",
+    "indexname": "idx_agente_alertas_insight_id",
+    "indexdef": "CREATE INDEX idx_agente_alertas_insight_id ON agent_ai.agente_alertas USING btree (insight_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_aprendizado",
+    "indexname": "agente_aprendizado_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_aprendizado_pkey ON agent_ai.agente_aprendizado USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_aprendizado",
+    "indexname": "idx_agente_aprendizado_bar_id",
+    "indexdef": "CREATE INDEX idx_agente_aprendizado_bar_id ON agent_ai.agente_aprendizado USING btree (bar_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_configuracoes",
+    "indexname": "agente_configuracoes_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_configuracoes_pkey ON agent_ai.agente_configuracoes USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_configuracoes",
+    "indexname": "idx_agente_configuracoes_bar_id",
+    "indexdef": "CREATE INDEX idx_agente_configuracoes_bar_id ON agent_ai.agente_configuracoes USING btree (bar_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_conversas",
+    "indexname": "agente_conversas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_conversas_pkey ON agent_ai.agente_conversas USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_conversas",
+    "indexname": "idx_agente_conversas_bar_id",
+    "indexdef": "CREATE INDEX idx_agente_conversas_bar_id ON agent_ai.agente_conversas USING btree (bar_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_conversas",
+    "indexname": "idx_agente_conversas_usuario_id",
+    "indexdef": "CREATE INDEX idx_agente_conversas_usuario_id ON agent_ai.agente_conversas USING btree (usuario_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_feedbacks",
+    "indexname": "agente_feedbacks_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_feedbacks_pkey ON agent_ai.agente_feedbacks USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_feedbacks",
+    "indexname": "idx_agente_feedbacks_bar_id",
+    "indexdef": "CREATE INDEX idx_agente_feedbacks_bar_id ON agent_ai.agente_feedbacks USING btree (bar_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_historico",
+    "indexname": "agente_historico_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_historico_pkey ON agent_ai.agente_historico USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_ia_metricas",
+    "indexname": "agente_ia_metricas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_ia_metricas_pkey ON agent_ai.agente_ia_metricas USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_ia_metricas",
+    "indexname": "idx_agente_ia_metricas_bar_id",
+    "indexdef": "CREATE INDEX idx_agente_ia_metricas_bar_id ON agent_ai.agente_ia_metricas USING btree (bar_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_insights",
+    "indexname": "agente_insights_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_insights_pkey ON agent_ai.agente_insights USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_insights",
+    "indexname": "idx_agente_insights_bar_id",
+    "indexdef": "CREATE INDEX idx_agente_insights_bar_id ON agent_ai.agente_insights USING btree (bar_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_insights",
+    "indexname": "idx_agente_insights_scan_id",
+    "indexdef": "CREATE INDEX idx_agente_insights_scan_id ON agent_ai.agente_insights USING btree (scan_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_memoria_vetorial",
+    "indexname": "agente_memoria_vetorial_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_memoria_vetorial_pkey ON agent_ai.agente_memoria_vetorial USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_memoria_vetorial",
+    "indexname": "idx_agente_memoria_vetorial_bar_id",
+    "indexdef": "CREATE INDEX idx_agente_memoria_vetorial_bar_id ON agent_ai.agente_memoria_vetorial USING btree (bar_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_metricas",
+    "indexname": "agente_metricas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_metricas_pkey ON agent_ai.agente_metricas USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_metricas",
+    "indexname": "idx_agente_metricas_bar_id",
+    "indexdef": "CREATE INDEX idx_agente_metricas_bar_id ON agent_ai.agente_metricas USING btree (bar_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_padroes_detectados",
+    "indexname": "agente_padroes_detectados_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_padroes_detectados_pkey ON agent_ai.agente_padroes_detectados USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_padroes_detectados",
+    "indexname": "idx_agente_padroes_detectados_bar_id",
+    "indexdef": "CREATE INDEX idx_agente_padroes_detectados_bar_id ON agent_ai.agente_padroes_detectados USING btree (bar_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_regras_dinamicas",
+    "indexname": "agente_regras_dinamicas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_regras_dinamicas_pkey ON agent_ai.agente_regras_dinamicas USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_regras_dinamicas",
+    "indexname": "idx_agente_regras_dinamicas_bar_id",
+    "indexdef": "CREATE INDEX idx_agente_regras_dinamicas_bar_id ON agent_ai.agente_regras_dinamicas USING btree (bar_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_scans",
+    "indexname": "agente_scans_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_scans_pkey ON agent_ai.agente_scans USING btree (id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_scans",
+    "indexname": "idx_agente_scans_bar_id",
+    "indexdef": "CREATE INDEX idx_agente_scans_bar_id ON agent_ai.agente_scans USING btree (bar_id)"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_uso",
+    "indexname": "agente_uso_pkey",
+    "indexdef": "CREATE UNIQUE INDEX agente_uso_pkey ON agent_ai.agente_uso USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "audit_log_entries",
+    "indexname": "audit_log_entries_pkey",
+    "indexdef": "CREATE UNIQUE INDEX audit_log_entries_pkey ON auth.audit_log_entries USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "audit_log_entries",
+    "indexname": "audit_logs_instance_id_idx",
+    "indexdef": "CREATE INDEX audit_logs_instance_id_idx ON auth.audit_log_entries USING btree (instance_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "custom_oauth_providers",
+    "indexname": "custom_oauth_providers_created_at_idx",
+    "indexdef": "CREATE INDEX custom_oauth_providers_created_at_idx ON auth.custom_oauth_providers USING btree (created_at)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "custom_oauth_providers",
+    "indexname": "custom_oauth_providers_enabled_idx",
+    "indexdef": "CREATE INDEX custom_oauth_providers_enabled_idx ON auth.custom_oauth_providers USING btree (enabled)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "custom_oauth_providers",
+    "indexname": "custom_oauth_providers_identifier_idx",
+    "indexdef": "CREATE INDEX custom_oauth_providers_identifier_idx ON auth.custom_oauth_providers USING btree (identifier)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "custom_oauth_providers",
+    "indexname": "custom_oauth_providers_identifier_key",
+    "indexdef": "CREATE UNIQUE INDEX custom_oauth_providers_identifier_key ON auth.custom_oauth_providers USING btree (identifier)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "custom_oauth_providers",
+    "indexname": "custom_oauth_providers_pkey",
+    "indexdef": "CREATE UNIQUE INDEX custom_oauth_providers_pkey ON auth.custom_oauth_providers USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "custom_oauth_providers",
+    "indexname": "custom_oauth_providers_provider_type_idx",
+    "indexdef": "CREATE INDEX custom_oauth_providers_provider_type_idx ON auth.custom_oauth_providers USING btree (provider_type)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "flow_state",
+    "indexname": "flow_state_created_at_idx",
+    "indexdef": "CREATE INDEX flow_state_created_at_idx ON auth.flow_state USING btree (created_at DESC)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "flow_state",
+    "indexname": "flow_state_pkey",
+    "indexdef": "CREATE UNIQUE INDEX flow_state_pkey ON auth.flow_state USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "flow_state",
+    "indexname": "idx_auth_code",
+    "indexdef": "CREATE INDEX idx_auth_code ON auth.flow_state USING btree (auth_code)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "flow_state",
+    "indexname": "idx_user_id_auth_method",
+    "indexdef": "CREATE INDEX idx_user_id_auth_method ON auth.flow_state USING btree (user_id, authentication_method)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "identities",
+    "indexname": "identities_email_idx",
+    "indexdef": "CREATE INDEX identities_email_idx ON auth.identities USING btree (email text_pattern_ops)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "identities",
+    "indexname": "identities_pkey",
+    "indexdef": "CREATE UNIQUE INDEX identities_pkey ON auth.identities USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "identities",
+    "indexname": "identities_provider_id_provider_unique",
+    "indexdef": "CREATE UNIQUE INDEX identities_provider_id_provider_unique ON auth.identities USING btree (provider_id, provider)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "identities",
+    "indexname": "identities_user_id_idx",
+    "indexdef": "CREATE INDEX identities_user_id_idx ON auth.identities USING btree (user_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "instances",
+    "indexname": "instances_pkey",
+    "indexdef": "CREATE UNIQUE INDEX instances_pkey ON auth.instances USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "mfa_amr_claims",
+    "indexname": "amr_id_pk",
+    "indexdef": "CREATE UNIQUE INDEX amr_id_pk ON auth.mfa_amr_claims USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "mfa_amr_claims",
+    "indexname": "mfa_amr_claims_session_id_authentication_method_pkey",
+    "indexdef": "CREATE UNIQUE INDEX mfa_amr_claims_session_id_authentication_method_pkey ON auth.mfa_amr_claims USING btree (session_id, authentication_method)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "mfa_challenges",
+    "indexname": "mfa_challenge_created_at_idx",
+    "indexdef": "CREATE INDEX mfa_challenge_created_at_idx ON auth.mfa_challenges USING btree (created_at DESC)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "mfa_challenges",
+    "indexname": "mfa_challenges_pkey",
+    "indexdef": "CREATE UNIQUE INDEX mfa_challenges_pkey ON auth.mfa_challenges USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "mfa_factors",
+    "indexname": "factor_id_created_at_idx",
+    "indexdef": "CREATE INDEX factor_id_created_at_idx ON auth.mfa_factors USING btree (user_id, created_at)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "mfa_factors",
+    "indexname": "mfa_factors_last_challenged_at_key",
+    "indexdef": "CREATE UNIQUE INDEX mfa_factors_last_challenged_at_key ON auth.mfa_factors USING btree (last_challenged_at)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "mfa_factors",
+    "indexname": "mfa_factors_pkey",
+    "indexdef": "CREATE UNIQUE INDEX mfa_factors_pkey ON auth.mfa_factors USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "mfa_factors",
+    "indexname": "mfa_factors_user_friendly_name_unique",
+    "indexdef": "CREATE UNIQUE INDEX mfa_factors_user_friendly_name_unique ON auth.mfa_factors USING btree (friendly_name, user_id) WHERE (TRIM(BOTH FROM friendly_name) <> ''::text)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "mfa_factors",
+    "indexname": "mfa_factors_user_id_idx",
+    "indexdef": "CREATE INDEX mfa_factors_user_id_idx ON auth.mfa_factors USING btree (user_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "mfa_factors",
+    "indexname": "unique_phone_factor_per_user",
+    "indexdef": "CREATE UNIQUE INDEX unique_phone_factor_per_user ON auth.mfa_factors USING btree (user_id, phone)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "oauth_authorizations",
+    "indexname": "oauth_auth_pending_exp_idx",
+    "indexdef": "CREATE INDEX oauth_auth_pending_exp_idx ON auth.oauth_authorizations USING btree (expires_at) WHERE (status = 'pending'::auth.oauth_authorization_status)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "oauth_authorizations",
+    "indexname": "oauth_authorizations_authorization_code_key",
+    "indexdef": "CREATE UNIQUE INDEX oauth_authorizations_authorization_code_key ON auth.oauth_authorizations USING btree (authorization_code)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "oauth_authorizations",
+    "indexname": "oauth_authorizations_authorization_id_key",
+    "indexdef": "CREATE UNIQUE INDEX oauth_authorizations_authorization_id_key ON auth.oauth_authorizations USING btree (authorization_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "oauth_authorizations",
+    "indexname": "oauth_authorizations_pkey",
+    "indexdef": "CREATE UNIQUE INDEX oauth_authorizations_pkey ON auth.oauth_authorizations USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "oauth_client_states",
+    "indexname": "idx_oauth_client_states_created_at",
+    "indexdef": "CREATE INDEX idx_oauth_client_states_created_at ON auth.oauth_client_states USING btree (created_at)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "oauth_client_states",
+    "indexname": "oauth_client_states_pkey",
+    "indexdef": "CREATE UNIQUE INDEX oauth_client_states_pkey ON auth.oauth_client_states USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "oauth_clients",
+    "indexname": "oauth_clients_deleted_at_idx",
+    "indexdef": "CREATE INDEX oauth_clients_deleted_at_idx ON auth.oauth_clients USING btree (deleted_at)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "oauth_clients",
+    "indexname": "oauth_clients_pkey",
+    "indexdef": "CREATE UNIQUE INDEX oauth_clients_pkey ON auth.oauth_clients USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "oauth_consents",
+    "indexname": "oauth_consents_active_client_idx",
+    "indexdef": "CREATE INDEX oauth_consents_active_client_idx ON auth.oauth_consents USING btree (client_id) WHERE (revoked_at IS NULL)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "oauth_consents",
+    "indexname": "oauth_consents_active_user_client_idx",
+    "indexdef": "CREATE INDEX oauth_consents_active_user_client_idx ON auth.oauth_consents USING btree (user_id, client_id) WHERE (revoked_at IS NULL)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "oauth_consents",
+    "indexname": "oauth_consents_pkey",
+    "indexdef": "CREATE UNIQUE INDEX oauth_consents_pkey ON auth.oauth_consents USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "oauth_consents",
+    "indexname": "oauth_consents_user_client_unique",
+    "indexdef": "CREATE UNIQUE INDEX oauth_consents_user_client_unique ON auth.oauth_consents USING btree (user_id, client_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "oauth_consents",
+    "indexname": "oauth_consents_user_order_idx",
+    "indexdef": "CREATE INDEX oauth_consents_user_order_idx ON auth.oauth_consents USING btree (user_id, granted_at DESC)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "one_time_tokens",
+    "indexname": "one_time_tokens_pkey",
+    "indexdef": "CREATE UNIQUE INDEX one_time_tokens_pkey ON auth.one_time_tokens USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "one_time_tokens",
+    "indexname": "one_time_tokens_relates_to_hash_idx",
+    "indexdef": "CREATE INDEX one_time_tokens_relates_to_hash_idx ON auth.one_time_tokens USING hash (relates_to)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "one_time_tokens",
+    "indexname": "one_time_tokens_token_hash_hash_idx",
+    "indexdef": "CREATE INDEX one_time_tokens_token_hash_hash_idx ON auth.one_time_tokens USING hash (token_hash)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "one_time_tokens",
+    "indexname": "one_time_tokens_user_id_token_type_key",
+    "indexdef": "CREATE UNIQUE INDEX one_time_tokens_user_id_token_type_key ON auth.one_time_tokens USING btree (user_id, token_type)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "refresh_tokens",
+    "indexname": "refresh_tokens_instance_id_idx",
+    "indexdef": "CREATE INDEX refresh_tokens_instance_id_idx ON auth.refresh_tokens USING btree (instance_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "refresh_tokens",
+    "indexname": "refresh_tokens_instance_id_user_id_idx",
+    "indexdef": "CREATE INDEX refresh_tokens_instance_id_user_id_idx ON auth.refresh_tokens USING btree (instance_id, user_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "refresh_tokens",
+    "indexname": "refresh_tokens_parent_idx",
+    "indexdef": "CREATE INDEX refresh_tokens_parent_idx ON auth.refresh_tokens USING btree (parent)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "refresh_tokens",
+    "indexname": "refresh_tokens_pkey",
+    "indexdef": "CREATE UNIQUE INDEX refresh_tokens_pkey ON auth.refresh_tokens USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "refresh_tokens",
+    "indexname": "refresh_tokens_session_id_revoked_idx",
+    "indexdef": "CREATE INDEX refresh_tokens_session_id_revoked_idx ON auth.refresh_tokens USING btree (session_id, revoked)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "refresh_tokens",
+    "indexname": "refresh_tokens_token_unique",
+    "indexdef": "CREATE UNIQUE INDEX refresh_tokens_token_unique ON auth.refresh_tokens USING btree (token)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "refresh_tokens",
+    "indexname": "refresh_tokens_updated_at_idx",
+    "indexdef": "CREATE INDEX refresh_tokens_updated_at_idx ON auth.refresh_tokens USING btree (updated_at DESC)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "saml_providers",
+    "indexname": "saml_providers_entity_id_key",
+    "indexdef": "CREATE UNIQUE INDEX saml_providers_entity_id_key ON auth.saml_providers USING btree (entity_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "saml_providers",
+    "indexname": "saml_providers_pkey",
+    "indexdef": "CREATE UNIQUE INDEX saml_providers_pkey ON auth.saml_providers USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "saml_providers",
+    "indexname": "saml_providers_sso_provider_id_idx",
+    "indexdef": "CREATE INDEX saml_providers_sso_provider_id_idx ON auth.saml_providers USING btree (sso_provider_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "saml_relay_states",
+    "indexname": "saml_relay_states_created_at_idx",
+    "indexdef": "CREATE INDEX saml_relay_states_created_at_idx ON auth.saml_relay_states USING btree (created_at DESC)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "saml_relay_states",
+    "indexname": "saml_relay_states_for_email_idx",
+    "indexdef": "CREATE INDEX saml_relay_states_for_email_idx ON auth.saml_relay_states USING btree (for_email)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "saml_relay_states",
+    "indexname": "saml_relay_states_pkey",
+    "indexdef": "CREATE UNIQUE INDEX saml_relay_states_pkey ON auth.saml_relay_states USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "saml_relay_states",
+    "indexname": "saml_relay_states_sso_provider_id_idx",
+    "indexdef": "CREATE INDEX saml_relay_states_sso_provider_id_idx ON auth.saml_relay_states USING btree (sso_provider_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "schema_migrations",
+    "indexname": "schema_migrations_pkey",
+    "indexdef": "CREATE UNIQUE INDEX schema_migrations_pkey ON auth.schema_migrations USING btree (version)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "sessions",
+    "indexname": "sessions_not_after_idx",
+    "indexdef": "CREATE INDEX sessions_not_after_idx ON auth.sessions USING btree (not_after DESC)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "sessions",
+    "indexname": "sessions_oauth_client_id_idx",
+    "indexdef": "CREATE INDEX sessions_oauth_client_id_idx ON auth.sessions USING btree (oauth_client_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "sessions",
+    "indexname": "sessions_pkey",
+    "indexdef": "CREATE UNIQUE INDEX sessions_pkey ON auth.sessions USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "sessions",
+    "indexname": "sessions_user_id_idx",
+    "indexdef": "CREATE INDEX sessions_user_id_idx ON auth.sessions USING btree (user_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "sessions",
+    "indexname": "user_id_created_at_idx",
+    "indexdef": "CREATE INDEX user_id_created_at_idx ON auth.sessions USING btree (user_id, created_at)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "sso_domains",
+    "indexname": "sso_domains_domain_idx",
+    "indexdef": "CREATE UNIQUE INDEX sso_domains_domain_idx ON auth.sso_domains USING btree (lower(domain))"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "sso_domains",
+    "indexname": "sso_domains_pkey",
+    "indexdef": "CREATE UNIQUE INDEX sso_domains_pkey ON auth.sso_domains USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "sso_domains",
+    "indexname": "sso_domains_sso_provider_id_idx",
+    "indexdef": "CREATE INDEX sso_domains_sso_provider_id_idx ON auth.sso_domains USING btree (sso_provider_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "sso_providers",
+    "indexname": "sso_providers_pkey",
+    "indexdef": "CREATE UNIQUE INDEX sso_providers_pkey ON auth.sso_providers USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "sso_providers",
+    "indexname": "sso_providers_resource_id_idx",
+    "indexdef": "CREATE UNIQUE INDEX sso_providers_resource_id_idx ON auth.sso_providers USING btree (lower(resource_id))"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "sso_providers",
+    "indexname": "sso_providers_resource_id_pattern_idx",
+    "indexdef": "CREATE INDEX sso_providers_resource_id_pattern_idx ON auth.sso_providers USING btree (resource_id text_pattern_ops)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "users",
+    "indexname": "confirmation_token_idx",
+    "indexdef": "CREATE UNIQUE INDEX confirmation_token_idx ON auth.users USING btree (confirmation_token) WHERE ((confirmation_token)::text !~ '^[0-9 ]*$'::text)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "users",
+    "indexname": "email_change_token_current_idx",
+    "indexdef": "CREATE UNIQUE INDEX email_change_token_current_idx ON auth.users USING btree (email_change_token_current) WHERE ((email_change_token_current)::text !~ '^[0-9 ]*$'::text)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "users",
+    "indexname": "email_change_token_new_idx",
+    "indexdef": "CREATE UNIQUE INDEX email_change_token_new_idx ON auth.users USING btree (email_change_token_new) WHERE ((email_change_token_new)::text !~ '^[0-9 ]*$'::text)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "users",
+    "indexname": "reauthentication_token_idx",
+    "indexdef": "CREATE UNIQUE INDEX reauthentication_token_idx ON auth.users USING btree (reauthentication_token) WHERE ((reauthentication_token)::text !~ '^[0-9 ]*$'::text)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "users",
+    "indexname": "recovery_token_idx",
+    "indexdef": "CREATE UNIQUE INDEX recovery_token_idx ON auth.users USING btree (recovery_token) WHERE ((recovery_token)::text !~ '^[0-9 ]*$'::text)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "users",
+    "indexname": "users_email_partial_key",
+    "indexdef": "CREATE UNIQUE INDEX users_email_partial_key ON auth.users USING btree (email) WHERE (is_sso_user = false)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "users",
+    "indexname": "users_instance_id_email_idx",
+    "indexdef": "CREATE INDEX users_instance_id_email_idx ON auth.users USING btree (instance_id, lower((email)::text))"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "users",
+    "indexname": "users_instance_id_idx",
+    "indexdef": "CREATE INDEX users_instance_id_idx ON auth.users USING btree (instance_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "users",
+    "indexname": "users_is_anonymous_idx",
+    "indexdef": "CREATE INDEX users_is_anonymous_idx ON auth.users USING btree (is_anonymous)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "users",
+    "indexname": "users_phone_key",
+    "indexdef": "CREATE UNIQUE INDEX users_phone_key ON auth.users USING btree (phone)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "users",
+    "indexname": "users_pkey",
+    "indexdef": "CREATE UNIQUE INDEX users_pkey ON auth.users USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "webauthn_challenges",
+    "indexname": "webauthn_challenges_expires_at_idx",
+    "indexdef": "CREATE INDEX webauthn_challenges_expires_at_idx ON auth.webauthn_challenges USING btree (expires_at)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "webauthn_challenges",
+    "indexname": "webauthn_challenges_pkey",
+    "indexdef": "CREATE UNIQUE INDEX webauthn_challenges_pkey ON auth.webauthn_challenges USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "webauthn_challenges",
+    "indexname": "webauthn_challenges_user_id_idx",
+    "indexdef": "CREATE INDEX webauthn_challenges_user_id_idx ON auth.webauthn_challenges USING btree (user_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "webauthn_credentials",
+    "indexname": "webauthn_credentials_credential_id_key",
+    "indexdef": "CREATE UNIQUE INDEX webauthn_credentials_credential_id_key ON auth.webauthn_credentials USING btree (credential_id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "webauthn_credentials",
+    "indexname": "webauthn_credentials_pkey",
+    "indexdef": "CREATE UNIQUE INDEX webauthn_credentials_pkey ON auth.webauthn_credentials USING btree (id)"
+  },
+  {
+    "schemaname": "auth",
+    "tablename": "webauthn_credentials",
+    "indexname": "webauthn_credentials_user_id_idx",
+    "indexdef": "CREATE INDEX webauthn_credentials_user_id_idx ON auth.webauthn_credentials USING btree (user_id)"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "empresa_usuarios",
+    "indexname": "empresa_usuarios_empresa_id_usuario_id_key",
+    "indexdef": "CREATE UNIQUE INDEX empresa_usuarios_empresa_id_usuario_id_key ON auth_custom.empresa_usuarios USING btree (empresa_id, usuario_id)"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "empresa_usuarios",
+    "indexname": "empresa_usuarios_pkey",
+    "indexdef": "CREATE UNIQUE INDEX empresa_usuarios_pkey ON auth_custom.empresa_usuarios USING btree (id)"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "empresa_usuarios",
+    "indexname": "idx_empresa_usuarios_usuario",
+    "indexdef": "CREATE INDEX idx_empresa_usuarios_usuario ON auth_custom.empresa_usuarios USING btree (usuario_id)"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "empresas",
+    "indexname": "empresas_cnpj_key",
+    "indexdef": "CREATE UNIQUE INDEX empresas_cnpj_key ON auth_custom.empresas USING btree (cnpj)"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "empresas",
+    "indexname": "empresas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX empresas_pkey ON auth_custom.empresas USING btree (id)"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "empresas",
+    "indexname": "idx_empresas_cnpj",
+    "indexdef": "CREATE INDEX idx_empresas_cnpj ON auth_custom.empresas USING btree (cnpj)"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "pessoas_responsaveis",
+    "indexname": "pessoas_responsaveis_bar_id_nome_key",
+    "indexdef": "CREATE UNIQUE INDEX pessoas_responsaveis_bar_id_nome_key ON auth_custom.pessoas_responsaveis USING btree (bar_id, nome)"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "pessoas_responsaveis",
+    "indexname": "pessoas_responsaveis_pkey",
+    "indexdef": "CREATE UNIQUE INDEX pessoas_responsaveis_pkey ON auth_custom.pessoas_responsaveis USING btree (id)"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "template_tags",
+    "indexname": "template_tags_nome_key",
+    "indexdef": "CREATE UNIQUE INDEX template_tags_nome_key ON auth_custom.template_tags USING btree (nome)"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "template_tags",
+    "indexname": "template_tags_pkey",
+    "indexdef": "CREATE UNIQUE INDEX template_tags_pkey ON auth_custom.template_tags USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_categorias",
+    "indexname": "bronze_contaazul_categorias_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_contaazul_categorias_pkey ON bronze.bronze_contaazul_categorias USING btree (bar_id, contaazul_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_categorias",
+    "indexname": "idx_bronze_ca_cat_pai",
+    "indexdef": "CREATE INDEX idx_bronze_ca_cat_pai ON bronze.bronze_contaazul_categorias USING btree (categoria_pai_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_categorias",
+    "indexname": "idx_bronze_ca_cat_tipo",
+    "indexdef": "CREATE INDEX idx_bronze_ca_cat_tipo ON bronze.bronze_contaazul_categorias USING btree (bar_id, tipo)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_centros_custo",
+    "indexname": "bronze_contaazul_centros_custo_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_contaazul_centros_custo_pkey ON bronze.bronze_contaazul_centros_custo USING btree (bar_id, contaazul_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_contas_financeiras",
+    "indexname": "bronze_contaazul_contas_financeiras_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_contaazul_contas_financeiras_pkey ON bronze.bronze_contaazul_contas_financeiras USING btree (bar_id, contaazul_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_lancamentos",
+    "indexname": "bronze_contaazul_lancamentos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_contaazul_lancamentos_pkey ON bronze.bronze_contaazul_lancamentos USING btree (bar_id, contaazul_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_lancamentos",
+    "indexname": "idx_bronze_ca_lanc_cat",
+    "indexdef": "CREATE INDEX idx_bronze_ca_lanc_cat ON bronze.bronze_contaazul_lancamentos USING btree (categoria_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_lancamentos",
+    "indexname": "idx_bronze_ca_lanc_cc",
+    "indexdef": "CREATE INDEX idx_bronze_ca_lanc_cc ON bronze.bronze_contaazul_lancamentos USING btree (centro_custo_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_lancamentos",
+    "indexname": "idx_bronze_ca_lanc_comp",
+    "indexdef": "CREATE INDEX idx_bronze_ca_lanc_comp ON bronze.bronze_contaazul_lancamentos USING btree (bar_id, data_competencia DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_lancamentos",
+    "indexname": "idx_bronze_ca_lanc_pag",
+    "indexdef": "CREATE INDEX idx_bronze_ca_lanc_pag ON bronze.bronze_contaazul_lancamentos USING btree (bar_id, data_pagamento DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_lancamentos",
+    "indexname": "idx_bronze_ca_lanc_tipo_status",
+    "indexdef": "CREATE INDEX idx_bronze_ca_lanc_tipo_status ON bronze.bronze_contaazul_lancamentos USING btree (bar_id, tipo, status)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_lancamentos",
+    "indexname": "idx_bronze_ca_lanc_venc",
+    "indexdef": "CREATE INDEX idx_bronze_ca_lanc_venc ON bronze.bronze_contaazul_lancamentos USING btree (bar_id, data_vencimento DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_sync_log",
+    "indexname": "bronze_contaazul_sync_log_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_contaazul_sync_log_pkey ON bronze.bronze_contaazul_sync_log USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contaazul_sync_log",
+    "indexname": "idx_bronze_ca_log_bar",
+    "indexdef": "CREATE INDEX idx_bronze_ca_log_bar ON bronze.bronze_contaazul_sync_log USING btree (bar_id, data_inicio DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_cancelamentos",
+    "indexname": "bronze_contahub_avendas_cancelamentos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_contahub_avendas_cancelamentos_pkey ON bronze.bronze_contahub_avendas_cancelamentos USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_cancelamentos",
+    "indexname": "idx_bronze_cancel_bar_data",
+    "indexdef": "CREATE INDEX idx_bronze_cancel_bar_data ON bronze.bronze_contahub_avendas_cancelamentos USING btree (bar_id, dt_gerencial)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_cancelamentos",
+    "indexname": "idx_bronze_cancel_cancelou",
+    "indexdef": "CREATE INDEX idx_bronze_cancel_cancelou ON bronze.bronze_contahub_avendas_cancelamentos USING btree (cancelou)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_cancelamentos",
+    "indexname": "idx_bronze_cancel_prd",
+    "indexdef": "CREATE INDEX idx_bronze_cancel_prd ON bronze.bronze_contahub_avendas_cancelamentos USING btree (prd)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_porproduto_analitico",
+    "indexname": "contahub_analitico_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contahub_analitico_pkey ON bronze.bronze_contahub_avendas_porproduto_analitico USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_porproduto_analitico",
+    "indexname": "idx_contahub_analitico_bar_data",
+    "indexdef": "CREATE INDEX idx_contahub_analitico_bar_data ON bronze.bronze_contahub_avendas_porproduto_analitico USING btree (bar_id, trn_dtgerencial)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_porproduto_analitico",
+    "indexname": "idx_contahub_analitico_bar_id",
+    "indexdef": "CREATE INDEX idx_contahub_analitico_bar_id ON bronze.bronze_contahub_avendas_porproduto_analitico USING btree (bar_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_porproduto_analitico",
+    "indexname": "idx_contahub_analitico_data_bar",
+    "indexdef": "CREATE INDEX idx_contahub_analitico_data_bar ON bronze.bronze_contahub_avendas_porproduto_analitico USING btree (trn_dtgerencial, bar_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_porproduto_analitico",
+    "indexname": "idx_contahub_analitico_loc_desc",
+    "indexdef": "CREATE INDEX idx_contahub_analitico_loc_desc ON bronze.bronze_contahub_avendas_porproduto_analitico USING btree (loc_desc) WHERE (loc_desc IS NOT NULL)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_vendasdiahoraanalitico",
+    "indexname": "contahub_fatporhora_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contahub_fatporhora_pkey ON bronze.bronze_contahub_avendas_vendasdiahoraanalitico USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_vendasdiahoraanalitico",
+    "indexname": "idx_contahub_fatporhora_bar_id",
+    "indexdef": "CREATE INDEX idx_contahub_fatporhora_bar_id ON bronze.bronze_contahub_avendas_vendasdiahoraanalitico USING btree (bar_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_vendasperiodo",
+    "indexname": "contahub_periodo_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contahub_periodo_pkey ON bronze.bronze_contahub_avendas_vendasperiodo USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_vendasperiodo",
+    "indexname": "idx_contahub_periodo_bar_id",
+    "indexdef": "CREATE INDEX idx_contahub_periodo_bar_id ON bronze.bronze_contahub_avendas_vendasperiodo USING btree (bar_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_vendasperiodo",
+    "indexname": "idx_vendasperiodo_bar_data",
+    "indexdef": "CREATE INDEX idx_vendasperiodo_bar_data ON bronze.bronze_contahub_avendas_vendasperiodo USING btree (bar_id, vd_dtgerencial)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_financeiro_pagamentosrecebidos",
+    "indexname": "contahub_pagamentos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contahub_pagamentos_pkey ON bronze.bronze_contahub_financeiro_pagamentosrecebidos USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_financeiro_pagamentosrecebidos",
+    "indexname": "idx_contahub_pagamentos_bar_data",
+    "indexdef": "CREATE INDEX idx_contahub_pagamentos_bar_data ON bronze.bronze_contahub_financeiro_pagamentosrecebidos USING btree (bar_id, dt_gerencial)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_financeiro_pagamentosrecebidos",
+    "indexname": "idx_contahub_pagamentos_bar_id",
+    "indexdef": "CREATE INDEX idx_contahub_pagamentos_bar_id ON bronze.bronze_contahub_financeiro_pagamentosrecebidos USING btree (bar_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_financeiro_pagamentosrecebidos",
+    "indexname": "idx_contahub_pagamentos_cli_cpf",
+    "indexdef": "CREATE INDEX idx_contahub_pagamentos_cli_cpf ON bronze.bronze_contahub_financeiro_pagamentosrecebidos USING btree (cli_cpf) WHERE (cli_cpf IS NOT NULL)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_financeiro_pagamentosrecebidos",
+    "indexname": "idx_contahub_pagamentos_cli_fone",
+    "indexdef": "CREATE INDEX idx_contahub_pagamentos_cli_fone ON bronze.bronze_contahub_financeiro_pagamentosrecebidos USING btree (cli_fone) WHERE (cli_fone IS NOT NULL)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_operacional_stockout_raw",
+    "indexname": "contahub_stockout_raw_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contahub_stockout_raw_pkey ON bronze.bronze_contahub_operacional_stockout_raw USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_operacional_stockout_raw",
+    "indexname": "idx_stockout_raw_bar_data",
+    "indexdef": "CREATE INDEX idx_stockout_raw_bar_data ON bronze.bronze_contahub_operacional_stockout_raw USING btree (bar_id, data_consulta)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_operacional_stockout_raw",
+    "indexname": "idx_stockout_raw_hora",
+    "indexdef": "CREATE INDEX idx_stockout_raw_hora ON bronze.bronze_contahub_operacional_stockout_raw USING btree (hora_consulta_real)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_operacional_stockout_raw",
+    "indexname": "idx_stockout_raw_prd_venda",
+    "indexdef": "CREATE INDEX idx_stockout_raw_prd_venda ON bronze.bronze_contahub_operacional_stockout_raw USING btree (prd_venda)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_operacional_stockout_raw",
+    "indexname": "unique_stockout_raw",
+    "indexdef": "CREATE UNIQUE INDEX unique_stockout_raw ON bronze.bronze_contahub_operacional_stockout_raw USING btree (bar_id, data_consulta, prd, loc, hora_consulta_real)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_produtos_temposproducao",
+    "indexname": "contahub_tempo_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contahub_tempo_pkey ON bronze.bronze_contahub_produtos_temposproducao USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_produtos_temposproducao",
+    "indexname": "idx_contahub_tempo_bar_data",
+    "indexdef": "CREATE INDEX idx_contahub_tempo_bar_data ON bronze.bronze_contahub_produtos_temposproducao USING btree (bar_id, data)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_produtos_temposproducao",
+    "indexname": "idx_contahub_tempo_bar_id",
+    "indexdef": "CREATE INDEX idx_contahub_tempo_bar_id ON bronze.bronze_contahub_produtos_temposproducao USING btree (bar_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_raw_data",
+    "indexname": "contahub_raw_data_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contahub_raw_data_pkey ON bronze.bronze_contahub_raw_data USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_raw_data",
+    "indexname": "idx_contahub_raw_data_needs_reprocess",
+    "indexdef": "CREATE INDEX idx_contahub_raw_data_needs_reprocess ON bronze.bronze_contahub_raw_data USING btree (bar_id, needs_reprocess) WHERE ((needs_reprocess = true) OR (processed = false))"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_raw_data",
+    "indexname": "uk_contahub_raw_data_unique_collection",
+    "indexdef": "CREATE UNIQUE INDEX uk_contahub_raw_data_unique_collection ON bronze.bronze_contahub_raw_data USING btree (bar_id, data_type, data_date)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_tentativas",
+    "indexname": "bronze_contahub_tentativas_bar_id_data_date_key",
+    "indexdef": "CREATE UNIQUE INDEX bronze_contahub_tentativas_bar_id_data_date_key ON bronze.bronze_contahub_tentativas USING btree (bar_id, data_date)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_tentativas",
+    "indexname": "bronze_contahub_tentativas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_contahub_tentativas_pkey ON bronze.bronze_contahub_tentativas USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_tentativas",
+    "indexname": "idx_tentativas_bar_data",
+    "indexdef": "CREATE INDEX idx_tentativas_bar_data ON bronze.bronze_contahub_tentativas USING btree (bar_id, data_date)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_falae_respostas",
+    "indexname": "bronze_falae_respostas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_falae_respostas_pkey ON bronze.bronze_falae_respostas USING btree (bar_id, falae_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_falae_respostas",
+    "indexname": "idx_bronze_falae_data",
+    "indexdef": "CREATE INDEX idx_bronze_falae_data ON bronze.bronze_falae_respostas USING btree (bar_id, created_at DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_falae_respostas",
+    "indexname": "idx_bronze_falae_email",
+    "indexdef": "CREATE INDEX idx_bronze_falae_email ON bronze.bronze_falae_respostas USING btree (client_email)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_falae_respostas",
+    "indexname": "idx_bronze_falae_nps",
+    "indexdef": "CREATE INDEX idx_bronze_falae_nps ON bronze.bronze_falae_respostas USING btree (bar_id, nps)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_falae_respostas",
+    "indexname": "idx_bronze_falae_phone",
+    "indexdef": "CREATE INDEX idx_bronze_falae_phone ON bronze.bronze_falae_respostas USING btree (client_phone)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_getin_reservations",
+    "indexname": "bronze_getin_reservations_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_getin_reservations_pkey ON bronze.bronze_getin_reservations USING btree (bar_id, reservation_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_getin_reservations",
+    "indexname": "idx_bronze_getin_res_date",
+    "indexdef": "CREATE INDEX idx_bronze_getin_res_date ON bronze.bronze_getin_reservations USING btree (bar_id, reservation_date DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_getin_reservations",
+    "indexname": "idx_bronze_getin_res_phone",
+    "indexdef": "CREATE INDEX idx_bronze_getin_res_phone ON bronze.bronze_getin_reservations USING btree (customer_phone)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_getin_reservations",
+    "indexname": "idx_bronze_getin_res_status",
+    "indexdef": "CREATE INDEX idx_bronze_getin_res_status ON bronze.bronze_getin_reservations USING btree (bar_id, status)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_getin_units",
+    "indexname": "bronze_getin_units_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_getin_units_pkey ON bronze.bronze_getin_units USING btree (bar_id, unit_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_google_reviews",
+    "indexname": "bronze_google_reviews_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_google_reviews_pkey ON bronze.bronze_google_reviews USING btree (bar_id, review_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_google_reviews",
+    "indexname": "idx_bronze_google_reviews_date",
+    "indexdef": "CREATE INDEX idx_bronze_google_reviews_date ON bronze.bronze_google_reviews USING btree (bar_id, published_at_date DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_google_reviews",
+    "indexname": "idx_bronze_google_reviews_place",
+    "indexdef": "CREATE INDEX idx_bronze_google_reviews_place ON bronze.bronze_google_reviews USING btree (place_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_google_reviews",
+    "indexname": "idx_bronze_google_reviews_stars",
+    "indexdef": "CREATE INDEX idx_bronze_google_reviews_stars ON bronze.bronze_google_reviews USING btree (bar_id, stars)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_eventos",
+    "indexname": "bronze_sympla_eventos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_sympla_eventos_pkey ON bronze.bronze_sympla_eventos USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_eventos",
+    "indexname": "idx_bronze_sympla_eventos_data",
+    "indexdef": "CREATE INDEX idx_bronze_sympla_eventos_data ON bronze.bronze_sympla_eventos USING btree (start_date)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_eventos",
+    "indexname": "unique_sympla_evento",
+    "indexdef": "CREATE UNIQUE INDEX unique_sympla_evento ON bronze.bronze_sympla_eventos USING btree (bar_id, event_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_participantes",
+    "indexname": "bronze_sympla_participantes_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_sympla_participantes_pkey ON bronze.bronze_sympla_participantes USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_participantes",
+    "indexname": "idx_bronze_sympla_part_email",
+    "indexdef": "CREATE INDEX idx_bronze_sympla_part_email ON bronze.bronze_sympla_participantes USING btree (email)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_participantes",
+    "indexname": "idx_bronze_sympla_part_event",
+    "indexdef": "CREATE INDEX idx_bronze_sympla_part_event ON bronze.bronze_sympla_participantes USING btree (bar_id, event_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_participantes",
+    "indexname": "idx_bronze_sympla_part_evento",
+    "indexdef": "CREATE INDEX idx_bronze_sympla_part_evento ON bronze.bronze_sympla_participantes USING btree (bar_id, event_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_participantes",
+    "indexname": "idx_bronze_sympla_part_order",
+    "indexdef": "CREATE INDEX idx_bronze_sympla_part_order ON bronze.bronze_sympla_participantes USING btree (order_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_participantes",
+    "indexname": "unique_sympla_participante",
+    "indexdef": "CREATE UNIQUE INDEX unique_sympla_participante ON bronze.bronze_sympla_participantes USING btree (bar_id, participant_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_pedidos",
+    "indexname": "bronze_sympla_pedidos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_sympla_pedidos_pkey ON bronze.bronze_sympla_pedidos USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_pedidos",
+    "indexname": "idx_bronze_sympla_pedidos_data",
+    "indexdef": "CREATE INDEX idx_bronze_sympla_pedidos_data ON bronze.bronze_sympla_pedidos USING btree (order_date)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_pedidos",
+    "indexname": "idx_bronze_sympla_pedidos_date",
+    "indexdef": "CREATE INDEX idx_bronze_sympla_pedidos_date ON bronze.bronze_sympla_pedidos USING btree (order_date)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_pedidos",
+    "indexname": "idx_bronze_sympla_pedidos_email",
+    "indexdef": "CREATE INDEX idx_bronze_sympla_pedidos_email ON bronze.bronze_sympla_pedidos USING btree (buyer_email)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_pedidos",
+    "indexname": "idx_bronze_sympla_pedidos_event",
+    "indexdef": "CREATE INDEX idx_bronze_sympla_pedidos_event ON bronze.bronze_sympla_pedidos USING btree (bar_id, event_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_pedidos",
+    "indexname": "idx_bronze_sympla_pedidos_evento",
+    "indexdef": "CREATE INDEX idx_bronze_sympla_pedidos_evento ON bronze.bronze_sympla_pedidos USING btree (bar_id, event_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_pedidos",
+    "indexname": "idx_bronze_sympla_pedidos_status",
+    "indexdef": "CREATE INDEX idx_bronze_sympla_pedidos_status ON bronze.bronze_sympla_pedidos USING btree (order_status)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_pedidos",
+    "indexname": "unique_sympla_pedido",
+    "indexdef": "CREATE UNIQUE INDEX unique_sympla_pedido ON bronze.bronze_sympla_pedidos USING btree (bar_id, order_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_sync_log",
+    "indexname": "bronze_sympla_sync_log_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_sympla_sync_log_pkey ON bronze.bronze_sympla_sync_log USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_sympla_sync_log",
+    "indexname": "idx_sympla_sync_log_event",
+    "indexdef": "CREATE INDEX idx_sympla_sync_log_event ON bronze.bronze_sympla_sync_log USING btree (event_id, executado_em DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_campanha_destinatarios",
+    "indexname": "bronze_umbler_campanha_destinatarios_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_umbler_campanha_destinatarios_pkey ON bronze.bronze_umbler_campanha_destinatarios USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_campanha_destinatarios",
+    "indexname": "idx_bronze_umbler_destin_campanha",
+    "indexdef": "CREATE INDEX idx_bronze_umbler_destin_campanha ON bronze.bronze_umbler_campanha_destinatarios USING btree (campanha_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_campanha_destinatarios",
+    "indexname": "idx_bronze_umbler_destin_msg",
+    "indexdef": "CREATE INDEX idx_bronze_umbler_destin_msg ON bronze.bronze_umbler_campanha_destinatarios USING btree (mensagem_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_campanhas",
+    "indexname": "bronze_umbler_campanhas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_umbler_campanhas_pkey ON bronze.bronze_umbler_campanhas USING btree (bar_id, id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_config",
+    "indexname": "bronze_umbler_config_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_umbler_config_pkey ON bronze.bronze_umbler_config USING btree (bar_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_conversas",
+    "indexname": "bronze_umbler_conversas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_umbler_conversas_pkey ON bronze.bronze_umbler_conversas USING btree (bar_id, id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_conversas",
+    "indexname": "idx_bronze_umbler_conv_cliente",
+    "indexdef": "CREATE INDEX idx_bronze_umbler_conv_cliente ON bronze.bronze_umbler_conversas USING btree (cliente_contahub_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_conversas",
+    "indexname": "idx_bronze_umbler_conv_status",
+    "indexdef": "CREATE INDEX idx_bronze_umbler_conv_status ON bronze.bronze_umbler_conversas USING btree (bar_id, status)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_conversas",
+    "indexname": "idx_bronze_umbler_conv_telefone",
+    "indexdef": "CREATE INDEX idx_bronze_umbler_conv_telefone ON bronze.bronze_umbler_conversas USING btree (contato_telefone)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_conversas",
+    "indexname": "idx_bronze_umbler_conv_ult_msg",
+    "indexdef": "CREATE INDEX idx_bronze_umbler_conv_ult_msg ON bronze.bronze_umbler_conversas USING btree (bar_id, ultima_mensagem_em DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_mensagens",
+    "indexname": "bronze_umbler_mensagens_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_umbler_mensagens_pkey ON bronze.bronze_umbler_mensagens USING btree (bar_id, id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_mensagens",
+    "indexname": "idx_bronze_umbler_msg_campanha",
+    "indexdef": "CREATE INDEX idx_bronze_umbler_msg_campanha ON bronze.bronze_umbler_mensagens USING btree (campanha_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_mensagens",
+    "indexname": "idx_bronze_umbler_msg_conversa",
+    "indexdef": "CREATE INDEX idx_bronze_umbler_msg_conversa ON bronze.bronze_umbler_mensagens USING btree (conversa_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_mensagens",
+    "indexname": "idx_bronze_umbler_msg_direcao",
+    "indexdef": "CREATE INDEX idx_bronze_umbler_msg_direcao ON bronze.bronze_umbler_mensagens USING btree (bar_id, direcao)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_mensagens",
+    "indexname": "idx_bronze_umbler_msg_enviada",
+    "indexdef": "CREATE INDEX idx_bronze_umbler_msg_enviada ON bronze.bronze_umbler_mensagens USING btree (bar_id, enviada_em DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_umbler_mensagens",
+    "indexname": "idx_bronze_umbler_msg_telefone",
+    "indexdef": "CREATE INDEX idx_bronze_umbler_msg_telefone ON bronze.bronze_umbler_mensagens USING btree (contato_telefone)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_estatisticas_evento",
+    "indexname": "bronze_yuzer_estatisticas_evento_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_yuzer_estatisticas_evento_pkey ON bronze.bronze_yuzer_estatisticas_evento USING btree (bar_id, evento_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_estatisticas_evento",
+    "indexname": "ix_byest_data",
+    "indexdef": "CREATE INDEX ix_byest_data ON bronze.bronze_yuzer_estatisticas_evento USING btree (bar_id, data_evento DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_eventos",
+    "indexname": "bronze_yuzer_eventos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_yuzer_eventos_pkey ON bronze.bronze_yuzer_eventos USING btree (bar_id, evento_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_eventos",
+    "indexname": "ix_byev_data_inicio",
+    "indexdef": "CREATE INDEX ix_byev_data_inicio ON bronze.bronze_yuzer_eventos USING btree (bar_id, data_inicio DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_eventos",
+    "indexname": "ix_byev_status",
+    "indexdef": "CREATE INDEX ix_byev_status ON bronze.bronze_yuzer_eventos USING btree (bar_id, status)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_fatporhora",
+    "indexname": "bronze_yuzer_fatporhora_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_yuzer_fatporhora_pkey ON bronze.bronze_yuzer_fatporhora USING btree (bar_id, evento_id, data_hora)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_fatporhora",
+    "indexname": "ix_byfh_data_hora",
+    "indexdef": "CREATE INDEX ix_byfh_data_hora ON bronze.bronze_yuzer_fatporhora USING btree (bar_id, data_hora)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_fatporhora",
+    "indexname": "ix_byfh_evento",
+    "indexdef": "CREATE INDEX ix_byfh_evento ON bronze.bronze_yuzer_fatporhora USING btree (bar_id, evento_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_pagamentos_evento",
+    "indexname": "bronze_yuzer_pagamentos_evento_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_yuzer_pagamentos_evento_pkey ON bronze.bronze_yuzer_pagamentos_evento USING btree (bar_id, evento_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_pagamentos_evento",
+    "indexname": "ix_bypag_data",
+    "indexdef": "CREATE INDEX ix_bypag_data ON bronze.bronze_yuzer_pagamentos_evento USING btree (bar_id, data_evento DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_produtos_evento",
+    "indexname": "bronze_yuzer_produtos_evento_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_yuzer_produtos_evento_pkey ON bronze.bronze_yuzer_produtos_evento USING btree (bar_id, evento_id, produto_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_produtos_evento",
+    "indexname": "ix_bype_evento",
+    "indexdef": "CREATE INDEX ix_bype_evento ON bronze.bronze_yuzer_produtos_evento USING btree (bar_id, evento_id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_produtos_evento",
+    "indexname": "ix_bypecat",
+    "indexdef": "CREATE INDEX ix_bypecat ON bronze.bronze_yuzer_produtos_evento USING btree (bar_id, categoria, subcategoria)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_sync_log",
+    "indexname": "bronze_yuzer_sync_log_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bronze_yuzer_sync_log_pkey ON bronze.bronze_yuzer_sync_log USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_sync_log",
+    "indexname": "ix_byslog_evento_tipo",
+    "indexdef": "CREATE INDEX ix_byslog_evento_tipo ON bronze.bronze_yuzer_sync_log USING btree (bar_id, evento_id, tipo)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_yuzer_sync_log",
+    "indexname": "ix_byslog_executed",
+    "indexdef": "CREATE INDEX ix_byslog_executed ON bronze.bronze_yuzer_sync_log USING btree (executed_at DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "eventos",
+    "indexname": "eventos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX eventos_pkey ON bronze.eventos USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "eventos",
+    "indexname": "idx_bronze_eventos_bar_data",
+    "indexdef": "CREATE INDEX idx_bronze_eventos_bar_data ON bronze.eventos USING btree (bar_id, data_evento)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "eventos",
+    "indexname": "idx_bronze_eventos_data_ativo",
+    "indexdef": "CREATE INDEX idx_bronze_eventos_data_ativo ON bronze.eventos USING btree (data_evento DESC) WHERE (ativo = true)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "eventos_historico",
+    "indexname": "eventos_historico_pkey",
+    "indexdef": "CREATE UNIQUE INDEX eventos_historico_pkey ON bronze.eventos_historico USING btree (id)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "eventos_historico",
+    "indexname": "idx_eventos_historico_data",
+    "indexdef": "CREATE INDEX idx_eventos_historico_data ON bronze.eventos_historico USING btree (alterado_em DESC)"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "eventos_historico",
+    "indexname": "idx_eventos_historico_evento",
+    "indexdef": "CREATE INDEX idx_eventos_historico_evento ON bronze.eventos_historico USING btree (evento_id, alterado_em DESC)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "cliente_perfil_consumo_legacy_backup",
+    "indexname": "cliente_perfil_consumo_bar_id_telefone_key",
+    "indexdef": "CREATE UNIQUE INDEX cliente_perfil_consumo_bar_id_telefone_key ON crm.cliente_perfil_consumo_legacy_backup USING btree (bar_id, telefone)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "cliente_perfil_consumo_legacy_backup",
+    "indexname": "cliente_perfil_consumo_pkey",
+    "indexdef": "CREATE UNIQUE INDEX cliente_perfil_consumo_pkey ON crm.cliente_perfil_consumo_legacy_backup USING btree (id)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "cliente_perfil_consumo_legacy_backup",
+    "indexname": "idx_cliente_perfil_visitas",
+    "indexdef": "CREATE INDEX idx_cliente_perfil_visitas ON crm.cliente_perfil_consumo_legacy_backup USING btree (bar_id, total_visitas DESC)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "crm_segmentacao",
+    "indexname": "crm_segmentacao_pkey",
+    "indexdef": "CREATE UNIQUE INDEX crm_segmentacao_pkey ON crm.crm_segmentacao USING btree (id)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "crm_segmentacao",
+    "indexname": "idx_crm_segmentacao_bar_id",
+    "indexdef": "CREATE INDEX idx_crm_segmentacao_bar_id ON crm.crm_segmentacao USING btree (bar_id)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "crm_templates",
+    "indexname": "crm_templates_pkey",
+    "indexdef": "CREATE UNIQUE INDEX crm_templates_pkey ON crm.crm_templates USING btree (id)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps",
+    "indexname": "idx_nps_bar_data",
+    "indexdef": "CREATE INDEX idx_nps_bar_data ON crm.nps USING btree (bar_id, data_pesquisa DESC)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps",
+    "indexname": "nps_bar_id_data_pesquisa_funcionario_nome_setor_key",
+    "indexdef": "CREATE UNIQUE INDEX nps_bar_id_data_pesquisa_funcionario_nome_setor_key ON crm.nps USING btree (bar_id, data_pesquisa, funcionario_nome, setor)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps",
+    "indexname": "nps_pkey",
+    "indexdef": "CREATE UNIQUE INDEX nps_pkey ON crm.nps USING btree (id)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_falae_diario_legacy_backup",
+    "indexname": "idx_nps_falae_diario_bar_data",
+    "indexdef": "CREATE INDEX idx_nps_falae_diario_bar_data ON crm.nps_falae_diario_legacy_backup USING btree (bar_id, data_referencia DESC)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_falae_diario_legacy_backup",
+    "indexname": "nps_falae_diario_bar_data_unique",
+    "indexdef": "CREATE UNIQUE INDEX nps_falae_diario_bar_data_unique ON crm.nps_falae_diario_legacy_backup USING btree (bar_id, data_referencia)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_falae_diario_legacy_backup",
+    "indexname": "nps_falae_diario_pkey",
+    "indexdef": "CREATE UNIQUE INDEX nps_falae_diario_pkey ON crm.nps_falae_diario_legacy_backup USING btree (id)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_falae_diario_pesquisa",
+    "indexname": "idx_nps_falae_diario_pesquisa_bar_data",
+    "indexdef": "CREATE INDEX idx_nps_falae_diario_pesquisa_bar_data ON crm.nps_falae_diario_pesquisa USING btree (bar_id, data_referencia)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_falae_diario_pesquisa",
+    "indexname": "idx_nps_falae_diario_pesquisa_search",
+    "indexdef": "CREATE INDEX idx_nps_falae_diario_pesquisa_search ON crm.nps_falae_diario_pesquisa USING btree (search_name)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_falae_diario_pesquisa",
+    "indexname": "nps_falae_diario_pesquisa_bar_id_data_referencia_search_nam_key",
+    "indexdef": "CREATE UNIQUE INDEX nps_falae_diario_pesquisa_bar_id_data_referencia_search_nam_key ON crm.nps_falae_diario_pesquisa USING btree (bar_id, data_referencia, search_name)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_falae_diario_pesquisa",
+    "indexname": "nps_falae_diario_pesquisa_pkey",
+    "indexdef": "CREATE UNIQUE INDEX nps_falae_diario_pesquisa_pkey ON crm.nps_falae_diario_pesquisa USING btree (id)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_reservas",
+    "indexname": "idx_nps_reservas_data",
+    "indexdef": "CREATE INDEX idx_nps_reservas_data ON crm.nps_reservas USING btree (data_pesquisa DESC)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_reservas",
+    "indexname": "nps_reservas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX nps_reservas_pkey ON crm.nps_reservas USING btree (id)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_reservas",
+    "indexname": "nps_reservas_unique",
+    "indexdef": "CREATE UNIQUE INDEX nps_reservas_unique ON crm.nps_reservas USING btree (bar_id, data_pesquisa, nota, dia_semana, comentarios) NULLS NOT DISTINCT"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "voz_cliente",
+    "indexname": "idx_voz_cliente_bar_data",
+    "indexdef": "CREATE INDEX idx_voz_cliente_bar_data ON crm.voz_cliente USING btree (bar_id, data_feedback)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "voz_cliente",
+    "indexname": "voz_cliente_bar_id_data_feedback_feedback_key",
+    "indexdef": "CREATE UNIQUE INDEX voz_cliente_bar_id_data_feedback_feedback_key ON crm.voz_cliente USING btree (bar_id, data_feedback, feedback)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "voz_cliente",
+    "indexname": "voz_cliente_pkey",
+    "indexdef": "CREATE UNIQUE INDEX voz_cliente_pkey ON crm.voz_cliente USING btree (id)"
+  },
+  {
+    "schemaname": "cron",
+    "tablename": "job",
+    "indexname": "job_pkey",
+    "indexdef": "CREATE UNIQUE INDEX job_pkey ON cron.job USING btree (jobid)"
+  },
+  {
+    "schemaname": "cron",
+    "tablename": "job",
+    "indexname": "jobname_username_uniq",
+    "indexdef": "CREATE UNIQUE INDEX jobname_username_uniq ON cron.job USING btree (jobname, username)"
+  },
+  {
+    "schemaname": "cron",
+    "tablename": "job_run_details",
+    "indexname": "job_run_details_pkey",
+    "indexdef": "CREATE UNIQUE INDEX job_run_details_pkey ON cron.job_run_details USING btree (runid)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_impostos_movimentos",
+    "indexname": "caixa_impostos_movimentos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX caixa_impostos_movimentos_pkey ON financial.caixa_impostos_movimentos USING btree (id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_investimentos_movimentos",
+    "indexname": "caixa_investimentos_movimentos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX caixa_investimentos_movimentos_pkey ON financial.caixa_investimentos_movimentos USING btree (id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_recebimentos_futuros",
+    "indexname": "caixa_recebimentos_futuros_pkey",
+    "indexdef": "CREATE UNIQUE INDEX caixa_recebimentos_futuros_pkey ON financial.caixa_recebimentos_futuros USING btree (id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_valores_terceiros",
+    "indexname": "caixa_valores_terceiros_pkey",
+    "indexdef": "CREATE UNIQUE INDEX caixa_valores_terceiros_pkey ON financial.caixa_valores_terceiros USING btree (id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "cmv_mensal",
+    "indexname": "cmv_mensal_bar_id_ano_mes_key",
+    "indexdef": "CREATE UNIQUE INDEX cmv_mensal_bar_id_ano_mes_key ON financial.cmv_mensal USING btree (bar_id, ano, mes)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "cmv_mensal",
+    "indexname": "cmv_mensal_pkey",
+    "indexdef": "CREATE UNIQUE INDEX cmv_mensal_pkey ON financial.cmv_mensal USING btree (id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "cmv_semanal",
+    "indexname": "cmv_semanal_bar_id_ano_semana_key",
+    "indexdef": "CREATE UNIQUE INDEX cmv_semanal_bar_id_ano_semana_key ON financial.cmv_semanal USING btree (bar_id, ano, semana)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "cmv_semanal",
+    "indexname": "cmv_semanal_pkey",
+    "indexdef": "CREATE UNIQUE INDEX cmv_semanal_pkey ON financial.cmv_semanal USING btree (id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "custos_mensais_diluidos",
+    "indexname": "custos_mensais_diluidos_bar_id_mes_ano_descricao_key",
+    "indexdef": "CREATE UNIQUE INDEX custos_mensais_diluidos_bar_id_mes_ano_descricao_key ON financial.custos_mensais_diluidos USING btree (bar_id, mes, ano, descricao)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "custos_mensais_diluidos",
+    "indexname": "custos_mensais_diluidos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX custos_mensais_diluidos_pkey ON financial.custos_mensais_diluidos USING btree (id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "dre_manual",
+    "indexname": "dre_manual_pkey",
+    "indexdef": "CREATE UNIQUE INDEX dre_manual_pkey ON financial.dre_manual USING btree (id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "dre_manual",
+    "indexname": "idx_dre_manual_categoria",
+    "indexdef": "CREATE INDEX idx_dre_manual_categoria ON financial.dre_manual USING btree (categoria)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "formas_pagamento",
+    "indexname": "formas_pagamento_pkey",
+    "indexdef": "CREATE UNIQUE INDEX formas_pagamento_pkey ON financial.formas_pagamento USING btree (id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "formas_pagamento",
+    "indexname": "idx_formas_pagamento_empresa",
+    "indexdef": "CREATE INDEX idx_formas_pagamento_empresa ON financial.formas_pagamento USING btree (empresa_id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "fp_categorias_template",
+    "indexname": "fp_categorias_template_pkey",
+    "indexdef": "CREATE UNIQUE INDEX fp_categorias_template_pkey ON financial.fp_categorias_template USING btree (id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "fp_contas",
+    "indexname": "fp_contas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX fp_contas_pkey ON financial.fp_contas USING btree (id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "fp_contas",
+    "indexname": "idx_fp_contas_usuario",
+    "indexdef": "CREATE INDEX idx_fp_contas_usuario ON financial.fp_contas USING btree (usuario_cpf)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "orcamentacao",
+    "indexname": "orcamentacao_bar_id_ano_mes_categoria_nome_subcategoria_key",
+    "indexdef": "CREATE UNIQUE INDEX orcamentacao_bar_id_ano_mes_categoria_nome_subcategoria_key ON financial.orcamentacao USING btree (bar_id, ano, mes, categoria_nome, subcategoria)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "orcamentacao",
+    "indexname": "orcamentacao_pkey",
+    "indexdef": "CREATE UNIQUE INDEX orcamentacao_pkey ON financial.orcamentacao USING btree (id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "pix_enviados",
+    "indexname": "idx_pix_enviados_bar_id",
+    "indexdef": "CREATE INDEX idx_pix_enviados_bar_id ON financial.pix_enviados USING btree (bar_id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "pix_enviados",
+    "indexname": "pix_enviados_pkey",
+    "indexdef": "CREATE UNIQUE INDEX pix_enviados_pkey ON financial.pix_enviados USING btree (id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "pix_enviados",
+    "indexname": "pix_enviados_txid_key",
+    "indexdef": "CREATE UNIQUE INDEX pix_enviados_txid_key ON financial.pix_enviados USING btree (txid)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "simulacoes_cmo",
+    "indexname": "simulacoes_cmo_bar_id_mes_ano_key",
+    "indexdef": "CREATE UNIQUE INDEX simulacoes_cmo_bar_id_mes_ano_key ON financial.simulacoes_cmo USING btree (bar_id, mes, ano)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "simulacoes_cmo",
+    "indexname": "simulacoes_cmo_pkey",
+    "indexdef": "CREATE UNIQUE INDEX simulacoes_cmo_pkey ON financial.simulacoes_cmo USING btree (id)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "clientes_diario",
+    "indexname": "clientes_ativos_diario_pkey",
+    "indexdef": "CREATE UNIQUE INDEX clientes_ativos_diario_pkey ON gold.clientes_diario USING btree (id)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "clientes_diario",
+    "indexname": "idx_clientes_ativos_diario_bar_data",
+    "indexdef": "CREATE INDEX idx_clientes_ativos_diario_bar_data ON gold.clientes_diario USING btree (bar_id, data_referencia DESC)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "clientes_diario",
+    "indexname": "uq_clientes_ativos_diario_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_clientes_ativos_diario_natural ON gold.clientes_diario USING btree (bar_id, data_referencia)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "cmv",
+    "indexname": "cmv_semanal_calculado_pkey",
+    "indexdef": "CREATE UNIQUE INDEX cmv_semanal_calculado_pkey ON gold.cmv USING btree (id)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "cmv",
+    "indexname": "idx_gold_cmv_semanal_bar_periodo",
+    "indexdef": "CREATE INDEX idx_gold_cmv_semanal_bar_periodo ON gold.cmv USING btree (bar_id, ano DESC, semana DESC)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "cmv",
+    "indexname": "uq_gold_cmv_semanal_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_gold_cmv_semanal_natural ON gold.cmv USING btree (bar_id, ano, semana)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "desempenho",
+    "indexname": "desempenho_semanal_pkey",
+    "indexdef": "CREATE UNIQUE INDEX desempenho_semanal_pkey ON gold.desempenho USING btree (id)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "desempenho",
+    "indexname": "idx_gold_desempenho_bar_gran_periodo",
+    "indexdef": "CREATE INDEX idx_gold_desempenho_bar_gran_periodo ON gold.desempenho USING btree (bar_id, granularidade, periodo DESC)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "desempenho",
+    "indexname": "idx_gold_desempenho_datas",
+    "indexdef": "CREATE INDEX idx_gold_desempenho_datas ON gold.desempenho USING btree (bar_id, data_inicio, data_fim)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "desempenho",
+    "indexname": "uq_gold_desempenho_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_gold_desempenho_natural ON gold.desempenho USING btree (bar_id, granularidade, periodo)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "gold_contahub_operacional_stockout",
+    "indexname": "contahub_stockout_bar_id_data_consulta_prd_key",
+    "indexdef": "CREATE UNIQUE INDEX contahub_stockout_bar_id_data_consulta_prd_key ON gold.gold_contahub_operacional_stockout USING btree (bar_id, data_consulta, prd)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "gold_contahub_operacional_stockout",
+    "indexname": "contahub_stockout_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contahub_stockout_pkey ON gold.gold_contahub_operacional_stockout USING btree (id)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "gold_contahub_operacional_stockout",
+    "indexname": "idx_contahub_stockout_bar_data",
+    "indexdef": "CREATE INDEX idx_contahub_stockout_bar_data ON gold.gold_contahub_operacional_stockout USING btree (bar_id, data_consulta DESC)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "gold_contahub_operacional_stockout",
+    "indexname": "idx_contahub_stockout_data",
+    "indexdef": "CREATE INDEX idx_contahub_stockout_data ON gold.gold_contahub_operacional_stockout USING btree (data_consulta DESC)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "gold_contahub_operacional_stockout",
+    "indexname": "idx_stockout_grp_desc",
+    "indexdef": "CREATE INDEX idx_stockout_grp_desc ON gold.gold_contahub_operacional_stockout USING btree (bar_id, grp_desc)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "planejamento",
+    "indexname": "idx_planejamento_comercial_diario_bar_data",
+    "indexdef": "CREATE INDEX idx_planejamento_comercial_diario_bar_data ON gold.planejamento USING btree (bar_id, data_evento DESC)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "planejamento",
+    "indexname": "idx_planejamento_comercial_diario_recalculo",
+    "indexdef": "CREATE INDEX idx_planejamento_comercial_diario_recalculo ON gold.planejamento USING btree (precisa_recalculo) WHERE (precisa_recalculo = true)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "planejamento",
+    "indexname": "planejamento_comercial_diario_pkey",
+    "indexdef": "CREATE UNIQUE INDEX planejamento_comercial_diario_pkey ON gold.planejamento USING btree (id)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "planejamento",
+    "indexname": "uq_planejamento_comercial_diario_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_planejamento_comercial_diario_natural ON gold.planejamento USING btree (bar_id, data_evento)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "v_pipeline_health",
+    "indexname": "uq_v_pipeline_health",
+    "indexdef": "CREATE UNIQUE INDEX uq_v_pipeline_health ON gold.v_pipeline_health USING btree (job_name, bar_id) NULLS NOT DISTINCT"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "areas",
+    "indexname": "areas_bar_id_nome_key",
+    "indexdef": "CREATE UNIQUE INDEX areas_bar_id_nome_key ON hr.areas USING btree (bar_id, nome)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "areas",
+    "indexname": "areas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX areas_pkey ON hr.areas USING btree (id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "areas",
+    "indexname": "idx_areas_bar_id",
+    "indexdef": "CREATE INDEX idx_areas_bar_id ON hr.areas USING btree (bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "cargos",
+    "indexname": "cargos_bar_id_nome_key",
+    "indexdef": "CREATE UNIQUE INDEX cargos_bar_id_nome_key ON hr.cargos USING btree (bar_id, nome)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "cargos",
+    "indexname": "cargos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX cargos_pkey ON hr.cargos USING btree (id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "cargos",
+    "indexname": "idx_cargos_bar_id",
+    "indexdef": "CREATE INDEX idx_cargos_bar_id ON hr.cargos USING btree (bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "contratos_funcionario",
+    "indexname": "contratos_funcionario_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contratos_funcionario_pkey ON hr.contratos_funcionario USING btree (id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "contratos_funcionario",
+    "indexname": "idx_contratos_funcionario_area_id",
+    "indexdef": "CREATE INDEX idx_contratos_funcionario_area_id ON hr.contratos_funcionario USING btree (area_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "contratos_funcionario",
+    "indexname": "idx_contratos_funcionario_cargo_id",
+    "indexdef": "CREATE INDEX idx_contratos_funcionario_cargo_id ON hr.contratos_funcionario USING btree (cargo_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "folha_pagamento",
+    "indexname": "folha_pagamento_funcionario_id_mes_ano_key",
+    "indexdef": "CREATE UNIQUE INDEX folha_pagamento_funcionario_id_mes_ano_key ON hr.folha_pagamento USING btree (funcionario_id, mes, ano)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "folha_pagamento",
+    "indexname": "folha_pagamento_pkey",
+    "indexdef": "CREATE UNIQUE INDEX folha_pagamento_pkey ON hr.folha_pagamento USING btree (id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "folha_pagamento",
+    "indexname": "idx_folha_bar_mes_ano",
+    "indexdef": "CREATE INDEX idx_folha_bar_mes_ano ON hr.folha_pagamento USING btree (bar_id, mes, ano)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "funcionarios",
+    "indexname": "funcionarios_pkey",
+    "indexdef": "CREATE UNIQUE INDEX funcionarios_pkey ON hr.funcionarios USING btree (id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "funcionarios",
+    "indexname": "idx_funcionarios_area_id_new",
+    "indexdef": "CREATE INDEX idx_funcionarios_area_id_new ON hr.funcionarios USING btree (area_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "funcionarios",
+    "indexname": "idx_funcionarios_bar_id",
+    "indexdef": "CREATE INDEX idx_funcionarios_bar_id ON hr.funcionarios USING btree (bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "funcionarios",
+    "indexname": "idx_funcionarios_cargo_id_new",
+    "indexdef": "CREATE INDEX idx_funcionarios_cargo_id_new ON hr.funcionarios USING btree (cargo_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "pesquisa_felicidade",
+    "indexname": "pesquisa_felicidade_bar_id_data_pesquisa_funcionario_nome_s_key",
+    "indexdef": "CREATE UNIQUE INDEX pesquisa_felicidade_bar_id_data_pesquisa_funcionario_nome_s_key ON hr.pesquisa_felicidade USING btree (bar_id, data_pesquisa, funcionario_nome, setor)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "pesquisa_felicidade",
+    "indexname": "pesquisa_felicidade_pkey",
+    "indexdef": "CREATE UNIQUE INDEX pesquisa_felicidade_pkey ON hr.pesquisa_felicidade USING btree (id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "provisoes_trabalhistas",
+    "indexname": "idx_provisoes_bar_id",
+    "indexdef": "CREATE INDEX idx_provisoes_bar_id ON hr.provisoes_trabalhistas USING btree (bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "provisoes_trabalhistas",
+    "indexname": "idx_provisoes_bar_mes_ano",
+    "indexdef": "CREATE INDEX idx_provisoes_bar_mes_ano ON hr.provisoes_trabalhistas USING btree (bar_id, mes, ano)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "provisoes_trabalhistas",
+    "indexname": "idx_provisoes_trabalhistas_funcionario_id_new",
+    "indexdef": "CREATE INDEX idx_provisoes_trabalhistas_funcionario_id_new ON hr.provisoes_trabalhistas USING btree (funcionario_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "provisoes_trabalhistas",
+    "indexname": "provisoes_trabalhistas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX provisoes_trabalhistas_pkey ON hr.provisoes_trabalhistas USING btree (id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "provisoes_trabalhistas",
+    "indexname": "provisoes_trabalhistas_unique_func_mes_ano",
+    "indexdef": "CREATE UNIQUE INDEX provisoes_trabalhistas_unique_func_mes_ano ON hr.provisoes_trabalhistas USING btree (bar_id, funcionario_id, mes, ano)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "bar_api_configs",
+    "indexname": "bar_api_configs_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bar_api_configs_pkey ON integrations.bar_api_configs USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "bar_api_configs",
+    "indexname": "idx_bar_api_configs_bar_id_fk",
+    "indexdef": "CREATE INDEX idx_bar_api_configs_bar_id_fk ON integrations.bar_api_configs USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_categorias",
+    "indexname": "contaazul_categorias_contaazul_id_key",
+    "indexdef": "CREATE UNIQUE INDEX contaazul_categorias_contaazul_id_key ON integrations.contaazul_categorias USING btree (contaazul_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_categorias",
+    "indexname": "contaazul_categorias_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contaazul_categorias_pkey ON integrations.contaazul_categorias USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_categorias",
+    "indexname": "idx_contaazul_categorias_ativo",
+    "indexdef": "CREATE INDEX idx_contaazul_categorias_ativo ON integrations.contaazul_categorias USING btree (ativo) WHERE (ativo = true)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_categorias",
+    "indexname": "idx_contaazul_categorias_bar_id",
+    "indexdef": "CREATE INDEX idx_contaazul_categorias_bar_id ON integrations.contaazul_categorias USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_categorias",
+    "indexname": "idx_contaazul_categorias_contaazul_id",
+    "indexdef": "CREATE UNIQUE INDEX idx_contaazul_categorias_contaazul_id ON integrations.contaazul_categorias USING btree (contaazul_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_categorias",
+    "indexname": "idx_contaazul_categorias_nome",
+    "indexdef": "CREATE INDEX idx_contaazul_categorias_nome ON integrations.contaazul_categorias USING btree (nome)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_categorias",
+    "indexname": "idx_contaazul_categorias_tipo",
+    "indexdef": "CREATE INDEX idx_contaazul_categorias_tipo ON integrations.contaazul_categorias USING btree (tipo)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_centros_custo",
+    "indexname": "contaazul_centros_custo_contaazul_id_key",
+    "indexdef": "CREATE UNIQUE INDEX contaazul_centros_custo_contaazul_id_key ON integrations.contaazul_centros_custo USING btree (contaazul_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_centros_custo",
+    "indexname": "contaazul_centros_custo_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contaazul_centros_custo_pkey ON integrations.contaazul_centros_custo USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_centros_custo",
+    "indexname": "idx_contaazul_centros_custo_ativo",
+    "indexdef": "CREATE INDEX idx_contaazul_centros_custo_ativo ON integrations.contaazul_centros_custo USING btree (ativo) WHERE (ativo = true)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_centros_custo",
+    "indexname": "idx_contaazul_centros_custo_bar_id",
+    "indexdef": "CREATE INDEX idx_contaazul_centros_custo_bar_id ON integrations.contaazul_centros_custo USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_centros_custo",
+    "indexname": "idx_contaazul_centros_custo_contaazul_id",
+    "indexdef": "CREATE UNIQUE INDEX idx_contaazul_centros_custo_contaazul_id ON integrations.contaazul_centros_custo USING btree (contaazul_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_centros_custo",
+    "indexname": "idx_contaazul_centros_custo_nome",
+    "indexdef": "CREATE INDEX idx_contaazul_centros_custo_nome ON integrations.contaazul_centros_custo USING btree (nome)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_contas_financeiras",
+    "indexname": "contaazul_contas_financeiras_contaazul_id_key",
+    "indexdef": "CREATE UNIQUE INDEX contaazul_contas_financeiras_contaazul_id_key ON integrations.contaazul_contas_financeiras USING btree (contaazul_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_contas_financeiras",
+    "indexname": "contaazul_contas_financeiras_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contaazul_contas_financeiras_pkey ON integrations.contaazul_contas_financeiras USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_contas_financeiras",
+    "indexname": "idx_contaazul_contas_financeiras_bar_id",
+    "indexdef": "CREATE INDEX idx_contaazul_contas_financeiras_bar_id ON integrations.contaazul_contas_financeiras USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_contas_financeiras",
+    "indexname": "idx_contaazul_contas_financeiras_contaazul_id",
+    "indexdef": "CREATE UNIQUE INDEX idx_contaazul_contas_financeiras_contaazul_id ON integrations.contaazul_contas_financeiras USING btree (contaazul_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_lancamentos",
+    "indexname": "contaazul_lancamentos_contaazul_id_bar_id_key",
+    "indexdef": "CREATE UNIQUE INDEX contaazul_lancamentos_contaazul_id_bar_id_key ON integrations.contaazul_lancamentos USING btree (contaazul_id, bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_lancamentos",
+    "indexname": "contaazul_lancamentos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contaazul_lancamentos_pkey ON integrations.contaazul_lancamentos USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_lancamentos",
+    "indexname": "idx_contaazul_lancamentos_bar_competencia",
+    "indexdef": "CREATE INDEX idx_contaazul_lancamentos_bar_competencia ON integrations.contaazul_lancamentos USING btree (bar_id, data_competencia)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_lancamentos",
+    "indexname": "idx_contaazul_lancamentos_bar_id",
+    "indexdef": "CREATE INDEX idx_contaazul_lancamentos_bar_id ON integrations.contaazul_lancamentos USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_lancamentos",
+    "indexname": "idx_contaazul_lancamentos_bar_tipo",
+    "indexdef": "CREATE INDEX idx_contaazul_lancamentos_bar_tipo ON integrations.contaazul_lancamentos USING btree (bar_id, tipo)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_lancamentos",
+    "indexname": "idx_contaazul_lancamentos_bar_vencimento",
+    "indexdef": "CREATE INDEX idx_contaazul_lancamentos_bar_vencimento ON integrations.contaazul_lancamentos USING btree (bar_id, data_vencimento)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_lancamentos",
+    "indexname": "idx_contaazul_lancamentos_contaazul_id_bar_id",
+    "indexdef": "CREATE UNIQUE INDEX idx_contaazul_lancamentos_contaazul_id_bar_id ON integrations.contaazul_lancamentos USING btree (contaazul_id, bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_lancamentos",
+    "indexname": "idx_contaazul_lancamentos_data_criacao_ca",
+    "indexdef": "CREATE INDEX idx_contaazul_lancamentos_data_criacao_ca ON integrations.contaazul_lancamentos USING btree (data_criacao_ca)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_lancamentos",
+    "indexname": "idx_contaazul_lancamentos_status_traduzido",
+    "indexdef": "CREATE INDEX idx_contaazul_lancamentos_status_traduzido ON integrations.contaazul_lancamentos USING btree (status_traduzido)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_lancamentos",
+    "indexname": "idx_contaazul_lancamentos_valor_nao_pago",
+    "indexdef": "CREATE INDEX idx_contaazul_lancamentos_valor_nao_pago ON integrations.contaazul_lancamentos USING btree (valor_nao_pago) WHERE (valor_nao_pago > (0)::numeric)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_logs_sincronizacao",
+    "indexname": "contaazul_logs_sincronizacao_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contaazul_logs_sincronizacao_pkey ON integrations.contaazul_logs_sincronizacao USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_logs_sincronizacao",
+    "indexname": "idx_contaazul_logs_sincronizacao_bar_id",
+    "indexdef": "CREATE INDEX idx_contaazul_logs_sincronizacao_bar_id ON integrations.contaazul_logs_sincronizacao USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_logs_sincronizacao",
+    "indexname": "idx_contaazul_logs_sincronizacao_data_inicio",
+    "indexdef": "CREATE INDEX idx_contaazul_logs_sincronizacao_data_inicio ON integrations.contaazul_logs_sincronizacao USING btree (data_inicio DESC)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_pessoas",
+    "indexname": "contaazul_pessoas_contaazul_id_key",
+    "indexdef": "CREATE UNIQUE INDEX contaazul_pessoas_contaazul_id_key ON integrations.contaazul_pessoas USING btree (contaazul_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_pessoas",
+    "indexname": "contaazul_pessoas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contaazul_pessoas_pkey ON integrations.contaazul_pessoas USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_pessoas",
+    "indexname": "idx_contaazul_pessoas_bar_id",
+    "indexdef": "CREATE INDEX idx_contaazul_pessoas_bar_id ON integrations.contaazul_pessoas USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_pessoas",
+    "indexname": "idx_contaazul_pessoas_contaazul_id",
+    "indexdef": "CREATE UNIQUE INDEX idx_contaazul_pessoas_contaazul_id ON integrations.contaazul_pessoas USING btree (contaazul_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_pessoas",
+    "indexname": "idx_contaazul_pessoas_documento",
+    "indexdef": "CREATE INDEX idx_contaazul_pessoas_documento ON integrations.contaazul_pessoas USING btree (documento)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_pessoas",
+    "indexname": "idx_contaazul_pessoas_perfil",
+    "indexdef": "CREATE INDEX idx_contaazul_pessoas_perfil ON integrations.contaazul_pessoas USING btree (perfil)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_pessoas",
+    "indexname": "uq_contaazul_pessoas_id_bar",
+    "indexdef": "CREATE UNIQUE INDEX uq_contaazul_pessoas_id_bar ON integrations.contaazul_pessoas USING btree (contaazul_id, bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "falae_config",
+    "indexname": "falae_config_bar_id_key",
+    "indexdef": "CREATE UNIQUE INDEX falae_config_bar_id_key ON integrations.falae_config USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "falae_config",
+    "indexname": "falae_config_pkey",
+    "indexdef": "CREATE UNIQUE INDEX falae_config_pkey ON integrations.falae_config USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "falae_respostas",
+    "indexname": "falae_respostas_bar_id_falae_id_key",
+    "indexdef": "CREATE UNIQUE INDEX falae_respostas_bar_id_falae_id_key ON integrations.falae_respostas USING btree (bar_id, falae_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "falae_respostas",
+    "indexname": "falae_respostas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX falae_respostas_pkey ON integrations.falae_respostas USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "falae_respostas",
+    "indexname": "idx_falae_respostas_search",
+    "indexdef": "CREATE INDEX idx_falae_respostas_search ON integrations.falae_respostas USING btree (bar_id, search_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "getin_sync_logs",
+    "indexname": "getin_sync_logs_pkey",
+    "indexdef": "CREATE UNIQUE INDEX getin_sync_logs_pkey ON integrations.getin_sync_logs USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "google_oauth_tokens",
+    "indexname": "google_oauth_tokens_bar_id_unique",
+    "indexdef": "CREATE UNIQUE INDEX google_oauth_tokens_bar_id_unique ON integrations.google_oauth_tokens USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "google_oauth_tokens",
+    "indexname": "google_oauth_tokens_pkey",
+    "indexdef": "CREATE UNIQUE INDEX google_oauth_tokens_pkey ON integrations.google_oauth_tokens USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "google_reviews",
+    "indexname": "google_reviews_pkey",
+    "indexdef": "CREATE UNIQUE INDEX google_reviews_pkey ON integrations.google_reviews USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "google_reviews",
+    "indexname": "google_reviews_review_id_key",
+    "indexdef": "CREATE UNIQUE INDEX google_reviews_review_id_key ON integrations.google_reviews USING btree (review_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "google_reviews",
+    "indexname": "idx_google_reviews_bar_date",
+    "indexdef": "CREATE INDEX idx_google_reviews_bar_date ON integrations.google_reviews USING btree (bar_id, published_at_date DESC)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "google_reviews",
+    "indexname": "idx_google_reviews_bar_id",
+    "indexdef": "CREATE INDEX idx_google_reviews_bar_id ON integrations.google_reviews USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "google_reviews",
+    "indexname": "idx_google_reviews_published_at",
+    "indexdef": "CREATE INDEX idx_google_reviews_published_at ON integrations.google_reviews USING btree (published_at_date DESC)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "google_reviews_imports",
+    "indexname": "google_reviews_imports_pkey",
+    "indexdef": "CREATE UNIQUE INDEX google_reviews_imports_pkey ON integrations.google_reviews_imports USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "sympla_eventos",
+    "indexname": "sympla_eventos_evento_sympla_id_key",
+    "indexdef": "CREATE UNIQUE INDEX sympla_eventos_evento_sympla_id_key ON integrations.sympla_eventos USING btree (evento_sympla_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "sympla_eventos",
+    "indexname": "sympla_eventos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX sympla_eventos_pkey ON integrations.sympla_eventos USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "sympla_participantes",
+    "indexname": "idx_sympla_participantes_evento_sympla_id_fk",
+    "indexdef": "CREATE INDEX idx_sympla_participantes_evento_sympla_id_fk ON integrations.sympla_participantes USING btree (evento_sympla_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "sympla_participantes",
+    "indexname": "sympla_participantes_pkey",
+    "indexdef": "CREATE UNIQUE INDEX sympla_participantes_pkey ON integrations.sympla_participantes USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "sympla_participantes",
+    "indexname": "sympla_participantes_unique_participante",
+    "indexdef": "CREATE UNIQUE INDEX sympla_participantes_unique_participante ON integrations.sympla_participantes USING btree (participante_sympla_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "sympla_pedidos",
+    "indexname": "idx_sympla_pedidos_evento_sympla_id",
+    "indexdef": "CREATE INDEX idx_sympla_pedidos_evento_sympla_id ON integrations.sympla_pedidos USING btree (evento_sympla_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "sympla_pedidos",
+    "indexname": "sympla_pedidos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX sympla_pedidos_pkey ON integrations.sympla_pedidos USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "sympla_pedidos",
+    "indexname": "sympla_pedidos_unique_per_event",
+    "indexdef": "CREATE UNIQUE INDEX sympla_pedidos_unique_per_event ON integrations.sympla_pedidos USING btree (pedido_sympla_id, evento_sympla_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_campanha_destinatarios",
+    "indexname": "idx_umbler_campanha_destinatarios_campanha_id_new",
+    "indexdef": "CREATE INDEX idx_umbler_campanha_destinatarios_campanha_id_new ON integrations.umbler_campanha_destinatarios USING btree (campanha_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_campanha_destinatarios",
+    "indexname": "umbler_campanha_destinatarios_pkey",
+    "indexdef": "CREATE UNIQUE INDEX umbler_campanha_destinatarios_pkey ON integrations.umbler_campanha_destinatarios USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_campanhas",
+    "indexname": "idx_umbler_campanhas_bar",
+    "indexdef": "CREATE INDEX idx_umbler_campanhas_bar ON integrations.umbler_campanhas USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_campanhas",
+    "indexname": "umbler_campanhas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX umbler_campanhas_pkey ON integrations.umbler_campanhas USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_config",
+    "indexname": "idx_umbler_config_bar",
+    "indexdef": "CREATE INDEX idx_umbler_config_bar ON integrations.umbler_config USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_config",
+    "indexname": "umbler_config_bar_id_channel_id_key",
+    "indexdef": "CREATE UNIQUE INDEX umbler_config_bar_id_channel_id_key ON integrations.umbler_config USING btree (bar_id, channel_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_config",
+    "indexname": "umbler_config_pkey",
+    "indexdef": "CREATE UNIQUE INDEX umbler_config_pkey ON integrations.umbler_config USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_conversas",
+    "indexname": "idx_umbler_conversas_bar",
+    "indexdef": "CREATE INDEX idx_umbler_conversas_bar ON integrations.umbler_conversas USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_conversas",
+    "indexname": "idx_umbler_conversas_status",
+    "indexdef": "CREATE INDEX idx_umbler_conversas_status ON integrations.umbler_conversas USING btree (status)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_conversas",
+    "indexname": "idx_umbler_conversas_telefone",
+    "indexdef": "CREATE INDEX idx_umbler_conversas_telefone ON integrations.umbler_conversas USING btree (contato_telefone)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_conversas",
+    "indexname": "umbler_conversas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX umbler_conversas_pkey ON integrations.umbler_conversas USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_mensagens",
+    "indexname": "idx_umbler_mensagens_bar",
+    "indexdef": "CREATE INDEX idx_umbler_mensagens_bar ON integrations.umbler_mensagens USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_mensagens",
+    "indexname": "idx_umbler_mensagens_campanha",
+    "indexdef": "CREATE INDEX idx_umbler_mensagens_campanha ON integrations.umbler_mensagens USING btree (campanha_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_mensagens",
+    "indexname": "idx_umbler_mensagens_conversa_id_new",
+    "indexdef": "CREATE INDEX idx_umbler_mensagens_conversa_id_new ON integrations.umbler_mensagens USING btree (conversa_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_mensagens",
+    "indexname": "umbler_mensagens_pkey",
+    "indexdef": "CREATE UNIQUE INDEX umbler_mensagens_pkey ON integrations.umbler_mensagens USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_webhook_logs",
+    "indexname": "idx_umbler_webhook_logs_bar_id",
+    "indexdef": "CREATE INDEX idx_umbler_webhook_logs_bar_id ON integrations.umbler_webhook_logs USING btree (bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_webhook_logs",
+    "indexname": "idx_umbler_webhook_logs_created",
+    "indexdef": "CREATE INDEX idx_umbler_webhook_logs_created ON integrations.umbler_webhook_logs USING btree (created_at)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_webhook_logs",
+    "indexname": "umbler_webhook_logs_pkey",
+    "indexdef": "CREATE UNIQUE INDEX umbler_webhook_logs_pkey ON integrations.umbler_webhook_logs USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "yuzer_eventos",
+    "indexname": "yuzer_eventos_evento_id_key",
+    "indexdef": "CREATE UNIQUE INDEX yuzer_eventos_evento_id_key ON integrations.yuzer_eventos USING btree (evento_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "yuzer_eventos",
+    "indexname": "yuzer_eventos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX yuzer_eventos_pkey ON integrations.yuzer_eventos USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "yuzer_fatporhora",
+    "indexname": "yuzer_fatporhora_bar_id_evento_id_data_evento_hora_key",
+    "indexdef": "CREATE UNIQUE INDEX yuzer_fatporhora_bar_id_evento_id_data_evento_hora_key ON integrations.yuzer_fatporhora USING btree (bar_id, evento_id, data_evento, hora)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "yuzer_fatporhora",
+    "indexname": "yuzer_fatporhora_pkey",
+    "indexdef": "CREATE UNIQUE INDEX yuzer_fatporhora_pkey ON integrations.yuzer_fatporhora USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "yuzer_pagamento",
+    "indexname": "yuzer_pagamento_bar_id_evento_id_data_evento_key",
+    "indexdef": "CREATE UNIQUE INDEX yuzer_pagamento_bar_id_evento_id_data_evento_key ON integrations.yuzer_pagamento USING btree (bar_id, evento_id, data_evento)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "yuzer_pagamento",
+    "indexname": "yuzer_pagamento_pkey",
+    "indexdef": "CREATE UNIQUE INDEX yuzer_pagamento_pkey ON integrations.yuzer_pagamento USING btree (id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "yuzer_produtos",
+    "indexname": "yuzer_produtos_bar_id_evento_id_data_evento_produto_id_key",
+    "indexdef": "CREATE UNIQUE INDEX yuzer_produtos_bar_id_evento_id_data_evento_produto_id_key ON integrations.yuzer_produtos USING btree (bar_id, evento_id, data_evento, produto_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "yuzer_produtos",
+    "indexname": "yuzer_produtos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX yuzer_produtos_pkey ON integrations.yuzer_produtos USING btree (id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "desempenho_manual",
+    "indexname": "desempenho_semanal_bar_id_ano_numero_semana_key",
+    "indexdef": "CREATE UNIQUE INDEX desempenho_semanal_bar_id_ano_numero_semana_key ON meta.desempenho_manual USING btree (bar_id, ano, numero_semana)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "desempenho_manual",
+    "indexname": "desempenho_semanal_pkey",
+    "indexdef": "CREATE UNIQUE INDEX desempenho_semanal_pkey ON meta.desempenho_manual USING btree (id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "desempenho_manual",
+    "indexname": "idx_desempenho_semanal_bar_semana",
+    "indexdef": "CREATE INDEX idx_desempenho_semanal_bar_semana ON meta.desempenho_manual USING btree (bar_id, ano, numero_semana)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "marketing_mensal",
+    "indexname": "marketing_mensal_bar_id_ano_mes_key",
+    "indexdef": "CREATE UNIQUE INDEX marketing_mensal_bar_id_ano_mes_key ON meta.marketing_mensal USING btree (bar_id, ano, mes)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "marketing_mensal",
+    "indexname": "marketing_mensal_pkey",
+    "indexdef": "CREATE UNIQUE INDEX marketing_mensal_pkey ON meta.marketing_mensal USING btree (id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "marketing_semanal",
+    "indexname": "idx_marketing_semanal_bar_ano_semana",
+    "indexdef": "CREATE INDEX idx_marketing_semanal_bar_ano_semana ON meta.marketing_semanal USING btree (bar_id, ano, semana)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "marketing_semanal",
+    "indexname": "marketing_semanal_pkey",
+    "indexdef": "CREATE UNIQUE INDEX marketing_semanal_pkey ON meta.marketing_semanal USING btree (id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "marketing_semanal",
+    "indexname": "marketing_semanal_unique",
+    "indexdef": "CREATE UNIQUE INDEX marketing_semanal_unique ON meta.marketing_semanal USING btree (bar_id, ano, semana)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_anuais",
+    "indexname": "metas_anuais_bar_id_ano_tipo_meta_periodo_mes_key",
+    "indexdef": "CREATE UNIQUE INDEX metas_anuais_bar_id_ano_tipo_meta_periodo_mes_key ON meta.metas_anuais USING btree (bar_id, ano, tipo_meta, periodo, mes)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_anuais",
+    "indexname": "metas_anuais_pkey",
+    "indexdef": "CREATE UNIQUE INDEX metas_anuais_pkey ON meta.metas_anuais USING btree (id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_desempenho",
+    "indexname": "idx_metas_desempenho_bar_periodo",
+    "indexdef": "CREATE INDEX idx_metas_desempenho_bar_periodo ON meta.metas_desempenho USING btree (bar_id, periodo)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_desempenho",
+    "indexname": "metas_desempenho_bar_periodo_metrica_semana_ano_idx",
+    "indexdef": "CREATE UNIQUE INDEX metas_desempenho_bar_periodo_metrica_semana_ano_idx ON meta.metas_desempenho USING btree (bar_id, periodo, metrica, COALESCE(semana, 0), COALESCE(ano, 0))"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_desempenho",
+    "indexname": "metas_desempenho_bar_semana_ano_idx",
+    "indexdef": "CREATE INDEX metas_desempenho_bar_semana_ano_idx ON meta.metas_desempenho USING btree (bar_id, ano, semana) WHERE (semana IS NOT NULL)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_desempenho",
+    "indexname": "metas_desempenho_pkey",
+    "indexdef": "CREATE UNIQUE INDEX metas_desempenho_pkey ON meta.metas_desempenho USING btree (id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_desempenho_historico",
+    "indexname": "metas_desempenho_historico_pkey",
+    "indexdef": "CREATE UNIQUE INDEX metas_desempenho_historico_pkey ON meta.metas_desempenho_historico USING btree (id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "organizador_okrs",
+    "indexname": "idx_organizador_okrs_organizador_id",
+    "indexdef": "CREATE INDEX idx_organizador_okrs_organizador_id ON meta.organizador_okrs USING btree (organizador_id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "organizador_okrs",
+    "indexname": "organizador_okrs_pkey",
+    "indexdef": "CREATE UNIQUE INDEX organizador_okrs_pkey ON meta.organizador_okrs USING btree (id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "organizador_visao",
+    "indexname": "organizador_visao_bar_id_ano_trimestre_key",
+    "indexdef": "CREATE UNIQUE INDEX organizador_visao_bar_id_ano_trimestre_key ON meta.organizador_visao USING btree (bar_id, ano, trimestre)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "organizador_visao",
+    "indexname": "organizador_visao_pkey",
+    "indexdef": "CREATE UNIQUE INDEX organizador_visao_pkey ON meta.organizador_visao USING btree (id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "semanas_referencia",
+    "indexname": "semanas_referencia_pkey",
+    "indexdef": "CREATE UNIQUE INDEX semanas_referencia_pkey ON meta.semanas_referencia USING btree (semana)"
+  },
+  {
+    "schemaname": "net",
+    "tablename": "_http_response",
+    "indexname": "_http_response_created_idx",
+    "indexdef": "CREATE INDEX _http_response_created_idx ON net._http_response USING btree (created)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_artistas",
+    "indexname": "bar_artistas_bar_id_nome_key",
+    "indexdef": "CREATE UNIQUE INDEX bar_artistas_bar_id_nome_key ON operations.bar_artistas USING btree (bar_id, nome)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_artistas",
+    "indexname": "bar_artistas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bar_artistas_pkey ON operations.bar_artistas USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_categorias_custo",
+    "indexname": "bar_categorias_custo_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bar_categorias_custo_pkey ON operations.bar_categorias_custo USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_categorias_custo",
+    "indexname": "idx_bar_categorias_custo_busca",
+    "indexdef": "CREATE INDEX idx_bar_categorias_custo_busca ON operations.bar_categorias_custo USING btree (bar_id, tipo) WHERE (ativo = true)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_categorias_custo",
+    "indexname": "uk_bar_categorias_custo",
+    "indexdef": "CREATE UNIQUE INDEX uk_bar_categorias_custo ON operations.bar_categorias_custo USING btree (bar_id, nome_categoria, tipo)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_local_mapeamento",
+    "indexname": "bar_local_mapeamento_bar_id_categoria_key",
+    "indexdef": "CREATE UNIQUE INDEX bar_local_mapeamento_bar_id_categoria_key ON operations.bar_local_mapeamento USING btree (bar_id, categoria)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_local_mapeamento",
+    "indexname": "bar_local_mapeamento_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bar_local_mapeamento_pkey ON operations.bar_local_mapeamento USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_local_mapeamento",
+    "indexname": "idx_bar_local_mapeamento_bar_id",
+    "indexdef": "CREATE INDEX idx_bar_local_mapeamento_bar_id ON operations.bar_local_mapeamento USING btree (bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_local_mapeamento",
+    "indexname": "idx_bar_local_mapeamento_categoria",
+    "indexdef": "CREATE INDEX idx_bar_local_mapeamento_categoria ON operations.bar_local_mapeamento USING btree (categoria)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_metas_periodo",
+    "indexname": "bar_metas_periodo_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bar_metas_periodo_pkey ON operations.bar_metas_periodo USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_metas_periodo",
+    "indexname": "idx_bar_metas_periodo_busca",
+    "indexdef": "CREATE INDEX idx_bar_metas_periodo_busca ON operations.bar_metas_periodo USING btree (bar_id, dia_semana)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_metas_periodo",
+    "indexname": "uk_bar_metas_periodo",
+    "indexdef": "CREATE UNIQUE INDEX uk_bar_metas_periodo ON operations.bar_metas_periodo USING btree (bar_id, dia_semana)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_notification_configs",
+    "indexname": "bar_notification_configs_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bar_notification_configs_pkey ON operations.bar_notification_configs USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_notification_configs",
+    "indexname": "idx_bar_notification_configs_bar_id",
+    "indexdef": "CREATE INDEX idx_bar_notification_configs_bar_id ON operations.bar_notification_configs USING btree (bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_regras_negocio",
+    "indexname": "bar_regras_negocio_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bar_regras_negocio_pkey ON operations.bar_regras_negocio USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_regras_negocio",
+    "indexname": "uk_bar_regras_negocio_bar",
+    "indexdef": "CREATE UNIQUE INDEX uk_bar_regras_negocio_bar ON operations.bar_regras_negocio USING btree (bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bares",
+    "indexname": "bars_cnpj_key",
+    "indexdef": "CREATE UNIQUE INDEX bars_cnpj_key ON operations.bares USING btree (cnpj)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bares",
+    "indexname": "bars_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bars_pkey ON operations.bares USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bares_config",
+    "indexname": "bares_config_bar_id_key",
+    "indexdef": "CREATE UNIQUE INDEX bares_config_bar_id_key ON operations.bares_config USING btree (bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bares_config",
+    "indexname": "bares_config_pkey",
+    "indexdef": "CREATE UNIQUE INDEX bares_config_pkey ON operations.bares_config USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bares_config",
+    "indexname": "idx_bares_config_bar_id",
+    "indexdef": "CREATE INDEX idx_bares_config_bar_id ON operations.bares_config USING btree (bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "calendario_operacional",
+    "indexname": "calendario_operacional_data_bar_id_key",
+    "indexdef": "CREATE UNIQUE INDEX calendario_operacional_data_bar_id_key ON operations.calendario_operacional USING btree (data, bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "calendario_operacional",
+    "indexname": "calendario_operacional_pkey",
+    "indexdef": "CREATE UNIQUE INDEX calendario_operacional_pkey ON operations.calendario_operacional USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_agendamentos",
+    "indexname": "checklist_agendamentos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX checklist_agendamentos_pkey ON operations.checklist_agendamentos USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_agendamentos",
+    "indexname": "idx_checklist_agendamentos_bar",
+    "indexdef": "CREATE INDEX idx_checklist_agendamentos_bar ON operations.checklist_agendamentos USING btree (bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_agendamentos",
+    "indexname": "idx_checklist_agendamentos_bar_data",
+    "indexdef": "CREATE INDEX idx_checklist_agendamentos_bar_data ON operations.checklist_agendamentos USING btree (bar_id, data_agendada)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_agendamentos",
+    "indexname": "idx_checklist_agendamentos_data",
+    "indexdef": "CREATE INDEX idx_checklist_agendamentos_data ON operations.checklist_agendamentos USING btree (data_agendada DESC)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_agendamentos",
+    "indexname": "idx_checklist_agendamentos_deadline",
+    "indexdef": "CREATE INDEX idx_checklist_agendamentos_deadline ON operations.checklist_agendamentos USING btree (deadline DESC)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_agendamentos",
+    "indexname": "idx_checklist_agendamentos_responsavel",
+    "indexdef": "CREATE INDEX idx_checklist_agendamentos_responsavel ON operations.checklist_agendamentos USING btree (responsavel_id, status)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_agendamentos",
+    "indexname": "idx_checklist_agendamentos_status",
+    "indexdef": "CREATE INDEX idx_checklist_agendamentos_status ON operations.checklist_agendamentos USING btree (status, bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_auto_executions",
+    "indexname": "checklist_auto_executions_pkey",
+    "indexdef": "CREATE UNIQUE INDEX checklist_auto_executions_pkey ON operations.checklist_auto_executions USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_auto_executions",
+    "indexname": "idx_checklist_auto_executions_agendamento_id",
+    "indexdef": "CREATE INDEX idx_checklist_auto_executions_agendamento_id ON operations.checklist_auto_executions USING btree (checklist_agendamento_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_automation_logs",
+    "indexname": "checklist_automation_logs_pkey",
+    "indexdef": "CREATE UNIQUE INDEX checklist_automation_logs_pkey ON operations.checklist_automation_logs USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_automation_logs",
+    "indexname": "idx_checklist_automation_logs_criado_em",
+    "indexdef": "CREATE INDEX idx_checklist_automation_logs_criado_em ON operations.checklist_automation_logs USING btree (criado_em DESC)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_automation_logs",
+    "indexname": "idx_checklist_automation_logs_execution_id",
+    "indexdef": "CREATE INDEX idx_checklist_automation_logs_execution_id ON operations.checklist_automation_logs USING btree (checklist_auto_execution_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_automation_logs",
+    "indexname": "idx_checklist_automation_logs_schedule",
+    "indexdef": "CREATE INDEX idx_checklist_automation_logs_schedule ON operations.checklist_automation_logs USING btree (checklist_schedule_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_automation_logs",
+    "indexname": "idx_checklist_automation_logs_tipo",
+    "indexdef": "CREATE INDEX idx_checklist_automation_logs_tipo ON operations.checklist_automation_logs USING btree (tipo)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "config_metas_planejamento",
+    "indexname": "config_metas_planejamento_pkey",
+    "indexdef": "CREATE UNIQUE INDEX config_metas_planejamento_pkey ON operations.config_metas_planejamento USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "config_metas_planejamento",
+    "indexname": "idx_config_metas_bar_ano",
+    "indexdef": "CREATE INDEX idx_config_metas_bar_ano ON operations.config_metas_planejamento USING btree (bar_id, ano)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "config_metas_planejamento",
+    "indexname": "uq_config_metas_bar_ano",
+    "indexdef": "CREATE UNIQUE INDEX uq_config_metas_bar_ano ON operations.config_metas_planejamento USING btree (bar_id, ano)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "contagem_estoque_insumos",
+    "indexname": "contagem_estoque_insumos_bar_id_data_contagem_insumo_codigo_key",
+    "indexdef": "CREATE UNIQUE INDEX contagem_estoque_insumos_bar_id_data_contagem_insumo_codigo_key ON operations.contagem_estoque_insumos USING btree (bar_id, data_contagem, insumo_codigo)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "contagem_estoque_insumos",
+    "indexname": "contagem_estoque_insumos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contagem_estoque_insumos_pkey ON operations.contagem_estoque_insumos USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "contagem_estoque_insumos",
+    "indexname": "idx_contagem_estoque_insumos_insumo_id",
+    "indexdef": "CREATE INDEX idx_contagem_estoque_insumos_insumo_id ON operations.contagem_estoque_insumos USING btree (insumo_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "etl_execucoes_log",
+    "indexname": "etl_execucoes_log_pkey",
+    "indexdef": "CREATE UNIQUE INDEX etl_execucoes_log_pkey ON operations.etl_execucoes_log USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "etl_execucoes_log",
+    "indexname": "idx_etl_log_nome_exec",
+    "indexdef": "CREATE INDEX idx_etl_log_nome_exec ON operations.etl_execucoes_log USING btree (etl_nome, executado_em DESC)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base",
+    "indexname": "eventos_base_data_evento_bar_id_key",
+    "indexdef": "CREATE UNIQUE INDEX eventos_base_data_evento_bar_id_key ON operations.eventos_base USING btree (data_evento, bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base",
+    "indexname": "eventos_base_pkey",
+    "indexdef": "CREATE UNIQUE INDEX eventos_base_pkey ON operations.eventos_base USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base",
+    "indexname": "idx_eventos_base_bar_data",
+    "indexdef": "CREATE INDEX idx_eventos_base_bar_data ON operations.eventos_base USING btree (bar_id, data_evento DESC)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base",
+    "indexname": "idx_eventos_base_cancelamentos",
+    "indexdef": "CREATE INDEX idx_eventos_base_cancelamentos ON operations.eventos_base USING btree (cancelamentos) WHERE (cancelamentos > (0)::numeric)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base",
+    "indexname": "idx_eventos_base_conta_assinada",
+    "indexdef": "CREATE INDEX idx_eventos_base_conta_assinada ON operations.eventos_base USING btree (conta_assinada) WHERE (conta_assinada > (0)::numeric)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base",
+    "indexname": "idx_eventos_base_data",
+    "indexdef": "CREATE INDEX idx_eventos_base_data ON operations.eventos_base USING btree (data_evento)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base",
+    "indexname": "idx_eventos_base_pendentes",
+    "indexdef": "CREATE INDEX idx_eventos_base_pendentes ON operations.eventos_base USING btree (id, data_evento) WHERE (precisa_recalculo = true)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base_auditoria",
+    "indexname": "auditoria_unique",
+    "indexdef": "CREATE UNIQUE INDEX auditoria_unique ON operations.eventos_base_auditoria USING btree (evento_id, campo_alterado, data_alteracao)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base_auditoria",
+    "indexname": "eventos_base_auditoria_pkey",
+    "indexdef": "CREATE UNIQUE INDEX eventos_base_auditoria_pkey ON operations.eventos_base_auditoria USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base_auditoria",
+    "indexname": "idx_auditoria_campo",
+    "indexdef": "CREATE INDEX idx_auditoria_campo ON operations.eventos_base_auditoria USING btree (campo_alterado)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base_auditoria",
+    "indexname": "idx_auditoria_data_alteracao",
+    "indexdef": "CREATE INDEX idx_auditoria_data_alteracao ON operations.eventos_base_auditoria USING btree (data_alteracao DESC)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base_auditoria",
+    "indexname": "idx_auditoria_data_evento",
+    "indexdef": "CREATE INDEX idx_auditoria_data_evento ON operations.eventos_base_auditoria USING btree (data_evento)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base_auditoria",
+    "indexname": "idx_auditoria_evento_id",
+    "indexdef": "CREATE INDEX idx_auditoria_evento_id ON operations.eventos_base_auditoria USING btree (evento_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_concorrencia",
+    "indexname": "eventos_concorrencia_fonte_id_externo_key",
+    "indexdef": "CREATE UNIQUE INDEX eventos_concorrencia_fonte_id_externo_key ON operations.eventos_concorrencia USING btree (fonte, id_externo)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_concorrencia",
+    "indexname": "eventos_concorrencia_id_externo_unique",
+    "indexdef": "CREATE UNIQUE INDEX eventos_concorrencia_id_externo_unique ON operations.eventos_concorrencia USING btree (id_externo)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_concorrencia",
+    "indexname": "eventos_concorrencia_pkey",
+    "indexdef": "CREATE UNIQUE INDEX eventos_concorrencia_pkey ON operations.eventos_concorrencia USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_concorrencia",
+    "indexname": "idx_eventos_concorrencia_data",
+    "indexdef": "CREATE INDEX idx_eventos_concorrencia_data ON operations.eventos_concorrencia USING btree (data_evento)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_concorrencia",
+    "indexname": "idx_eventos_concorrencia_status",
+    "indexdef": "CREATE INDEX idx_eventos_concorrencia_status ON operations.eventos_concorrencia USING btree (status)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "grupos_produto",
+    "indexname": "grupos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX grupos_pkey ON operations.grupos_produto USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "grupos_produto",
+    "indexname": "idx_grupos_empresa",
+    "indexdef": "CREATE INDEX idx_grupos_empresa ON operations.grupos_produto USING btree (empresa_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "insumos",
+    "indexname": "insumos_bar_codigo_unique",
+    "indexdef": "CREATE UNIQUE INDEX insumos_bar_codigo_unique ON operations.insumos USING btree (bar_id, codigo)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "insumos",
+    "indexname": "insumos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX insumos_pkey ON operations.insumos USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "integracoes_bar",
+    "indexname": "integracoes_bar_bar_id_integracao_key",
+    "indexdef": "CREATE UNIQUE INDEX integracoes_bar_bar_id_integracao_key ON operations.integracoes_bar USING btree (bar_id, integracao)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "integracoes_bar",
+    "indexname": "integracoes_bar_pkey",
+    "indexdef": "CREATE UNIQUE INDEX integracoes_bar_pkey ON operations.integracoes_bar USING btree (id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "produto_categoria_mix",
+    "indexname": "idx_produto_categoria_mix_bar",
+    "indexdef": "CREATE INDEX idx_produto_categoria_mix_bar ON operations.produto_categoria_mix USING btree (bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "produto_categoria_mix",
+    "indexname": "produto_categoria_mix_pkey",
+    "indexdef": "CREATE UNIQUE INDEX produto_categoria_mix_pkey ON operations.produto_categoria_mix USING btree (bar_id, loc_desc)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "produtos",
+    "indexname": "idx_produtos_empresa",
+    "indexdef": "CREATE INDEX idx_produtos_empresa ON operations.produtos USING btree (empresa_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "produtos",
+    "indexname": "idx_produtos_grupo",
+    "indexdef": "CREATE INDEX idx_produtos_grupo ON operations.produtos USING btree (grupo_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "produtos",
+    "indexname": "produtos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX produtos_pkey ON operations.produtos USING btree (id)"
+  },
+  {
+    "schemaname": "ops",
+    "tablename": "job_camada_mapping",
+    "indexname": "job_camada_mapping_pkey",
+    "indexdef": "CREATE UNIQUE INDEX job_camada_mapping_pkey ON ops.job_camada_mapping USING btree (job_name)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "api_credentials",
+    "indexname": "api_credentials_bar_id_sistema_ambiente_key",
+    "indexdef": "CREATE UNIQUE INDEX api_credentials_bar_id_sistema_ambiente_key ON public.api_credentials USING btree (bar_id, sistema, ambiente)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "api_credentials",
+    "indexname": "api_credentials_pkey",
+    "indexdef": "CREATE UNIQUE INDEX api_credentials_pkey ON public.api_credentials USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "cmv_manual",
+    "indexname": "cmv_manual_pkey",
+    "indexdef": "CREATE UNIQUE INDEX cmv_manual_pkey ON public.cmv_manual USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "cmv_manual",
+    "indexname": "idx_cmv_manual_bar_periodo",
+    "indexdef": "CREATE INDEX idx_cmv_manual_bar_periodo ON public.cmv_manual USING btree (bar_id, periodo_inicio DESC)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "cmv_manual",
+    "indexname": "idx_cmv_manual_tipo",
+    "indexdef": "CREATE INDEX idx_cmv_manual_tipo ON public.cmv_manual USING btree (periodo_tipo)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "cmv_manual",
+    "indexname": "unique_cmv_periodo",
+    "indexdef": "CREATE UNIQUE INDEX unique_cmv_periodo ON public.cmv_manual USING btree (bar_id, periodo_tipo, periodo_inicio)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "usuarios",
+    "indexname": "idx_usuarios_email",
+    "indexdef": "CREATE INDEX idx_usuarios_email ON public.usuarios USING btree (email)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "usuarios",
+    "indexname": "usuarios_auth_id_key",
+    "indexdef": "CREATE UNIQUE INDEX usuarios_auth_id_key ON public.usuarios USING btree (auth_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "usuarios",
+    "indexname": "usuarios_email_key",
+    "indexdef": "CREATE UNIQUE INDEX usuarios_email_key ON public.usuarios USING btree (email)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "usuarios",
+    "indexname": "usuarios_pkey",
+    "indexdef": "CREATE UNIQUE INDEX usuarios_pkey ON public.usuarios USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "usuarios_bares",
+    "indexname": "idx_usuarios_bares_bar_id",
+    "indexdef": "CREATE INDEX idx_usuarios_bares_bar_id ON public.usuarios_bares USING btree (bar_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "usuarios_bares",
+    "indexname": "usuarios_bares_pkey",
+    "indexdef": "CREATE UNIQUE INDEX usuarios_bares_pkey ON public.usuarios_bares USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "usuarios_bares",
+    "indexname": "usuarios_bares_usuario_id_bar_id_key",
+    "indexdef": "CREATE UNIQUE INDEX usuarios_bares_usuario_id_bar_id_key ON public.usuarios_bares USING btree (usuario_id, bar_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "view_visao_geral_anual",
+    "indexname": "idx_view_visao_geral_anual",
+    "indexdef": "CREATE UNIQUE INDEX idx_view_visao_geral_anual ON public.view_visao_geral_anual USING btree (bar_id, ano)"
+  },
+  {
+    "schemaname": "realtime",
+    "tablename": "messages",
+    "indexname": "messages_inserted_at_topic_index",
+    "indexdef": "CREATE INDEX messages_inserted_at_topic_index ON ONLY realtime.messages USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))"
+  },
+  {
+    "schemaname": "realtime",
+    "tablename": "messages",
+    "indexname": "messages_pkey",
+    "indexdef": "CREATE UNIQUE INDEX messages_pkey ON ONLY realtime.messages USING btree (id, inserted_at)"
+  },
+  {
+    "schemaname": "realtime",
+    "tablename": "schema_migrations",
+    "indexname": "schema_migrations_pkey",
+    "indexdef": "CREATE UNIQUE INDEX schema_migrations_pkey ON realtime.schema_migrations USING btree (version)"
+  },
+  {
+    "schemaname": "realtime",
+    "tablename": "subscription",
+    "indexname": "ix_realtime_subscription_entity",
+    "indexdef": "CREATE INDEX ix_realtime_subscription_entity ON realtime.subscription USING btree (entity)"
+  },
+  {
+    "schemaname": "realtime",
+    "tablename": "subscription",
+    "indexname": "pk_subscription",
+    "indexdef": "CREATE UNIQUE INDEX pk_subscription ON realtime.subscription USING btree (id)"
+  },
+  {
+    "schemaname": "realtime",
+    "tablename": "subscription",
+    "indexname": "subscription_subscription_id_entity_filters_action_filter_key",
+    "indexdef": "CREATE UNIQUE INDEX subscription_subscription_id_entity_filters_action_filter_key ON realtime.subscription USING btree (subscription_id, entity, filters, action_filter)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_estatisticas",
+    "indexname": "cliente_estatisticas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX cliente_estatisticas_pkey ON silver.cliente_estatisticas USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_estatisticas",
+    "indexname": "idx_cliente_estatisticas_bar",
+    "indexdef": "CREATE INDEX idx_cliente_estatisticas_bar ON silver.cliente_estatisticas USING btree (bar_id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_estatisticas",
+    "indexname": "idx_cliente_estatisticas_bar_fone",
+    "indexdef": "CREATE INDEX idx_cliente_estatisticas_bar_fone ON silver.cliente_estatisticas USING btree (bar_id, cliente_fone_norm)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_estatisticas",
+    "indexname": "idx_cliente_estatisticas_bar_status",
+    "indexdef": "CREATE INDEX idx_cliente_estatisticas_bar_status ON silver.cliente_estatisticas USING btree (bar_id, status)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_estatisticas",
+    "indexname": "idx_cliente_estatisticas_bar_total_visitas",
+    "indexdef": "CREATE INDEX idx_cliente_estatisticas_bar_total_visitas ON silver.cliente_estatisticas USING btree (bar_id, total_visitas DESC)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_estatisticas",
+    "indexname": "idx_cliente_estatisticas_bar_valor",
+    "indexdef": "CREATE INDEX idx_cliente_estatisticas_bar_valor ON silver.cliente_estatisticas USING btree (bar_id, valor_total_consumo DESC NULLS LAST)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_estatisticas",
+    "indexname": "idx_cliente_estatisticas_cli_id",
+    "indexdef": "CREATE INDEX idx_cliente_estatisticas_cli_id ON silver.cliente_estatisticas USING btree (bar_id, cli_id_contahub) WHERE (cli_id_contahub IS NOT NULL)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_estatisticas",
+    "indexname": "idx_cliente_estatisticas_vip",
+    "indexdef": "CREATE INDEX idx_cliente_estatisticas_vip ON silver.cliente_estatisticas USING btree (bar_id) WHERE (eh_vip = true)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_estatisticas",
+    "indexname": "uq_cliente_estatisticas_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_cliente_estatisticas_natural ON silver.cliente_estatisticas USING btree (bar_id, cliente_fone_norm)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_visitas",
+    "indexname": "idx_cliente_visitas_bar_data",
+    "indexdef": "CREATE INDEX idx_cliente_visitas_bar_data ON silver.cliente_visitas USING btree (bar_id, data_visita DESC)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_visitas",
+    "indexname": "idx_cliente_visitas_cli_id",
+    "indexdef": "CREATE INDEX idx_cliente_visitas_cli_id ON silver.cliente_visitas USING btree (bar_id, cli_id_contahub) WHERE (cli_id_contahub IS NOT NULL)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_visitas",
+    "indexname": "idx_cliente_visitas_fone_norm",
+    "indexdef": "CREATE INDEX idx_cliente_visitas_fone_norm ON silver.cliente_visitas USING btree (bar_id, cliente_fone_norm) WHERE (cliente_fone_norm IS NOT NULL)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_visitas",
+    "indexname": "idx_cliente_visitas_fone_trgm",
+    "indexdef": "CREATE INDEX idx_cliente_visitas_fone_trgm ON silver.cliente_visitas USING gin (cliente_fone gin_trgm_ops) WHERE (cliente_fone IS NOT NULL)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_visitas",
+    "indexname": "idx_cliente_visitas_motivo_desconto_trgm",
+    "indexdef": "CREATE INDEX idx_cliente_visitas_motivo_desconto_trgm ON silver.cliente_visitas USING gin (motivo_desconto gin_trgm_ops) WHERE (motivo_desconto IS NOT NULL)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_visitas",
+    "indexname": "pk_cliente_visitas",
+    "indexdef": "CREATE UNIQUE INDEX pk_cliente_visitas ON silver.cliente_visitas USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "cliente_visitas",
+    "indexname": "uq_cliente_visitas_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_cliente_visitas_natural ON silver.cliente_visitas USING btree (bar_id, data_visita, vd)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "contaazul_lancamentos_diarios",
+    "indexname": "contaazul_lancamentos_diarios_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contaazul_lancamentos_diarios_pkey ON silver.contaazul_lancamentos_diarios USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "contaazul_lancamentos_diarios",
+    "indexname": "idx_contaazul_lancamentos_bar_data",
+    "indexdef": "CREATE INDEX idx_contaazul_lancamentos_bar_data ON silver.contaazul_lancamentos_diarios USING btree (bar_id, data_competencia DESC)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "contaazul_lancamentos_diarios",
+    "indexname": "idx_contaazul_lancamentos_categoria",
+    "indexdef": "CREATE INDEX idx_contaazul_lancamentos_categoria ON silver.contaazul_lancamentos_diarios USING btree (bar_id, categoria_nome)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "contaazul_lancamentos_diarios",
+    "indexname": "idx_contaazul_lancamentos_tipo",
+    "indexdef": "CREATE INDEX idx_contaazul_lancamentos_tipo ON silver.contaazul_lancamentos_diarios USING btree (bar_id, tipo)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "contaazul_lancamentos_diarios",
+    "indexname": "uq_contaazul_lancamentos_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_contaazul_lancamentos_natural ON silver.contaazul_lancamentos_diarios USING btree (bar_id, data_competencia, categoria_nome, tipo)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "faturamento_hora",
+    "indexname": "faturamento_hora_pkey",
+    "indexdef": "CREATE UNIQUE INDEX faturamento_hora_pkey ON silver.faturamento_hora USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "faturamento_hora",
+    "indexname": "idx_faturamento_hora_bar_data",
+    "indexdef": "CREATE INDEX idx_faturamento_hora_bar_data ON silver.faturamento_hora USING btree (bar_id, data_venda)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "faturamento_hora",
+    "indexname": "idx_faturamento_hora_dedup",
+    "indexdef": "CREATE INDEX idx_faturamento_hora_dedup ON silver.faturamento_hora USING btree (bar_id, data_venda, origem)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "faturamento_pagamentos",
+    "indexname": "faturamento_pagamentos_pkey",
+    "indexdef": "CREATE UNIQUE INDEX faturamento_pagamentos_pkey ON silver.faturamento_pagamentos USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "faturamento_pagamentos",
+    "indexname": "idx_faturamento_pagamentos_bar_data",
+    "indexdef": "CREATE INDEX idx_faturamento_pagamentos_bar_data ON silver.faturamento_pagamentos USING btree (bar_id, data_pagamento)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "faturamento_pagamentos",
+    "indexname": "idx_faturamento_pagamentos_dedup",
+    "indexdef": "CREATE INDEX idx_faturamento_pagamentos_dedup ON silver.faturamento_pagamentos USING btree (bar_id, data_pagamento, origem)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "faturamento_pagamentos",
+    "indexname": "idx_faturamento_pagamentos_meio",
+    "indexdef": "CREATE INDEX idx_faturamento_pagamentos_meio ON silver.faturamento_pagamentos USING btree (bar_id, data_pagamento, meio)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "getin_reservas_diarias",
+    "indexname": "getin_reservas_diarias_pkey",
+    "indexdef": "CREATE UNIQUE INDEX getin_reservas_diarias_pkey ON silver.getin_reservas_diarias USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "getin_reservas_diarias",
+    "indexname": "idx_getin_reservas_diarias_bar_data",
+    "indexdef": "CREATE INDEX idx_getin_reservas_diarias_bar_data ON silver.getin_reservas_diarias USING btree (bar_id, data_referencia DESC)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "getin_reservas_diarias",
+    "indexname": "uq_getin_reservas_diarias_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_getin_reservas_diarias_natural ON silver.getin_reservas_diarias USING btree (bar_id, data_referencia)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "google_reviews_diario",
+    "indexname": "google_reviews_diario_pkey",
+    "indexdef": "CREATE UNIQUE INDEX google_reviews_diario_pkey ON silver.google_reviews_diario USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "google_reviews_diario",
+    "indexname": "idx_google_reviews_diario_bar_data",
+    "indexdef": "CREATE INDEX idx_google_reviews_diario_bar_data ON silver.google_reviews_diario USING btree (bar_id, data_referencia DESC)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "google_reviews_diario",
+    "indexname": "uq_google_reviews_diario_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_google_reviews_diario_natural ON silver.google_reviews_diario USING btree (bar_id, data_referencia)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "nps_diario",
+    "indexname": "idx_nps_diario_bar_data",
+    "indexdef": "CREATE INDEX idx_nps_diario_bar_data ON silver.nps_diario USING btree (bar_id, data_referencia DESC)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "nps_diario",
+    "indexname": "nps_diario_pkey",
+    "indexdef": "CREATE UNIQUE INDEX nps_diario_pkey ON silver.nps_diario USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "nps_diario",
+    "indexname": "uq_nps_diario_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_nps_diario_natural ON silver.nps_diario USING btree (bar_id, data_referencia)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "produtos_top",
+    "indexname": "idx_produtos_top_bar",
+    "indexdef": "CREATE INDEX idx_produtos_top_bar ON silver.produtos_top USING btree (bar_id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "produtos_top",
+    "indexname": "idx_produtos_top_bar_status",
+    "indexdef": "CREATE INDEX idx_produtos_top_bar_status ON silver.produtos_top USING btree (bar_id, status_produto)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "produtos_top",
+    "indexname": "idx_produtos_top_bar_valor",
+    "indexdef": "CREATE INDEX idx_produtos_top_bar_valor ON silver.produtos_top USING btree (bar_id, valor_total DESC)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "produtos_top",
+    "indexname": "idx_produtos_top_categoria",
+    "indexdef": "CREATE INDEX idx_produtos_top_categoria ON silver.produtos_top USING btree (bar_id, categoria) WHERE (categoria IS NOT NULL)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "produtos_top",
+    "indexname": "produtos_top_pkey",
+    "indexdef": "CREATE UNIQUE INDEX produtos_top_pkey ON silver.produtos_top USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "produtos_top",
+    "indexname": "uq_produtos_top_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_produtos_top_natural ON silver.produtos_top USING btree (bar_id, produto, grupo)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "reservantes_perfil",
+    "indexname": "idx_reservantes_perfil_bar_status",
+    "indexdef": "CREATE INDEX idx_reservantes_perfil_bar_status ON silver.reservantes_perfil USING btree (bar_id, status_atividade)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "reservantes_perfil",
+    "indexname": "idx_reservantes_perfil_segmento",
+    "indexdef": "CREATE INDEX idx_reservantes_perfil_segmento ON silver.reservantes_perfil USING btree (bar_id, segmento_reserva)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "reservantes_perfil",
+    "indexname": "idx_reservantes_perfil_vip",
+    "indexdef": "CREATE INDEX idx_reservantes_perfil_vip ON silver.reservantes_perfil USING btree (bar_id, is_vip) WHERE (is_vip = true)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "reservantes_perfil",
+    "indexname": "reservantes_perfil_bar_id_cliente_fone_norm_key",
+    "indexdef": "CREATE UNIQUE INDEX reservantes_perfil_bar_id_cliente_fone_norm_key ON silver.reservantes_perfil USING btree (bar_id, cliente_fone_norm)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "reservantes_perfil",
+    "indexname": "reservantes_perfil_pkey",
+    "indexdef": "CREATE UNIQUE INDEX reservantes_perfil_pkey ON silver.reservantes_perfil USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "silver_contahub_operacional_stockout_processado",
+    "indexname": "contahub_stockout_processado_pkey",
+    "indexdef": "CREATE UNIQUE INDEX contahub_stockout_processado_pkey ON silver.silver_contahub_operacional_stockout_processado USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "silver_contahub_operacional_stockout_processado",
+    "indexname": "idx_stockout_proc_bar_data",
+    "indexdef": "CREATE INDEX idx_stockout_proc_bar_data ON silver.silver_contahub_operacional_stockout_processado USING btree (bar_id, data_consulta)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "silver_contahub_operacional_stockout_processado",
+    "indexname": "idx_stockout_proc_categoria",
+    "indexdef": "CREATE INDEX idx_stockout_proc_categoria ON silver.silver_contahub_operacional_stockout_processado USING btree (categoria_local)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "silver_contahub_operacional_stockout_processado",
+    "indexname": "idx_stockout_proc_incluido",
+    "indexdef": "CREATE INDEX idx_stockout_proc_incluido ON silver.silver_contahub_operacional_stockout_processado USING btree (incluido)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "silver_contahub_operacional_stockout_processado",
+    "indexname": "idx_stockout_proc_motivo",
+    "indexdef": "CREATE INDEX idx_stockout_proc_motivo ON silver.silver_contahub_operacional_stockout_processado USING btree (motivo_exclusao) WHERE (motivo_exclusao IS NOT NULL)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "silver_contahub_operacional_stockout_processado",
+    "indexname": "idx_stockout_proc_raw_id",
+    "indexdef": "CREATE INDEX idx_stockout_proc_raw_id ON silver.silver_contahub_operacional_stockout_processado USING btree (raw_id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "sympla_bilheteria_diaria",
+    "indexname": "idx_sympla_bilheteria_bar_data",
+    "indexdef": "CREATE INDEX idx_sympla_bilheteria_bar_data ON silver.sympla_bilheteria_diaria USING btree (bar_id, data_evento DESC)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "sympla_bilheteria_diaria",
+    "indexname": "idx_sympla_bilheteria_event_id",
+    "indexdef": "CREATE INDEX idx_sympla_bilheteria_event_id ON silver.sympla_bilheteria_diaria USING btree (bar_id, event_id) WHERE (event_id IS NOT NULL)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "sympla_bilheteria_diaria",
+    "indexname": "sympla_bilheteria_diaria_pkey",
+    "indexdef": "CREATE UNIQUE INDEX sympla_bilheteria_diaria_pkey ON silver.sympla_bilheteria_diaria USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "sympla_bilheteria_diaria",
+    "indexname": "uq_sympla_bilheteria_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_sympla_bilheteria_natural ON silver.sympla_bilheteria_diaria USING btree (bar_id, data_evento)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "tempos_producao",
+    "indexname": "idx_tempos_producao_bar_data",
+    "indexdef": "CREATE INDEX idx_tempos_producao_bar_data ON silver.tempos_producao USING btree (bar_id, data_producao)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "tempos_producao",
+    "indexname": "idx_tempos_producao_categoria",
+    "indexdef": "CREATE INDEX idx_tempos_producao_categoria ON silver.tempos_producao USING btree (bar_id, data_producao, local_desc, categoria)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "tempos_producao",
+    "indexname": "idx_tempos_producao_dedup",
+    "indexdef": "CREATE INDEX idx_tempos_producao_dedup ON silver.tempos_producao USING btree (bar_id, data_producao, origem)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "tempos_producao",
+    "indexname": "tempos_producao_pkey",
+    "indexdef": "CREATE UNIQUE INDEX tempos_producao_pkey ON silver.tempos_producao USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "vendas_diarias",
+    "indexname": "idx_silver_vendas_diarias_bar_dt_desc",
+    "indexdef": "CREATE INDEX idx_silver_vendas_diarias_bar_dt_desc ON silver.vendas_diarias USING btree (bar_id, dt_gerencial DESC)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "vendas_diarias",
+    "indexname": "idx_silver_vendas_diarias_dt",
+    "indexdef": "CREATE INDEX idx_silver_vendas_diarias_dt ON silver.vendas_diarias USING btree (dt_gerencial)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "vendas_diarias",
+    "indexname": "pk_vendas_diarias",
+    "indexdef": "CREATE UNIQUE INDEX pk_vendas_diarias ON silver.vendas_diarias USING btree (bar_id, dt_gerencial)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "vendas_item",
+    "indexname": "idx_vendas_item_bar_data",
+    "indexdef": "CREATE INDEX idx_vendas_item_bar_data ON silver.vendas_item USING btree (bar_id, data_venda)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "vendas_item",
+    "indexname": "idx_vendas_item_dedup",
+    "indexdef": "CREATE INDEX idx_vendas_item_dedup ON silver.vendas_item USING btree (bar_id, data_venda, origem, origem_ref)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "vendas_item",
+    "indexname": "idx_vendas_item_mix",
+    "indexdef": "CREATE INDEX idx_vendas_item_mix ON silver.vendas_item USING btree (bar_id, data_venda, categoria_mix)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "vendas_item",
+    "indexname": "idx_vendas_item_produto",
+    "indexdef": "CREATE INDEX idx_vendas_item_produto ON silver.vendas_item USING btree (bar_id, produto_codigo)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "vendas_item",
+    "indexname": "vendas_item_pkey",
+    "indexdef": "CREATE UNIQUE INDEX vendas_item_pkey ON silver.vendas_item USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "yuzer_pagamentos_evento",
+    "indexname": "idx_yuzer_pagamentos_evento_bar_data",
+    "indexdef": "CREATE INDEX idx_yuzer_pagamentos_evento_bar_data ON silver.yuzer_pagamentos_evento USING btree (bar_id, data_evento DESC)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "yuzer_pagamentos_evento",
+    "indexname": "uq_yuzer_pagamentos_evento_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_yuzer_pagamentos_evento_natural ON silver.yuzer_pagamentos_evento USING btree (bar_id, evento_id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "yuzer_pagamentos_evento",
+    "indexname": "yuzer_pagamentos_evento_pkey",
+    "indexdef": "CREATE UNIQUE INDEX yuzer_pagamentos_evento_pkey ON silver.yuzer_pagamentos_evento USING btree (id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "yuzer_produtos_evento",
+    "indexname": "idx_yuzer_produtos_evento_bar_data",
+    "indexdef": "CREATE INDEX idx_yuzer_produtos_evento_bar_data ON silver.yuzer_produtos_evento USING btree (bar_id, data_evento DESC)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "yuzer_produtos_evento",
+    "indexname": "idx_yuzer_produtos_evento_ingresso",
+    "indexdef": "CREATE INDEX idx_yuzer_produtos_evento_ingresso ON silver.yuzer_produtos_evento USING btree (bar_id, eh_ingresso)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "yuzer_produtos_evento",
+    "indexname": "idx_yuzer_produtos_evento_produto",
+    "indexdef": "CREATE INDEX idx_yuzer_produtos_evento_produto ON silver.yuzer_produtos_evento USING btree (bar_id, produto_nome)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "yuzer_produtos_evento",
+    "indexname": "uq_yuzer_produtos_evento_natural",
+    "indexdef": "CREATE UNIQUE INDEX uq_yuzer_produtos_evento_natural ON silver.yuzer_produtos_evento USING btree (bar_id, evento_id, produto_id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "yuzer_produtos_evento",
+    "indexname": "yuzer_produtos_evento_pkey",
+    "indexdef": "CREATE UNIQUE INDEX yuzer_produtos_evento_pkey ON silver.yuzer_produtos_evento USING btree (id)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "buckets",
+    "indexname": "bname",
+    "indexdef": "CREATE UNIQUE INDEX bname ON storage.buckets USING btree (name)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "buckets",
+    "indexname": "buckets_pkey",
+    "indexdef": "CREATE UNIQUE INDEX buckets_pkey ON storage.buckets USING btree (id)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "buckets_analytics",
+    "indexname": "buckets_analytics_pkey",
+    "indexdef": "CREATE UNIQUE INDEX buckets_analytics_pkey ON storage.buckets_analytics USING btree (id)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "buckets_analytics",
+    "indexname": "buckets_analytics_unique_name_idx",
+    "indexdef": "CREATE UNIQUE INDEX buckets_analytics_unique_name_idx ON storage.buckets_analytics USING btree (name) WHERE (deleted_at IS NULL)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "buckets_vectors",
+    "indexname": "buckets_vectors_pkey",
+    "indexdef": "CREATE UNIQUE INDEX buckets_vectors_pkey ON storage.buckets_vectors USING btree (id)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "migrations",
+    "indexname": "migrations_name_key",
+    "indexdef": "CREATE UNIQUE INDEX migrations_name_key ON storage.migrations USING btree (name)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "migrations",
+    "indexname": "migrations_pkey",
+    "indexdef": "CREATE UNIQUE INDEX migrations_pkey ON storage.migrations USING btree (id)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "objects",
+    "indexname": "bucketid_objname",
+    "indexdef": "CREATE UNIQUE INDEX bucketid_objname ON storage.objects USING btree (bucket_id, name)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "objects",
+    "indexname": "idx_objects_bucket_id_name",
+    "indexdef": "CREATE INDEX idx_objects_bucket_id_name ON storage.objects USING btree (bucket_id, name COLLATE \"C\")"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "objects",
+    "indexname": "idx_objects_bucket_id_name_lower",
+    "indexdef": "CREATE INDEX idx_objects_bucket_id_name_lower ON storage.objects USING btree (bucket_id, lower(name) COLLATE \"C\")"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "objects",
+    "indexname": "name_prefix_search",
+    "indexdef": "CREATE INDEX name_prefix_search ON storage.objects USING btree (name text_pattern_ops)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "objects",
+    "indexname": "objects_pkey",
+    "indexdef": "CREATE UNIQUE INDEX objects_pkey ON storage.objects USING btree (id)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "s3_multipart_uploads",
+    "indexname": "idx_multipart_uploads_list",
+    "indexdef": "CREATE INDEX idx_multipart_uploads_list ON storage.s3_multipart_uploads USING btree (bucket_id, key, created_at)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "s3_multipart_uploads",
+    "indexname": "s3_multipart_uploads_pkey",
+    "indexdef": "CREATE UNIQUE INDEX s3_multipart_uploads_pkey ON storage.s3_multipart_uploads USING btree (id)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "s3_multipart_uploads_parts",
+    "indexname": "s3_multipart_uploads_parts_pkey",
+    "indexdef": "CREATE UNIQUE INDEX s3_multipart_uploads_parts_pkey ON storage.s3_multipart_uploads_parts USING btree (id)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "vector_indexes",
+    "indexname": "vector_indexes_name_bucket_id_idx",
+    "indexdef": "CREATE UNIQUE INDEX vector_indexes_name_bucket_id_idx ON storage.vector_indexes USING btree (name, bucket_id)"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "vector_indexes",
+    "indexname": "vector_indexes_pkey",
+    "indexdef": "CREATE UNIQUE INDEX vector_indexes_pkey ON storage.vector_indexes USING btree (id)"
+  },
+  {
+    "schemaname": "supabase_migrations",
+    "tablename": "schema_migrations",
+    "indexname": "schema_migrations_idempotency_key_key",
+    "indexdef": "CREATE UNIQUE INDEX schema_migrations_idempotency_key_key ON supabase_migrations.schema_migrations USING btree (idempotency_key)"
+  },
+  {
+    "schemaname": "supabase_migrations",
+    "tablename": "schema_migrations",
+    "indexname": "schema_migrations_pkey",
+    "indexdef": "CREATE UNIQUE INDEX schema_migrations_pkey ON supabase_migrations.schema_migrations USING btree (version)"
+  },
+  {
+    "schemaname": "supabase_migrations",
+    "tablename": "seed_files",
+    "indexname": "seed_files_pkey",
+    "indexdef": "CREATE UNIQUE INDEX seed_files_pkey ON supabase_migrations.seed_files USING btree (path)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "_sync_chunk_progress",
+    "indexname": "_sync_chunk_progress_batch_date_bar_id_chunk_index_key",
+    "indexdef": "CREATE UNIQUE INDEX _sync_chunk_progress_batch_date_bar_id_chunk_index_key ON system._sync_chunk_progress USING btree (batch_date, bar_id, chunk_index)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "_sync_chunk_progress",
+    "indexname": "_sync_chunk_progress_batch_date_idx",
+    "indexdef": "CREATE INDEX _sync_chunk_progress_batch_date_idx ON system._sync_chunk_progress USING btree (batch_date)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "_sync_chunk_progress",
+    "indexname": "_sync_chunk_progress_pkey",
+    "indexdef": "CREATE UNIQUE INDEX _sync_chunk_progress_pkey ON system._sync_chunk_progress USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "_sync_chunk_progress",
+    "indexname": "_sync_chunk_progress_status_idx",
+    "indexdef": "CREATE INDEX _sync_chunk_progress_status_idx ON system._sync_chunk_progress USING btree (status)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "alertas_enviados",
+    "indexname": "alertas_enviados_pkey",
+    "indexdef": "CREATE UNIQUE INDEX alertas_enviados_pkey ON system.alertas_enviados USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "alertas_enviados",
+    "indexname": "idx_alertas_enviados_bar_id",
+    "indexdef": "CREATE INDEX idx_alertas_enviados_bar_id ON system.alertas_enviados USING btree (bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "audit_trail",
+    "indexname": "audit_trail_pkey",
+    "indexdef": "CREATE UNIQUE INDEX audit_trail_pkey ON system.audit_trail USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "audit_trail",
+    "indexname": "idx_audit_trail_bar_id",
+    "indexdef": "CREATE INDEX idx_audit_trail_bar_id ON system.audit_trail USING btree (bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "audit_trail",
+    "indexname": "idx_audit_trail_created_at",
+    "indexdef": "CREATE INDEX idx_audit_trail_created_at ON system.audit_trail USING btree (created_at DESC)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "audit_trail",
+    "indexname": "idx_audit_trail_table_record",
+    "indexdef": "CREATE INDEX idx_audit_trail_table_record ON system.audit_trail USING btree (table_name, record_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "audit_trail",
+    "indexname": "idx_audit_trail_timestamp",
+    "indexdef": "CREATE INDEX idx_audit_trail_timestamp ON system.audit_trail USING btree (\"timestamp\" DESC)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "audit_trail",
+    "indexname": "idx_audit_trail_user_id",
+    "indexdef": "CREATE INDEX idx_audit_trail_user_id ON system.audit_trail USING btree (user_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "audit_trail",
+    "indexname": "idx_audit_trail_user_operation",
+    "indexdef": "CREATE INDEX idx_audit_trail_user_operation ON system.audit_trail USING btree (user_id, operation)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "automation_logs",
+    "indexname": "automation_logs_pkey",
+    "indexdef": "CREATE UNIQUE INDEX automation_logs_pkey ON system.automation_logs USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "cron_heartbeats",
+    "indexname": "cron_heartbeats_pkey",
+    "indexdef": "CREATE UNIQUE INDEX cron_heartbeats_pkey ON system.cron_heartbeats USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "cron_heartbeats",
+    "indexname": "idx_cron_heartbeats_bar_id",
+    "indexdef": "CREATE INDEX idx_cron_heartbeats_bar_id ON system.cron_heartbeats USING btree (bar_id) WHERE (bar_id IS NOT NULL)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "cron_heartbeats",
+    "indexname": "idx_cron_heartbeats_job_started",
+    "indexdef": "CREATE INDEX idx_cron_heartbeats_job_started ON system.cron_heartbeats USING btree (job_name, started_at DESC)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "cron_heartbeats",
+    "indexname": "idx_cron_heartbeats_status_not_success",
+    "indexdef": "CREATE INDEX idx_cron_heartbeats_status_not_success ON system.cron_heartbeats USING btree (status) WHERE (status <> 'success'::text)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "dados_bloqueados",
+    "indexname": "dados_bloqueados_pkey",
+    "indexdef": "CREATE UNIQUE INDEX dados_bloqueados_pkey ON system.dados_bloqueados USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "dados_bloqueados",
+    "indexname": "dados_bloqueados_tabela_data_referencia_bar_id_key",
+    "indexdef": "CREATE UNIQUE INDEX dados_bloqueados_tabela_data_referencia_bar_id_key ON system.dados_bloqueados USING btree (tabela, data_referencia, bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "dados_bloqueados",
+    "indexname": "idx_dados_bloqueados_data",
+    "indexdef": "CREATE INDEX idx_dados_bloqueados_data ON system.dados_bloqueados USING btree (data_referencia)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "discord_webhooks",
+    "indexname": "discord_webhooks_pkey",
+    "indexdef": "CREATE UNIQUE INDEX discord_webhooks_pkey ON system.discord_webhooks USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "discord_webhooks",
+    "indexname": "idx_discord_webhooks_bar_tipo",
+    "indexdef": "CREATE UNIQUE INDEX idx_discord_webhooks_bar_tipo ON system.discord_webhooks USING btree (bar_id, tipo)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "execucoes_automaticas",
+    "indexname": "execucoes_automaticas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX execucoes_automaticas_pkey ON system.execucoes_automaticas USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "insight_events",
+    "indexname": "idx_insight_events_bar_data",
+    "indexdef": "CREATE INDEX idx_insight_events_bar_data ON system.insight_events USING btree (bar_id, data)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "insight_events",
+    "indexname": "idx_insight_events_processed",
+    "indexdef": "CREATE INDEX idx_insight_events_processed ON system.insight_events USING btree (processed)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "insight_events",
+    "indexname": "idx_insight_events_type",
+    "indexdef": "CREATE INDEX idx_insight_events_type ON system.insight_events USING btree (event_type)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "insight_events",
+    "indexname": "insight_events_pkey",
+    "indexdef": "CREATE UNIQUE INDEX insight_events_pkey ON system.insight_events USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "notificacoes",
+    "indexname": "idx_notificacoes_bar_id",
+    "indexdef": "CREATE INDEX idx_notificacoes_bar_id ON system.notificacoes USING btree (bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "notificacoes",
+    "indexname": "notificacoes_pkey",
+    "indexdef": "CREATE UNIQUE INDEX notificacoes_pkey ON system.notificacoes USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "recalculo_eventos_log",
+    "indexname": "recalculo_eventos_log_pkey",
+    "indexdef": "CREATE UNIQUE INDEX recalculo_eventos_log_pkey ON system.recalculo_eventos_log USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "security_events",
+    "indexname": "idx_security_events_bar_id",
+    "indexdef": "CREATE INDEX idx_security_events_bar_id ON system.security_events USING btree (bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "security_events",
+    "indexname": "idx_security_events_resolved_by",
+    "indexdef": "CREATE INDEX idx_security_events_resolved_by ON system.security_events USING btree (resolved_by)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "security_events",
+    "indexname": "idx_security_events_user_id",
+    "indexdef": "CREATE INDEX idx_security_events_user_id ON system.security_events USING btree (user_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "security_events",
+    "indexname": "security_events_event_id_key",
+    "indexdef": "CREATE UNIQUE INDEX security_events_event_id_key ON system.security_events USING btree (event_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "security_events",
+    "indexname": "security_events_pkey",
+    "indexdef": "CREATE UNIQUE INDEX security_events_pkey ON system.security_events USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sistema_alertas",
+    "indexname": "idx_sistema_alertas_bar_id",
+    "indexdef": "CREATE INDEX idx_sistema_alertas_bar_id ON system.sistema_alertas USING btree (bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sistema_alertas",
+    "indexname": "idx_sistema_alertas_tipo",
+    "indexdef": "CREATE INDEX idx_sistema_alertas_tipo ON system.sistema_alertas USING btree (tipo)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sistema_alertas",
+    "indexname": "sistema_alertas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX sistema_alertas_pkey ON system.sistema_alertas USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sync_contagem_historico",
+    "indexname": "sync_contagem_historico_pkey",
+    "indexdef": "CREATE UNIQUE INDEX sync_contagem_historico_pkey ON system.sync_contagem_historico USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sync_logs_contahub",
+    "indexname": "idx_sync_logs_contahub_bar_data",
+    "indexdef": "CREATE INDEX idx_sync_logs_contahub_bar_data ON system.sync_logs_contahub USING btree (bar_id, data_sync DESC)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sync_logs_contahub",
+    "indexname": "idx_sync_logs_contahub_inicio",
+    "indexdef": "CREATE INDEX idx_sync_logs_contahub_inicio ON system.sync_logs_contahub USING btree (inicio_execucao DESC)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sync_logs_contahub",
+    "indexname": "sync_logs_contahub_pkey",
+    "indexdef": "CREATE UNIQUE INDEX sync_logs_contahub_pkey ON system.sync_logs_contahub USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sync_metadata",
+    "indexname": "idx_sync_metadata_active",
+    "indexdef": "CREATE INDEX idx_sync_metadata_active ON system.sync_metadata USING btree (is_active) WHERE (is_active = true)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sync_metadata",
+    "indexname": "idx_sync_metadata_bar_type",
+    "indexdef": "CREATE INDEX idx_sync_metadata_bar_type ON system.sync_metadata USING btree (bar_id, sync_type)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sync_metadata",
+    "indexname": "sync_metadata_pkey",
+    "indexdef": "CREATE UNIQUE INDEX sync_metadata_pkey ON system.sync_metadata USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sync_metadata",
+    "indexname": "sync_metadata_unique",
+    "indexdef": "CREATE UNIQUE INDEX sync_metadata_unique ON system.sync_metadata USING btree (bar_id, sync_type, spreadsheet_id, sheet_name)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "system_config",
+    "indexname": "system_config_chave_key",
+    "indexdef": "CREATE UNIQUE INDEX system_config_chave_key ON system.system_config USING btree (chave)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "system_config",
+    "indexname": "system_config_pkey",
+    "indexdef": "CREATE UNIQUE INDEX system_config_pkey ON system.system_config USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "system_logs",
+    "indexname": "system_logs_pkey",
+    "indexdef": "CREATE UNIQUE INDEX system_logs_pkey ON system.system_logs USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "uploads",
+    "indexname": "uploads_pkey",
+    "indexdef": "CREATE UNIQUE INDEX uploads_pkey ON system.uploads USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "validacao_dados",
+    "indexname": "idx_validacao_bar_data_fonte",
+    "indexdef": "CREATE UNIQUE INDEX idx_validacao_bar_data_fonte ON system.validacao_dados USING btree (bar_id, data_referencia, fonte)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "validacao_dados",
+    "indexname": "validacao_dados_pkey",
+    "indexdef": "CREATE UNIQUE INDEX validacao_dados_pkey ON system.validacao_dados USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "validacao_dados_diaria",
+    "indexname": "validacao_dados_diaria_data_referencia_bar_id_key",
+    "indexdef": "CREATE UNIQUE INDEX validacao_dados_diaria_data_referencia_bar_id_key ON system.validacao_dados_diaria USING btree (data_referencia, bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "validacao_dados_diaria",
+    "indexname": "validacao_dados_diaria_pkey",
+    "indexdef": "CREATE UNIQUE INDEX validacao_dados_diaria_pkey ON system.validacao_dados_diaria USING btree (id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "validacoes_cruzadas",
+    "indexname": "idx_validacoes_cruzadas_bar_id",
+    "indexdef": "CREATE INDEX idx_validacoes_cruzadas_bar_id ON system.validacoes_cruzadas USING btree (bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "validacoes_cruzadas",
+    "indexname": "idx_validacoes_cruzadas_data",
+    "indexdef": "CREATE INDEX idx_validacoes_cruzadas_data ON system.validacoes_cruzadas USING btree (data_referencia)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "validacoes_cruzadas",
+    "indexname": "validacoes_cruzadas_data_referencia_bar_id_key",
+    "indexdef": "CREATE UNIQUE INDEX validacoes_cruzadas_data_referencia_bar_id_key ON system.validacoes_cruzadas USING btree (data_referencia, bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "validacoes_cruzadas",
+    "indexname": "validacoes_cruzadas_pkey",
+    "indexdef": "CREATE UNIQUE INDEX validacoes_cruzadas_pkey ON system.validacoes_cruzadas USING btree (id)"
+  },
+  {
+    "schemaname": "vault",
+    "tablename": "secrets",
+    "indexname": "secrets_name_idx",
+    "indexdef": "CREATE UNIQUE INDEX secrets_name_idx ON vault.secrets USING btree (name) WHERE (name IS NOT NULL)"
+  },
+  {
+    "schemaname": "vault",
+    "tablename": "secrets",
+    "indexname": "secrets_pkey",
+    "indexdef": "CREATE UNIQUE INDEX secrets_pkey ON vault.secrets USING btree (id)"
+  }
+]
