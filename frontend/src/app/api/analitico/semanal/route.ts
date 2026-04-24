@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { bronze } from '@/lib/medallion/bronze';
+import { silver } from '@/lib/medallion/silver';
 import { verificarMultiplasDatas } from '@/lib/helpers/calendario-helper';
 
 const supabase = createClient(
@@ -29,6 +31,8 @@ const NOMES_DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta',
 
 export async function GET(request: NextRequest) {
   try {
+    const bronzeDb = await bronze();
+    const silverDb = await silver();
     const { searchParams } = new URL(request.url);
     const barId = searchParams.get('barId');
     const diaSemana = searchParams.get('diaSemana'); // 0=Domingo, 1=Segunda, ..., 6=Sábado
@@ -92,8 +96,7 @@ export async function GET(request: NextRequest) {
       let hasMoreContahub = true;
 
       while (hasMoreContahub) {
-        const { data: batch, error: batchError } = await supabase
-          .schema('bronze')
+        const { data: batch, error: batchError } = await bronzeDb
           .from('bronze_contahub_avendas_vendasperiodo')
           .select('vr_pagamentos, pessoas')
           .eq('bar_id', barIdNum)
@@ -196,8 +199,7 @@ export async function GET(request: NextRequest) {
       let hasMoreTotais = true;
 
       while (hasMoreTotais) {
-        const { data: batch, error: batchError } = await supabase
-          .schema('silver')
+        const { data: batch, error: batchError } = await silverDb
           .from('cliente_visitas')
           .select('cliente_fone')
           .eq('bar_id', barIdNum)
@@ -237,8 +239,7 @@ export async function GET(request: NextRequest) {
       let hasMoreHistorico = true;
 
       while (hasMoreHistorico) {
-        const { data: batch, error: batchError } = await supabase
-          .schema('silver')
+        const { data: batch, error: batchError } = await silverDb
           .from('cliente_visitas')
           .select('cliente_fone')
           .eq('bar_id', barIdNum)
@@ -290,8 +291,7 @@ export async function GET(request: NextRequest) {
       let hasMoreHistoricoRecente = true;
 
       while (hasMoreHistoricoRecente) {
-        const { data: batch, error: batchError } = await supabase
-          .schema('silver')
+        const { data: batch, error: batchError } = await silverDb
           .from('cliente_visitas')
           .select('cliente_fone')
           .eq('bar_id', barIdNum)

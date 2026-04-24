@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAdminClient } from '@/lib/supabase-admin'
+import { silver } from '@/lib/medallion/silver'
 import { authenticateUser, authErrorResponse } from '@/middleware/auth'
 
 export const dynamic = 'force-dynamic'
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       return authErrorResponse('Usuário não autenticado')
     }
 
-    const supabase = await getAdminClient()
+    const silverDb = await silver()
 
     // Obter parâmetros
     const { searchParams } = new URL(request.url)
@@ -56,8 +56,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar perfil do cliente direto da silver (compat: aliases preservam shape esperado pelo UI)
-    const { data: perfil, error } = await supabase
-      .schema('silver' as never)
+    const { data: perfil, error } = await silverDb
       .from('cliente_estatisticas')
       .select(`
         id, bar_id,
@@ -83,8 +82,7 @@ export async function GET(request: NextRequest) {
     // Se não encontrou no cache, tentar buscar em tempo real
     if (!perfil) {
       // Buscar comandas do cliente (migrado para visitas)
-      const { data: vendas } = await supabase
-        .schema('silver')
+      const { data: vendas } = await silverDb
         .from('cliente_visitas')
         .select('id, data_visita, cliente_nome')
         .eq('bar_id', barId)
@@ -102,8 +100,7 @@ export async function GET(request: NextRequest) {
       const datas = [...new Set(vendas.map(v => v.data_visita).filter(Boolean))]
 
       // Buscar itens consumidos (migrado para vendas_item)
-      const { data: itensConsumo } = await supabase
-        .schema('silver' as never)
+      const { data: itensConsumo } = await silverDb
         .from('vendas_item')
         .select('produto_desc, grupo_desc, quantidade, valor, data_venda')
         .eq('bar_id', barId)
