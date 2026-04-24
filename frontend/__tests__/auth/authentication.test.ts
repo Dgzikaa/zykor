@@ -2,7 +2,7 @@
  * Testes de autenticação
  */
 
-import { describe, it, expect, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { generateToken, validateToken, isTokenExpired } from '@/lib/auth/jwt';
 import type { AuthToken } from '@/lib/auth/types';
 

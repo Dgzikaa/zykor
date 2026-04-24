@@ -4,24 +4,25 @@
  * Testes unitários e de integração para o componente InsightsV2Card
  */
 
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { toast } from 'sonner';
 import InsightsV2Card from './InsightsV2Card';
 
 // Mock do fetch global
-global.fetch = jest.fn();
+global.fetch = vi.fn();
 
 // Mock do toast
-jest.mock('sonner', () => ({
+vi.mock('sonner', () => ({
   toast: {
-    success: jest.fn(),
-    error: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
 describe('InsightsV2Card', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   // ============================================================
@@ -53,7 +54,7 @@ describe('InsightsV2Card', () => {
   // ============================================================
 
   it('deve mostrar skeleton durante loading', async () => {
-    (global.fetch as jest.Mock).mockImplementation(() =>
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(() =>
       new Promise(resolve => setTimeout(() => resolve({
         json: async () => ({ success: true, insights: [], stats: {} })
       }), 1000))
@@ -70,7 +71,7 @@ describe('InsightsV2Card', () => {
   // ============================================================
 
   it('deve mostrar empty state quando não há insights', async () => {
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       json: async () => ({
         success: true,
         insights: [],
@@ -116,7 +117,7 @@ describe('InsightsV2Card', () => {
       }
     ];
 
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       json: async () => ({
         success: true,
         insights: mockInsights,
@@ -159,7 +160,7 @@ describe('InsightsV2Card', () => {
       }
     ];
 
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       json: async () => ({
         success: true,
         insights: mockInsights,
@@ -190,7 +191,7 @@ describe('InsightsV2Card', () => {
       }
     ];
 
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       json: async () => ({
         success: true,
         insights: mockInsights,
@@ -210,7 +211,7 @@ describe('InsightsV2Card', () => {
   // ============================================================
 
   it('deve executar análise ao clicar no botão', async () => {
-    (global.fetch as jest.Mock)
+    (global.fetch as unknown as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({
         json: async () => ({ success: true, insights: [], stats: {} })
       })
@@ -259,7 +260,7 @@ describe('InsightsV2Card', () => {
       }
     ];
 
-    (global.fetch as jest.Mock)
+    (global.fetch as unknown as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({
         json: async () => ({
           success: true,
@@ -296,7 +297,7 @@ describe('InsightsV2Card', () => {
   // ============================================================
 
   it('deve aplicar filtro de tipo', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       json: async () => ({ success: true, insights: [], stats: {} })
     });
 
@@ -317,7 +318,7 @@ describe('InsightsV2Card', () => {
   });
 
   it('deve aplicar filtro de severidade', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       json: async () => ({ success: true, insights: [], stats: {} })
     });
 
@@ -342,7 +343,7 @@ describe('InsightsV2Card', () => {
   // ============================================================
 
   it('deve exibir stats corretamente', async () => {
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       json: async () => ({
         success: true,
         insights: [],
@@ -390,7 +391,7 @@ describe('InsightsV2Card', () => {
       }
     ];
 
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       json: async () => ({
         success: true,
         insights: mockInsights,
@@ -413,7 +414,7 @@ describe('InsightsV2Card', () => {
   // ============================================================
 
   it('deve atualizar insights ao clicar em refresh', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       json: async () => ({ success: true, insights: [], stats: {} })
     });
 
@@ -441,9 +442,9 @@ describe('InsightsV2Card', () => {
   // ============================================================
 
   it('deve tratar erro ao buscar insights', async () => {
-    (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Network error'));
 
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     render(<InsightsV2Card barId={3} />);
     
@@ -458,7 +459,7 @@ describe('InsightsV2Card', () => {
   });
 
   it('deve tratar erro ao executar análise', async () => {
-    (global.fetch as jest.Mock)
+    (global.fetch as unknown as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({
         json: async () => ({ success: true, insights: [], stats: {} })
       })
@@ -498,7 +499,7 @@ describe('InsightsV2Card - Integração', () => {
       created_at: '2026-04-01T09:00:00Z'
     };
 
-    (global.fetch as jest.Mock)
+    (global.fetch as unknown as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({
         json: async () => ({ success: true, insights: [], stats: {} })
       })
