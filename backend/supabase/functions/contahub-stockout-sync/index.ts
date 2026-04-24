@@ -183,193 +183,114 @@ async function fetchContaHubData(url: string, sessionToken: string) {
   }
 }
 
-// Fun├º├úo para processar dados de stockout do ContaHub
+function strOrNull(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  return String(v);
+}
+
+function numOrNull(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = parseFloat(String(v));
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Persistência medallion: bronze raw (public.contahub_stockout foi removida do projeto). */
 async function processStockoutData(supabase: any, rawData: any, dataDate: string, barId: number) {
-  console.log('­ƒôª Processando dados de stockout...');
-  
+  console.log('📦 Processando dados de stockout → bronze...');
+
   if (!rawData?.list || !Array.isArray(rawData.list)) {
-    console.log('ÔÜá´©Å Nenhum dado de produto encontrado');
+    console.log('⚠️ Nenhum dado de produto encontrado');
     return { processed: 0, errors: 0, skipped: 0 };
   }
 
-  let processed = 0;
   let errors = 0;
-  let skipped = 0;
-  const stockoutRecords = [];
-
-  // Lista de prefixos a serem excluídos do stockout
-  // [HH] = Happy Hour (não disponíveis às 20h)
-  // [DD] = Dose Dupla (variações que não devem contar)
-  // [IN] = Insumos (não são produtos vendáveis)
   const prefixosExcluidos = ['[HH]', '[DD]', '[IN]'];
-
+  let skipped = 0;
   for (const item of rawData.list) {
-    // Verificar se o produto deve ser excluído por prefixo
     const prdDesc = item.prd_desc || '';
-    const shouldExclude = prefixosExcluidos.some(prefixo => prdDesc.startsWith(prefixo));
-    
-    if (shouldExclude) {
-      console.log(`⏭️ Pulando produto: ${item.prd_desc}`);
+    if (prefixosExcluidos.some((prefixo) => prdDesc.startsWith(prefixo))) {
       skipped++;
-      continue;
-    }
-    try {
-      // Mapear TODAS as colunas da API corretamente
-      const stockoutRecord = {
-        bar_id: barId,
-        data_consulta: dataDate,
-        hora_consulta: '20:00:00',
-        
-        // Dados principais da API
-        emp: item.emp || null,
-        prd: item.prd || null,
-        loc: item.loc || null,
-        prd_desc: item.prd_desc || null,
-        prd_venda: item.prd_venda || null, // CAMPO PRINCIPAL - "S" ou "N"
-        prd_ativo: item.prd_ativo || null,
-        prd_produzido: item.prd_produzido || null,
-        prd_unid: item.prd_unid || null,
-        prd_precovenda: item.prd_precovenda || null,
-        prd_estoque: item.prd_estoque || null,
-        prd_controlaestoque: item.prd_controlaestoque || null,
-        prd_validaestoquevenda: item.prd_validaestoquevenda || null,
-        prd_opcoes: item.prd_opcoes || null,
-        prd_venda7: item.prd_venda7 || null,
-        prd_venda30: item.prd_venda30 || null,
-        prd_venda180: item.prd_venda180 || null,
-        prd_nfencm: item.prd_nfencm || null,
-        prd_nfeorigem: item.prd_nfeorigem || null,
-        prd_nfecsosn: item.prd_nfecsosn || null,
-        prd_nfecstpiscofins: item.prd_nfecstpiscofins || null,
-        prd_nfepis: item.prd_nfepis || null,
-        prd_nfecofins: item.prd_nfecofins || null,
-        prd_nfeicms: item.prd_nfeicms || null,
-        prd_qtddouble: item.prd_qtddouble || null,
-        prd_disponivelonline: item.prd_disponivelonline || null,
-        prd_cardapioonline: item.prd_cardapioonline || null,
-        prd_semcustoestoque: item.prd_semcustoestoque || null,
-        prd_balanca: item.prd_balanca || null,
-        prd_delivery: item.prd_delivery || null,
-        prd_entregaimediata: item.prd_entregaimediata || null,
-        prd_semrepique: item.prd_semrepique || null,
-        prd_naoimprimeproducao: item.prd_naoimprimeproducao || null,
-        prd_agrupaimpressao: item.prd_agrupaimpressao || null,
-        prd_contagemehperda: item.prd_contagemehperda || null,
-        prd_naodesmembra: item.prd_naodesmembra || null,
-        prd_naoimprimeficha: item.prd_naoimprimeficha || null,
-        prd_servico: item.prd_servico || null,
-        prd_zeraestoquenacompra: item.prd_zeraestoquenacompra || null,
-        loc_desc: item.loc_desc || null,
-        loc_inativo: item.loc_inativo || null,
-        loc_statusimpressao: item.loc_statusimpressao || null,
-        
-        // Grupo do produto (usado para excluir grupos do stockout, ex: Feijoada)
-        grp_desc: item.grp_desc || null,
-        
-        // Dados completos do JSON original
-        raw_data: item,
-        
-        // Timestamps
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      stockoutRecords.push(stockoutRecord);
-      processed++;
-
-    } catch (error) {
-      console.error('ÔØî Erro ao processar item:', error, item);
-      errors++;
     }
   }
 
-  // Salvar todos os registros de uma vez usando UPSERT
-  if (stockoutRecords.length > 0) {
-    // Salvar na tabela antiga (compatibilidade) usando UPSERT
-    const { data, error } = await supabase
-      .from('contahub_stockout')
-      .upsert(stockoutRecords, {
-        onConflict: 'bar_id,data_consulta,prd',
-        ignoreDuplicates: false
-      });
+  const horaColetaReal = new Date().toISOString();
+  const rawRecords = rawData.list.map((item: any) => ({
+    bar_id: barId,
+    data_consulta: dataDate,
+    hora_consulta_real: horaColetaReal,
+    emp: strOrNull(item.emp),
+    prd: strOrNull(item.prd),
+    loc: strOrNull(item.loc),
+    prd_desc: strOrNull(item.prd_desc),
+    prd_venda: strOrNull(item.prd_venda),
+    prd_ativo: strOrNull(item.prd_ativo),
+    prd_produzido: strOrNull(item.prd_produzido),
+    prd_unid: strOrNull(item.prd_unid),
+    prd_precovenda: numOrNull(item.prd_precovenda),
+    prd_estoque: numOrNull(item.prd_estoque),
+    prd_controlaestoque: strOrNull(item.prd_controlaestoque),
+    prd_validaestoquevenda: strOrNull(item.prd_validaestoquevenda),
+    prd_opcoes: strOrNull(item.prd_opcoes),
+    prd_venda7: numOrNull(item.prd_venda7),
+    prd_venda30: numOrNull(item.prd_venda30),
+    prd_venda180: numOrNull(item.prd_venda180),
+    prd_nfencm: strOrNull(item.prd_nfencm),
+    prd_nfeorigem: strOrNull(item.prd_nfeorigem),
+    prd_nfecsosn: strOrNull(item.prd_nfecsosn),
+    prd_nfecstpiscofins: strOrNull(item.prd_nfecstpiscofins),
+    prd_nfepis: numOrNull(item.prd_nfepis),
+    prd_nfecofins: numOrNull(item.prd_nfecofins),
+    prd_nfeicms: numOrNull(item.prd_nfeicms),
+    prd_qtddouble: strOrNull(item.prd_qtddouble),
+    prd_disponivelonline: strOrNull(item.prd_disponivelonline),
+    prd_cardapioonline: strOrNull(item.prd_cardapioonline),
+    prd_semcustoestoque: strOrNull(item.prd_semcustoestoque),
+    prd_balanca: strOrNull(item.prd_balanca),
+    prd_delivery: strOrNull(item.prd_delivery),
+    prd_entregaimediata: strOrNull(item.prd_entregaimediata),
+    prd_semrepique: strOrNull(item.prd_semrepique),
+    prd_naoimprimeproducao: strOrNull(item.prd_naoimprimeproducao),
+    prd_agrupaimpressao: strOrNull(item.prd_agrupaimpressao),
+    prd_contagemehperda: strOrNull(item.prd_contagemehperda),
+    prd_naodesmembra: strOrNull(item.prd_naodesmembra),
+    prd_naoimprimeficha: strOrNull(item.prd_naoimprimeficha),
+    prd_servico: strOrNull(item.prd_servico),
+    prd_zeraestoquenacompra: strOrNull(item.prd_zeraestoquenacompra),
+    loc_desc: strOrNull(item.loc_desc),
+    loc_inativo: strOrNull(item.loc_inativo),
+    loc_statusimpressao: strOrNull(item.loc_statusimpressao),
+    raw_data: item,
+  }));
 
-    if (error) {
-      console.error('ÔØî Erro ao salvar dados de stockout:', error);
-      throw new Error(`Erro ao salvar stockout: ${error.message}`);
-    }
+  const { error: delError } = await supabase
+    .schema('bronze')
+    .from('bronze_contahub_operacional_stockout_raw')
+    .delete()
+    .eq('bar_id', barId)
+    .eq('data_consulta', dataDate);
 
-    console.log(`Ô£à ${stockoutRecords.length} registros de stockout salvos (UPSERT)`);
-    
-    // NOVO: Salvar também na tabela RAW (v2.0) usando UPSERT
-    try {
-      const horaColetaReal = new Date();
-      const rawRecords = rawData.list.map((item: any) => ({
-        bar_id: barId,
-        data_consulta: dataDate,
-        hora_consulta_real: horaColetaReal.toISOString(),
-        emp: item.emp || null,
-        prd: item.prd || null,
-        loc: item.loc || null,
-        prd_desc: item.prd_desc || null,
-        prd_venda: item.prd_venda || null,
-        prd_ativo: item.prd_ativo || null,
-        prd_produzido: item.prd_produzido || null,
-        prd_unid: item.prd_unid || null,
-        prd_precovenda: item.prd_precovenda || null,
-        prd_estoque: item.prd_estoque || null,
-        prd_controlaestoque: item.prd_controlaestoque || null,
-        prd_validaestoquevenda: item.prd_validaestoquevenda || null,
-        prd_opcoes: item.prd_opcoes || null,
-        prd_venda7: item.prd_venda7 || null,
-        prd_venda30: item.prd_venda30 || null,
-        prd_venda180: item.prd_venda180 || null,
-        prd_nfencm: item.prd_nfencm || null,
-        prd_nfeorigem: item.prd_nfeorigem || null,
-        prd_nfecsosn: item.prd_nfecsosn || null,
-        prd_nfecstpiscofins: item.prd_nfecstpiscofins || null,
-        prd_nfepis: item.prd_nfepis || null,
-        prd_nfecofins: item.prd_nfecofins || null,
-        prd_nfeicms: item.prd_nfeicms || null,
-        prd_qtddouble: item.prd_qtddouble || null,
-        prd_disponivelonline: item.prd_disponivelonline || null,
-        prd_cardapioonline: item.prd_cardapioonline || null,
-        prd_semcustoestoque: item.prd_semcustoestoque || null,
-        prd_balanca: item.prd_balanca || null,
-        prd_delivery: item.prd_delivery || null,
-        prd_entregaimediata: item.prd_entregaimediata || null,
-        prd_semrepique: item.prd_semrepique || null,
-        prd_naoimprimeproducao: item.prd_naoimprimeproducao || null,
-        prd_agrupaimpressao: item.prd_agrupaimpressao || null,
-        prd_contagemehperda: item.prd_contagemehperda || null,
-        prd_naodesmembra: item.prd_naodesmembra || null,
-        prd_naoimprimeficha: item.prd_naoimprimeficha || null,
-        prd_servico: item.prd_servico || null,
-        prd_zeraestoquenacompra: item.prd_zeraestoquenacompra || null,
-        loc_desc: item.loc_desc || null,
-        loc_inativo: item.loc_inativo || null,
-        loc_statusimpressao: item.loc_statusimpressao || null,
-        raw_data: item
-      }));
-      
-      const { error: errorRaw } = await supabase
-        .from('contahub_stockout_raw')
-        .upsert(rawRecords, {
-          onConflict: 'bar_id,data_consulta,prd',
-          ignoreDuplicates: false
-        });
-      
-      if (errorRaw) {
-        console.error('⚠️ Erro ao salvar na tabela RAW (não crítico):', errorRaw);
-      } else {
-        console.log(`✅ ${rawRecords.length} produtos salvos na tabela RAW (v2.0) usando UPSERT`);
-      }
-    } catch (rawError) {
-      console.error('⚠️ Erro ao salvar RAW (não crítico):', rawError);
+  if (delError) {
+    console.error('⚠️ Erro ao limpar bronze (mesmo bar/data) antes do insert:', delError);
+  }
+
+  const BATCH = 400;
+  for (let i = 0; i < rawRecords.length; i += BATCH) {
+    const chunk = rawRecords.slice(i, i + BATCH);
+    const { error: insError } = await supabase
+      .schema('bronze')
+      .from('bronze_contahub_operacional_stockout_raw')
+      .insert(chunk);
+
+    if (insError) {
+      console.error('❌ Erro ao inserir bronze stockout raw:', insError);
+      throw new Error(`Erro ao salvar stockout: ${insError.message}`);
     }
   }
 
-  console.log(`­ƒôè Produtos Happy Hour exclu├¡dos: ${skipped}`);
-  return { processed, errors, skipped };
+  console.log(
+    `✅ ${rawRecords.length} registros salvos em bronze.bronze_contahub_operacional_stockout_raw (prefixos HH/DD/IN apenas contados: ${skipped})`,
+  );
+  return { processed: rawRecords.length, errors, skipped };
 }
 
 
@@ -457,7 +378,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     console.log(`­ƒôè Dados recebidos do ContaHub: ${rawData?.list?.length || 0} produtos`);
     
-    // Processar e salvar dados (usando UPSERT, sem DELETE prévio)
+    // Processar e salvar dados em bronze (delete do dia + insert em lotes)
     const result = await processStockoutData(supabase, rawData, data_date, bar_id);
     
     // Calcular estatísticas (excluindo [HH], [DD] e [IN])
