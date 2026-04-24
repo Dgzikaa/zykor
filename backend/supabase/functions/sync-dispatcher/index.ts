@@ -1,4 +1,13 @@
 /**
+ * @camada ops
+ * @jobName sync-dispatcher
+ * @descricao Roteador de syncs
+ *
+ * Classificacao medallion mantida em ops.job_camada_mapping (ver
+ * database/migrations/2026-04-23-observability-mapping.sql). Observability
+ * via _shared/heartbeat.ts ou _shared/observability.ts.
+ */
+/**
  * 🔄 Sync Dispatcher - Dispatcher Unificado para Sincronizações
  * 
  * Centraliza sincronizações diversas (eventos, clientes, conhecimento, marketing).

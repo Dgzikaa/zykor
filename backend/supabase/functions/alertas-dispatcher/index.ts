@@ -1,4 +1,13 @@
 /**
+ * @camada ops
+ * @jobName alertas-dispatcher
+ * @descricao Alertas Discord/WhatsApp
+ *
+ * Classificacao medallion mantida em ops.job_camada_mapping (ver
+ * database/migrations/2026-04-23-observability-mapping.sql). Observability
+ * via _shared/heartbeat.ts ou _shared/observability.ts.
+ */
+/**
  * 🚨 Alertas Dispatcher - Dispatcher Unificado para Sistema de Alertas
  * 
  * Centraliza todas as funções de alertas em um único endpoint.

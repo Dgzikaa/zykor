@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase-admin'
+import { silver } from '@/lib/medallion/silver'
 import { authenticateUser, authErrorResponse } from '@/middleware/auth'
 
 // Cache por 3 minutos para dados de clientes
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
     }
     
     const supabase = await getAdminClient()
+    const silverDb = await silver()
 
     // Buscar bar_id do header x-selected-bar-id
     const barIdHeader = request.headers.get('x-selected-bar-id')
@@ -42,8 +44,7 @@ export async function GET(request: NextRequest) {
     }
 
     const startTime = Date.now()
-    let query = supabase
-        .schema('silver' as never)
+    let query = silverDb
         .from('cliente_estatisticas')
         .select('*', { count: 'exact' })
         .eq('bar_id', barIdFilter)
@@ -102,8 +103,7 @@ export async function GET(request: NextRequest) {
         
         if (statsError) {
           // Fallback: buscar contagem total
-          const { count } = await supabase
-            .schema('silver' as never)
+          const { count } = await silverDb
             .from('cliente_estatisticas')
             .select('*', { count: 'exact', head: true })
             .eq('bar_id', barIdFilter)
@@ -116,8 +116,7 @@ export async function GET(request: NextRequest) {
           let hasMore = true
           
           while (hasMore) {
-            const { data: statsPage } = await supabase
-              .schema('silver' as never)
+            const { data: statsPage } = await silverDb
               .from('cliente_estatisticas')
               .select('total_visitas, valor_total_entrada, valor_total_consumo')
               .eq('bar_id', barIdFilter)
@@ -198,8 +197,7 @@ export async function GET(request: NextRequest) {
         break
       }
       
-      const { data, error } = await supabase
-        .schema('silver')
+      const { data, error } = await silverDb
         .from('cliente_visitas')
         .select('cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos')
         .eq('bar_id', barIdFilter)
@@ -275,8 +273,7 @@ export async function GET(request: NextRequest) {
     while (tempoIterations < 200) {
       tempoIterations++
       
-      const { data: vendas, error: vendasError } = await supabase
-        .schema('silver')
+      const { data: vendas, error: vendasError } = await silverDb
         .from('cliente_visitas')
         .select('cliente_fone, tempo_estadia_minutos')
         .eq('bar_id', barIdFilter)

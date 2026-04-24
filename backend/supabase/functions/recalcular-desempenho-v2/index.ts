@@ -1,4 +1,13 @@
 /**
+ * @camada gold
+ * @jobName recalcular-desempenho-v2
+ * @descricao Recalcula gold.desempenho_semanal
+ *
+ * Classificacao medallion mantida em ops.job_camada_mapping (ver
+ * database/migrations/2026-04-23-observability-mapping.sql). Observability
+ * via _shared/heartbeat.ts ou _shared/observability.ts.
+ */
+/**
  * 🔮 RECALCULAR-DESEMPENHO-V2 - Recálculo Automático de Desempenho
  * 
  * Edge function que recalcula métricas de desempenho usando os calculators modulares.

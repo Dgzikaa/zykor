@@ -1,4 +1,13 @@
 /**
+ * @camada gold
+ * @jobName sync-faturamento-hora
+ * @descricao Popula gold.faturamento_hora
+ *
+ * Classificacao medallion mantida em ops.job_camada_mapping (ver
+ * database/migrations/2026-04-23-observability-mapping.sql). Observability
+ * via _shared/heartbeat.ts ou _shared/observability.ts.
+ */
+/**
  * Edge Function: sync-faturamento-hora
  * 
  * Sincroniza dados de bronze_contahub_operacional_fatporhora para a tabela de domínio faturamento_hora
@@ -9,6 +18,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { trackResponse } from '../_shared/observability.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -42,6 +52,16 @@ serve(async (req) => {
       data_fim,
       force
     });
+
+    // 📊 Observability — camada='gold' (popula gold.faturamento_hora)
+    return await trackResponse(supabase, {
+      camada: 'gold',
+      jobName: 'sync-faturamento-hora',
+      barId: bar_id ?? null,
+      action: force ? 'full_refresh' : 'incremental_sync',
+      triggeredBy: req.headers.get('x-triggered-by') === 'pgcron' ? 'pgcron' : 'api',
+      metadata: { data_inicio, data_fim, force },
+    }, async () => {
 
     // Se não especificar datas, usar últimos 7 dias
     const dataFimDefault = new Date().toISOString().split('T')[0];
@@ -92,7 +112,7 @@ serve(async (req) => {
     }
 
     if (!dadosContaHub || dadosContaHub.length === 0) {
-      return new Response(
+      const emptyResponse = new Response(
         JSON.stringify({
           success: true,
           message: 'Nenhum dado encontrado para sincronizar',
@@ -100,6 +120,7 @@ serve(async (req) => {
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+      return { response: emptyResponse, rowsAffected: 0, summary: { empty: true } };
     }
 
     console.log(`📊 Encontrados ${dadosContaHub.length} registros`);
@@ -159,7 +180,7 @@ serve(async (req) => {
       }
     }
 
-    return new Response(
+    const successResponse = new Response(
       JSON.stringify({
         success: true,
         message: `Sincronização concluída: ${totalInserido} registros inseridos/atualizados`,
@@ -176,6 +197,17 @@ serve(async (req) => {
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+
+    return {
+      response: successResponse,
+      rowsAffected: totalInserido,
+      summary: {
+        total_registros_origem: dadosContaHub.length,
+        total_agrupado: dadosParaInserir.length,
+        total_erros: totalErros,
+      },
+    };
+    }); // fim trackResponse
 
   } catch (error) {
     console.error('❌ Erro:', error);

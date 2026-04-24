@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAdminClient } from '@/lib/supabase-admin'
+import { silver } from '@/lib/medallion/silver'
 import { authenticateUser, authErrorResponse } from '@/middleware/auth'
 import { filtrarDiasAbertos } from '@/lib/helpers/calendario-helper'
 
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       return authErrorResponse('Usuário não autenticado')
     }
     
-    const supabase = await getAdminClient()
+    const silverDb = await silver()
 
     // Obter parâmetros da URL
     const { searchParams } = new URL(request.url)
@@ -72,8 +72,7 @@ export async function GET(request: NextRequest) {
     
     const listaVariacoes = Array.from(variacoesTelefone)
     // Buscar diretamente por todas as variações do telefone usando OR
-    let query = supabase
-      .schema('silver')
+    let query = silverDb
       .from('cliente_visitas')
       .select('cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos')
       .eq('bar_id', finalBarId)

@@ -1,4 +1,13 @@
 /**
+ * @camada bronze
+ * @jobName contaazul-sync
+ * @descricao Sync diario Conta Azul
+ *
+ * Classificacao medallion mantida em ops.job_camada_mapping (ver
+ * database/migrations/2026-04-23-observability-mapping.sql). Observability
+ * via _shared/heartbeat.ts ou _shared/observability.ts.
+ */
+/**
  * Edge Function: contaazul-sync
  * 
  * Sincroniza dados financeiros do Conta Azul para tabelas locais.

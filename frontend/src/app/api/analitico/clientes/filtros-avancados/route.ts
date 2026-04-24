@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAdminClient } from '@/lib/supabase-admin'
+import { silver } from '@/lib/medallion/silver'
 import { authenticateUser, authErrorResponse } from '@/middleware/auth'
 
 export const dynamic = 'force-dynamic'
@@ -25,8 +25,8 @@ export async function POST(request: NextRequest) {
       return authErrorResponse('Usuário não autenticado')
     }
 
-    const supabase = await getAdminClient()
-    if (!supabase) {
+    const silverDb = await silver()
+    if (!silverDb) {
       return NextResponse.json({ error: 'Erro ao conectar com banco' }, { status: 500 })
     }
 
@@ -44,8 +44,7 @@ export async function POST(request: NextRequest) {
     console.log('📍 Bar ID:', barId)
 
     // Construir query do Supabase com filtros
-    let query = supabase
-      .schema('silver')
+    let query = silverDb
       .from('cliente_visitas')
       .select('cliente_fone, cliente_nome, cliente_email, cliente_dtnasc, data_visita, valor_pagamentos, valor_couvert, valor_consumo')
       .eq('bar_id', barId)

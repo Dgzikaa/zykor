@@ -1,4 +1,13 @@
 /**
+ * @camada bronze
+ * @jobName google-sheets-sync
+ * @descricao Sync planilhas Google
+ *
+ * Classificacao medallion mantida em ops.job_camada_mapping (ver
+ * database/migrations/2026-04-23-observability-mapping.sql). Observability
+ * via _shared/heartbeat.ts ou _shared/observability.ts.
+ */
+/**
  * 📊 DISPATCHER - SINCRONIZAÇÃO GOOGLE SHEETS
  * 
  * Edge Function unificada para todas as sincronizações de planilhas Google.

@@ -1,4 +1,13 @@
 /**
+ * @camada ops
+ * @jobName agente-dispatcher
+ * @descricao AI V2 dispatcher
+ *
+ * Classificacao medallion mantida em ops.job_camada_mapping (ver
+ * database/migrations/2026-04-23-observability-mapping.sql). Observability
+ * via _shared/heartbeat.ts ou _shared/observability.ts.
+ */
+/**
  * 🤖 Agente Dispatcher - Dispatcher Unificado para Agentes IA
  * 
  * Centraliza todas as funções de agentes IA em um único endpoint.
