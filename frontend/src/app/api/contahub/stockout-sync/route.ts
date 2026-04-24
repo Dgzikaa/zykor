@@ -38,6 +38,7 @@ async function getBaresAtivos(): Promise<number[] | null> {
   }
   
   const { data, error } = await supabase
+    .schema('operations')
     .from('bares')
     .select('id')
     .eq('ativo', true)
@@ -61,6 +62,7 @@ async function getBarConfig(barId: number): Promise<BarConfig | null> {
   }
   
   const { data, error } = await supabase
+    .schema('operations')
     .from('bares_config')
     .select('bar_id, opera_segunda, opera_terca, opera_quarta, opera_quinta, opera_sexta, opera_sabado, opera_domingo')
     .eq('bar_id', barId)

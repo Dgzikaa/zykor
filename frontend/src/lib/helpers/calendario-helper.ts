@@ -34,6 +34,7 @@ async function getBarOperacao(barId: number): Promise<BarOperacao | null> {
   }
   
   const { data, error } = await supabase
+    .schema('operations')
     .from('bares_config')
     .select('opera_segunda, opera_terca, opera_quarta, opera_quinta, opera_sexta, opera_sabado, opera_domingo')
     .eq('bar_id', barId)
@@ -98,6 +99,7 @@ export async function verificarBarAberto(
     }
 
     const { data: registro, error: errorRegistro } = await supabase
+      .schema('operations')
       .from('calendario_operacional')
       .select('status, motivo')
       .eq('data', data)
@@ -152,6 +154,7 @@ export async function verificarBarAberto(
     // MIGRADO: vendas_item (domain table) em vez de bronze_contahub_vendas_analitico
     if (dataVerificacao < hoje) {
       const { data: movimento, error: errorMovimento } = await supabase
+        .schema('silver')
         .from('vendas_item')
         .select('valor')
         .eq('data_venda', data)
@@ -212,6 +215,7 @@ export async function verificarMultiplasDatas(
 
   try {
     const { data: registros, error: errorRegistros } = await supabase
+      .schema('operations')
       .from('calendario_operacional')
       .select('data, status, motivo')
       .eq('bar_id', barId)
@@ -227,6 +231,7 @@ export async function verificarMultiplasDatas(
 
     // MIGRADO: vendas_item (domain table) em vez de bronze_contahub_vendas_analitico
     const { data: movimentacoes, error: errorMovimentacoes } = await supabase
+      .schema('silver')
       .from('vendas_item')
       .select('data_venda, valor')
       .eq('bar_id', barId)

@@ -218,26 +218,42 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     const startProcessing = Date.now();
     
-    // Buscar dados RAW
-    const { data: rawData, error: errorRaw } = await supabase
-      .from('contahub_stockout_raw')
+    // Buscar dados RAW (medallion: bronze)
+    const { data: rawRows, error: errorRaw } = await supabase
+      .schema('bronze')
+      .from('bronze_contahub_operacional_stockout_raw')
       .select('*')
       .eq('bar_id', bar_id)
       .eq('data_consulta', data_date);
-    
+
     if (errorRaw) {
       throw new Error(`Erro ao buscar dados RAW: ${errorRaw.message}`);
     }
-    
-    if (!rawData || rawData.length === 0) {
+
+    if (!rawRows || rawRows.length === 0) {
       throw new Error(`Nenhum dado RAW encontrado para bar_id=${bar_id}, data=${data_date}`);
     }
-    
-    console.log(`📦 ${rawData.length} produtos RAW encontrados`);
-    
-    // Limpar dados processados antigos para esta data
+
+    // Uma coleta por (prd, loc) — manter snapshot mais recente (evita duplicar silver)
+    const byKey = new Map<string, any>();
+    for (const row of rawRows) {
+      const k = `${row.prd ?? ''}::${row.loc ?? ''}`;
+      const prev = byKey.get(k);
+      if (
+        !prev ||
+        new Date(row.hora_consulta_real).getTime() >= new Date(prev.hora_consulta_real).getTime()
+      ) {
+        byKey.set(k, row);
+      }
+    }
+    const rawData = Array.from(byKey.values());
+
+    console.log(`📦 ${rawData.length} produtos RAW (dedupe de ${rawRows.length} linhas bronze)`);
+
+    // Limpar silver processado desta data antes de regravar
     await supabase
-      .from('contahub_stockout_processado')
+      .schema('silver')
+      .from('silver_contahub_operacional_stockout_processado')
       .delete()
       .eq('bar_id', bar_id)
       .eq('data_consulta', data_date);
@@ -282,9 +298,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     }
     
-    // Salvar dados processados
     const { error: errorProcessed } = await supabase
-      .from('contahub_stockout_processado')
+      .schema('silver')
+      .from('silver_contahub_operacional_stockout_processado')
       .insert(processedRecords);
     
     if (errorProcessed) {
@@ -314,41 +330,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       };
     }
     
-    // Limpar audit antigo
-    await supabase
-      .from('contahub_stockout_audit')
-      .delete()
-      .eq('bar_id', bar_id)
-      .eq('data_consulta', data_date);
-    
-    // Salvar audit
-    const auditRecord = {
-      bar_id: bar_id,
-      data_consulta: data_date,
-      hora_processamento: new Date().toISOString(),
-      total_produtos_raw: rawData.length,
-      total_incluidos: incluidos,
-      total_excluidos: excluidos,
-      percentual_excluido: parseFloat(percentualExcluido),
-      exclusoes_por_motivo: exclusionStats,
-      exclusoes_por_regra: exclusionStats,
-      percentual_stockout: parseFloat(percentualStockout),
-      produtos_disponiveis: produtosDisponiveis,
-      produtos_indisponiveis: produtosIndisponiveis,
-      stockout_por_categoria: stockoutPorCategoria,
-      versao_regras: '2.0',
-      tempo_processamento_ms: Date.now() - startProcessing
-    };
-    
-    const { error: errorAudit } = await supabase
-      .from('contahub_stockout_audit')
-      .insert(auditRecord);
-    
-    if (errorAudit) {
-      console.error('⚠️ Erro ao salvar audit:', errorAudit);
-    } else {
-      console.log(`✅ Audit salvo com sucesso`);
-    }
+    // Resumo no payload (system.contahub_stockout_audit não existe neste projeto — usar API auditoria + bronze raw)
     
     const summary = {
       bar_id,

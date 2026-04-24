@@ -151,6 +151,14 @@ interface HistoricoData {
   }>;
 }
 
+/** YYYY-MM-DD no fuso local (evita deslocar um dia com toISOString em UTC). */
+function formatDateLocalYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // Locais são carregados dinamicamente da API - cada bar tem seus próprios locais
 // Exemplo Deboche: Bar, Cozinha, Cozinha 2, Salao
 // Exemplo Ordinário: Preshh, Mexido, Batidos, Montados, Chopp, Cozinha 1, Cozinha 2
@@ -160,11 +168,8 @@ export default function StockoutPage() {
   const { selectedBar, isLoading: barLoading } = useBar();
   const router = useRouter();
 
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    return yesterday.toISOString().split('T')[0];
-  });
+  // Coleta diária grava data_consulta = dia do snapshot (alinhado ao cron CURRENT_DATE).
+  const [selectedDate, setSelectedDate] = useState(() => formatDateLocalYMD(new Date()));
   
   const [stockoutData, setStockoutData] = useState<StockoutData | null>(null);
   const [historicoData, setHistoricoData] = useState<HistoricoData | null>(null);
@@ -188,27 +193,27 @@ export default function StockoutPage() {
   // Datas para histórico e período
   const [dataInicio, setDataInicio] = useState(() => {
     const date = new Date();
-    date.setDate(date.getDate() - 7); // 7 dias atrás
-    return date.toISOString().split('T')[0];
+    date.setDate(date.getDate() - 7);
+    return formatDateLocalYMD(date);
   });
   
   const [dataFim, setDataFim] = useState(() => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    return yesterday.toISOString().split('T')[0];
+    return formatDateLocalYMD(yesterday);
   });
   
   // Datas para análise diária em período
   const [dataInicioDiaria, setDataInicioDiaria] = useState(() => {
     const date = new Date();
-    date.setDate(date.getDate() - 3); // 3 dias atrás
-    return date.toISOString().split('T')[0];
+    date.setDate(date.getDate() - 3);
+    return formatDateLocalYMD(date);
   });
   
   const [dataFimDiaria, setDataFimDiaria] = useState(() => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    return yesterday.toISOString().split('T')[0];
+    return formatDateLocalYMD(yesterday);
   });
 
   const buscarDadosStockout = async (data: string, filtros: string[] = []) => {
@@ -241,8 +246,14 @@ export default function StockoutPage() {
       
       if (result.success) {
         setStockoutData(result.data);
-        const filtroTexto = filtros.length > 0 ? ` (${filtros.length} filtros aplicados)` : '';
-        toast.success(`Dados de stockout carregados para ${data}${filtroTexto}`);
+        if (result.bar_fechado) {
+          toast.warning(
+            `Sem dados para ${data}: ${result.motivo || 'dia tratado como fechado'}${result.fonte ? ` (${result.fonte})` : ''}`,
+          );
+        } else {
+          const filtroTexto = filtros.length > 0 ? ` (${filtros.length} filtros aplicados)` : '';
+          toast.success(`Dados de stockout carregados para ${data}${filtroTexto}`);
+        }
       } else {
         console.error('❌ Erro na resposta:', result.error);
         toast.error(result.error || 'Erro ao buscar dados de stockout');
