@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { ToastProvider, GlobalToastListener } from '@/components/ui/toast';
 
 const inter = Inter({ 
@@ -76,6 +77,7 @@ export default function RootLayout({
             </UserProvider>
           </LGPDProvider>
         </ThemeProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
