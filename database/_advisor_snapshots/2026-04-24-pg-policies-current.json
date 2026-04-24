@@ -1,0 +1,2372 @@
+[
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agent_insights_v2",
+    "policyname": "agent_insights_v2_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": null
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agent_insights_v2",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_alertas",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_aprendizado",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_configuracoes",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_conversas",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_feedbacks",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_historico",
+    "policyname": "Service role acesso total agente_historico",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_ia_metricas",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_insights",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_memoria_vetorial",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_metricas",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_padroes_detectados",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_regras_dinamicas",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_scans",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_uso",
+    "policyname": "Service role acesso total agente_uso",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "agent_ai",
+    "tablename": "agente_uso",
+    "policyname": "authenticated_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "empresa_usuarios",
+    "policyname": "empresa_usuarios_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "(usuario_id = ( SELECT auth.uid() AS uid))",
+    "with_check": null
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "empresa_usuarios",
+    "policyname": "empresa_usuarios_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(usuario_id = ( SELECT auth.uid() AS uid))"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "empresa_usuarios",
+    "policyname": "empresa_usuarios_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(usuario_id = ( SELECT auth.uid() AS uid))",
+    "with_check": null
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "empresa_usuarios",
+    "policyname": "empresa_usuarios_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "(usuario_id = ( SELECT auth.uid() AS uid))",
+    "with_check": "(usuario_id = ( SELECT auth.uid() AS uid))"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "empresas",
+    "policyname": "empresas_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "((( SELECT auth.role() AS role) = 'service_role'::text) OR (EXISTS ( SELECT 1\n   FROM auth_custom.empresa_usuarios eu\n  WHERE ((eu.empresa_id = empresas.id) AND (eu.usuario_id = ( SELECT auth.uid() AS uid)) AND (eu.ativo = true)))))"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "empresas",
+    "policyname": "empresas_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(EXISTS ( SELECT 1\n   FROM auth_custom.empresa_usuarios eu\n  WHERE ((eu.empresa_id = empresas.id) AND (eu.usuario_id = ( SELECT auth.uid() AS uid)) AND (eu.ativo = true))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "empresas",
+    "policyname": "empresas_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "(EXISTS ( SELECT 1\n   FROM auth_custom.empresa_usuarios eu\n  WHERE ((eu.empresa_id = empresas.id) AND (eu.usuario_id = ( SELECT auth.uid() AS uid)) AND (eu.ativo = true))))",
+    "with_check": "(EXISTS ( SELECT 1\n   FROM auth_custom.empresa_usuarios eu\n  WHERE ((eu.empresa_id = empresas.id) AND (eu.usuario_id = ( SELECT auth.uid() AS uid)) AND (eu.ativo = true))))"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "pessoas_responsaveis",
+    "policyname": "Acesso pessoas por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "template_tags",
+    "policyname": "Only system can modify tags",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "false"
+  },
+  {
+    "schemaname": "auth_custom",
+    "tablename": "template_tags",
+    "policyname": "Users can view tags",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "true",
+    "with_check": null
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_porproduto_analitico",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_vendasdiahoraanalitico",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_avendas_vendasperiodo",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_financeiro_pagamentosrecebidos",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_produtos_temposproducao",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "bronze",
+    "tablename": "bronze_contahub_raw_data",
+    "policyname": "contahub_raw_data_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(( SELECT auth.role() AS role) = 'authenticated'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "cliente_perfil_consumo_legacy_backup",
+    "policyname": "Acesso perfil consumo por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "crm_segmentacao",
+    "policyname": "service_role_full_crm_segmentacao",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(auth.role() = 'service_role'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "crm_segmentacao",
+    "policyname": "usuarios_leem_crm_segmentacao",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "((auth.role() = 'authenticated'::text) AND user_has_bar_access(bar_id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "crm_templates",
+    "policyname": "Acesso CRM templates por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps",
+    "policyname": "Acesso NPS por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_falae_diario_legacy_backup",
+    "policyname": "service_role_full_nps_falae_diario",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(auth.role() = 'service_role'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_falae_diario_legacy_backup",
+    "policyname": "usuarios_leem_nps_falae_diario",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "((auth.role() = 'authenticated'::text) AND user_has_bar_access(bar_id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_falae_diario_pesquisa",
+    "policyname": "service_role_full_nps_falae_diario_pesquisa",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(auth.role() = 'service_role'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_falae_diario_pesquisa",
+    "policyname": "usuarios_leem_nps_falae_diario_pesquisa",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "((auth.role() = 'authenticated'::text) AND user_has_bar_access(bar_id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "nps_reservas",
+    "policyname": "Acesso NPS reservas por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "voz_cliente",
+    "policyname": "voz_cliente_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "voz_cliente",
+    "policyname": "voz_cliente_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "voz_cliente",
+    "policyname": "voz_cliente_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "crm",
+    "tablename": "voz_cliente",
+    "policyname": "voz_cliente_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "cron",
+    "tablename": "job",
+    "policyname": "cron_job_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(username = CURRENT_USER)",
+    "with_check": null
+  },
+  {
+    "schemaname": "cron",
+    "tablename": "job_run_details",
+    "policyname": "cron_job_run_details_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(username = CURRENT_USER)",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_impostos_movimentos",
+    "policyname": "caixa_impostos_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_impostos_movimentos",
+    "policyname": "caixa_impostos_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_impostos_movimentos",
+    "policyname": "caixa_impostos_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_impostos_movimentos",
+    "policyname": "caixa_impostos_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_investimentos_movimentos",
+    "policyname": "caixa_invest_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_investimentos_movimentos",
+    "policyname": "caixa_invest_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_investimentos_movimentos",
+    "policyname": "caixa_invest_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_investimentos_movimentos",
+    "policyname": "caixa_invest_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_recebimentos_futuros",
+    "policyname": "caixa_receb_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_recebimentos_futuros",
+    "policyname": "caixa_receb_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_recebimentos_futuros",
+    "policyname": "caixa_receb_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_recebimentos_futuros",
+    "policyname": "caixa_receb_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_valores_terceiros",
+    "policyname": "caixa_terc_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_valores_terceiros",
+    "policyname": "caixa_terc_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_valores_terceiros",
+    "policyname": "caixa_terc_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "caixa_valores_terceiros",
+    "policyname": "caixa_terc_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "cmv_mensal",
+    "policyname": "service_role_full_cmv_mensal",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(auth.role() = 'service_role'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "cmv_mensal",
+    "policyname": "usuarios_leem_cmv_mensal",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "((auth.role() = 'authenticated'::text) AND user_has_bar_access(bar_id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "cmv_semanal",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "custos_mensais_diluidos",
+    "policyname": "Acesso custos por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "dre_manual",
+    "policyname": "dre_manual_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(( SELECT ( SELECT auth.uid() AS uid) AS uid) IS NOT NULL)",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "formas_pagamento",
+    "policyname": "formas_pagamento_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "user_has_access_to_empresa(empresa_id)",
+    "with_check": "user_has_access_to_empresa(empresa_id)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "fp_categorias_template",
+    "policyname": "Acesso templates FP",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(( SELECT auth.role() AS role) = 'authenticated'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "fp_contas",
+    "policyname": "Usuário pode acessar suas contas FP",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "((usuario_cpf)::text = (get_user_cpf())::text)",
+    "with_check": "((usuario_cpf)::text = (get_user_cpf())::text)"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "orcamentacao",
+    "policyname": "orcamentacao_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(( SELECT auth.role() AS role) = 'authenticated'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "pix_enviados",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "financial",
+    "tablename": "simulacoes_cmo",
+    "policyname": "Acesso simulacoes CMO por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "gold",
+    "tablename": "gold_contahub_operacional_stockout",
+    "policyname": "service_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "areas",
+    "policyname": "areas_delete_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "areas",
+    "policyname": "areas_insert_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "areas",
+    "policyname": "areas_select_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "areas",
+    "policyname": "areas_update_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "cargos",
+    "policyname": "cargos_delete_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "cargos",
+    "policyname": "cargos_insert_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "cargos",
+    "policyname": "cargos_select_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "cargos",
+    "policyname": "cargos_update_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "contratos_funcionario",
+    "policyname": "contratos_delete_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "(EXISTS ( SELECT 1\n   FROM hr.funcionarios f\n  WHERE ((f.id = contratos_funcionario.funcionario_id) AND user_has_access_to_bar(f.bar_id))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "contratos_funcionario",
+    "policyname": "contratos_insert_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(EXISTS ( SELECT 1\n   FROM hr.funcionarios f\n  WHERE ((f.id = contratos_funcionario.funcionario_id) AND user_has_access_to_bar(f.bar_id))))"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "contratos_funcionario",
+    "policyname": "contratos_select_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(EXISTS ( SELECT 1\n   FROM hr.funcionarios f\n  WHERE ((f.id = contratos_funcionario.funcionario_id) AND user_has_access_to_bar(f.bar_id))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "contratos_funcionario",
+    "policyname": "contratos_update_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "(EXISTS ( SELECT 1\n   FROM hr.funcionarios f\n  WHERE ((f.id = contratos_funcionario.funcionario_id) AND user_has_access_to_bar(f.bar_id))))",
+    "with_check": "(EXISTS ( SELECT 1\n   FROM hr.funcionarios f\n  WHERE ((f.id = contratos_funcionario.funcionario_id) AND user_has_access_to_bar(f.bar_id))))"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "folha_pagamento",
+    "policyname": "folha_delete_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "folha_pagamento",
+    "policyname": "folha_insert_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "folha_pagamento",
+    "policyname": "folha_select_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "folha_pagamento",
+    "policyname": "folha_update_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "funcionarios",
+    "policyname": "funcionarios_delete_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "funcionarios",
+    "policyname": "funcionarios_insert_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "funcionarios",
+    "policyname": "funcionarios_select_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "funcionarios",
+    "policyname": "funcionarios_update_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "pesquisa_felicidade",
+    "policyname": "Acesso pesquisa felicidade por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "provisoes_trabalhistas",
+    "policyname": "provisoes_delete_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "provisoes_trabalhistas",
+    "policyname": "provisoes_insert_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "provisoes_trabalhistas",
+    "policyname": "provisoes_select_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "hr",
+    "tablename": "provisoes_trabalhistas",
+    "policyname": "provisoes_update_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "bar_api_configs",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_categorias",
+    "policyname": "authenticated_select_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "((auth.role() = 'authenticated'::text) AND (bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid()))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_categorias",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_centros_custo",
+    "policyname": "authenticated_select_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "((auth.role() = 'authenticated'::text) AND (bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid()))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_centros_custo",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_contas_financeiras",
+    "policyname": "authenticated_select_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "((auth.role() = 'authenticated'::text) AND user_has_bar_access(bar_id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_contas_financeiras",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_lancamentos",
+    "policyname": "authenticated_select_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "((auth.role() = 'authenticated'::text) AND user_has_bar_access(bar_id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_lancamentos",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_logs_sincronizacao",
+    "policyname": "authenticated_select_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "((auth.role() = 'authenticated'::text) AND user_has_bar_access(bar_id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_logs_sincronizacao",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_pessoas",
+    "policyname": "authenticated_select_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "((auth.role() = 'authenticated'::text) AND user_has_bar_access(bar_id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "contaazul_pessoas",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "falae_config",
+    "policyname": "falae_config_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "falae_respostas",
+    "policyname": "falae_respostas_delete_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "falae_respostas",
+    "policyname": "falae_respostas_insert_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "falae_respostas",
+    "policyname": "falae_respostas_select_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "falae_respostas",
+    "policyname": "falae_respostas_update_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "getin_sync_logs",
+    "policyname": "Only system can modify",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "false"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "getin_sync_logs",
+    "policyname": "Users can view sync logs",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "true",
+    "with_check": null
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "google_oauth_tokens",
+    "policyname": "google_oauth_service_only",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(( SELECT auth.role() AS role) = 'service_role'::text)",
+    "with_check": "(( SELECT auth.role() AS role) = 'service_role'::text)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "google_reviews",
+    "policyname": "google_reviews_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "google_reviews",
+    "policyname": "google_reviews_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "google_reviews",
+    "policyname": "google_reviews_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "google_reviews",
+    "policyname": "google_reviews_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "sympla_eventos",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "sympla_participantes",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "sympla_pedidos",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_campanha_destinatarios",
+    "policyname": "umbler_campanha_destinatarios_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(EXISTS ( SELECT 1\n   FROM integrations.umbler_campanhas c\n  WHERE ((c.id = umbler_campanha_destinatarios.campanha_id) AND user_has_access_to_bar(c.bar_id))))",
+    "with_check": "(EXISTS ( SELECT 1\n   FROM integrations.umbler_campanhas c\n  WHERE ((c.id = umbler_campanha_destinatarios.campanha_id) AND user_has_access_to_bar(c.bar_id))))"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_campanhas",
+    "policyname": "umbler_campanhas_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_config",
+    "policyname": "umbler_config_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_conversas",
+    "policyname": "umbler_conversas_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_mensagens",
+    "policyname": "umbler_mensagens_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "umbler_webhook_logs",
+    "policyname": "umbler_webhook_logs_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "yuzer_eventos",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "yuzer_fatporhora",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "yuzer_pagamento",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "integrations",
+    "tablename": "yuzer_produtos",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "desempenho_manual",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "marketing_mensal",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "marketing_semanal",
+    "policyname": "marketing_semanal_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "marketing_semanal",
+    "policyname": "marketing_semanal_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "marketing_semanal",
+    "policyname": "marketing_semanal_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "marketing_semanal",
+    "policyname": "marketing_semanal_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_anuais",
+    "policyname": "metas_anuais_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_anuais",
+    "policyname": "metas_anuais_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_anuais",
+    "policyname": "metas_anuais_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_anuais",
+    "policyname": "metas_anuais_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "user_has_access_to_bar(bar_id)",
+    "with_check": "user_has_access_to_bar(bar_id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_desempenho",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_desempenho_historico",
+    "policyname": "service_role_full_metas_desempenho_historico",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(auth.role() = 'service_role'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "metas_desempenho_historico",
+    "policyname": "usuarios_leem_metas_desempenho_historico",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "((auth.role() = 'authenticated'::text) AND user_has_bar_access(bar_id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "organizador_okrs",
+    "policyname": "Acesso OKRs",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(( SELECT auth.role() AS role) = 'authenticated'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "organizador_visao",
+    "policyname": "Acesso visao por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "meta",
+    "tablename": "semanas_referencia",
+    "policyname": "semanas_referencia_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(( SELECT auth.uid() AS uid) IS NOT NULL)",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_artistas",
+    "policyname": "authenticated_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_artistas",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_categorias_custo",
+    "policyname": "authenticated_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_categorias_custo",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_local_mapeamento",
+    "policyname": "authenticated_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_local_mapeamento",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_metas_periodo",
+    "policyname": "authenticated_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_metas_periodo",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_notification_configs",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_regras_negocio",
+    "policyname": "authenticated_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bar_regras_negocio",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bares",
+    "policyname": "bars_insert_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(( SELECT ( SELECT auth.uid() AS uid) AS uid) IS NOT NULL)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bares",
+    "policyname": "bars_select_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "true",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bares_config",
+    "policyname": "authenticated_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "bares_config",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "calendario_operacional",
+    "policyname": "Acesso calendario por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_agendamentos",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_auto_executions",
+    "policyname": "checklist_exec_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "(EXISTS ( SELECT 1\n   FROM operations.checklist_agendamentos ca\n  WHERE ((ca.id = checklist_auto_executions.checklist_agendamento_id) AND user_has_access_to_bar(ca.bar_id))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_auto_executions",
+    "policyname": "checklist_exec_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(EXISTS ( SELECT 1\n   FROM operations.checklist_agendamentos ca\n  WHERE ((ca.id = checklist_auto_executions.checklist_agendamento_id) AND user_has_access_to_bar(ca.bar_id))))"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_auto_executions",
+    "policyname": "checklist_exec_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(EXISTS ( SELECT 1\n   FROM operations.checklist_agendamentos ca\n  WHERE ((ca.id = checklist_auto_executions.checklist_agendamento_id) AND user_has_access_to_bar(ca.bar_id))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_auto_executions",
+    "policyname": "checklist_exec_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "(EXISTS ( SELECT 1\n   FROM operations.checklist_agendamentos ca\n  WHERE ((ca.id = checklist_auto_executions.checklist_agendamento_id) AND user_has_access_to_bar(ca.bar_id))))",
+    "with_check": "(EXISTS ( SELECT 1\n   FROM operations.checklist_agendamentos ca\n  WHERE ((ca.id = checklist_auto_executions.checklist_agendamento_id) AND user_has_access_to_bar(ca.bar_id))))"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_automation_logs",
+    "policyname": "checklist_logs_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "(( SELECT auth.role() AS role) = 'service_role'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_automation_logs",
+    "policyname": "checklist_logs_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(( SELECT auth.role() AS role) = 'service_role'::text)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "checklist_automation_logs",
+    "policyname": "checklist_logs_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "true",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "config_metas_planejamento",
+    "policyname": "config_metas_read_by_bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "config_metas_planejamento",
+    "policyname": "config_metas_write_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "is_user_admin()",
+    "with_check": "is_user_admin()"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "contagem_estoque_insumos",
+    "policyname": "Acesso contagem insumos por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base",
+    "policyname": "authenticated_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base_auditoria",
+    "policyname": "Acesso auditoria eventos por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_base_auditoria",
+    "policyname": "Insert auditoria eventos",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_concorrencia",
+    "policyname": "eventos_concorrencia_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "(( SELECT auth.role() AS role) = 'service_role'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_concorrencia",
+    "policyname": "eventos_concorrencia_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(( SELECT auth.role() AS role) = 'service_role'::text)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_concorrencia",
+    "policyname": "eventos_concorrencia_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "((status = 'ativo'::text) OR (( SELECT auth.role() AS role) = 'service_role'::text))",
+    "with_check": null
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "eventos_concorrencia",
+    "policyname": "eventos_concorrencia_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "(( SELECT auth.role() AS role) = 'service_role'::text)",
+    "with_check": "(( SELECT auth.role() AS role) = 'service_role'::text)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "grupos_produto",
+    "policyname": "grupos_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "user_has_access_to_empresa(empresa_id)",
+    "with_check": "user_has_access_to_empresa(empresa_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "insumos",
+    "policyname": "Acesso insumos por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "operations",
+    "tablename": "produtos",
+    "policyname": "produtos_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "user_has_access_to_empresa(empresa_id)",
+    "with_check": "user_has_access_to_empresa(empresa_id)"
+  },
+  {
+    "schemaname": "ops",
+    "tablename": "job_camada_mapping",
+    "policyname": "job_camada_read_auth",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(auth.role() = 'authenticated'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "ops",
+    "tablename": "job_camada_mapping",
+    "policyname": "job_camada_write_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "is_user_admin()",
+    "with_check": "is_user_admin()"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "api_credentials",
+    "policyname": "Users can access their bar data",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "usuarios",
+    "policyname": "usuarios_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(id = ( SELECT auth.uid() AS uid))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "usuarios",
+    "policyname": "usuarios_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(auth_id = ( SELECT auth.uid() AS uid))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "usuarios",
+    "policyname": "usuarios_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "(auth_id = ( SELECT auth.uid() AS uid))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "usuarios_bares",
+    "policyname": "Users can access their own associations",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(usuario_id = auth.uid())",
+    "with_check": "(usuario_id = auth.uid())"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "faturamento_hora",
+    "policyname": "authenticated_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "faturamento_hora",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "faturamento_pagamentos",
+    "policyname": "authenticated_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "faturamento_pagamentos",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "tempos_producao",
+    "policyname": "authenticated_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "tempos_producao",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "vendas_item",
+    "policyname": "authenticated_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "silver",
+    "tablename": "vendas_item",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "objects",
+    "policyname": "Service role can delete backups",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "(bucket_id = 'sgb-backups'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "objects",
+    "policyname": "Service role can download backups",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(bucket_id = 'sgb-backups'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "objects",
+    "policyname": "Service role can list backups",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(bucket_id = 'sgb-backups'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "objects",
+    "policyname": "Service role can upload backups",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(bucket_id = 'sgb-backups'::text)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "alertas_enviados",
+    "policyname": "Acesso alertas por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "audit_trail",
+    "policyname": "Insert audit trail service",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "true"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "audit_trail",
+    "policyname": "Leitura audit trail",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(( SELECT auth.role() AS role) = 'authenticated'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "system",
+    "tablename": "automation_logs",
+    "policyname": "automation_logs_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(( SELECT auth.role() AS role) = 'authenticated'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "system",
+    "tablename": "cron_heartbeats",
+    "policyname": "Service role full access on cron_heartbeats",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "dados_bloqueados",
+    "policyname": "Acesso dados bloqueados por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "discord_webhooks",
+    "policyname": "Acesso webhooks discord por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "execucoes_automaticas",
+    "policyname": "execucoes_automaticas_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(( SELECT auth.uid() AS uid) IS NOT NULL)",
+    "with_check": null
+  },
+  {
+    "schemaname": "system",
+    "tablename": "insight_events",
+    "policyname": "insight_events_bar_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(bar_id IN ( SELECT usuarios_bares.bar_id\n   FROM usuarios_bares\n  WHERE (usuarios_bares.usuario_id = auth.uid())))",
+    "with_check": null
+  },
+  {
+    "schemaname": "system",
+    "tablename": "insight_events",
+    "policyname": "service_role_full_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "qual": "true",
+    "with_check": "true"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "notificacoes",
+    "policyname": "Users can access their notifications",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "(usuario_id = auth.uid())",
+    "with_check": "(usuario_id = auth.uid())"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "security_events",
+    "policyname": "Only system can modify",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "false"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "security_events",
+    "policyname": "Users can view security events",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "qual": "true",
+    "with_check": null
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sistema_alertas",
+    "policyname": "Acesso alertas sistema por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sync_contagem_historico",
+    "policyname": "service_role_full_sync_contagem_historico",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(auth.role() = 'service_role'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sync_contagem_historico",
+    "policyname": "usuarios_leem_sync_contagem_historico",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "((auth.role() = 'authenticated'::text) AND user_has_bar_access(bar_id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sync_metadata",
+    "policyname": "service_role_full_sync_metadata",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(auth.role() = 'service_role'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "system",
+    "tablename": "sync_metadata",
+    "policyname": "usuarios_leem_sync_metadata",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "((auth.role() = 'authenticated'::text) AND user_has_bar_access(bar_id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "system",
+    "tablename": "system_logs",
+    "policyname": "system_logs_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(( SELECT auth.role() AS role) = 'service_role'::text)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "system_logs",
+    "policyname": "system_logs_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "true",
+    "with_check": null
+  },
+  {
+    "schemaname": "system",
+    "tablename": "uploads",
+    "policyname": "Usuário gerencia uploads",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(( SELECT auth.role() AS role) = 'authenticated'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "system",
+    "tablename": "validacao_dados",
+    "policyname": "Acesso validacao dados por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "validacao_dados_diaria",
+    "policyname": "Acesso validacao diaria por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  },
+  {
+    "schemaname": "system",
+    "tablename": "validacoes_cruzadas",
+    "policyname": "Acesso validacoes cruzadas por bar",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "ALL",
+    "qual": "user_has_bar_access(bar_id)",
+    "with_check": "user_has_bar_access(bar_id)"
+  }
+]
