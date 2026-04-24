@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { Analytics } from '@vercel/analytics/next';
 
 import { ToastProvider, GlobalToastListener } from '@/components/ui/toast';
 
@@ -76,6 +77,7 @@ export default function RootLayout({
             </UserProvider>
           </LGPDProvider>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );
