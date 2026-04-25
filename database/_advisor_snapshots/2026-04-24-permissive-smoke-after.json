@@ -1,0 +1,17 @@
+{
+  "captured_at": "2026-04-24",
+  "method": "SET LOCAL ROLE + SELECT count(*) per table per role, transaction rolled back",
+  "uuid_authenticated": "9106ba7d-8f55-4a6c-b638-3165ecad6291",
+  "results": [
+    {"table": "crm.crm_segmentacao",                   "authenticated":   0, "service_role":   0, "anon": 0, "diff_vs_before": "all roles unchanged (tabela vazia)"},
+    {"table": "crm.nps_falae_diario_legacy_backup",    "authenticated":  37, "service_role":  37, "anon": 0, "diff_vs_before": "no change"},
+    {"table": "crm.nps_falae_diario_pesquisa",         "authenticated":  29, "service_role":  29, "anon": 0, "diff_vs_before": "no change"},
+    {"table": "financial.cmv_mensal",                  "authenticated":  19, "service_role":  19, "anon": 0, "diff_vs_before": "no change"},
+    {"table": "integrations.contaazul_categorias",     "authenticated": 122, "service_role": 122, "anon": 0, "diff_vs_before": "✅ anon: 122 -> 0 (bug fechado, conforme expectativa)"},
+    {"table": "integrations.contaazul_centros_custo",  "authenticated": 158, "service_role": 158, "anon": 0, "diff_vs_before": "✅ anon: 158 -> 0 (bug fechado, conforme expectativa)"},
+    {"table": "meta.metas_desempenho_historico",       "authenticated":  15, "service_role":  15, "anon": 0, "diff_vs_before": "no change"},
+    {"table": "system.sync_contagem_historico",        "authenticated":  51, "service_role":  51, "anon": 0, "diff_vs_before": "no change"},
+    {"table": "system.sync_metadata",                  "authenticated":   9, "service_role":   9, "anon": 0, "diff_vs_before": "no change"}
+  ],
+  "verdict": "GREEN. Authenticated e service_role identicos antes/depois. Anon bloqueado em todas — leak de 280 rows financeiras (122 + 158) fechado."
+}
