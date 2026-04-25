@@ -1,0 +1,15 @@
+{
+  "captured_at": "2026-04-24",
+  "method": "SET LOCAL ROLE + SELECT count(*) per table per role, transaction rolled back",
+  "uuid_authenticated": "9106ba7d-8f55-4a6c-b638-3165ecad6291",
+  "results": [
+    {"table": "operations.bares",                     "anon": 0,  "authenticated": 2,  "service_role": 2,  "diff_vs_before": "anon: 2 -> 0 (LEAK FECHADO)"},
+    {"table": "system.system_logs",                   "anon": 0,  "authenticated": 0,  "service_role": 15, "diff_vs_before": "anon: 15 -> 0 (LEAK FECHADO); authenticated: 15 -> 0 (sem regressao — frontend nunca lia)"},
+    {"table": "operations.checklist_automation_logs", "anon": 0,  "authenticated": 0,  "service_role": 0,  "diff_vs_before": "no-op (tabela vazia, mas policy aberta foi removida)"}
+  ],
+  "verdict": "GREEN. Todos os criterios passaram: anon=0 nas 3 tabelas, authenticated=2 em operations.bares (uid setado), service_role mantem acesso completo via bypass nativo.",
+  "advisor_security_diff": {
+    "rls_policy_always_true": {"before": 2, "after": 0, "delta": -2},
+    "total_findings": {"before": 151, "after": 149, "delta": -2}
+  }
+}

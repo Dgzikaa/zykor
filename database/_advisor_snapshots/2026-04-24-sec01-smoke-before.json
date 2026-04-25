@@ -1,0 +1,35 @@
+{
+  "captured_at": "2026-04-24",
+  "method": "SET LOCAL ROLE + SELECT count(*) per table per role, transaction rolled back",
+  "uuid_authenticated": "9106ba7d-8f55-4a6c-b638-3165ecad6291",
+  "results": [
+    {"table": "operations.bares",                       "anon": 2,  "authenticated": 2,  "service_role": 2,  "leak_status": "⚠️ ANON le 2 rows com CNPJ + endereco (PII fiscal)"},
+    {"table": "system.system_logs",                     "anon": 15, "authenticated": 15, "service_role": 15, "leak_status": "⚠️ ANON le 15 rows com logs internos (NIBO sync, IDs, erros API)"},
+    {"table": "operations.checklist_automation_logs",   "anon": 0,  "authenticated": 0,  "service_role": 0,  "leak_status": "⚠️ tabela vazia mas policy aberta — bug latente"}
+  ],
+  "expected_after_fix": {
+    "operations.bares": {
+      "fix": "ALTER POLICY USING ((select auth.uid()) IS NOT NULL)",
+      "anon": "0 (auth.uid() retorna NULL pra anon)",
+      "authenticated": "2 (uid setado)",
+      "service_role": "2 (bypass nativo)"
+    },
+    "system.system_logs": {
+      "fix": "DROP POLICY system_logs_select",
+      "anon": "0 (RLS bloqueia sem policy)",
+      "authenticated": "0 (RLS bloqueia sem policy — 0 hits no frontend, sem regressao)",
+      "service_role": "15 (bypass nativo)"
+    },
+    "operations.checklist_automation_logs": {
+      "fix": "DROP POLICY checklist_logs_select",
+      "anon": "0 (mantem 0, mas agora por RLS, nao mais por tabela vazia)",
+      "authenticated": "0 (idem — 0 hits no frontend)",
+      "service_role": "0 (tabela vazia)"
+    }
+  },
+  "frontend_audit": {
+    "operations.bares": "9 call-sites, todos server-side com service_role",
+    "system.system_logs": "0 queries no frontend (so type/schema refs)",
+    "operations.checklist_automation_logs": "0 queries no frontend (so type/schema refs)"
+  }
+}
