@@ -1,0 +1,20 @@
+{
+  "captured_at": "2026-04-24",
+  "method": "SET LOCAL ROLE + SELECT count(*) per table per role, transaction rolled back",
+  "uuid_authenticated": "9106ba7d-8f55-4a6c-b638-3165ecad6291",
+  "results": [
+    {"table": "crm.crm_segmentacao",                   "authenticated":   0, "service_role":   0, "anon":   0, "note": "tabela vazia"},
+    {"table": "crm.nps_falae_diario_legacy_backup",    "authenticated":  37, "service_role":  37, "anon":   0, "note": "anon bloqueado conforme intencao"},
+    {"table": "crm.nps_falae_diario_pesquisa",         "authenticated":  29, "service_role":  29, "anon":   0, "note": "anon bloqueado conforme intencao"},
+    {"table": "financial.cmv_mensal",                  "authenticated":  19, "service_role":  19, "anon":   0, "note": "anon bloqueado conforme intencao"},
+    {"table": "integrations.contaazul_categorias",     "authenticated": 122, "service_role": 122, "anon": 122, "note": "⚠️ BUG: anon ve TODAS 122 rows (USING true + roles=public)"},
+    {"table": "integrations.contaazul_centros_custo",  "authenticated": 158, "service_role": 158, "anon": 158, "note": "⚠️ BUG: anon ve TODAS 158 rows (USING true + roles=public)"},
+    {"table": "meta.metas_desempenho_historico",       "authenticated":  15, "service_role":  15, "anon":   0, "note": "anon bloqueado conforme intencao"},
+    {"table": "system.sync_contagem_historico",        "authenticated":  51, "service_role":  51, "anon":   0, "note": "anon bloqueado conforme intencao"},
+    {"table": "system.sync_metadata",                  "authenticated":   9, "service_role":   9, "anon":   0, "note": "anon bloqueado conforme intencao"}
+  ],
+  "expected_after_fix": {
+    "authenticated_and_service_role": "counts identicos a before (politicas usuarios_leem_*/authenticated_select_* mantidas, service_role continua via BYPASSRLS)",
+    "anon": "counts iguais a before EXCETO contaazul_categorias e contaazul_centros_custo que devem cair pra 0 (bug fechado)"
+  }
+}
