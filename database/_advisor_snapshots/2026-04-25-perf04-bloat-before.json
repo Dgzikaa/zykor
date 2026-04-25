@@ -1,0 +1,70 @@
+{
+  "captured_at": "2026-04-25",
+  "cluster_defaults": {
+    "autovacuum_vacuum_scale_factor": 0.2,
+    "autovacuum_analyze_scale_factor": 0.1,
+    "autovacuum_vacuum_threshold": 50,
+    "autovacuum_analyze_threshold": 50,
+    "autovacuum_naptime_s": 60
+  },
+  "tables": [
+    {
+      "schema": "operations",
+      "table": "eventos_base",
+      "n_live_tup": 959,
+      "n_dead_tup": 0,
+      "dead_pct": 0.00,
+      "last_vacuum": "2026-01-08 21:05:56-03",
+      "last_autovacuum": "2026-04-24 23:02:25-03",
+      "last_analyze": "2026-04-17 12:34:01-03",
+      "last_autoanalyze": "2026-04-24 23:01:26-03",
+      "vacuum_count": 4,
+      "autovacuum_count": 1677,
+      "analyze_count": 16,
+      "autoanalyze_count": 1466,
+      "total_size": "61 MB",
+      "reloptions": [
+        "autovacuum_vacuum_threshold=50",
+        "autovacuum_vacuum_scale_factor=0.05",
+        "autovacuum_analyze_scale_factor=0.02"
+      ],
+      "note": "JA TUNADO com os mesmos valores que o plano propunha. dead_pct=0%, autovacuum rodou 1677 vezes desde a configuracao. Nao precisa mudar."
+    },
+    {
+      "schema": "silver",
+      "table": "cliente_visitas",
+      "n_live_tup": 227962,
+      "n_dead_tup": 31576,
+      "dead_pct": 13.85,
+      "last_vacuum": null,
+      "last_autovacuum": "2026-04-19 21:10:24-03",
+      "last_analyze": null,
+      "last_autoanalyze": "2026-04-24 08:05:27-03",
+      "vacuum_count": 0,
+      "autovacuum_count": 5,
+      "analyze_count": 0,
+      "autoanalyze_count": 7,
+      "total_size": "228 MB",
+      "reloptions": null,
+      "note": "Defaults do cluster (scale_factor=0.2). Autovacuum so dispara aos 45k dead — alvo do tuning."
+    },
+    {
+      "schema": "silver",
+      "table": "tempos_producao",
+      "n_live_tup": 685908,
+      "n_dead_tup": 72914,
+      "dead_pct": 10.63,
+      "last_vacuum": null,
+      "last_autovacuum": "2026-04-22 07:30:20-03",
+      "last_analyze": "2026-04-17 12:33:53-03",
+      "last_autoanalyze": "2026-04-22 20:26:35-03",
+      "vacuum_count": 0,
+      "autovacuum_count": 13,
+      "analyze_count": 2,
+      "autoanalyze_count": 31,
+      "total_size": "207 MB",
+      "reloptions": null,
+      "note": "Defaults do cluster (scale_factor=0.2). Autovacuum so dispara aos 137k dead — alvo do tuning."
+    }
+  ]
+}
