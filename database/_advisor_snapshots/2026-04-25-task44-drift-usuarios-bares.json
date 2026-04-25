@@ -1,0 +1,23 @@
+{
+  "captured_at": "2026-04-25",
+  "context": "Investigacao iniciada durante sec/02 pre-apply check. Hipotese inicial: drift entre public.usuarios_bares e auth_custom.usuarios_bares.",
+  "verdict": "NAO HA DRIFT — conteudo identico nas 2 tabelas",
+  "metrics": {
+    "public_usuarios_bares_count": 24,
+    "auth_custom_usuarios_bares_count": 24,
+    "rows_in_public_only": 0,
+    "rows_in_auth_custom_only": 0
+  },
+  "histogram_bars_per_user": {
+    "1_bar": 0,
+    "2_bars": 12,
+    "total_users": 12
+  },
+  "table_kinds": {
+    "public.usuarios_bares": "r (table — not view)",
+    "auth_custom.usuarios_bares": "r (table — confirmed earlier)"
+  },
+  "false_alarm_root_cause": "Conclusao anterior de 'drift' baseou-se em LIMIT 3 do auth_custom.usuarios_bares no Phase 0 smoke. So 3 rows visiveis fizeram parecer que ba36f97d so tinha bar=4. Conferencia completa hoje mostrou que tem ambos.",
+  "remaining_question_for_task_44": "Por que existem 2 tabelas com schema e conteudo identicos? Possibilidades: (a) trigger de sync mantem em par, (b) 1 e copiada pra outra durante boot/migration, (c) artefato historico da migracao public -> auth_custom. Qualquer uma — vale considerar colapsar via view-alias pra remover duplicacao.",
+  "implication_for_sec02_smoke": "Como os 12 usuarios todos tem acesso a 2 bars (nenhum single-bar), opcao (alpha) nao e possivel. Smoke-after vai usar opcao (beta): EXPLAIN-based evidence que prova o helper user_has_bar_access(bar_id) aparece no plan filter, + smoke com UUID inexistente como prova negativa (count=0 = filtro funcionando)."
+}
