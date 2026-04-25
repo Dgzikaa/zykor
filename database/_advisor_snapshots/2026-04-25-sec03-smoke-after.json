@@ -1,0 +1,53 @@
+{
+  "captured_at": "2026-04-25",
+  "table": "financial.dre_manual",
+  "policy_state_post_fix": {
+    "cmd": "ALL",
+    "roles": "{public}",
+    "qual": "(bar_id IS NULL OR public.user_has_bar_access(bar_id))",
+    "with_check": "(bar_id IS NOT NULL AND public.user_has_bar_access(bar_id))"
+  },
+  "check_constraint_added": {
+    "name": "dre_manual_bar_id_required_after_cutoff",
+    "definition": "CHECK (criado_em < '2025-09-08'::timestamptz OR bar_id IS NOT NULL)",
+    "purpose": "Defesa em camada — bloqueia bar_id NULL ate via service_role para registros novos"
+  },
+  "secao_1_counts": [
+    {"caller": "uuid_admin_bar_3 (9106ba7d)",         "total": 82, "sem_bar": 82, "com_bar": 0, "verdict": "✓ legacy preservado via OR no USING"},
+    {"caller": "uuid_admin_bar_4 (ba36f97d)",         "total": 82, "sem_bar": 82, "com_bar": 0, "verdict": "✓ idem"},
+    {"caller": "uuid_inexistente (00000000)",         "total": 82, "sem_bar": 82, "com_bar": 0, "verdict": "✓ tradeoff (ε) — legacy NULL passa pelo OR. Decisao consciente, descricoes sao corporativas (Socios, Escritorio Central, Ambev contrato anual)"},
+    {"caller": "service_role",                        "total": 82, "sem_bar": 82, "com_bar": 0, "verdict": "✓ bypass mantem visibilidade total"}
+  ],
+  "secao_2_testes_barreira": {
+    "teste_A_positivo": {
+      "descricao": "INSERT bem-formado via authenticated com bar_id=3 valido",
+      "sql_relevante": "INSERT INTO financial.dre_manual (data_competencia, descricao, valor, categoria_macro, categoria, bar_id, criado_em) VALUES ('2026-04-01', 'TESTE POSITIVO sec03', 1.00, 'Custo insumos (CMV)', 'Custo Bebidas', 3, now())",
+      "esperado": "1 row inserida com sucesso",
+      "resultado": "✓ row id=333 inserida com bar_id=3, categoria_macro='Custo insumos (CMV)' (rolled back)"
+    },
+    "teste_B_barreira_RLS": {
+      "descricao": "INSERT com bar_id=NULL via authenticated — esperado: rejeicao por RLS WITH CHECK",
+      "sql_relevante": "INSERT INTO financial.dre_manual (..., bar_id, criado_em) VALUES (..., NULL, now())",
+      "esperado_pgcode": "42501",
+      "erro_literal": "ERROR:  42501: new row violates row-level security policy for table \"dre_manual\"",
+      "verdict": "✓ Layer 1 (RLS WITH CHECK) bloqueou INSERT NULL via authenticated"
+    },
+    "teste_C_barreira_CHECK": {
+      "descricao": "INSERT com bar_id=NULL via service_role (que bypass RLS) — esperado: rejeicao por CHECK constraint pos-cutoff",
+      "sql_relevante": "INSERT INTO financial.dre_manual (..., bar_id, criado_em) VALUES (..., NULL, now())",
+      "esperado_pgcode": "23514",
+      "erro_literal": "ERROR:  23514: new row for relation \"dre_manual\" violates check constraint \"dre_manual_bar_id_required_after_cutoff\"\nDETAIL:  Failing row contains (332, 2026-04-01, TESTE BARREIRA CHECK, 1.00, CMV, null, null, 2026-04-25 13:09:49.574441-03, 2026-04-25 13:09:49.574441-03, TESTE, null).",
+      "verdict": "✓ Layer 2 (CHECK constraint) bloqueou INSERT NULL ate via service_role pos-cutoff"
+    }
+  },
+  "secao_3_narrativa": {
+    "tradeoff_aceito": "UUID inexistente ve as 82 legacy via branch OR (bar_id IS NULL). Decisao consciente em vez de fechar 100%. As 82 sao DRE corporativa historica importada de CSV em 2025-09-07 — descricoes sao Socios, Escritorio Central, Ambev contrato anual cross-bar, Variacao de Estoque, Marketing genericos. Backfill arbitrario (atribuir a Ordinario por convencao) inflaria DRE em ~R$80k em Fev-Abr/2025 e distorceria relatorios. Duplicar (1 row vira 2) duplicaria valor da holding. (epsilon) honra a realidade: legacy holding-level visivel.",
+    "defesa_em_camadas": [
+      "1. RLS USING/WITH CHECK separados (layer aplicacao authenticated)",
+      "2. CHECK constraint com cutoff 2025-09-08 (layer banco, cobre service_role)",
+      "3. API route 400 com code BAR_ID_REQUIRED (layer fast-fail, antes do banco)",
+      "4. UI Modal disable button + warning visivel (layer UX, evita request invalido)"
+    ],
+    "blind_spot_advisor": "Advisor security nao flagga essa policy pos-fix nem flaggava pre-fix. Total findings 150 -> 150 (zero delta). Smoke-test continua sendo ground truth — pattern firme nos PRs #12, #13, #15, agora #16."
+  }
+}
