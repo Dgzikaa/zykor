@@ -10,19 +10,6 @@ import type { Bar, BarConfigOperacao } from '@/lib/domain/bar.types';
 export class BaresRepository {
   constructor(private client: SupabaseClient) {}
 
-  /** Busca dados basicos de um bar. */
-  async findById(id: number): Promise<Bar | null> {
-    const { data, error } = await this.client
-      .schema('operations')
-      .from('bares')
-      .select('id, nome, ativo')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (error) throw new RepositoryError('bares.findById', error);
-    return (data as Bar | null) ?? null;
-  }
-
   /** Lista bares ativos por ids. */
   async findActiveByIds(ids: number[]): Promise<Bar[]> {
     if (ids.length === 0) return [];
