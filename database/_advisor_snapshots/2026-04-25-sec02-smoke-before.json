@@ -1,0 +1,65 @@
+{
+  "captured_at": "2026-04-25",
+  "method": "SET LOCAL ROLE + SELECT count(*), count(DISTINCT bar_id) per table per role, transaction rolled back",
+  "scope_note": "financial.dre_manual REMOVIDO do escopo sec/02 — 82 rows com bar_id IS NULL precisam backfill antes da policy. Tracked como task #43.",
+  "uuids": {
+    "bar_3_admin": {"uuid": "9106ba7d-8f55-4a6c-b638-3165ecad6291", "email": "diogo@grupobizu.com.br", "role": "admin"},
+    "bar_4_admin": {"uuid": "ba36f97d-1c1f-4795-8a8a-85b9b494de5d", "email": "rodrigo@grupomenosemais.com.br", "role": "admin"}
+  },
+  "results": [
+    {
+      "table": "bronze.bronze_contahub_raw_data",
+      "bucket": "A",
+      "uuid_bar_3": {"count": 5622, "distinct_bars": 2},
+      "uuid_bar_4": {"count": 5622, "distinct_bars": 2},
+      "service_role": {"count": 5622, "distinct_bars": 2},
+      "leak_status": "⚠️ ATIVO — usuario do bar=3 ve dados raw do bar=4 (e vice-versa). 2 bars distintos populados."
+    },
+    {
+      "table": "financial.orcamentacao",
+      "bucket": "A",
+      "uuid_bar_3": {"count": 323, "distinct_bars": 1},
+      "uuid_bar_4": {"count": 323, "distinct_bars": 1},
+      "service_role": {"count": 323, "distinct_bars": 1},
+      "leak_status": "⚠️ TEORICO — so 1 bar populado hoje. Leak nao medivel agora, mas RLS quebrada."
+    },
+    {
+      "table": "system.automation_logs",
+      "bucket": "A",
+      "uuid_bar_3": {"count": 26, "distinct_bars": 1},
+      "uuid_bar_4": {"count": 26, "distinct_bars": 1},
+      "service_role": {"count": 26, "distinct_bars": 1},
+      "leak_status": "⚠️ TEORICO — so 1 bar populado hoje."
+    },
+    {
+      "table": "system.uploads",
+      "bucket": "B",
+      "uuid_bar_3": {"count": 0, "distinct_bars": null},
+      "uuid_bar_4": {"count": 0, "distinct_bars": null},
+      "service_role": {"count": 0, "distinct_bars": null},
+      "leak_status": "LATENTE — tabela vazia. Fix preventivo (uploaded_by uuid)."
+    },
+    {
+      "table": "meta.semanas_referencia",
+      "bucket": "C",
+      "uuid_bar_3": {"count": 48, "distinct_bars": null},
+      "uuid_bar_4": {"count": 48, "distinct_bars": null},
+      "service_role": {"count": 48, "distinct_bars": null},
+      "leak_status": "INTENCIONAL — calendario ISO global compartilhado entre os 2 bares. Nao-sensivel."
+    },
+    {
+      "table": "system.execucoes_automaticas",
+      "bucket": "C",
+      "uuid_bar_3": {"count": 439, "distinct_bars": null},
+      "uuid_bar_4": {"count": 439, "distinct_bars": null},
+      "service_role": {"count": 439, "distinct_bars": null},
+      "leak_status": "POTENCIAL — logs de jobs system-level. Bar-agnostic. DROP da policy authenticated proposto (sub-gate 1.5)."
+    }
+  ],
+  "expected_after_fix": {
+    "bucket_A": "uuid_bar_3 ve so rows com bar_id=3; uuid_bar_4 ve so rows com bar_id=4; service_role mantem total via BYPASSRLS",
+    "bucket_B_uploads": "cada UUID ve so rows uploaded_by = seu auth.uid()",
+    "bucket_C_semanas_referencia": "ambos UUIDs leem 48 (calendario global, intencional). cmd reduzido de ALL para SELECT.",
+    "bucket_C_execucoes_automaticas": "ambos UUIDs caem para 0 (policy authenticated dropada, igual padrao PR #13). service_role mantem 439 via BYPASSRLS."
+  }
+}

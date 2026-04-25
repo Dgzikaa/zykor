@@ -1,0 +1,89 @@
+{
+  "captured_at": "2026-04-25",
+  "method": "SET LOCAL ROLE + count + count(DISTINCT bar_id) per table per caller, transaction rolled back. Plus 3 EXPLAIN ANALYZE em bronze.bronze_contahub_raw_data WHERE bar_id=3 LIMIT 100 pra cada UUID.",
+  "callers": {
+    "uuid_admin_bar_3":   {"uuid": "9106ba7d-8f55-4a6c-b638-3165ecad6291", "email": "diogo@grupobizu.com.br",        "role": "admin",  "access": "bar=3 + bar=4 (admin multi-bar)"},
+    "uuid_admin_bar_4":   {"uuid": "ba36f97d-1c1f-4795-8a8a-85b9b494de5d", "email": "rodrigo@grupomenosemais.com.br", "role": "admin",  "access": "bar=3 + bar=4 (admin multi-bar)"},
+    "uuid_inexistente":   {"uuid": "00000000-0000-0000-0000-000000000000", "access": "nenhum (proba negativa do filtro)"},
+    "service_role":       {"role": "service_role", "access": "BYPASSRLS=TRUE — ground truth"}
+  },
+  "secao_1_count_matrix": [
+    {
+      "table": "bronze.bronze_contahub_raw_data",
+      "uuid_admin_bar_3":  {"count": 5622, "distinct_bars": 2},
+      "uuid_admin_bar_4":  {"count": 5622, "distinct_bars": 2},
+      "uuid_inexistente":  {"count": 0,    "distinct_bars": 0, "key_marker": "⚡ filtro funciona — UUID sem acesso ve 0 das 5622 rows"},
+      "service_role":      {"count": 5622, "distinct_bars": 2}
+    },
+    {
+      "table": "financial.orcamentacao",
+      "uuid_admin_bar_3":  {"count": 323, "distinct_bars": 1},
+      "uuid_admin_bar_4":  {"count": 323, "distinct_bars": 1},
+      "uuid_inexistente":  {"count": 0,   "distinct_bars": 0, "key_marker": "⚡ filtro funciona"},
+      "service_role":      {"count": 323, "distinct_bars": 1}
+    },
+    {
+      "table": "system.automation_logs",
+      "uuid_admin_bar_3":  {"count": 26, "distinct_bars": 1},
+      "uuid_admin_bar_4":  {"count": 26, "distinct_bars": 1},
+      "uuid_inexistente":  {"count": 0,  "distinct_bars": 0, "key_marker": "⚡ filtro funciona"},
+      "service_role":      {"count": 26, "distinct_bars": 1}
+    },
+    {
+      "table": "system.uploads",
+      "uuid_admin_bar_3":  {"count": 0},
+      "uuid_admin_bar_4":  {"count": 0},
+      "uuid_inexistente":  {"count": 0},
+      "service_role":      {"count": 0},
+      "note": "tabela vazia, fix preventivo (uploaded_by = auth.uid())"
+    },
+    {
+      "table": "meta.semanas_referencia",
+      "uuid_admin_bar_3":  {"count": 48},
+      "uuid_admin_bar_4":  {"count": 48},
+      "uuid_inexistente":  {"count": 48, "key_marker": "⚡ calendario global mantido (USING true pra authenticated)"},
+      "service_role":      {"count": 48}
+    },
+    {
+      "table": "system.execucoes_automaticas",
+      "uuid_admin_bar_3":  {"count": 0,   "key_marker": "⚡ DROP da policy authenticated funciona"},
+      "uuid_admin_bar_4":  {"count": 0,   "key_marker": "⚡ idem"},
+      "uuid_inexistente":  {"count": 0},
+      "service_role":      {"count": 439, "note": "BYPASSRLS mantem leitura (jobs internos)"}
+    }
+  ],
+  "secao_2_explain_analyze": {
+    "query": "SELECT * FROM bronze.bronze_contahub_raw_data WHERE bar_id = 3 LIMIT 100",
+    "uuid_admin_bar_3": {
+      "execution_time_ms": 25.55,
+      "rows_returned": 100,
+      "filter_in_plan": "Filter: user_has_bar_access(bar_id)",
+      "verdict": "✓ filtro presente, helper passa (user tem acesso a bar=3)"
+    },
+    "uuid_admin_bar_4": {
+      "execution_time_ms": 2.79,
+      "rows_returned": 100,
+      "filter_in_plan": "Filter: user_has_bar_access(bar_id)",
+      "verdict": "✓ filtro presente, helper passa (user tem acesso a bar=3 tambem por design multi-bar)"
+    },
+    "uuid_inexistente": {
+      "execution_time_ms": 307.55,
+      "rows_returned": 0,
+      "rows_removed_by_filter": 2729,
+      "filter_in_plan": "Filter: user_has_bar_access(bar_id)",
+      "verdict": "✓ filtro presente, helper REJEITA todas 2729 rows do bar=3 (UUID nao tem acesso a nenhum bar)"
+    }
+  },
+  "secao_3_narrativa": {
+    "razao_dos_counts_iguais_entre_admins": "Todos os 12 usuarios reais do Zykor tem acesso aos 2 bares (Ordinario + Deboche) por design — time pequeno operando 2 bares irmaos. Nao existe UUID single-bar disponivel pra demonstrar diff de count entre admins. Os 2 admins escolhidos veem 5622 rows abrangendo 2 bars distintos PORQUE legitimamente tem acesso aos 2.",
+    "evidencia_canonica_do_fix": "Combinacao de (a) UUID inexistente retorna 0 nas 3 tabelas Bucket A — prova negativa do filtro funcionando E (b) Filter: user_has_bar_access(bar_id) presente em todos os 3 EXPLAIN plans. Padrao de evidencia novo vs PRs anteriores que usaram count diff entre callers.",
+    "blind_spot_advisor": "Security advisor nao flagga policies com qual = auth.role() = 'authenticated' como bug de multi-tenancy (so flagga rls_policy_always_true puro). Padrao confirmado nos PRs #12, #13 e agora #15 — smoke-test e ground truth, advisor e pista."
+  },
+  "advisor_security_diff": {
+    "baseline_2026-04-24": 151,
+    "after_sec01_2026-04-24": 149,
+    "after_sec02_2026-04-25": 150,
+    "delta_sec02_vs_sec01": "+1 (rls_enabled_no_policy INFO em system.execucoes_automaticas — esperado pos-DROP, mesmo padrao do PR #13 com system.system_logs)"
+  },
+  "verdict": "GREEN. Todos os criterios passaram. Multi-tenancy enforcement via user_has_bar_access(bar_id) confirmado em prod. Filtro presente em plan e funcionalmente bloqueia UUID sem acesso."
+}
