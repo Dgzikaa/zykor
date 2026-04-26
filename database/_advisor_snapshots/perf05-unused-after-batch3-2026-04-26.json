@@ -1,0 +1,43 @@
+{
+  "snapshot_at": "2026-04-26",
+  "phase": "perf/05 batch 3 — operations + financial",
+  "applied_drops": 13,
+  "schemas_targeted": ["operations", "financial"],
+  "indexes_dropped": [
+    {"schema": "operations", "table": "eventos_base", "index": "idx_eventos_base_conta_assinada", "size_bytes": 1572864, "kind": "partial"},
+    {"schema": "operations", "table": "checklist_agendamentos", "index": "idx_checklist_agendamentos_bar_data", "size_bytes": 212992, "kind": "btree"},
+    {"schema": "operations", "table": "checklist_agendamentos", "index": "idx_checklist_agendamentos_deadline", "size_bytes": 155648, "kind": "btree"},
+    {"schema": "operations", "table": "eventos_base", "index": "idx_eventos_base_cancelamentos", "size_bytes": 106496, "kind": "partial"},
+    {"schema": "operations", "table": "checklist_automation_logs", "index": "idx_checklist_automation_logs_schedule", "size_bytes": 65536, "kind": "btree"},
+    {"schema": "operations", "table": "checklist_automation_logs", "index": "idx_checklist_automation_logs_execution_id", "size_bytes": 65536, "kind": "btree"},
+    {"schema": "operations", "table": "checklist_agendamentos", "index": "idx_checklist_agendamentos_status", "size_bytes": 65536, "kind": "btree"},
+    {"schema": "operations", "table": "checklist_agendamentos", "index": "idx_checklist_agendamentos_responsavel", "size_bytes": 65536, "kind": "btree"},
+    {"schema": "operations", "table": "checklist_automation_logs", "index": "idx_checklist_automation_logs_tipo", "size_bytes": 65536, "kind": "btree"},
+    {"schema": "operations", "table": "config_metas_planejamento", "index": "idx_config_metas_bar_ano", "size_bytes": 16384, "kind": "duplicate-of-unique"},
+    {"schema": "operations", "table": "bares_config", "index": "idx_bares_config_bar_id", "size_bytes": 16384, "kind": "duplicate-of-unique"},
+    {"schema": "operations", "table": "bar_local_mapeamento", "index": "idx_bar_local_mapeamento_bar_id", "size_bytes": 16384, "kind": "prefix-of-unique"},
+    {"schema": "operations", "table": "bar_local_mapeamento", "index": "idx_bar_local_mapeamento_categoria", "size_bytes": 16384, "kind": "btree"}
+  ],
+  "total_freed_bytes": 2441216,
+  "total_freed_pretty": "~2.3 MB",
+  "advisor_unused_index_count_pre": 51,
+  "advisor_unused_index_count_post": 38,
+  "advisor_unused_index_diff": 13,
+  "vacuum_analyze_tables": [
+    "operations.eventos_base",
+    "operations.checklist_agendamentos",
+    "operations.checklist_automation_logs",
+    "operations.config_metas_planejamento",
+    "operations.bares_config",
+    "operations.bar_local_mapeamento"
+  ],
+  "insights": [
+    "idx_eventos_base_conta_assinada (1.5MB partial) — feature ATIVA (35 hits no grep) mas WHERE filter NUNCA usado em pg_stat_statements. Index criado out-of-band sem rastro no git (mesmo anti-pattern de Fase 4 reloptions).",
+    "idx_eventos_base_cancelamentos — mesmo padrão: partial dead apesar da feature alive.",
+    "idx_bares_config_bar_id e idx_config_metas_bar_ano — duplicatas EXATAS de UNIQUE constraints (advisor não detecta dup com UNIQUE).",
+    "idx_bar_local_mapeamento_bar_id — prefix de UNIQUE (bar_id, categoria), redundante.",
+    "checklist_automation_logs é 100% append-only: 6073 INSERTs vs 0 SELECTs com WHERE em (tipo|schedule|execution_id). 3 indexes nunca leram nada.",
+    "checklist_agendamentos: 4 compostos mortos. Top query é WHERE bar_id=X (idx_checklist_agendamentos_bar cobre). Compostos inventados pra padrões que nunca aconteceram.",
+    "financial schema: 0 candidatos pós-pre-flight (todos os indexes têm idx_scan > 0)."
+  ]
+}
