@@ -199,3 +199,52 @@ Nomeação: `trigger_{ação}_{contexto}` ou `trg_{ação}_{tabela}`
 | **EXPERIMENTAL** | 0 rows + feature não lançada | `public` | `staging` |
 
 > **Classificação completa das 229 tabelas**: Realizada em 2026-03-19. Documento de referência na conversa de auditoria (não publicado como arquivo ainda). Será formalizado antes da criação dos schemas.
+
+---
+
+## DDL out-of-band — proibido [REGRA OBRIGATÓRIA]
+
+Toda mudança de schema **DEVE** ser aplicada via migration em `database/migrations/`. Aplica-se a:
+
+- `CREATE / ALTER / DROP TABLE`
+- `CREATE / ALTER / DROP INDEX`
+- `CREATE / ALTER / DROP CONSTRAINT` (PRIMARY KEY, FOREIGN KEY, UNIQUE, CHECK)
+- `ALTER TABLE … SET (reloptions)` — incluindo autovacuum tuning, fillfactor, etc.
+- `CREATE / ALTER / DROP POLICY` (RLS)
+- `GRANT / REVOKE`
+- `CREATE OR REPLACE FUNCTION / TRIGGER / VIEW`
+- `CREATE / DROP SCHEMA`
+
+### Por quê
+
+Mudanças out-of-band ficam **invisíveis** pra `git history` e induzem auditorias futuras a "redescobrir do zero" o que já foi decidido. Migration history é a única fonte canônica de "por que essa coisa existe e quem decidiu".
+
+**Caso real (sprint perf+sec abril 2026):**
+- `operations.eventos_base` tinha `autovacuum_vacuum_scale_factor = 0.05` aplicado out-of-band. Não havia rastro no git. Durante perf/04, redescobriu-se. Tracked como #40 e formalizado retroativamente em PR `chore/formalize-eventos-base-tuning`.
+- `idx_eventos_base_conta_assinada` (1.5 MB partial index) também criado out-of-band. Não havia rastro. Dropado em perf/05 batch 3 — sem o index, nenhuma performance regressão (era dead).
+
+Ambos custaram **horas de investigação** que não existiriam se a regra estivesse formalizada.
+
+### Exceção
+
+Apenas operações de manutenção que **não alteram schema**:
+
+- `VACUUM` / `VACUUM ANALYZE` ad-hoc
+- `ANALYZE` ad-hoc
+- `REINDEX` ad-hoc (recomendado fazer via migration se for parte de um plano)
+- `CLUSTER` ad-hoc
+
+Para operações pesadas (`VACUUM FULL`, `pg_repack`), criar issue de planejamento + janela.
+
+### Como detectar drift no futuro
+
+Script de monitoring (low priority, follow-up):
+```sql
+-- Comparar reloptions reais vs últimas declaradas em migrations
+SELECT n.nspname || '.' || c.relname AS table_name, c.reloptions
+FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid
+WHERE c.reloptions IS NOT NULL
+  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'auth', 'storage')
+ORDER BY 1;
+```
+Cross-check com `database/migrations/` via grep `ALTER TABLE ... SET (`.

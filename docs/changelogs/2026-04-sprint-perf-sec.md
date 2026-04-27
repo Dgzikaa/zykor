@@ -124,6 +124,7 @@ Pra cada candidato:
 | **Index parcial dead** apesar da feature ativa | perf/05 b3 + b4 — `conta_assinada` e `valor_nao_pago` partials nunca usados | Sempre validar via pg_stat_statements, não só por presença de coluna no código |
 | **Stats window** pode estar resetada | Pre-flight de perf/05 — `idx_scan=0` pode significar tabela jovem, não dead | Confirmar `pg_postmaster_start_time()` + idx_scan em hot indexes |
 | **Out-of-band DDL** sem rastro no git | perf/05 b3 — `idx_eventos_base_conta_assinada` não está em nenhuma migration; fase 4 também viu `eventos_base.reloptions` modificadas out-of-band | Tracked como follow-up #40, follow-up #41 |
+| **DDL out-of-band como anti-pattern** (consolidação dos casos acima) | Sprint inteira viu **dois** casos out-of-band — index parcial criado fora de migration + reloptions de autovacuum aplicadas via Studio/psql. Em ambos, próxima auditoria descobriria "do zero". | **Mitigação aplicada** (pós-Bloco B follow-ups): regra explícita em `database/CONVENTIONS.md` seção "DDL out-of-band — proibido" + migration retroativa formalizando `eventos_base` reloptions (PR #28). |
 
 ---
 
