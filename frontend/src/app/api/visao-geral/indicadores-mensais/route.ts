@@ -390,19 +390,19 @@ export async function GET(request: NextRequest) {
       );
       
       // Buscar pessoas do Yuzer e Sympla (se houver)
+      // Filtro de produtos (ingresso/entrada) feito no SQL via ILIKE — evita transferir
+      // payload completo e excluir em JS. ILIKE também trata NULL automaticamente.
       const { data: yuzerProdutos } = await supabase
         .from('silver_yuzer_produtos_evento')
-        .select('quantidade, produto_nome')
+        .select('quantidade')
         .eq('bar_id', barIdNum)
         .gte('data_evento', inicioMes)
-        .lte('data_evento', fimMes);
-      
-      const pessoasYuzer = yuzerProdutos?.filter(item => 
-        item.produto_nome && (
-          item.produto_nome.toLowerCase().includes('ingresso') || 
-          item.produto_nome.toLowerCase().includes('entrada')
-        )
-      ).reduce((sum, item) => sum + (parseInt(item.quantidade) || 0), 0) || 0;
+        .lte('data_evento', fimMes)
+        .or('produto_nome.ilike.%ingresso%,produto_nome.ilike.%entrada%');
+
+      const pessoasYuzer = yuzerProdutos?.reduce(
+        (sum, item) => sum + (parseInt(item.quantidade) || 0), 0
+      ) || 0;
       
       const { data: symplaParticipantes } = await supabase
         .from('sympla_participantes')
