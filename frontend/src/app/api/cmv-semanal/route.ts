@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { logAuditEvent } from '@/lib/audit-logger';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 // Cache por 2 minutos para dados CMV
 export const revalidate = 120;
@@ -28,8 +29,7 @@ export async function GET(request: NextRequest) {
     const barId = parseInt(barIdParam);
 
     // Buscar CMV semanal
-    let query = supabase
-      .from('cmv_semanal')
+    let query = tbl(supabase, 'cmv_semanal')
       .select('*')
       .eq('bar_id', barId)
       .order('ano', { ascending: false })
@@ -142,8 +142,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar registro existente para auditoria
-    const { data: existente } = await supabase
-      .from('cmv_semanal')
+    const { data: existente } = await tbl(supabase, 'cmv_semanal')
       .select('*')
       .eq('bar_id', bar_id)
       .eq('ano', registro.ano)
@@ -158,8 +157,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Inserir/atualizar registro
-    const { data, error } = await supabase
-      .from('cmv_semanal')
+    const { data, error } = await tbl(supabase, 'cmv_semanal')
       .upsert(registroCompleto, {
         onConflict: 'bar_id,ano,semana'
       })
@@ -225,8 +223,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Buscar registro existente para auditoria
-    const { data: existente } = await supabase
-      .from('cmv_semanal')
+    const { data: existente } = await tbl(supabase, 'cmv_semanal')
       .select('*')
       .eq('id', id)
       .single();
@@ -255,8 +252,7 @@ export async function PUT(request: NextRequest) {
     // Se bonificações individuais foram alteradas, recalcular o total
     if (campos.bonificacao_contrato_anual !== undefined || campos.bonificacao_cashback_mensal !== undefined) {
       // Buscar registro atual para pegar valores existentes
-      const { data: atual } = await supabase
-        .from('cmv_semanal')
+      const { data: atual } = await tbl(supabase, 'cmv_semanal')
         .select('bonificacao_contrato_anual, bonificacao_cashback_mensal')
         .eq('id', id)
         .single();
@@ -266,8 +262,7 @@ export async function PUT(request: NextRequest) {
       updateData.ajuste_bonificacoes = parseFloat(contratoAnual) + parseFloat(cashbackMensal);
     }
 
-    const { data, error } = await supabase
-      .from('cmv_semanal')
+    const { data, error } = await tbl(supabase, 'cmv_semanal')
       .update(updateData)
       .eq('id', id)
       .select()
@@ -332,14 +327,12 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Buscar registro antes de excluir para auditoria
-    const { data: existente } = await supabase
-      .from('cmv_semanal')
+    const { data: existente } = await tbl(supabase, 'cmv_semanal')
       .select('*')
       .eq('id', parseInt(id))
       .single();
 
-    const { error } = await supabase
-      .from('cmv_semanal')
+    const { error } = await tbl(supabase, 'cmv_semanal')
       .delete()
       .eq('id', parseInt(id));
 

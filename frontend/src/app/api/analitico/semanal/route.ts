@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { bronze } from '@/lib/medallion/bronze';
 import { silver } from '@/lib/medallion/silver';
 import { verificarMultiplasDatas } from '@/lib/helpers/calendario-helper';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -326,8 +327,7 @@ export async function GET(request: NextRequest) {
       });
 
       // 6. CALCULAR CMO
-            const { data: cmoData, error: cmoError } = await supabase
-        .from('lancamentos_financeiros')
+            const { data: cmoData, error: cmoError } = await tbl(supabase, 'lancamentos_financeiros')
         .select('valor')
         .eq('bar_id', barIdNum)
         .gte('data_competencia', inicioData)
@@ -337,12 +337,11 @@ export async function GET(request: NextRequest) {
           'FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA', 'FREELA LIMPEZA', 'FREELA SEGURANÇA'
         ]);
 
-      const cmoTotal = !cmoError && cmoData ? 
+      const cmoTotal = !cmoError && cmoData ?
         cmoData.reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0) : 0;
 
       // 7. CALCULAR % ARTÍSTICA/FATURAMENTO
-            const { data: artisticaData, error: artisticaError } = await supabase
-        .from('lancamentos_financeiros')
+            const { data: artisticaData, error: artisticaError } = await tbl(supabase, 'lancamentos_financeiros')
         .select('valor')
         .eq('bar_id', barIdNum)
         .gte('data_competencia', inicioData)

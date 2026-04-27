@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutos
@@ -22,8 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar todos os CMVs do bar
-    const { data: cmvs, error: fetchError } = await supabase
-      .from('cmv_semanal')
+    const { data: cmvs, error: fetchError } = await tbl(supabase, 'cmv_semanal')
       .select('*')
       .eq('bar_id', bar_id)
       .order('ano', { ascending: true })
@@ -92,8 +92,7 @@ export async function POST(request: NextRequest) {
         const gap = cmvLimpoPercentual - (cmv.cmv_teorico_percentual || 0);
 
         // Atualizar no banco (cmv_percentual é GENERATED ALWAYS, não pode ser atualizado)
-        const { error: updateError } = await supabase
-          .from('cmv_semanal')
+        const { error: updateError } = await tbl(supabase, 'cmv_semanal')
           .update({
             estoque_inicial: estoqueInicial,
             estoque_final: estoqueFinal,

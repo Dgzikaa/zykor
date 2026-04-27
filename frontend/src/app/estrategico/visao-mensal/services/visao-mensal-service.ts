@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 export interface IndicadorMensal {
   mes: string;
@@ -135,7 +136,7 @@ export async function getIndicadoresMensais(
     clientesUnicosSet.forEach(c => { if (set90d.has(c)) clientesAtivos++; });
 
     // CMO e Artístico
-    const { data: lancamentosBatch } = await supabase.from('lancamentos_financeiros').select('valor, categoria')
+    const { data: lancamentosBatch } = await tbl(supabase, 'lancamentos_financeiros').select('valor, categoria')
       .eq('bar_id', barId).gte('data_competencia', inicioMes).lte('data_competencia', fimMes);
     
     const cmoTotal = lancamentosBatch?.filter(i => ['SALARIO FUNCIONARIOS', 'PROVISÃO TRABALHISTA', 'VALE TRANSPORTE', 'FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA', 'FREELA LIMPEZA', 'FREELA SEGURANÇA'].includes(i.categoria))

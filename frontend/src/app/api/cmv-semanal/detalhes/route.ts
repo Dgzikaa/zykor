@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getFatorCmv } from '@/lib/config/getFatorCmv';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 // Cache por 2 minutos para detalhes de CMV
 export const revalidate = 120;
@@ -152,8 +153,7 @@ export async function GET(request: NextRequest) {
  * Buscar detalhes de compras do Conta Azul
  */
 async function buscarDetalhesCompras(barId: number, dataInicio: string, dataFim: string, campo: string) {
-  const { data, error } = await supabase
-    .from('lancamentos_financeiros')
+  const { data, error } = await tbl(supabase, 'lancamentos_financeiros')
     .select('*')
     .eq('bar_id', barId)
     .gte('data_vencimento', dataInicio)
@@ -226,8 +226,7 @@ async function buscarDetalhesCompras(barId: number, dataInicio: string, dataFim:
  */
 async function buscarDetalhesEstoqueInicial(barId: number, dataInicio: string, dataFim: string, campo: string) {
   // Buscar a contagem mais recente ANTES do período
-  const { data: ultimaContagem } = await supabase
-    .from('contagem_estoque_insumos')
+  const { data: ultimaContagem } = await tbl(supabase, 'contagem_estoque_insumos')
     .select('data_contagem')
     .eq('bar_id', barId)
     .lt('data_contagem', dataInicio)
@@ -246,23 +245,21 @@ async function buscarDetalhesEstoqueInicial(barId: number, dataInicio: string, d
   const dataContagem = ultimaContagem.data_contagem;
 
   // Buscar insumos
-  const { data: insumos } = await supabase
-    .from('insumos')
+  const { data: insumos } = await tbl(supabase, 'insumos')
     .select('id, nome, tipo_local, categoria, custo_unitario, unidade')
     .eq('bar_id', barId);
 
   if (!insumos) return [];
 
   // Buscar contagens
-  const { data: contagens } = await supabase
-    .from('contagem_estoque_insumos')
+  const { data: contagens } = await tbl(supabase, 'contagem_estoque_insumos')
     .select('insumo_id, estoque_final')
     .eq('bar_id', barId)
     .eq('data_contagem', dataContagem);
 
   if (!contagens) return [];
 
-  const insumosMap = new Map(insumos.map((i: any) => [i.id, i]));
+  const insumosMap = new Map<number, any>(insumos.map((i: any) => [i.id, i]));
   const categoriasCozinha = ['ARMAZÉM (C)', 'HORTIFRUTI (C)', 'MERCADO (C)', 'PÃES', 'PEIXE', 'PROTEÍNA', 'Mercado (S)', 'tempero', 'hortifruti', 'líquido'];
   const categoriasDrinks = ['ARMAZÉM B', 'DESTILADOS', 'DESTILADOS LOG', 'HORTIFRUTI B', 'IMPÉRIO', 'MERCADO B', 'POLPAS', 'Não-alcóolicos', 'OUTROS', 'polpa', 'fruta'];
   const categoriasExcluir = ['Descartáveis', 'Limpeza', 'Material de Escritório', 'Uniformes'];
@@ -318,8 +315,7 @@ async function buscarDetalhesEstoqueInicial(barId: number, dataInicio: string, d
  */
 async function buscarDetalhesEstoque(barId: number, dataInicio: string, dataFim: string, campo: string) {
   // Buscar a última contagem do período
-  const { data: ultimaContagem } = await supabase
-    .from('contagem_estoque_insumos')
+  const { data: ultimaContagem } = await tbl(supabase, 'contagem_estoque_insumos')
     .select('data_contagem')
     .eq('bar_id', barId)
     .lte('data_contagem', dataFim)
@@ -338,23 +334,21 @@ async function buscarDetalhesEstoque(barId: number, dataInicio: string, dataFim:
   const dataContagem = ultimaContagem.data_contagem;
 
   // Buscar insumos
-  const { data: insumos } = await supabase
-    .from('insumos')
+  const { data: insumos } = await tbl(supabase, 'insumos')
     .select('id, nome, tipo_local, categoria, custo_unitario, unidade')
     .eq('bar_id', barId);
 
   if (!insumos) return [];
 
   // Buscar contagens
-  const { data: contagens } = await supabase
-    .from('contagem_estoque_insumos')
+  const { data: contagens } = await tbl(supabase, 'contagem_estoque_insumos')
     .select('insumo_id, estoque_final')
     .eq('bar_id', barId)
     .eq('data_contagem', dataContagem);
 
   if (!contagens) return [];
 
-  const insumosMap = new Map(insumos.map((i: any) => [i.id, i]));
+  const insumosMap = new Map<number, any>(insumos.map((i: any) => [i.id, i]));
   const categoriasCozinha = ['ARMAZÉM (C)', 'HORTIFRUTI (C)', 'MERCADO (C)', 'PÃES', 'PEIXE', 'PROTEÍNA', 'Mercado (S)', 'tempero', 'hortifruti', 'líquido'];
   const categoriasDrinks = ['ARMAZÉM B', 'DESTILADOS', 'DESTILADOS LOG', 'HORTIFRUTI B', 'IMPÉRIO', 'MERCADO B', 'POLPAS', 'Não-alcóolicos', 'OUTROS', 'polpa', 'fruta'];
   const categoriasExcluir = ['Descartáveis', 'Limpeza', 'Material de Escritório', 'Uniformes'];
@@ -687,8 +681,7 @@ async function buscarDetalhesVendas(barId: number, dataInicio: string, dataFim: 
 async function buscarDetalhesCMVReal(barId: number, dataInicio: string, dataFim: string) {
   // CMV Real é uma composição, então vamos mostrar os componentes
   // Isso requer buscar o registro CMV da semana
-  const { data: cmv } = await supabase
-    .from('cmv_semanal')
+  const { data: cmv } = await tbl(supabase, 'cmv_semanal')
     .select('*')
     .eq('bar_id', barId)
     .eq('data_inicio', dataInicio)

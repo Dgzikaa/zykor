@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { getFatorCmv, safeDivideCmv } from '@/lib/config/getFatorCmv';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 // Cache por 2 minutos para dados mensais de CMV
 export const revalidate = 120;
@@ -115,8 +116,7 @@ export async function GET(request: NextRequest) {
     const anoAtual = new Date().getFullYear();
     const isMesAtual = (ano === anoAtual && mes === mesAtual);
     
-    const { data: cmvMensal, error: errMensal } = await supabase
-      .from('cmv_mensal')
+    const { data: cmvMensal, error: errMensal } = await tbl(supabase, 'cmv_mensal')
       .select('*')
       .eq('bar_id', barId)
       .eq('ano', ano)
@@ -233,8 +233,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar dados CMV de todas as semanas envolvidas
     const cmvPromises = Object.entries(semanasPorAno).map(([anoISO, semanas]) =>
-      supabase
-        .from('cmv_semanal')
+      tbl(supabase, 'cmv_semanal')
         .select('*')
         .eq('bar_id', barId)
         .eq('ano', parseInt(anoISO))
@@ -274,8 +273,7 @@ export async function GET(request: NextRequest) {
     }
     
     const cmvPromisesAnterior = Object.entries(semanasPorAnoAnterior).map(([anoISO, semanas]) =>
-      supabase
-        .from('cmv_semanal')
+      tbl(supabase, 'cmv_semanal')
         .select('*')
         .eq('bar_id', barId)
         .eq('ano', parseInt(anoISO))

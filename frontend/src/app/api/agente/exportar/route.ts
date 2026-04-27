@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -252,8 +253,7 @@ export async function GET(request: NextRequest) {
       : inicioSemana.toISOString().split('T')[0];
 
     // Buscar dados do período
-    const { data: eventos } = await supabase
-      .from('eventos_base')
+    const { data: eventos } = await tbl(supabase, 'eventos_base')
       .select('real_r, m1_r, cl_real')
       .eq('bar_id', parseInt(barId))
       .eq('ativo', true)
@@ -266,8 +266,7 @@ export async function GET(request: NextRequest) {
     const ticketMedio = clientes > 0 ? faturamento / clientes : 0;
 
     // Buscar CMV
-    const { data: cmvData } = await supabase
-      .from('cmv_semanal')
+    const { data: cmvData } = await tbl(supabase, 'cmv_semanal')
       .select('cmv_percentual')
       .eq('bar_id', parseInt(barId))
       .order('data_inicio', { ascending: false })

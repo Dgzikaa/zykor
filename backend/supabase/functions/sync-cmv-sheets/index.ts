@@ -696,6 +696,7 @@ serve(async (req) => {
           if (!temDados) continue
 
           const { data: existente } = await supabase
+            .schema('financial')
             .from('cmv_semanal')
             .select('id')
             .eq('bar_id', barConfig.bar_id)
@@ -705,6 +706,7 @@ serve(async (req) => {
 
           if (existente) {
             const { error: updateError } = await supabase
+              .schema('financial')
               .from('cmv_semanal')
               .update(updateData)
               .eq('id', existente.id)
@@ -727,6 +729,7 @@ serve(async (req) => {
               ...updateData
             }
             const { error: insertError } = await supabase
+              .schema('financial')
               .from('cmv_semanal')
               .insert(insertData)
             
@@ -754,6 +757,7 @@ serve(async (req) => {
         const queryAnos = anosProcessados.size > 0 ? anosProcessados : (ano ? new Set([ano]) : null)
         
         const recalcQuery = supabase
+          .schema('financial')
           .from('cmv_semanal')
           .select('id, cmv_real, vendas_liquidas')
           .eq('bar_id', barConfig.bar_id)
@@ -772,8 +776,9 @@ serve(async (req) => {
             : 0
           
           await supabase
+            .schema('financial')
             .from('cmv_semanal')
-            .update({ 
+            .update({
               cmv_limpo_percentual: cmvLimpoPercentual,
               updated_at: new Date().toISOString()
             })
@@ -789,6 +794,7 @@ serve(async (req) => {
         
         // Buscar todas as semanas do bar ordenadas por ano/semana
         const { data: todasSemanas } = await supabase
+          .schema('financial')
           .from('cmv_semanal')
           .select('id, ano, semana, estoque_final, estoque_final_cozinha, estoque_final_bebidas, estoque_final_drinks, estoque_final_funcionarios')
           .eq('bar_id', barConfig.bar_id)
@@ -815,6 +821,7 @@ serve(async (req) => {
             
             // Propagar estoque final da semana anterior como inicial da atual
             const { error: propError } = await supabase
+              .schema('financial')
               .from('cmv_semanal')
               .update({
                 estoque_inicial: semanaAnterior.estoque_final,

@@ -2,10 +2,10 @@
  * 📊 CMV Semanal Automático
  * 
  * Processa automaticamente o CMV semanal integrando dados de:
- * - desempenho_semanal (faturamento_total como faturamento bruto)
+ * - gold.desempenho (granularidade='semanal') (faturamento_total como faturamento bruto)
  * - Conta Azul (Compras por categoria)
- * 
- * Cria automaticamente semanas que existem no desempenho_semanal mas não no cmv_semanal.
+ *
+ * Cria automaticamente semanas que existem em gold.desempenho mas não em cmv_semanal.
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -131,6 +131,7 @@ serve(async (req) => {
       }
       
       const { data, error } = await supabase
+        .schema('operations')
         .from('bar_regras_negocio')
         .select('cmv_fator_consumo')
         .eq('bar_id', barId)
@@ -149,13 +150,15 @@ serve(async (req) => {
       const barStartTime = Date.now();
       console.log(`\n🍺 Processando bar_id: ${barId}`);
 
-      // 1. Buscar todas as semanas do desempenho_semanal
+      // 1. Buscar todas as semanas (gold.desempenho granularidade='semanal')
       console.log(`⏱️ [${Date.now() - barStartTime}ms] Iniciando busca de semanas...`);
       // Inclui faturamento_entrada e comissao para calcular faturamento líquido
       let queryDesempenho = supabase
-        .from('desempenho_semanal')
+        .schema('gold')
+        .from('desempenho')
         .select('numero_semana, ano, data_inicio, data_fim, faturamento_total, faturamento_entrada, comissao')
         .eq('bar_id', barId)
+        .eq('granularidade', 'semanal')
         .eq('ano', anoAtual)
         .order('numero_semana', { ascending: true });
 
@@ -168,15 +171,16 @@ serve(async (req) => {
       console.log(`📊 [DEBUG] Semanas encontradas:`, JSON.stringify(semanasDesempenho));
 
       if (errDesempenho) {
-        console.error('Erro ao buscar desempenho_semanal:', errDesempenho);
+        console.error('Erro ao buscar gold.desempenho (semanal):', errDesempenho);
         continue;
       }
 
-      console.log(`📅 Encontradas ${semanasDesempenho?.length || 0} semanas no desempenho_semanal`);
+      console.log(`📅 Encontradas ${semanasDesempenho?.length || 0} semanas em gold.desempenho`);
 
       // 2. Buscar semanas existentes no cmv_semanal COM dados de estoque e consumos
       // Inclui todos os campos que podem vir da planilha para não sobrescrever
       let queryCmv = supabase
+        .schema('financial')
         .from('cmv_semanal')
         .select(`
           semana, 
@@ -255,16 +259,17 @@ serve(async (req) => {
         const weekRange = getWeekDateRange(sem.ano, numeroSemana);
         const hoje = new Date().toISOString().split('T')[0];
         const semanaEmAndamento = weekRange.end >= hoje;
-        
+
         let faturamentoBruto = sem.faturamento_total || 0;
         let comissao = (sem as any).comissao || 0;
         let faturamentoCouvert = (sem as any).faturamento_entrada || 0;
-        
+
         // Se a semana está em andamento E o faturamento está zerado, buscar do eventos_base
         if (semanaEmAndamento && faturamentoBruto === 0) {
           console.log(`⚠️ Semana ${numeroSemana} em andamento - buscando faturamento do eventos_base`);
-          
+
           const { data: eventosData } = await supabase
+            .schema('operations')
             .from('eventos_base')
             .select('real_r')
             .eq('bar_id', barId)
@@ -278,7 +283,7 @@ serve(async (req) => {
         }
         
         console.log(`\n⏱️ [${Date.now() - barStartTime}ms] Processando semana ${numeroSemana}...`);
-        console.log(`📊 [DEBUG] Faturamento do desempenho_semanal: R$ ${faturamentoBruto}`);
+        console.log(`📊 [DEBUG] Faturamento de gold.desempenho: R$ ${faturamentoBruto}`);
         
         // Faturamento Limpo = Faturamento Total - Comissão - Faturamento Couvert
         // NOTA: "Faturamento Couvert" da planilha = faturamento_entrada (não couvert_atracoes)
@@ -297,8 +302,9 @@ serve(async (req) => {
         // Criar semana se não existir
         if (!semanasExistentes.has(numeroSemana)) {
           console.log(`➕ Criando CMV para semana ${numeroSemana}...`);
-          
+
           const { error: insertError } = await supabase
+            .schema('financial')
             .from('cmv_semanal')
             .insert({
               bar_id: barId,
@@ -332,6 +338,7 @@ serve(async (req) => {
         // - Ordinário: ALIMENTAÇÃO
         // - Deboche: Alimentação
         const { data: compras } = await supabase
+          .schema('integrations')
           .from('contaazul_lancamentos')
           .select('valor_bruto, categoria_nome, tipo')
           .eq('bar_id', barId)
@@ -709,6 +716,7 @@ serve(async (req) => {
         // 10. Atualizar CMV no banco
         console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Executando UPDATE...`);
         const { error: updateError } = await supabase
+          .schema('financial')
           .from('cmv_semanal')
           .update(updateData)
           .eq('bar_id', barId)
@@ -744,6 +752,7 @@ serve(async (req) => {
       console.log(`\n🔄 Propagando estoque inicial (regra contábil) para bar ${barId}...`)
       
       const { data: todasSemanasBar } = await supabase
+        .schema('financial')
         .from('cmv_semanal')
         .select('id, ano, semana, estoque_final, estoque_final_cozinha, estoque_final_bebidas, estoque_final_drinks, estoque_final_funcionarios')
         .eq('bar_id', barId)
@@ -759,6 +768,7 @@ serve(async (req) => {
           
           // Propagar estoque final da semana anterior como inicial da atual
           const { error: propError } = await supabase
+            .schema('financial')
             .from('cmv_semanal')
             .update({
               estoque_inicial: semanaAnterior.estoque_final,

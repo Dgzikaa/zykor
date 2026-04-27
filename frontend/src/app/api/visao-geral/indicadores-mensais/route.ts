@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { UTC_OFFSET_STRING, toBRTISO } from '@/lib/timezone';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -354,8 +355,7 @@ export async function GET(request: NextRequest) {
       }
 
       // 8. CALCULAR CMO (Custo de Mão de Obra) - buscar da view unificada
-      const { data: cmoData, error: cmoError } = await supabase
-        .from('lancamentos_financeiros')
+      const { data: cmoData, error: cmoError } = await tbl(supabase, 'lancamentos_financeiros')
         .select('valor_bruto')
         .eq('bar_id', barIdNum)
         .gte('data_competencia', inicioMes)
@@ -365,12 +365,11 @@ export async function GET(request: NextRequest) {
           'FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA', 'FREELA LIMPEZA', 'FREELA SEGURANÇA'
         ]);
 
-      const cmoTotal = !cmoError && cmoData ? 
+      const cmoTotal = !cmoError && cmoData ?
         cmoData.reduce((sum, item) => sum + (parseFloat(item.valor_bruto) || 0), 0) : 0;
 
       // 9. CALCULAR % ARTÍSTICA/FATURAMENTO
-      const { data: artisticaData, error: artisticaError } = await supabase
-        .from('lancamentos_financeiros')
+      const { data: artisticaData, error: artisticaError } = await tbl(supabase, 'lancamentos_financeiros')
         .select('valor_bruto')
         .eq('bar_id', barIdNum)
         .gte('data_competencia', inicioMes)

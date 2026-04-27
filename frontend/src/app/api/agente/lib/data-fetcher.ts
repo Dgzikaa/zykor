@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { agora } from '@/lib/timezone';
 import { getCacheKey, getFromCache, setCache, cleanupCache } from './cache';
 import { EventoBase, ContaHubAnalitico, CMVSemanal } from './types';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 export async function fetchDataForIntent(
   supabase: SupabaseClient,
@@ -46,8 +47,7 @@ export async function fetchDataForIntent(
         dataInicio = inicioMes.toISOString().split('T')[0];
       }
 
-      const { data: eventosRaw } = await supabase
-        .from('eventos_base')
+      const { data: eventosRaw } = await tbl(supabase, 'eventos_base')
         .select('data_evento, real_r, m1_r, cl_real, nome, yuzer_liquido, sympla_liquido')
         .eq('bar_id', barId)
         .eq('ativo', true)
@@ -92,8 +92,7 @@ export async function fetchDataForIntent(
         dataFim = hoje.toISOString().split('T')[0];
       }
 
-      const { data: eventosClientesRaw } = await supabase
-        .from('eventos_base')
+      const { data: eventosClientesRaw } = await tbl(supabase, 'eventos_base')
         .select('data_evento, cl_real, real_r, nome, yuzer_liquido, yuzer_ingressos, sympla_liquido, sympla_checkins, te_real, tb_real')
         .eq('bar_id', barId)
         .eq('ativo', true)
@@ -137,8 +136,7 @@ export async function fetchDataForIntent(
     }
 
     case 'cmv': {
-      const { data: cmvRaw } = await supabase
-        .from('cmv_semanal')
+      const { data: cmvRaw } = await tbl(supabase, 'cmv_semanal')
         .select('*')
         .eq('bar_id', barId)
         .order('data_inicio', { ascending: false })
@@ -156,8 +154,7 @@ export async function fetchDataForIntent(
     }
 
     case 'meta': {
-      const { data: eventosMetaRaw } = await supabase
-        .from('eventos_base')
+      const { data: eventosMetaRaw } = await tbl(supabase, 'eventos_base')
         .select('real_r, m1_r')
         .eq('bar_id', barId)
         .eq('ativo', true)
@@ -252,8 +249,7 @@ export async function fetchDataForIntent(
     }
 
     case 'comparativo_dias': {
-      const { data: eventosCompDiasRaw } = await supabase
-        .from('eventos_base')
+      const { data: eventosCompDiasRaw } = await tbl(supabase, 'eventos_base')
         .select('data_evento, real_r, cl_real, nome')
         .eq('bar_id', barId)
         .eq('ativo', true)
@@ -285,8 +281,7 @@ export async function fetchDataForIntent(
     }
 
     case 'comparativo_periodos': {
-      const { data: semanaAtualRaw } = await supabase
-        .from('eventos_base')
+      const { data: semanaAtualRaw } = await tbl(supabase, 'eventos_base')
         .select('real_r, cl_real')
         .eq('bar_id', barId)
         .eq('ativo', true)
@@ -297,8 +292,7 @@ export async function fetchDataForIntent(
       const fimSemanaPassada = new Date(inicioSemana);
       fimSemanaPassada.setDate(fimSemanaPassada.getDate() - 1);
 
-      const { data: semanaPassadaRaw } = await supabase
-        .from('eventos_base')
+      const { data: semanaPassadaRaw } = await tbl(supabase, 'eventos_base')
         .select('real_r, cl_real')
         .eq('bar_id', barId)
         .eq('ativo', true)
@@ -325,8 +319,7 @@ export async function fetchDataForIntent(
       const quatroSemanasAtras = new Date(hoje);
       quatroSemanasAtras.setDate(quatroSemanasAtras.getDate() - 28);
 
-      const { data: eventosTendenciaRaw } = await supabase
-        .from('eventos_base')
+      const { data: eventosTendenciaRaw } = await tbl(supabase, 'eventos_base')
         .select('data_evento, real_r, cl_real')
         .eq('bar_id', barId)
         .eq('ativo', true)
@@ -390,8 +383,7 @@ export async function fetchDataForIntent(
     }
 
     case 'meta_projecao': {
-      const { data: eventosProjecaoRaw } = await supabase
-        .from('eventos_base')
+      const { data: eventosProjecaoRaw } = await tbl(supabase, 'eventos_base')
         .select('real_r, m1_r')
         .eq('bar_id', barId)
         .eq('ativo', true)
@@ -450,8 +442,7 @@ export async function fetchDataForIntent(
 
     case 'resumo': {
       const hojeResumo = agora().toISOString().split('T')[0];
-      const { data: eventosRecentesRaw } = await supabase
-        .from('eventos_base')
+      const { data: eventosRecentesRaw } = await tbl(supabase, 'eventos_base')
         .select('*')
         .eq('bar_id', barId)
         .eq('ativo', true)
@@ -464,8 +455,7 @@ export async function fetchDataForIntent(
       const clientesSemana = eventosRecentes?.reduce((acc, e) => acc + (e.cl_real || 0), 0) || 0;
       const metaSemana = eventosRecentes?.reduce((acc, e) => acc + (e.m1_r || 0), 0) || 0;
 
-      const { data: cmvResumoRaw } = await supabase
-        .from('cmv_semanal')
+      const { data: cmvResumoRaw } = await tbl(supabase, 'cmv_semanal')
         .select('cmv_percentual')
         .eq('bar_id', barId)
         .order('data_inicio', { ascending: false })
@@ -486,8 +476,7 @@ export async function fetchDataForIntent(
     }
 
     case 'ticket': {
-      const { data: eventosTicketRaw } = await supabase
-        .from('eventos_base')
+      const { data: eventosTicketRaw } = await tbl(supabase, 'eventos_base')
         .select('real_r, cl_real')
         .eq('bar_id', barId)
         .eq('ativo', true)
@@ -574,8 +563,7 @@ export async function fetchDataForIntent(
 
     default: {
       const hojeDefault = agora().toISOString().split('T')[0];
-      const { data: eventosDefaultRaw } = await supabase
-        .from('eventos_base')
+      const { data: eventosDefaultRaw } = await tbl(supabase, 'eventos_base')
         .select('*')
         .eq('bar_id', barId)
         .eq('ativo', true)

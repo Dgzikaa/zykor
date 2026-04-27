@@ -385,10 +385,11 @@ serve(async (req) => {
         for (let i = 0; i < insumosParaUpsert.length; i += batchSize) {
           const batch = insumosParaUpsert.slice(i, i + batchSize)
           const { data: upserted, error: upsertErr } = await supabase
+            .schema('operations')
             .from('insumos')
-            .upsert(batch, { 
+            .upsert(batch, {
               onConflict: 'bar_id,codigo',
-              ignoreDuplicates: false 
+              ignoreDuplicates: false
             })
             .select('id')
 
@@ -405,6 +406,7 @@ serve(async (req) => {
 
         // Criar mapa de insumos do bar para usar nas contagens
         const { data: insumosCadastrados } = await supabase
+          .schema('operations')
           .from('insumos')
           .select('id, codigo, nome, custo_unitario')
           .eq('bar_id', barId)
@@ -559,6 +561,7 @@ serve(async (req) => {
           for (let i = 0; i < payloads.length; i += batchSize) {
             const batch = payloads.slice(i, i + batchSize)
             const { error: upsertErr } = await supabase
+              .schema('operations')
               .from('contagem_estoque_insumos')
               .upsert(batch, {
                 onConflict: 'bar_id,data_contagem,insumo_codigo',
@@ -685,6 +688,7 @@ async function propagarEstoqueInicial(
 
     // Buscar estoque final do dia anterior por insumo
     const { data: estoqueAnterior } = await supabase
+      .schema('operations')
       .from('contagem_estoque_insumos')
       .select('insumo_codigo, estoque_final')
       .eq('bar_id', barId)
@@ -699,6 +703,7 @@ async function propagarEstoqueInicial(
       // Atualizar estoque inicial do dia atual
       for (const [codigo, estoqueIni] of mapaEstoque.entries()) {
         await supabase
+          .schema('operations')
           .from('contagem_estoque_insumos')
           .update({ estoque_inicial: estoqueIni })
           .eq('bar_id', barId)
@@ -747,6 +752,7 @@ async function calcularEstoquesSemanaais(
     for (const barId of barIds) {
       // Buscar primeiro dia da semana com dados
       const { data: primeiroDia } = await supabase
+        .schema('operations')
         .from('contagem_estoque_insumos')
         .select('data_contagem, insumo_codigo, categoria, estoque_final, custo_unitario')
         .eq('bar_id', barId)
@@ -757,6 +763,7 @@ async function calcularEstoquesSemanaais(
 
       // Buscar último dia da semana com dados
       const { data: ultimoDia } = await supabase
+        .schema('operations')
         .from('contagem_estoque_insumos')
         .select('data_contagem, insumo_codigo, categoria, estoque_final, custo_unitario')
         .eq('bar_id', barId)
@@ -786,6 +793,7 @@ async function calcularEstoquesSemanaais(
 
       // Atualizar cmv_semanal (se existir) - APENAS estoque final
       const { data: cmvExistente } = await supabase
+        .schema('financial')
         .from('cmv_semanal')
         .select('id')
         .eq('bar_id', barId)
@@ -802,6 +810,7 @@ async function calcularEstoquesSemanaais(
         }
 
         const { error: updateError } = await supabase
+          .schema('financial')
           .from('cmv_semanal')
           .update(updateData)
           .eq('id', cmvExistente.id)
@@ -818,6 +827,7 @@ async function calcularEstoquesSemanaais(
           const proximaSemanaStr = proximaSemanaInicio.toISOString().split('T')[0]
           
           const { data: proximaSemana } = await supabase
+            .schema('financial')
             .from('cmv_semanal')
             .select('id, estoque_final_funcionarios')
             .eq('bar_id', barId)
@@ -827,13 +837,15 @@ async function calcularEstoquesSemanaais(
           if (proximaSemana) {
             // Buscar estoque final de funcionários da semana atual para propagar
             const { data: semanaAtualCMA } = await supabase
+              .schema('financial')
               .from('cmv_semanal')
               .select('estoque_final_funcionarios')
               .eq('bar_id', barId)
               .eq('semana', semanaInicio)
               .single()
-            
+
             await supabase
+              .schema('financial')
               .from('cmv_semanal')
               .update({
                 estoque_inicial: estoqueFinal,

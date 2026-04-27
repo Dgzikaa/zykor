@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 export const dynamic = 'force-dynamic'
 
@@ -40,8 +41,7 @@ export async function GET(request: Request) {
     }
 
     // 2. Buscar dados realizados do Conta Azul (por competência, não por pagamento)
-    let queryNibo = supabase
-      .from('lancamentos_financeiros')
+    let queryNibo = tbl(supabase, 'lancamentos_financeiros')
       .select('categoria, status, valor, data_competencia')
       .eq('bar_id', parseInt(barId))
       .gte('data_competencia', `${ano}-01-01`)

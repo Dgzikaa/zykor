@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,13 +18,11 @@ export async function GET(request: NextRequest) {
       .select('*', { count: 'exact', head: true });
 
     // 3. VOLUME - Eventos Base
-    const { count: countEventos } = await supabase
-      .from('eventos_base')
+    const { count: countEventos } = await tbl(supabase, 'eventos_base')
       .select('*', { count: 'exact', head: true });
 
     // 4. VOLUME - CMV Semanal
-    const { count: countCmv } = await supabase
-      .from('cmv_semanal')
+    const { count: countCmv } = await tbl(supabase, 'cmv_semanal')
       .select('*', { count: 'exact', head: true });
 
     // 5. VOLUME - Desempenho (Gold)
@@ -33,14 +32,12 @@ export async function GET(request: NextRequest) {
       .select('*', { count: 'exact', head: true });
 
     // 6. COBERTURA - Eventos por bar
-    const { data: eventosPorBar } = await supabase
-      .from('eventos_base')
+    const { data: eventosPorBar } = await tbl(supabase, 'eventos_base')
       .select('bar_id, data_evento, bars(name)')
       .order('data_evento', { ascending: true });
 
     // 7. CMV IMPOSSÍVEIS
-    const { data: cmvImpossiveis } = await supabase
-      .from('cmv_semanal')
+    const { data: cmvImpossiveis } = await tbl(supabase, 'cmv_semanal')
       .select('id, bar_id, ano, semana, data_inicio, cmv_percentual')
       .or('cmv_percentual.gt.100,cmv_percentual.lt.0')
       .order('data_inicio', { ascending: false })
@@ -55,16 +52,14 @@ export async function GET(request: NextRequest) {
       .limit(50);
 
     // 9. ESTOQUE NEGATIVO - Insumos
-    const { data: estoqueNegativoInsumos } = await supabase
-      .from('contagem_estoque_insumos')
+    const { data: estoqueNegativoInsumos } = await tbl(supabase, 'contagem_estoque_insumos')
       .select('id, categoria, descricao, estoque_total, estoque_flutuante, estoque_fechado, data_contagem')
       .or('estoque_total.lt.0,estoque_flutuante.lt.0,estoque_fechado.lt.0')
       .order('data_contagem', { ascending: false })
       .limit(50);
 
     // 10. VALORES NULOS - Faturamento NULL mas tem público
-    const { data: eventosSemFaturamento } = await supabase
-      .from('eventos_base')
+    const { data: eventosSemFaturamento } = await tbl(supabase, 'eventos_base')
       .select('id, bar_id, data_evento, nome, real_r, cl_real')
       .is('real_r', null)
       .not('cl_real', 'is', null)
@@ -73,8 +68,7 @@ export async function GET(request: NextRequest) {
       .limit(50);
 
     // 11. VALORES NULOS - Faturamento mas sem público
-    const { data: eventosSemPublico } = await supabase
-      .from('eventos_base')
+    const { data: eventosSemPublico } = await tbl(supabase, 'eventos_base')
       .select('id, bar_id, data_evento, nome, real_r, cl_real')
       .not('real_r', 'is', null)
       .gt('real_r', 0)
@@ -83,8 +77,7 @@ export async function GET(request: NextRequest) {
       .limit(50);
 
     // 12. DUPLICAÇÕES - Buscar todos eventos e processar
-    const { data: todosEventos } = await supabase
-      .from('eventos_base')
+    const { data: todosEventos } = await tbl(supabase, 'eventos_base')
       .select('id, bar_id, data_evento, nome')
       .order('data_evento', { ascending: false });
 
@@ -115,8 +108,7 @@ export async function GET(request: NextRequest) {
     const dataInicio = new Date();
     dataInicio.setDate(dataInicio.getDate() - 90);
     
-    const { data: eventosRecentes } = await supabase
-      .from('eventos_base')
+    const { data: eventosRecentes } = await tbl(supabase, 'eventos_base')
       .select('data_evento')
       .eq('bar_id', barId)
       .gte('data_evento', dataInicio.toISOString().split('T')[0])

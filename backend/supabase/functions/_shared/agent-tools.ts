@@ -263,6 +263,7 @@ export function createToolExecutor(supabase: SupabaseClient, barId: number) {
         }
         
         const { data } = await supabase
+          .schema('operations')
           .from('eventos_base')
           .select('data_evento, real_r, cl_real, t_medio, nome')
           .eq('bar_id', barId)
@@ -294,6 +295,7 @@ export function createToolExecutor(supabase: SupabaseClient, barId: number) {
         }
         
         const { data } = await supabase
+          .schema('operations')
           .from('eventos_base')
           .select('data_evento, cl_real, t_medio, real_r, nome')
           .eq('bar_id', barId)
@@ -315,6 +317,7 @@ export function createToolExecutor(supabase: SupabaseClient, barId: number) {
       case 'consultar_cmv': {
         const limite = (call.args as { limite_semanas?: number }).limite_semanas || 4;
         const { data } = await supabase
+          .schema('financial')
           .from('cmv_semanal')
           .select('*')
           .eq('bar_id', barId)
@@ -332,6 +335,7 @@ export function createToolExecutor(supabase: SupabaseClient, barId: number) {
           .eq('bar_id', barId);
 
         const { data: eventos } = await supabase
+          .schema('operations')
           .from('eventos_base')
           .select('data_evento, real_r, cl_real')
           .eq('bar_id', barId)
@@ -390,9 +394,9 @@ export function createToolExecutor(supabase: SupabaseClient, barId: number) {
           periodo2_fim: string;
         };
         const [{ data: p1 }, { data: p2 }] = await Promise.all([
-          supabase.from('eventos_base').select('real_r, cl_real, t_medio')
+          supabase.schema('operations').from('eventos_base').select('real_r, cl_real, t_medio')
             .eq('bar_id', barId).gte('data_evento', args.periodo1_inicio).lte('data_evento', args.periodo1_fim),
-          supabase.from('eventos_base').select('real_r, cl_real, t_medio')
+          supabase.schema('operations').from('eventos_base').select('real_r, cl_real, t_medio')
             .eq('bar_id', barId).gte('data_evento', args.periodo2_inicio).lte('data_evento', args.periodo2_fim),
         ]);
 
@@ -424,6 +428,7 @@ export function createToolExecutor(supabase: SupabaseClient, barId: number) {
           inicio.setDate(fim.getDate() - 6);
 
           const { data } = await supabase
+            .schema('operations')
             .from('eventos_base')
             .select('real_r, cl_real')
             .eq('bar_id', barId)
@@ -504,9 +509,11 @@ export function createToolExecutor(supabase: SupabaseClient, barId: number) {
       case 'consultar_desempenho_semanal': {
         const numSemanas = Math.min((call.args as { semanas?: number }).semanas || 4, 12);
         const { data } = await supabase
-          .from('desempenho_semanal')
+          .schema('gold')
+          .from('desempenho')
           .select('*')
           .eq('bar_id', barId)
+          .eq('granularidade', 'semanal')
           .order('data_inicio', { ascending: false })
           .limit(numSemanas);
         return { semanas: data || [] };

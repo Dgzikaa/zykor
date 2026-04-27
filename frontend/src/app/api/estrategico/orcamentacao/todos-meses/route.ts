@@ -1,5 +1,6 @@
 ﻿import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { schemaOf, tbl, type ZykorTable } from '@/lib/supabase/table-schemas';
 
 // Cache por 2 minutos, revalidar em background por até 10 minutos
 export const revalidate = 120;
@@ -18,9 +19,13 @@ async function fetchAllPaginated<T>(
   let offset = 0;
   let hasMore = true;
 
+  // Resolver schema da tabela (post-migração medallion).
+  const schema = schemaOf(table);
+  const fromBase = (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema(schema);
+
   while (hasMore) {
-    let query = supabase.from(table).select(select);
-    
+    let query = fromBase.from(table).select(select);
+
     // Aplicar filtros
     for (const filter of filters) {
       if (filter.operator === 'eq') {
@@ -104,8 +109,7 @@ async function calcularCMVMensal(supabase: any, barId: number, mes: number, ano:
 
   // Buscar dados CMV de todas as semanas envolvidas
   const cmvPromises = Object.entries(semanasPorAno).map(([anoISO, semanas]) =>
-    supabase
-      .from('cmv_semanal')
+    tbl(supabase, 'cmv_semanal')
       .select('semana, ano, cmv_limpo_percentual, cmv_real, faturamento_cmvivel')
       .eq('bar_id', barId)
       .eq('ano', parseInt(anoISO))
@@ -416,8 +420,7 @@ export async function GET(request: Request) {
         .lte('data_competencia', dataFim),
       
       // Query 5: Eventos base (faturamento real)
-      supabase
-        .from('eventos_base')
+      tbl(supabase, 'eventos_base')
         .select('real_r, sympla_liquido, yuzer_liquido, m1_r, data_evento')
         .eq('bar_id', parseInt(barId))
         .gte('data_evento', dataInicio)

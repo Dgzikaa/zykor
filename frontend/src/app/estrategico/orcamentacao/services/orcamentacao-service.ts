@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { schemaOf, tbl } from '@/lib/supabase/table-schemas';
 
 // ==================== TIPOS ====================
 
@@ -201,8 +202,12 @@ async function fetchAllPaginated<T>(
   let offset = 0;
   let hasMore = true;
 
+  // Resolver schema da tabela (post-migração medallion).
+  const schema = schemaOf(table);
+  const fromBase = (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema(schema);
+
   while (hasMore) {
-    let query = supabase.from(table).select(select);
+    let query = fromBase.from(table).select(select);
     for (const filter of filters) {
       if (filter.operator === 'eq') query = query.eq(filter.column, filter.value);
       else if (filter.operator === 'gte') query = query.gte(filter.column, filter.value);
@@ -251,7 +256,7 @@ async function calcularCMVMensal(supabase: SupabaseClient, barId: number, mes: n
     if (!semanasPorAno[s.anoISO].includes(s.semana)) semanasPorAno[s.anoISO].push(s.semana);
   }
   const cmvPromises = Object.entries(semanasPorAno).map(([anoISO, semanas]) =>
-    supabase.from('cmv_semanal').select('semana, ano, cmv_limpo_percentual, cmv_real, faturamento_cmvivel')
+    tbl(supabase, 'cmv_semanal').select('semana, ano, cmv_limpo_percentual, cmv_real, faturamento_cmvivel')
       .eq('bar_id', barId).eq('ano', parseInt(anoISO)).in('semana', semanas)
   );
   const cmvResults = await Promise.all(cmvPromises);
@@ -308,7 +313,7 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     ]),
     supabase.from('dre_manual').select('categoria, categoria_macro, valor, data_competencia, descricao')
       .gte('data_competencia', dataInicio).lte('data_competencia', dataFim),
-    supabase.from('eventos_base').select('real_r, sympla_liquido, yuzer_liquido, m1_r, data_evento')
+    tbl(supabase, 'eventos_base').select('real_r, sympla_liquido, yuzer_liquido, m1_r, data_evento')
       .eq('bar_id', barId).gte('data_evento', dataInicio).lte('data_evento', dataFim).eq('ativo', true)
   ]);
 

@@ -315,5 +315,5 @@ export interface SemanaProporcaoMes {
   proporcao: number;
 }
 
-/** Linha `desempenho_manual` (antes: desempenho_semanal) lida dinamicamente por nome de campo */
+/** Linha `desempenho_manual` (antes: gold.desempenho granularidade=semanal) lida dinamicamente por nome de campo */
 export type DesempenhoSemanalDbRow = Record<string, unknown>;
