@@ -280,13 +280,11 @@ export function schemaOf(table: string): string {
 // Tipos genéricos do PostgREST/Supabase JS (sem importar o SDK aqui).
 // O importante para os call-sites é que o retorno expõe `select`, `insert`,
 // `update`, `upsert`, `delete` — quem consome trata como `any` mesmo.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SupabaseLike = { schema: (s: string) => { from: (t: string) => any } };
+type SupabaseLike = { schema: (s: string) => { from: (t: string) => unknown } };
 
 export function tbl<T extends ZykorTable>(
   supabase: SupabaseLike,
   table: T
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-): any {
+): unknown {
   return supabase.schema(schemaOf(table)).from(table);
 }
