@@ -71,9 +71,14 @@ export async function calcDistribuicao(
     }
 
     // Ordinário: Qui+Sab+Dom | Deboche: Ter+Qua+Qui e Sex+Sab
-    let quiSabDom = 0;
-    let terQuaQui = 0;
-    let sexSab = 0;
+    // Fórmula: media_por_dia × N (= valor "1 semana padrão" desses dias).
+    // Normaliza pra que mes com 4 quintas vs 5 quintas dê resultado comparável.
+    let qsdSum = 0;
+    let tqqSum = 0;
+    let ssSum = 0;
+    const qsdDates = new Set<string>();
+    const tqqDates = new Set<string>();
+    const ssDates = new Set<string>();
 
     for (const evento of eventosData || []) {
       const dataEvento = evento.data_evento;
@@ -85,17 +90,24 @@ export async function calcDistribuicao(
 
       // Ordinário: Qui(4), Sab(6), Dom(0) - NÃO inclui Sexta(5)
       if (dia === 4 || dia === 6 || dia === 0) {
-        quiSabDom += valor;
+        qsdSum += valor;
+        qsdDates.add(dataEvento);
       }
       // Deboche: Ter(2), Qua(3), Qui(4)
       if (dia === 2 || dia === 3 || dia === 4) {
-        terQuaQui += valor;
+        tqqSum += valor;
+        tqqDates.add(dataEvento);
       }
       // Deboche: Sex(5), Sab(6)
       if (dia === 5 || dia === 6) {
-        sexSab += valor;
+        ssSum += valor;
+        ssDates.add(dataEvento);
       }
     }
+
+    const quiSabDom = qsdDates.size > 0 ? (qsdSum / qsdDates.size) * 3 : 0;
+    const terQuaQui = tqqDates.size > 0 ? (tqqSum / tqqDates.size) * 3 : 0;
+    const sexSab = ssDates.size > 0 ? (ssSum / ssDates.size) * 2 : 0;
 
     return {
       success: true,
