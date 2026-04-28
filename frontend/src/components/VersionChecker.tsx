@@ -5,88 +5,70 @@ import { RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 /**
- * Componente que detecta quando há uma nova versão do app disponível
- * e oferece ao usuário a opção de atualizar.
- * 
- * Funciona verificando se o Service Worker foi atualizado.
+ * Detecta nova versao do app comparando o SHA embutido no bundle com o SHA
+ * retornado por /api/version. Quando diferentes, exibe banner com botao
+ * "Atualizar agora" que faz reload.
+ *
+ * Antes dependia de Service Worker (sw-zykor.js). Como matamos os SWs em
+ * 79330d41, a logica foi trocada por polling do endpoint.
+ *
+ * Frequencia: 5min de intervalo + check ao voltar pra aba.
  */
+
+const BUILD_VERSION =
+  process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? 'dev';
+
+const POLL_INTERVAL_MS = 5 * 60 * 1000;
+
+async function fetchDeployedVersion(): Promise<string | null> {
+  try {
+    const res = await fetch('/api/version', { cache: 'no-store' });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return typeof json?.version === 'string' ? json.version : null;
+  } catch {
+    return null;
+  }
+}
+
 export function VersionChecker() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+    if (typeof window === 'undefined') return;
+    if (BUILD_VERSION === 'dev') return; // local dev: nao polla
 
-    const checkForUpdates = async () => {
-      try {
-        const registration = await navigator.serviceWorker.getRegistration();
-        
-        if (registration) {
-          // Verificar atualizações
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing;
-            if (newWorker) {
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // Nova versão instalada, mas ainda não ativa
-                  console.log('[VersionChecker] Nova versão disponível!');
-                  setUpdateAvailable(true);
-                }
-              });
-            }
-          });
+    let cancelled = false;
 
-          // Forçar check de atualização
-          registration.update().catch(console.error);
-        }
-
-        // Também verificar se já há um worker esperando
-        if (registration?.waiting) {
-          setUpdateAvailable(true);
-        }
-      } catch (error) {
-        console.error('[VersionChecker] Erro:', error);
+    const check = async () => {
+      const deployed = await fetchDeployedVersion();
+      if (cancelled || !deployed) return;
+      if (deployed !== BUILD_VERSION) {
+        setUpdateAvailable(true);
       }
     };
 
-    // Verificar ao carregar
-    checkForUpdates();
+    check();
 
-    // Verificar periodicamente (a cada 5 minutos)
-    const interval = setInterval(checkForUpdates, 5 * 60 * 1000);
+    const interval = setInterval(check, POLL_INTERVAL_MS);
 
-    // Listener para quando a página ganha foco
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        checkForUpdates();
+        check();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
+      cancelled = true;
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
-  const handleUpdate = async () => {
-    try {
-      const registration = await navigator.serviceWorker.getRegistration();
-      
-      if (registration?.waiting) {
-        // Envia mensagem para o SW ativar imediatamente
-        registration.waiting.postMessage('skipWaiting');
-      }
-
-      // Aguarda um momento e recarrega
-      setTimeout(() => {
-        window.location.reload();
-      }, 100);
-    } catch (error) {
-      console.error('[VersionChecker] Erro ao atualizar:', error);
-      // Em caso de erro, simplesmente recarrega
-      window.location.reload();
-    }
+  const handleUpdate = () => {
+    window.location.reload();
   };
 
   if (!updateAvailable || dismissed) return null;
@@ -120,9 +102,10 @@ export function VersionChecker() {
             </Button>
           </div>
         </div>
-        <button 
+        <button
           onClick={() => setDismissed(true)}
           className="text-blue-200 hover:text-white transition-colors"
+          aria-label="Fechar"
         >
           <X className="w-4 h-4" />
         </button>

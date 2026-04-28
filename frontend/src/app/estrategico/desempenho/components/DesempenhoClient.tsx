@@ -46,6 +46,7 @@ import {
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
 import { useToast } from '@/hooks/use-toast';
+import { useRefreshOnVisible } from '@/hooks/useRefreshOnVisible';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { DadosSemana, SecaoConfig, GrupoMetricas, MetricaConfig, TipoAgregacao, MetasDesempenhoMap } from '../types';
@@ -847,6 +848,14 @@ export function DesempenhoClient({
       router.refresh();
     }
   }, [selectedBar?.id, barId, router]);
+
+  // Quando usuario volta pra aba (visibilitychange => 'visible'), revalida
+  // os dados do server. Throttle de 30s pra evitar spam quando o usuario
+  // fica trocando entre janelas. Faz a pagina sempre refletir o estado mais
+  // recente sem exigir F5 manual.
+  useRefreshOnVisible(() => {
+    router.refresh();
+  });
 
   // Semana selecionada (para metas reativas)
   const semanaSelecionada = useMemo(() => {
