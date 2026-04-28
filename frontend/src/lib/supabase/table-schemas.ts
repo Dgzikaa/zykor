@@ -278,13 +278,15 @@ export function schemaOf(table: string): string {
  *     .eq('bar_id', barId);
  */
 // Tipos genéricos do PostgREST/Supabase JS (sem importar o SDK aqui).
-// O importante para os call-sites é que o retorno expõe `select`, `insert`,
-// `update`, `upsert`, `delete` — quem consome trata como `any` mesmo.
-type SupabaseLike = { schema: (s: string) => { from: (t: string) => unknown } };
+// O retorno é `any` porque os call-sites encadeiam `.select()/.eq()/.insert()`
+// etc. — sem `any`, o TS bate TS2571 ("Object is of type 'unknown'").
+// A regra `@typescript-eslint/no-explicit-any` não está configurada no projeto,
+// então não precisa de eslint-disable.
+type SupabaseLike = { schema: (s: string) => { from: (t: string) => any } };
 
 export function tbl<T extends ZykorTable>(
   supabase: SupabaseLike,
   table: T
-): unknown {
+): any {
   return supabase.schema(schemaOf(table)).from(table);
 }
