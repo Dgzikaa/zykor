@@ -111,13 +111,15 @@ export async function calcCustos(
     }
 
     // 3. Cancelamentos
+    // bronze_contahub_avendas_cancelamentos usa `dt_gerencial`, nao `data`.
+    // Antes da migracao medallion havia coluna `data` que foi renomeada/dropada.
     const { data: cancelRows, error: cancelError } = await supabase
       .schema('bronze')
       .from('bronze_contahub_avendas_cancelamentos')
       .select('custototal')
       .eq('bar_id', barId)
-      .gte('data', startDate)
-      .lte('data', endDate);
+      .gte('dt_gerencial', startDate)
+      .lte('dt_gerencial', endDate);
 
     if (cancelError) {
       return {
@@ -131,14 +133,16 @@ export async function calcCustos(
       (sum: number, r: any) => sum + (parseFloat(r.custototal) || 0), 0
     );
 
-    // 4. Couvert e Comissao (vr_repique) - FONTE CANÔNICA: bronze_contahub_avendas_vendasperiodo
+    // 4. Couvert e Comissao - FONTE CANONICA: bronze_contahub_avendas_vendasperiodo
+    // Colunas reais: vd_vrcouvert, vd_vrrepique (com prefixo `vd_` que veio
+    // direto do payload do ContaHub e foi preservado na promocao raw->bronze).
     const { data: couvertComissaoRows, error: couvertError } = await supabase
       .schema('bronze')
       .from('bronze_contahub_avendas_vendasperiodo')
-      .select('vr_couvert, vr_repique')
+      .select('vd_vrcouvert, vd_vrrepique')
       .eq('bar_id', barId)
-      .gte('dt_gerencial', startDate)
-      .lte('dt_gerencial', endDate);
+      .gte('vd_dtgerencial', startDate)
+      .lte('vd_dtgerencial', endDate);
 
     if (couvertError) {
       return {
@@ -149,10 +153,10 @@ export async function calcCustos(
     }
 
     const couvertAtracoes = (couvertComissaoRows || []).reduce(
-      (sum: number, r: any) => sum + (parseFloat(r.vr_couvert) || 0), 0
+      (sum: number, r: any) => sum + (parseFloat(r.vd_vrcouvert) || 0), 0
     );
     const comissaoCartao = (couvertComissaoRows || []).reduce(
-      (sum: number, r: any) => sum + (parseFloat(r.vr_repique) || 0), 0
+      (sum: number, r: any) => sum + (parseFloat(r.vd_vrrepique) || 0), 0
     );
     console.log(`[DEBUG calc-custos] bar_id=${barId}, period=${startDate} to ${endDate}, rows=${couvertComissaoRows?.length || 0}, comissao=${comissaoCartao}, couvert=${couvertAtracoes}`);
 

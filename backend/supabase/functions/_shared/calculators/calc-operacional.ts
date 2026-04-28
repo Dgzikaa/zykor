@@ -118,16 +118,19 @@ export async function calcOperacional(
     const tempoSaidaBar = (tempoSaidaResult && tempoSaidaResult[0] && tempoSaidaResult[0].tempo_bar_minutos) || 0;
     const tempoSaidaCozinha = (tempoSaidaResult && tempoSaidaResult[0] && tempoSaidaResult[0].tempo_cozinha_minutos) || 0;
 
-    // 4. Atrasinhos direto de bronze_contahub_produtos_temposproducao (filtrar outliers > 60 min)
+    // 4. Atrasinhos via silver.tempos_producao (categoria ja mapeada de loc_desc).
+    // Bronze nao tem coluna `categoria` nem `tempo_final` — sao calculadas/mapeadas
+    // na promocao bronze->silver. Usa t0_t3 (lancamento -> entrega) como tempo total
+    // que inclui producao + entrega. Filtra outliers > 60 min.
     const { data: atrasinhosData, error: atrasinhosError } = await supabase
-      .schema('bronze')
-      .from('bronze_contahub_produtos_temposproducao')
-      .select('categoria, tempo_final')
+      .schema('silver')
+      .from('tempos_producao')
+      .select('categoria, t0_t3')
       .eq('bar_id', barId)
-      .gte('data', startDate)
-      .lte('data', endDate)
-      .gt('tempo_final', 0)
-      .lte('tempo_final', 60);
+      .gte('data_producao', startDate)
+      .lte('data_producao', endDate)
+      .gt('t0_t3', 0)
+      .lte('t0_t3', 60);
 
     if (atrasinhosError) {
       return {
@@ -138,14 +141,15 @@ export async function calcOperacional(
     }
 
     // Atrasinhos: 5-10 min para bar, 15-20 min para cozinha
-    const atrasinhosBar = (atrasinhosData || []).filter((item: any) => 
-      (item.categoria === 'bebida' || item.categoria === 'drink') && 
-      item.tempo_final > 5 && item.tempo_final <= 10
+    // t0_t3 = tempo total do lançamento até entrega (em minutos)
+    const atrasinhosBar = (atrasinhosData || []).filter((item: any) =>
+      (item.categoria === 'bebida' || item.categoria === 'drink') &&
+      item.t0_t3 > 5 && item.t0_t3 <= 10
     ).length;
-    
-    const atrasinhosCozinha = (atrasinhosData || []).filter((item: any) => 
-      item.categoria === 'comida' && 
-      item.tempo_final > 15 && item.tempo_final <= 20
+
+    const atrasinhosCozinha = (atrasinhosData || []).filter((item: any) =>
+      item.categoria === 'comida' &&
+      item.t0_t3 > 15 && item.t0_t3 <= 20
     ).length;
     
     // Atraso (não usado no cálculo de atrasos_bar/cozinha, apenas para referência)

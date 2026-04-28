@@ -110,7 +110,11 @@ interface V2Result {
   timestamp: string;
 }
 
-// Mapeamento dos campos dos calculators para colunas de gold.desempenho
+// Mapeamento calc_key -> db_column (gold.desempenho).
+// Auditado em 2026-04-28 contra schema real. Comentarios marcam ajustes:
+//  [DROP] = key existia no calc mas nao tem coluna correspondente em gold.desempenho
+//  [TYPO_DB] = coluna no banco tem typo (ex: cmvivel sem o)
+//  [RENAME] = code retornava com nome legado, mapear pra coluna real
 const FIELD_MAPPING: Record<string, string> = {
   // Faturamento
   faturamento_total: "faturamento_total",
@@ -120,7 +124,7 @@ const FIELD_MAPPING: Record<string, string> = {
   ticket_medio: "ticket_medio",
   tm_entrada: "tm_entrada",
   tm_bar: "tm_bar",
-  meta_semanal: "meta_semanal",
+  // [DROP] meta_semanal — nao existe em gold.desempenho
   mesas_totais: "mesas_totais",
   mesas_presentes: "mesas_presentes",
   reservas_totais: "reservas_totais",
@@ -132,32 +136,33 @@ const FIELD_MAPPING: Record<string, string> = {
   couvert_atracoes: "couvert_atracoes",
   comissao: "comissao",
   atracoes_eventos: "atracoes_eventos",
-  cancelamentos: "cancelamentos",
-  // Operacional
-  stockout_bar: "stockout_bar",
+  cancelamentos: "cancelamentos_total", // [RENAME] sum em R$ -> cancelamentos_total
+  // Operacional — Stockout (so o _perc existe; counts ficam apenas no calc, nao persistem)
+  // [DROP] stockout_bar (count)
   stockout_bar_perc: "stockout_bar_perc",
-  stockout_drinks: "stockout_drinks",
+  // [DROP] stockout_drinks (count)
   stockout_drinks_perc: "stockout_drinks_perc",
-  stockout_comidas: "stockout_comidas",
+  // [DROP] stockout_comidas (count)
   stockout_comidas_perc: "stockout_comidas_perc",
   perc_bebidas: "perc_bebidas",
   perc_drinks: "perc_drinks",
   perc_comida: "perc_comida",
   perc_happy_hour: "perc_happy_hour",
-  tempo_saida_bar: "tempo_saida_bar",
-  tempo_saida_cozinha: "tempo_saida_cozinha",
-  qtde_itens_bar: "qtde_itens_bar",
-  qtde_itens_cozinha: "qtde_itens_cozinha",
-  atrasinhos_bar: "atrasinhos_bar",
+  // [RENAME] tempo_saida_bar -> tempo_bebidas; tempo_drinks separado nao vem do calc
+  tempo_saida_bar: "tempo_bebidas",
+  tempo_saida_cozinha: "tempo_cozinha", // [RENAME]
+  // [DROP] qtde_itens_bar / qtde_itens_cozinha — usados apenas no calc dos %; gold guarda qtd_drinks_total e qtd_comida_total mas o calc atual nao retorna esses
+  // Atrasinhos (singular no banco)
+  atrasinhos_bar: "atrasinho_bar", // [RENAME] singular
   atrasinhos_bar_perc: "atrasinhos_bar_perc",
-  atrasinhos_cozinha: "atrasinhos_cozinha",
+  atrasinhos_cozinha: "atrasinho_cozinha", // [RENAME] singular
   atrasinhos_cozinha_perc: "atrasinhos_cozinha_perc",
-  atraso_bar: "atraso_bar",
-  atraso_cozinha: "atraso_cozinha",
-  atrasos_bar: "atrasos_bar",
-  atrasos_cozinha: "atrasos_cozinha",
+  // Atrasos: db usa ortografia "atrasao" (ao invez de "atraso") — preservar pra nao causar deriva
+  atraso_bar: "atrasao_bar", // [RENAME]
+  atraso_cozinha: "atrasao_cozinha", // [RENAME]
+  // [DROP] atrasos_bar / atrasos_cozinha sem _perc — duplicidade com atraso_bar/cozinha
   atrasos_bar_perc: "atrasos_bar_perc",
-  atrasos_cozinha_perc: "atrasos_cozinha_perc",
+  atrasos_cozinha_perc: "atrasos_comida_perc", // [RENAME] db usa "comida" no lugar de "cozinha"
   // Satisfacao
   avaliacoes_5_google_trip: "avaliacoes_5_google_trip",
   media_avaliacoes_google: "media_avaliacoes_google",
@@ -178,7 +183,7 @@ const FIELD_MAPPING: Record<string, string> = {
   clientes_ativos: "clientes_ativos",
   perc_clientes_novos: "perc_clientes_novos",
   // CMV (integrado de cmv_semanal)
-  faturamento_cmovivel: "faturamento_cmovivel",
+  faturamento_cmovivel: "faturamento_cmvivel", // [TYPO_DB] db: cmvivel sem o
   cmv_rs: "cmv_rs",
   cmv: "cmv",
 };
@@ -458,7 +463,7 @@ async function processBarWeek(
         updatePayload[dbKey] = calculatedValues[calcKey];
       }
     }
-    updatePayload["atualizado_em"] = new Date().toISOString() as any;
+    updatePayload["calculado_em"] = new Date().toISOString() as any;
 
     if (registroAtualEncontrado) {
       const { error: updateError } = await supabase
@@ -485,16 +490,15 @@ async function processBarWeek(
         ano,
         numero_semana: numeroSemana,
         granularidade: "semanal",
-        criado_em: new Date().toISOString(),
       };
 
       // Adicionar apenas campos calculados (não manuais)
       for (const [key, value] of Object.entries(updatePayload)) {
-        if (key !== "atualizado_em" && !MANUAL_FIELDS.includes(key as any)) {
+        if (key !== "calculado_em" && !MANUAL_FIELDS.includes(key as any)) {
           insertPayload[key] = value;
         }
       }
-      insertPayload["atualizado_em"] = updatePayload["atualizado_em"];
+      insertPayload["calculado_em"] = updatePayload["calculado_em"];
 
       const { error: insertError } = await supabase
         .schema("gold")
