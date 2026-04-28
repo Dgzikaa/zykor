@@ -280,7 +280,7 @@ export default function InsumosPage() {
                           {isEditingCat ? (
                             <div className="flex items-center gap-1">
                               <Input
-                                autoFocus
+                                ref={(el) => { el?.focus(); }}
                                 value={editing!.value}
                                 onChange={(e) => setEditing({ ...editing!, value: e.target.value })}
                                 onKeyDown={onKey}
@@ -328,7 +328,7 @@ export default function InsumosPage() {
                           {isEditingCusto ? (
                             <div className="flex items-center justify-end gap-1">
                               <Input
-                                autoFocus
+                                ref={(el) => { el?.focus(); }}
                                 type="text"
                                 inputMode="decimal"
                                 value={editing!.value}
