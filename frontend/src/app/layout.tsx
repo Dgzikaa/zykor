@@ -67,7 +67,6 @@ export default function RootLayout({
                         <Toaster position="top-right" richColors />
                         {/* <RetrospectiveButton /> */}
                         {/* <AssistantWrapper /> */}
-                        {/* <ZykorPWABanner /> */}
                       </ToastProvider>
                     </PageTitleProvider>
                   </CommandPaletteProvider>
