@@ -54,43 +54,32 @@ export function usePWA(): PWAState & PWAActions {
     setState(prev => ({ ...prev, isInstalled }));
   }, []);
 
-  // Registrar Service Worker
+  // Antes registrava /sw.js (cache-first sem TTL = stale data por dias).
+  // Projeto nao usa PWA real — agora desregistra qualquer SW e limpa caches.
+  // Mantem assinatura pra nao quebrar callers.
   const registerServiceWorker =
     useCallback(async (): Promise<ServiceWorkerRegistration | null> => {
       if (typeof window === 'undefined' || !('serviceWorker' in navigator))
         return null;
 
       try {
-        const registration = await navigator.serviceWorker.register('/sw.js', {
-          scope: '/',
-        });
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      } catch { /* swallow */ }
 
-        setState(prev => ({
-          ...prev,
-          serviceWorkerRegistration: registration,
-        }));
+      try {
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+      } catch { /* swallow */ }
 
-        // Escutar atualizações do Service Worker
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (
-                newWorker.state === 'installed' &&
-                typeof window !== 'undefined' &&
-                navigator.serviceWorker.controller
-              ) {
-                // Aqui você pode mostrar uma notificação para o usuário sobre a atualização
-              }
-            });
-          }
-        });
+      setState(prev => ({
+        ...prev,
+        serviceWorkerRegistration: null,
+      }));
 
-        return registration;
-      } catch (error) {
-        console.error('❌ PWA: Erro ao registrar Service Worker:', error);
-        return null;
-      }
+      return null;
     }, []);
 
   // Detectar conectividade

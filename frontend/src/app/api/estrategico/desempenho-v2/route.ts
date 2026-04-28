@@ -228,25 +228,31 @@ export async function GET(request: NextRequest) {
 
     console.log(`✅ V2: ${semanasFiltradas.length} semanas retornadas`);
 
-    return NextResponse.json({
-      success: true,
-      mes,
-      ano,
-      semanas: semanasFiltradas,
-      total_semanas: semanasFiltradas.length,
-      totais_mensais: {
-        faturamento_total: Math.round(totaisMensais.faturamento_total * 100) / 100,
-        clientes_total: totaisMensais.clientes_total,
-        ticket_medio: Math.round(ticketMedioMensal * 100) / 100,
-        performance_media: Math.round(performanceMediaMensal * 100) / 100,
-        eventos_total: totaisMensais.eventos_total
+    return NextResponse.json(
+      {
+        success: true,
+        mes,
+        ano,
+        semanas: semanasFiltradas,
+        total_semanas: semanasFiltradas.length,
+        totais_mensais: {
+          faturamento_total: Math.round(totaisMensais.faturamento_total * 100) / 100,
+          clientes_total: totaisMensais.clientes_total,
+          ticket_medio: Math.round(ticketMedioMensal * 100) / 100,
+          performance_media: Math.round(performanceMediaMensal * 100) / 100,
+          eventos_total: totaisMensais.eventos_total
+        },
+        _metadata: {
+          api_version: 'v2',
+          fonte: 'gold.desempenho + meta.desempenho_manual',
+          arquitetura: 'medalion_puro'
+        }
       },
-      _metadata: {
-        api_version: 'v2',
-        fonte: 'gold.desempenho + meta.desempenho_manual',
-        arquitetura: 'medalion_puro'
+      {
+        // Dashboard data — sempre fresh. Bloqueia cache do navegador/CDN.
+        headers: { 'Cache-Control': 'no-store, must-revalidate' }
       }
-    });
+    );
 
   } catch (error) {
     console.error('❌ Erro API V2:', error);

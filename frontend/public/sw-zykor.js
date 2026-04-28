@@ -1,138 +1,47 @@
-const CACHE_NAME = 'zykor-gestao-v1'
-const STATIC_CACHE = 'zykor-static-v1'
+// ============================================================================
+// Service Worker auto-destruct (2026-04-28)
+//
+// Por que: o SW antigo cacheava paginas dinamicas (estrategico/desempenho etc)
+// com estrategia "cache-first" sem TTL. Resultado: usuarios viam dados de dias
+// atras mesmo apos F5/Ctrl+R. Projeto nao usa PWA real (offline, push), entao
+// optamos por matar os SWs e voltar ao cache padrao do navegador.
+//
+// Este SW:
+// 1. No install: ativa imediatamente (skipWaiting)
+// 2. No activate: limpa todos os caches, toma controle dos clientes,
+//    desregistra a si mesmo, e recarrega todas as abas abertas
+// 3. NAO intercepta nenhum fetch (sem listener 'fetch' = network default)
+//
+// Apos rodar uma vez por cliente, o SW some completamente. Pode deletar este
+// arquivo no proximo deploy quando confirmar que ninguem mais tem SW antigo.
+// ============================================================================
 
-// Arquivos essenciais para gestão offline
-const STATIC_FILES = [
-  '/dashboard',
-  '/operacoes/qr-scanner',
-  '/logos/zykor-logo.png',
-  '/manifest-zykor.json'
-]
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
 
-// Install event
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(STATIC_CACHE)
-      .then((cache) => cache.addAll(STATIC_FILES))
-      .then(() => self.skipWaiting())
-  )
-})
-
-// Activate event
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME && cacheName !== STATIC_CACHE) {
-            return caches.delete(cacheName)
-          }
-        })
-      )
-    }).then(() => self.clients.claim())
-  )
-})
+    (async () => {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      } catch (_) { /* swallow */ }
 
-// Fetch event - Otimizado para gestão
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url)
-  
-  // Para APIs de gestão, sempre buscar dados frescos
-  if (url.pathname.includes('/api/')) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          // Cache apenas se a resposta for bem-sucedida
-          if (response.status === 200) {
-            const responseClone = response.clone()
-            caches.open(CACHE_NAME)
-              .then((cache) => cache.put(event.request, responseClone))
-          }
-          return response
-        })
-        .catch(() => {
-          // Fallback para cache se offline
-          return caches.match(event.request)
-        })
-    )
-    return
-  }
+      try {
+        await self.clients.claim();
+      } catch (_) { /* swallow */ }
 
-  // Para páginas administrativas, cache com network fallback
-  if (url.pathname.includes('/dashboard') || 
-      url.pathname.includes('/operacoes') || 
-      url.pathname.includes('/configuracoes') ||
-      url.pathname.includes('/relatorios')) {
-    event.respondWith(
-      caches.match(event.request)
-        .then((response) => {
-          return response || fetch(event.request)
-            .then((response) => {
-              if (response.status === 200) {
-                const responseClone = response.clone()
-                caches.open(CACHE_NAME)
-                  .then((cache) => cache.put(event.request, responseClone))
-              }
-              return response
-            })
-        })
-    )
-    return
-  }
+      try {
+        await self.registration.unregister();
+      } catch (_) { /* swallow */ }
 
-  // Para outros recursos, comportamento padrão
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => response || fetch(event.request))
-  )
-})
-
-// Push notifications para gestores
-self.addEventListener('push', (event) => {
-  if (event.data) {
-    const data = event.data.json()
-    
-    const options = {
-      body: data.body || 'Nova notificação do SGB',
-      icon: '/logos/logo_640x640.png',
-      badge: '/logos/logo_640x640.png',
-      tag: 'sgb-notification',
-      actions: [
-        {
-          action: 'open-dashboard',
-          title: 'Ver Dashboard'
-        },
-        {
-          action: 'dismiss',
-          title: 'Dispensar'
+      try {
+        const clients = await self.clients.matchAll({ type: 'window' });
+        for (const client of clients) {
+          client.navigate(client.url);
         }
-      ],
-      data: {
-        url: data.url || '/dashboard'
-      }
-    }
-    
-    event.waitUntil(
-      self.registration.showNotification(data.title || 'SGB', options)
-    )
-  }
-})
-
-// Notification click para gestores
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close()
-  
-  if (event.action === 'open-dashboard') {
-    event.waitUntil(
-      self.clients.openWindow('/dashboard')
-    )
-  } else if (event.action === 'dismiss') {
-    // Apenas fecha a notificação
-  } else {
-    // Click na notificação (sem action específica)
-    const url = event.notification.data?.url || '/dashboard'
-    event.waitUntil(
-      self.clients.openWindow(url)
-    )
-  }
-})
+      } catch (_) { /* swallow */ }
+    })()
+  );
+});

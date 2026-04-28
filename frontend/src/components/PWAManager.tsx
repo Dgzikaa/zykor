@@ -1,86 +1,29 @@
 'use client'
 
-import { useEffect, useCallback } from 'react'
-import { usePathname } from 'next/navigation'
+import { useEffect } from 'react'
 
+// Antes este componente registrava SWs (sw-zykor.js) com estrategia cache-first
+// que segurava dados antigos por dias. Projeto nao usa PWA real, entao agora
+// ele apenas garante que qualquer SW antigo seja desregistrado e os caches
+// limpos pro-ativamente. Defesa em profundidade junto com sw-zykor.js
+// (self-destruct) — se browser servir SW antigo do disco antes de re-checar,
+// este codigo client-side limpa mesmo assim.
 export function PWAManager() {
-  const pathname = usePathname()
+  useEffect(() => {
+    if (typeof window === 'undefined') return
 
-  const registerGestaoPWA = useCallback(async () => {
-    try {
-      // Limpar service workers antigos se necessário
-      const registrations = await navigator.serviceWorker.getRegistrations()
-      for (const registration of registrations) {
-        // Limpar registros antigos se necessário
-        if (registration.scope !== '/') {
-          await registration.unregister()
-        }
-      }
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations()
+        .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+        .catch(() => {})
+    }
 
-      // Registrar service worker de gestão
-      const registration = await navigator.serviceWorker.register('/sw-zykor.js', {
-        scope: '/'
-      })
-
-      // Atualizar manifest
-      updateManifest('/manifest-zykor.json')
-
-      console.log('PWA Zykor registrado:', registration)
-    } catch (error) {
-      console.error('Erro ao registrar PWA Zykor:', error)
+    if ('caches' in window) {
+      caches.keys()
+        .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+        .catch(() => {})
     }
   }, [])
 
-  useEffect(() => {
-    // Verificar se service workers são suportados
-    if ('serviceWorker' in navigator) {
-      // Registrar PWA apenas para área de gestão
-      const isGestaoArea = pathname.startsWith('/dashboard') || 
-                          pathname.startsWith('/operacoes') || 
-                          pathname.startsWith('/configuracoes') ||
-                          pathname.startsWith('/relatorios') ||
-                          pathname.startsWith('/visao-geral')
-
-      if (isGestaoArea) {
-        // Registrar PWA apenas para gestão
-        registerGestaoPWA()
-      }
-    }
-  }, [pathname, registerGestaoPWA])
-
-
-  const updateManifest = (manifestPath: string) => {
-    // Remover manifests anteriores
-    const existingManifests = document.querySelectorAll('link[rel="manifest"]')
-    existingManifests.forEach(manifest => manifest.remove())
-
-    // Adicionar novo manifest
-    const manifestLink = document.createElement('link')
-    manifestLink.rel = 'manifest'
-    manifestLink.href = manifestPath
-    document.head.appendChild(manifestLink)
-  }
-
-  return null // Componente invisível
-}
-
-// Hook para instalação PWA
-export function usePWAInstall() {
-  const pathname = usePathname()
-
-  const promptInstall = async () => {
-    // Instruções para gestores
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-    const isAndroid = /Android/.test(navigator.userAgent)
-    
-    if (isIOS) {
-      alert(`📱 Para instalar o SGB:\n\n1. Toque no botão compartilhar (⬆️)\n2. Selecione "Adicionar à Tela de Início"\n3. Toque em "Adicionar"\n\nO sistema ficará como um app para acesso rápido!`)
-    } else if (isAndroid) {
-      alert(`📱 Para instalar o SGB:\n\n1. Toque no menu do navegador (⋮)\n2. Selecione "Adicionar à tela inicial"\n3. Confirme "Adicionar"\n\nO sistema ficará como um app!`)
-    } else {
-      alert(`💻 Para acesso rápido:\n\nSalve esta página nos favoritos para acessar rapidamente o sistema de gestão.`)
-    }
-  }
-
-  return { promptInstall }
+  return null
 }
