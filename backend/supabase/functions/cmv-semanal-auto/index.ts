@@ -678,15 +678,22 @@ serve(async (req) => {
           mesa_adm_casa: consumacoes.mesa_adm_casa,
           mesa_beneficios_cliente: consumacoes.mesa_beneficios_cliente,
           mesa_banda_dj: consumacoes.mesa_banda_dj,
-          // Estoques finais detalhados
-          estoque_final_cozinha: estoqueFinalDetalhado.estoque_final_cozinha,
-          estoque_final_bebidas: estoqueFinalDetalhado.estoque_final_bebidas,
-          estoque_final_drinks: estoqueFinalDetalhado.estoque_final_drinks,
-          estoque_final: estoqueFinalDetalhado.estoque_final_cozinha + estoqueFinalDetalhado.estoque_final_bebidas + estoqueFinalDetalhado.estoque_final_drinks,
           // Propagar estoque inicial da semana anterior (só se não veio da planilha)
           ...estoqueInicialUpdate,
           updated_at: new Date().toISOString()
         };
+
+        // Estoques finais detalhados — só sobrescrever se NÃO veio da planilha.
+        // Mantém comportamento "puxar do Excel" enquanto bottom-up das contagens
+        // não estiver consolidado. Quando contagens estão atrasadas/órfãs, o
+        // cálculo retorna 0 e sobrescrevia o valor correto vindo do Sheets.
+        // Espelha o guard de cmv_real abaixo.
+        if (!dadosAtuais.estoque_final || dadosAtuais.estoque_final === 0) {
+          updateData.estoque_final_cozinha = estoqueFinalDetalhado.estoque_final_cozinha;
+          updateData.estoque_final_bebidas = estoqueFinalDetalhado.estoque_final_bebidas;
+          updateData.estoque_final_drinks = estoqueFinalDetalhado.estoque_final_drinks;
+          updateData.estoque_final = estoqueFinalDetalhado.estoque_final_cozinha + estoqueFinalDetalhado.estoque_final_bebidas + estoqueFinalDetalhado.estoque_final_drinks;
+        }
         
         // Adicionar CMV calculado se válido
         // NOTA: cmv_percentual é GENERATED ALWAYS no banco — NÃO incluir no update
