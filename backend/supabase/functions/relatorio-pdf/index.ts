@@ -56,6 +56,7 @@ serve(async (req) => {
 
     // Buscar dados
     const { data: eventos } = await supabase
+      .schema('operations')
       .from('eventos_base')
       .select('*')
       .eq('bar_id', barId)
@@ -65,9 +66,11 @@ serve(async (req) => {
       .order('data_evento', { ascending: true })
 
     const { data: desempenho } = await supabase
-      .from('desempenho_semanal')
+      .schema('gold')
+      .from('desempenho')
       .select('*')
       .eq('bar_id', barId)
+      .eq('granularidade', 'semanal')
       .order('ano', { ascending: false })
       .order('numero_semana', { ascending: false })
       .limit(4)
@@ -284,6 +287,7 @@ serve(async (req) => {
       case 'cmv':
         // Relatório específico de CMV
         const { data: cmvData } = await supabase
+          .schema('financial')
           .from('cmv_semanal')
           .select('*')
           .eq('bar_id', barId)

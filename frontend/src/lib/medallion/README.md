@@ -17,7 +17,7 @@ Com a lib:
 ```ts
 import { gold } from '@/lib/medallion/gold';
 
-const { data } = await gold().from('desempenho_semanal').select('*');
+const { data } = await gold().from('desempenho').select('*').eq('granularidade', 'semanal');
 ```
 
 Lê em uma linha: essa tela consome **gold**, ou seja, dados já calculados. Se alguém tentar importar `bronze` numa tela de dashboard, fica óbvio que algo está errado.

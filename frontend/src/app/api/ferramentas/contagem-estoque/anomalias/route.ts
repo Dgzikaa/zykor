@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,8 +31,7 @@ export async function GET(request: NextRequest) {
     const supabase = createServiceRoleClient();
     
     // Query base
-    let query = supabase
-      .from('contagem_estoque_insumos')
+    let query = tbl(supabase, 'contagem_estoque_insumos')
       .select('*')
       .eq('bar_id', bar_id)
       .eq('contagem_anomala', true)

@@ -1,7 +1,7 @@
 /**
  * 📊 WEEK MANAGER - Gerenciamento de Semanas de Desempenho
  * 
- * Lógica para garantir existência de registros semanais na tabela desempenho_semanal.
+ * Lógica para garantir existência de registros semanais em gold.desempenho (granularidade='semanal').
  * Evita o "sumiço" de semanas novas antes do primeiro recálculo.
  * 
  * @version 1.0.0
@@ -77,9 +77,11 @@ export async function ensureWeekExists(
   const { start, end } = getWeekDateRange(ano, semana);
 
   const { data: existing, error: selectError } = await supabase
-    .from('desempenho_semanal')
+    .schema('gold')
+    .from('desempenho')
     .select('id')
     .eq('bar_id', barId)
+    .eq('granularidade', 'semanal')
     .eq('ano', ano)
     .eq('numero_semana', semana)
     .maybeSingle();
@@ -98,16 +100,17 @@ export async function ensureWeekExists(
     };
   }
 
+  // gold.desempenho tem apenas `calculado_em` (default no banco) — sem created_at/updated_at
   const { error: insertError } = await supabase
-    .from('desempenho_semanal')
+    .schema('gold')
+    .from('desempenho')
     .insert({
       bar_id: barId,
       ano,
       numero_semana: semana,
+      granularidade: 'semanal',
       data_inicio: start,
       data_fim: end,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     });
 
   if (insertError) {
@@ -164,9 +167,11 @@ export async function getWeeksForBar(
   limite: number = 6
 ): Promise<WeekRecord[]> {
   const { data, error } = await supabase
-    .from('desempenho_semanal')
+    .schema('gold')
+    .from('desempenho')
     .select('*')
     .eq('bar_id', barId)
+    .eq('granularidade', 'semanal')
     .gte('data_fim', dataLimite)
     .order('data_fim', { ascending: false })
     .limit(limite);

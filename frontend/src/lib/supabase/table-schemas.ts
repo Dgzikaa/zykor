@@ -180,8 +180,6 @@ export const TABLE_SCHEMAS = {
   sympla_eventos: 'integrations',
   sympla_participantes: 'integrations',
   sympla_pedidos: 'integrations',
-  umbler_campanha_destinatarios: 'integrations',
-  umbler_campanhas: 'integrations',
   umbler_config: 'integrations',
   umbler_conversas: 'integrations',
   umbler_mensagens: 'integrations',
@@ -237,6 +235,8 @@ export const TABLE_SCHEMAS = {
   // ============================================
   // GOLD - Dados analiticos
   // ============================================
+  desempenho: 'gold',
+  planejamento: 'gold',
   gold_contahub_avendas_porproduto_analitico: 'gold',
   gold_contahub_avendas_vendasperiodo: 'gold',
   gold_contahub_produtos_temposproducao: 'gold',
@@ -277,9 +277,16 @@ export function schemaOf(table: string): string {
  *     .select('*')
  *     .eq('bar_id', barId);
  */
+// Tipos genéricos do PostgREST/Supabase JS (sem importar o SDK aqui).
+// O retorno é `any` porque os call-sites encadeiam `.select()/.eq()/.insert()`
+// etc. — sem `any`, o TS bate TS2571 ("Object is of type 'unknown'").
+// A regra `@typescript-eslint/no-explicit-any` não está configurada no projeto,
+// então não precisa de eslint-disable.
+type SupabaseLike = { schema: (s: string) => { from: (t: string) => any } };
+
 export function tbl<T extends ZykorTable>(
-  supabase: { schema: (s: string) => { from: (t: string) => unknown } },
+  supabase: SupabaseLike,
   table: T
-) {
+): any {
   return supabase.schema(schemaOf(table)).from(table);
 }

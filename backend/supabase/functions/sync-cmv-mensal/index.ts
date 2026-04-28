@@ -420,6 +420,7 @@ serve(async (req) => {
 
           // Upsert no banco
           const { error: upsertError } = await supabase
+            .schema('financial')
             .from('cmv_mensal')
             .upsert(updateData, {
               onConflict: 'bar_id,ano,mes'

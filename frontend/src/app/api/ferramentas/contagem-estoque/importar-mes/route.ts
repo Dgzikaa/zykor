@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutos
@@ -122,8 +123,7 @@ export async function POST(request: NextRequest) {
     );
     
     // Buscar insumos do sistema
-    const { data: insumosSistema, error: errorInsumos } = await supabase
-      .from('insumos')
+    const { data: insumosSistema, error: errorInsumos } = await tbl(supabase, 'insumos')
       .select('id, codigo, nome, tipo_local, unidade_medida, custo_unitario')
       .eq('ativo', true);
     
@@ -167,8 +167,7 @@ export async function POST(request: NextRequest) {
           dataAnterior.setDate(dataAnterior.getDate() - 1);
           const dataAnteriorStr = dataAnterior.toISOString().split('T')[0];
           
-          const { data: contagemAnterior } = await supabase
-            .from('contagem_estoque_insumos')
+          const { data: contagemAnterior } = await tbl(supabase, 'contagem_estoque_insumos')
             .select('estoque_final')
             .eq('bar_id', BAR_ID)
             .eq('insumo_id', insumoSistema.id)
@@ -193,8 +192,7 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString(),
           };
           
-          const { error } = await supabase
-            .from('contagem_estoque_insumos')
+          const { error } = await tbl(supabase, 'contagem_estoque_insumos')
             .insert([payload]);
           
           if (error) {

@@ -5,7 +5,7 @@
  * calcular métrica em cima de `silver`, é sinal que o cálculo deveria
  * estar no banco (função SQL + view gold).
  *
- * Exemplos: `gold.desempenho_semanal`, `gold.planejamento`, `gold.faturamento_hora`.
+ * Exemplos: `gold.desempenho`, `gold.planejamento`, `gold.faturamento_hora`.
  */
 import { getAdminClient } from '@/lib/supabase-admin';
 

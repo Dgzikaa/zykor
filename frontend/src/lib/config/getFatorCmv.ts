@@ -40,7 +40,10 @@ export async function getFatorCmv(supabase: any, barId: number): Promise<number>
     return cached.valor
   }
   
+  // bar_regras_negocio vive em `operations` após a migração medallion.
+  // PostgREST não respeita search_path, então é obrigatório passar `.schema()`.
   const { data, error } = await supabase
+    .schema('operations')
     .from('bar_regras_negocio')
     .select('cmv_fator_consumo')
     .eq('bar_id', barId)

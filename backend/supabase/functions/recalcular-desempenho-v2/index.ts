@@ -1,7 +1,7 @@
 /**
  * @camada gold
  * @jobName recalcular-desempenho-v2
- * @descricao Recalcula gold.desempenho_semanal
+ * @descricao Recalcula gold.desempenho (granularidade='semanal')
  *
  * Classificacao medallion mantida em ops.job_camada_mapping (ver
  * database/migrations/2026-04-23-observability-mapping.sql). Observability
@@ -15,7 +15,7 @@
  * 
  * Modos:
  * - SHADOW (default): apenas compara resultados com banco, não escreve
- * - WRITE: escreve em desempenho_semanal (requer ENABLE_V2_WRITE=true)
+ * - WRITE: escreve em gold.desempenho (requer ENABLE_V2_WRITE=true)
  * 
  * Feature Flag (Kill Switch):
  * - ENABLE_V2_WRITE=true → permite escrita quando mode='write'
@@ -25,9 +25,9 @@
  * 1. Recebe bar_id, ano, numero_semana (ou usa semana atual)
  * 2. Verifica feature flag se mode='write'
  * 3. Executa os 6 calculators em paralelo
- * 4. Busca registro atual de desempenho_semanal
+ * 4. Busca registro atual de gold.desempenho
  * 5. Compara valores calculados vs banco
- * 6. Se mode='write' e flag ativa, atualiza desempenho_semanal
+ * 6. Se mode='write' e flag ativa, atualiza gold.desempenho
  * 7. Registra diff no heartbeat response_summary
  * 8. Retorna resultado estruturado
  * 
@@ -110,7 +110,7 @@ interface V2Result {
   timestamp: string;
 }
 
-// Mapeamento dos campos dos calculators para colunas de desempenho_semanal
+// Mapeamento dos campos dos calculators para colunas de gold.desempenho
 const FIELD_MAPPING: Record<string, string> = {
   // Faturamento
   faturamento_total: "faturamento_total",
@@ -367,8 +367,9 @@ async function processBarWeek(
 
   const totalFieldsCalculated = Object.keys(calculatedValues).length;
 
-  // Buscar dados de CMV da tabela cmv_semanal
+  // Buscar dados de CMV da tabela cmv_semanal (financial schema)
   const { data: cmvData, error: cmvError } = await supabase
+    .schema("financial")
     .from("cmv_semanal")
     .select("faturamento_cmvivel, cmv_real, cmv_limpo_percentual")
     .eq("bar_id", barId)
@@ -390,11 +391,13 @@ async function processBarWeek(
     console.warn(`⚠️ Sem dados de CMV para semana ${numeroSemana}/${ano}`);
   }
 
-  // Buscar registro atual de desempenho_semanal
+  // Buscar registro atual em gold.desempenho (granularidade='semanal')
   const { data: registroAtual, error: fetchError } = await supabase
-    .from("desempenho_semanal")
+    .schema("gold")
+    .from("desempenho")
     .select("*")
     .eq("bar_id", barId)
+    .eq("granularidade", "semanal")
     .eq("ano", ano)
     .eq("numero_semana", numeroSemana)
     .maybeSingle();
@@ -459,9 +462,11 @@ async function processBarWeek(
 
     if (registroAtualEncontrado) {
       const { error: updateError } = await supabase
-        .from("desempenho_semanal")
+        .schema("gold")
+        .from("desempenho")
         .update(updatePayload)
         .eq("bar_id", barId)
+        .eq("granularidade", "semanal")
         .eq("ano", ano)
         .eq("numero_semana", numeroSemana);
 
@@ -479,9 +484,10 @@ async function processBarWeek(
         bar_id: barId,
         ano,
         numero_semana: numeroSemana,
+        granularidade: "semanal",
         criado_em: new Date().toISOString(),
       };
-      
+
       // Adicionar apenas campos calculados (não manuais)
       for (const [key, value] of Object.entries(updatePayload)) {
         if (key !== "atualizado_em" && !MANUAL_FIELDS.includes(key as any)) {
@@ -491,7 +497,8 @@ async function processBarWeek(
       insertPayload["atualizado_em"] = updatePayload["atualizado_em"];
 
       const { error: insertError } = await supabase
-        .from("desempenho_semanal")
+        .schema("gold")
+        .from("desempenho")
         .insert(insertPayload);
 
       if (insertError) {
@@ -573,7 +580,7 @@ serve(async (req: Request) => {
     try {
       validateWriteMode(mode);
       const tipoSemana = numeroSemana === defaultSemana && ano === defaultAno ? "atual (parcial)" : "fechada";
-      console.log(`[V2] Modo WRITE ativo - escrita em desempenho_semanal PERMITIDA (semana ${numeroSemana}/${ano} - ${tipoSemana})`);
+      console.log(`[V2] Modo WRITE ativo - escrita em gold.desempenho PERMITIDA (semana ${numeroSemana}/${ano} - ${tipoSemana})`);
     } catch (err) {
       console.error(`[V2] Modo WRITE bloqueado:`, err);
       return new Response(
@@ -721,8 +728,8 @@ serve(async (req: Request) => {
     write_enabled: ENABLE_V2_WRITE,
     writes_executed: totalWritesExecuted,
     message: mode === "write" 
-      ? `V2 Write Mode - ${totalWritesExecuted} registros atualizados em desempenho_semanal`
-      : "V2 Shadow Mode - Nenhuma escrita em desempenho_semanal",
+      ? `V2 Write Mode - ${totalWritesExecuted} registros atualizados em gold.desempenho`
+      : "V2 Shadow Mode - Nenhuma escrita em gold.desempenho",
     results: allResults,
     summary: {
       total_bars: allResults.length,

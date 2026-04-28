@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { filtrarDiasAbertos } from '@/lib/helpers/calendario-helper';
 import { getFatorCmv } from '@/lib/config/getFatorCmv';
+import { tbl } from '@/lib/supabase/table-schemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -188,8 +189,7 @@ export async function POST(request: NextRequest) {
     try {
       const dataInicioFull = data_inicio + (usarDataCriacao ? 'T00:00:00' : '');
       const dataFimFull = data_fim + (usarDataCriacao ? 'T23:59:59' : '');
-      const queryBuilder = supabase
-        .from('lancamentos_financeiros')
+      const queryBuilder = tbl(supabase, 'lancamentos_financeiros')
         .select('categoria, valor')
         .eq('bar_id', bar_id)
         .eq('tipo', 'DESPESA');
@@ -258,20 +258,18 @@ export async function POST(request: NextRequest) {
       let dataContagemFinal: string | null = null;
       
       // Primeiro, tentar buscar contagem exata da segunda-feira
-      const { data: contagemExata, error: errorExata } = await supabase
-        .from('contagem_estoque_insumos')
+      const { data: contagemExata, error: errorExata } = await tbl(supabase, 'contagem_estoque_insumos')
         .select('data_contagem, estoque_final')
         .eq('bar_id', bar_id)
         .eq('data_contagem', dataSegundaFinal)
         .gt('estoque_final', 0)
         .limit(1);
-      
+
       if (!errorExata && contagemExata && contagemExata.length > 0) {
         dataContagemFinal = dataSegundaFinal;
       } else {
         // Fallback: buscar contagem mais próxima (até 3 dias depois)
-        const { data: contagensProximas, error: errorProximas } = await supabase
-          .from('contagem_estoque_insumos')
+        const { data: contagensProximas, error: errorProximas } = await tbl(supabase, 'contagem_estoque_insumos')
           .select('data_contagem, estoque_final')
           .eq('bar_id', bar_id)
           .gte('data_contagem', dataSegundaFinal)
@@ -291,23 +289,21 @@ export async function POST(request: NextRequest) {
         const dataContagem = ultimaContagemObj.data_contagem;
 
         // Buscar todos os insumos com suas categorias
-        const { data: insumos, error: errorInsumos } = await supabase
-          .from('insumos')
+        const { data: insumos, error: errorInsumos } = await tbl(supabase, 'insumos')
           .select('id, tipo_local, categoria')
           .eq('bar_id', bar_id);
 
         if (!errorInsumos && insumos) {
           // 🔧 CORRIGIDO: Buscar contagens COM custo_unitario (preço CONGELADO da contagem)
           // Inclui insumo_codigo para identificar PRODUÇÃO (B) = pd*
-          const { data: contagens, error: errorContagens } = await supabase
-            .from('contagem_estoque_insumos')
+          const { data: contagens, error: errorContagens } = await tbl(supabase, 'contagem_estoque_insumos')
             .select('insumo_id, insumo_codigo, estoque_final, custo_unitario')
             .eq('bar_id', bar_id)
             .eq('data_contagem', dataContagem);
 
           if (!errorContagens && contagens) {
             // Criar map de insumos para facilitar lookup (só categorias)
-            const insumosMap = new Map(insumos.map(i => [i.id, i]));
+            const insumosMap = new Map<number, any>(insumos.map((i: any) => [i.id, i]));
 
             // 🔧 CORRIGIDO: Categorias baseadas nos dados REAIS do banco (01/12/2025)
             
@@ -408,17 +404,15 @@ export async function POST(request: NextRequest) {
       const dataContagem = data_inicio;
 
       // Buscar insumos
-      const { data: insumos } = await supabase
-        .from('insumos')
+      const { data: insumos } = await tbl(supabase, 'insumos')
         .select('id, tipo_local, categoria')
         .eq('bar_id', bar_id);
 
       if (insumos) {
-        const insumosMap = new Map(insumos.map((i: any) => [i.id, i]));
+        const insumosMap = new Map<number, any>(insumos.map((i: any) => [i.id, i]));
 
         // 🔧 CORRIGIDO: Buscar contagens COM custo_unitario e insumo_codigo
-        const { data: contagensIniciais } = await supabase
-          .from('contagem_estoque_insumos')
+        const { data: contagensIniciais } = await tbl(supabase, 'contagem_estoque_insumos')
           .select('insumo_id, insumo_codigo, estoque_final, custo_unitario')
           .eq('bar_id', bar_id)
           .eq('data_contagem', dataContagem);
@@ -466,17 +460,15 @@ export async function POST(request: NextRequest) {
 
       // 7.1. Estoque Inicial de Funcionários
       const dataContagemInicial = data_inicio;
-      const { data: insumosFunc } = await supabase
-        .from('insumos')
+      const { data: insumosFunc } = await tbl(supabase, 'insumos')
         .select('id, categoria')
         .eq('bar_id', bar_id)
         .in('categoria', categoriasFuncionarios);
 
       if (insumosFunc && insumosFunc.length > 0) {
-        const insumosFuncMap = new Map(insumosFunc.map((i: any) => [i.id, i]));
+        const insumosFuncMap = new Map<number, any>(insumosFunc.map((i: any) => [i.id, i]));
 
-        const { data: contagensIniciaisFunc } = await supabase
-          .from('contagem_estoque_insumos')
+        const { data: contagensIniciaisFunc } = await tbl(supabase, 'contagem_estoque_insumos')
           .select('insumo_id, estoque_final, custo_unitario')
           .eq('bar_id', bar_id)
           .eq('data_contagem', dataContagemInicial);
@@ -497,21 +489,19 @@ export async function POST(request: NextRequest) {
         dataFimDate.setUTCDate(dataFimDate.getUTCDate() + diasParaSegunda);
         const dataSegundaFinal = dataFimDate.toISOString().split('T')[0];
 
-        const { data: contagemFinalFunc } = await supabase
-          .from('contagem_estoque_insumos')
+        const { data: contagemFinalFunc } = await tbl(supabase, 'contagem_estoque_insumos')
           .select('data_contagem, estoque_final')
           .eq('bar_id', bar_id)
           .eq('data_contagem', dataSegundaFinal)
           .gt('estoque_final', 0)
           .limit(1);
 
-        const dataContagemFinal = contagemFinalFunc && contagemFinalFunc.length > 0 
-          ? dataSegundaFinal 
+        const dataContagemFinal = contagemFinalFunc && contagemFinalFunc.length > 0
+          ? dataSegundaFinal
           : null;
 
         if (dataContagemFinal) {
-          const { data: contagensFinaisFunc } = await supabase
-            .from('contagem_estoque_insumos')
+          const { data: contagensFinaisFunc } = await tbl(supabase, 'contagem_estoque_insumos')
             .select('insumo_id, estoque_final, custo_unitario')
             .eq('bar_id', bar_id)
             .eq('data_contagem', dataContagemFinal);
@@ -530,9 +520,8 @@ export async function POST(request: NextRequest) {
       // 7.3. Compras de Alimentação (categoria "Alimentação" do Conta Azul)
       const dataInicioFull = data_inicio + (usarDataCriacao ? 'T00:00:00' : '');
       const dataFimFull = data_fim + (usarDataCriacao ? 'T23:59:59' : '');
-      
-      const queryBuilder = supabase
-        .from('lancamentos_financeiros')
+
+      const queryBuilder = tbl(supabase, 'lancamentos_financeiros')
         .select('categoria, valor')
         .eq('bar_id', bar_id)
         .eq('tipo', 'DESPESA');
