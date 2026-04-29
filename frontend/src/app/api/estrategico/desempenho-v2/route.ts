@@ -289,7 +289,7 @@ export async function PUT(request: NextRequest) {
     const { data: goldRow, error: goldError } = await supabase
       .schema('gold' as any)
       .from('desempenho')
-      .select('bar_id, ano, numero_semana, data_inicio, data_fim')
+      .select('bar_id, ano, numero_semana, data_inicio, data_fim, granularidade, periodo')
       .eq('id', id)
       .single();
 
@@ -353,38 +353,81 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    console.log(`🟢 PUT Desempenho V2: bar=${goldRow.bar_id}, S${goldRow.numero_semana}/${goldRow.ano}, desempenho=[${Object.keys(camposDesempenho).join(',')}], marketing=[${Object.keys(camposMarketing).join(',')}]`);
+    // Detectar granularidade (semanal vs mensal). Mensal tem numero_semana=null
+    // e periodo no formato YYYY-MM (ex: '2026-04').
+    const isMensal = goldRow.granularidade === 'mensal'
+      || (goldRow.numero_semana == null && /^\d{4}-\d{2}$/.test(String(goldRow.periodo || '')));
+    const mes = isMensal && goldRow.periodo
+      ? parseInt(String(goldRow.periodo).split('-')[1], 10)
+      : null;
+
+    console.log(`🟢 PUT Desempenho V2: bar=${goldRow.bar_id}, ${isMensal ? `M${mes}/${goldRow.ano}` : `S${goldRow.numero_semana}/${goldRow.ano}`}, desempenho=[${Object.keys(camposDesempenho).join(',')}], marketing=[${Object.keys(camposMarketing).join(',')}]`);
 
     let resultado: any = null;
 
-    // Upsert campos desempenho em meta.desempenho_manual
+    // Salvar campos em meta.desempenho_manual
+    // Como temos partial unique indexes (não constraints nominais), o upsert
+    // do PostgREST não funciona — fazemos SELECT + UPDATE/INSERT manual.
     if (Object.keys(camposDesempenho).length > 0) {
-      const { data, error: upsertError } = await supabase
+      const granularidade = isMensal ? 'mensal' : 'semanal';
+      const dadosBase: any = {
+        bar_id: goldRow.bar_id,
+        ano: goldRow.ano,
+        granularidade,
+        numero_semana: isMensal ? null : goldRow.numero_semana,
+        mes: isMensal ? mes : null,
+        data_inicio: goldRow.data_inicio,
+        data_fim: goldRow.data_fim,
+      };
+
+      // Buscar registro existente
+      let queryExist = supabase
         .schema('meta' as any)
         .from('desempenho_manual')
-        .upsert(
-          {
-            bar_id: goldRow.bar_id,
-            ano: goldRow.ano,
-            numero_semana: goldRow.numero_semana,
-            data_inicio: goldRow.data_inicio,
-            data_fim: goldRow.data_fim,
-            ...camposDesempenho,
-            atualizado_em: new Date().toISOString(),
-          },
-          { onConflict: 'bar_id,ano,numero_semana' }
-        )
-        .select()
-        .single();
+        .select('id')
+        .eq('bar_id', goldRow.bar_id)
+        .eq('ano', goldRow.ano)
+        .eq('granularidade', granularidade);
+      queryExist = isMensal
+        ? queryExist.eq('mes', mes!)
+        : queryExist.eq('numero_semana', goldRow.numero_semana);
 
-      if (upsertError) {
-        console.error('❌ PUT: erro upsert meta.desempenho_manual:', upsertError);
-        return NextResponse.json(
-          { error: 'Erro ao salvar desempenho', details: upsertError.message },
-          { status: 500 }
-        );
+      const { data: existing } = await queryExist.maybeSingle();
+
+      if (existing?.id) {
+        // UPDATE
+        const { data, error: updErr } = await supabase
+          .schema('meta' as any)
+          .from('desempenho_manual')
+          .update({ ...camposDesempenho, atualizado_em: new Date().toISOString() })
+          .eq('id', existing.id)
+          .select()
+          .single();
+        if (updErr) {
+          console.error('❌ PUT: erro update meta.desempenho_manual:', updErr);
+          return NextResponse.json(
+            { error: 'Erro ao salvar desempenho', details: updErr.message },
+            { status: 500 }
+          );
+        }
+        resultado = data;
+      } else {
+        // INSERT
+        const { data, error: insErr } = await supabase
+          .schema('meta' as any)
+          .from('desempenho_manual')
+          .insert({ ...dadosBase, ...camposDesempenho, atualizado_em: new Date().toISOString() })
+          .select()
+          .single();
+        if (insErr) {
+          console.error('❌ PUT: erro insert meta.desempenho_manual:', insErr);
+          return NextResponse.json(
+            { error: 'Erro ao salvar desempenho', details: insErr.message },
+            { status: 500 }
+          );
+        }
+        resultado = data;
       }
-      resultado = data;
     }
 
     // Upsert campos marketing em meta.marketing_semanal
