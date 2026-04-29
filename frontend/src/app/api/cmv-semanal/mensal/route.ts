@@ -308,6 +308,16 @@ export async function GET(request: NextRequest) {
     // Agregar dados CMV com proporção
     const dadosMensais = agregarCMVProportional(semanasComProporcao, cmvMap, estoqueFinalMesAnterior, ano, mes);
 
+    // Override pelo campo manual se cmv_mensal já tiver valor pra este mês
+    // (mesmo no mês atual). Permite sócio salvar cmv_teorico_percentual manual
+    // e ver imediatamente, sem esperar o mês fechar.
+    if (cmvMensal && !errMensal) {
+      const cmvTeoricoManual = parseFloat(String(cmvMensal.cmv_teorico_percentual || 0));
+      if (cmvTeoricoManual > 0) {
+        dadosMensais.cmv_teorico_percentual = cmvTeoricoManual;
+      }
+    }
+
     // Adicionar metadados
     const resultado = {
       ...dadosMensais,
@@ -527,4 +537,79 @@ function agregarCMVProportional(
     cmv_teorico_percentual: mediaProportional('cmv_teorico_percentual'),
     gap: mediaProportional('gap'),
   };
+}
+
+/**
+ * PUT - Salva campos manuais (cmv_teorico_percentual, etc) em
+ * financial.cmv_mensal via upsert (bar_id, ano, mes).
+ *
+ * Body: { bar_id, ano, mes, [campo]: valor }
+ *
+ * Bug anterior: o salvarMetrica do front chamava /api/cmv-semanal com
+ * id fictício "${ano}-${mes}" — update silenciosamente não bate em row
+ * nenhuma da cmv_semanal. Sócio relatou "não tá salvando".
+ */
+export async function PUT(request: NextRequest) {
+  try {
+    const supabase = await getAdminClient();
+    const body = await request.json();
+    const { bar_id, ano, mes, ...campos } = body;
+
+    if (!bar_id || !ano || !mes) {
+      return NextResponse.json(
+        { error: 'bar_id, ano e mes são obrigatórios' },
+        { status: 400 }
+      );
+    }
+
+    const camposPermitidos = [
+      'cmv_teorico_percentual',
+      'consumo_socios', 'consumo_beneficios', 'consumo_artista',
+      'consumo_rh_operacao', 'consumo_rh_escritorio',
+      'outros_ajustes', 'ajuste_bonificacoes',
+      'estoque_inicial', 'estoque_final', 'compras',
+      'estoque_inicial_funcionarios', 'estoque_final_funcionarios', 'compras_alimentacao',
+    ];
+
+    const upsertData: any = {
+      bar_id,
+      ano,
+      mes,
+      data_inicio: `${ano}-${String(mes).padStart(2, '0')}-01`,
+      data_fim: `${ano}-${String(mes).padStart(2, '0')}-${String(new Date(ano, mes, 0).getDate()).padStart(2, '0')}`,
+      fonte: 'manual',
+      updated_at: new Date().toISOString(),
+    };
+
+    for (const campo of camposPermitidos) {
+      if (campos[campo] !== undefined) {
+        upsertData[campo] = campos[campo];
+      }
+    }
+
+    const { data, error } = await tbl(supabase, 'cmv_mensal')
+      .upsert(upsertData, { onConflict: 'bar_id,ano,mes' })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao salvar CMV mensal:', error);
+      return NextResponse.json(
+        { error: 'Erro ao salvar CMV mensal', details: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data,
+      message: 'CMV mensal atualizado com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro interno PUT cmv-semanal/mensal:', error);
+    return NextResponse.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    );
+  }
 }
