@@ -348,6 +348,7 @@ async function syncLancamentos(
           }
           
           const { error, data: upsertData } = await supabase
+            .schema('integrations')
             .from('contaazul_lancamentos')
             .upsert(lancamentos, { onConflict: 'contaazul_id,bar_id' })
             .select('id')
@@ -414,6 +415,7 @@ async function syncCategorias(
   }))
 
   const { error } = await supabase
+    .schema('integrations')
     .from('contaazul_categorias')
     .upsert(categorias, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
@@ -464,6 +466,7 @@ async function syncCentrosCusto(
   }))
 
   const { error } = await supabase
+    .schema('integrations')
     .from('contaazul_centros_custo')
     .upsert(centros, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
@@ -515,6 +518,7 @@ async function syncPessoas(
       }))
 
       const { error } = await supabase
+        .schema('integrations')
         .from('contaazul_pessoas')
         .upsert(pessoas, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
@@ -555,6 +559,7 @@ async function syncPessoas(
       }))
 
       const { error } = await supabase
+        .schema('integrations')
         .from('contaazul_pessoas')
         .upsert(pessoas, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
@@ -613,6 +618,7 @@ async function syncContasFinanceiras(
   }))
 
   const { error } = await supabase
+    .schema('integrations')
     .from('contaazul_contas_financeiras')
     .upsert(contas, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
@@ -632,6 +638,7 @@ async function createSyncLog(
   tipoSincronizacao: string
 ): Promise<number | null> {
   const { data, error } = await supabase
+    .schema('integrations')
     .from('contaazul_logs_sincronizacao')
     .insert({
       bar_id: barId,
@@ -662,6 +669,7 @@ async function updateSyncLog(
   const totalRegistros = stats.lancamentos + stats.categorias + stats.centros_custo + stats.pessoas + stats.contas_financeiras
 
   const { error } = await supabase
+    .schema('integrations')
     .from('contaazul_logs_sincronizacao')
     .update({
       status,
