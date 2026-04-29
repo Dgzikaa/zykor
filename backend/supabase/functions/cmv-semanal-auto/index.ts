@@ -344,12 +344,14 @@ serve(async (req) => {
           .eq('bar_id', barId)
           .gte('data_competencia', dataInicio)
           .lte('data_competencia', dataFim)
-          .or('categoria_nome.ilike.%custo comida%,categoria_nome.ilike.%custo bebida%,categoria_nome.ilike.%custo drink%,categoria_nome.ilike.alimenta%');
+          .or('categoria_nome.ilike.%custo comida%,categoria_nome.ilike.%custo bebida%,categoria_nome.ilike.%custo drink%,categoria_nome.ilike.%custo outros%,categoria_nome.ilike.alimenta%');
 
         const comprasPorCategoria = {
           cozinha: 0,    // CUSTO COMIDA / CUSTO COMIDAS
           bebidas: 0,    // Custo Bebidas / CUSTO BEBIDAS
           drinks: 0,     // Custo Drinks / CUSTO DRINKS
+          outros: 0,     // Custo Outros — produtos/insumos que nao sao
+                         //                comida/bebida/drink (limpeza, descartavel, etc)
           alimentacao: 0 // ALIMENTAÇÃO (CMA - separado do CMV)
         };
 
@@ -358,18 +360,19 @@ serve(async (req) => {
           const valorBruto = parseFloat(String(c.valor_bruto)) || 0;
           const tipo = (c.tipo || '').toLowerCase();
           const cat = (c.categoria_nome || '').toLowerCase();
-          
+
           // Se for receita (crédito/devolução), subtrai; se for despesa, soma
           const valor = tipo === 'receita' ? -valorBruto : valorBruto;
-          
+
           if (cat.includes('custo comida')) comprasPorCategoria.cozinha += valor;
           else if (cat.includes('custo bebida')) comprasPorCategoria.bebidas += valor;
           else if (cat.includes('custo drink')) comprasPorCategoria.drinks += valor;
+          else if (cat.includes('custo outros')) comprasPorCategoria.outros += valor;
           else if (cat.includes('alimenta')) comprasPorCategoria.alimentacao += valor;
         });
 
-        // CMV Total = cozinha + bebidas + drinks (NÃO inclui alimentação)
-        const comprasCmvTotal = comprasPorCategoria.cozinha + comprasPorCategoria.bebidas + comprasPorCategoria.drinks;
+        // CMV Total = cozinha + bebidas + drinks + outros (NÃO inclui alimentação)
+        const comprasCmvTotal = comprasPorCategoria.cozinha + comprasPorCategoria.bebidas + comprasPorCategoria.drinks + comprasPorCategoria.outros;
         console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Compras processadas: R$ ${comprasCmvTotal.toFixed(2)}`);
 
         // 4.2. Buscar CONSUMAÇÕES (4 categorias) - valores BRUTOS (sem multiplicador)

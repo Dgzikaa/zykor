@@ -19,9 +19,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  ChevronDown, 
-  ChevronRight, 
+import {
+  ChevronDown,
+  ChevronRight,
   Calendar,
   Eye,
   Pencil,
@@ -32,6 +32,7 @@ import {
   Calculator,
   BarChart3,
   Table2,
+  AlertTriangle,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useBar } from '@/contexts/BarContext';
@@ -1388,7 +1389,31 @@ export default function CMVSemanalTabelaPage() {
                                         </span>
                                       );
                                     })()}
-                                    
+
+                                    {/* Aviso visual: Compras = R$ 0 sugere lançamentos faltando no ContaAzul */}
+                                    {!isEditandoCell && metrica.key === 'compras_periodo' && (valor || 0) === 0 && (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <AlertTriangle
+                                              className="absolute left-1 h-3 w-3 text-amber-500 dark:text-amber-400"
+                                              onClick={(e) => e.stopPropagation()}
+                                            />
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" className="p-2 bg-white dark:bg-gray-800 shadow-lg border border-amber-300 dark:border-amber-600 z-50 max-w-[260px]">
+                                            <div className="space-y-1">
+                                              <div className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                                                ⚠️ Sem compras registradas
+                                              </div>
+                                              <div className="text-[11px] text-gray-700 dark:text-gray-300">
+                                                Nenhum lançamento de compra foi encontrado no ContaAzul para esta semana. Verifique se a equipe lançou as notas (categorias <em>Custo Comida / Bebida / Drink / Outros</em>).
+                                              </div>
+                                            </div>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    )}
+
                                     {/* Botão editar - apenas no modo semanal */}
                                     {!isEditandoCell && metrica.editavel && visao === 'semanal' && (
                                       <Button
