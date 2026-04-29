@@ -247,17 +247,24 @@ export default function DreManualModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!formData.data_competencia || !formData.descricao || !formData.valor || !formData.categoria_nome) {
       toast.error('Preencha todos os campos obrigatórios')
+      return
+    }
+
+    // sec/03: criar lancamento exige bar selecionado.
+    // Edicao nao precisa pq atualiza row existente sem mexer em bar_id.
+    const isEditing = !!(editingLancamento && editingLancamento.id > 0)
+    if (!isEditing && !barId) {
+      toast.error('Selecione um bar antes de salvar')
       return
     }
 
     setLoading(true)
 
     try {
-      const isEditing = !!(editingLancamento && editingLancamento.id > 0)
-      const url = isEditing 
+      const url = isEditing
         ? `/api/financeiro/dre-manual/${editingLancamento.id}`
         : '/api/financeiro/dre-simples'
       
@@ -276,7 +283,7 @@ export default function DreManualModal({
           categoria_macro: formData.categoria_macro,
           observacoes: formData.observacoes,
           usuario_criacao: 'usuario_atual',
-          bar_id: barId || null,
+          bar_id: barId,
         })
       })
 
@@ -565,6 +572,13 @@ export default function DreManualModal({
           </div>
           </div>
 
+          {/* sec/03: warning quando bar nao selecionado em modo create */}
+          {!barId && !(editingLancamento && editingLancamento.id > 0) && (
+            <p className="text-sm text-amber-600 dark:text-amber-400 mb-2 text-center font-medium">
+              Selecione um bar antes de salvar
+            </p>
+          )}
+
           {/* Botões fixos na parte inferior */}
           <div className="flex gap-3 pt-6 border-t-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-shrink-0">
             <button
@@ -576,10 +590,10 @@ export default function DreManualModal({
               <X className="w-4 h-4 flex-shrink-0" />
               <span className="whitespace-nowrap">Cancelar</span>
             </button>
-            
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (!barId && !(editingLancamento && editingLancamento.id > 0))}
               className="flex-1 h-12 text-sm font-bold bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none disabled:opacity-50 disabled:cursor-not-allowed flex flex-row items-center justify-center gap-2"
             >
               {loading ? (

@@ -126,6 +126,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // sec/03: bar_id obrigatorio. Defesa em camadas:
+    // (1) este 400 evita o INSERT quando UI nao envia bar_id
+    // (2) RLS WITH CHECK em dre_manual_policy rejeita bar_id NULL via authenticated
+    // (3) CHECK constraint dre_manual_bar_id_required_after_cutoff bloqueia
+    //     ate via service_role para criado_em >= 2025-09-08
+    if (!bar_id || isNaN(parseInt(bar_id))) {
+      return NextResponse.json(
+        { error: 'bar_id obrigatório', code: 'BAR_ID_REQUIRED' },
+        { status: 400 }
+      );
+    }
+
     const { data, error } = await supabase
       .from('dre_manual')
       .insert({
@@ -136,7 +148,7 @@ export async function POST(request: NextRequest) {
         categoria_macro,
         observacoes,
         usuario_criacao: usuario_criacao || 'Sistema',
-        bar_id: bar_id ? parseInt(bar_id) : null,
+        bar_id: parseInt(bar_id),
       })
       .select()
       .single();

@@ -1,0 +1,30 @@
+{
+  "captured_at": "2026-04-25 (estado pre-apply, equivalente ao pos-sec/02)",
+  "method": "Estado conhecido pre-fix: policy dre_manual_policy com cmd=ALL, qual=(auth.uid() IS NOT NULL), with_check=NULL. Counts capturados na sec/02 pre-flight (a tabela ficou fora do escopo daquele PR).",
+  "table": "financial.dre_manual",
+  "policy_state_pre_fix": {
+    "cmd": "ALL",
+    "roles": "{public}",
+    "qual": "((( SELECT auth.uid() AS uid)) IS NOT NULL)",
+    "with_check": null,
+    "comment": "with_check NULL + cmd=ALL = Postgres usa USING como check em INSERT/UPDATE-new"
+  },
+  "check_constraints_pre_fix": [
+    {
+      "name": "dre_manual_categoria_dre_check",
+      "definition": "categoria_macro IN (enum values)",
+      "note": "pre-existente, fora do escopo sec/03"
+    }
+  ],
+  "counts_per_caller": [
+    {"caller": "uuid_admin_bar_3 (9106ba7d)", "total": 82, "sem_bar": 82, "com_bar": 0},
+    {"caller": "uuid_admin_bar_4 (ba36f97d)", "total": 82, "sem_bar": 82, "com_bar": 0},
+    {"caller": "uuid_inexistente",            "total": 82, "sem_bar": 82, "com_bar": 0, "note": "auth.uid() IS NOT NULL passa pra qualquer authenticated, mesmo sem associacao em usuarios_bares — UUID inexistente ainda satisfaz auth.uid()=<uuid> NOT NULL"},
+    {"caller": "service_role",                "total": 82, "sem_bar": 82, "com_bar": 0}
+  ],
+  "vulnerability_pre_fix": {
+    "title": "INSERT com bar_id=NULL passa via authenticated",
+    "demonstrated_in": "frontend/src/app/api/financeiro/dre-simples/route.ts:139 — bar_id: bar_id ? parseInt(bar_id) : null permite NULL inserido legitimamente quando UI nao envia bar_id (ex: UUID sem barId no BarContext)",
+    "impact": "Cria mais legacy NULL rows continuamente, contaminando o historico"
+  }
+}
