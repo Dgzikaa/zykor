@@ -42,8 +42,77 @@ export async function getMeses(
     return [];
   }
 
+  // Buscar meta.marketing_semanal pra agregar campos g_* e gmn_*
+  // (gold.desempenho so tem m_*, mas o front exibe Google Ads e Google Meu Negocio)
+  const { data: marketingData } = await supabase
+    .schema('meta' as never)
+    .from('marketing_semanal')
+    .select('*')
+    .eq('bar_id', barId)
+    .gte('ano', anoInicio)
+    .lte('ano', anoFim);
+
+  // Agrupa marketing_semanal por (ano, mes) — quinta-feira ISO determina o mes
+  // (mesma logica do ETL etl_gold_desempenho_mensal pra evitar double counting)
+  const isoWeekStart = (ano: number, semana: number): Date => {
+    // ISO: semana 1 contém o 4 de janeiro; week start = monday
+    const jan4 = new Date(Date.UTC(ano, 0, 4));
+    const jan4Day = jan4.getUTCDay() || 7; // domingo=0 -> 7
+    const week1Monday = new Date(jan4);
+    week1Monday.setUTCDate(jan4.getUTCDate() - jan4Day + 1);
+    const start = new Date(week1Monday);
+    start.setUTCDate(week1Monday.getUTCDate() + (semana - 1) * 7);
+    return start;
+  };
+
+  type MktAgg = {
+    g_valor_investido: number;
+    g_impressoes: number;
+    g_cliques: number;
+    g_ctr_sum: number; g_ctr_n: number;
+    g_solicitacoes_rotas: number;
+    gmn_total_visualizacoes: number;
+    gmn_total_acoes: number;
+    gmn_solicitacoes_rotas: number;
+    gmn_visu_pesquisa: number;
+    gmn_visu_maps: number;
+    gmn_cliques_website: number;
+    gmn_ligacoes: number;
+    gmn_menu_views: number;
+  };
+  const marketingMensalMap = new Map<string, MktAgg>();
+
+  (marketingData || []).forEach((m: any) => {
+    const start = isoWeekStart(m.ano, m.semana);
+    const thursday = new Date(start);
+    thursday.setUTCDate(start.getUTCDate() + 3);
+    const mesAno = thursday.getUTCFullYear();
+    const mesMes = thursday.getUTCMonth() + 1;
+    const key = `${mesAno}-${String(mesMes).padStart(2, '0')}`;
+    const agg = marketingMensalMap.get(key) ?? {
+      g_valor_investido: 0, g_impressoes: 0, g_cliques: 0,
+      g_ctr_sum: 0, g_ctr_n: 0, g_solicitacoes_rotas: 0,
+      gmn_total_visualizacoes: 0, gmn_total_acoes: 0, gmn_solicitacoes_rotas: 0,
+      gmn_visu_pesquisa: 0, gmn_visu_maps: 0, gmn_cliques_website: 0,
+      gmn_ligacoes: 0, gmn_menu_views: 0,
+    };
+    agg.g_valor_investido += Number(m.g_valor_investido) || 0;
+    agg.g_impressoes += Number(m.g_impressoes) || 0;
+    agg.g_cliques += Number(m.g_cliques) || 0;
+    if (m.g_ctr != null) { agg.g_ctr_sum += Number(m.g_ctr); agg.g_ctr_n += 1; }
+    agg.g_solicitacoes_rotas += Number(m.g_solicitacoes_rotas) || 0;
+    agg.gmn_total_visualizacoes += Number(m.gmn_total_visualizacoes) || 0;
+    agg.gmn_total_acoes += Number(m.gmn_total_acoes) || 0;
+    agg.gmn_solicitacoes_rotas += Number(m.gmn_solicitacoes_rotas) || 0;
+    agg.gmn_visu_pesquisa += Number(m.gmn_visu_pesquisa) || 0;
+    agg.gmn_visu_maps += Number(m.gmn_visu_maps) || 0;
+    agg.gmn_cliques_website += Number(m.gmn_cliques_website) || 0;
+    agg.gmn_ligacoes += Number(m.gmn_ligacoes) || 0;
+    agg.gmn_menu_views += Number(m.gmn_menu_views) || 0;
+    marketingMensalMap.set(key, agg);
+  });
+
   // Mapeamento gold.desempenho -> nomes esperados pelo front
-  // Espelha o mapeamento que desempenho-service.ts (semanal) faz
   const toNum = (v: unknown): number | null => {
     if (v === null || v === undefined) return null;
     if (typeof v === 'number' && !isNaN(v)) return v;
@@ -56,6 +125,7 @@ export async function getMeses(
     const tempoCozinha = toNum(g.tempo_cozinha);
     const faturamentoTotal = toNum(g.faturamento_total) ?? 0;
     const descontoTotal = toNum(g.desconto_total) ?? 0;
+    const mkt = marketingMensalMap.get(g.periodo);
 
     return {
       ...g,
@@ -81,6 +151,24 @@ export async function getMeses(
 
       // Cancelamentos: gold cancelamentos_total -> front cancelamentos
       cancelamentos: toNum(g.cancelamentos_total) ?? toNum(g.cancelamentos),
+
+      // Meta Ads: front exibe key 'm_cpc', gold tem coluna 'm_custo_por_clique'
+      m_cpc: toNum(g.m_custo_por_clique),
+
+      // Google Ads e Google Meu Negocio: gold nao tem essas colunas — agrega de meta.marketing_semanal
+      g_valor_investido: mkt?.g_valor_investido ?? 0,
+      g_impressoes: mkt?.g_impressoes ?? 0,
+      g_cliques: mkt?.g_cliques ?? 0,
+      g_ctr: mkt && mkt.g_ctr_n > 0 ? mkt.g_ctr_sum / mkt.g_ctr_n : 0,
+      g_solicitacoes_rotas: mkt?.g_solicitacoes_rotas ?? 0,
+      gmn_total_visualizacoes: mkt?.gmn_total_visualizacoes ?? 0,
+      gmn_total_acoes: mkt?.gmn_total_acoes ?? 0,
+      gmn_solicitacoes_rotas: mkt?.gmn_solicitacoes_rotas ?? 0,
+      gmn_visu_pesquisa: mkt?.gmn_visu_pesquisa ?? 0,
+      gmn_visu_maps: mkt?.gmn_visu_maps ?? 0,
+      gmn_cliques_website: mkt?.gmn_cliques_website ?? 0,
+      gmn_ligacoes: mkt?.gmn_ligacoes ?? 0,
+      gmn_menu_views: mkt?.gmn_menu_views ?? 0,
     };
   }) as DadosSemana[];
 }
