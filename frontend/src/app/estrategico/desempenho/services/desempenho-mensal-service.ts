@@ -42,13 +42,47 @@ export async function getMeses(
     return [];
   }
 
-  // Gold mensal retorna todos os campos necessários
-  return mesesGold.map(g => ({
-    ...g,
-    numero_semana: parseInt(g.periodo.split('-')[1]), // Extrair mês do periodo
-    atualizado_em: g.calculado_em,
-    atualizado_por_nome: 'Sistema ETL',
-  })) as DadosSemana[];
+  // Mapeamento gold.desempenho -> nomes esperados pelo front
+  // Espelha o mapeamento que desempenho-service.ts (semanal) faz
+  const toNum = (v: unknown): number | null => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number' && !isNaN(v)) return v;
+    if (typeof v === 'string') { const n = parseFloat(v); return isNaN(n) ? null : n; }
+    return null;
+  };
+
+  return mesesGold.map((g: any) => {
+    const tempoDrinks = toNum(g.tempo_drinks);
+    const tempoCozinha = toNum(g.tempo_cozinha);
+    const faturamentoTotal = toNum(g.faturamento_total) ?? 0;
+    const descontoTotal = toNum(g.desconto_total) ?? 0;
+
+    return {
+      ...g,
+      numero_semana: parseInt(g.periodo.split('-')[1]),
+      atualizado_em: g.calculado_em,
+      atualizado_por_nome: 'Sistema ETL',
+
+      // Tempos: gold em SEGUNDOS -> front em MINUTOS. Filtra clamp 9999 (outliers).
+      tempo_saida_bar: tempoDrinks !== null && tempoDrinks < 9999 ? Math.round(tempoDrinks / 60 * 100) / 100 : null,
+      tempo_saida_cozinha: tempoCozinha !== null && tempoCozinha < 9999 ? Math.round(tempoCozinha / 60 * 100) / 100 : null,
+
+      // Atrasos: rename gold -> front
+      atrasinhos_bar: toNum(g.atrasinho_drinks),
+      atrasos_bar: toNum(g.atrasao_drinks),
+      atrasos_bar_perc: toNum(g.atrasos_drinks_perc),
+      atrasinhos_cozinha: toNum(g.atrasinho_cozinha),
+      atrasos_cozinha: toNum(g.atrasao_cozinha),
+      atrasos_cozinha_perc: toNum(g.atrasos_comida_perc),
+
+      // Descontos: gold tem desconto_total/desconto_percentual; front espera descontos_valor/descontos_perc
+      descontos_valor: descontoTotal,
+      descontos_perc: faturamentoTotal > 0 ? (descontoTotal / faturamentoTotal) * 100 : 0,
+
+      // Cancelamentos: gold cancelamentos_total -> front cancelamentos
+      cancelamentos: toNum(g.cancelamentos_total) ?? toNum(g.cancelamentos),
+    };
+  }) as DadosSemana[];
 }
 
 // REMOVIDO: getDadosMensais e helpers de agregação JS
