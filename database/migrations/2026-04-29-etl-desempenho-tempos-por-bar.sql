@@ -45,10 +45,12 @@ BEGIN
     RAISE EXCEPTION 'Parametros obrigatorios';
   END IF;
 
-  -- Configuracao por bar (espelha planilha Excel)
+  -- Configuracao por bar (espelha de/para da planilha Excel)
   IF p_bar_id = 3 THEN
-    v_locs_drinks := ARRAY['Montados','Shot e Dose','Batidos','Mexido','Preshh'];
-    v_locs_cozinha := ARRAY['Cozinha 1','Cozinha 2'];
+    -- Ord: DRINK = Preshh+Montados+Mexido+Drinks+Drinks Autorais+Shot e Dose+Batidos
+    --      COMIDA = Cozinha+Cozinha 1+Cozinha 2
+    v_locs_drinks := ARRAY['Preshh','Montados','Mexido','Drinks','Drinks Autorais','Shot e Dose','Batidos'];
+    v_locs_cozinha := ARRAY['Cozinha','Cozinha 1','Cozinha 2'];
     v_uses_t0t2_cozinha := true;
   ELSIF p_bar_id = 4 THEN
     v_locs_drinks := ARRAY['Bar'];
