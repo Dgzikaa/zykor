@@ -986,15 +986,16 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                   className={`px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_art_fat' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
                                     {selectedBar?.id === 4 ? (
+                                      // Etapa 6: couvert_c_art_green vem do service (threshold em operations.config_metas_planejamento)
                                       <span className={`font-semibold ${
-                                        evento.c_art > 0 && evento.couvert_vr_contahub && (evento.couvert_vr_contahub / evento.c_art) >= 1
+                                        evento.couvert_c_art_green
                                           ? 'text-green-600 dark:text-green-400'
                                           : evento.c_art > 0
                                             ? 'text-red-600 dark:text-red-400'
                                             : 'text-[hsl(var(--muted-foreground))]'
                                       }`}>
-                                        {evento.c_art > 0 && evento.couvert_vr_contahub
-                                          ? formatarPercentual((evento.couvert_vr_contahub / evento.c_art) * 100)
+                                        {evento.c_art > 0 && evento.couvert_vr_contahub && evento.couvert_vr_contahub > 0
+                                          ? formatarPercentual((evento.c_art / evento.couvert_vr_contahub) * 100)
                                           : evento.c_art > 0 ? '0,0%' : '-'}
                                       </span>
                                     ) : (
@@ -1042,7 +1043,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                     setColunaHighlight(prev => prev === 'atrasao_cozinha' ? null : 'atrasao_cozinha');
                                   }}
                                   className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'atrasao_cozinha' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
-                                  style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_cozinha <= 10 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_cozinha > 0 ? formatarContagem(evento.atrasao_cozinha) : '-'}</span></td>
+                                  style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_cozinha_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_cozinha > 0 ? formatarContagem(evento.atrasao_cozinha) : '-'}</span></td>
                                 <td 
                                   onClick={(e) => { 
                                     e.stopPropagation(); 
@@ -1050,7 +1051,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                     setColunaHighlight(prev => prev === 'atrasao_bar' ? null : 'atrasao_bar');
                                   }}
                                   className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'atrasao_bar' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
-                                  style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_bar <= 50 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_bar > 0 ? formatarContagem(evento.atrasao_bar) : '-'}</span></td>
+                                  style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_bar_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_bar > 0 ? formatarContagem(evento.atrasao_bar) : '-'}</span></td>
                                 <td 
                                   onClick={(e) => { 
                                     e.stopPropagation(); 
@@ -1058,7 +1059,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                     setColunaHighlight(prev => prev === 'stockout_drinks' ? null : 'stockout_drinks');
                                   }}
                                   className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_drinks' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
-                                  style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_drinks_perc <= 10 ? 'text-green-600 dark:text-green-400' : evento.stockout_drinks_perc <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_drinks_perc > 0 ? formatarPercentual(evento.stockout_drinks_perc) : '-'}</span></td>
+                                  style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_drinks_status === 'green' ? 'text-green-600 dark:text-green-400' : evento.stockout_drinks_status === 'yellow' ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_drinks_perc > 0 ? formatarPercentual(evento.stockout_drinks_perc) : '-'}</span></td>
                                 <td 
                                   onClick={(e) => { 
                                     e.stopPropagation(); 
@@ -1066,7 +1067,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                     setColunaHighlight(prev => prev === 'stockout_comidas' ? null : 'stockout_comidas');
                                   }}
                                   className={`px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_comidas' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
-                                  style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_comidas_perc <= 10 ? 'text-green-600 dark:text-green-400' : evento.stockout_comidas_perc <= 25 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_comidas_perc > 0 ? formatarPercentual(evento.stockout_comidas_perc) : '-'}</span></td>
+                                  style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_comidas_status === 'green' ? 'text-green-600 dark:text-green-400' : evento.stockout_comidas_status === 'yellow' ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_comidas_perc > 0 ? formatarPercentual(evento.stockout_comidas_perc) : '-'}</span></td>
                               </>
                             ) : (
                               <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
@@ -1167,17 +1168,21 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             <div className="flex justify-between">
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <span className="text-[hsl(var(--muted-foreground))] cursor-help underline decoration-dotted">Eventos:</span>
+                                  <span className="text-[hsl(var(--muted-foreground))] cursor-help underline decoration-dotted">Dias (faturado / com evento):</span>
                                 </TooltipTrigger>
                                 <TooltipContent side="top" className="max-w-xs bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
                                   <div className="text-xs space-y-1">
-                                    <p><span className="font-semibold">Dias com eventos realizados:</span> {totaisAgregados.totalDiasRealizados}</p>
-                                    <p><span className="font-semibold">Total de dias com eventos:</span> {totaisAgregados.totalDiasComEvento}</p>
-                                    <p className="pt-1 border-t border-[hsl(var(--border))]"><span className="font-semibold">Total de eventos (incluindo múltiplos no mesmo dia):</span> {totaisAgregados.totalEventosRealizados} / {totaisAgregados.totalEventos}</p>
+                                    <p><span className="font-semibold">Dias com faturamento (real &gt; 0):</span> {totaisAgregados.totalDiasRealizados}</p>
+                                    <p><span className="font-semibold">Dias com pelo menos um evento na lista:</span> {totaisAgregados.totalDiasComEvento}</p>
+                                    <p className="pt-1 border-t border-[hsl(var(--border))]"><span className="font-semibold">Linhas (incl. 2+ no mesmo dia):</span> {totaisAgregados.totalEventosRealizados} com faturamento / {totaisAgregados.totalEventos} no mês</p>
                                   </div>
                                 </TooltipContent>
                               </Tooltip>
                               <span className="font-medium text-[hsl(var(--foreground))]">{totaisAgregados.totalDiasRealizados} / {totaisAgregados.totalDiasComEvento}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-[hsl(var(--muted-foreground))]">Eventos (linhas):</span>
+                              <span className="font-medium text-[hsl(var(--foreground))]">{totaisAgregados.totalEventosRealizados} / {totaisAgregados.totalEventos}</span>
                             </div>
                          </div>
                       </div>
