@@ -1,0 +1,46 @@
+{
+  "captured_at": "2026-04-26",
+  "batch": 2,
+  "scope": "silver/gold",
+  "summary": {
+    "indexes_dropped": 9,
+    "espaco_liberado_aprox_mb": 16.5,
+    "advisor_unused_index_before": 60,
+    "advisor_unused_index_after": 51,
+    "delta_advisor": -9,
+    "user_scope_unused_dropable_remaining": 51,
+    "supabase_managed_unused_dropable": 44
+  },
+  "indexes_dropped": [
+    {"schema": "silver", "table": "cliente_visitas",                                    "index": "idx_cliente_visitas_cli_id",                       "size": "7 MB",     "verdict_reason": "cli_id_contahub: ZERO callers em todo codebase (frontend/backend/db/scripts)"},
+    {"schema": "silver", "table": "cliente_estatisticas",                                "index": "idx_cliente_estatisticas_cli_id",                  "size": "5.2 MB",   "verdict_reason": "idem cli_id_contahub"},
+    {"schema": "silver", "table": "reservantes_perfil",                                  "index": "idx_reservantes_perfil_segmento",                  "size": "3.2 MB",   "verdict_reason": "segmento_reserva: ZERO callers"},
+    {"schema": "silver", "table": "reservantes_perfil",                                  "index": "idx_reservantes_perfil_vip",                       "size": "480 kB",   "verdict_reason": "is_vip hits sao em cliente_estatisticas.eh_vip context, nao reservantes_perfil"},
+    {"schema": "silver", "table": "silver_contahub_operacional_stockout_processado",    "index": "idx_stockout_proc_motivo",                         "size": "88 kB",    "verdict_reason": "motivo_exclusao aparece em SELECT clause, nao em WHERE filter"},
+    {"schema": "silver", "table": "yuzer_produtos_evento",                              "index": "idx_yuzer_produtos_evento_produto",                "size": "56 kB",    "verdict_reason": "produto_nome eh filtrado JS-side (substring includes), SQL nunca usa idx"},
+    {"schema": "silver", "table": "produtos_top",                                        "index": "idx_produtos_top_categoria",                       "size": "40 kB",    "verdict_reason": "produtos_top com filter categoria: ZERO callers"},
+    {"schema": "silver", "table": "sympla_bilheteria_diaria",                           "index": "idx_sympla_bilheteria_event_id",                   "size": "16 kB",    "verdict_reason": "idx_sympla_bilheteria_bar_data eh o composite usado"},
+    {"schema": "gold",   "table": "planejamento",                                        "index": "idx_planejamento_comercial_diario_recalculo",      "size": "8 kB",     "verdict_reason": "precisa_recalculo eh manipulado em operations.eventos_base, nao gold.planejamento (nao incluido no SELECT do refactor 2026-04-20)"}
+  ],
+  "vacuum_analyze_executado": [
+    "silver.cliente_visitas",
+    "silver.cliente_estatisticas",
+    "silver.reservantes_perfil",
+    "silver.silver_contahub_operacional_stockout_processado",
+    "silver.yuzer_produtos_evento",
+    "silver.produtos_top",
+    "silver.sympla_bilheteria_diaria",
+    "gold.planejamento"
+  ],
+  "insights_arquiteturais": [
+    "cli_id_contahub eh feature fantasma — 12.2 MB de indexes em colunas ContaHub que nunca foram consumidas no codebase",
+    "reservantes_perfil tem 3 dos 5 indexes sem caller — tabela sobreindexada, possivelmente abandonada em refactor de CRM",
+    "gold.planejamento.precisa_recalculo virou no-op apos refactor 2026-04-20 que migrou queries sem incluir esse campo no SELECT (campo continua sendo manipulado em operations.eventos_base)",
+    "yuzer.produto_nome usa pattern JS-side filter em 8 callers (produto_nome.toLowerCase().includes('ingresso')); SQL index em coluna pura nao serve substring-includes — follow-up arquitetural pra mover filtros pra SQL WHERE ILIKE"
+  ],
+  "follow_up_yuzer_jsside_filter": {
+    "tracked_as": "task pendente (sem id formal ainda — anotar no proximo plano de melhorias)",
+    "descricao": "Investigar movimentacao dos filtros yuzer JS-side -> SQL WHERE ILIKE/regex. 6+ callers identificados em Batch 2 perf/05 fazendo produto_nome.toLowerCase().includes('ingresso') em vez de WHERE produto_nome ILIKE '%ingresso%'.",
+    "ganho_esperado": "Usa indices reais (com gin trgm se necessario), reduz transferencia de dados client-side, simplifica codigo. Pode justificar criacao de novo index gin trigram em (bar_id, produto_nome) se filtros forem frequentes."
+  }
+}
