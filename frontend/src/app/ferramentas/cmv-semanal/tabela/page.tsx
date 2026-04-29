@@ -631,22 +631,43 @@ export default function CMVSemanalTabelaPage() {
   // Salvar métrica editada
   const salvarMetrica = async (semanaId: string, campo: string) => {
     const numValue = parseFloat(valorEdit.replace(',', '.'));
-    
+
     if (isNaN(numValue)) {
       setEditando(null);
       toast({ title: 'Erro', description: 'Valor inválido', variant: 'destructive' });
       return;
     }
-    
+
     try {
-      const response = await fetch('/api/cmv-semanal', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: semanaId, [campo]: numValue })
-      });
+      let response: Response;
+
+      if (visao === 'mensal') {
+        // Visão mensal: salva em financial.cmv_mensal via upsert (bar_id, ano, mes).
+        // semanaId no modo mensal é "${ano}-${mes}" (ID fictício, não existe em cmv_semanal).
+        const semana = semanas.find(s => s.id === semanaId);
+        if (!semana || !selectedBar) throw new Error('Semana ou bar não encontrado');
+
+        response = await fetch('/api/cmv-semanal/mensal', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bar_id: selectedBar.id,
+            ano: semana.ano,
+            mes: semana.semana, // no modo mensal, "semana" guarda o mês (ver carregarDados)
+            [campo]: numValue,
+          }),
+        });
+      } else {
+        // Visão semanal: salva em cmv_semanal por id real
+        response = await fetch('/api/cmv-semanal', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: semanaId, [campo]: numValue }),
+        });
+      }
 
       if (!response.ok) throw new Error('Erro ao salvar');
-      
+
       toast({ title: 'Salvo!', description: 'Valor atualizado' });
       setEditando(null);
       carregarDados();
