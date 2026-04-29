@@ -42,6 +42,23 @@ export async function getMeses(
     return [];
   }
 
+  // Buscar meta.desempenho_manual pra aplicar overrides editados pelo socio
+  // (CMO, CMV teorico, NPS, stockout manual, etc — mesmo conceito do semanal)
+  const { data: manuaisData } = await supabase
+    .schema('meta' as never)
+    .from('desempenho_manual')
+    .select('*')
+    .eq('bar_id', barId)
+    .eq('granularidade', 'mensal')
+    .gte('ano', anoInicio)
+    .lte('ano', anoFim);
+
+  const manuaisMap = new Map<string, any>();
+  (manuaisData || []).forEach((m: any) => {
+    const key = `${m.ano}-${String(m.mes).padStart(2, '0')}`;
+    manuaisMap.set(key, m);
+  });
+
   // Buscar meta.marketing_semanal pra agregar campos g_* e gmn_*
   // (gold.desempenho so tem m_*, mas o front exibe Google Ads e Google Meu Negocio)
   const { data: marketingData } = await supabase
@@ -126,12 +143,36 @@ export async function getMeses(
     const faturamentoTotal = toNum(g.faturamento_total) ?? 0;
     const descontoTotal = toNum(g.desconto_total) ?? 0;
     const mkt = marketingMensalMap.get(g.periodo);
+    const manual = manuaisMap.get(g.periodo) || {};
 
     return {
       ...g,
       numero_semana: parseInt(g.periodo.split('-')[1]),
-      atualizado_em: g.calculado_em,
-      atualizado_por_nome: 'Sistema ETL',
+      atualizado_em: manual.atualizado_em ?? g.calculado_em,
+      atualizado_por_nome: manual.id ? 'Manual' : 'Sistema ETL',
+
+      // CMO: manual.cmo eh o % editado pelo socio. cmo_valor (R$) vem do gold.
+      // cmo_percentual: se tiver manual override, usa ele; senao calcula de gold.cmo/faturamento.
+      cmo: manual.cmo ?? null,
+      cmo_valor: toNum(g.cmo) ?? 0,
+      cmo_percentual: manual.cmo != null
+        ? Number(manual.cmo)
+        : (toNum(g.cmo) != null && faturamentoTotal > 0 ? (Number(g.cmo) / faturamentoTotal * 100) : 0),
+
+      // CMV manual override
+      cmv_teorico: manual.cmv_teorico ?? 0,
+      cmv_limpo: toNum(g.cmv_percentual) ?? manual.cmv_limpo ?? 0,
+      cmv_limpo_percentual: toNum(g.cmv_percentual) ?? manual.cmv_limpo ?? 0,
+      cmv_rs: toNum(g.cmv) ?? manual.cmv ?? 0,
+
+      // NPS overrides (igual semanal)
+      nps_digital: toNum(g.nps_digital) ?? manual.nps_digital ?? 0,
+      nps_digital_respostas: toNum(g.nps_digital_respostas) ?? manual.nps_digital_respostas ?? 0,
+      nps_salao: toNum(g.nps_salao) ?? manual.nps_salao ?? 0,
+      nps_salao_respostas: toNum(g.nps_salao_respostas) ?? manual.nps_salao_respostas ?? 0,
+      nps_reservas: toNum(g.nps_reservas) ?? manual.nps_reservas ?? 0,
+      nps_reservas_respostas: toNum(g.nps_reservas_respostas) ?? manual.nps_reservas_respostas ?? 0,
+      nota_felicidade_equipe: g.nota_felicidade_equipe ?? manual.nota_felicidade_equipe ?? null,
 
       // Tempos: gold em SEGUNDOS -> front em MINUTOS. Filtra clamp 9999 (outliers).
       tempo_saida_bar: tempoDrinks !== null && tempoDrinks < 9999 ? Math.round(tempoDrinks / 60 * 100) / 100 : null,
