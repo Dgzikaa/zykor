@@ -179,7 +179,7 @@ export async function getPlanejamentoComercial(
         id, data_evento, nome, dia_semana, bar_id,
         m1_r, cl_plan, te_plan, tb_plan, c_artistico_plan, lot_max,
         real_r, faturamento_total_consolidado, cl_real, publico_real_consolidado,
-        te_real_calculado, tb_real_calculado, t_medio,
+        te_real_calculado, tb_real_calculado, t_medio, percent_art_fat,
         percent_b, percent_d, percent_c, percent_happy_hour,
         percent_stockout, stockout_drinks_perc, stockout_comidas_perc,
         faturamento_couvert, couvert_vr_contahub,
