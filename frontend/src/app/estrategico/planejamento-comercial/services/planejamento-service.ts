@@ -1,9 +1,53 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
 const DIAS_SEMANA = [
-  'DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 
+  'DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA',
   'QUINTA', 'SEXTA', 'SÁBADO'
 ];
+
+/**
+ * Metas / thresholds vindos de operations.config_metas_planejamento.
+ * Substituem os números hardcoded que estavam neste service (linhas 198–202)
+ * e em PlanejamentoClient.tsx (linhas 990, 1045, 1053, 1061, 1069).
+ * Ver docs/planning/06-auditoria-planejamento.md.
+ */
+export interface MetasPlanejamento {
+  t_medio_meta: number;
+  percent_art_fat_meta: number;
+  t_coz_meta: number;
+  t_bar_meta: number;
+  fat_19h_meta: number;
+  couvert_c_art_ratio_meta: number;
+  atrasao_cozinha_meta: number;
+  atrasao_bar_meta: number;
+  stockout_drinks_green: number;
+  stockout_drinks_yellow: number;
+  stockout_comidas_green: number;
+  stockout_comidas_yellow: number;
+}
+
+/**
+ * Fallback defensivo — usado APENAS quando a row da config ainda não existe
+ * (ex: migração 2026-04-23-config-metas-planejamento.sql não rodou no ambiente).
+ * Emite console.warn para que o gap fique visível em observabilidade.
+ * Remover após 2 sprints de migração em produção.
+ */
+const METAS_FALLBACK: MetasPlanejamento = {
+  t_medio_meta: 93,
+  percent_art_fat_meta: 15,
+  t_coz_meta: 720,
+  t_bar_meta: 240,
+  fat_19h_meta: 40,
+  couvert_c_art_ratio_meta: 1.0,
+  atrasao_cozinha_meta: 10,
+  atrasao_bar_meta: 50,
+  stockout_drinks_green: 10,
+  stockout_drinks_yellow: 25,
+  stockout_comidas_green: 10,
+  stockout_comidas_yellow: 25,
+};
+
+export type StockoutStatus = 'green' | 'yellow' | 'red';
 
 export interface PlanejamentoData {
   evento_id: number;
@@ -91,6 +135,14 @@ export interface PlanejamentoData {
   t_coz_green: boolean;
   t_bar_green: boolean;
   fat_19h_green: boolean;
+
+  // Flags vindas da config (Etapa 6 — ver docs/planning/06-auditoria-planejamento.md)
+  /** Couvert >= ratio * c_art (usado apenas no Deboche, bar_id=4) */
+  couvert_c_art_green: boolean;
+  atrasao_cozinha_green: boolean;
+  atrasao_bar_green: boolean;
+  stockout_drinks_status: StockoutStatus;
+  stockout_comidas_status: StockoutStatus;
 }
 
 export async function getPlanejamentoComercial(
@@ -117,7 +169,9 @@ export async function getPlanejamentoComercial(
   // REFACTOR 2026-04-20: Migrado para gold.planejamento
   // Gold ja tem consolidacao de ContaHub + Yuzer + Sympla, eliminando
   // bug de double-counting (L268 subtraia quando real_r ja era consolidado)
-  const [{ data: eventosGold, error }, { data: eventosManuais }] = await Promise.all([
+  // REFACTOR 2026-04-23 (Etapa 6): lê também operations.config_metas_planejamento
+  // para eliminar thresholds hardcoded. Ver docs/planning/06-auditoria-planejamento.md
+  const [{ data: eventosGold, error }, { data: eventosManuais }, { data: configMetas }] = await Promise.all([
     supabase
       .schema('gold' as never)
       .from('planejamento')
@@ -140,7 +194,7 @@ export async function getPlanejamentoComercial(
       .lt('data_evento', dataFinalConsulta)
       .eq('ativo', true)
       .order('data_evento', { ascending: true }),
-    
+
     // LEFT JOIN eventos_base SOMENTE para campos manuais editaveis
     supabase
       .schema('operations' as never)
@@ -148,8 +202,27 @@ export async function getPlanejamentoComercial(
       .select('data_evento, observacoes, c_art, c_prod, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo')
       .eq('bar_id', barId)
       .gte('data_evento', dataInicio)
-      .lt('data_evento', dataFinalConsulta)
+      .lt('data_evento', dataFinalConsulta),
+
+    // Config de thresholds por (bar, ano) — fallback defensivo se row não existir
+    supabase
+      .schema('operations' as never)
+      .from('config_metas_planejamento')
+      .select('t_medio_meta, percent_art_fat_meta, t_coz_meta, t_bar_meta, fat_19h_meta, couvert_c_art_ratio_meta, atrasao_cozinha_meta, atrasao_bar_meta, stockout_drinks_green, stockout_drinks_yellow, stockout_comidas_green, stockout_comidas_yellow')
+      .eq('bar_id', barId)
+      .eq('ano', ano)
+      .maybeSingle()
   ]);
+
+  // Resolve metas — usa fallback SOMENTE quando config não existe ainda (migration pendente)
+  const metas: MetasPlanejamento = (configMetas as MetasPlanejamento | null) ?? (() => {
+    console.warn(
+      '[planejamento-service] config_metas_planejamento ausente para bar_id=%s ano=%s. Usando fallback. Rode a migration 2026-04-23-config-metas-planejamento.sql.',
+      barId,
+      ano
+    );
+    return METAS_FALLBACK;
+  })();
 
   if (error) {
     console.error('❌ Erro ao buscar Gold planejamento:', {
@@ -195,11 +268,36 @@ export async function getPlanejamentoComercial(
     const ciRealVsPlanGreen = (evento.publico_real_consolidado || 0) >= (evento.cl_plan || 0);
     const teRealVsPlanGreen = (evento.te_real_calculado || 0) >= (evento.te_plan || 0);
     const tbRealVsPlanGreen = (evento.tb_real_calculado || 0) >= (evento.tb_plan || 0);
-    const tMedioGreen = (evento.t_medio || 0) >= 93;
-    const percentArtFatGreen = (evento.percent_art_fat || 0) <= 15;
-    const tCozGreen = (evento.t_coz || 0) <= 720;
-    const tBarGreen = (evento.t_bar || 0) <= 240;
-    const fat19hGreen = (evento.fat_19h_percent || 0) >= 40;
+    // Etapa 6: thresholds vêm de metas (config_metas_planejamento), não mais hardcoded
+    const tMedioGreen = (evento.t_medio || 0) >= metas.t_medio_meta;
+    const percentArtFatGreen = (evento.percent_art_fat || 0) <= metas.percent_art_fat_meta;
+    const tCozGreen = (evento.t_coz || 0) <= metas.t_coz_meta;
+    const tBarGreen = (evento.t_bar || 0) <= metas.t_bar_meta;
+    const fat19hGreen = (evento.fat_19h_percent || 0) >= metas.fat_19h_meta;
+
+    // Flags extras migradas de PlanejamentoClient.tsx (Etapa 6)
+    const cArt = Number(manual?.c_art) || 0;
+    const couvertContahub = evento.couvert_vr_contahub !== null && evento.couvert_vr_contahub !== undefined
+      ? Number(evento.couvert_vr_contahub)
+      : 0;
+    // c_art / couvert <= 1.0 = green (couvert cobre o custo artistico)
+    const couvertCArtGreen = cArt > 0 && couvertContahub > 0
+      && (cArt / couvertContahub) <= metas.couvert_c_art_ratio_meta;
+
+    const atrasaoCozinhaGreen = (evento.atrasao_cozinha || 0) <= metas.atrasao_cozinha_meta;
+    const atrasaoBarGreen = (evento.atrasao_bar || 0) <= metas.atrasao_bar_meta;
+
+    const stockoutDrinksPerc = evento.stockout_drinks_perc || 0;
+    const stockoutDrinksStatus: StockoutStatus =
+      stockoutDrinksPerc <= metas.stockout_drinks_green ? 'green'
+      : stockoutDrinksPerc <= metas.stockout_drinks_yellow ? 'yellow'
+      : 'red';
+
+    const stockoutComidasPerc = evento.stockout_comidas_perc || 0;
+    const stockoutComidasStatus: StockoutStatus =
+      stockoutComidasPerc <= metas.stockout_comidas_green ? 'green'
+      : stockoutComidasPerc <= metas.stockout_comidas_yellow ? 'yellow'
+      : 'red';
 
     const percClientesNovos: number | null = null;
     const clientesAtivos: number | null = null;
@@ -289,6 +387,13 @@ export async function getPlanejamentoComercial(
       t_coz_green: tCozGreen,
       t_bar_green: tBarGreen,
       fat_19h_green: fat19hGreen,
+
+      // Flags vindas de operations.config_metas_planejamento (Etapa 6)
+      couvert_c_art_green: couvertCArtGreen,
+      atrasao_cozinha_green: atrasaoCozinhaGreen,
+      atrasao_bar_green: atrasaoBarGreen,
+      stockout_drinks_status: stockoutDrinksStatus,
+      stockout_comidas_status: stockoutComidasStatus,
     };
   });
 
