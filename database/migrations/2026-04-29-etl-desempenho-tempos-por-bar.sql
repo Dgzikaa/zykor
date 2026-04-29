@@ -130,22 +130,22 @@ BEGIN
   -- FIX 2026-04-29 v7: por loc_desc + coluna especifica por bar (espelha Excel)
   fase_tempos_agg AS (
     SELECT
-      CASE WHEN COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_drinks) AND t0_t3 > 0) > 0
-        THEN AVG(t0_t3) FILTER (WHERE local_desc = ANY(v_locs_drinks) AND t0_t3 > 0)::numeric(8,2) END as tempo_drinks,
+      CASE WHEN COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_drinks) AND t0_t3 BETWEEN 1 AND 3600) > 0
+        THEN AVG(t0_t3) FILTER (WHERE local_desc = ANY(v_locs_drinks) AND t0_t3 BETWEEN 1 AND 3600)::numeric(8,2) END as tempo_drinks,
       CASE WHEN COUNT(*) FILTER (WHERE categoria = 'bebida' AND t0_t3 > 0) > 0
         THEN AVG(t0_t3) FILTER (WHERE categoria = 'bebida' AND t0_t3 > 0)::numeric(8,2) END as tempo_bebidas,
       CASE WHEN v_uses_t0t2_cozinha THEN
-        CASE WHEN COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_cozinha) AND t0_t2 > 0) > 0
-          THEN AVG(t0_t2) FILTER (WHERE local_desc = ANY(v_locs_cozinha) AND t0_t2 > 0)::numeric(8,2) END
+        CASE WHEN COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_cozinha) AND t0_t2 BETWEEN 1 AND 3600) > 0
+          THEN AVG(t0_t2) FILTER (WHERE local_desc = ANY(v_locs_cozinha) AND t0_t2 BETWEEN 1 AND 3600)::numeric(8,2) END
       ELSE
-        CASE WHEN COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_cozinha) AND t0_t3 > 0) > 0
-          THEN AVG(t0_t3) FILTER (WHERE local_desc = ANY(v_locs_cozinha) AND t0_t3 > 0)::numeric(8,2) END
+        CASE WHEN COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_cozinha) AND t0_t3 BETWEEN 1 AND 3600) > 0
+          THEN AVG(t0_t3) FILTER (WHERE local_desc = ANY(v_locs_cozinha) AND t0_t3 BETWEEN 1 AND 3600)::numeric(8,2) END
       END as tempo_cozinha,
-      COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_drinks) AND t0_t3 > 0)::integer as qtd_drinks_total,
+      COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_drinks) AND t0_t3 BETWEEN 1 AND 3600)::integer as qtd_drinks_total,
       CASE WHEN v_uses_t0t2_cozinha THEN
-        COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_cozinha) AND t0_t2 > 0)::integer
+        COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_cozinha) AND t0_t2 BETWEEN 1 AND 3600)::integer
       ELSE
-        COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_cozinha) AND t0_t3 > 0)::integer
+        COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_cozinha) AND t0_t3 BETWEEN 1 AND 3600)::integer
       END as qtd_comida_total,
       COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_drinks) AND t0_t3 BETWEEN 300 AND 600)::integer as atrasinho_drinks,
       COUNT(*) FILTER (WHERE local_desc = ANY(v_locs_drinks) AND t0_t3 > 600)::integer as atrasao_drinks,
