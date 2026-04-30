@@ -746,6 +746,7 @@ export async function POST(request: NextRequest) {
     
     // Salvar o segmento na tabela crm_segmentacao
     const { data, error } = await supabase
+      .schema('crm' as any)
       .from('crm_segmentacao')
       .insert({
         bar_id,
@@ -799,6 +800,7 @@ export async function DELETE(request: NextRequest) {
     }
     
     const { error } = await supabase
+      .schema('crm' as any)
       .from('crm_segmentacao')
       .delete()
       .eq('id', segmentoId)

@@ -379,6 +379,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar templates do banco
     const { data: templatesDB } = await supabase
+      .schema('crm' as any)
       .from('crm_templates')
       .select('*')
       .eq('ativo', true)
@@ -391,6 +392,7 @@ export async function GET(request: NextRequest) {
     let segmentosStats: Record<string, number> | null = null;
     if (incluirStats) {
       const { data: stats } = await supabase
+        .schema('crm' as any)
         .from('crm_segmentacao')
         .select('segmento')
         .then(res => {
@@ -493,6 +495,7 @@ export async function POST(request: NextRequest) {
 
     // 4. Buscar clientes do segmento alvo (usando tabela real!)
     let clientesQuery = supabase
+      .schema('crm' as any)
       .from('crm_segmentacao')
       .select('cliente_telefone, cliente_telefone_normalizado, cliente_nome, segmento')
       .in('segmento', segmento_alvo)
