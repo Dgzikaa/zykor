@@ -31,6 +31,7 @@ import {
   DollarSign,
   Star,
   Ticket,
+  FileSearch,
 } from 'lucide-react';
 
 interface BottomNavItem {
@@ -90,7 +91,7 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
     { icon: Calendar, label: 'Planejamento', href: '/estrategico/planejamento-comercial', color: 'text-blue-600 dark:text-blue-400', permission: 'gestao', subItems: [] },
     { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', color: 'text-green-600 dark:text-green-400', permission: 'relatorios', subItems: [] },
     { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', color: 'text-green-600 dark:text-green-400', permission: 'operacoes', subItems: [] },
-    // TODO: Dedo Duro (ContaAzul lançamentos atrasados — Gonza)
+    { icon: FileSearch, label: 'Dedo Duro', href: '/ferramentas/consultas', color: 'text-green-600 dark:text-green-400', permission: 'financeiro_agendamento', subItems: [] },
 
     // ═══ AVANÇADO — agrupados ═══
     {

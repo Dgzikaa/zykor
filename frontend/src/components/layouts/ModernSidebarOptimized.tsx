@@ -125,7 +125,13 @@ const defaultSidebarItems: SidebarItem[] = [
     color: 'text-green-600 dark:text-green-400',
     permission: 'gestao',
   },
-  // TODO: Dedo Duro (ContaAzul lançamentos atrasados — Gonza). Rota a definir.
+  {
+    icon: FileSearch,
+    label: 'Dedo Duro',
+    href: '/ferramentas/consultas',
+    color: 'text-green-600 dark:text-green-400',
+    permission: 'financeiro_agendamento',
+  },
 
   // ═══ AVANÇADO — agrupados (collapsed por padrão) ═══
   {
@@ -173,7 +179,6 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: Users, label: 'NPS Funcionários', href: '/ferramentas/nps', permission: 'gestao' },
       { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
       { icon: ChefHat, label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal', permission: 'gestao' },
-      { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
     ],
   },
   {
