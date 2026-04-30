@@ -1862,7 +1862,15 @@ export function DesempenhoClient({
                       <div className={cn("h-[72px] border-b border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center px-1 sticky top-0 z-10", isAtual ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-gray-50 dark:bg-gray-700")}>
                          {(() => {
                            const header = formatarHeaderColuna(semana);
-                           return <><span className={cn("text-sm font-bold text-center", isAtual ? "text-emerald-700 dark:text-emerald-400" : "text-gray-700 dark:text-gray-300")}>{header.titulo}</span><span className="text-[10px] text-gray-500 dark:text-gray-400 text-center">{header.subtitulo}</span></>;
+                           return <>
+                             <span className={cn("text-sm font-bold text-center", isAtual ? "text-emerald-700 dark:text-emerald-400" : "text-gray-700 dark:text-gray-300")}>{header.titulo}</span>
+                             <span className="text-[10px] text-gray-500 dark:text-gray-400 text-center">{header.subtitulo}</span>
+                             {isAtual && (
+                               <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded mt-0.5" title="Esta semana ainda em andamento — valores podem mudar até o fechamento">
+                                 📍 em andamento
+                               </span>
+                             )}
+                           </>;
                          })()}
                       </div>
                       
