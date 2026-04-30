@@ -239,14 +239,12 @@ return [
         metricas: [
           { key: 'perc_faturamento_ate_19h', label: '% Fat. até 19h', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Média fat_19h_percent', formato: 'percentual' as const },
           { key: 'perc_faturamento_apos_22h', label: '% Fat. após 22h', status: 'auto' as const, fonte: 'bronze_contahub_operacional_fatporhora', calculo: 'Soma após 22h', formato: 'percentual' as const },
-          // Indicadores diferentes por bar: Ordinário (QUI+SÁB+DOM) vs Deboche (TER+QUA+QUI e SEX+SÁB)
+          // Indicadores por bar: Deboche (TER+QUA+QUI e SEX+SÁB). Ord nao tem (QUI+SÁB+DOM removido por decisao do socio)
           ...(barId === 4 ? [
             { key: 'ter_qua_qui', label: 'TER+QUA+QUI', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Soma real_r terça/quarta/quinta', formato: 'moeda' as const },
             { key: 'sex_sab', label: 'SEX+SÁB', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Soma real_r sexta/sábado', formato: 'moeda' as const },
             { key: 'perc_happy_hour', label: '% PROMO HH', status: 'auto' as const, fonte: 'bronze_contahub_vendas_analitico', calculo: 'grp_desc=Happy Hour / Total vendas', formato: 'percentual' as const },
-          ] : [
-            { key: 'qui_sab_dom', label: 'QUI+SÁB+DOM', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Soma real_r', formato: 'moeda' as const },
-          ]),
+          ] : []),
           { key: 'conta_assinada_valor', label: 'Conta Assinada', status: 'auto' as const, fonte: 'faturamento_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda_com_percentual' as const, percentualKey: 'conta_assinada_perc' },
           { key: 'descontos_valor', label: 'Descontos', status: 'auto' as const, fonte: 'visitas', calculo: 'Soma valor_desconto', formato: 'moeda_com_percentual' as const, percentualKey: 'descontos_perc', temTooltipDetalhes: true },
           { key: 'cancelamentos', label: 'Cancelamentos', status: 'auto' as const, fonte: 'bronze_contahub_vendas_cancelamentos', calculo: 'Soma custototal', formato: 'moeda' as const, temTooltipDetalhes: true, detalhesKey: 'cancelamentos_detalhes' },
