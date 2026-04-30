@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     // Se não for para sincronizar, retorna do banco
     if (!sync) {
       const { data, error } = await supabase
+        .schema('integrations' as any)
         .from('contaazul_centros_custo')
         .select('*')
         .eq('bar_id', parseInt(barId))
@@ -100,6 +101,7 @@ export async function GET(request: NextRequest) {
 
     if (centrosParaSalvar.length > 0) {
       const { error: upsertError } = await supabase
+        .schema('integrations' as any)
         .from('contaazul_centros_custo')
         .upsert(centrosParaSalvar, {
           onConflict: 'contaazul_id,bar_id'

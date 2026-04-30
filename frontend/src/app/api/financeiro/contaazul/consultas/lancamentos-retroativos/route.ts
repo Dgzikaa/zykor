@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const mesesRetroativos = parseInt(searchParams.get('meses_retroativos') || '1');
 
     let query = supabase
+      .schema('integrations' as any)
       .from('contaazul_lancamentos')
       .select(`
         contaazul_id, bar_id, tipo, status, status_traduzido,
@@ -131,6 +132,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('[CONSULTAS-RETROATIVOS] Erro:', error);
-    return NextResponse.json({ success: false, error: 'Erro interno' }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: error?.message || 'Erro interno', stack: process.env.NODE_ENV === 'development' ? error?.stack : undefined },
+      { status: 500 }
+    );
   }
 }

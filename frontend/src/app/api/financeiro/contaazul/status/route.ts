@@ -38,15 +38,17 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
+    const integrationsClient = supabase.schema('integrations' as any);
     const [lancamentosCount, categoriasCount, centrosCustoCount, pessoasCount, contasCount] = await Promise.all([
-      supabase.from('contaazul_lancamentos').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
-      supabase.from('contaazul_categorias').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
-      supabase.from('contaazul_centros_custo').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
-      supabase.from('contaazul_pessoas').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
-      supabase.from('contaazul_contas_financeiras').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId))
+      integrationsClient.from('contaazul_lancamentos').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
+      integrationsClient.from('contaazul_categorias').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
+      integrationsClient.from('contaazul_centros_custo').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
+      integrationsClient.from('contaazul_pessoas').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
+      integrationsClient.from('contaazul_contas_financeiras').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId))
     ]);
 
     const { data: lastLog } = await supabase
+      .schema('integrations' as any)
       .from('contaazul_logs_sincronizacao')
       .select('data_fim, status, total_registros')
       .eq('bar_id', parseInt(barId))

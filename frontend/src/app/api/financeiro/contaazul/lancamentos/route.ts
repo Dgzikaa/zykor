@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     let query = supabase
+      .schema('integrations' as any)
       .from('contaazul_lancamentos')
       .select('*', { count: 'exact' })
       .eq('bar_id', parseInt(barId));
@@ -63,6 +64,7 @@ export async function GET(request: NextRequest) {
     }
 
     const queryTotais = supabase
+      .schema('integrations' as any)
       .from('contaazul_lancamentos')
       .select('valor_bruto, valor_pago, status, tipo')
       .eq('bar_id', parseInt(barId));
