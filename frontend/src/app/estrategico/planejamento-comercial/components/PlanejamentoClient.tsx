@@ -995,7 +995,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                             : 'text-[hsl(var(--muted-foreground))]'
                                       }`}>
                                         {evento.c_art > 0 && evento.couvert_vr_contahub && evento.couvert_vr_contahub > 0
-                                          ? formatarPercentual((evento.c_art / evento.couvert_vr_contahub) * 100)
+                                          ? formatarPercentual((evento.couvert_vr_contahub / evento.c_art) * 100)
                                           : evento.c_art > 0 ? '0,0%' : '-'}
                                       </span>
                                     ) : (
