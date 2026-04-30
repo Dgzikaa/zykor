@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     const barId = searchParams.get('bar_id') || '3';
     
     const { data, error } = await supabase
+      .schema('crm' as any)
       .from('crm_segmentacao')
       .select('*')
       .eq('bar_id', barId)
