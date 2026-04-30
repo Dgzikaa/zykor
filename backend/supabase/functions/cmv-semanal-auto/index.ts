@@ -387,75 +387,40 @@ serve(async (req) => {
         const comprasCmvTotal = comprasPorCategoria.cozinha + comprasPorCategoria.bebidas + comprasPorCategoria.drinks + comprasPorCategoria.outros;
         console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Compras processadas: R$ ${comprasCmvTotal.toFixed(2)}`);
 
-        // 4.2. Buscar CONSUMAÇÕES (4 categorias) - valores BRUTOS (sem multiplicador)
-        // TODO(rodrigo/2026-04): Reabilitar busca de consumações do bronze_contahub_vendas_analitico
-        // Contexto: Desabilitado temporariamente por timeout. Usar valores da planilha CMV enquanto isso.
-        // Issue: Investigar performance da RPC get_consumos_classificados_semana
+        // 4.2. Buscar CONSUMAÇÕES (4 categorias) via RPC SQL (server-side classifica)
         let consumacoes = {
           total_consumo_socios: 0,
           mesa_adm_casa: 0,
           mesa_beneficios_cliente: 0,
-          mesa_banda_dj: 0
+          mesa_banda_dj: 0,
         };
-        /*
         try {
-          const PADROES_SOCIOS = ['sócios', 'socios', 'socio', 'sócio', 'x-socio', 'x-sócio', 'x-soc', 'gonza', 'corbal', 'diogo', 'diego', 'cadu', 'augusto', 'rodrigo', 'digao', 'vinicius', 'vini', 'bueno', 'kaizen', 'caisen', 'joão pedro', 'joao pedro', 'jp', '3v', 'cantucci', 'moai', 'luan', 'viny'];
-          const PADROES_CLIENTES = ['aniver', 'anivers', 'aniversário', 'aniversario', 'aniversariante', 'niver', 'voucher', 'benefício', 'beneficio', 'mesa mágica', 'mágica', 'influencer', 'influ', 'influencia', 'influência', 'club', 'clube', 'midia', 'mídia', 'social', 'insta', 'digital', 'cliente', 'ambev', 'promoção', 'chegadeira', 'nct'];
-          const PADROES_ARTISTAS = ['musico', 'músicos', 'dj', 'banda', 'artista', 'breno', 'benza', 'stz', 'zelia', 'tia', 'samba', 'sambadona', 'doze', 'boca', 'boka', 'pé', 'chão', 'pe no', 'segunda', 'resenha', 'pagode', 'roda', 'reconvexa', 'rodie', 'roudier', 'roudi', 'som', 'técnico', 'tecnico', 'pv', 'paulo victor', 'prod', 'elas', 'bonsai', 'afrika', 'caju', 'negrita'];
-          const PADROES_FUNCIONARIOS = ['funcionários', 'funcionario', 'rh', 'financeiro', 'fin', 'mkt', 'marketing', 'slu', 'adm', 'administrativo', 'prêmio', 'confra', 'wendel', 'natalia', 'nato', 'x dudu', 'kauan', 'ana bia', 'teixeira', 'jhonny', 'andreia', 'lucia', 'phelipe', 'isabel', 'dakota', 'thais', 'edna', 'richard', 'gustavo', 'aladim', 'duarte', 'renan', 'henrique', 'deivid', 'vivi', 'rafa', 'adriana'];
+          const { data: consumosClassificados, error: consumosError } = await supabase.rpc('get_consumos_classificados_semana', {
+            input_bar_id: barId,
+            input_data_inicio: dataInicio,
+            input_data_fim: dataFim,
+          });
 
-          const matchPattern = (texto: string, patterns: string[]): boolean => {
-            const t = texto.toLowerCase();
-            return patterns.some(p => t.includes(p.toLowerCase()));
-          };
-
-          const classificarRegistro = (vdMesadesc: string, motivo: string): 'socios' | 'artistas' | 'funcionarios' | 'clientes' | null => {
-            const textoCompleto = `${vdMesadesc} ${motivo}`.toLowerCase();
-            
-            // Verificar CLIENTES primeiro (aniversário tem prioridade sobre nomes de sócios)
-            if (matchPattern(textoCompleto, PADROES_CLIENTES)) return 'clientes';
-            if (matchPattern(textoCompleto, PADROES_ARTISTAS)) return 'artistas';
-            if (matchPattern(textoCompleto, PADROES_FUNCIONARIOS)) return 'funcionarios';
-            if (matchPattern(textoCompleto, PADROES_SOCIOS)) return 'socios';
-            return null;
-          };
-
-          // Buscar consumos já classificados via SQL (função get_consumos_classificados_semana)
-          // Filtrar apenas valorfinal = 0 (consumos especiais onde o desconto = preço de venda)
-          try {
-            const { data: consumosClassificados, error: consumosError } = await supabase.rpc('get_consumos_classificados_semana', {
-              input_bar_id: barId,
-              input_data_inicio: dataInicio,
-              input_data_fim: dataFim
-            });
-
-            if (consumosError) {
-              console.error('  ⚠️ Erro ao buscar consumos classificados:', consumosError);
-            } else if (consumosClassificados && consumosClassificados.length > 0) {
-              const totais = { socios: 0, artistas: 0, funcionarios: 0, clientes: 0 };
-              
-              for (const item of consumosClassificados) {
-                const cat = item.categoria as 'socios' | 'artistas' | 'funcionarios' | 'clientes';
-                const valor = parseFloat(String(item.total)) || 0;
-                if (totais[cat] !== undefined) {
-                  totais[cat] = valor;
-                }
+          if (consumosError) {
+            console.error('  ⚠️ Erro ao buscar consumos classificados:', consumosError);
+          } else if (consumosClassificados && consumosClassificados.length > 0) {
+            const totais = { socios: 0, artistas: 0, funcionarios: 0, clientes: 0 };
+            for (const item of consumosClassificados) {
+              const cat = item.categoria as 'socios' | 'artistas' | 'funcionarios' | 'clientes';
+              const valor = parseFloat(String(item.total)) || 0;
+              if (totais[cat] !== undefined) {
+                totais[cat] = valor;
               }
-              
-              consumacoes.total_consumo_socios = totais.socios;
-              consumacoes.mesa_banda_dj = totais.artistas;
-              consumacoes.mesa_adm_casa = totais.funcionarios;
-              consumacoes.mesa_beneficios_cliente = totais.clientes;
-              console.log(`  👥 Consumações: Sócios R$ ${totais.socios.toFixed(2)}, Artistas R$ ${totais.artistas.toFixed(2)}, Funcionários R$ ${totais.funcionarios.toFixed(2)}, Clientes R$ ${totais.clientes.toFixed(2)}`);
             }
-          } catch (rpcErr) {
-            console.error('  ⚠️ Erro ao chamar RPC get_consumos_classificados_semana:', rpcErr);
+            consumacoes.total_consumo_socios = totais.socios;
+            consumacoes.mesa_banda_dj = totais.artistas;
+            consumacoes.mesa_adm_casa = totais.funcionarios;
+            consumacoes.mesa_beneficios_cliente = totais.clientes;
+            console.log(`  👥 Consumações: Sócios R$ ${totais.socios.toFixed(2)}, Artistas R$ ${totais.artistas.toFixed(2)}, Funcionários R$ ${totais.funcionarios.toFixed(2)}, Clientes R$ ${totais.clientes.toFixed(2)}`);
           }
-        } catch (err) {
-          console.error('  ⚠️ Erro ao buscar consumações:', err);
+        } catch (rpcErr) {
+          console.error('  ⚠️ Erro ao chamar RPC get_consumos_classificados_semana:', rpcErr);
         }
-        */
-        console.log('  ⚠️ Busca de consumos de bronze_contahub_vendas_analitico DESABILITADA (usar valores da planilha)');
         console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Consumos processados`);
 
         // 4.3. Cálculo de estoque final da contagem

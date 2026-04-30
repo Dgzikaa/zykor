@@ -280,9 +280,9 @@ export async function getPlanejamentoComercial(
     const couvertContahub = evento.couvert_vr_contahub !== null && evento.couvert_vr_contahub !== undefined
       ? Number(evento.couvert_vr_contahub)
       : 0;
-    // c_art / couvert <= 1.0 = green (couvert cobre o custo artistico)
+    // couvert / c_art >= 1.0 = green (couvert cobre o custo artistico — quanto maior melhor)
     const couvertCArtGreen = cArt > 0 && couvertContahub > 0
-      && (cArt / couvertContahub) <= metas.couvert_c_art_ratio_meta;
+      && (couvertContahub / cArt) >= metas.couvert_c_art_ratio_meta;
 
     const atrasaoCozinhaGreen = (evento.atrasao_cozinha || 0) <= metas.atrasao_cozinha_meta;
     const atrasaoBarGreen = (evento.atrasao_bar || 0) <= metas.atrasao_bar_meta;
