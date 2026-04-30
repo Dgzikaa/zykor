@@ -156,7 +156,7 @@ serve(async (req) => {
       let queryDesempenho = supabase
         .schema('gold')
         .from('desempenho')
-        .select('numero_semana, ano, data_inicio, data_fim, faturamento_total, faturamento_entrada, comissao')
+        .select('numero_semana, ano, data_inicio, data_fim, faturamento_total')
         .eq('bar_id', barId)
         .eq('granularidade', 'semanal')
         .eq('ano', anoAtual)
@@ -261,8 +261,6 @@ serve(async (req) => {
         const semanaEmAndamento = weekRange.end >= hoje;
 
         let faturamentoBruto = sem.faturamento_total || 0;
-        let comissao = (sem as any).comissao || 0;
-        let faturamentoCouvert = (sem as any).faturamento_entrada || 0;
 
         // Se a semana está em andamento E o faturamento está zerado, buscar do eventos_base
         if (semanaEmAndamento && faturamentoBruto === 0) {
@@ -275,18 +273,32 @@ serve(async (req) => {
             .eq('bar_id', barId)
             .gte('data_evento', weekRange.start)
             .lte('data_evento', weekRange.end);
-          
+
           if (eventosData && eventosData.length > 0) {
             faturamentoBruto = eventosData.reduce((sum, e) => sum + (parseFloat(e.real_r) || 0), 0);
             console.log(`✅ Faturamento do eventos_base: R$ ${faturamentoBruto}`);
           }
         }
-        
+
+        // Comissão (vd_vrrepique) e Couvert (vd_vrcouvert) direto do bronze ContaHub
+        // via RPC pra agregar no servidor (PostgREST limita 1000 linhas por default
+        // e algumas semanas tem ~4k vendas).
+        let comissao = 0;
+        let faturamentoCouvert = 0;
+        const { data: agg } = await supabase.rpc('get_comissao_couvert_periodo', {
+          p_bar_id: barId,
+          p_data_inicio: weekRange.start,
+          p_data_fim: weekRange.end,
+        });
+        if (Array.isArray(agg) && agg.length > 0) {
+          comissao = parseFloat(agg[0].comissao) || 0;
+          faturamentoCouvert = parseFloat(agg[0].couvert) || 0;
+        }
+
         console.log(`\n⏱️ [${Date.now() - barStartTime}ms] Processando semana ${numeroSemana}...`);
-        console.log(`📊 [DEBUG] Faturamento de gold.desempenho: R$ ${faturamentoBruto}`);
-        
-        // Faturamento Limpo = Faturamento Total - Comissão - Faturamento Couvert
-        // NOTA: "Faturamento Couvert" da planilha = faturamento_entrada (não couvert_atracoes)
+        console.log(`📊 [DEBUG] Bruto: R$ ${faturamentoBruto} | Comissao: R$ ${comissao.toFixed(2)} | Couvert: R$ ${faturamentoCouvert.toFixed(2)}`);
+
+        // Faturamento Limpo = Faturamento Total - Comissão (taxa servico) - Faturamento Couvert
         const faturamentoLimpo = faturamentoBruto - comissao - faturamentoCouvert;
         
         // Calcular datas da semana se não existirem
