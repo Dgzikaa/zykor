@@ -31,6 +31,7 @@ import {
   DollarSign,
   Star,
   Ticket,
+  FileSearch,
 } from 'lucide-react';
 
 interface BottomNavItem {
@@ -83,7 +84,16 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
   };
 
   // Estrutura completa do menu (igual ao sidebar)
+  // 🎯 ROTINA pinada no topo (sem sub) + AVANÇADO em accordion abaixo.
   const allMenuSections = [
+    // ═══ ROTINA — telas de uso diario ═══
+    { icon: BarChart3, label: 'Desempenho', href: '/estrategico/desempenho', color: 'text-blue-600 dark:text-blue-400', permission: 'gestao', subItems: [] },
+    { icon: Calendar, label: 'Planejamento', href: '/estrategico/planejamento-comercial', color: 'text-blue-600 dark:text-blue-400', permission: 'gestao', subItems: [] },
+    { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', color: 'text-green-600 dark:text-green-400', permission: 'relatorios', subItems: [] },
+    { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', color: 'text-green-600 dark:text-green-400', permission: 'operacoes', subItems: [] },
+    { icon: FileSearch, label: 'Dedo Duro', href: '/ferramentas/consultas', color: 'text-green-600 dark:text-green-400', permission: 'financeiro_agendamento', subItems: [] },
+
+    // ═══ AVANÇADO — agrupados ═══
     {
       icon: Target,
       label: 'Estratégico',
@@ -92,8 +102,6 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
       permission: 'gestao',
       subItems: [
         { icon: TrendingUp, label: 'Visão Geral', href: '/estrategico/visao-geral', permission: 'home' },
-        { icon: BarChart3, label: 'Desempenho', href: '/estrategico/desempenho', permission: 'gestao' },
-        { icon: Calendar, label: 'Planejamento Comercial', href: '/estrategico/planejamento-comercial', permission: 'gestao' },
       ],
     },
     {
@@ -119,10 +127,6 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
         { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
         { icon: Users, label: 'NPS', href: '/ferramentas/nps', permission: 'home' },
         { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
-        { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', permission: 'relatorios' },
-        // Simulação CMO removida — feature não implementada
-        { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'operacoes' },
-        // { icon: TrendingUp, label: 'CFP - Finanças', href: '/fp', permission: 'home' }, // TODO: Implementar
         { icon: Sparkles, label: 'Agente IA', href: '/ferramentas/agente', permission: 'home' },
       ],
     },

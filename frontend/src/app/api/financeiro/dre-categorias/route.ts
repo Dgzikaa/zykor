@@ -79,6 +79,7 @@ export async function GET(request: NextRequest) {
     const mes = searchParams.get('mes');
 
     let query = supabase
+      .schema('integrations' as any)
       .from('contaazul_lancamentos')
       .select('categoria_nome, valor_bruto, bar_id');
 

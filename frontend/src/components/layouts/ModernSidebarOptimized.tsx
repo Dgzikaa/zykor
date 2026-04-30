@@ -92,7 +92,48 @@ const PERMISSION_MAPPINGS: Record<string, string[]> = {
 };
 
 // Menu items - extraído para fora do componente
+//
+// 🎯 ROTINA (top-level pinned, sem dropdown): 4 telas core de uso diario.
+// Resto dos grupos abaixo continuam em accordion (defaultClosed).
 const defaultSidebarItems: SidebarItem[] = [
+  // ═══ ROTINA — telas usadas diariamente ═══
+  {
+    icon: BarChart3,
+    label: 'Desempenho',
+    href: '/estrategico/desempenho',
+    color: 'text-blue-600 dark:text-blue-400',
+    permission: 'gestao',
+  },
+  {
+    icon: Calendar,
+    label: 'Planejamento',
+    href: '/estrategico/planejamento-comercial',
+    color: 'text-blue-600 dark:text-blue-400',
+    permission: 'planejamento',
+  },
+  {
+    icon: TrendingUp,
+    label: 'CMV Semanal',
+    href: '/ferramentas/cmv-semanal',
+    color: 'text-green-600 dark:text-green-400',
+    permission: 'gestao',
+  },
+  {
+    icon: AlertTriangle,
+    label: 'Stockout',
+    href: '/ferramentas/stockout',
+    color: 'text-green-600 dark:text-green-400',
+    permission: 'gestao',
+  },
+  {
+    icon: FileSearch,
+    label: 'Dedo Duro',
+    href: '/ferramentas/consultas',
+    color: 'text-green-600 dark:text-green-400',
+    permission: 'financeiro_agendamento',
+  },
+
+  // ═══ AVANÇADO — agrupados (collapsed por padrão) ═══
   {
     icon: Target,
     label: 'Estratégico',
@@ -101,8 +142,6 @@ const defaultSidebarItems: SidebarItem[] = [
     permission: 'gestao',
     subItems: [
       { icon: TrendingUp, label: 'Visão Geral', href: '/estrategico/visao-geral', permission: 'home' },
-      { icon: BarChart3, label: 'Desempenho', href: '/estrategico/desempenho', permission: 'gestao' },
-      { icon: Calendar, label: 'Planejamento', href: '/estrategico/planejamento-comercial', permission: 'planejamento' },
       { icon: DollarSign, label: 'Orçamentação', href: '/estrategico/orcamentacao', permission: 'home' },
     ],
   },
@@ -139,12 +178,7 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
       { icon: Users, label: 'NPS Funcionários', href: '/ferramentas/nps', permission: 'gestao' },
       { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
-      { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', permission: 'gestao' },
       { icon: ChefHat, label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal', permission: 'gestao' },
-      // CMO removido — feature não implementada
-      { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
-      { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
-      // { icon: Wallet, label: 'CFP - Finanças', href: '/fp', description: 'Controle Financeiro Pessoal', permission: 'home' }, // TODO: Implementar
     ],
   },
   {

@@ -103,32 +103,10 @@ export async function GET(request: NextRequest) {
     }, {} as Record<string, number>);
 
     // ========================================
-    // MÉTRICAS DE CAMPANHAS
+    // MÉTRICAS DE CAMPANHAS — REMOVIDO 2026-04-27
+    // CUT Feature B: time usa portal Umbler direto. Métricas de envio em massa
+    // estão em /api/umbler/bulksend (lê da API Umbler) e /crm/campanhas/analise.
     // ========================================
-
-    // Total de campanhas
-    const { count: totalCampanhas } = await supabase
-      .from('umbler_campanhas')
-      .select('*', { count: 'exact', head: true })
-      .eq('bar_id', parseInt(barId))
-      .gte('created_at', dataInicioStr);
-
-    // Campanhas concluídas
-    const { data: campanhasConcluidas } = await supabase
-      .from('umbler_campanhas')
-      .select('enviados, erros, total_destinatarios, respostas')
-      .eq('bar_id', parseInt(barId))
-      .eq('status', 'concluida')
-      .gte('created_at', dataInicioStr);
-
-    const totalEnviados = campanhasConcluidas?.reduce((sum, c) => sum + (c.enviados || 0), 0) || 0;
-    const totalErros = campanhasConcluidas?.reduce((sum, c) => sum + (c.erros || 0), 0) || 0;
-    const totalDestinatarios = campanhasConcluidas?.reduce((sum, c) => sum + (c.total_destinatarios || 0), 0) || 0;
-    const totalRespostas = campanhasConcluidas?.reduce((sum, c) => sum + (c.respostas || 0), 0) || 0;
-
-    // Taxa de entrega e resposta
-    const taxaEntrega = totalDestinatarios > 0 ? (totalEnviados / totalDestinatarios) * 100 : 0;
-    const taxaResposta = totalEnviados > 0 ? (totalRespostas / totalEnviados) * 100 : 0;
 
     // ========================================
     // CONVERSAS POR DIA (para gráfico)
@@ -176,15 +154,6 @@ export async function GET(request: NextRequest) {
         total: totalMensagens || 0,
         por_direcao: direcaoCount,
         por_remetente: remetenteCount
-      },
-      campanhas: {
-        total: totalCampanhas || 0,
-        concluidas: campanhasConcluidas?.length || 0,
-        total_enviados: totalEnviados,
-        total_erros: totalErros,
-        total_respostas: totalRespostas,
-        taxa_entrega: Math.round(taxaEntrega * 100) / 100,
-        taxa_resposta: Math.round(taxaResposta * 100) / 100
       }
     });
 

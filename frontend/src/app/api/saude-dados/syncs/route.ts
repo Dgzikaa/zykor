@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
 
     // Conta Azul — verificar último lançamento importado
     const { data: contaazulData } = await supabase
+      .schema('integrations' as any)
       .from('contaazul_lancamentos')
       .select('created_at')
       .order('created_at', { ascending: false })

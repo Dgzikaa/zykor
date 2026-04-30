@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
 
     // Verificar syncs do Conta Azul nas últimas 24h
     const { data: syncs } = await supabase
+      .schema('integrations' as any)
       .from('contaazul_lancamentos')
       .select('id')
       .gte('created_at', ontem.toISOString())

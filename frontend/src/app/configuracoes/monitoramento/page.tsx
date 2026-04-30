@@ -58,9 +58,38 @@ interface CronExecution {
   return_message: string;
 }
 
+interface PipelineDashboard {
+  gold_status: Array<{
+    bar_id: number;
+    bar_nome: string;
+    desempenho_semanal_calc: string | null;
+    desempenho_mensal_calc: string | null;
+    planejamento_calc: string | null;
+    cmv_calc: string | null;
+    cmv_semanal_upd: string | null;
+    cmv_mensal_upd: string | null;
+    planejamento_ultima_data: string | null;
+    desempenho_ultima_semana: string | null;
+  }>;
+  stockout_gap: Array<{
+    bar_id: number;
+    bronze_dias: number;
+    silver_dias: number;
+    gap_datas: string[] | null;
+  }>;
+  alertas: {
+    pendentes_24h: number;
+    disparados_hoje: number;
+    erros_abertos: number;
+    avisos_abertos: number;
+  };
+  gerado_em: string;
+}
+
 export default function MonitoramentoPage() {
   const { setPageTitle } = usePageTitle();
   const [health, setHealth] = useState<HealthData | null>(null);
+  const [pipeline, setPipeline] = useState<PipelineDashboard | null>(null);
   const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
   const [executions, setExecutions] = useState<CronExecution[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +109,13 @@ export default function MonitoramentoPage() {
         const cronData = await cronRes.json();
         setCronJobs(cronData.jobs || []);
         setExecutions(cronData.executions || []);
+      }
+
+      // Fetch pipeline dashboard (gold tables, stockout gap, alertas)
+      const pipelineRes = await fetch('/api/monitoramento/health-dashboard');
+      if (pipelineRes.ok) {
+        const pipelineData = await pipelineRes.json();
+        setPipeline(pipelineData);
       }
 
     } catch (error: any) {
@@ -267,6 +303,9 @@ export default function MonitoramentoPage() {
             <TabsTrigger value="health" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600">
               <Server className="h-4 w-4 mr-2" /> Health Checks
             </TabsTrigger>
+            <TabsTrigger value="pipeline" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600">
+              <Database className="h-4 w-4 mr-2" /> Pipeline
+            </TabsTrigger>
             <TabsTrigger value="cron" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600">
               <Clock className="h-4 w-4 mr-2" /> Cron Jobs
             </TabsTrigger>
@@ -318,6 +357,144 @@ export default function MonitoramentoPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+            <TabsContent value="pipeline">
+              <div className="space-y-4">
+                {/* Status Pipelines por Bar */}
+                <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="text-gray-900 dark:text-white">Pipeline Gold por Bar</CardTitle>
+                    <CardDescription className="text-gray-600 dark:text-gray-400">
+                      Última atualização das tabelas gold (cron 12h BRT diário)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {pipeline?.gold_status?.length ? (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Bar</TableHead>
+                              <TableHead>Desempenho Semanal</TableHead>
+                              <TableHead>Desempenho Mensal</TableHead>
+                              <TableHead>Planejamento</TableHead>
+                              <TableHead>CMV (gold)</TableHead>
+                              <TableHead>CMV Semanal (financial)</TableHead>
+                              <TableHead>CMV Mensal (financial)</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {pipeline.gold_status.map((g) => {
+                              const isFresh = (date: string | null) => {
+                                if (!date) return false;
+                                const hours = (Date.now() - new Date(date).getTime()) / 36e5;
+                                return hours < 24;
+                              };
+                              const cellBadge = (date: string | null) => {
+                                const fresh = isFresh(date);
+                                return (
+                                  <div className="flex items-center gap-2">
+                                    {fresh ? (
+                                      <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+                                    ) : date ? (
+                                      <AlertTriangle className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+                                    ) : (
+                                      <XCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                                    )}
+                                    <span className="text-xs">{formatarDistancia(date)}</span>
+                                  </div>
+                                );
+                              };
+                              return (
+                                <TableRow key={g.bar_id}>
+                                  <TableCell className="font-medium">{g.bar_nome}</TableCell>
+                                  <TableCell>{cellBadge(g.desempenho_semanal_calc)}</TableCell>
+                                  <TableCell>{cellBadge(g.desempenho_mensal_calc)}</TableCell>
+                                  <TableCell>{cellBadge(g.planejamento_calc)}</TableCell>
+                                  <TableCell>{cellBadge(g.cmv_calc)}</TableCell>
+                                  <TableCell>{cellBadge(g.cmv_semanal_upd)}</TableCell>
+                                  <TableCell>{cellBadge(g.cmv_mensal_upd)}</TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">Sem dados.</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Stockout Gap */}
+                <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="text-gray-900 dark:text-white">Stockout Gap (últimos 7 dias)</CardTitle>
+                    <CardDescription className="text-gray-600 dark:text-gray-400">
+                      Dias com bronze populado mas silver vazio (auto-heal D-1 deveria pegar)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {pipeline?.stockout_gap?.map((s) => {
+                        const hasGap = (s.gap_datas?.length ?? 0) > 0;
+                        const barNome = pipeline.gold_status.find((g) => g.bar_id === s.bar_id)?.bar_nome || `Bar ${s.bar_id}`;
+                        return (
+                          <div key={s.bar_id} className={`p-4 rounded-lg border ${hasGap ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800' : 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="font-medium text-gray-900 dark:text-white">{barNome}</p>
+                              {hasGap ? (
+                                <Badge className="bg-red-100 text-red-800">⚠ Gap</Badge>
+                              ) : (
+                                <Badge className="bg-green-100 text-green-800">✓ OK</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                              Bronze: {s.bronze_dias} dias • Silver: {s.silver_dias} dias
+                            </p>
+                            {hasGap && (
+                              <p className="text-xs text-red-700 dark:text-red-300 mt-2">
+                                Faltando silver: {s.gap_datas?.join(', ')}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Alertas Discord */}
+                <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="text-gray-900 dark:text-white">Alertas Discord</CardTitle>
+                    <CardDescription className="text-gray-600 dark:text-gray-400">
+                      Resumo de alertas de pipeline (últimos 7 dias)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                        <p className="text-2xl font-bold text-red-700 dark:text-red-300">{pipeline?.alertas?.erros_abertos ?? 0}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Erros abertos</p>
+                      </div>
+                      <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                        <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{pipeline?.alertas?.avisos_abertos ?? 0}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Avisos abertos</p>
+                      </div>
+                      <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                        <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">{pipeline?.alertas?.pendentes_24h ?? 0}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Pendentes (24h)</p>
+                      </div>
+                      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{pipeline?.alertas?.disparados_hoje ?? 0}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Disparados hoje</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
 
             <TabsContent value="cron">
               <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
