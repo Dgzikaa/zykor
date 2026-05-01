@@ -156,6 +156,14 @@ export default function ConsumosClassificacaoPage() {
     setModalOpen(true);
   };
 
+  const abrirModalNova = (categoriaPre: string) => {
+    setPendSelecionada(null);
+    setNovoPattern('');
+    setNovaCategoria(categoriaPre);
+    setNovaDescricao('');
+    setModalOpen(true);
+  };
+
   const salvarKeyword = async () => {
     if (!novoPattern.trim()) {
       toast.error('Pattern é obrigatório');
@@ -369,9 +377,15 @@ export default function ConsumosClassificacaoPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Keywords cadastradas</CardTitle>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs">Mostrar inativas</Label>
-                <Switch checked={showInactive} onCheckedChange={setShowInactive} />
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs">Mostrar inativas</Label>
+                  <Switch checked={showInactive} onCheckedChange={setShowInactive} />
+                </div>
+                <Button size="sm" variant="outline" onClick={() => abrirModalNova('clientes')}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Nova keyword
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -381,6 +395,15 @@ export default function ConsumosClassificacaoPage() {
                     <div className="flex items-center gap-2 mb-2">
                       <Badge className={g.color}>{g.label}</Badge>
                       <span className="text-xs text-muted-foreground">({g.items.length})</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 ml-auto text-xs"
+                        onClick={() => abrirModalNova(g.value)}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Nova
+                      </Button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                       {g.items.map((kw) => (
@@ -411,14 +434,16 @@ export default function ConsumosClassificacaoPage() {
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Atribuir categoria</DialogTitle>
+            <DialogTitle>{pendSelecionada ? 'Atribuir categoria' : 'Nova keyword'}</DialogTitle>
             <DialogDescription>
-              {pendSelecionada && (
+              {pendSelecionada ? (
                 <>
                   Mesa <code className="text-xs">{pendSelecionada.mesa}</code> /
                   motivo <strong>{pendSelecionada.motivo}</strong> /
                   R$ {pendSelecionada.total_desconto}
                 </>
+              ) : (
+                <>Cadastrar keyword nova manualmente. Use lowercase e sem acento.</>
               )}
             </DialogDescription>
           </DialogHeader>
