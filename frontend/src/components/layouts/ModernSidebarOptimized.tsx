@@ -178,6 +178,7 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
       { icon: Users, label: 'NPS Funcionários', href: '/ferramentas/nps', permission: 'gestao' },
       { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
+      { icon: Tag, label: 'Classificação de Consumos', href: '/ferramentas/consumos-classificacao', permission: 'gestao' },
       { icon: ChefHat, label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal', permission: 'gestao' },
     ],
   },
