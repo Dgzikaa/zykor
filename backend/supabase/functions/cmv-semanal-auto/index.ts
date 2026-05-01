@@ -387,12 +387,20 @@ serve(async (req) => {
         const comprasCmvTotal = comprasPorCategoria.cozinha + comprasPorCategoria.bebidas + comprasPorCategoria.drinks + comprasPorCategoria.outros;
         console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Compras processadas: R$ ${comprasCmvTotal.toFixed(2)}`);
 
-        // 4.2. Buscar CONSUMAÇÕES (4 categorias) via RPC SQL (server-side classifica)
+        // 4.2. Buscar CONSUMAÇÕES (5 categorias) via RPC SQL (server-side classifica)
+        // Categorias: socios, artistas, funcionarios_operacao, funcionarios_escritorio, clientes
+        // Mapeamento -> tabela cmv_semanal:
+        //   socios                  -> total_consumo_socios
+        //   artistas                -> mesa_banda_dj
+        //   funcionarios_operacao   -> mesa_rh
+        //   funcionarios_escritorio -> mesa_adm_casa
+        //   clientes                -> mesa_beneficios_cliente
         let consumacoes = {
           total_consumo_socios: 0,
+          mesa_banda_dj: 0,
+          mesa_rh: 0,
           mesa_adm_casa: 0,
           mesa_beneficios_cliente: 0,
-          mesa_banda_dj: 0,
         };
         try {
           const { data: consumosClassificados, error: consumosError } = await supabase.rpc('get_consumos_classificados_semana', {
@@ -404,19 +412,20 @@ serve(async (req) => {
           if (consumosError) {
             console.error('  ⚠️ Erro ao buscar consumos classificados:', consumosError);
           } else if (consumosClassificados && consumosClassificados.length > 0) {
-            const totais = { socios: 0, artistas: 0, funcionarios: 0, clientes: 0 };
+            const mapField: Record<string, keyof typeof consumacoes> = {
+              socios: 'total_consumo_socios',
+              artistas: 'mesa_banda_dj',
+              funcionarios_operacao: 'mesa_rh',
+              funcionarios_escritorio: 'mesa_adm_casa',
+              clientes: 'mesa_beneficios_cliente',
+            };
             for (const item of consumosClassificados) {
-              const cat = item.categoria as 'socios' | 'artistas' | 'funcionarios' | 'clientes';
+              const cat = item.categoria as string;
+              const field = mapField[cat];
               const valor = parseFloat(String(item.total)) || 0;
-              if (totais[cat] !== undefined) {
-                totais[cat] = valor;
-              }
+              if (field) consumacoes[field] = valor;
             }
-            consumacoes.total_consumo_socios = totais.socios;
-            consumacoes.mesa_banda_dj = totais.artistas;
-            consumacoes.mesa_adm_casa = totais.funcionarios;
-            consumacoes.mesa_beneficios_cliente = totais.clientes;
-            console.log(`  👥 Consumações: Sócios R$ ${totais.socios.toFixed(2)}, Artistas R$ ${totais.artistas.toFixed(2)}, Funcionários R$ ${totais.funcionarios.toFixed(2)}, Clientes R$ ${totais.clientes.toFixed(2)}`);
+            console.log(`  👥 Consumações: Sócios R$ ${consumacoes.total_consumo_socios.toFixed(2)}, Artistas R$ ${consumacoes.mesa_banda_dj.toFixed(2)}, Op R$ ${consumacoes.mesa_rh.toFixed(2)}, Esc R$ ${consumacoes.mesa_adm_casa.toFixed(2)}, Clientes R$ ${consumacoes.mesa_beneficios_cliente.toFixed(2)}`);
           }
         } catch (rpcErr) {
           console.error('  ⚠️ Erro ao chamar RPC get_consumos_classificados_semana:', rpcErr);
@@ -610,8 +619,8 @@ serve(async (req) => {
             consumoSocios = (consumacoes.total_consumo_socios || 0) * fatorConsumo;
             consumoBeneficios = (consumacoes.mesa_beneficios_cliente || 0) * fatorConsumo;
             consumoArtista = (consumacoes.mesa_banda_dj || 0) * fatorConsumo;
-            const consumoAdm = (consumacoes.mesa_adm_casa || 0) * fatorConsumo;
-            consumoRh = consumoAdm; // mesa_adm_casa é o RH quando não vem da planilha
+            // RH = funcionarios_operacao (mesa_rh) + funcionarios_escritorio (mesa_adm_casa)
+            consumoRh = ((consumacoes.mesa_rh || 0) + (consumacoes.mesa_adm_casa || 0)) * fatorConsumo;
           }
           
           const totalConsumos = consumoSocios + consumoBeneficios + consumoArtista + consumoRh + outrosAjustes;
@@ -655,9 +664,10 @@ serve(async (req) => {
           compras_custo_drinks: comprasPorCategoria.drinks,
           // Consumações (valores BRUTOS - multiplicador aplicado no cálculo do CMV)
           total_consumo_socios: consumacoes.total_consumo_socios,
+          mesa_banda_dj: consumacoes.mesa_banda_dj,
+          mesa_rh: consumacoes.mesa_rh,
           mesa_adm_casa: consumacoes.mesa_adm_casa,
           mesa_beneficios_cliente: consumacoes.mesa_beneficios_cliente,
-          mesa_banda_dj: consumacoes.mesa_banda_dj,
           // Propagar estoque inicial da semana anterior (só se não veio da planilha)
           ...estoqueInicialUpdate,
           updated_at: new Date().toISOString()
