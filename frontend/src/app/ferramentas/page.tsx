@@ -31,7 +31,8 @@ import {
   Terminal,
   Coffee,
   Wallet,
-  Megaphone
+  Megaphone,
+  Tag
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -118,6 +119,22 @@ export default function FerramentasPage() {
       buttonBorderColor: 'border-emerald-500 dark:border-emerald-700',
       buttonTextColor: 'text-emerald-600 dark:text-emerald-400',
       features: 'Tabela CMV • Visualização • Análise Semanal',
+      status: 'active'
+    },
+    // Classificação de Consumos
+    {
+      title: 'Classificação de Consumos',
+      description: 'Auto-classificação dos descontos do ContaHub (5 categorias) + revisão de pendências',
+      icon: Tag,
+      href: '/ferramentas/consumos-classificacao',
+      badge: 'Novo',
+      badgeColor: 'border-amber-200 text-amber-700 dark:border-amber-700 dark:text-amber-300',
+      iconBgColor: 'bg-amber-100 dark:bg-amber-900/30',
+      iconTextColor: 'text-amber-600 dark:text-amber-400',
+      buttonBgColor: 'bg-amber-500/10 dark:bg-amber-900/20',
+      buttonBorderColor: 'border-amber-500 dark:border-amber-700',
+      buttonTextColor: 'text-amber-600 dark:text-amber-400',
+      features: 'Pendências • Keywords • Cobertura semanal',
       status: 'active'
     },
     // DRE
