@@ -429,7 +429,7 @@ export default function ConsumosClassificacaoPage() {
               <Input value={novoPattern} onChange={(e) => setNovoPattern(e.target.value)} />
               <p className="text-[10px] text-muted-foreground">
                 Use boundaries <code>\m</code>/<code>\M</code> pra evitar falsos matches em nomes curtos
-                (ex: <code>\mana\M</code> só pega "ana", não "banana").
+                (ex: <code>\mana\M</code> só pega &quot;ana&quot;, não &quot;banana&quot;).
               </p>
             </div>
 
