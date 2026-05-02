@@ -47,6 +47,14 @@ interface Cobertura {
   pct_cobertura: number;
 }
 
+interface DetalheItem {
+  data: string;
+  mesa: string;
+  motivo: string;
+  qtd_itens: number;
+  valor: number;
+}
+
 interface Keyword {
   id: number;
   pattern: string;
@@ -102,6 +110,12 @@ export default function ConsumosClassificacaoPage() {
   const [novoPattern, setNovoPattern] = useState('');
   const [novaCategoria, setNovaCategoria] = useState('clientes');
   const [novaDescricao, setNovaDescricao] = useState('');
+
+  // Modal de drill-down por categoria
+  const [modalDetalhesOpen, setModalDetalhesOpen] = useState(false);
+  const [categoriaDetalhes, setCategoriaDetalhes] = useState<string | null>(null);
+  const [detalhes, setDetalhes] = useState<DetalheItem[]>([]);
+  const [loadingDetalhes, setLoadingDetalhes] = useState(false);
 
   useEffect(() => {
     setPageTitle('🏷️ Classificação de Consumos');
@@ -162,6 +176,26 @@ export default function ConsumosClassificacaoPage() {
     setNovaCategoria(categoriaPre);
     setNovaDescricao('');
     setModalOpen(true);
+  };
+
+  const abrirDetalhes = async (categoria: string) => {
+    if (!selectedBar?.id) return;
+    setCategoriaDetalhes(categoria);
+    setModalDetalhesOpen(true);
+    setLoadingDetalhes(true);
+    setDetalhes([]);
+    try {
+      const res = await fetch(
+        `/api/cmv-semanal/consumos-classificacao/detalhes?bar_id=${selectedBar.id}&ano=${ano}&semana=${semana}&categoria=${categoria}`
+      );
+      const data = await res.json();
+      if (res.ok) setDetalhes(data.itens || []);
+      else toast.error('Erro: ' + data.error);
+    } catch (e: any) {
+      toast.error('Erro: ' + e.message);
+    } finally {
+      setLoadingDetalhes(false);
+    }
   };
 
   const salvarKeyword = async () => {
@@ -361,12 +395,19 @@ export default function ConsumosClassificacaoPage() {
                 {categorizado.map((c) => {
                   const info = getCategoriaInfo(c.categoria);
                   return (
-                    <div key={c.categoria} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                    <button
+                      key={c.categoria}
+                      onClick={() => abrirDetalhes(c.categoria)}
+                      className="w-full flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/60 transition-colors text-left"
+                    >
                       <Badge className={info.color}>{info.label}</Badge>
                       <span className="font-mono font-semibold">{fmtBRL(parseFloat(String(c.total)))}</span>
-                    </div>
+                    </button>
                   );
                 })}
+                <p className="text-xs text-muted-foreground text-center pt-2">
+                  Clique numa categoria para ver os itens detalhados
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -483,6 +524,74 @@ export default function ConsumosClassificacaoPage() {
               Adicionar Keyword
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de drill-down por categoria */}
+      <Dialog open={modalDetalhesOpen} onOpenChange={setModalDetalhesOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {categoriaDetalhes && (
+                <span className="flex items-center gap-2">
+                  Detalhes —
+                  <Badge className={getCategoriaInfo(categoriaDetalhes).color}>
+                    {getCategoriaInfo(categoriaDetalhes).label}
+                  </Badge>
+                </span>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Semana {semana}/{ano} — itens ordenados da data mais recente pra mais antiga
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingDetalhes ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <RefreshCw className="h-6 w-6 mx-auto animate-spin mb-2" />
+              Carregando...
+            </div>
+          ) : detalhes.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhum item encontrado
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-background">
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-2">Data</th>
+                    <th className="text-left py-2 px-2">Mesa</th>
+                    <th className="text-left py-2 px-2">Motivo</th>
+                    <th className="text-right py-2 px-2">Itens</th>
+                    <th className="text-right py-2 px-2">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detalhes.map((d, i) => (
+                    <tr key={i} className="border-b hover:bg-muted/50">
+                      <td className="py-2 px-2 text-xs whitespace-nowrap">
+                        {new Date(d.data).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="py-2 px-2 font-mono text-xs">{d.mesa}</td>
+                      <td className="py-2 px-2 text-xs">{d.motivo}</td>
+                      <td className="py-2 px-2 text-right">{d.qtd_itens}</td>
+                      <td className="py-2 px-2 text-right font-mono">{fmtBRL(parseFloat(String(d.valor)))}</td>
+                    </tr>
+                  ))}
+                  <tr className="font-semibold bg-muted/30">
+                    <td colSpan={3} className="py-2 px-2">Total</td>
+                    <td className="py-2 px-2 text-right">
+                      {detalhes.reduce((sum, d) => sum + d.qtd_itens, 0)}
+                    </td>
+                    <td className="py-2 px-2 text-right font-mono">
+                      {fmtBRL(detalhes.reduce((sum, d) => sum + parseFloat(String(d.valor)), 0))}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
