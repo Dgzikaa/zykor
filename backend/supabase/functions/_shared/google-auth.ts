@@ -195,6 +195,73 @@ export async function downloadDriveFileAsExcel(
 }
 
 /**
+ * Le aba de Google Sheet via Sheets API (mais leve que baixar XLSX inteiro).
+ * Retorna array 2D direto, sem precisar parsear XLSX em memoria.
+ *
+ * @param spreadsheetId - ID do spreadsheet
+ * @param sheetName - Nome da aba
+ * @param accessToken - Token de acesso Google
+ * @param scope - Range opcional (ex: 'A1:Z1000'). Default: aba inteira.
+ */
+export async function getSheetValues(
+  spreadsheetId: string,
+  sheetName: string,
+  accessToken: string,
+  range?: string
+): Promise<any[][]> {
+  const fullRange = range ? `${sheetName}!${range}` : sheetName
+  const encodedRange = encodeURIComponent(fullRange)
+  // SERIAL_NUMBER mantem datas como Excel serial (compativel com parser inline)
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedRange}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+
+  return await withRetry(
+    async () => {
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      })
+
+      if (!response.ok) {
+        const error: any = new Error(`Sheets API erro: ${response.status} ${response.statusText}`)
+        error.status = response.status
+        throw error
+      }
+
+      const data = await response.json()
+      return data.values || []
+    },
+    { maxRetries: 3, baseDelayMs: 1000, retryOn: isRetriableError }
+  )
+}
+
+/**
+ * Lista nomes das abas (sheets) de um spreadsheet
+ */
+export async function getSheetNames(
+  spreadsheetId: string,
+  accessToken: string
+): Promise<string[]> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`
+
+  return await withRetry(
+    async () => {
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      })
+
+      if (!response.ok) {
+        const error: any = new Error(`Sheets API erro: ${response.status} ${response.statusText}`)
+        error.status = response.status
+        throw error
+      }
+
+      const data = await response.json()
+      return (data.sheets || []).map((s: any) => s.properties?.title || '').filter(Boolean)
+    },
+    { maxRetries: 3, baseDelayMs: 1000, retryOn: isRetriableError }
+  )
+}
+
+/**
  * Converte data DD/MM/YYYY para YYYY-MM-DD (formato PostgreSQL)
  */
 export function parseDataBR(dateStr: string): string | null {

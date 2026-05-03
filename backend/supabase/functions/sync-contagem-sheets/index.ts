@@ -1,7 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
-import * as XLSX from 'https://esm.sh/xlsx@0.18.5'
-import { getGoogleAccessToken, downloadDriveFileAsExcel, parseDataBR } from '../_shared/google-auth.ts'
+import { getGoogleAccessToken, getSheetValues, getSheetNames, parseDataBR } from '../_shared/google-auth.ts'
 import { 
   getSyncBaseline, 
   validateSheetStructure, 
@@ -237,26 +236,17 @@ serve(async (req) => {
       console.log(`\n📊 Processando Bar ${barId} - Planilha: ${spreadsheetId}`)
 
       try {
-        // Baixar planilha como Excel
-        const excelBuffer = await downloadDriveFileAsExcel(spreadsheetId, accessToken)
-        console.log(`📥 Planilha baixada: ${(excelBuffer.byteLength / 1024).toFixed(1)} KB`)
+        // Ler aba INSUMOS via Sheets API direta (sem XLSX parsing - 10x menos memoria)
+        const sheetNames = await getSheetNames(spreadsheetId, accessToken)
+        const abaReal = sheetNames.find(n => n.toLowerCase() === abaInsumos.toLowerCase())
 
-        // Ler Excel
-        const workbook = XLSX.read(new Uint8Array(excelBuffer), { type: 'array' })
-        
-        // Encontrar aba INSUMOS
-        const sheetNames = workbook.SheetNames.map(n => n.toLowerCase())
-        const abaIndex = sheetNames.indexOf(abaInsumos.toLowerCase())
-        
-        if (abaIndex === -1) {
-          console.warn(`⚠️ Bar ${barId}: Aba '${abaInsumos}' não encontrada. Abas disponíveis: ${workbook.SheetNames.join(', ')}`)
+        if (!abaReal) {
+          console.warn(`⚠️ Bar ${barId}: Aba '${abaInsumos}' não encontrada. Abas disponíveis: ${sheetNames.join(', ')}`)
           continue
         }
 
-        const sheet = workbook.Sheets[workbook.SheetNames[abaIndex]]
-        const jsonData: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null })
-
-        console.log(`📄 Aba ${abaInsumos}: ${jsonData.length} linhas`)
+        const jsonData: any[][] = await getSheetValues(spreadsheetId, abaReal, accessToken)
+        console.log(`📄 Aba ${abaReal}: ${jsonData.length} linhas (via Sheets API)`)
 
         if (jsonData.length < 7) {
           console.warn(`⚠️ Bar ${barId}: Planilha com poucas linhas`)
@@ -436,13 +426,14 @@ serve(async (req) => {
             if (dataStr.includes('/')) {
               dataFormatada = parseDataBR(dataStr)
             } else if (!isNaN(Number(valor)) && Number(valor) > 40000 && Number(valor) < 50000) {
-              const excelDate = XLSX.SSF.parse_date_code(Number(valor))
-              if (excelDate) {
-                const d = excelDate.d.toString().padStart(2, '0')
-                const m = excelDate.m.toString().padStart(2, '0')
-                const y = excelDate.y
-                dataFormatada = `${y}-${m}-${d}`
-              }
+              // Excel serial date -> JS Date (Excel epoch = 1899-12-30)
+              const excelEpoch = new Date(Date.UTC(1899, 11, 30))
+              const ms = Number(valor) * 86400000
+              const d = new Date(excelEpoch.getTime() + ms)
+              const yyyy = d.getUTCFullYear()
+              const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+              const dd = String(d.getUTCDate()).padStart(2, '0')
+              dataFormatada = `${yyyy}-${mm}-${dd}`
             }
             
             if (dataFormatada && datasProcessar.includes(dataFormatada)) {
@@ -668,49 +659,25 @@ serve(async (req) => {
 })
 
 /**
- * Propaga estoque inicial baseado no estoque final do dia anterior
+ * Propaga estoque inicial baseado no estoque final do dia anterior.
+ * Usa RPC SQL pra fazer UPDATE bulk via JOIN (1 query por data, em vez de N+1).
  */
 async function propagarEstoqueInicial(
   supabase: any,
   barId: number,
   datas: string[]
 ): Promise<void> {
-  console.log(`  🔄 Propagando estoque inicial para Bar ${barId}...`)
-  
-  // Ordenar datas
-  const datasOrdenadas = [...datas].sort()
-  
-  for (const data of datasOrdenadas) {
-    // Calcular dia anterior
-    const dateObj = new Date(data + 'T12:00:00Z')
-    dateObj.setDate(dateObj.getDate() - 1)
-    const dataAnterior = dateObj.toISOString().split('T')[0]
+  console.log(`  🔄 Propagando estoque inicial para Bar ${barId} via RPC bulk...`)
 
-    // Buscar estoque final do dia anterior por insumo
-    const { data: estoqueAnterior } = await supabase
-      .schema('operations')
-      .from('contagem_estoque_insumos')
-      .select('insumo_codigo, estoque_final')
-      .eq('bar_id', barId)
-      .eq('data_contagem', dataAnterior)
+  const { data, error } = await supabase.rpc('propagar_estoque_inicial_contagem', {
+    p_bar_id: barId,
+    p_datas: datas,
+  })
 
-    if (estoqueAnterior && estoqueAnterior.length > 0) {
-      const mapaEstoque = new Map<string, number>()
-      estoqueAnterior.forEach((e: any) => {
-        mapaEstoque.set(e.insumo_codigo, e.estoque_final)
-      })
-
-      // Atualizar estoque inicial do dia atual
-      for (const [codigo, estoqueIni] of mapaEstoque.entries()) {
-        await supabase
-          .schema('operations')
-          .from('contagem_estoque_insumos')
-          .update({ estoque_inicial: estoqueIni })
-          .eq('bar_id', barId)
-          .eq('data_contagem', data)
-          .eq('insumo_codigo', codigo)
-      }
-    }
+  if (error) {
+    console.error(`  ❌ Erro propagar estoque inicial Bar ${barId}: ${error.message}`)
+  } else {
+    console.log(`  ✅ ${data ?? 0} linhas propagadas (Bar ${barId})`)
   }
 }
 
