@@ -27,9 +27,10 @@ const ALLOWED_ORIGINS = [
  * @param req - Request object
  * @returns Headers CORS com origin validado
  */
-export function getCorsHeaders(req: Request): Record<string, string> {
-  const origin = req.headers.get('Origin') || '';
-  const cronSecret = req.headers.get('x-cron-secret');
+export function getCorsHeaders(req?: Request | null): Record<string, string> {
+  // Defensivo: req pode ser undefined em chamadas mal-tipadas
+  const origin = req?.headers?.get?.('Origin') || '';
+  const cronSecret = req?.headers?.get?.('x-cron-secret');
   
   // Se é um cron job (sem origin mas com secret), permitir
   if (!origin && cronSecret) {
@@ -73,7 +74,7 @@ export function handleCorsOptions(req: Request): Response {
 /**
  * Resposta de sucesso com JSON
  */
-export function jsonResponse(data: unknown, req: Request, status: number = 200): Response {
+export function jsonResponse(data: unknown, req?: Request | null, status: number = 200): Response {
   return new Response(
     JSON.stringify(data),
     { 
@@ -86,7 +87,7 @@ export function jsonResponse(data: unknown, req: Request, status: number = 200):
 /**
  * Resposta de erro com JSON
  */
-export function errorResponse(message: string, req: Request, details?: unknown, status: number = 500): Response {
+export function errorResponse(message: string, req?: Request | null, details?: unknown, status: number = 500): Response {
   return new Response(
     JSON.stringify({ 
       success: false, 

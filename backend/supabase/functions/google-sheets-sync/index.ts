@@ -31,6 +31,7 @@ import { handleCorsOptions, jsonResponse, errorResponse } from '../_shared/cors.
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
 import { withRetry, isRetriableError } from '../_shared/retry.ts'
 import { validateFunctionEnv } from '../_shared/env-validator.ts'
+import { requireAuth } from '../_shared/auth-guard.ts'
 
 // ========== TIPOS ==========
 interface SyncResult {
@@ -212,6 +213,7 @@ async function syncNPS(barId?: number, opts?: SyncOpts): Promise<{ message: stri
         const batch = registros.slice(i, i + BATCH_SIZE)
         
         const { data: insertedData, error: insertError } = await supabase
+          .schema('crm' as any)
           .from('nps')
           .upsert(batch, {
             onConflict: 'bar_id,data_pesquisa,funcionario_nome,setor',
@@ -321,6 +323,7 @@ async function syncNPSReservas(barId?: number, opts?: SyncOpts): Promise<{ messa
         const batch = registros.slice(i, i + BATCH_SIZE)
         
         const { data: insertedData, error: insertError } = await supabase
+          .schema('crm' as any)
           .from('nps_reservas')
           .upsert(batch, {
             onConflict: 'bar_id,data_pesquisa,nota,comentarios',
@@ -433,6 +436,7 @@ async function syncVozCliente(barId?: number): Promise<{ message: string; result
       const batch = registros.slice(i, i + BATCH_SIZE)
       
       const { data: insertedData, error: insertError } = await supabase
+        .schema('crm' as any)
         .from('voz_cliente')
         .upsert(batch, {
           onConflict: 'bar_id,data_feedback,feedback',
@@ -591,6 +595,7 @@ async function syncPesquisaFelicidade(barId?: number): Promise<{ message: string
         const batch = registros.slice(i, i + BATCH_SIZE)
         
         const { data: insertedData, error: insertError } = await supabase
+          .schema('hr' as any)
           .from('pesquisa_felicidade')
           .upsert(batch, {
             onConflict: 'bar_id,data_pesquisa,funcionario_nome,setor',
@@ -723,13 +728,13 @@ async function processAction(
 // ========== MAIN HANDLER ==========
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return handleCorsOptions()
+    return handleCorsOptions(req)
   }
 
   // Validar autenticação (JWT ou CRON_SECRET)
   const authError = requireAuth(req);
   if (authError) return authError;
-  
+
   try {
     // Validar variáveis de ambiente obrigatórias
     validateFunctionEnv('google-sheets-sync', [
@@ -749,6 +754,7 @@ serve(async (req) => {
     if (actionsToProcess.length === 0) {
       return errorResponse(
         'Nenhuma action especificada. Use "action" (singular) ou "actions" (array).',
+        req,
         null,
         400
       )
@@ -788,7 +794,7 @@ serve(async (req) => {
     const result = await processAction(singleAction, bar_id, opts, body, supabase)
     
     if (!result.success) {
-      return errorResponse(result.error || 'Erro desconhecido', null, 400)
+      return errorResponse(result.error || 'Erro desconhecido', req, null, 400)
     }
     
     return jsonResponse({
@@ -801,6 +807,6 @@ serve(async (req) => {
     
   } catch (error: any) {
     console.error('❌ Erro na função:', error)
-    return errorResponse(error.message, error)
+    return errorResponse(error?.message || String(error), req, error)
   }
 })

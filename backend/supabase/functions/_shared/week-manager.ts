@@ -24,6 +24,7 @@ export const ACTIVE_BAR_IDS = FALLBACK_BAR_IDS;
 export async function getActiveBarIds(supabase: any): Promise<readonly number[]> {
   try {
     const { data, error } = await supabase
+      .schema('operations')
       .from('bares')
       .select('id')
       .eq('ativo', true)
