@@ -736,6 +736,7 @@ async function calcularEstoquesSemanaais(
 
   // Buscar bares ativos do banco
   const { data: baresAtivos } = await supabase
+    .schema('operations')
     .from('bares')
     .select('id')
     .eq('ativo', true)
