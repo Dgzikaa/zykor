@@ -98,14 +98,10 @@ const defaultSidebarItems: SidebarItem[] = [
     href: '/ferramentas',
     permission: 'ferramentas',
     subItems: [
-      { icon: MessageCircle, label: 'CRM', href: '/ferramentas/crm', permission: 'gestao' },
       { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
-      { icon: Users, label: 'NPS Funcionários', href: '/ferramentas/nps', permission: 'gestao' },
       { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
       { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', permission: 'gestao' },
       { icon: Tag, label: 'Classificação de Consumos', href: '/ferramentas/consumos-classificacao', permission: 'gestao' },
-      { icon: ChefHat, label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal', permission: 'gestao' },
-      // CMO removido — feature não implementada
       { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
       { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
     ],
@@ -122,23 +118,6 @@ const defaultSidebarItems: SidebarItem[] = [
       // Auditoria removida — libs deletadas
       { icon: Activity, label: 'Saúde dos Dados', href: '/configuracoes/saude-dados', permission: 'configuracoes' },
       { icon: Activity, label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },
-    ],
-  },
-  {
-    icon: Star,
-    label: 'Extras',
-    href: '/extras',
-    permission: 'home',
-    subItems: [
-      // Produção e Contagem removidos — APIs deletadas
-      { icon: PieChart, label: 'DRE', href: '/ferramentas/dre', permission: 'gestao' },
-      { icon: Clock, label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
-      { icon: Star, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },
-      { icon: DollarSign, label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'gestao' },
-      { icon: Target, label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
-      { icon: Receipt, label: 'Fichas Técnicas', href: '/extras/fichas-tecnicas', permission: 'configuracoes' },
-      { icon: CheckSquare, label: 'Checklists', href: '/extras/checklists', permission: 'configuracoes' },
-      { icon: Calendar, label: 'Calendário Operacional', href: '/extras/calendario-operacional', permission: 'configuracoes' },
     ],
   },
 ];
