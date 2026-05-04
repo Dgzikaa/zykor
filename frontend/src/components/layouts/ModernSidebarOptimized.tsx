@@ -174,12 +174,9 @@ const defaultSidebarItems: SidebarItem[] = [
     color: 'text-green-600 dark:text-green-400',
     permission: 'ferramentas',
     subItems: [
-      { icon: MessageCircle, label: 'CRM', href: '/ferramentas/crm', permission: 'gestao' },
       { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
-      { icon: Users, label: 'NPS Funcionários', href: '/ferramentas/nps', permission: 'gestao' },
       { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
       { icon: Tag, label: 'Classificação de Consumos', href: '/ferramentas/consumos-classificacao', permission: 'gestao' },
-      { icon: ChefHat, label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal', permission: 'gestao' },
     ],
   },
   {
@@ -195,24 +192,6 @@ const defaultSidebarItems: SidebarItem[] = [
       // Auditoria removida — libs deletadas
       { icon: Target, label: 'Saúde dos Dados', href: '/configuracoes/saude-dados', permission: 'configuracoes' },
       { icon: Activity, label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },
-    ],
-  },
-  {
-    icon: Star,
-    label: 'Extras',
-    href: '/extras',
-    color: 'text-yellow-600 dark:text-yellow-400',
-    permission: 'home',
-    subItems: [
-      // Produção e Contagem removidos — APIs deletadas
-      { icon: DollarSign, label: 'DRE', href: '/ferramentas/dre', permission: 'dashboard_financeiro_mensal' },
-      { icon: Clock, label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
-      { icon: Sparkles, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },
-      { icon: Ticket, label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'relatorios' },
-      { icon: Megaphone, label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
-      { icon: ChefHat, label: 'Fichas Técnicas', href: '/extras/fichas-tecnicas', permission: 'operacoes' },
-      { icon: CheckSquare, label: 'Checklists', href: '/extras/checklists', permission: 'configuracoes' },
-      { icon: Calendar, label: 'Calendário Operacional', href: '/extras/calendario-operacional', permission: 'operacoes' },
     ],
   },
 ];
