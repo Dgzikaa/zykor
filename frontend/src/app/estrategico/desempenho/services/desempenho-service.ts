@@ -527,12 +527,14 @@ export async function getSemanas(
       ? (cmvRsCalculado / s.faturamento_total) * 100
       : null;
 
-    // Calcular Quebra de Reservas = (Pessoas Total - Pessoas Presentes) / Pessoas Total × 100
-    // reservas_totais e reservas_presentes no banco = pessoas (não mesas)
-    const pessoasTotal = s.reservas_totais || 0;
-    const pessoasPresentes = s.reservas_presentes || 0;
-    const quebraReservas = pessoasTotal > 0 
-      ? ((pessoasTotal - pessoasPresentes) / pessoasTotal) * 100 
+    // Calcular Quebra de Reservas = (Mesas Reservadas - Mesas Presentes) / Mesas Reservadas × 100
+    // Usa MESAS (cada reserva = 1 mesa), nao pessoas — quebra eh por reserva nao comparecida.
+    // s.mesas_totais e s.mesas_presentes vem do GetIn (mesas_totais/mesas_presentes manuais
+    // ou agregado de reservas_totais_quantidade/reservas_presentes_quantidade do gold).
+    const mesasTotal = (s as any).mesas_totais || 0;
+    const mesasPresentes = (s as any).mesas_presentes || 0;
+    const quebraReservas = mesasTotal > 0
+      ? ((mesasTotal - mesasPresentes) / mesasTotal) * 100
       : 0;
 
     // Garantir que valores numéricos vindos como string do Postgres sejam convertidos
