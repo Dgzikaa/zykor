@@ -190,6 +190,14 @@ export async function getMeses(
       descontos_valor: descontoTotal,
       descontos_perc: faturamentoTotal > 0 ? (descontoTotal / faturamentoTotal) * 100 : 0,
 
+      // Quebra de reservas: (reservas_totais - reservas_presentes) / reservas_totais * 100
+      // (mesma formula do desempenho-service.ts semanal)
+      quebra_reservas: (toNum(g.reservas_totais) ?? 0) > 0
+        ? (((toNum(g.reservas_totais) ?? 0) - (toNum(g.reservas_presentes) ?? 0)) / (toNum(g.reservas_totais) ?? 1)) * 100
+        : 0,
+      reservas_totais: toNum(g.reservas_totais) ?? 0,
+      reservas_presentes: toNum(g.reservas_presentes) ?? 0,
+
       // Cancelamentos: gold cancelamentos_total -> front cancelamentos
       cancelamentos: toNum(g.cancelamentos_total) ?? toNum(g.cancelamentos),
 
