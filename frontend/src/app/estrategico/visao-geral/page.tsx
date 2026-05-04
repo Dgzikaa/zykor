@@ -4,8 +4,9 @@ import { createClient } from '@supabase/supabase-js';
 import * as IndicadoresService from './services/indicadores-service';
 import { BarSyncCheck } from '@/components/BarSyncCheck';
 
-// Cache por 5 minutos
-export const revalidate = 300;
+// Cache por 1 hora — Visao Geral agrega ano todo, nao precisa revalidar tao rapido.
+// (data muda em escala diaria/semanal, nao em minutos)
+export const revalidate = 3600;
 
 // Helper para mês de retenção
 const getMesRetencao = (trimestre: number) => {
