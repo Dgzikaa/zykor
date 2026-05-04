@@ -280,67 +280,27 @@ export async function calcularRetencaoReal(supabase: SupabaseClient, barIdNum: n
       fimPeriodoComparacao = formatDate(fimComp);
     }
     
-    // Buscar clientes dos períodos - MIGRADO: visitas (domain table)
-    const [clientesPeriodoAtualBruto, clientesPeriodoAnteriorBruto, clientesPeriodoComparacaoBruto] = await Promise.all([
-      fetchAllData(supabase, 'visitas', 'cliente_fone', {
-        'eq_bar_id': barIdNum,
-        'gte_data_visita': inicioPeriodoAtual,
-        'lte_data_visita': fimPeriodoAtual
-      }),
-      fetchAllData(supabase, 'visitas', 'cliente_fone', {
-        'eq_bar_id': barIdNum,
-        'gte_data_visita': inicioPeriodoAnterior,
-        'lte_data_visita': fimPeriodoAnterior
-      }),
-      fetchAllData(supabase, 'visitas', 'cliente_fone', {
-        'eq_bar_id': barIdNum,
-        'gte_data_visita': inicioPeriodoComparacao,
-        'lte_data_visita': fimPeriodoComparacao
-      })
-    ]) as [any[], any[], any[]];
-    
-    // Criar sets de clientes únicos
-    const clientesPeriodoAtual = new Set(
-      clientesPeriodoAtualBruto?.filter(item => item.cliente_fone && item.cliente_fone.length >= 8).map(item => item.cliente_fone) || []
-    );
-    
-    const clientesPeriodoAnterior = new Set(
-      clientesPeriodoAnteriorBruto?.filter(item => item.cliente_fone && item.cliente_fone.length >= 8).map(item => item.cliente_fone) || []
-    );
-    
-    const clientesPeriodoComparacao = new Set(
-      clientesPeriodoComparacaoBruto?.filter(item => item.cliente_fone && item.cliente_fone.length >= 8).map(item => item.cliente_fone) || []
-    );
-    
-    // RETENÇÃO REAL = clientes do período ANTERIOR que voltaram no período ATUAL
-    const clientesQueVoltaram = [...clientesPeriodoAnterior].filter(cliente => 
-      clientesPeriodoAtual.has(cliente)
-    );
-    
-    const totalClientesAnterior = clientesPeriodoAnterior.size;
-    const totalQueVoltaram = clientesQueVoltaram.length;
-    
-    // Taxa de retenção real = quantos do período anterior voltaram
-    const percentualRetencaoReal = totalClientesAnterior > 0 
-      ? (totalQueVoltaram / totalClientesAnterior) * 100 
-      : 0;
-    
-    // Calcular variação (comparar com período ainda anterior)
-    const clientesQueVoltaramAnterior = [...clientesPeriodoComparacao].filter(cliente => 
-      clientesPeriodoAnterior.has(cliente)
-    );
-    
-    const percentualRetencaoRealAnterior = clientesPeriodoComparacao.size > 0 
-      ? (clientesQueVoltaramAnterior.length / clientesPeriodoComparacao.size) * 100 
-      : 0;
-    
-    const variacaoRetencaoReal = percentualRetencaoRealAnterior > 0 
-      ? ((percentualRetencaoReal - percentualRetencaoRealAnterior) / percentualRetencaoRealAnterior * 100)
-      : 0;
-    
+    // Tudo em SQL via RPC: 1 query SQL substituiu 3 paginacoes paralelas
+    // (~90 HTTP requests pra ~60k rows). Roda em <1s vs ~10s antes.
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('calcular_retencao_real_visao_geral', {
+      p_bar_id: barIdNum,
+      p_atual_inicio: inicioPeriodoAtual,
+      p_atual_fim: fimPeriodoAtual,
+      p_anterior_inicio: inicioPeriodoAnterior,
+      p_anterior_fim: fimPeriodoAnterior,
+      p_comparacao_inicio: inicioPeriodoComparacao,
+      p_comparacao_fim: fimPeriodoComparacao,
+    });
+
+    if (rpcErr) {
+      console.error('❌ Erro em calcular_retencao_real_visao_geral:', rpcErr);
+      throw rpcErr;
+    }
+
+    const row = (rpcData as any[])?.[0];
     return {
-      valor: parseFloat(percentualRetencaoReal.toFixed(1)),
-      variacao: parseFloat(variacaoRetencaoReal.toFixed(1))
+      valor: row ? Number(row.retencao_real_pct) || 0 : 0,
+      variacao: row ? Number(row.variacao_pct) || 0 : 0,
     };
     
   } catch (error) {
