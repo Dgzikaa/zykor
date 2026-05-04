@@ -66,62 +66,41 @@ export default async function VisaoGeralEstrategica({
   // Executar buscas em paralelo
   const mesRetencao = getMesRetencao(trimestreAtual);
   
-  const [anualResult, trimestralResult, retencaoResult, retencaoRealResult, cmvLimpoResult] = await Promise.all([
+  const [anualResult, trimestralResult, retencaoResult, retencaoRealResult, manualMensalResult] = await Promise.all([
     // 1. Dados Anuais
     supabase.rpc('calcular_visao_geral_anual', { p_bar_id: barId, p_ano: anoAtual }),
-    
+
     // 2. Dados Trimestrais
     supabase.rpc('calcular_visao_geral_trimestral', { p_bar_id: barId, p_trimestre: trimestreAtual, p_ano: anoAtual }),
-    
+
     // 3. Retenção
     IndicadoresService.calcularRetencao(supabase, barId, mesRetencao, trimestreAtual),
-    
+
     // 4. Retenção Real
     IndicadoresService.calcularRetencaoReal(supabase, barId, trimestreAtual),
-    
-    // 5. CMV Limpo Manual
-    (async () => {
-      const trimestresDatas: Record<number, { inicio: string; fim: string }> = {
-        2: { inicio: `${anoAtual}-04-01`, fim: `${anoAtual}-06-30` },
-        3: { inicio: `${anoAtual}-07-01`, fim: `${anoAtual}-09-30` },
-        4: { inicio: `${anoAtual}-10-01`, fim: `${anoAtual}-12-31` }
-      };
-      
-      const periodoAtual = trimestresDatas[trimestreAtual] || trimestresDatas[4];
-      
-      const { data: cmvData } = await supabase
-        .from('cmv_manual')
-        .select('cmv_percentual')
-        .eq('bar_id', barId)
-        .eq('periodo_tipo', 'trimestral')
-        .eq('periodo_inicio', periodoAtual.inicio)
-        .single();
-      
-      // CMV Anterior para variação
-      const trimestreAnterior = trimestreAtual === 2 ? 4 : trimestreAtual - 1;
-      const anoAnterior = trimestreAtual === 2 ? anoAtual - 1 : anoAtual;
-      const periodoAnterior = {
-        2: { inicio: `${anoAnterior}-04-01`, fim: `${anoAnterior}-06-30` },
-        3: { inicio: `${anoAnterior}-07-01`, fim: `${anoAnterior}-09-30` },
-        4: { inicio: `${anoAnterior}-10-01`, fim: `${anoAnterior}-12-31` }
-      }[trimestreAnterior] || { inicio: `${anoAnterior}-10-01`, fim: `${anoAnterior}-12-31` };
-      
-      const { data: cmvAnterior } = await supabase
-        .from('cmv_manual')
-        .select('cmv_percentual')
-        .eq('bar_id', barId)
-        .eq('periodo_tipo', 'trimestral')
-        .eq('periodo_inicio', periodoAnterior.inicio)
-        .single();
-      
-      const valorAtual = cmvData?.cmv_percentual || 0;
-      const valorAnterior = cmvAnterior?.cmv_percentual || 0;
-      const variacao = valorAnterior > 0 ? ((valorAtual - valorAnterior) / valorAnterior) * 100 : 0;
-      
-      const metas = getMetasTrimestre(trimestreAtual);
-      return { valor: valorAtual, meta: metas.cmvLimpo, variacao };
-    })()
+
+    // 5. CMO + CMV teorico: AVG dos meses preenchidos manualmente em meta.desempenho_manual
+    // (sem fórmula automática — sócio preenche % por mês na tela de desempenho mensal)
+    supabase
+      .schema('meta' as never)
+      .from('desempenho_manual')
+      .select('mes, cmo, cmv_teorico')
+      .eq('bar_id', barId)
+      .eq('granularidade', 'mensal')
+      .eq('ano', anoAtual)
+      .order('mes', { ascending: true })
   ]);
+
+  // Calcula AVG anual de CMO e CMV teorico a partir dos meses preenchidos
+  const manualMensal = (manualMensalResult.data || []) as Array<{ mes: number; cmo: number | null; cmv_teorico: number | null }>;
+  const avgAnual = (vals: Array<number | null | undefined>): number => {
+    const filtered = vals.filter((v): v is number => v != null && !isNaN(Number(v))).map(v => Number(v));
+    return filtered.length > 0 ? filtered.reduce((a, b) => a + b, 0) / filtered.length : 0;
+  };
+  const cmoAvgAnual = avgAnual(manualMensal.map(m => m.cmo));
+  const cmvTeoricoAvgAnual = avgAnual(manualMensal.map(m => m.cmv_teorico));
+  const metasTrimestreAtual = getMetasTrimestre(trimestreAtual);
+  const cmvLimpoResult = { valor: cmvTeoricoAvgAnual, meta: metasTrimestreAtual.cmvLimpo, variacao: 0 };
 
   // Processar Resultados Anuais
   let indicadoresAnuais: {
@@ -197,9 +176,9 @@ export default async function VisaoGeralEstrategica({
       },
       cmvLimpo: cmvLimpoResult,
       cmo: {
-        valor: Number(dados.cmo_percentual),
+        valor: cmoAvgAnual,
         meta: metas.cmo,
-        variacao: Number(dados.variacao_cmo)
+        variacao: 0
       },
       artistica: {
         valor: Number(dados.artistica_percentual),
