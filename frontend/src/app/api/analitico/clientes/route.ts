@@ -84,11 +84,13 @@ export async function GET(request: NextRequest) {
           ticket_medio_consumo: parseFloat(c.ticket_medio_consumo) || 0,
           ultima_visita: c.ultima_visita,
           tempo_medio_estadia_minutos: parseFloat(c.tempo_medio_estadia_min) || 0,
-          tempo_medio_estadia_formatado: c.tempo_medio_estadia_min > 0 
+          tempo_medio_estadia_formatado: c.tempo_medio_estadia_min > 0
             ? `${Math.floor(c.tempo_medio_estadia_min / 60)}h ${Math.round(c.tempo_medio_estadia_min % 60)}min`
             : 'N/A',
           tempos_estadia_detalhados: [],
-          total_visitas_com_tempo: 0
+          total_visitas_com_tempo: 0,
+          bebida_favorita: c.bebida_favorita || null,
+          comida_favorita: c.comida_favorita || null
         }))
 
         // Calcular estatísticas usando agregação SQL (mais eficiente)
