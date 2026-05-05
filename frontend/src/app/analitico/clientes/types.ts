@@ -17,6 +17,8 @@ export interface Cliente {
   tempo_medio_estadia_formatado?: string
   tempos_estadia_detalhados?: number[]
   total_visitas_com_tempo?: number
+  bebida_favorita?: ProdutoFavorito | null
+  comida_favorita?: ProdutoFavorito | null
 }
 
 export interface Estatisticas {

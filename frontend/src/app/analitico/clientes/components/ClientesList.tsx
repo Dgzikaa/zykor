@@ -72,6 +72,8 @@ export function ClientesList({
               <TableHead className="font-semibold w-[100px] text-right pr-4">🍺 Consumo</TableHead>
               <TableHead className="font-semibold w-[160px] text-center">Tickets</TableHead>
               <TableHead className="font-semibold w-[90px] text-center">⏱️ Tempo</TableHead>
+              <TableHead className="font-semibold w-[160px]">🍺 Bebida fav</TableHead>
+              <TableHead className="font-semibold w-[160px]">🍴 Comida fav</TableHead>
               <TableHead className="font-semibold w-[100px] text-center">Última visita</TableHead>
             </TableRow>
           </TableHeader>
@@ -79,7 +81,7 @@ export function ClientesList({
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 8 }).map((__, j) => (
+                  {Array.from({ length: 10 }).map((__, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-full" />
                     </TableCell>
@@ -88,7 +90,7 @@ export function ClientesList({
               ))
             ) : clientes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                   Nenhum cliente encontrado.
                 </TableCell>
               </TableRow>
@@ -148,6 +150,34 @@ export function ClientesList({
                             {cliente.total_visitas_com_tempo}/{cliente.total_visitas}
                           </span>
                         )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="w-[160px]">
+                    {cliente.bebida_favorita?.produto ? (
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-mono shrink-0 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+                          {Math.round(Number(cliente.bebida_favorita.quantidade))}x
+                        </Badge>
+                        <span className="truncate" title={`${cliente.bebida_favorita.produto} — ${cliente.bebida_favorita.vezes_pediu} vezes`}>
+                          {cliente.bebida_favorita.produto}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="w-[160px]">
+                    {cliente.comida_favorita?.produto ? (
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-mono shrink-0 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800">
+                          {Math.round(Number(cliente.comida_favorita.quantidade))}x
+                        </Badge>
+                        <span className="truncate" title={`${cliente.comida_favorita.produto} — ${cliente.comida_favorita.vezes_pediu} vezes`}>
+                          {cliente.comida_favorita.produto}
+                        </span>
                       </div>
                     ) : (
                       <span className="text-muted-foreground text-xs">—</span>
