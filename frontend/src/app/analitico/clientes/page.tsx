@@ -9,7 +9,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Phone, Users, TrendingUp, MessageCircle, Download, CalendarDays, Calendar, User, Activity, Search, Flame, Settings2, FileSpreadsheet, Loader2 } from 'lucide-react'
+import { Phone, Users, TrendingUp, MessageCircle, Download, CalendarDays, Calendar, User, Activity, Search, Flame, Settings2, FileSpreadsheet, Loader2, Cake } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { useBar } from '@/contexts/BarContext'
@@ -20,6 +20,7 @@ import { ClientesStatistics } from './components/ClientesStatistics'
 import { ClientesList } from './components/ClientesList'
 import { ClienteDetalhesModal } from './components/ClienteDetalhesModal'
 import { FiltrosAvancados } from './components/FiltrosAvancados'
+import { AniversariantesList } from './components/AniversariantesList'
 import {
   fetchClientes as fetchClientesService,
   fetchReservantes as fetchReservantesService,
@@ -619,6 +620,13 @@ export default function ClientesPage() {
                       Lista Quente
                     </TabsTrigger>
                     <TabsTrigger
+                      value="aniversariantes"
+                      className="px-4 py-2.5 text-sm font-medium transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 data-[state=active]:shadow-none !rounded-xl"
+                    >
+                      <Cake className="h-4 w-4 mr-2" />
+                      Aniversariantes
+                    </TabsTrigger>
+                    <TabsTrigger
                       value="filtros-avancados"
                       className="px-4 py-2.5 text-sm font-medium transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 data-[state=active]:shadow-none !rounded-xl"
                     >
@@ -1113,6 +1121,10 @@ export default function ClientesPage() {
                       </Card>
                     )}
                   </div>
+                </TabsContent>
+
+                <TabsContent value="aniversariantes" className="mt-0 p-6">
+                  <AniversariantesList />
                 </TabsContent>
 
                 <TabsContent value="filtros-avancados" className="mt-0 p-6">
