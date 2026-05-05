@@ -9,6 +9,14 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Search, Cake, Download, Star, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+
+interface ProdutoFavorito {
+  produto: string
+  categoria?: string
+  quantidade: number
+  vezes_pediu?: number
+}
 
 interface Aniversariante {
   nome: string
@@ -23,6 +31,7 @@ interface Aniversariante {
   eh_vip: boolean
   ticket_medio: number
   gasto_total: number
+  produtos_favoritos: ProdutoFavorito[]
 }
 
 interface ApiResponse {
@@ -194,6 +203,7 @@ export function AniversariantesList() {
                     <TableHead>Última visita</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Ticket médio</TableHead>
+                    <TableHead>Top produtos</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -219,6 +229,41 @@ export function AniversariantesList() {
                       <TableCell>{statusBadge(a.status)}</TableCell>
                       <TableCell className="text-right font-mono text-sm">
                         R$ {a.ticket_medio.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="max-w-xs">
+                        {a.produtos_favoritos.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          <TooltipProvider delayDuration={150}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="text-xs space-y-0.5 cursor-help">
+                                  {a.produtos_favoritos.slice(0, 3).map((p, i) => (
+                                    <div key={i} className="flex items-center gap-1.5 truncate">
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-mono shrink-0">{p.quantidade}x</Badge>
+                                      <span className="truncate">{p.produto}</span>
+                                    </div>
+                                  ))}
+                                  {a.produtos_favoritos.length > 3 && (
+                                    <div className="text-[10px] text-muted-foreground pl-1">+{a.produtos_favoritos.length - 3} outros</div>
+                                  )}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="max-w-md">
+                                <div className="space-y-1">
+                                  <div className="font-semibold mb-1">Top {a.produtos_favoritos.length} produtos</div>
+                                  {a.produtos_favoritos.map((p, i) => (
+                                    <div key={i} className="flex items-center gap-2 text-xs">
+                                      <span className="font-mono text-muted-foreground w-12">{p.quantidade}x</span>
+                                      <span className="flex-1">{p.produto}</span>
+                                      {p.categoria && <span className="text-[10px] text-muted-foreground">{p.categoria}</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

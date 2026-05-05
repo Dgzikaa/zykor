@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await (supabase as unknown as { schema: (s: string) => any })
       .schema('silver')
       .from('cliente_estatisticas')
-      .select('cliente_nome, cliente_fone_norm, cliente_dtnasc, total_visitas, ultima_visita, dias_desde_ultima_visita, status, eh_vip, ticket_medio_consumo, valor_total_consumo')
+      .select('cliente_nome, cliente_fone_norm, cliente_dtnasc, total_visitas, ultima_visita, dias_desde_ultima_visita, status, eh_vip, ticket_medio_consumo, valor_total_consumo, produtos_favoritos')
       .eq('bar_id', barId)
       .not('cliente_dtnasc', 'is', null)
       .filter('cliente_dtnasc', 'gte', '1900-01-01') // sanity
@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
           eh_vip: c.eh_vip,
           ticket_medio: Number(c.ticket_medio_consumo) || 0,
           gasto_total: Number(c.valor_total_consumo) || 0,
+          produtos_favoritos: Array.isArray(c.produtos_favoritos) ? c.produtos_favoritos : [],
         }
       })
       .sort((a: any, b: any) => {
