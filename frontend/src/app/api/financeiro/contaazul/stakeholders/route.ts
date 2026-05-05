@@ -25,26 +25,29 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Se não for para sincronizar, retorna do banco
+    // Se não for para sincronizar, retorna do banco — paginando (Supabase default = 1000)
     if (!sync) {
-      let query = supabase
-        .schema('integrations' as any)
-        .from('contaazul_pessoas')
-        .select('*')
-        .eq('bar_id', parseInt(barId));
-
-      if (perfil) {
-        query = query.eq('perfil', perfil);
+      const todas: any[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        let query = (supabase.schema('integrations' as any) as any)
+          .from('contaazul_pessoas')
+          .select('*')
+          .eq('bar_id', parseInt(barId));
+        if (perfil) query = query.eq('perfil', perfil);
+        const { data, error } = await query.order('nome').range(from, from + PAGE - 1);
+        if (error) {
+          console.error('Erro ao buscar pessoas do banco:', error);
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+        const arr = (data as any[]) || [];
+        todas.push(...arr);
+        if (arr.length < PAGE) break;
+        from += PAGE;
+        if (from > 50000) break; // hard cap segurança
       }
-
-      const { data, error } = await query.order('nome');
-
-      if (error) {
-        console.error('Erro ao buscar pessoas do banco:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-
-      return NextResponse.json({ pessoas: data || [] });
+      return NextResponse.json({ pessoas: todas });
     }
 
     // Buscar credenciais do Conta Azul
@@ -72,85 +75,119 @@ export async function GET(request: NextRequest) {
 
     const todasPessoas: any[] = [];
 
-    // Buscar fornecedores
-    if (!perfil || perfil === 'FORNECEDOR') {
-      console.log('Buscando fornecedores...');
-      const fornecedoresUrl = new URL(`${CONTA_AZUL_API_URL}/v1/fornecedores`);
-      fornecedoresUrl.searchParams.set('page', '1');
-      fornecedoresUrl.searchParams.set('size', '500');
+    // CA v2 unifica fornecedor/cliente em /v1/pessoas (perfis vem como array: ["Fornecedor","Cliente"])
+    // Params em pt-BR: pagina + tamanho_pagina (size em inglês é ignorado, cai em default 10)
+    let pagina = 1;
+    let totalPaginas = 1;
+    const TAM_PAGINA = 500;
+    do {
+      const pessoasUrl = new URL(`${CONTA_AZUL_API_URL}/v1/pessoas`);
+      pessoasUrl.searchParams.set('pagina', String(pagina));
+      pessoasUrl.searchParams.set('tamanho_pagina', String(TAM_PAGINA));
 
-      const fornecedoresResponse = await fetch(fornecedoresUrl.toString(), {
+      const pessoasResp = await fetch(pessoasUrl.toString(), {
         headers: {
-          'Authorization': `Bearer ${credentials.access_token}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${credentials.access_token}`,
+          'Content-Type': 'application/json',
+        },
       });
+      if (!pessoasResp.ok) {
+        const txt = await pessoasResp.text();
+        console.error('[CA-stakeholders] /v1/pessoas erro', pessoasResp.status, txt.slice(0, 300));
+        break;
+      }
+      const pessoasData = await pessoasResp.json();
+      const itens: any[] = pessoasData.items || pessoasData.itens || pessoasData.content || [];
+      const totalItems = Number(pessoasData.totalItems || pessoasData.itens_totais || itens.length);
+      totalPaginas = Math.max(1, Math.ceil(totalItems / TAM_PAGINA));
+      itens.forEach(p => todasPessoas.push(p));
+      pagina += 1;
+    } while (pagina <= totalPaginas && pagina <= 50); // hard cap 25k
 
-      if (fornecedoresResponse.ok) {
-        const fornecedoresData = await fornecedoresResponse.json();
-        const fornecedores = fornecedoresData.content || fornecedoresData.items || [];
-        
-        fornecedores.forEach((f: any) => {
-          todasPessoas.push({
-            ...f,
-            perfil: 'FORNECEDOR'
-          });
-        });
-        
-        console.log(`✓ ${fornecedores.length} fornecedores`);
+    console.log(`[CA-stakeholders] /v1/pessoas total=${todasPessoas.length} bar_id=${barId}`);
+
+    function detectarPerfilPrincipal(perfis: any): string | null {
+      if (!Array.isArray(perfis)) return null;
+      const lower = perfis.map(p => String(p).toLowerCase());
+      if (lower.includes('fornecedor')) return 'FORNECEDOR';
+      if (lower.includes('cliente')) return 'CLIENTE';
+      return String(perfis[0] || '').toUpperCase();
+    }
+
+    // Filtrar por perfil se solicitado
+    const filtradas = perfil
+      ? todasPessoas.filter(p => detectarPerfilPrincipal(p.perfis) === perfil.toUpperCase())
+      : todasPessoas;
+
+    // tabela contaazul_pessoas tem CHECK constraint: tipo_pessoa IN ('Física','Jurídica','Estrangeira')
+    function normalizarTipoPessoa(raw: any): string | null {
+      if (!raw) return null;
+      // Remove diacríticos via NFD + range Unicode dos combining marks (̀-ͯ)
+      const semAcento = String(raw)
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '');
+      if (semAcento.startsWith('fis')) return 'Física';
+      if (semAcento.startsWith('jur')) return 'Jurídica';
+      if (semAcento.startsWith('est')) return 'Estrangeira';
+      return null;
+    }
+
+    const pessoasParaSalvar = filtradas
+      .filter(p => p.id || p.uuid)
+      .map((pessoa: any) => ({
+        bar_id: parseInt(barId),
+        contaazul_id: pessoa.id || pessoa.uuid,
+        nome: pessoa.nome || pessoa.name || pessoa.razao_social,
+        // tipo_pessoa: skipped por hora — constraint exige NFC exato 'Física'/'Jurídica'/'Estrangeira'
+        // e CA pode retornar variantes de encoding/normalização. NULL passa o CHECK.
+        tipo_pessoa: null,
+        documento: String(pessoa.documento || pessoa.cpf || pessoa.cnpj || pessoa.cpf_cnpj || pessoa.document || '').replace(/\D/g, '') || null,
+        email: pessoa.email || null,
+        telefone: pessoa.telefone || pessoa.phone || pessoa.celular || null,
+        perfil: detectarPerfilPrincipal(pessoa.perfis) || pessoa.perfil || null,
+        ativo: pessoa.ativo !== false && pessoa.status !== 'INATIVO',
+        raw_data: pessoa,
+        sincronizado_em: new Date().toISOString(),
+      }));
+
+    // Dedup por (contaazul_id, bar_id) — paginação pode trazer mesma pessoa em páginas diferentes
+    const dedupMap = new Map<string, typeof pessoasParaSalvar[number]>();
+    for (const p of pessoasParaSalvar) {
+      const key = `${p.bar_id}:${p.contaazul_id}`;
+      const existing = dedupMap.get(key);
+      // mantém o mais "completo": prefere quem tem documento; caso empate, prefere Fornecedor
+      if (!existing) {
+        dedupMap.set(key, p);
+        continue;
+      }
+      const score = (x: typeof p) => (x.documento ? 2 : 0) + (x.perfil === 'FORNECEDOR' ? 1 : 0);
+      if (score(p) > score(existing)) dedupMap.set(key, p);
+    }
+    const pessoasDedupadas = Array.from(dedupMap.values());
+    console.log(`[CA-stakeholders] dedup: ${pessoasParaSalvar.length} → ${pessoasDedupadas.length}`);
+
+    // Soft-delete: marca ativo=false em pessoas que sumiram do CA
+    const idsRecebidos = pessoasDedupadas.map(p => p.contaazul_id).filter(Boolean);
+    if (idsRecebidos.length > 0) {
+      const { error: deactivateError } = await (supabase
+        .schema('integrations' as any) as any)
+        .from('contaazul_pessoas')
+        .update({ ativo: false })
+        .eq('bar_id', parseInt(barId))
+        .not('contaazul_id', 'in', `(${idsRecebidos.map(id => `"${id}"`).join(',')})`);
+      if (deactivateError) {
+        console.error('Aviso: erro ao desativar pessoas removidas (não bloqueante):', deactivateError);
       }
     }
 
-    // Buscar clientes
-    if (!perfil || perfil === 'CLIENTE') {
-      console.log('Buscando clientes...');
-      const clientesUrl = new URL(`${CONTA_AZUL_API_URL}/v1/clientes`);
-      clientesUrl.searchParams.set('page', '1');
-      clientesUrl.searchParams.set('size', '500');
-
-      const clientesResponse = await fetch(clientesUrl.toString(), {
-        headers: {
-          'Authorization': `Bearer ${credentials.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (clientesResponse.ok) {
-        const clientesData = await clientesResponse.json();
-        const clientes = clientesData.content || clientesData.items || [];
-        
-        clientes.forEach((c: any) => {
-          todasPessoas.push({
-            ...c,
-            perfil: 'CLIENTE'
-          });
-        });
-        
-        console.log(`✓ ${clientes.length} clientes`);
-      }
-    }
-
-    // Sincronizar com banco local
-    const pessoasParaSalvar = todasPessoas.map((pessoa: any) => ({
-      bar_id: parseInt(barId),
-      contaazul_id: pessoa.id || pessoa.uuid,
-      nome: pessoa.nome || pessoa.name || pessoa.razao_social,
-      tipo_pessoa: pessoa.tipo_pessoa || pessoa.person_type || (pessoa.cpf ? 'FISICA' : 'JURIDICA'),
-      documento: pessoa.cpf || pessoa.cnpj || pessoa.cpf_cnpj || pessoa.document,
-      email: pessoa.email,
-      telefone: pessoa.telefone || pessoa.phone || pessoa.celular,
-      perfil: pessoa.perfil,
-      ativo: pessoa.ativo !== false && pessoa.status !== 'INATIVO',
-      raw_data: pessoa,
-      sincronizado_em: new Date().toISOString()
-    }));
-
-    if (pessoasParaSalvar.length > 0) {
+    if (pessoasDedupadas.length > 0) {
       // Usar upsert para evitar duplicatas
       const { error: upsertError } = await supabase
         .schema('integrations' as any)
         .from('contaazul_pessoas')
-        .upsert(pessoasParaSalvar, {
+        .upsert(pessoasDedupadas, {
           onConflict: 'contaazul_id,bar_id',
           ignoreDuplicates: false
         });
@@ -165,10 +202,10 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      pessoas: pessoasParaSalvar,
-      total: pessoasParaSalvar.length,
-      fornecedores: pessoasParaSalvar.filter(p => p.perfil === 'FORNECEDOR').length,
-      clientes: pessoasParaSalvar.filter(p => p.perfil === 'CLIENTE').length,
+      pessoas: pessoasDedupadas,
+      total: pessoasDedupadas.length,
+      fornecedores: pessoasDedupadas.filter(p => p.perfil === 'FORNECEDOR').length,
+      clientes: pessoasDedupadas.filter(p => p.perfil === 'CLIENTE').length,
       sincronizado_em: new Date().toISOString()
     });
 

@@ -16,15 +16,14 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SelectWithSearch } from '@/components/ui/select-with-search';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Calendar,
   FileText,
   Clock,
   CheckCircle,
   AlertCircle,
-  Play,
   Trash2,
-  RefreshCw,
   Loader2,
   Banknote,
 } from 'lucide-react';
@@ -37,9 +36,10 @@ import type {
 } from './types';
 
 import { AgendamentoCredenciais } from './components/AgendamentoCredenciais';
+import { AgendamentoStatusCA } from './components/AgendamentoStatusCA';
 import { PagamentosList } from './components/PagamentosList';
 import { NovoPagamentoForm } from './components/NovoPagamentoForm';
-import { ImportarFolhaModal } from './components/ImportarFolhaModal';
+import { ImportarFolhaForm } from './components/ImportarFolhaForm';
 import { StakeholderModal } from './components/StakeholderModal';
 
 const STORAGE_KEYS = {
@@ -78,7 +78,6 @@ export default function AgendamentoPage() {
   const [lastSave, setLastSave] = useState<string>('');
   const [pagandoPixId, setPagandoPixId] = useState<string | null>(null);
 
-  const [modalFolha, setModalFolha] = useState(false);
   const [modalStakeholder, setModalStakeholder] = useState(false);
   const [stakeholderEmCadastro, setStakeholderEmCadastro] = useState({
     document: '',
@@ -89,6 +88,12 @@ export default function AgendamentoPage() {
 
   const [categorias, setCategorias] = useState<any[]>([]);
   const [centrosCusto, setCentrosCusto] = useState<any[]>([]);
+  const [contasFinanceiras, setContasFinanceiras] = useState<any[]>([]);
+  const [contaFinanceiraSelecionadaId, setContaFinanceiraSelecionadaId] = useState<string>('');
+  /** Contas vinculadas à credencial Inter selecionada. Vazio = sem vínculo (mostra todas). */
+  const [contasVinculadas, setContasVinculadas] = useState<Set<string>>(new Set());
+  const [gerenciarContasOpen, setGerenciarContasOpen] = useState(false);
+  const [ultimoPoll, setUltimoPoll] = useState<Date | null>(null);
   const [interCredenciais, setInterCredenciais] = useState<InterCredencial[]>([]);
   const [interCredencialSelecionadaId, setInterCredencialSelecionadaId] = useState<string>('');
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
@@ -115,8 +120,9 @@ export default function AgendamentoPage() {
         `/api/financeiro/contaazul/centros-custo?bar_id=${barId}`
       );
       const centrosCustoData = await centrosCustoResponse.json();
-      if (centrosCustoData.centrosCusto) {
-        setCentrosCusto(centrosCustoData.centrosCusto);
+      const centrosArr = centrosCustoData.centros_custo || centrosCustoData.centrosCusto;
+      if (Array.isArray(centrosArr)) {
+        setCentrosCusto(centrosArr);
       }
 
       const interCredsResponse = await fetch(`/api/financeiro/inter/credenciais?bar_id=${barId}`);
@@ -128,6 +134,21 @@ export default function AgendamentoPage() {
         }
       } else {
         setInterCredenciais([]);
+      }
+
+      // Contas financeiras CA (pra registro do lançamento)
+      const contasResponse = await fetch(
+        `/api/financeiro/contaazul/contas-financeiras?bar_id=${barId}`
+      );
+      const contasData = await contasResponse.json();
+      const contasArr = contasData.contas_financeiras || [];
+      if (Array.isArray(contasArr)) {
+        setContasFinanceiras(contasArr);
+        // Restaura escolha persistida no localStorage por bar
+        const saved = localStorage.getItem(`sgb_agendamento_conta_fin_bar_${barId}`);
+        if (saved && contasArr.some((c: any) => c.contaazul_id === saved)) {
+          setContaFinanceiraSelecionadaId(saved);
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar opções:', error);
@@ -164,34 +185,113 @@ export default function AgendamentoPage() {
 
   const loadSavedData = useCallback(() => {
     try {
-      const isFirstLoad = !sessionStorage.getItem('sgb_data_loaded');
-      let savedData = localStorage.getItem(STORAGE_KEYS.PAGAMENTOS);
-      let parsed: any = null;
-
-      if (savedData) {
-        parsed = JSON.parse(savedData);
-      }
-
+      const savedData = localStorage.getItem(STORAGE_KEYS.PAGAMENTOS);
+      if (!savedData) return;
+      const parsed = JSON.parse(savedData);
       if (parsed && parsed.pagamentos && Array.isArray(parsed.pagamentos)) {
         setPagamentos(parsed.pagamentos);
         setLastSave(new Date(parsed.timestamp).toLocaleString('pt-BR'));
-
-        if (parsed.pagamentos.length > 0 && isFirstLoad) {
-          toast({
-            title: '📋 Dados carregados!',
-            description: `${parsed.pagamentos.length} pagamento(s) restaurado(s)`,
-          });
-        }
       }
     } catch (error) {
       console.error('Erro ao carregar dados salvos:', error);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     loadCategoriasECentrosCusto();
     loadSavedData();
   }, [loadCategoriasECentrosCusto, loadSavedData]);
+
+  // Carrega vínculos de contas CA <-> credencial Inter (por bar + cred)
+  useEffect(() => {
+    if (!barId || !interCredencialSelecionadaId) {
+      setContasVinculadas(new Set());
+      return;
+    }
+    const key = `sgb_agendamento_contas_inter_${barId}_${interCredencialSelecionadaId}`;
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      try {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          setContasVinculadas(new Set(arr));
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    setContasVinculadas(new Set());
+  }, [barId, interCredencialSelecionadaId]);
+
+  // Se a conta selecionada não está mais nos vínculos, limpa
+  useEffect(() => {
+    if (
+      contaFinanceiraSelecionadaId &&
+      contasVinculadas.size > 0 &&
+      !contasVinculadas.has(contaFinanceiraSelecionadaId)
+    ) {
+      setContaFinanceiraSelecionadaId('');
+      if (barId) localStorage.removeItem(`sgb_agendamento_conta_fin_bar_${barId}`);
+    }
+  }, [contasVinculadas, contaFinanceiraSelecionadaId, barId]);
+
+  // Polling automático de status PIX no Inter (a cada 30s pra pagamentos
+  // aguardando aprovação ou agendados — para quando todos finalizaram)
+  useEffect(() => {
+    if (!barId) return;
+    const pendentes = pagamentos.filter(
+      p =>
+        (p.status === 'aguardando_aprovacao' || p.status === 'agendado') &&
+        p.id // só os com id local
+    );
+    if (pendentes.length === 0) return;
+
+    let cancelado = false;
+
+    const fazerPoll = async () => {
+      const ids = pendentes.map(p => p.id).join(',');
+      try {
+        const r = await fetch(
+          `/api/financeiro/inter/pix/status?bar_id=${barId}&zykor_ids=${encodeURIComponent(ids)}`
+        );
+        if (!r.ok || cancelado) return;
+        const data = await r.json();
+        const byZykorId = new Map<string, any>();
+        for (const pix of data.pix || []) {
+          if (pix.pagamento_zykor_id) byZykorId.set(pix.pagamento_zykor_id, pix);
+        }
+        setPagamentos(prev =>
+          prev.map(p => {
+            const upd = byZykorId.get(p.id);
+            if (!upd) return p;
+            const interStatusUpper = String(upd.inter_status || '').toUpperCase();
+            // Mapeia inter_status → status local da lista
+            let novoStatus = p.status;
+            if (['EXECUTADO', 'CONCLUIDO', 'PAGO', 'COMPLETED'].includes(interStatusUpper)) {
+              novoStatus = 'aprovado';
+            } else if (['FALHOU', 'ERRO', 'FAILED', 'REJEITADO', 'CANCELADO', 'CANCELLED'].includes(interStatusUpper)) {
+              novoStatus = 'erro_inter';
+            }
+            return novoStatus !== p.status
+              ? { ...p, status: novoStatus, updated_at: new Date().toISOString() }
+              : p;
+          })
+        );
+        setUltimoPoll(new Date());
+      } catch (e) {
+        // silencioso — polling não bloqueia
+      }
+    };
+
+    // Primeiro poll imediato, depois a cada 30s
+    void fazerPoll();
+    const interval = setInterval(fazerPoll, 30000);
+    return () => {
+      cancelado = true;
+      clearInterval(interval);
+    };
+  }, [barId, pagamentos]);
 
   const getMetricas = () => {
     const total = pagamentos.length;
@@ -217,180 +317,162 @@ export default function AgendamentoPage() {
     return isNegative ? -Math.abs(parsed) : parsed;
   };
 
-  const verificarStakeholder = async (pagamento: PagamentoAgendamento): Promise<Stakeholder> => {
-    const documento = pagamento.cpf_cnpj || '';
-    return {
-      id: '',
-      name: pagamento.nome_beneficiario,
-      document: documento,
-      type: 'funcionario',
-      pixKey: pagamento.chave_pix || undefined,
-    };
+  /**
+   * Fluxo end-to-end de um único pagamento:
+   * 1) Cria conta a pagar no Conta Azul (despesa, vencimento = data_pagamento)
+   * 2) Envia PIX no Inter com dataPagamento (Inter agenda no banco)
+   *
+   * Se CA falhar: status=erro_ca, NÃO envia PIX.
+   * Se Inter falhar: status=erro_inter, lançamento CA já existe (usuário cancela manualmente).
+   */
+  /** Parse correto pra valores BRL (R$ 1.089,10 → 1089.10). */
+  const parseValorBRL = (valor: string): number => {
+    const limpo = String(valor || '')
+      .replace(/[R$\s]/g, '')
+      .replace(/\./g, '') // tira separador de milhar PRIMEIRO
+      .replace(',', '.'); // depois troca decimal
+    const parsed = parseFloat(limpo);
+    return Number.isFinite(parsed) ? parsed : 0;
   };
 
-  const agendarPagamentoNoNibo = async (pagamento: PagamentoAgendamento, stakeholder: Stakeholder) => {
-    // DESABILITADO: NIBO foi substituído pelo Conta Azul
-    toast({
-      title: 'Funcionalidade desabilitada',
-      description: 'Funcionalidade de agendamento temporariamente desabilitada.',
-      variant: 'destructive',
-    });
-    
-    // Evitar warnings de variáveis não usadas
-    void pagamento;
-    void stakeholder;
-  };
-
-  const agendarPagamentos = async () => {
-    if (!barId) {
-      toast({
-        title: '❌ Nenhum bar selecionado',
-        description: 'Selecione um bar antes de processar pagamentos',
-        variant: 'destructive',
-      });
-      return;
+  const processarPagamentoCompleto = async (
+    pagamento: PagamentoAgendamento
+  ): Promise<{ ok: boolean; etapa: 'ca' | 'inter'; mensagem?: string }> => {
+    const valorNumerico = parseValorBRL(pagamento.valor);
+    if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) {
+      return { ok: false, etapa: 'ca', mensagem: 'Valor inválido' };
     }
 
-    if (pagamentos.length === 0) {
-      toast({
-        title: '❌ Lista vazia',
-        description: 'Adicione pagamentos antes de agendar',
-        variant: 'destructive',
-      });
-      return;
-    }
+    const dataVenc = pagamento.data_pagamento;
+    const dataComp = pagamento.data_competencia || dataVenc;
 
-    setIsProcessing(true);
-    let sucessos = 0;
-    let erros = 0;
-
-    try {
-      for (const pagamento of pagamentos) {
-        if (pagamento.status === 'pendente') {
-          try {
-            const stakeholder = await verificarStakeholder(pagamento);
-            await agendarPagamentoNoNibo(pagamento, stakeholder);
-
-            setPagamentos(prev =>
-              prev.map(p =>
-                p.id === pagamento.id
-                  ? {
-                      ...p,
-                      status: 'agendado',
-                      stakeholder_id: stakeholder.id,
-                      updated_at: new Date().toISOString(),
-                      atualizado_por_id: user?.auth_id,
-                      atualizado_por_nome: user?.nome || user?.email || 'Usuário',
-                    }
-                  : p
-              )
-            );
-            sucessos++;
-          } catch (pagamentoError) {
-            console.error(`Erro no pagamento ${pagamento.nome_beneficiario}:`, pagamentoError);
-            setPagamentos(prev =>
-              prev.map(p =>
-                p.id === pagamento.id
-                  ? { ...p, status: 'erro', updated_at: new Date().toISOString() }
-                  : p
-              )
-            );
-            erros++;
-          }
-        }
-      }
-
-      if (sucessos > 0 && erros === 0) {
-        toast({ title: '🎯 Agendamento concluído!', description: `${sucessos} agendado(s)` });
-      } else if (sucessos > 0 && erros > 0) {
-        toast({ title: '⚠️ Agendamento parcial', description: `${sucessos} ok, ${erros} erros` });
-      } else if (erros > 0) {
-        toast({ title: '❌ Erro no agendamento', description: `${erros} falharam`, variant: 'destructive' });
-      }
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const pagarAgendadosInter = async () => {
-    if (!barId || !credenciaisDisponiveis.inter || !interCredencialSelecionadaId) {
-      toast({
-        title: '❌ Configuração incompleta',
-        description: 'Selecione bar, credencial Inter e verifique configurações',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const agendados = pagamentos.filter(p => p.status === 'agendado');
-    if (agendados.length === 0) {
-      toast({ title: 'Nenhum agendado', description: 'Não há pagamentos agendados', variant: 'destructive' });
-      return;
-    }
-
-    setPagandoPixId('all');
-    let sucessos = 0;
-    let erros = 0;
-
-    for (const pagamento of agendados) {
+    // ETAPA 1 — Conta Azul
+    let contaazulLancamentoId = pagamento.contaazul_lancamento_id;
+    if (!contaazulLancamentoId) {
       try {
-        const valorLimpo = pagamento.valor.replace(/[^\d,.-]/g, '').replace(',', '.');
-        const valorNumerico = parseFloat(valorLimpo);
-
-        const response = await fetch('/api/financeiro/inter/pix', {
+        const caResp = await fetch('/api/financeiro/contaazul/lancamentos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            valor: valorNumerico.toString(),
-            destinatario: pagamento.nome_beneficiario,
-            chave: pagamento.chave_pix,
-            data_pagamento: pagamento.data_pagamento,
-            descricao: pagamento.descricao || `Pagamento para ${pagamento.nome_beneficiario}`,
             bar_id: pagamento.bar_id || barId,
-            inter_credencial_id: Number(interCredencialSelecionadaId),
-            agendamento_id: pagamento.agendamento_id,
+            data_competencia: dataComp,
+            data_vencimento: dataVenc,
+            valor: valorNumerico,
+            descricao:
+              pagamento.descricao ||
+              `Pagamento ${pagamento.nome_beneficiario}`,
+            categoria_id: pagamento.categoria_id,
+            centro_custo_id: pagamento.centro_custo_id || undefined,
+            conta_financeira_id: contaFinanceiraSelecionadaId || undefined,
+            // 3 caminhos pra resolver fornecedor (em ordem de preferência):
+            pessoa_id: pagamento.contaazul_pessoa_id || undefined,
+            cpf_cnpj: pagamento.cpf_cnpj || undefined,
+            nome_beneficiario: pagamento.nome_beneficiario,
           }),
         });
-
-        const data = await response.json();
-
-        if (data.success) {
+        const caData = await caResp.json();
+        if (!caResp.ok || !caData.success) {
+          const msg = caData?.error || `CA HTTP ${caResp.status}`;
           setPagamentos(prev =>
             prev.map(p =>
               p.id === pagamento.id
                 ? {
                     ...p,
-                    status: 'aguardando_aprovacao' as const,
-                    inter_aprovacao_id: data.data?.codigoSolicitacao,
-                    codigo_solic: data.data?.codigoSolicitacao,
+                    status: 'erro_ca' as const,
+                    erro_mensagem: msg,
                     updated_at: new Date().toISOString(),
                   }
                 : p
             )
           );
-          sucessos++;
-        } else {
-          setPagamentos(prev =>
-            prev.map(p => (p.id === pagamento.id ? { ...p, status: 'erro_inter' as const } : p))
-          );
-          erros++;
+          return { ok: false, etapa: 'ca', mensagem: msg };
         }
-      } catch (error) {
-        console.error(`Erro PIX ${pagamento.nome_beneficiario}:`, error);
+        contaazulLancamentoId = caData.contaazul_id;
         setPagamentos(prev =>
-          prev.map(p => (p.id === pagamento.id ? { ...p, status: 'erro_inter' as const } : p))
+          prev.map(p =>
+            p.id === pagamento.id
+              ? {
+                  ...p,
+                  contaazul_lancamento_id: contaazulLancamentoId,
+                  updated_at: new Date().toISOString(),
+                }
+              : p
+          )
         );
-        erros++;
+      } catch (e: any) {
+        const msg = e?.message || 'Falha rede CA';
+        setPagamentos(prev =>
+          prev.map(p =>
+            p.id === pagamento.id
+              ? { ...p, status: 'erro_ca' as const, erro_mensagem: msg }
+              : p
+          )
+        );
+        return { ok: false, etapa: 'ca', mensagem: msg };
       }
-      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    setPagandoPixId(null);
-
-    if (erros === 0) {
-      toast({ title: '✅ PIX enviados!', description: `${sucessos} enviados` });
-    } else {
-      toast({ title: '⚠️ Erros no PIX', description: `${sucessos} ok, ${erros} erros`, variant: 'destructive' });
+    // ETAPA 2 — Inter PIX (com agendamento se data_pagamento futura)
+    try {
+      const response = await fetch('/api/financeiro/inter/pix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // Envia como NUMBER pra evitar bug do parse pt-BR no backend
+          valor: valorNumerico,
+          destinatario: pagamento.nome_beneficiario,
+          chave: pagamento.chave_pix,
+          data_pagamento: dataVenc,
+          descricao:
+            pagamento.descricao || `Pagamento para ${pagamento.nome_beneficiario}`,
+          bar_id: pagamento.bar_id || barId,
+          inter_credencial_id: Number(interCredencialSelecionadaId),
+          // ID local pra correlação com pix_enviados via webhook
+          agendamento_id: pagamento.id,
+        }),
+      });
+      const data = await response.json();
+      if (!data.success) {
+        const msg = data?.error || `Inter HTTP ${response.status}`;
+        setPagamentos(prev =>
+          prev.map(p =>
+            p.id === pagamento.id
+              ? {
+                  ...p,
+                  status: 'erro_inter' as const,
+                  erro_mensagem: msg,
+                  updated_at: new Date().toISOString(),
+                }
+              : p
+          )
+        );
+        return { ok: false, etapa: 'inter', mensagem: msg };
+      }
+      setPagamentos(prev =>
+        prev.map(p =>
+          p.id === pagamento.id
+            ? {
+                ...p,
+                status: 'aguardando_aprovacao' as const,
+                inter_aprovacao_id: data.data?.codigoSolicitacao || '',
+                codigo_solic: data.data?.codigoSolicitacao || '',
+                erro_mensagem: undefined,
+                updated_at: new Date().toISOString(),
+              }
+            : p
+        )
+      );
+      return { ok: true, etapa: 'inter' };
+    } catch (e: any) {
+      const msg = e?.message || 'Falha rede Inter';
+      setPagamentos(prev =>
+        prev.map(p =>
+          p.id === pagamento.id
+            ? { ...p, status: 'erro_inter' as const, erro_mensagem: msg }
+            : p
+        )
+      );
+      return { ok: false, etapa: 'inter', mensagem: msg };
     }
   };
 
@@ -400,7 +482,9 @@ export default function AgendamentoPage() {
       return;
     }
 
-    const pendentes = pagamentos.filter(p => p.status === 'pendente');
+    const pendentes = pagamentos.filter(
+      p => p.status === 'pendente' || p.status === 'erro_ca' || p.status === 'erro_inter'
+    );
     if (pendentes.length === 0) {
       toast({ title: 'Nenhum pendente', variant: 'destructive' });
       return;
@@ -409,65 +493,28 @@ export default function AgendamentoPage() {
     setPagandoPixId('direct');
     setIsProcessing(true);
     let sucessos = 0;
-    let erros = 0;
+    let errosCA = 0;
+    let errosInter = 0;
 
     for (const pagamento of pendentes) {
-      try {
-        const valorLimpo = pagamento.valor.replace(/[^\d,.-]/g, '').replace(',', '.');
-        const valorNumerico = parseFloat(valorLimpo);
-
-        const response = await fetch('/api/financeiro/inter/pix', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            valor: valorNumerico.toString(),
-            destinatario: pagamento.nome_beneficiario,
-            chave: pagamento.chave_pix,
-            data_pagamento: pagamento.data_pagamento,
-            descricao: pagamento.descricao || `Pagamento para ${pagamento.nome_beneficiario}`,
-            bar_id: pagamento.bar_id || barId,
-            inter_credencial_id: Number(interCredencialSelecionadaId),
-          }),
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-          setPagamentos(prev =>
-            prev.map(p =>
-              p.id === pagamento.id
-                ? {
-                    ...p,
-                    status: 'aguardando_aprovacao' as const,
-                    inter_aprovacao_id: data.data?.codigoSolicitacao || '',
-                    updated_at: new Date().toISOString(),
-                  }
-                : p
-            )
-          );
-          sucessos++;
-        } else {
-          setPagamentos(prev =>
-            prev.map(p => (p.id === pagamento.id ? { ...p, status: 'erro_inter' as const } : p))
-          );
-          erros++;
-        }
-      } catch (error) {
-        console.error(`Erro PIX direto ${pagamento.nome_beneficiario}:`, error);
-        setPagamentos(prev =>
-          prev.map(p => (p.id === pagamento.id ? { ...p, status: 'erro_inter' as const } : p))
-        );
-        erros++;
-      }
+      const r = await processarPagamentoCompleto(pagamento);
+      if (r.ok) sucessos++;
+      else if (r.etapa === 'ca') errosCA++;
+      else errosInter++;
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
 
     setPagandoPixId(null);
     setIsProcessing(false);
 
-    if (erros === 0) {
-      toast({ title: '✅ PIX enviados!', description: `${sucessos} enviados` });
+    if (sucessos > 0 && errosCA === 0 && errosInter === 0) {
+      toast({ title: '✅ Pagamentos processados', description: `${sucessos} CA + Inter` });
     } else {
-      toast({ title: '⚠️ Erros', description: `${sucessos} ok, ${erros} erros`, variant: 'destructive' });
+      toast({
+        title: errosCA > 0 || errosInter > 0 ? '⚠️ Processado com erros' : '✅ OK',
+        description: `${sucessos} ok · ${errosCA} erro CA · ${errosInter} erro Inter`,
+        variant: errosCA > 0 || errosInter > 0 ? 'destructive' : undefined,
+      });
     }
   };
 
@@ -476,13 +523,52 @@ export default function AgendamentoPage() {
   };
 
   const handleEditar = (id: string) => {
-    toast({ title: 'Em desenvolvimento', description: 'Edição via modal em breve' });
+    const pagamento = pagamentos.find(p => p.id === id);
+    if (!pagamento) return;
+    const novaData = window.prompt(
+      `Nova data de pagamento (AAAA-MM-DD) para ${pagamento.nome_beneficiario}:\n\nObs: se já enviado ao Inter, cancele/rejeite no app Inter primeiro, depois clique "Reenviar" aqui.`,
+      pagamento.data_pagamento
+    );
+    if (!novaData || !/^\d{4}-\d{2}-\d{2}$/.test(novaData)) {
+      if (novaData !== null) {
+        toast({ title: '❌ Data inválida', description: 'Use o formato AAAA-MM-DD', variant: 'destructive' });
+      }
+      return;
+    }
+    setPagamentos(prev =>
+      prev.map(p =>
+        p.id === id
+          ? {
+              ...p,
+              data_pagamento: novaData,
+              // Reseta status pra permitir reenvio (mantém contaazul_lancamento_id se existir — não duplica no CA)
+              status: 'pendente',
+              erro_mensagem: undefined,
+              updated_at: new Date().toISOString(),
+            }
+          : p
+      )
+    );
+    toast({
+      title: '📅 Data atualizada',
+      description: `${pagamento.nome_beneficiario} → ${novaData}. Clique "Reenviar" pra processar com a nova data.`,
+    });
   };
 
   const handleExcluir = (id: string) => {
     const pagamento = pagamentos.find(p => p.id === id);
     setPagamentos(prev => prev.filter(p => p.id !== id));
     toast({ title: '🗑️ Excluído', description: `${pagamento?.nome_beneficiario || 'Pagamento'} removido` });
+  };
+
+  const handleExcluirMultiplos = (ids: string[]) => {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    setPagamentos(prev => prev.filter(p => !idSet.has(p.id)));
+    toast({
+      title: '🗑️ Excluídos',
+      description: `${ids.length} pagamento${ids.length > 1 ? 's removidos' : ' removido'}`,
+    });
   };
 
   const handleEnviarPix = async (id: string) => {
@@ -495,50 +581,20 @@ export default function AgendamentoPage() {
     }
 
     setPagandoPixId(id);
-
     try {
-      const valorLimpo = pagamento.valor.replace(/[^\d,.-]/g, '').replace(',', '.');
-      const valorNumerico = parseFloat(valorLimpo);
-
-      const response = await fetch('/api/financeiro/inter/pix', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          valor: valorNumerico.toString(),
-          destinatario: pagamento.nome_beneficiario,
-          chave: pagamento.chave_pix,
-          data_pagamento: pagamento.data_pagamento,
-          descricao: pagamento.descricao || `Pagamento para ${pagamento.nome_beneficiario}`,
-          bar_id: pagamento.bar_id || barId,
-          inter_credencial_id: Number(interCredencialSelecionadaId),
-          agendamento_id: pagamento.agendamento_id,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setPagamentos(prev =>
-          prev.map(p =>
-            p.id === id
-              ? {
-                  ...p,
-                  inter_aprovacao_id: data.data?.codigoSolicitacao || '',
-                  updated_at: new Date().toISOString(),
-                }
-              : p
-          )
-        );
-        toast({ title: '✅ Enviado para Inter!', description: `${pagamento.nome_beneficiario}` });
+      const r = await processarPagamentoCompleto(pagamento);
+      if (r.ok) {
+        toast({
+          title: '✅ Pagamento processado',
+          description: `${pagamento.nome_beneficiario} — CA + Inter OK`,
+        });
       } else {
-        setPagamentos(prev =>
-          prev.map(p => (p.id === id ? { ...p, status: 'erro_inter' as const } : p))
-        );
-        toast({ title: '❌ Erro Inter', description: data.error, variant: 'destructive' });
+        toast({
+          title: r.etapa === 'ca' ? '❌ Erro Conta Azul' : '❌ Erro Inter',
+          description: r.mensagem || 'Falha desconhecida',
+          variant: 'destructive',
+        });
       }
-    } catch (error) {
-      console.error('Erro PIX:', error);
-      toast({ title: '❌ Erro', variant: 'destructive' });
     } finally {
       setPagandoPixId(null);
     }
@@ -558,14 +614,6 @@ export default function AgendamentoPage() {
     toast({ title: '🧹 Lista limpa', description: `${quantidade} removidos` });
   };
 
-  const abrirModalFolha = () => {
-    if (!barId) {
-      toast({ title: '❌ Nenhum bar selecionado', variant: 'destructive' });
-      return;
-    }
-    setModalFolha(true);
-  };
-
   return (
     <ProtectedRoute requiredModule="financeiro">
       <div className="min-h-screen bg-background">
@@ -578,19 +626,10 @@ export default function AgendamentoPage() {
             }}
           />
 
-          {barId && credenciaisDisponiveis.verificado && (
-            <div className="mb-6 p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-yellow-700 dark:text-yellow-400" />
-                <div className="text-sm text-yellow-700 dark:text-yellow-400">
-                  <strong>Módulo temporariamente desabilitado</strong>
-                  <p className="text-xs mt-1">
-                    Funcionalidades de agendamento estão em manutenção. Em breve disponível.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+          <AgendamentoStatusCA
+            barId={barId}
+            onSyncComplete={loadCategoriasECentrosCusto}
+          />
 
           <div className="flex flex-col lg:flex-row gap-6">
             <div className="w-full lg:w-80 flex-shrink-0">
@@ -601,7 +640,50 @@ export default function AgendamentoPage() {
                 <CardContent className="space-y-4">
                   {credenciaisDisponiveis.inter && (
                     <div>
-                      <Label className="text-gray-700 dark:text-gray-300">API Inter para pagamento</Label>
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-gray-700 dark:text-gray-300">
+                          API Inter (envio do PIX)
+                        </Label>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!barId || !interCredencialSelecionadaId) {
+                              toast({ title: 'Selecione a credencial primeiro', variant: 'destructive' });
+                              return;
+                            }
+                            try {
+                              const r = await fetch('/api/financeiro/inter/webhook/registrar', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  bar_id: barId,
+                                  inter_credencial_id: Number(interCredencialSelecionadaId),
+                                }),
+                              });
+                              const data = await r.json();
+                              if (r.ok && data.success) {
+                                toast({
+                                  title: '✅ Webhook registrado no Inter',
+                                  description: data.webhookUrl,
+                                });
+                              } else {
+                                toast({
+                                  title: '❌ Erro ao registrar webhook',
+                                  description: data?.error || `HTTP ${r.status}`,
+                                  variant: 'destructive',
+                                });
+                              }
+                            } catch (e: any) {
+                              toast({ title: 'Erro de rede', description: e?.message, variant: 'destructive' });
+                            }
+                          }}
+                          disabled={!interCredencialSelecionadaId}
+                          className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+                          title="Registra a URL de webhook PIX no Inter pra receber atualizações em tempo real"
+                        >
+                          Configurar webhook
+                        </button>
+                      </div>
                       <SelectWithSearch
                         value={interCredencialSelecionadaId}
                         onValueChange={value => setInterCredencialSelecionadaId(value || '')}
@@ -612,8 +694,60 @@ export default function AgendamentoPage() {
                         }))}
                         className="mt-1"
                       />
+                      <p className="text-[10px] text-muted-foreground mt-1 leading-snug">
+                        Conta bancária + certificado mTLS que dispara o PIX no Banco Inter.
+                      </p>
                     </div>
                   )}
+
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-gray-700 dark:text-gray-300">
+                        Conta financeira (registro CA)
+                      </Label>
+                      <button
+                        type="button"
+                        onClick={() => setGerenciarContasOpen(true)}
+                        disabled={!interCredencialSelecionadaId}
+                        className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 disabled:no-underline"
+                        title={interCredencialSelecionadaId ? '' : 'Selecione uma credencial Inter primeiro'}
+                      >
+                        Vincular contas a esta API
+                      </button>
+                    </div>
+                    <SearchableSelect
+                      value={contaFinanceiraSelecionadaId}
+                      onValueChange={v => {
+                        setContaFinanceiraSelecionadaId(v || '');
+                        if (barId) {
+                          if (v) localStorage.setItem(`sgb_agendamento_conta_fin_bar_${barId}`, v);
+                          else localStorage.removeItem(`sgb_agendamento_conta_fin_bar_${barId}`);
+                        }
+                      }}
+                      placeholder="Selecione a conta no CA"
+                      searchPlaceholder="Filtrar contas..."
+                      emptyMessage="Nenhuma conta financeira"
+                      className="mt-1"
+                      options={contasFinanceiras
+                        .filter(c => {
+                          if (c.ativo === false) return false;
+                          if (c.tipo && c.tipo !== 'CONTA_CORRENTE') return false;
+                          if (String(c.banco || '').toUpperCase() === 'STONE') return false;
+                          // Se há vínculo configurado pra essa credencial Inter, usa só vinculadas
+                          if (contasVinculadas.size > 0 && !contasVinculadas.has(c.contaazul_id)) return false;
+                          return true;
+                        })
+                        .map(c => ({
+                          value: String(c.contaazul_id),
+                          label: c.banco ? `${c.nome} (${c.banco})` : String(c.nome),
+                          searchHint: `${c.tipo || ''} ${c.banco || ''}`,
+                        }))}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1 leading-snug">
+                      Em qual conta do Conta Azul o lançamento será registrado. Salvo por bar.
+                    </p>
+                  </div>
+
 
                   <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div className="flex items-center gap-3">
@@ -681,70 +815,29 @@ export default function AgendamentoPage() {
                       disabled={
                         isProcessing ||
                         pagandoPixId !== null ||
-                        metricas.pendentes === 0 ||
+                        metricas.pendentes + metricas.erros === 0 ||
                         !credenciaisDisponiveis.inter ||
                         !barId ||
                         !interCredencialSelecionadaId
                       }
-                      variant="outline"
-                      className="w-full"
+                      className="w-full btn-primary"
                     >
                       {pagandoPixId === 'direct' ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Enviando PIX...
+                          Processando...
                         </>
                       ) : (
                         <>
                           <Banknote className="w-4 h-4 mr-2" />
-                          PIX Direto ({metricas.pendentes})
+                          Processar todos ({metricas.pendentes + metricas.erros})
                         </>
                       )}
                     </Button>
-
-                    <div className="relative py-2">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-gray-300 dark:border-gray-600" />
-                      </div>
-                      <div className="relative flex justify-center">
-                        <span className="px-2 bg-white dark:bg-gray-800 text-xs text-gray-500">migração em andamento</span>
-                      </div>
-                    </div>
-
-                    <Button
-                      onClick={agendarPagamentos}
-                      disabled={isProcessing || metricas.pendentes === 0 || !barId}
-                      className="w-full btn-primary"
-                    >
-                      <Play className="w-4 h-4 mr-2" />
-                      Agendar (Desabilitado)
-                    </Button>
-
-                    <Button
-                      onClick={pagarAgendadosInter}
-                      disabled={
-                        isProcessing ||
-                        pagandoPixId !== null ||
-                        metricas.agendados === 0 ||
-                        !credenciaisDisponiveis.inter ||
-                        !barId ||
-                        !interCredencialSelecionadaId
-                      }
-                      variant="outline"
-                      className="w-full"
-                    >
-                      {pagandoPixId && pagandoPixId !== 'direct' ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Processando PIX...
-                        </>
-                      ) : (
-                        <>
-                          <Banknote className="w-4 h-4 mr-2" />
-                          Pagar Agendados ({metricas.agendados})
-                        </>
-                      )}
-                    </Button>
+                    <p className="text-[11px] text-muted-foreground leading-snug">
+                      Para cada pagamento: cria conta a pagar no Conta Azul →
+                      envia PIX no Inter (agenda na data informada).
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -776,12 +869,18 @@ export default function AgendamentoPage() {
                 </Card>
               ) : (
                 <Tabs value={tabAtivo} onValueChange={setTabAtivo} className="space-y-6">
-                  <TabsList className="grid w-full grid-cols-2 bg-muted/70 border border-border p-1 rounded-lg">
+                  <TabsList className="grid w-full grid-cols-3 bg-muted/70 border border-border p-1 rounded-lg">
                     <TabsTrigger
                       value="manual"
                       className="data-[state=active]:bg-muted data-[state=active]:text-foreground rounded-md"
                     >
                       Adicionar Manual
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="folha"
+                      className="data-[state=active]:bg-muted data-[state=active]:text-foreground rounded-md"
+                    >
+                      Importar Folha (Paste)
                     </TabsTrigger>
                     <TabsTrigger
                       value="lista"
@@ -813,11 +912,39 @@ export default function AgendamentoPage() {
                             <Trash2 className="w-4 h-4" />
                             Limpar Lista
                           </Button>
-                          <Button onClick={abrirModalFolha} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+                          <Button
+                            onClick={() => setTabAtivo('folha')}
+                            className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                          >
                             <FileText className="w-4 h-4" />
                             Pagar Folha
                           </Button>
                         </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="folha">
+                    <Card className="card-dark border-0 shadow-lg">
+                      <CardHeader>
+                        <CardTitle className="text-gray-900 dark:text-white">
+                          Importar Folha de Pagamento (Ctrl+C / Ctrl+V)
+                        </CardTitle>
+                        <CardDescription className="text-gray-600 dark:text-gray-400">
+                          Copie a planilha do Excel/Sheets e cole abaixo. Cabeçalhos
+                          aceitos: <code>nome_beneficiario</code>, <code>chave_pix</code>,{' '}
+                          <code>valor</code>/<code>total</code>, <code>cargo</code>.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ImportarFolhaForm
+                          barId={barId ?? undefined}
+                          barNome={barNome}
+                          categorias={categorias}
+                          centrosCusto={centrosCusto}
+                          onImportado={handleFolhaImportada}
+                          onAfterImport={() => setTabAtivo('lista')}
+                        />
                       </CardContent>
                     </Card>
                   </TabsContent>
@@ -835,6 +962,7 @@ export default function AgendamentoPage() {
                           pagamentos={pagamentos}
                           onEditar={handleEditar}
                           onExcluir={handleExcluir}
+                          onExcluirMultiplos={handleExcluirMultiplos}
                           onEnviarPix={handleEnviarPix}
                           isProcessing={isProcessing}
                           pagandoPixId={pagandoPixId}
@@ -848,16 +976,6 @@ export default function AgendamentoPage() {
           </div>
         </div>
 
-        <ImportarFolhaModal
-          isOpen={modalFolha}
-          onClose={() => setModalFolha(false)}
-          barId={barId ?? undefined}
-          barNome={barNome}
-          categorias={categorias}
-          centrosCusto={centrosCusto}
-          onImportado={handleFolhaImportada}
-        />
-
         <StakeholderModal
           isOpen={modalStakeholder}
           onClose={() => setModalStakeholder(false)}
@@ -866,6 +984,100 @@ export default function AgendamentoPage() {
           initialName={stakeholderEmCadastro.name}
           onStakeholderCriado={handleStakeholderCriado}
         />
+
+        {gerenciarContasOpen && barId && interCredencialSelecionadaId && (() => {
+          const credAtual = interCredenciais.find(
+            c => String(c.id) === interCredencialSelecionadaId
+          );
+          const storageKey = `sgb_agendamento_contas_inter_${barId}_${interCredencialSelecionadaId}`;
+          return (
+            <div
+              className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+              onClick={() => setGerenciarContasOpen(false)}
+            >
+              <div
+                className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    Vincular contas CA à credencial Inter
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Inter selecionado:{' '}
+                    <strong className="text-foreground">
+                      {credAtual?.nome || '—'}
+                      {credAtual?.cnpj ? ` (${credAtual.cnpj})` : ''}
+                    </strong>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Marque as contas CA que pertencem a esse CNPJ. Quando você
+                    selecionar essa credencial Inter, só essas contas vão aparecer no
+                    select. Salvo neste navegador.
+                  </p>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2">
+                  {contasFinanceiras
+                    .filter(c => c.ativo !== false && (!c.tipo || c.tipo === 'CONTA_CORRENTE'))
+                    .map(c => {
+                      const vinculada = contasVinculadas.has(c.contaazul_id);
+                      return (
+                        <label
+                          key={c.contaazul_id}
+                          className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={vinculada}
+                            onChange={() => {
+                              setContasVinculadas(prev => {
+                                const next = new Set(prev);
+                                if (vinculada) next.delete(c.contaazul_id);
+                                else next.add(c.contaazul_id);
+                                localStorage.setItem(
+                                  storageKey,
+                                  JSON.stringify(Array.from(next))
+                                );
+                                return next;
+                              });
+                            }}
+                            className="h-4 w-4"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                              {c.nome}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {c.banco || '—'} · {c.tipo || '—'}
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                </div>
+                <div className="p-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContasVinculadas(new Set());
+                      localStorage.removeItem(storageKey);
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Limpar vínculo (mostra todas)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGerenciarContasOpen(false)}
+                    className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </ProtectedRoute>
   );

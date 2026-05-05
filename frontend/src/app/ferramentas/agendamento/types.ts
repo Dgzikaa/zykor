@@ -18,10 +18,17 @@ export interface PagamentoAgendamento {
     | 'aguardando_aprovacao'
     | 'aprovado'
     | 'erro'
-    | 'erro_inter';
+    | 'erro_inter'
+    | 'erro_ca';
   stakeholder_id?: string;
   agendamento_id?: string;
   inter_aprovacao_id?: string;
+  /** UUID do lancamento criado no Conta Azul (DESPESA / conta a pagar) */
+  contaazul_lancamento_id?: string;
+  /** UUID do fornecedor (pessoa) no Conta Azul — vem do match na importação */
+  contaazul_pessoa_id?: string;
+  /** Mensagem do erro CA, exibida quando status='erro_ca' */
+  erro_mensagem?: string;
   bar_id?: number;
   bar_nome?: string;
   criado_por_id?: string;

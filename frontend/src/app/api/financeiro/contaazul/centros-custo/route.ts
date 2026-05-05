@@ -24,21 +24,30 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Se não for para sincronizar, retorna do banco
+    // Se não for para sincronizar, retorna do banco — paginando
     if (!sync) {
-      const { data, error } = await supabase
-        .schema('integrations' as any)
-        .from('contaazul_centros_custo')
-        .select('*')
-        .eq('bar_id', parseInt(barId))
-        .order('nome');
-
-      if (error) {
-        console.error('Erro ao buscar centros de custo do banco:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+      const todos: any[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await (supabase
+          .schema('integrations' as any) as any)
+          .from('contaazul_centros_custo')
+          .select('*')
+          .eq('bar_id', parseInt(barId))
+          .order('nome')
+          .range(from, from + PAGE - 1);
+        if (error) {
+          console.error('Erro ao buscar centros de custo do banco:', error);
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+        const arr = (data as any[]) || [];
+        todos.push(...arr);
+        if (arr.length < PAGE) break;
+        from += PAGE;
+        if (from > 20000) break;
       }
-
-      return NextResponse.json({ centros_custo: data || [] });
+      return NextResponse.json({ centros_custo: todos });
     }
 
     // Buscar credenciais do Conta Azul
@@ -64,11 +73,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Buscar centros de custo da API do Conta Azul
+    // Buscar centros de custo da API do Conta Azul (CA v2 usa pagina + tamanho_pagina)
     const url = new URL(`${CONTA_AZUL_API_URL}/v1/centro-de-custo`);
     url.searchParams.set('status', 'TODOS');
-    url.searchParams.set('page', '1');
-    url.searchParams.set('size', '500');
+    url.searchParams.set('pagina', '1');
+    url.searchParams.set('tamanho_pagina', '500');
 
     const response = await fetch(url.toString(), {
       headers: {
@@ -87,16 +96,17 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    const centros = data.content || data.items || [];
+    // CA v2 /v1/centro-de-custo retorna { itens_totais, itens } em pt-BR.
+    const centros = data.itens || data.content || data.items || [];
 
-    // Sincronizar com banco local
+    // Sincronizar com banco local (tabela: id, contaazul_id, bar_id, codigo, nome, ativo, created_at, updated_at)
     const centrosParaSalvar = centros.map((centro: any) => ({
       bar_id: parseInt(barId),
       contaazul_id: centro.id || centro.uuid,
+      codigo: centro.codigo || null,
       nome: centro.nome || centro.name,
-      ativo: centro.status === 'ATIVO' || centro.ativo !== false,
-      raw_data: centro,
-      sincronizado_em: new Date().toISOString()
+      ativo: centro.ativo !== false && centro.status !== 'INATIVO',
+      updated_at: new Date().toISOString(),
     }));
 
     if (centrosParaSalvar.length > 0) {
@@ -104,11 +114,29 @@ export async function GET(request: NextRequest) {
         .schema('integrations' as any)
         .from('contaazul_centros_custo')
         .upsert(centrosParaSalvar, {
-          onConflict: 'contaazul_id,bar_id'
+          onConflict: 'contaazul_id',
         });
 
       if (upsertError) {
         console.error('Erro ao salvar centros de custo:', upsertError);
+        return NextResponse.json(
+          { error: 'Erro ao salvar centros de custo', details: upsertError.message },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Soft-delete: marca ativo=false em registros que sumiram do CA
+    const idsRecebidos = centrosParaSalvar.map(c => c.contaazul_id).filter(Boolean);
+    if (idsRecebidos.length > 0) {
+      const { error: deactivateError } = await (supabase
+        .schema('integrations' as any) as any)
+        .from('contaazul_centros_custo')
+        .update({ ativo: false, updated_at: new Date().toISOString() })
+        .eq('bar_id', parseInt(barId))
+        .not('contaazul_id', 'in', `(${idsRecebidos.map(id => `"${id}"`).join(',')})`);
+      if (deactivateError) {
+        console.error('Aviso: erro ao desativar centros removidos (não bloqueante):', deactivateError);
       }
     }
 
