@@ -163,8 +163,8 @@ export async function GET(request: NextRequest) {
         consumo_artista: parseFloat(String(cmvMensal.consumo_artista || 0)),
         outros_ajustes: parseFloat(String(cmvMensal.outros_ajustes || 0)),
         ajuste_bonificacoes: parseFloat(String(cmvMensal.ajuste_bonificacoes || 0)),
-        bonificacao_contrato_anual: 0,
-        bonificacao_cashback_mensal: 0,
+        bonificacao_contrato_anual: parseFloat(String(cmvMensal.bonificacao_contrato_anual || 0)),
+        bonificacao_cashback_mensal: parseFloat(String(cmvMensal.bonificacao_cashback_mensal || 0)),
         cmv_real: parseFloat(String(cmvMensal.cmv_real || 0)),
         cmv_limpo_percentual: parseFloat(String(cmvMensal.cmv_limpo_percentual || 0)),
         cmv_teorico_percentual: parseFloat(String(cmvMensal.cmv_teorico_percentual || 0)),
@@ -567,6 +567,7 @@ export async function PUT(request: NextRequest) {
       'consumo_socios', 'consumo_beneficios', 'consumo_artista',
       'consumo_rh_operacao', 'consumo_rh_escritorio',
       'outros_ajustes', 'ajuste_bonificacoes',
+      'bonificacao_contrato_anual', 'bonificacao_cashback_mensal',
       'estoque_inicial', 'estoque_final', 'compras',
       'estoque_inicial_funcionarios', 'estoque_final_funcionarios', 'compras_alimentacao',
     ];

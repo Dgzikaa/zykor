@@ -22,6 +22,7 @@ interface SyncRequest {
   bar_id?: number
   ano?: number
   debug?: boolean
+  preview_only?: boolean // se true, lê do Sheets e retorna sem salvar no banco (útil pra debug)
 }
 
 // ====== FALLBACK ROW MAP MENSAL (usado se banco não tiver configuração) ======
@@ -247,7 +248,7 @@ serve(async (req) => {
 
   try {
     const body: SyncRequest = await req.json().catch(() => ({}))
-    const { bar_id, ano, debug = false } = body
+    const { bar_id, ano, debug = false, preview_only = false } = body
 
     console.log('📊 Sync CMV Mensal v2.0 - Iniciando', { bar_id, ano })
 
@@ -332,11 +333,18 @@ serve(async (req) => {
           const dataInicioSerial = dataInicioRow[col]
           const dataFimSerial = dataFimRow[col]
           const anoColuna = anosRow[col]
-          
+
           if (typeof dataInicioSerial === 'number' && dataInicioSerial > 40000) {
+            const dataInicioJS = excelDateToJS(dataInicioSerial)
+            // Aceita apenas colunas mensais genuínas: data_inicio = dia 1 do mês.
+            // (Algumas planilhas têm colunas semanais misturadas na aba "CMV Mensal" — ex: Deb tem
+            // col Q=01/04 mensal, mas R/S/T/U começam em 08/04, 15/04, 22/04, 29/04 (semanas).
+            // Sem esse filtro, a última coluna semanal sobrescrevia o mensal correto.)
+            if (dataInicioJS.getDate() !== 1) continue
+
             const { mes, ano: anoCalculado } = getMesFromExcelDate(dataInicioSerial)
             const anoFinal = typeof anoColuna === 'number' ? anoColuna : anoCalculado
-            
+
             colunasMeses.set(col, {
               mes,
               ano: anoFinal,
@@ -350,6 +358,7 @@ serve(async (req) => {
 
         let mesesAtualizados = 0
         let mesesErro = 0
+        const previewMeses: any[] = []
 
         for (const [col, info] of colunasMeses) {
           // Filtrar por ano se especificado
@@ -380,7 +389,8 @@ serve(async (req) => {
           updateData.consumo_rh_escritorio = parseMonetario(getVal(ROW_MAP.consumo_rh_esc, col))
           updateData.consumo_artista = parseMonetario(getVal(ROW_MAP.consumo_artista, col))
           updateData.outros_ajustes = parseMonetario(getVal(ROW_MAP.outros_ajustes, col))
-          updateData.ajuste_bonificacoes = parseMonetario(getVal(ROW_MAP.ajuste_bonif, col))
+          // Bonificações são 100% manuais (UI cmv_mensal). NÃO ler da planilha.
+          // updateData.ajuste_bonificacoes — preservado pelo upsert via DEFAULT
           updateData.cmv_real = parseMonetario(getVal(ROW_MAP.cmv_real, col))
           updateData.faturamento_cmvivel = parseMonetario(getVal(ROW_MAP.fat_cmvivel, col))
           updateData.cmv_limpo_percentual = parsePercentual(getVal(ROW_MAP.cmv_limpo_pct, col))
@@ -405,6 +415,33 @@ serve(async (req) => {
                           updateData.cmv_real !== 0 ||
                           updateData.faturamento_cmvivel !== 0
           
+          // Preview mode: coleta o que LERIA do Sheets sem upsertar
+          if (preview_only) {
+            previewMeses.push({
+              ano: info.ano,
+              mes: info.mes,
+              data_inicio: info.dataInicio,
+              data_fim: info.dataFim,
+              col_planilha: col,
+              raw: {
+                estoque_inicial_raw: getVal(ROW_MAP.estoque_inicial, col),
+                compras_raw: getVal(ROW_MAP.compras, col),
+                estoque_final_raw: getVal(ROW_MAP.estoque_final, col),
+                cmv_real_raw: getVal(ROW_MAP.cmv_real, col),
+                fat_cmvivel_raw: getVal(ROW_MAP.fat_cmvivel, col),
+              },
+              parsed: {
+                estoque_inicial: updateData.estoque_inicial,
+                compras: updateData.compras,
+                estoque_final: updateData.estoque_final,
+                cmv_real: updateData.cmv_real,
+                fat_cmvivel: updateData.faturamento_cmvivel,
+                tem_dados: temDados,
+              }
+            })
+            continue
+          }
+
           if (!temDados) {
             if (debug) console.log(`⏭️ ${info.ano}/${info.mes}: sem dados válidos`)
             continue
@@ -444,7 +481,8 @@ serve(async (req) => {
           bar_nome: barConfig.nome,
           success: true,
           meses_atualizados: mesesAtualizados,
-          meses_erro: mesesErro
+          meses_erro: mesesErro,
+          ...(preview_only ? { preview_meses: previewMeses } : {})
         })
 
       } catch (barError: any) {

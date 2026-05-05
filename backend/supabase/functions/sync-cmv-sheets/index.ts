@@ -548,18 +548,11 @@ serve(async (req) => {
             if (v > 0) { updateData.cmv_teorico_percentual = v; temDados = true }
           }
           
-          // Bonificações
-          const bonifContratoVal = rows[ROW_MAP.bonificacao_contrato]?.[col]
-          if (bonifContratoVal !== undefined) {
-            const v = parseMonetario(bonifContratoVal)
-            if (v > 0) { updateData.bonificacao_contrato_anual = v; temDados = true }
-          }
-          
-          const outrasBonifVal = rows[ROW_MAP.outras_bonificacoes]?.[col]
-          if (outrasBonifVal !== undefined) {
-            const v = parseMonetario(outrasBonifVal)
-            if (v > 0) { updateData.ajuste_bonificacoes = v; temDados = true }
-          }
+          // Bonificações: 100% manuais via UI (cmv_mensal). Sync NÃO popula mais.
+          // Motivo: planilha Sheet tem fórmulas residuais que vinham com casas decimais
+          // quebradas (ex: 7267,007874015748) e o sócio não preencheu — eram fantasmas.
+          // bonificacao_contrato_anual / ajuste_bonificacoes / bonificacao_cashback_mensal
+          // ficam só em cmv_mensal, editáveis via PUT /api/cmv-semanal/mensal.
           
           const outrosAjustesVal = rows[ROW_MAP.outros_ajustes]?.[col]
           if (outrosAjustesVal !== undefined) {
