@@ -86,9 +86,11 @@ const ToastContainer: React.FC<ToastContainerProps> = ({
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-3 max-w-md">
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col-reverse gap-3 max-w-md pointer-events-none">
       {toasts.map(toast => (
-        <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
+        <div key={toast.id} className="pointer-events-auto">
+          <ToastItem toast={toast} onRemove={removeToast} />
+        </div>
       ))}
     </div>
   );
@@ -122,10 +124,10 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
     const baseStyles =
       'flex items-start gap-3 p-4 rounded-xl border-0 shadow-2xl backdrop-blur-md transition-all duration-300 transform';
     const animationStyles = isVisible
-      ? 'translate-x-0 opacity-100 scale-100'
-      : 'translate-x-full opacity-0 scale-95';
+      ? 'translate-y-0 opacity-100 scale-100'
+      : 'translate-y-4 opacity-0 scale-95';
     const leavingStyles = isLeaving
-      ? 'translate-x-full opacity-0 scale-95'
+      ? 'translate-y-4 opacity-0 scale-95'
       : '';
 
     switch (toast.type) {

@@ -165,12 +165,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Processar valor
+    // Processar valor — aceita number direto OU string em formato pt-BR/en-US
     let valorNumerico: number;
-    if (typeof valor === 'string') {
-      valorNumerico = parseFloat(valor.replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
+    if (typeof valor === 'number') {
+      valorNumerico = valor;
     } else {
-      valorNumerico = parseFloat(valor);
+      const s = String(valor || '').replace(/[R$\s]/g, '').trim();
+      // Detecta formato:
+      //   pt-BR: "1.089,10" (ponto = milhar, vírgula = decimal)
+      //   en-US: "1089.10"   (ponto = decimal, sem vírgula)
+      //   ambíguo: "1089"    (inteiro, qualquer um)
+      if (s.includes(',')) {
+        // pt-BR — tira pontos de milhar, troca vírgula por ponto
+        valorNumerico = parseFloat(s.replace(/\./g, '').replace(',', '.'));
+      } else {
+        // en-US ou inteiro — parseFloat respeita ponto decimal natural
+        valorNumerico = parseFloat(s);
+      }
     }
 
     if (isNaN(valorNumerico) || valorNumerico <= 0) {
@@ -237,38 +248,65 @@ export async function POST(request: NextRequest) {
     try {
       // 1. Obter access_token via OAuth2 com mTLS
       const mtlsCredentials = await loadCredentialCertificates(credenciais.configuracoes);
-      
+
       // Se o body tiver force_new_token, limpar cache primeiro
       const forceNewToken = body.force_new_token;
       if (forceNewToken) {
         clearInterTokenCache();
       }
-      
-      const accessToken = await getInterAccessToken(
+
+      let accessToken = await getInterAccessToken(
         clientId,
         clientSecret,
         'pagamento-pix.write',
         mtlsCredentials || undefined
       );
 
-      // 2. Realizar pagamento PIX
-      const resultadoPix = await realizarPagamentoPixInter({
+      // 2. Realizar pagamento PIX (com agendamento se data_pagamento for futura)
+      let resultadoPix = await realizarPagamentoPixInter({
         token: accessToken,
         contaCorrente: contaCorrente,
         valor: valorNumerico,
         descricao: descricao || `Pagamento PIX para ${destinatario || 'beneficiário'}`,
         chave: tipoChave.chaveFormatada,
+        dataPagamento: typeof data_pagamento === 'string' ? data_pagamento : undefined,
         mtlsCredentials: mtlsCredentials || undefined
       });
 
+      // Retry automático se token cached for de cert antigo (após troca de cert+key)
+      const erroCertificado = !resultadoPix.success && /not bound to a valid|recognized certificate/i.test(resultadoPix.error || '');
+      if (erroCertificado) {
+        console.log('[INTER-PIX] Token cached parece estar atrelado a cert antigo. Limpando cache e re-tentando...');
+        clearInterTokenCache();
+        accessToken = await getInterAccessToken(
+          clientId,
+          clientSecret,
+          'pagamento-pix.write',
+          mtlsCredentials || undefined
+        );
+        resultadoPix = await realizarPagamentoPixInter({
+          token: accessToken,
+          contaCorrente: contaCorrente,
+          valor: valorNumerico,
+          descricao: descricao || `Pagamento PIX para ${destinatario || 'beneficiário'}`,
+          chave: tipoChave.chaveFormatada,
+          dataPagamento: typeof data_pagamento === 'string' ? data_pagamento : undefined,
+          mtlsCredentials: mtlsCredentials || undefined,
+        });
+      }
+
       if (!resultadoPix.success) {
         console.error('[INTER-PIX] Erro no pagamento:', resultadoPix.error);
-        
-        // Salvar erro no banco para tracking
-        await supabase.from('pix_enviados').insert({
+
+        // Salvar erro no banco para tracking (schema correto: financial.pix_enviados)
+        await (supabase.schema('financial' as any) as any).from('pix_enviados').insert({
           txid: `ERR_${Date.now()}`,
           bar_id,
           valor: valorNumerico,
+          inter_credencial_id: credentialId || null,
+          inter_status: 'ERRO',
+          data_pagamento: typeof data_pagamento === 'string' ? data_pagamento : null,
+          pagamento_zykor_id: typeof body.agendamento_id === 'string' ? body.agendamento_id : null,
           beneficiario: {
             nome: destinatario || 'Não informado',
             chave: tipoChave.chaveFormatada,
@@ -278,7 +316,6 @@ export async function POST(request: NextRequest) {
           },
           data_envio: new Date().toISOString(),
           status: 'erro',
-          created_at: new Date().toISOString()
         });
 
         return NextResponse.json(
@@ -292,21 +329,33 @@ export async function POST(request: NextRequest) {
                                  resultadoPix.data?.endToEndId || 
                                  `PIX_${Date.now()}`;
 
-      // Salvar no banco pix_enviados
-      const { error: insertError } = await supabase.from('pix_enviados').insert({
-        txid: codigoSolicitacao,
-        bar_id,
-        valor: valorNumerico,
-        beneficiario: {
-          nome: destinatario || 'Não informado',
-          chave: tipoChave.chaveFormatada,
-          tipoChave: tipoChave.tipo,
-          descricao: descricao || 'Pagamento PIX'
-        },
-        data_envio: new Date().toISOString(),
-        status: 'enviado',
-        created_at: new Date().toISOString()
-      });
+      // Salvar no banco financial.pix_enviados (schema correto + campos pra webhook tracking)
+      const dataPagamentoIso = typeof data_pagamento === 'string' ? data_pagamento : null;
+      const isAgendado =
+        dataPagamentoIso &&
+        /^\d{4}-\d{2}-\d{2}$/.test(dataPagamentoIso) &&
+        dataPagamentoIso > new Date().toISOString().slice(0, 10);
+      const { error: insertError } = await (supabase
+        .schema('financial' as any) as any)
+        .from('pix_enviados')
+        .insert({
+          txid: codigoSolicitacao,
+          bar_id,
+          valor: valorNumerico,
+          inter_credencial_id: credentialId || null,
+          inter_codigo_solicitacao: codigoSolicitacao,
+          inter_status: isAgendado ? 'AGENDADO' : 'ENVIADO',
+          data_pagamento: dataPagamentoIso,
+          pagamento_zykor_id: typeof body.agendamento_id === 'string' ? body.agendamento_id : null,
+          beneficiario: {
+            nome: destinatario || 'Não informado',
+            chave: tipoChave.chaveFormatada,
+            tipoChave: tipoChave.tipo,
+            descricao: descricao || 'Pagamento PIX',
+          },
+          data_envio: new Date().toISOString(),
+          status: isAgendado ? 'agendado' : 'enviado',
+        });
 
       if (insertError) {
         console.error('[INTER-PIX] Erro ao salvar no banco:', insertError);

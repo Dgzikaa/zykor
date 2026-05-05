@@ -5,13 +5,7 @@ import { Search, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
 import type { PagamentoAgendamento, Stakeholder } from '../types';
@@ -204,10 +198,10 @@ export function NovoPagamentoForm({
 
     const now = new Date().toISOString();
     const categoriaSelecionada = categorias.find(
-      c => c.nibo_id === form.categoria_id || c.id === form.categoria_id
+      c => String(c.contaazul_id || c.id || '') === form.categoria_id
     );
     const centroCustoSelecionado = centrosCusto.find(
-      c => c.nibo_id === form.centro_custo_id || c.id === form.centro_custo_id
+      c => String(c.contaazul_id || c.id || '') === form.centro_custo_id
     );
 
     const novo: PagamentoAgendamento = {
@@ -220,14 +214,9 @@ export function NovoPagamentoForm({
       data_pagamento: form.data_pagamento,
       data_competencia: form.data_competencia,
       categoria_id: form.categoria_id,
-      categoria_nome:
-        categoriaSelecionada?.categoria_nome ||
-        categoriaSelecionada?.name ||
-        categoriaSelecionada?.nome ||
-        '',
+      categoria_nome: String(categoriaSelecionada?.nome || ''),
       centro_custo_id: form.centro_custo_id,
-      centro_custo_nome:
-        centroCustoSelecionado?.nome || centroCustoSelecionado?.name || '',
+      centro_custo_nome: String(centroCustoSelecionado?.nome || ''),
       status: 'pendente',
       bar_id: barId,
       bar_nome: '',
@@ -352,43 +341,47 @@ export function NovoPagamentoForm({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <Label className="text-gray-700 dark:text-gray-300">Categoria *</Label>
-          <Select
-            value={form.categoria_id || undefined}
+          <SearchableSelect
+            value={form.categoria_id}
             onValueChange={value => setForm(prev => ({ ...prev, categoria_id: value }))}
-          >
-            <SelectTrigger className={`${inputClass} h-10 w-full`}>
-              <SelectValue placeholder="Selecione uma categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              {categorias.map((cat: any) => (
-                <SelectItem key={String(cat.id)} value={String(cat.id)}>
-                  {cat.categoria_nome || cat.name || cat.nome || String(cat.id)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder="Selecione uma categoria (DESPESA)"
+            searchPlaceholder="Digite pra filtrar categorias..."
+            emptyMessage="Nenhuma categoria"
+            clearable
+            className="mt-1"
+            options={categorias
+              .filter((cat: any) => {
+                const tipo = String(cat.tipo || '').toUpperCase();
+                if (tipo && tipo !== 'DESPESA' && tipo !== 'EXPENSE') return false;
+                return cat.ativo !== false;
+              })
+              .map((cat: any) => ({
+                value: String(cat.contaazul_id || cat.id || ''),
+                label: cat.nome || String(cat.id),
+              }))}
+          />
         </div>
         <div>
           <Label className="text-gray-700 dark:text-gray-300">
             Centro de Custo (opcional)
           </Label>
-          <Select
-            value={form.centro_custo_id || undefined}
+          <SearchableSelect
+            value={form.centro_custo_id}
             onValueChange={value =>
               setForm(prev => ({ ...prev, centro_custo_id: value }))
             }
-          >
-            <SelectTrigger className={`${inputClass} h-10 w-full`}>
-              <SelectValue placeholder="Selecione um centro de custo" />
-            </SelectTrigger>
-            <SelectContent>
-              {centrosCusto.map((cc: any) => (
-                <SelectItem key={String(cc.id)} value={String(cc.id)}>
-                  {cc.nome || cc.name || String(cc.id)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder="Selecione um centro de custo"
+            searchPlaceholder="Digite pra filtrar centros..."
+            emptyMessage="Nenhum centro"
+            clearable
+            className="mt-1"
+            options={centrosCusto
+              .filter((cc: any) => cc.ativo !== false)
+              .map((cc: any) => ({
+                value: String(cc.contaazul_id || cc.id || ''),
+                label: cc.nome || String(cc.id),
+              }))}
+          />
         </div>
       </div>
 

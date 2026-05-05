@@ -8,20 +8,38 @@ interface PixPaymentParams {
   valor: number;
   descricao: string;
   chave: string;
+  /** YYYY-MM-DD. Se >= hoje (no fuso de São Paulo), Inter agenda; senão paga imediato. */
+  dataPagamento?: string;
   mtlsCredentials?: { cert: Buffer; key: Buffer };
+}
+
+function isFutureScheduleDate(dataPagamento: string | undefined): boolean {
+  if (!dataPagamento) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataPagamento)) return false;
+  // en-CA emite "YYYY-MM-DD" no fuso pedido — mais robusto que parse de toLocaleString
+  const hojeIso = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  console.log(
+    `[INTER-PIX] Comparando datas — dataPagamento=${dataPagamento} hojeBR=${hojeIso} agendar=${dataPagamento > hojeIso}`
+  );
+  return dataPagamento > hojeIso;
 }
 
 export async function realizarPagamentoPixInter(
   params: PixPaymentParams
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    const { token, contaCorrente, valor, descricao, chave, mtlsCredentials } = params;
+    const { token, contaCorrente, valor, descricao, chave, dataPagamento, mtlsCredentials } = params;
 
     console.log('🔐 Iniciando pagamento PIX com https.request...');
 
     // Carregar certificados PEM usando função centralizada
     const { cert, key } = mtlsCredentials || getInterCertificates();
-    
+
     console.log('🔐 Certificados para pagamento:', {
       certPresent: !!cert,
       keyPresent: !!key,
@@ -32,7 +50,8 @@ export async function realizarPagamentoPixInter(
 
     // Preparar payload conforme documentação Inter Banking
     // A documentação diz valor: number <double>
-    const payload = {
+    const agendar = isFutureScheduleDate(dataPagamento);
+    const payload: Record<string, unknown> = {
       valor: Math.round(valor * 100) / 100, // número com 2 decimais
       descricao: descricao || 'Pagamento PIX',
       destinatario: {
@@ -40,6 +59,10 @@ export async function realizarPagamentoPixInter(
         chave: chave,
       },
     };
+    if (agendar && dataPagamento) {
+      payload.dataPagamento = dataPagamento;
+    }
+    console.log('📅 Agendamento PIX:', { dataPagamento: dataPagamento || null, agendar });
 
     // Serializar payload para calcular Content-Length
     const payloadStr = JSON.stringify(payload);

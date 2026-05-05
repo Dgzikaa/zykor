@@ -25,26 +25,29 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Se não for para sincronizar, retorna do banco
+    // Se não for para sincronizar, retorna do banco — paginando
     if (!sync) {
-      let query = supabase
-        .schema('integrations' as any)
-        .from('contaazul_categorias')
-        .select('*')
-        .eq('bar_id', parseInt(barId));
-
-      if (tipo) {
-        query = query.eq('tipo', tipo);
+      const todas: any[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        let query = (supabase.schema('integrations' as any) as any)
+          .from('contaazul_categorias')
+          .select('*')
+          .eq('bar_id', parseInt(barId));
+        if (tipo) query = query.eq('tipo', tipo);
+        const { data, error } = await query.order('nome').range(from, from + PAGE - 1);
+        if (error) {
+          console.error('Erro ao buscar categorias do banco:', error);
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+        const arr = (data as any[]) || [];
+        todas.push(...arr);
+        if (arr.length < PAGE) break;
+        from += PAGE;
+        if (from > 20000) break;
       }
-
-      const { data, error } = await query.order('nome');
-
-      if (error) {
-        console.error('Erro ao buscar categorias do banco:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-
-      return NextResponse.json({ categorias: data || [] });
+      return NextResponse.json({ categorias: todas });
     }
 
     // Buscar credenciais do Conta Azul
@@ -70,13 +73,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Buscar categorias da API do Conta Azul
+    // Buscar categorias da API do Conta Azul (CA v2 usa params em pt-BR: pagina + tamanho_pagina)
     const url = new URL(`${CONTA_AZUL_API_URL}/v1/categorias`);
-    if (tipo) {
-      url.searchParams.set('tipo', tipo);
-    }
-    url.searchParams.set('page', '1');
-    url.searchParams.set('size', '500'); // Buscar todas
+    if (tipo) url.searchParams.set('tipo', tipo);
+    url.searchParams.set('pagina', '1');
+    url.searchParams.set('tamanho_pagina', '500');
 
     const response = await fetch(url.toString(), {
       headers: {
@@ -95,17 +96,20 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    const categorias = data.content || data.items || [];
+    // CA v2 retorna { itens_totais, itens } em pt-BR. Mantemos fallbacks por segurança.
+    const categorias = data.itens || data.content || data.items || [];
 
-    // Sincronizar com banco local
+    // Sincronizar com banco local (tabela tem: id, contaazul_id, bar_id, nome, tipo,
+    // categoria_pai_id, apenas_filhos, ativo, categoria_macro, created_at, updated_at)
     const categoriasParaSalvar = categorias.map((cat: any) => ({
       bar_id: parseInt(barId),
       contaazul_id: cat.id || cat.uuid,
       nome: cat.nome || cat.name,
       tipo: cat.tipo || cat.type,
+      categoria_pai_id: cat.categoria_pai || cat.categoria_pai_id || null,
       ativo: cat.ativo !== false,
-      raw_data: cat,
-      sincronizado_em: new Date().toISOString()
+      categoria_macro: cat.categoria_macro || null,
+      updated_at: new Date().toISOString(),
     }));
 
     if (categoriasParaSalvar.length > 0) {
@@ -113,11 +117,32 @@ export async function GET(request: NextRequest) {
         .schema('integrations' as any)
         .from('contaazul_categorias')
         .upsert(categoriasParaSalvar, {
-          onConflict: 'contaazul_id,bar_id'
+          onConflict: 'contaazul_id',
         });
 
       if (upsertError) {
         console.error('Erro ao salvar categorias:', upsertError);
+        return NextResponse.json(
+          { error: 'Erro ao salvar categorias', details: upsertError.message },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Soft-delete: marca ativo=false em registros que estão local mas sumiram do CA
+    // (excluídos no CA aparecem como ausentes na listagem de retorno)
+    const idsRecebidos = categoriasParaSalvar
+      .map(c => c.contaazul_id)
+      .filter(Boolean);
+    if (idsRecebidos.length > 0) {
+      const { error: deactivateError } = await (supabase
+        .schema('integrations' as any) as any)
+        .from('contaazul_categorias')
+        .update({ ativo: false, updated_at: new Date().toISOString() })
+        .eq('bar_id', parseInt(barId))
+        .not('contaazul_id', 'in', `(${idsRecebidos.map(id => `"${id}"`).join(',')})`);
+      if (deactivateError) {
+        console.error('Aviso: erro ao desativar categorias removidas (não bloqueante):', deactivateError);
       }
     }
 
