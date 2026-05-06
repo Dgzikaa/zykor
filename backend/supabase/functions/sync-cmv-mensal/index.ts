@@ -50,6 +50,10 @@ const FALLBACK_ROW_MAP_MENSAL = {
   fat_total: 15,
   cmv_real_pct: 16,
   ano_linha: -1,
+  // CMA - Custo de Alimentação (linhas 39-41 do Sheet, 0-indexed)
+  estoque_inicial_func: 38,
+  compras_alimentacao: 39,
+  estoque_final_func: 40,
 }
 
 interface RowMapMensalType {
@@ -74,6 +78,9 @@ interface RowMapMensalType {
   fat_total: number
   cmv_real_pct: number
   ano_linha: number
+  estoque_inicial_func?: number
+  compras_alimentacao?: number
+  estoque_final_func?: number
 }
 
 // ====== AUTENTICAÇÃO GOOGLE ======
@@ -315,8 +322,8 @@ serve(async (req) => {
       }
 
       try {
-        // Buscar dados da aba CMV Mensal
-        const range = `'CMV Mensal'!A1:Z25`
+        // Buscar dados da aba CMV Mensal (até linha 45 pra cobrir bloco CMA alimentação que começa linha 38)
+        const range = `'CMV Mensal'!A1:Z45`
         const rows = await getSheetData(barConfig.cmv_spreadsheet_id!, range, accessToken)
         
         console.log(`📊 ${rows.length} linhas carregadas da aba CMV Mensal`)
@@ -399,11 +406,17 @@ serve(async (req) => {
           updateData.faturamento_total = parseMonetario(getVal(ROW_MAP.fat_total, col))
           updateData.cmv_real_percentual = parsePercentual(getVal(ROW_MAP.cmv_real_pct, col))
           
-          // Campos CMA (Custo de Alimentação) - inicializar com 0 se não existirem na planilha
-          updateData.estoque_inicial_funcionarios = 0
-          updateData.compras_alimentacao = 0
-          updateData.estoque_final_funcionarios = 0
-          updateData.cma_total = 0
+          // CMA — Custo de Alimentação (lê do Sheet linhas 39-41, 0-indexed 38-40)
+          const estIniFuncIdx = ROW_MAP.estoque_inicial_func ?? -1
+          const comprasAlimIdx = ROW_MAP.compras_alimentacao ?? -1
+          const estFimFuncIdx = ROW_MAP.estoque_final_func ?? -1
+          updateData.estoque_inicial_funcionarios = parseMonetario(getVal(estIniFuncIdx, col))
+          updateData.compras_alimentacao = parseMonetario(getVal(comprasAlimIdx, col))
+          updateData.estoque_final_funcionarios = parseMonetario(getVal(estFimFuncIdx, col))
+          // CMA total recalculado: compras + est_ini - est_fim
+          updateData.cma_total = updateData.compras_alimentacao
+            + updateData.estoque_inicial_funcionarios
+            - updateData.estoque_final_funcionarios
           
           // Fonte dos dados
           updateData.fonte = 'planilha'
