@@ -351,7 +351,8 @@ async function syncLancamentos(
             conciliado: item.conciliado || false,
             renegociacao: item.renegociacao || null,
             raw_data: item,
-            updated_at: new Date().toISOString()
+            // Bronze tem synced_at em vez de updated_at
+            synced_at: new Date().toISOString()
           }
         })
 
@@ -359,12 +360,14 @@ async function syncLancamentos(
           if (batchIdx === 0) {
             console.log('[contaazul-sync] Primeiro registro:', JSON.stringify(lancamentos[0]))
           }
-          
+
+          // Escreve direto em bronze (medallion clássico). Antes escrevia em integrations
+          // e havia uma cópia separada (sync_contaazul_integrations_to_bronze) que ficou redundante.
           const { error, data: upsertData } = await supabase
-            .schema('integrations')
-            .from('contaazul_lancamentos')
+            .schema('bronze')
+            .from('bronze_contaazul_lancamentos')
             .upsert(lancamentos, { onConflict: 'contaazul_id,bar_id' })
-            .select('id')
+            .select('contaazul_id')
 
           if (error) {
             console.error('[contaazul-sync] Erro ao inserir lancamentos batch ' + (batchIdx + 1) + ':', JSON.stringify(error))
