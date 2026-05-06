@@ -350,12 +350,13 @@ serve(async (req) => {
         // - Ordinário: ALIMENTAÇÃO
         // - Deboche: Alimentação
         const { data: compras } = await supabase
-          .schema('integrations')
-          .from('contaazul_lancamentos')
+          .schema('bronze')
+          .from('bronze_contaazul_lancamentos')
           .select('valor_bruto, categoria_nome, tipo')
           .eq('bar_id', barId)
           .gte('data_competencia', dataInicio)
           .lte('data_competencia', dataFim)
+          .is('excluido_em', null)
           .or('categoria_nome.ilike.%custo comida%,categoria_nome.ilike.%custo bebida%,categoria_nome.ilike.%custo drink%,categoria_nome.ilike.%custo outros%,categoria_nome.ilike.alimenta%');
 
         const comprasPorCategoria = {
