@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
 
     if (!sync) {
       const { data, error } = await (supabase
-        .schema('integrations' as any) as any)
-        .from('contaazul_contas_financeiras')
+        .schema('bronze' as any) as any)
+        .from('bronze_contaazul_contas_financeiras')
         .select('*')
         .eq('bar_id', parseInt(barId))
         .eq('ativo', true)
@@ -93,8 +93,8 @@ export async function GET(request: NextRequest) {
 
     if (contasParaSalvar.length > 0) {
       const { error: upsertError } = await (supabase
-        .schema('integrations' as any) as any)
-        .from('contaazul_contas_financeiras')
+        .schema('bronze' as any) as any)
+        .from('bronze_contaazul_contas_financeiras')
         .upsert(contasParaSalvar, { onConflict: 'contaazul_id' });
       if (upsertError) {
         console.error('Erro upsert contas:', upsertError);
@@ -109,8 +109,8 @@ export async function GET(request: NextRequest) {
     const idsRecebidos = contasParaSalvar.map((c: any) => c.contaazul_id).filter(Boolean);
     if (idsRecebidos.length > 0) {
       const { error: deactivateError } = await (supabase
-        .schema('integrations' as any) as any)
-        .from('contaazul_contas_financeiras')
+        .schema('bronze' as any) as any)
+        .from('bronze_contaazul_contas_financeiras')
         .update({ ativo: false, updated_at: new Date().toISOString() })
         .eq('bar_id', parseInt(barId))
         .not('contaazul_id', 'in', `(${idsRecebidos.map((id: string) => `"${id}"`).join(',')})`);

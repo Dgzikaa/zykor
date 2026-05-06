@@ -138,8 +138,8 @@ export async function POST(request: NextRequest) {
     };
 
     const { error: upErr } = await (supabase
-      .schema('integrations' as any) as any)
-      .from('contaazul_pessoas')
+      .schema('bronze' as any) as any)
+      .from('bronze_contaazul_pessoas')
       .upsert(localRow, { onConflict: 'contaazul_id' });
 
     if (upErr) {

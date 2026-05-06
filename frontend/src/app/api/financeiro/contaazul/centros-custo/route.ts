@@ -31,8 +31,8 @@ export async function GET(request: NextRequest) {
       const PAGE = 1000;
       while (true) {
         const { data, error } = await (supabase
-          .schema('integrations' as any) as any)
-          .from('contaazul_centros_custo')
+          .schema('bronze' as any) as any)
+          .from('bronze_contaazul_centros_custo')
           .select('*')
           .eq('bar_id', parseInt(barId))
           .order('nome')
@@ -111,8 +111,8 @@ export async function GET(request: NextRequest) {
 
     if (centrosParaSalvar.length > 0) {
       const { error: upsertError } = await supabase
-        .schema('integrations' as any)
-        .from('contaazul_centros_custo')
+        .schema('bronze' as any)
+        .from('bronze_contaazul_centros_custo')
         .upsert(centrosParaSalvar, {
           onConflict: 'contaazul_id',
         });
@@ -130,8 +130,8 @@ export async function GET(request: NextRequest) {
     const idsRecebidos = centrosParaSalvar.map(c => c.contaazul_id).filter(Boolean);
     if (idsRecebidos.length > 0) {
       const { error: deactivateError } = await (supabase
-        .schema('integrations' as any) as any)
-        .from('contaazul_centros_custo')
+        .schema('bronze' as any) as any)
+        .from('bronze_contaazul_centros_custo')
         .update({ ativo: false, updated_at: new Date().toISOString() })
         .eq('bar_id', parseInt(barId))
         .not('contaazul_id', 'in', `(${idsRecebidos.map(id => `"${id}"`).join(',')})`);

@@ -209,8 +209,8 @@ export async function POST(request: NextRequest) {
       const documento = String(cpf_cnpj).replace(/\D/g, '');
       if (documento.length === 11 || documento.length === 14) {
         const { data: pessoa } = await (supabase
-          .schema('integrations' as any) as any)
-          .from('contaazul_pessoas')
+          .schema('bronze' as any) as any)
+          .from('bronze_contaazul_pessoas')
           .select('contaazul_id')
           .eq('bar_id', barIdNum)
           .eq('documento', documento)
@@ -236,8 +236,8 @@ export async function POST(request: NextRequest) {
       const PAGE = 1000;
       while (!resolvedPessoaId) {
         const { data: candidatos } = await (supabase
-          .schema('integrations' as any) as any)
-          .from('contaazul_pessoas')
+          .schema('bronze' as any) as any)
+          .from('bronze_contaazul_pessoas')
           .select('contaazul_id, nome')
           .eq('bar_id', barIdNum)
           .eq('perfil', 'FORNECEDOR')

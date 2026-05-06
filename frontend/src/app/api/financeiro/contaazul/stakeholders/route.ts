@@ -31,8 +31,8 @@ export async function GET(request: NextRequest) {
       let from = 0;
       const PAGE = 1000;
       while (true) {
-        let query = (supabase.schema('integrations' as any) as any)
-          .from('contaazul_pessoas')
+        let query = (supabase.schema('bronze' as any) as any)
+          .from('bronze_contaazul_pessoas')
           .select('*')
           .eq('bar_id', parseInt(barId));
         if (perfil) query = query.eq('perfil', perfil);
@@ -172,8 +172,8 @@ export async function GET(request: NextRequest) {
     const idsRecebidos = pessoasDedupadas.map(p => p.contaazul_id).filter(Boolean);
     if (idsRecebidos.length > 0) {
       const { error: deactivateError } = await (supabase
-        .schema('integrations' as any) as any)
-        .from('contaazul_pessoas')
+        .schema('bronze' as any) as any)
+        .from('bronze_contaazul_pessoas')
         .update({ ativo: false })
         .eq('bar_id', parseInt(barId))
         .not('contaazul_id', 'in', `(${idsRecebidos.map(id => `"${id}"`).join(',')})`);
@@ -185,8 +185,8 @@ export async function GET(request: NextRequest) {
     if (pessoasDedupadas.length > 0) {
       // Usar upsert para evitar duplicatas
       const { error: upsertError } = await supabase
-        .schema('integrations' as any)
-        .from('contaazul_pessoas')
+        .schema('bronze' as any)
+        .from('bronze_contaazul_pessoas')
         .upsert(pessoasDedupadas, {
           onConflict: 'contaazul_id,bar_id',
           ignoreDuplicates: false

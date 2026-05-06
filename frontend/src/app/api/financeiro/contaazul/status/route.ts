@@ -39,12 +39,13 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
 
     const integrationsClient = supabase.schema('integrations' as any);
+    const bronzeClient = supabase.schema('bronze' as any);
     const [lancamentosCount, categoriasCount, centrosCustoCount, pessoasCount, contasCount] = await Promise.all([
       integrationsClient.from('contaazul_lancamentos').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
-      integrationsClient.from('contaazul_categorias').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
-      integrationsClient.from('contaazul_centros_custo').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
-      integrationsClient.from('contaazul_pessoas').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
-      integrationsClient.from('contaazul_contas_financeiras').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId))
+      bronzeClient.from('bronze_contaazul_categorias').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
+      bronzeClient.from('bronze_contaazul_centros_custo').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
+      bronzeClient.from('bronze_contaazul_pessoas').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
+      bronzeClient.from('bronze_contaazul_contas_financeiras').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId))
     ]);
 
     const { data: lastLog } = await supabase
