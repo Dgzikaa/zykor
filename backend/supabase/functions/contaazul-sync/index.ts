@@ -393,20 +393,17 @@ async function syncLancamentos(
     // porque ele só traz alterados nos últimos 2 dias — não dá pra inferir exclusões assim.
     if (!useAlteracaoFilter && percorreuTudo && rangeVencDe && rangeVencAte) {
       try {
-        // Usa RPC custom pra evitar problema de tamanho de IN (...) com milhares de IDs.
-        // Estratégia: passa array via .filter('contaazul_id', 'not.in', `(${ids})`) — mas Supabase
-        // limita strings. Solução: chamar SQL direto via rpc ou usar batch.
-        // Alternativa simples: usa unnest(text[]) via rpc.
-        const { error: softDelErr, count: softDelCount } = await supabase
-          .schema('integrations')
-          .from('contaazul_lancamentos')
-          .update({ excluido_em: new Date().toISOString() }, { count: 'exact' })
-          .eq('bar_id', barId)
-          .eq('tipo', tipo)
-          .gte('data_vencimento', rangeVencDe)
-          .lte('data_vencimento', rangeVencAte)
-          .is('excluido_em', null)
-          .not('contaazul_id', 'in', `(${idsVindosApi.map(id => `"${id}"`).join(',')})`)
+        // Usa RPC: array de UUIDs vai no body (sem limite de URL). Antes a gente usava
+        // `.not('contaazul_id', 'in', '(...)')` mas com 6k+ IDs a URL ficava >250KB e o
+        // PostgREST falhava silenciosamente sem erro.
+        const { data: softDelCount, error: softDelErr } = await supabase
+          .rpc('marcar_excluidos_contaazul', {
+            p_bar_id: barId,
+            p_tipo: tipo,
+            p_data_venc_de: rangeVencDe,
+            p_data_venc_ate: rangeVencAte,
+            p_ids_vindos: idsVindosApi
+          })
 
         if (softDelErr) {
           console.error('[contaazul-sync] Erro ao marcar excluídos ' + tipo + ':', softDelErr.message)
