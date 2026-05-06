@@ -89,8 +89,8 @@ export async function POST(request: NextRequest) {
     const PAGE = 1000;
     while (true) {
       const { data: pessoas, error } = await (supabase
-        .schema('integrations' as any) as any)
-        .from('contaazul_pessoas')
+        .schema('bronze' as any) as any)
+        .from('bronze_contaazul_pessoas')
         .select('contaazul_id, nome, documento, email, telefone, perfil, ativo')
         .eq('bar_id', barId)
         .eq('perfil', 'FORNECEDOR')

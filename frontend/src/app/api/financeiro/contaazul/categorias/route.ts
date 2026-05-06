@@ -31,8 +31,8 @@ export async function GET(request: NextRequest) {
       let from = 0;
       const PAGE = 1000;
       while (true) {
-        let query = (supabase.schema('integrations' as any) as any)
-          .from('contaazul_categorias')
+        let query = (supabase.schema('bronze' as any) as any)
+          .from('bronze_contaazul_categorias')
           .select('*')
           .eq('bar_id', parseInt(barId));
         if (tipo) query = query.eq('tipo', tipo);
@@ -114,8 +114,8 @@ export async function GET(request: NextRequest) {
 
     if (categoriasParaSalvar.length > 0) {
       const { error: upsertError } = await supabase
-        .schema('integrations' as any)
-        .from('contaazul_categorias')
+        .schema('bronze' as any)
+        .from('bronze_contaazul_categorias')
         .upsert(categoriasParaSalvar, {
           onConflict: 'contaazul_id',
         });
@@ -136,8 +136,8 @@ export async function GET(request: NextRequest) {
       .filter(Boolean);
     if (idsRecebidos.length > 0) {
       const { error: deactivateError } = await (supabase
-        .schema('integrations' as any) as any)
-        .from('contaazul_categorias')
+        .schema('bronze' as any) as any)
+        .from('bronze_contaazul_categorias')
         .update({ ativo: false, updated_at: new Date().toISOString() })
         .eq('bar_id', parseInt(barId))
         .not('contaazul_id', 'in', `(${idsRecebidos.map(id => `"${id}"`).join(',')})`);

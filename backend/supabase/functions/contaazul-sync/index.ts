@@ -464,8 +464,8 @@ async function syncCategorias(
   }))
 
   const { error } = await supabase
-    .schema('integrations')
-    .from('contaazul_categorias')
+    .schema('bronze')
+    .from('bronze_contaazul_categorias')
     .upsert(categorias, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
   if (error) {
@@ -515,8 +515,8 @@ async function syncCentrosCusto(
   }))
 
   const { error } = await supabase
-    .schema('integrations')
-    .from('contaazul_centros_custo')
+    .schema('bronze')
+    .from('bronze_contaazul_centros_custo')
     .upsert(centros, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
   if (error) {
@@ -567,8 +567,8 @@ async function syncPessoas(
       }))
 
       const { error } = await supabase
-        .schema('integrations')
-        .from('contaazul_pessoas')
+        .schema('bronze')
+        .from('bronze_contaazul_pessoas')
         .upsert(pessoas, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
       if (error) {
@@ -608,8 +608,8 @@ async function syncPessoas(
       }))
 
       const { error } = await supabase
-        .schema('integrations')
-        .from('contaazul_pessoas')
+        .schema('bronze')
+        .from('bronze_contaazul_pessoas')
         .upsert(pessoas, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
       if (error) {
@@ -667,8 +667,8 @@ async function syncContasFinanceiras(
   }))
 
   const { error } = await supabase
-    .schema('integrations')
-    .from('contaazul_contas_financeiras')
+    .schema('bronze')
+    .from('bronze_contaazul_contas_financeiras')
     .upsert(contas, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
   if (error) {
