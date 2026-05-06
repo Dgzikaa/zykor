@@ -327,7 +327,8 @@ serve(async (req) => {
           })
 
           const { error, data } = await supabase
-            .from('google_reviews')
+            .schema('bronze')
+            .from('bronze_google_reviews')
             .upsert(reviewsToUpsert, { 
               onConflict: 'review_id',
               ignoreDuplicates: false 

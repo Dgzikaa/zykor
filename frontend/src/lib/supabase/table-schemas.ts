@@ -167,15 +167,14 @@ export const TABLE_SCHEMAS = {
   contaazul_lancamentos: 'integrations',
   contaazul_logs_sincronizacao: 'integrations',
   contaazul_pessoas: 'integrations',
-  falae_config: 'integrations',
-  falae_respostas: 'integrations',
-  getin_reservas: 'integrations',
-  getin_reservations: 'integrations',
-  getin_sync_logs: 'integrations',
-  getin_units: 'integrations',
-  google_oauth_tokens: 'integrations',
-  google_reviews: 'integrations',
-  google_reviews_imports: 'integrations',
+  falae_config: 'integrations',  // config/credenciais — fica em integrations
+  // falae_respostas: dropada de integrations; usar bronze_falae_respostas
+  getin_reservas: 'bronze',  // existe em bronze sem prefixo
+  getin_reservations: 'bronze',  // bronze_getin_reservations
+  getin_sync_logs: 'integrations',  // log operacional — fica em integrations
+  getin_units: 'bronze',  // bronze_getin_units
+  google_oauth_tokens: 'integrations',  // credenciais — fica em integrations
+  // google_reviews / google_reviews_imports: dropadas; usar bronze_google_reviews
   sympla_bilheteria: 'integrations',
   sympla_eventos: 'integrations',
   sympla_participantes: 'integrations',

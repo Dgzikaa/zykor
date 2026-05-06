@@ -15,7 +15,8 @@ export async function GET(request: NextRequest) {
 
     // Buscar estatísticas gerais
     const { data: reviews, error } = await supabase
-      .from('google_reviews')
+      .schema('bronze' as never)
+      .from('bronze_google_reviews')
       .select('stars, published_at_date, rating_food, rating_service, rating_atmosphere, text, response_from_owner_text')
       .eq('bar_id', barId);
 

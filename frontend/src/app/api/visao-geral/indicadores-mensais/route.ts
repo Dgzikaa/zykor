@@ -342,7 +342,8 @@ export async function GET(request: NextRequest) {
       // 7. REPUTAÇÃO (média do mês - Google Reviews via Apify)
       // Usando timezone de Brasília para evitar problemas de dia
       const { data: reputacaoData, error: reputacaoError } = await supabase
-        .from('google_reviews')
+        .schema('bronze' as never)
+        .from('bronze_google_reviews')
         .select('stars')
         .eq('bar_id', barIdNum)
         .gte('published_at_date', toBRTISO(inicioMes))
