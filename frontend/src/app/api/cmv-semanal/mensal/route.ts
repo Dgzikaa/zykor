@@ -110,12 +110,12 @@ export async function GET(request: NextRequest) {
     const ultimoDia = new Date(ano, mes, 0).getDate();
     const dataFim = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
 
-    // NOVA LÓGICA: Buscar dados diretamente da tabela cmv_mensal (sincronizada da planilha)
-    // MAS: Não usar cmv_mensal para o mês atual (ainda em andamento)
+    // Buscar dados diretamente da tabela cmv_mensal (alimentada por sync-cmv-mensal + agregar_cmv_mensal_auto)
+    // Usado pra todos os meses, inclusive o corrente — fallback proporcional só roda se cmv_mensal não tem dados.
     const mesAtual = new Date().getMonth() + 1;
     const anoAtual = new Date().getFullYear();
     const isMesAtual = (ano === anoAtual && mes === mesAtual);
-    
+
     const { data: cmvMensal, error: errMensal } = await tbl(supabase, 'cmv_mensal')
       .select('*')
       .eq('bar_id', barId)
@@ -123,8 +123,8 @@ export async function GET(request: NextRequest) {
       .eq('mes', mes)
       .single();
 
-    // Se tiver dados na tabela cmv_mensal E não for o mês atual, usar diretamente
-    if (cmvMensal && !errMensal && !isMesAtual) {
+    // Se tiver dados na tabela cmv_mensal, usar diretamente
+    if (cmvMensal && !errMensal) {
       // Buscar fator CMV do banco (centralizado)
       const fatorCmv = await getFatorCmv(supabase, barId);
       
@@ -134,6 +134,14 @@ export async function GET(request: NextRequest) {
       const { semana: semanaInicial, ano: anoInicial } = getWeekAndYear(primeiroDiaMes);
       const primeiroDiaMesSeguinte = new Date(ano, mes, 1);
       const { semana: semanaFinal, ano: anoFinal } = getWeekAndYear(primeiroDiaMesSeguinte);
+
+      // Mês em andamento: estoque_final ainda não foi preenchido pela planilha (próximo snapshot é 01 do mês seguinte).
+      // Sem est_fim, o cmv_real fica inflado (= est_ini + compras). Zera os calculados pra evitar exibir lixo.
+      const estFimZero = parseFloat(String(cmvMensal.estoque_final || 0)) === 0
+        && parseFloat(String(cmvMensal.estoque_inicial || 0)) > 0;
+      const cmvRealEfetivo = estFimZero ? 0 : parseFloat(String(cmvMensal.cmv_real || 0));
+      const cmvLimpoPctEfetivo = estFimZero ? 0 : parseFloat(String(cmvMensal.cmv_limpo_percentual || 0));
+      const cmvRealPctEfetivo = estFimZero ? 0 : parseFloat(String(cmvMensal.cmv_real_percentual || 0));
 
       // Mapear campos da tabela cmv_mensal para o formato esperado (Onda 2A: usa fator do banco)
       const dadosMensais = {
@@ -165,8 +173,8 @@ export async function GET(request: NextRequest) {
         ajuste_bonificacoes: parseFloat(String(cmvMensal.ajuste_bonificacoes || 0)),
         bonificacao_contrato_anual: parseFloat(String(cmvMensal.bonificacao_contrato_anual || 0)),
         bonificacao_cashback_mensal: parseFloat(String(cmvMensal.bonificacao_cashback_mensal || 0)),
-        cmv_real: parseFloat(String(cmvMensal.cmv_real || 0)),
-        cmv_limpo_percentual: parseFloat(String(cmvMensal.cmv_limpo_percentual || 0)),
+        cmv_real: cmvRealEfetivo,
+        cmv_limpo_percentual: cmvLimpoPctEfetivo,
         cmv_teorico_percentual: parseFloat(String(cmvMensal.cmv_teorico_percentual || 0)),
         gap: parseFloat(String(cmvMensal.gap || 0)),
         estoque_inicial_funcionarios: parseFloat(String(cmvMensal.estoque_inicial_funcionarios || 0)),
