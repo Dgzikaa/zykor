@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
 
     // Query base
     let query = supabase
-      .from('google_reviews')
+      .schema('bronze' as never)
+      .from('bronze_google_reviews')
       .select('*', { count: 'exact' })
       .eq('bar_id', barId);
 
