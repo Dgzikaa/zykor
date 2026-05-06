@@ -383,7 +383,7 @@ export default function CMVSemanalTabelaPage() {
     'cmv-compras': false,
     'cmv-estoque_final': false,
     'cmv-consumos': false,
-    'cmv-bonificacoes': false,
+    'cmv-bonificacoes': true, // expandido por default — campos manuais editáveis
     // Resultados - expandido (mostra os 3 itens)
     'resultados-cmv_resultado': true,
     // CMA - grupos colapsados por padrão
@@ -1049,7 +1049,7 @@ export default function CMVSemanalTabelaPage() {
                             <div className="space-y-1">
                               <div className={cn("font-semibold text-sm", STATUS_COLORS[metrica.status].text)}>
                                 {metrica.status === 'auto' && 'Automático (Verificar)'}
-                                {metrica.status === 'manual' && (visao === 'mensal' && metrica.editavel ? 'Soma Proporcional (Mensal)' : 'Manual (Editável)')}
+                                {metrica.status === 'manual' && (visao === 'mensal' && metrica.editavel && metrica.key !== 'bonificacao_contrato_anual' && metrica.key !== 'bonificacao_cashback_mensal' ? 'Soma Proporcional (Mensal)' : 'Manual (Editável)')}
                                 {metrica.status === 'calculado' && 'Calculado (Verificar)'}
                               </div>
                               <div className="text-xs text-gray-600 dark:text-gray-300">
@@ -1058,7 +1058,7 @@ export default function CMVSemanalTabelaPage() {
                               <div className="text-xs text-gray-600 dark:text-gray-300">
                                 <strong>Cálculo:</strong> {visao === 'mensal' && metrica.editavel ? 'Soma proporcional das semanas do mês' : metrica.calculo}
                               </div>
-                              {visao === 'mensal' && metrica.editavel && (
+                              {visao === 'mensal' && metrica.editavel && metrica.key !== 'bonificacao_contrato_anual' && metrica.key !== 'bonificacao_cashback_mensal' && (
                                 <div className="text-xs text-amber-600 dark:text-amber-400 mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
                                   ⚠️ Para editar, use a visão Semanal
                                 </div>
@@ -1435,8 +1435,11 @@ export default function CMVSemanalTabelaPage() {
                                       </TooltipProvider>
                                     )}
 
-                                    {/* Botão editar - apenas no modo semanal */}
-                                    {!isEditandoCell && metrica.editavel && visao === 'semanal' && (
+                                    {/* Botão editar - semanal: todos os campos editaveis; mensal: só bonificações (têm coluna própria em cmv_mensal) */}
+                                    {!isEditandoCell && metrica.editavel && (
+                                      visao === 'semanal' ||
+                                      (visao === 'mensal' && (metrica.key === 'bonificacao_contrato_anual' || metrica.key === 'bonificacao_cashback_mensal'))
+                                    ) && (
                                       <Button
                                         size="icon"
                                         variant="ghost"
