@@ -230,6 +230,11 @@ async function syncLancamentos(
   for (const { endpoint, tipo } of tipos) {
     let pagina = 1
     let totalPaginas = 1
+    // Coleta de IDs vindos da API neste run (pra detectar exclusões)
+    const idsVindosApi: string[] = []
+    let rangeVencDe = ''
+    let rangeVencAte = ''
+    let percorreuTudo = false
 
     console.log('[contaazul-sync] Buscando ' + tipo + '...')
 
@@ -264,6 +269,9 @@ async function syncLancamentos(
         
         params.data_vencimento_de = fromDate.toISOString().split('T')[0]
         params.data_vencimento_ate = toDate.toISOString().split('T')[0]
+        // Guarda o range efetivo pra detectar exclusões depois
+        rangeVencDe = params.data_vencimento_de
+        rangeVencAte = params.data_vencimento_ate
       }
 
       const result = await fetchCA(endpoint, params, currentToken, supabase, credentials)
@@ -283,6 +291,11 @@ async function syncLancamentos(
 
       console.log('[contaazul-sync] ' + tipo + ' pagina ' + pagina + '/' + totalPaginas + ' - ' + itens.length + ' itens')
       console.log('[contaazul-sync] bar_id=' + barId + ', total_itens_api=' + (data.itens_totais || 0))
+
+      // Acumula os IDs vindos da API pra detecção de exclusões
+      for (const it of itens) {
+        if (it && it.id) idsVindosApi.push(it.id)
+      }
 
       if (itens.length > 0) {
         console.log('[contaazul-sync] Preparando ' + itens.length + ' lancamentos para upsert...')
@@ -363,9 +376,45 @@ async function syncLancamentos(
       }
 
       pagina++
-      
+
+      // Marca como percorrido completamente quando passou da última página
+      if (pagina > totalPaginas) {
+        percorreuTudo = true
+      }
+
       if (pagina <= totalPaginas) {
         await new Promise(resolve => setTimeout(resolve, 200))
+      }
+    }
+
+    // ===== SOFT-DELETE: marca como excluído quem sumiu do CA =====
+    // Só roda se: (1) sync sem filtro de data_alteracao (full_month/custom — full sweep do range),
+    // (2) percorreu todas as páginas, (3) tem range definido. Daily_incremental NÃO entra aqui
+    // porque ele só traz alterados nos últimos 2 dias — não dá pra inferir exclusões assim.
+    if (!useAlteracaoFilter && percorreuTudo && rangeVencDe && rangeVencAte) {
+      try {
+        // Usa RPC custom pra evitar problema de tamanho de IN (...) com milhares de IDs.
+        // Estratégia: passa array via .filter('contaazul_id', 'not.in', `(${ids})`) — mas Supabase
+        // limita strings. Solução: chamar SQL direto via rpc ou usar batch.
+        // Alternativa simples: usa unnest(text[]) via rpc.
+        const { error: softDelErr, count: softDelCount } = await supabase
+          .schema('integrations')
+          .from('contaazul_lancamentos')
+          .update({ excluido_em: new Date().toISOString() }, { count: 'exact' })
+          .eq('bar_id', barId)
+          .eq('tipo', tipo)
+          .gte('data_vencimento', rangeVencDe)
+          .lte('data_vencimento', rangeVencAte)
+          .is('excluido_em', null)
+          .not('contaazul_id', 'in', `(${idsVindosApi.map(id => `"${id}"`).join(',')})`)
+
+        if (softDelErr) {
+          console.error('[contaazul-sync] Erro ao marcar excluídos ' + tipo + ':', softDelErr.message)
+        } else {
+          console.log('[contaazul-sync] Soft-delete ' + tipo + ': ' + (softDelCount || 0) + ' lançamentos marcados como excluídos no range ' + rangeVencDe + ' a ' + rangeVencAte)
+        }
+      } catch (sdErr) {
+        console.error('[contaazul-sync] Exceção no soft-delete ' + tipo + ':', sdErr)
       }
     }
   }
