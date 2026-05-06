@@ -41,14 +41,15 @@ async function getCustoAtracao(
   categoriasAtracao: string[]
 ): Promise<{ valor: number; count: number }> {
   const { data, error } = await supabase
-    .schema('integrations')
-    .from('contaazul_lancamentos')
+    .schema('bronze')
+    .from('bronze_contaazul_lancamentos')
     .select('valor_bruto')
     .eq('bar_id', barId)
     .eq('tipo', 'DESPESA')
     .in('categoria_nome', categoriasAtracao)
     .gte('data_competencia', startDate)
-    .lte('data_competencia', endDate);
+    .lte('data_competencia', endDate)
+    .is('excluido_em', null);
 
   if (error) {
     console.warn('[calc-custos] Erro ao buscar lancamentos:', error.message);
