@@ -11,10 +11,11 @@ export async function GET(request: NextRequest) {
     const dataFim = searchParams.get('data_fim') || '2026-04-05';
     
     const { data, error } = await supabase
-      .schema('integrations' as any)
-      .from('contaazul_lancamentos')
+      .schema('bronze' as any)
+      .from('bronze_contaazul_lancamentos')
       .select('categoria_nome, valor_bruto, tipo, descricao, data_competencia')
       .eq('bar_id', barId)
+      .is('excluido_em', null)
       .gte('data_competencia', dataInicio)
       .lte('data_competencia', dataFim)
       .order('data_competencia', { ascending: true });

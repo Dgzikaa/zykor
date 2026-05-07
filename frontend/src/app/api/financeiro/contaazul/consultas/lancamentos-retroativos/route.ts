@@ -19,18 +19,19 @@ export async function GET(request: NextRequest) {
     const mesesRetroativos = parseInt(searchParams.get('meses_retroativos') || '1');
 
     let query = supabase
-      .schema('integrations' as any)
-      .from('contaazul_lancamentos')
+      .schema('bronze' as any)
+      .from('bronze_contaazul_lancamentos')
       .select(`
         contaazul_id, bar_id, tipo, status, status_traduzido,
         descricao, valor_bruto, valor_pago, valor_nao_pago,
         data_competencia, data_vencimento, data_pagamento,
-        data_criacao_ca, data_alteracao_ca, created_at, updated_at,
+        data_criacao_ca, data_alteracao_ca, synced_at,
         categoria_id, categoria_nome,
         pessoa_id, pessoa_nome,
         numero_parcela, total_parcelas,
         todos_centros_custo
       `)
+      .is('excluido_em', null)
       .order('data_criacao_ca', { ascending: false })
       .limit(500);
 

@@ -4,20 +4,22 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic'
 
 // Função para buscar dados com paginação (contorna limite de 1000 do Supabase)
-async function fetchAllData(supabase: any, tableName: string, columns: string, filters: any = {}) {
+async function fetchAllData(supabase: any, tableName: string, columns: string, filters: any = {}, schema?: string) {
   let allData: any[] = [];
   let from = 0;
   const limit = 1000;
-  
+
+  const base = schema ? supabase.schema(schema) : supabase;
+
   const MAX_ITERATIONS = 1000;
   let iterations = 0;
   while (iterations < MAX_ITERATIONS) {
     iterations++;
-    let query = supabase
+    let query = base
       .from(tableName)
       .select(columns)
       .range(from, from + limit - 1);
-    
+
     // Aplicar filtros
     Object.entries(filters).forEach(([key, value]) => {
       if (key.includes('gte_')) {
@@ -28,6 +30,8 @@ async function fetchAllData(supabase: any, tableName: string, columns: string, f
         query = query.eq(key.replace('eq_', ''), value);
       } else if (key.includes('in_')) {
         query = query.in(key.replace('in_', ''), value);
+      } else if (key.startsWith('is_')) {
+        query = query.is(key.replace('is_', ''), value);
       }
     });
     
@@ -86,12 +90,13 @@ export async function GET(request: Request) {
       endDate = `${ano}-12-31`;
     }
 
-    // Buscar lan�amentos do Conta Azul para o período
-    const lancamentosData = await fetchAllData(supabase, 'contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia, data_pagamento', {
+    // Buscar lançamentos do Conta Azul para o período (bronze pós-medallion)
+    const lancamentosData = await fetchAllData(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia, data_pagamento', {
       'eq_bar_id': parseInt(barId),
+      'is_excluido_em': null,
       'gte_data_competencia': startDate,
       'lte_data_competencia': endDate
-    });
+    }, 'bronze');
 
     // Mapa de categorias problemáticas que o usuário mencionou
     const categoriasProblematicas = [

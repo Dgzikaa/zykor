@@ -13,20 +13,20 @@ export async function POST(request: NextRequest) {
     const barId = user.bar_id
     if (!barId) return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 })
 
-    // Executar validação para ontem
-    const { data, error } = await supabase.rpc('executar_validacao_diaria', {
-      p_data: null, // null = ontem
-      p_bar_id: barId
-    })
+    const { data, error } = await supabase.rpc('validar_dados_contahub_diario')
 
     if (error) {
       console.error('Erro ao executar validação:', error)
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
 
+    const resultados = (data ?? []).filter((r: any) => r.bar_id === barId)
+    const problemas = resultados.length
+
     return NextResponse.json({
       success: true,
-      resultado: data
+      problemas_detectados: problemas,
+      resultado: resultados
     })
 
   } catch (error: any) {

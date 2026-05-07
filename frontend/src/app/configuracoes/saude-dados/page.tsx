@@ -24,6 +24,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { usePageTitle } from '@/contexts/PageTitleContext'
 import { format, parseISO, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { toast } from 'sonner'
 
 interface Validacao {
   id: number
@@ -108,12 +109,21 @@ export default function SaudeDadosPage() {
       setExecutandoValidacao(true)
       const response = await fetch('/api/saude-dados/validar', { method: 'POST' })
       const data = await response.json()
-      
+
       if (data.success) {
+        const n = data.problemas_detectados ?? 0
+        if (n === 0) {
+          toast.success('Validação OK', { description: 'Nenhum problema detectado' })
+        } else {
+          toast.warning(`${n} problema(s) detectado(s)`, { description: 'Verifique a aba Validações' })
+        }
         fetchData()
+      } else {
+        toast.error('Erro ao validar', { description: data.error || 'Tente novamente' })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao executar validação:', error)
+      toast.error('Erro ao validar', { description: error?.message })
     } finally {
       setExecutandoValidacao(false)
     }
