@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
     const competenciaApos = searchParams.get('competencia_apos');
     const barId = searchParams.get('bar_id');
     const mesesRetroativos = parseInt(searchParams.get('meses_retroativos') || '1');
+    const categoriasParam = searchParams.get('categorias');
+    const categorias = categoriasParam ? categoriasParam.split(',').map(c => c.trim()).filter(Boolean) : [];
 
     let query = supabase
       .schema('bronze' as any)
@@ -40,6 +42,7 @@ export async function GET(request: NextRequest) {
     if (criadoAntes) query = query.lte('data_criacao_ca', criadoAntes);
     if (competenciaAntes) query = query.lte('data_competencia', competenciaAntes);
     if (competenciaApos) query = query.gte('data_competencia', competenciaApos);
+    if (categorias.length > 0) query = query.in('categoria_nome', categorias);
 
     const { data, error } = await query;
 
