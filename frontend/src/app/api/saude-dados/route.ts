@@ -13,8 +13,12 @@ export async function GET(request: NextRequest) {
     const barId = user.bar_id
     if (!barId) return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 })
 
+    const systemClient = supabase.schema('system' as any)
+    const integrationsClient = supabase.schema('integrations' as any)
+    const silverClient = supabase.schema('silver' as any)
+
     // Buscar validações dos últimos 30 dias
-    const { data: validacoes, error: validacoesError } = await supabase
+    const { data: validacoes, error: validacoesError } = await systemClient
       .from('validacao_dados_diaria')
       .select('*')
       .eq('bar_id', barId)
@@ -26,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar alertas (últimos 50)
-    const { data: alertas, error: alertasError } = await supabase
+    const { data: alertas, error: alertasError } = await systemClient
       .from('sistema_alertas')
       .select('*')
       .order('criado_em', { ascending: false })
@@ -37,7 +41,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar dados bloqueados
-    const { data: bloqueados, error: bloqueadosError } = await supabase
+    const { data: bloqueados, error: bloqueadosError } = await systemClient
       .from('dados_bloqueados')
       .select('*')
       .eq('bar_id', barId)
@@ -49,47 +53,55 @@ export async function GET(request: NextRequest) {
       console.error('Erro ao buscar bloqueados:', bloqueadosError)
     }
 
-    // NIBO descontinuado - dados mantidos apenas para histórico
-    const niboSync = null;
-
-    const { data: contahubSync } = await supabase
-      .schema('silver' as never)
+    const { data: contahubSync } = await silverClient
       .from('faturamento_pagamentos')
       .select('atualizado_em')
       .eq('bar_id', barId)
       .order('atualizado_em', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
-    const { data: symplaSync } = await supabase
+    const { data: symplaSync } = await integrationsClient
       .from('sympla_pedidos')
       .select('created_at')
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
-    const { data: yuzerSync } = await supabase
+    const { data: yuzerSync } = await silverClient
       .from('silver_yuzer_pagamentos_evento')
       .select('created_at')
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
-    // NIBO descontinuado
-    const niboCount = 0;
-
-    const { count: contahubCount } = await supabase
-      .schema('silver' as never)
+    const { count: contahubCount } = await silverClient
       .from('faturamento_pagamentos')
       .select('*', { count: 'exact', head: true })
       .eq('bar_id', barId)
 
+    const bronzeClient = supabase.schema('bronze' as any)
+    const { data: contaazulSync } = await bronzeClient
+      .from('bronze_contaazul_lancamentos')
+      .select('synced_at')
+      .eq('bar_id', barId)
+      .is('excluido_em', null)
+      .order('synced_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const { count: contaazulCount } = await bronzeClient
+      .from('bronze_contaazul_lancamentos')
+      .select('*', { count: 'exact', head: true })
+      .eq('bar_id', barId)
+      .is('excluido_em', null)
+
     const statusSyncs = [
       {
         sistema: 'Conta Azul',
-        ultima_sync: null,
-        status: 'integrado via lancamentos_financeiros',
-        registros: 0
+        ultima_sync: contaazulSync?.synced_at || null,
+        status: contaazulSync ? 'ok' : 'sem dados',
+        registros: contaazulCount || 0
       },
       {
         sistema: 'ContaHub',

@@ -40,12 +40,13 @@ export async function GET(request: NextRequest) {
     const ontem = new Date()
     ontem.setDate(ontem.getDate() - 1)
 
-    // Verificar syncs do Conta Azul nas últimas 24h
+    // Verificar syncs do Conta Azul nas últimas 24h (bronze pós-medallion)
     const { data: syncs } = await supabase
-      .schema('integrations' as any)
-      .from('contaazul_lancamentos')
+      .schema('bronze' as any)
+      .from('bronze_contaazul_lancamentos')
       .select('id')
-      .gte('created_at', ontem.toISOString())
+      .is('excluido_em', null)
+      .gte('synced_at', ontem.toISOString())
 
     const syncsOk = syncs?.length || 0
     const syncsTotal = syncs?.length || 0

@@ -36,6 +36,8 @@ async function fetchAllPaginated<T>(
         query = query.lte(filter.column, filter.value);
       } else if (filter.operator === 'in') {
         query = query.in(filter.column, filter.value);
+      } else if (filter.operator === 'is') {
+        query = query.is(filter.column, filter.value);
       }
     }
 
@@ -390,22 +392,24 @@ export async function GET(request: Request) {
       // Query 2: Conta Azul todos (projeção) - COM PAGINAÇÃO
       fetchAllPaginated<{ categoria_nome: string; status: string; valor_bruto: string; data_competencia: string }>(
         supabase,
-        'contaazul_lancamentos',
+        'bronze_contaazul_lancamentos',
         'categoria_nome, status, valor_bruto, data_competencia',
         [
           { column: 'bar_id', operator: 'eq', value: parseInt(barId) },
+          { column: 'excluido_em', operator: 'is', value: null },
           { column: 'data_competencia', operator: 'gte', value: dataInicio },
           { column: 'data_competencia', operator: 'lte', value: dataFim }
         ]
       ),
-      
+
       // Query 3: Conta Azul pagos (realizado) - COM PAGINAÇÃO - usar data_pagamento
       fetchAllPaginated<{ categoria_nome: string; status: string; valor_bruto: string; data_pagamento: string }>(
         supabase,
-        'contaazul_lancamentos',
+        'bronze_contaazul_lancamentos',
         'categoria_nome, status, valor_bruto, data_pagamento',
         [
           { column: 'bar_id', operator: 'eq', value: parseInt(barId) },
+          { column: 'excluido_em', operator: 'is', value: null },
           { column: 'status', operator: 'in', value: ['PAGO', 'LIQUIDADO'] },
           { column: 'data_pagamento', operator: 'gte', value: dataInicio },
           { column: 'data_pagamento', operator: 'lte', value: dataFim }

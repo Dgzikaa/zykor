@@ -213,6 +213,7 @@ async function fetchAllPaginated<T>(
       else if (filter.operator === 'gte') query = query.gte(filter.column, filter.value);
       else if (filter.operator === 'lte') query = query.lte(filter.column, filter.value);
       else if (filter.operator === 'in') query = query.in(filter.column, filter.value);
+      else if (filter.operator === 'is') query = query.is(filter.column, filter.value);
     }
     const { data, error } = await query.range(offset, offset + pageSize - 1);
     if (error) { console.error(`Erro ao buscar ${table}:`, error); break; }
@@ -300,13 +301,15 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
 
   const [planejadosResult, dadosNiboTodos, dadosNiboPagos, manuaisResult, eventosResult] = await Promise.all([
     supabase.from('orcamentacao').select('*').eq('bar_id', barId).in('ano', anosUnicos),
-    fetchAllPaginated<any>(supabase, 'contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia', [
+    fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia', [
       { column: 'bar_id', operator: 'eq', value: barId },
+      { column: 'excluido_em', operator: 'is', value: null },
       { column: 'data_competencia', operator: 'gte', value: dataInicio },
       { column: 'data_competencia', operator: 'lte', value: dataFim }
     ]),
-    fetchAllPaginated<any>(supabase, 'contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_pagamento', [
+    fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_pagamento', [
       { column: 'bar_id', operator: 'eq', value: barId },
+      { column: 'excluido_em', operator: 'is', value: null },
       { column: 'status', operator: 'in', value: ['PAGO', 'LIQUIDADO'] },
       { column: 'data_pagamento', operator: 'gte', value: dataInicio },
       { column: 'data_pagamento', operator: 'lte', value: dataFim }

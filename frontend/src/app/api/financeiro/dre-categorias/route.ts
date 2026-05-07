@@ -79,9 +79,10 @@ export async function GET(request: NextRequest) {
     const mes = searchParams.get('mes');
 
     let query = supabase
-      .schema('integrations' as any)
-      .from('contaazul_lancamentos')
-      .select('categoria_nome, valor_bruto, bar_id');
+      .schema('bronze' as any)
+      .from('bronze_contaazul_lancamentos')
+      .select('categoria_nome, valor_bruto, bar_id')
+      .is('excluido_em', null);
 
     if (barId) query = query.eq('bar_id', parseInt(barId));
     if (ano && mes) {

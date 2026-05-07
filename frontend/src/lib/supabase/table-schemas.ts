@@ -161,12 +161,9 @@ export const TABLE_SCHEMAS = {
   // ============================================
   api_credentials: 'integrations',
   bar_api_configs: 'integrations',
-  contaazul_categorias: 'integrations',
-  contaazul_centros_custo: 'integrations',
-  contaazul_contas_financeiras: 'integrations',
-  contaazul_lancamentos: 'integrations',
+  // contaazul_categorias / centros_custo / contas_financeiras / lancamentos / pessoas
+  // foram dropadas no refactor medallion. Use bronze_contaazul_* (já mapeadas abaixo).
   contaazul_logs_sincronizacao: 'integrations',
-  contaazul_pessoas: 'integrations',
   falae_config: 'integrations',  // config/credenciais — fica em integrations
   // falae_respostas: dropada de integrations; usar bronze_falae_respostas
   getin_reservas: 'bronze',  // existe em bronze sem prefixo

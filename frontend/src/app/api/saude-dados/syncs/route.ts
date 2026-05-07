@@ -33,17 +33,18 @@ export async function GET(request: NextRequest) {
       erros: 0
     })
 
-    // Conta Azul — verificar último lançamento importado
+    // Conta Azul — verificar último lançamento importado (bronze pós-medallion)
     const { data: contaazulData } = await supabase
-      .schema('integrations' as any)
-      .from('contaazul_lancamentos')
-      .select('created_at')
-      .order('created_at', { ascending: false })
+      .schema('bronze' as any)
+      .from('bronze_contaazul_lancamentos')
+      .select('synced_at')
+      .is('excluido_em', null)
+      .order('synced_at', { ascending: false })
       .limit(1)
 
     syncStatus.push({
       sistema: 'Conta Azul',
-      ultima_sync: contaazulData?.[0]?.created_at ? new Date(contaazulData[0].created_at).toLocaleString('pt-BR') : 'N/A',
+      ultima_sync: contaazulData?.[0]?.synced_at ? new Date(contaazulData[0].synced_at).toLocaleString('pt-BR') : 'N/A',
       status: contaazulData && contaazulData.length > 0 ? 'ok' : 'warning',
       registros: contaazulData?.length || 0,
       erros: 0
