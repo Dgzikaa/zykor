@@ -67,14 +67,14 @@ export function ClientesList({
             <TableRow>
               <TableHead className="font-semibold w-[140px]">Nome</TableHead>
               <TableHead className="font-semibold w-[110px]">Telefone</TableHead>
-              <TableHead className="font-semibold w-[70px] text-center">Visitas</TableHead>
-              <TableHead className="font-semibold w-[100px] text-right pr-4">🎫 Entrada</TableHead>
-              <TableHead className="font-semibold w-[100px] text-right pr-4">🍺 Consumo</TableHead>
-              <TableHead className="font-semibold w-[160px] text-center">Tickets</TableHead>
-              <TableHead className="font-semibold w-[90px] text-center">⏱️ Tempo</TableHead>
+              <TableHead className="font-semibold w-[70px] [&>div]:justify-center">Visitas</TableHead>
+              <TableHead className="font-semibold w-[100px] pr-4 [&>div]:justify-end">🎫 Entrada</TableHead>
+              <TableHead className="font-semibold w-[100px] pr-4 [&>div]:justify-end">🍺 Consumo</TableHead>
+              <TableHead className="font-semibold w-[160px] [&>div]:justify-center">Tickets</TableHead>
+              <TableHead className="font-semibold w-[110px] [&>div]:justify-center">⏱️ Tempo Médio</TableHead>
               <TableHead className="font-semibold w-[160px]">🍺 Bebida fav</TableHead>
               <TableHead className="font-semibold w-[160px]">🍴 Comida fav</TableHead>
-              <TableHead className="font-semibold w-[100px] text-center">Última visita</TableHead>
+              <TableHead className="font-semibold w-[100px] [&>div]:justify-center">Última visita</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -139,13 +139,13 @@ export function ClientesList({
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="w-[90px] text-center">
+                  <TableCell className="w-[110px] text-center">
                     {cliente.tempo_medio_estadia_formatado && cliente.tempo_medio_estadia_formatado !== 'N/A' ? (
                       <div className="flex flex-col gap-0.5 items-center justify-center">
                         <Badge variant="outline" className="bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 text-xs">
                           {cliente.tempo_medio_estadia_formatado}
                         </Badge>
-                        {cliente.total_visitas_com_tempo && cliente.total_visitas_com_tempo > 0 && (
+                        {(cliente.total_visitas_com_tempo ?? 0) > 0 && (
                           <span className="text-xs text-muted-foreground">
                             {cliente.total_visitas_com_tempo}/{cliente.total_visitas}
                           </span>
