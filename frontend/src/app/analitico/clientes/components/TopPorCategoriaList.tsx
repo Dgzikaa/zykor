@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Search, Beer, Download, Star, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { apiCall } from '@/lib/api-client'
 
 interface Categoria {
   nome: string
@@ -62,32 +63,42 @@ export function TopPorCategoriaList() {
 
   // Carregar categorias na primeira vez
   useEffect(() => {
-    fetch('/api/analitico/clientes-por-categoria?categoria=__listar__')
-      .then(r => r.json())
-      .then(json => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const json = await apiCall('/api/analitico/clientes-por-categoria?categoria=__listar__')
+        if (cancelled) return
         const cats = json.categorias || []
         setCategorias(cats)
-        if (cats.length > 0 && !categoriaSel) setCategoriaSel(cats[0].nome)
-      })
-      .catch((e) => toast({ title: 'Erro', description: 'Falha ao carregar categorias', variant: 'destructive' }))
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+        if (cats.length > 0) setCategoriaSel(prev => prev || cats[0].nome)
+      } catch (e: any) {
+        if (!cancelled) toast({ title: 'Erro', description: 'Falha ao carregar categorias', variant: 'destructive' })
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const carregarClientes = useCallback(async () => {
+  // Carregar clientes da categoria selecionada
+  useEffect(() => {
     if (!categoriaSel) return
-    setLoading(true)
-    try {
-      const resp = await fetch(`/api/analitico/clientes-por-categoria?categoria=${encodeURIComponent(categoriaSel)}&limit=${limit}`)
-      if (!resp.ok) throw new Error('Falha')
-      const json = await resp.json()
-      setClientes(json.clientes || [])
-    } catch (e: any) {
-      toast({ title: 'Erro', description: e.message, variant: 'destructive' })
-    } finally {
-      setLoading(false)
-    }
-  }, [categoriaSel, limit, toast])
-
-  useEffect(() => { carregarClientes() }, [carregarClientes])
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const json = await apiCall(`/api/analitico/clientes-por-categoria?categoria=${encodeURIComponent(categoriaSel)}&limit=${limit}`)
+        if (!cancelled) setClientes(json.clientes || [])
+      } catch (e: any) {
+        if (!cancelled) toast({ title: 'Erro', description: e.message, variant: 'destructive' })
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+    // toast nao memoizado no useToast do projeto — excluir das deps pra nao
+    // entrar em loop. categoriaSel e limit sao as deps reais.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoriaSel, limit])
 
   const filtrados = clientes.filter(c => {
     if (!busca) return true
