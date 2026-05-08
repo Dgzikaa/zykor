@@ -419,7 +419,7 @@ export async function getSemanas(
       discursive_question: string | null;
     }>(
       supabase,
-      'falae_respostas',
+      'bronze_falae_respostas',
       'created_at, nps, criterios, discursive_question',
       [
         { column: 'bar_id', operator: 'eq', value: barId },
@@ -427,7 +427,7 @@ export async function getSemanas(
         { column: 'created_at', operator: 'lte', value: `${dataMax}T23:59:59` },
       ],
       1000,
-      'integrations'
+      'bronze'
     );
 
     falaeRespostas.forEach((r) => {
