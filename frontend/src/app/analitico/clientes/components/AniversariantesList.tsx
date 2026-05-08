@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search, Cake, Download, Star, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { apiCall } from '@/lib/api-client'
 
 interface ProdutoFavorito {
   produto: string
@@ -85,9 +86,7 @@ export function AniversariantesList() {
   const carregar = useCallback(async () => {
     setLoading(true)
     try {
-      const resp = await fetch(`/api/analitico/aniversariantes?mes=${mes}`)
-      if (!resp.ok) throw new Error('Falha ao carregar')
-      const json: ApiResponse = await resp.json()
+      const json: ApiResponse = await apiCall(`/api/analitico/aniversariantes?mes=${mes}`)
       setDados(json)
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message || 'Falha', variant: 'destructive' })
