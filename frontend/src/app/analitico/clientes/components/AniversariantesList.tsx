@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -83,19 +83,24 @@ export function AniversariantesList() {
   const [loading, setLoading] = useState(false)
   const [busca, setBusca] = useState('')
 
-  const carregar = useCallback(async () => {
-    setLoading(true)
-    try {
-      const json: ApiResponse = await apiCall(`/api/analitico/aniversariantes?mes=${mes}`)
-      setDados(json)
-    } catch (e: any) {
-      toast({ title: 'Erro', description: e.message || 'Falha', variant: 'destructive' })
-    } finally {
-      setLoading(false)
-    }
-  }, [mes, toast])
-
-  useEffect(() => { carregar() }, [carregar])
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const json: ApiResponse = await apiCall(`/api/analitico/aniversariantes?mes=${mes}`)
+        if (!cancelled) setDados(json)
+      } catch (e: any) {
+        if (!cancelled) toast({ title: 'Erro', description: e.message || 'Falha', variant: 'destructive' })
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+    // toast é recriado a cada render (useToast nao memoiza), entao excluido das deps
+    // pra nao causar loop de refetch. mes e a unica dep real.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mes])
 
   const filtrados = (dados?.aniversariantes || []).filter(a => {
     if (!busca) return true
