@@ -488,9 +488,11 @@ export default function CMVSemanalTabelaPage() {
         const result = await response.json();
         const data = result.data || [];
         
-        // Filtrar por ano, remover zerados e ordenar por ano/semana (crescente)
+        // Filtrar por ano, esconder semanas futuras, remover zerados e ordenar por ano/semana (crescente)
+        const hojeISO = new Date().toISOString().split('T')[0];
         const filtrado = data
           .filter((item: CMVSemanal) => anoFiltro === 'todos' || item.ano === parseInt(anoFiltro))
+          .filter((item: CMVSemanal) => item.data_inicio <= hojeISO)
           .filter((item: CMVSemanal) => item.faturamento_cmvivel > 0 || item.cmv_real > 0 || item.vendas_brutas > 0)
           .sort((a: CMVSemanal, b: CMVSemanal) => {
             if (a.ano !== b.ano) return a.ano - b.ano;

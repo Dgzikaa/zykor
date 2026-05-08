@@ -456,9 +456,11 @@ export default function CMVSemanalPage() {
       const data = await response.json();
       const todosOsCmvs = data.data || [];
       
-      // Filtrar apenas CMVs com dados (não zerados)
-      const cmvsComDados = todosOsCmvs.filter((cmv: CMVSemanal) => 
-        cmv.faturamento_cmvivel > 0 || cmv.cmv_real > 0 || cmv.vendas_brutas > 0
+      // Filtrar apenas CMVs com dados (não zerados) e que já começaram (sem semanas futuras)
+      const hojeISO = new Date().toISOString().split('T')[0];
+      const cmvsComDados = todosOsCmvs.filter((cmv: CMVSemanal) =>
+        cmv.data_inicio <= hojeISO &&
+        (cmv.faturamento_cmvivel > 0 || cmv.cmv_real > 0 || cmv.vendas_brutas > 0)
       );
       
       setCmvsTotais(todosOsCmvs.length);
