@@ -1,12 +1,19 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useBar } from '@/contexts/BarContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Plug, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Plug, CheckCircle2, AlertTriangle, Instagram, Unplug } from 'lucide-react';
 import { toast } from 'sonner';
+
+interface IntegracaoAcao {
+  id: string;
+  label: string;
+  tipo: 'instagram_connect' | 'instagram_disconnect' | string;
+}
 
 interface IntegracaoItem {
   id: string;
@@ -16,12 +23,72 @@ interface IntegracaoItem {
   origem: string | null;
   atualizadoEm: string | null;
   campos: Record<string, unknown>;
+  acoes?: IntegracaoAcao[];
 }
 
 export default function AdministracaoIntegracoesPage() {
   const { selectedBar } = useBar();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [integracoes, setIntegracoes] = useState<IntegracaoItem[]>([]);
+  const [acaoPendente, setAcaoPendente] = useState<string | null>(null);
+
+  // Mostra resultado de retorno do OAuth Instagram
+  useEffect(() => {
+    const igStatus = searchParams.get('ig_status');
+    if (!igStatus) return;
+    if (igStatus === 'ok') {
+      const username = searchParams.get('ig_username');
+      toast.success(`Instagram conectado${username ? `: @${username}` : ''}`);
+    } else {
+      const msg = searchParams.get('ig_msg') || 'erro desconhecido';
+      toast.error(`Falha ao conectar Instagram: ${decodeURIComponent(msg)}`);
+    }
+    // Limpa querystring sem reload
+    window.history.replaceState({}, '', window.location.pathname);
+  }, [searchParams]);
+
+  const conectarInstagram = async () => {
+    if (!selectedBar?.id) return;
+    setAcaoPendente('instagram_connect');
+    try {
+      const resp = await fetch(`/api/integracoes/instagram/iniciar?bar_id=${selectedBar.id}`);
+      const json = await resp.json();
+      if (!resp.ok || !json.url) {
+        throw new Error(json?.error || 'Falha iniciando OAuth');
+      }
+      window.location.href = json.url;
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro');
+      setAcaoPendente(null);
+    }
+  };
+
+  const desconectarInstagram = async () => {
+    if (!selectedBar?.id) return;
+    if (!confirm('Desconectar Instagram desse bar? O histórico já capturado fica salvo.')) return;
+    setAcaoPendente('instagram_disconnect');
+    try {
+      const resp = await fetch('/api/integracoes/instagram/desconectar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: selectedBar.id }),
+      });
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json?.error || 'Erro');
+      toast.success('Instagram desconectado');
+      await carregarIntegracoes();
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro');
+    } finally {
+      setAcaoPendente(null);
+    }
+  };
+
+  const executarAcao = (acao: IntegracaoAcao) => {
+    if (acao.tipo === 'instagram_connect') return conectarInstagram();
+    if (acao.tipo === 'instagram_disconnect') return desconectarInstagram();
+  };
 
   const carregarIntegracoes = async () => {
     if (!selectedBar?.id) return;
@@ -134,6 +201,27 @@ export default function AdministracaoIntegracoesPage() {
                   {JSON.stringify(item.campos, null, 2)}
                 </pre>
               </div>
+              {item.acoes && item.acoes.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {item.acoes.map((acao) => {
+                    const isPendente = acaoPendente === acao.tipo;
+                    const isConectar = acao.tipo === 'instagram_connect';
+                    return (
+                      <Button
+                        key={acao.id}
+                        size="sm"
+                        variant={isConectar ? 'default' : 'outline'}
+                        onClick={() => executarAcao(acao)}
+                        disabled={isPendente}
+                      >
+                        {item.id === 'instagram' && isConectar && <Instagram className="w-4 h-4 mr-2" />}
+                        {item.id === 'instagram' && !isConectar && <Unplug className="w-4 h-4 mr-2" />}
+                        {isPendente ? 'Aguarde...' : acao.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}

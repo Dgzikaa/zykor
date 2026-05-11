@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await getAdminClient();
-    const [credenciaisRes, umblerRes, getinUnitRes, barApiConfigsRes] = await Promise.all([
+    const [credenciaisRes, umblerRes, getinUnitRes, barApiConfigsRes, instagramRes] = await Promise.all([
       supabase
         .from('api_credentials')
         .select('*')
@@ -37,6 +37,11 @@ export async function GET(request: NextRequest) {
         .from('bar_api_configs')
         .select('*')
         .eq('bar_id', barId),
+      supabase
+        .from('instagram_contas')
+        .select('id, ig_business_id, ig_username, facebook_page_id, facebook_page_name, token_type, expires_at, ativo, ultima_sync_em, conectado_em')
+        .eq('bar_id', barId)
+        .maybeSingle(),
     ]);
 
     if (credenciaisRes.error || barApiConfigsRes.error) {
@@ -147,6 +152,31 @@ export async function GET(request: NextRequest) {
       origem: getinUnit ? 'getin_units' : null,
       atualizadoEm: getinUnit?.updated_at || null,
       campos: getinUnit || {},
+    });
+
+    const instagram = instagramRes.data as any;
+    items.push({
+      id: 'instagram',
+      nome: 'Instagram',
+      ativo: Boolean(instagram?.ativo),
+      configurado: Boolean(instagram),
+      origem: instagram ? 'instagram_contas' : null,
+      atualizadoEm: instagram?.ultima_sync_em || instagram?.conectado_em || null,
+      campos: instagram
+        ? {
+            ig_username: instagram.ig_username,
+            ig_business_id: instagram.ig_business_id,
+            facebook_page_name: instagram.facebook_page_name,
+            facebook_page_id: instagram.facebook_page_id,
+            token_type: instagram.token_type,
+            expires_at: instagram.expires_at,
+            ultima_sync_em: instagram.ultima_sync_em,
+            conectado_em: instagram.conectado_em,
+          }
+        : {},
+      acoes: instagram?.ativo
+        ? [{ id: 'desconectar', label: 'Desconectar', tipo: 'instagram_disconnect' }]
+        : [{ id: 'conectar', label: 'Conectar Instagram', tipo: 'instagram_connect' }],
     });
 
     const barApiConfigs = (barApiConfigsRes.data || []) as any[];
