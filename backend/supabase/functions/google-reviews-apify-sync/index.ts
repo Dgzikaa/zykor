@@ -6,6 +6,11 @@
  * Classificacao medallion mantida em ops.job_camada_mapping (ver
  * database/migrations/2026-04-23-observability-mapping.sql). Observability
  * via _shared/heartbeat.ts ou _shared/observability.ts.
+ *
+ * FIX 2026-05-11:
+ *  - onConflict corrigido para 'bar_id,review_id' (PK composta da tabela)
+ *  - .select('id') corrigido para .select('review_id') (coluna 'id' não existe)
+ *  - Erro no upsert agora propaga (antes era engolido e voltava success com 0 inserts)
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
@@ -52,9 +57,9 @@ interface ApifyReview {
 
 // Configuração dos bares e seus Place IDs
 const BAR_PLACE_IDS: Record<number, { placeId: string; name: string }> = {
-  3: { 
-    placeId: 'ChIJz3z3lJA7WpMRaC_nQ3vL700', 
-    name: 'Ordinário Bar e Música' 
+  3: {
+    placeId: 'ChIJz3z3lJA7WpMRaC_nQ3vL700',
+    name: 'Ordinário Bar e Música'
   },
   4: {
     placeId: 'ChIJt50cXnQ7WpMRjlTp98nT91o',
@@ -93,7 +98,7 @@ serve(async (req) => {
     }
 
     // Se bar_id específico, processar apenas esse bar
-    const barsToProcess = bar_id 
+    const barsToProcess = bar_id
       ? { [bar_id]: BAR_PLACE_IDS[bar_id] }
       : BAR_PLACE_IDS
 
@@ -101,7 +106,7 @@ serve(async (req) => {
 
     for (const [barIdStr, barConfig] of Object.entries(barsToProcess)) {
       const currentBarId = parseInt(barIdStr)
-      
+
       if (!barConfig) {
         results[currentBarId] = { success: false, message: 'Bar não configurado com Place ID' }
         continue
@@ -117,7 +122,7 @@ serve(async (req) => {
         } else if (run_new_scrape) {
           // Executar nova coleta no Apify
           console.log(`Iniciando nova coleta para ${barConfig.name}...`)
-          
+
           // Se retroativo=true, buscar TODO o histórico (sem limite de data)
           // Caso contrário, buscar apenas últimos 14 dias (comportamento padrão)
           const apifyInput: Record<string, unknown> = {
@@ -126,9 +131,14 @@ serve(async (req) => {
             }],
             maxReviews: retroativo ? 50000 : 9999,
             language: 'pt-BR',
-            reviewsSort: 'newest'
+            reviewsSort: 'newest',
+            // Params obrigatorios na versao atual do actor compass/Google-Maps-Reviews-Scraper:
+            // - reviewsOrigin='all': inclui reviews de todas as fontes (Google + Maps API)
+            // - personalData=true: inclui reviewerId, isLocalGuide, etc (sem isso retorna 0 items)
+            reviewsOrigin: 'all',
+            personalData: true,
           }
-          
+
           if (retroativo) {
             console.log(`🔄 RETROATIVO: Buscando TODO o histórico de reviews para ${barConfig.name} (sem limite de data)`)
           } else {
@@ -136,7 +146,7 @@ serve(async (req) => {
             apifyInput.reviewsStartDate = startDate
             console.log(`Buscando reviews desde ${startDate} para ${barConfig.name}`)
           }
-          
+
           const runData = await withRetry(
             async () => {
               const runResponse = await fetch(
@@ -155,7 +165,7 @@ serve(async (req) => {
               }
 
               const runData = await runResponse.json()
-              
+
               if (!runData.data?.id) {
                 throw new Error('Falha ao iniciar scraping no Apify')
               }
@@ -177,19 +187,19 @@ serve(async (req) => {
 
           while (status === 'RUNNING' && attempts < maxAttempts) {
             await new Promise(resolve => setTimeout(resolve, 5000))
-            
+
             const statusData = await withRetry(
               async () => {
                 const statusResponse = await fetch(
                   `https://api.apify.com/v2/actor-runs/${runId}?token=${apifyToken}`
                 )
-                
+
                 if (!statusResponse.ok) {
                   const error: any = new Error(`Erro ao verificar status do Apify: ${statusResponse.status}`)
                   error.status = statusResponse.status
                   throw error
                 }
-                
+
                 return await statusResponse.json()
               },
               {
@@ -198,7 +208,7 @@ serve(async (req) => {
                 retryOn: isRetriableError
               }
             )
-            
+
             status = statusData.data?.status || 'FAILED'
             attempts++
           }
@@ -219,7 +229,7 @@ serve(async (req) => {
 
         // Buscar reviews do dataset
         console.log(`Buscando reviews do dataset ${datasetIdToUse}...`)
-        
+
         let allReviews: ApifyReview[] = []
         let offset = 0
         const limit = 1000
@@ -230,7 +240,7 @@ serve(async (req) => {
               const datasetResponse = await fetch(
                 `https://api.apify.com/v2/datasets/${datasetIdToUse}/items?token=${apifyToken}&offset=${offset}&limit=${limit}`
               )
-              
+
               if (!datasetResponse.ok) {
                 const error: any = new Error(`Erro ao buscar dataset: ${datasetResponse.status}`)
                 error.status = datasetResponse.status
@@ -245,9 +255,9 @@ serve(async (req) => {
               retryOn: isRetriableError
             }
           )
-          
+
           if (reviews.length === 0) break
-          
+
           allReviews = allReviews.concat(reviews)
           offset += limit
 
@@ -267,12 +277,18 @@ serve(async (req) => {
         // Processar e inserir reviews em batches
         const batchSize = 100
         let insertedCount = 0
+        let batchErrors = 0
 
         for (let i = 0; i < reviewsForBar.length; i += batchSize) {
           const batch = reviewsForBar.slice(i, i + batchSize)
-          
+
           const reviewsToUpsert = batch.map(review => {
-            const detailedRatings = review.reviewDetailedRating || {}
+            // Actor passou a retornar chaves em pt-BR (Comida/Serviço/Ambiente) ao usar language=pt-BR
+            // Fallback pra ambas as línguas pra robustez
+            const detailedRatings: Record<string, number | undefined> = (review.reviewDetailedRating as any) || {}
+            const ratingFood = detailedRatings.Food ?? detailedRatings.Comida ?? null
+            const ratingService = detailedRatings.Service ?? detailedRatings['Serviço'] ?? detailedRatings.Servico ?? null
+            const ratingAtmosphere = detailedRatings.Atmosphere ?? detailedRatings.Ambiente ?? null
 
             let publishedDate: string | null = null
             if (review.publishedAtDate) {
@@ -299,9 +315,9 @@ serve(async (req) => {
               publish_at: review.publishAt,
               published_at_date: publishedDate,
               likes_count: review.likesCount || 0,
-              rating_food: detailedRatings.Food || null,
-              rating_service: detailedRatings.Service || null,
-              rating_atmosphere: detailedRatings.Atmosphere || null,
+              rating_food: ratingFood,
+              rating_service: ratingService,
+              rating_atmosphere: ratingAtmosphere,
               review_context: review.reviewContext && Object.keys(review.reviewContext).length > 0 ? review.reviewContext : null,
               review_image_urls: review.reviewImageUrls && review.reviewImageUrls.length > 0 ? review.reviewImageUrls : null,
               response_from_owner_text: review.responseFromOwnerText,
@@ -326,37 +342,48 @@ serve(async (req) => {
             }
           })
 
+          // FIX: onConflict precisa corresponder à PK composta (bar_id, review_id)
+          // FIX: .select('review_id') porque a tabela não tem coluna 'id'
           const { error, data } = await supabase
             .schema('bronze')
             .from('bronze_google_reviews')
-            .upsert(reviewsToUpsert, { 
-              onConflict: 'review_id',
-              ignoreDuplicates: false 
+            .upsert(reviewsToUpsert, {
+              onConflict: 'bar_id,review_id',
+              ignoreDuplicates: false
             })
-            .select('id')
+            .select('review_id')
 
           if (error) {
-            console.error(`Erro no batch ${i}-${i + batchSize}:`, error)
-          } else {
-            insertedCount += data?.length || batch.length
+            console.error(`❌ Erro no batch ${i}-${i + batchSize}:`, error)
+            batchErrors++
+            // Não silencia mais: se TODOS os batches falharem, marca a execução como erro
+            continue
           }
+
+          insertedCount += data?.length || batch.length
+        }
+
+        // Se houve batches com erro mas algum funcionou → partial; se nenhum funcionou → erro
+        if (batchErrors > 0 && insertedCount === 0 && reviewsForBar.length > 0) {
+          throw new Error(`Todos os ${batchErrors} batches falharam no upsert para ${barConfig.name}`)
         }
 
         results[currentBarId] = {
           success: true,
-          message: `Sincronizadas ${insertedCount} reviews para ${barConfig.name}`,
+          message: `Sincronizadas ${insertedCount} reviews para ${barConfig.name}${batchErrors > 0 ? ` (${batchErrors} batch(es) com erro)` : ''}`,
           count: insertedCount
         }
 
         const statsResult = await supabase
-          .from('google_reviews')
+          .schema('bronze')
+          .from('bronze_google_reviews')
           .select('stars')
           .eq('bar_id', currentBarId)
 
         if (statsResult.data) {
           const totalReviews = statsResult.data.length
-          const avgRating = totalReviews > 0 
-            ? statsResult.data.reduce((acc, r) => acc + r.stars, 0) / totalReviews 
+          const avgRating = totalReviews > 0
+            ? statsResult.data.reduce((acc, r) => acc + r.stars, 0) / totalReviews
             : 0
 
           console.log(`Bar ${currentBarId}: ${totalReviews} reviews, média ${avgRating.toFixed(2)}`)
@@ -372,29 +399,43 @@ serve(async (req) => {
     }
 
     const totalReviews = Object.values(results).reduce((acc: number, r: any) => acc + (r.count || 0), 0)
-    await heartbeatEnd(supabase, heartbeatId, 'success', startTime, totalReviews, { bars_processed: Object.keys(results).length })
+    const hasFailures = Object.values(results).some((r: any) => !r.success)
+    const finalStatus: 'success' | 'partial' | 'error' = hasFailures
+      ? (totalReviews > 0 ? 'partial' : 'error')
+      : 'success'
+
+    await heartbeatEnd(
+      supabase,
+      heartbeatId,
+      finalStatus,
+      startTime,
+      totalReviews,
+      { bars_processed: Object.keys(results).length, results },
+      hasFailures ? 'Um ou mais bares falharam no sync' : undefined,
+      'google-reviews-apify-sync'
+    )
 
     return new Response(
       JSON.stringify({
-        success: true,
+        success: !hasFailures,
         results,
         timestamp: new Date().toISOString()
       }),
-      { 
+      {
         headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
-        status: 200
+        status: hasFailures ? 207 : 200
       }
     )
 
   } catch (error: any) {
     console.error('Erro geral:', error)
-    await heartbeatError(supabase, heartbeatId, startTime, error)
+    await heartbeatError(supabase, heartbeatId, startTime, error, undefined, 'google-reviews-apify-sync')
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message 
+      JSON.stringify({
+        success: false,
+        error: error.message
       }),
-      { 
+      {
         headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 400
       }
