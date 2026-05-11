@@ -109,7 +109,7 @@ export default function ConsultasPage() {
   const [criadoAntes, setCriadoAntes] = useState('');
   const [competenciaAntes, setCompetenciaAntes] = useState('');
   const [competenciaApos, setCompetenciaApos] = useState('');
-  const [mesesRetroativos, setMesesRetroativos] = useState('3'); // Limite de meses para buscar (3 = mais rápido)
+  const [mesesRetroativos, setMesesRetroativos] = useState('0'); // 0 = todos os retroativos (sem mínimo)
   const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>([]); // Filtro de categorias (múltiplas)
   
   // Categorias CMV (preset útil)
@@ -481,26 +481,31 @@ export default function ConsultasPage() {
                   value={mesesRetroativos}
                   onChange={(e) => setMesesRetroativos(e.target.value)}
                   disabled={!!competenciaApos}
-                  className="w-full sm:w-48 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-56 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <option value="0.25">⚡ Última semana</option>
-                  <option value="0.5">⚡ Últimas 2 semanas</option>
-                  <option value="1">🚀 Último mês</option>
-                  <option value="2">Últimos 2 meses</option>
-                  <option value="3">Últimos 3 meses</option>
-                  <option value="6">Últimos 6 meses</option>
-                  <option value="12">Últimos 12 meses</option>
-                  <option value="24">Últimos 24 meses</option>
+                  <option value="0">Qualquer (todos retroativos)</option>
+                  <option value="0.033">Mínimo 1 dia retroativo</option>
+                  <option value="0.25">Mínimo 1 semana</option>
+                  <option value="0.5">Mínimo 2 semanas</option>
+                  <option value="1">Mínimo 1 mês</option>
+                  <option value="2">Mínimo 2 meses</option>
+                  <option value="3">Mínimo 3 meses</option>
+                  <option value="6">Mínimo 6 meses</option>
+                  <option value="12">Mínimo 12 meses</option>
                 </select>
                 {competenciaApos ? (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Desabilitado quando &quot;Competência após&quot; é preenchido
                   </p>
+                ) : parseFloat(mesesRetroativos) === 0 ? (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Mostrando TODOS os lançamentos retroativos (criados após a competência)
+                  </p>
                 ) : (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Busca automática limitada a {parseFloat(mesesRetroativos) < 1 
-                      ? `${Math.round(parseFloat(mesesRetroativos) * 4)} semana(s)` 
-                      : `${mesesRetroativos} mês(es)`} antes da data de competência
+                    Filtro: mostrar apenas lançamentos com pelo menos {parseFloat(mesesRetroativos) < 1
+                      ? `${Math.round(parseFloat(mesesRetroativos) * 30)} dia(s)`
+                      : `${mesesRetroativos} mês(es)`} entre competência e criação
                   </p>
                 )}
               </div>

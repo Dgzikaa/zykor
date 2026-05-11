@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const competenciaAntes = searchParams.get('competencia_antes');
     const competenciaApos = searchParams.get('competencia_apos');
     const barId = searchParams.get('bar_id');
-    const mesesRetroativos = parseInt(searchParams.get('meses_retroativos') || '1');
+    const mesesRetroativos = parseFloat(searchParams.get('meses_retroativos') || '0');
     const categoriasParam = searchParams.get('categorias');
     const categorias = categoriasParam ? categoriasParam.split(',').map(c => c.trim()).filter(Boolean) : [];
 
@@ -53,11 +53,14 @@ export async function GET(request: NextRequest) {
     const lancamentos = data || [];
 
     // Filtrar retroativos: data_criacao_ca deve ser >= mesesRetroativos meses depois de data_competencia
+    // mesesRetroativos=0 → mostra todos onde criacao > competencia (qualquer retroatividade)
     const limiteMs = mesesRetroativos * 30 * 24 * 60 * 60 * 1000;
     const retroativos = lancamentos.filter(l => {
       if (!l.data_criacao_ca || !l.data_competencia) return false;
       const diffMs = new Date(l.data_criacao_ca).getTime() - new Date(l.data_competencia).getTime();
-      return diffMs >= limiteMs;
+      // Sempre exige que criação seja depois da competência (retroativo de verdade)
+      // Se mesesRetroativos>0, exige diferença mínima específica
+      return diffMs > 0 && diffMs >= limiteMs;
     });
 
     // Estatísticas
