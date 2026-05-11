@@ -22,6 +22,7 @@ import {
   CommandPaletteIconTrigger,
 } from '@/components/ui/command-palette-trigger';
 import { NotificationCenter } from '@/components/NotificationCenter';
+import { ContaAzulSyncButton } from '@/components/ContaAzulSyncButton';
 import Image from 'next/image';
 
 // Mapeamento de rotas para breadcrumbs
@@ -277,6 +278,9 @@ export function DarkHeader() {
               </div>
             )}
           </div>
+
+          {/* Atualizar Conta Azul (global) */}
+          <ContaAzulSyncButton />
 
           {/* Botão Atualizar */}
           <div className="relative">

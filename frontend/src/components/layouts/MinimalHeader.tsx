@@ -24,6 +24,7 @@ import {
   CommandPaletteIconTrigger,
 } from '@/components/ui/command-palette-trigger';
 import { NotificationCenter } from '@/components/NotificationCenter';
+import { ContaAzulSyncButton } from '@/components/ContaAzulSyncButton';
 
 const routeMapping: Record<string, { name: string }> = {
   '/home': { name: 'Home' },
@@ -187,6 +188,9 @@ export function MinimalHeader() {
             )}
           </div>
         )}
+
+        {/* Atualizar Conta Azul (global) */}
+        <ContaAzulSyncButton />
 
         {/* Theme Toggle */}
         <button
