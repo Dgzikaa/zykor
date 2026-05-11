@@ -365,7 +365,8 @@ export async function POST(request: NextRequest) {
     const produtosPorQuantidade: { [key: string]: { quantidade: number, valor: number } } = {};
     
     const { data: produtosVendasItem } = await supabase
-      .from('vendas_item' as any)
+      .schema('silver' as never)
+      .from('vendas_item')
       .select('produto_desc, quantidade, valor, grupo_desc')
       .eq('data_venda', data_selecionada)
       .eq('bar_id', bar_id)

@@ -280,8 +280,8 @@ export function HorarioPicoChart({ dataSelecionada, onDataChange }: HorarioPicoC
                       : `${entry.name}:`
                     }
                   </span>
-                  <span className="ml-2 font-semibold text-white">
-                    {entry.name === 'pessoas_presentes' 
+                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                    {entry.name === 'pessoas_presentes'
                       ? `${entry.value} pessoas`
                       : formatarMoeda(entry.value)
                     }
