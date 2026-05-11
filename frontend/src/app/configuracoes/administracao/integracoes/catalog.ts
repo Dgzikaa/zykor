@@ -118,20 +118,6 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     crons: ['contaazul-sync'],
   },
   {
-    id: 'nibo',
-    nome: 'NIBO',
-    descricao: 'Contas a pagar/receber — DRE alternativo (legado)',
-    categoria: 'financeiro',
-    logoLabel: 'NB',
-    logoCor: '#7C3AED',
-    acento: 'violet-600',
-    fontesAuth: [
-      { tipo: 'env_global', envs: ['NIBO_API_TOKEN', 'NIBO_ORGANIZATION_ID'] },
-      { tipo: 'api_credentials', sistema: ['nibo'] },
-    ],
-    crons: ['nibo-sync'],
-  },
-  {
     id: 'inter',
     nome: 'Banco Inter',
     descricao: 'Extratos e movimentações bancárias',
@@ -139,7 +125,8 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     logoLabel: 'IN',
     logoCor: '#FF7A00',
     acento: 'orange-600',
-    fontesAuth: [{ tipo: 'api_credentials', sistema: ['inter', 'banco_inter'] }],
+    fontesAuth: [{ tipo: 'api_credentials', sistema: ['banco_inter'] }],
+    volumeTabela: { schema: 'financial', tabela: 'inter_webhook_logs', colunaTempo: 'recebido_em' },
   },
 
   // ─── RESERVAS / EVENTOS ──────────────────────────────────────────────
