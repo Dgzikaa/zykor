@@ -238,25 +238,55 @@ async function pegarVolume7d(supabase: any, cat: IntegracaoCatalogo, barId: numb
 function calcularStatusGeral(
   statusCred: StatusCredencial,
   ultimaSync: string | null,
+  volume7d: number | null,
   global: boolean,
   temRefreshToken: boolean,
+  cat: IntegracaoCatalogo,
 ): { status: StatusGeral; problemas: string[] } {
   const problemas: string[] = [];
+  const naoExpira = Boolean(cat.naoExpira);
+  const opcional = Boolean(cat.opcional);
 
-  if (statusCred === 'ausente') return { status: 'nao_configurada', problemas: ['Credencial ausente'] };
+  // Atividade recente = forte sinal de "tá funcionando", override credencial
+  const temAtividadeRecente = (volume7d ?? 0) > 0 || (() => {
+    if (!ultimaSync) return false;
+    return (Date.now() - new Date(ultimaSync).getTime()) / 3600_000 < 48;
+  })();
+
+  // Integração configurada por evidência de atividade — credencial pode estar em outro lugar (Supabase secrets)
+  if (cat.inferirPorAtividade) {
+    if (temAtividadeRecente) {
+      return { status: 'conectada', problemas: [] };
+    }
+    // Sem atividade nas últimas 7d mas integração tem que rodar — sinaliza problema
+    // (sem essa cláusula, ContaHub/Apify cairiam em "ausente" o que está errado)
+    if (statusCred === 'ausente') {
+      return {
+        status: 'parcial',
+        problemas: ['Sem atividade nos últimos 7 dias — verifique se cron está rodando'],
+      };
+    }
+  }
+
+  if (statusCred === 'ausente') {
+    return {
+      status: 'nao_configurada',
+      problemas: opcional ? ['Não configurada (opcional)'] : ['Credencial ausente'],
+    };
+  }
   if (statusCred === 'desativada') return { status: 'desconectada', problemas: ['Integração desativada'] };
 
-  // Token expirado mas com refresh_token = renova sozinho na próxima sync (atenção, não erro)
-  // Token expirado SEM refresh_token = desconectada de fato
-  if (statusCred === 'expirado' && !temRefreshToken) {
-    return { status: 'desconectada', problemas: ['Token expirado e sem refresh — requer reconexão'] };
+  // Pra integrações que NÃO expiram (webhooks, DSN, API keys sem TTL), ignorar 'expirado'/'expirando'
+  if (!naoExpira) {
+    if (statusCred === 'expirado' && !temRefreshToken) {
+      return { status: 'desconectada', problemas: ['Token expirado e sem refresh — requer reconexão'] };
+    }
+    if (statusCred === 'expirado' && temRefreshToken) {
+      const horasDesdeSync = ultimaSync ? (Date.now() - new Date(ultimaSync).getTime()) / 3600_000 : 999;
+      if (horasDesdeSync > 12) problemas.push('Token expirado — aguardando próximo refresh');
+    }
+    if (statusCred === 'expirando') problemas.push('Token expirando em menos de 7 dias');
   }
-  // Com refresh automático e sync recente, expirado é praticamente irrelevante — silencia
-  if (statusCred === 'expirado' && temRefreshToken) {
-    const horasDesdeSync = ultimaSync ? (Date.now() - new Date(ultimaSync).getTime()) / 3600_000 : 999;
-    if (horasDesdeSync > 12) problemas.push('Token expirado — aguardando próximo refresh');
-  }
-  if (statusCred === 'expirando') problemas.push('Token expirando em menos de 7 dias');
 
   if (!global && ultimaSync) {
     const horasDesdeUltimaSync = (Date.now() - new Date(ultimaSync).getTime()) / 3600_000;
@@ -316,7 +346,14 @@ export async function GET(request: NextRequest) {
 
         const sync = await pegarUltimaSync(supabase, cat, ehGlobal ? null : barId);
         const volume = await pegarVolume7d(supabase, cat, ehGlobal ? null : barId);
-        const { status, problemas } = calcularStatusGeral(statusCredencial, sync.ultima, ehGlobal, temRefreshToken);
+        const { status, problemas } = calcularStatusGeral(
+          statusCredencial,
+          sync.ultima,
+          volume,
+          ehGlobal,
+          temRefreshToken,
+          cat,
+        );
 
         return {
           id: cat.id,

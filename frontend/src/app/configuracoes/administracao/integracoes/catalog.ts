@@ -64,6 +64,12 @@ export interface IntegracaoCatalogo {
   acento: string;
   /** Se true, integração é global (não tem variação por bar) */
   global?: boolean;
+  /** Se true, credencial não tem TTL (webhook URL, DSN público, etc) — silencia warnings */
+  naoExpira?: boolean;
+  /** Se true, integração é opcional (não usado/fallback) — UI mostra cinza neutro sem alarme */
+  opcional?: boolean;
+  /** Se true, status pode ser inferido só por volume7d/última sync sem precisar de credencial visível */
+  inferirPorAtividade?: boolean;
   fontesAuth: FonteAuth[];
   /** Última sync pode vir de várias fontes — pega o MAX */
   fontesSync?: FonteSync[];
@@ -84,20 +90,21 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
   {
     id: 'contahub',
     nome: 'ContaHub',
-    descricao: 'PDV — vendas, produtos, pagamentos, cancelamentos',
+    descricao: 'PDV — vendas, produtos, pagamentos. Login/senha em env (sem API key).',
     categoria: 'pdv',
     logoLabel: 'CH',
     logoCor: '#F97316',
     acento: 'orange-500',
+    global: true,           // credencial é env global, não por bar
+    inferirPorAtividade: true,
     fontesAuth: [
       { tipo: 'env_global', envs: ['CONTAHUB_EMAIL', 'CONTAHUB_PASSWORD', 'CONTAHUB_BASE_URL'] },
-      { tipo: 'api_credentials', sistema: ['contahub'] },
     ],
     fontesSync: [
       { schema: 'system', tabela: 'sync_logs_contahub', colunaTempo: 'created_at', colunaStatus: 'status' },
     ],
     volumeTabela: { schema: 'bronze', tabela: 'bronze_contahub_raw_data', colunaTempo: 'criado_em' },
-    crons: ['contahub-orquestrador'],
+    crons: ['contahub-sync-7h-ambos', 'contahub-resync-semanal-ordinario', 'contahub-resync-semanal-deboche'],
   },
 
   // ─── FINANCEIRO ──────────────────────────────────────────────────────
@@ -195,6 +202,7 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     logoCor: '#1877F2',
     acento: 'blue-600',
     global: true,
+    naoExpira: true,
     fontesAuth: [
       {
         tipo: 'env_global',
@@ -213,8 +221,10 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     logoCor: '#4285F4',
     acento: 'blue-500',
     global: true,
+    naoExpira: true,
+    inferirPorAtividade: true,
     fontesAuth: [{ tipo: 'env_global', envs: ['APIFY_API_TOKEN'] }],
-    volumeTabela: { schema: 'bronze', tabela: 'bronze_google_reviews', colunaTempo: 'data_review' },
+    volumeTabela: { schema: 'bronze', tabela: 'bronze_google_reviews', colunaTempo: 'scraped_at' },
     crons: ['apify-google-reviews-scraper'],
   },
 
@@ -253,12 +263,12 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     logoCor: '#5865F2',
     acento: 'indigo-500',
     global: true,
+    naoExpira: true,
     fontesAuth: [
       {
         tipo: 'env_global',
         envs: [
           'DISCORD_CONTAHUB_WEBHOOK',
-          'DISCORD_NIBO_WEBHOOK',
           'DISCORD_EVENTOS_WEBHOOK',
           'DISCORD_MARKETING_WEBHOOK',
           'DISCORD_CHECKLIST_WEBHOOK',
@@ -277,6 +287,8 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     logoLabel: 'GS',
     logoCor: '#0F9D58',
     acento: 'green-600',
+    global: true,
+    inferirPorAtividade: true,
     fontesAuth: [
       { tipo: 'oauth_table', schema: 'integrations', tabela: 'google_oauth_tokens' },
       { tipo: 'env_global', envs: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_SERVICE_ACCOUNT_KEY', 'GOOGLE_SHEETS_API_KEY'] },
@@ -287,35 +299,27 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
   {
     id: 'anthropic',
     nome: 'Anthropic Claude',
-    descricao: 'IA — análise de reviews, agente estratégico, insights',
+    descricao: 'IA principal — análise de reviews, agente estratégico, insights',
     categoria: 'ia',
     logoLabel: 'AN',
     logoCor: '#D97757',
     acento: 'amber-600',
     global: true,
+    naoExpira: true,
     fontesAuth: [{ tipo: 'env_global', envs: ['ANTHROPIC_API_KEY'] }],
   },
   {
     id: 'openai',
     nome: 'OpenAI',
-    descricao: 'IA backup — embeddings, fallback de classificação',
+    descricao: 'IA fallback — usado só se Anthropic indisponível (opcional)',
     categoria: 'ia',
     logoLabel: 'OA',
     logoCor: '#10A37F',
     acento: 'emerald-600',
     global: true,
+    naoExpira: true,
+    opcional: true,
     fontesAuth: [{ tipo: 'env_global', envs: ['OPENAI_API_KEY'] }],
-  },
-  {
-    id: 'gemini',
-    nome: 'Google Gemini',
-    descricao: 'IA — uso pontual em jobs experimentais',
-    categoria: 'ia',
-    logoLabel: 'GE',
-    logoCor: '#1A73E8',
-    acento: 'blue-500',
-    global: true,
-    fontesAuth: [{ tipo: 'env_global', envs: ['GEMINI_API_KEY'] }],
   },
 
   // ─── INFRA ───────────────────────────────────────────────────────────
@@ -328,6 +332,7 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     logoCor: '#3ECF8E',
     acento: 'emerald-500',
     global: true,
+    naoExpira: true,
     fontesAuth: [
       {
         tipo: 'env_global',
@@ -344,7 +349,8 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     logoCor: '#000000',
     acento: 'gray-900',
     global: true,
-    fontesAuth: [{ tipo: 'env_global', envs: ['VERCEL_URL', 'NEXT_PUBLIC_SITE_URL'] }],
+    naoExpira: true,
+    fontesAuth: [{ tipo: 'env_global', envs: ['NEXT_PUBLIC_SITE_URL'] }],
   },
   {
     id: 'sentry',
@@ -355,6 +361,8 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     logoCor: '#362D59',
     acento: 'purple-700',
     global: true,
+    naoExpira: true,
+    opcional: true,
     fontesAuth: [{ tipo: 'env_global', envs: ['NEXT_PUBLIC_SENTRY_DSN', 'SENTRY_DSN'] }],
   },
 ];
