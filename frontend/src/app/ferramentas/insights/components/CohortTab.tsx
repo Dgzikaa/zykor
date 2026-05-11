@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Users, Repeat, TrendingUp } from 'lucide-react';
 import { useBar } from '@/contexts/BarContext';
 
 interface ApiData {
@@ -15,29 +16,10 @@ interface ApiData {
   media_por_offset: Array<{ week_offset: number; pct_medio: number }>;
 }
 
-const fmtData = (d: string) => {
-  const [y, m, dd] = d.split('-');
-  return `${dd}/${m}`;
-};
+interface Props { weeks?: number }
 
-// Cor da célula em função do pct (0-100): vermelho → amarelo → verde
-function corPct(pct: number): string {
-  if (pct <= 0) return 'bg-gray-100 dark:bg-gray-800 text-gray-400';
-  if (pct >= 50) return 'bg-green-600 text-white';
-  if (pct >= 30) return 'bg-green-400 text-white';
-  if (pct >= 15) return 'bg-yellow-400 text-gray-900';
-  if (pct >= 5) return 'bg-orange-400 text-white';
-  return 'bg-red-400 text-white';
-}
-
-interface Props {
-  weeks?: number;
-}
-
-export function CohortTab({ weeks: weeksDefault = 24 }: Props) {
+export function CohortTab({ weeks = 24 }: Props) {
   const { selectedBar } = useBar();
-  const [weeks, setWeeks] = useState<number>(weeksDefault);
-  const [modo, setModo] = useState<'aquisicao' | 'periodo'>('aquisicao');
   const [data, setData] = useState<ApiData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,128 +28,118 @@ export function CohortTab({ weeks: weeksDefault = 24 }: Props) {
     if (!selectedBar?.id) return;
     setLoading(true);
     setError(null);
-    fetch(`/api/ferramentas/insights/cohort?bar_id=${selectedBar.id}&weeks=${weeks}&modo=${modo}`)
+    // Sempre modo 'aquisicao' (clientes novos) — é o que faz mais sentido para retenção
+    fetch(`/api/ferramentas/insights/cohort?bar_id=${selectedBar.id}&weeks=${weeks}&modo=aquisicao`)
       .then(r => r.json())
       .then(r => { if (r.success) setData(r); else setError(r.error || 'Erro'); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [selectedBar?.id, weeks, modo]);
+  }, [selectedBar?.id, weeks]);
 
   if (loading) return <Skeleton className="h-96 w-full" />;
   if (error) return <p className="text-red-500">{error}</p>;
   if (!data) return null;
 
-  const maxOffset = Math.max(...data.cohorts.map(c => c.semanas.length), 0);
-  const offsets = Array.from({ length: maxOffset }, (_, i) => i);
+  // KPIs simples: retenção média na semana 1, 4, 8, 12
+  const retencaoEm = (offset: number) => data.media_por_offset.find(m => m.week_offset === offset)?.pct_medio ?? 0;
+
+  // Total de clientes novos no período
+  const totalNovos = data.cohorts.reduce((s, c) => s + c.total_clientes, 0);
+
+  // Quantos cohorts são robustos (>5 clientes) — pra credibilidade
+  const cohortsRobustos = data.cohorts.filter(c => c.total_clientes >= 5).length;
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-3">
-          <div>
-            <CardTitle>
-              Retenção {modo === 'aquisicao' ? 'por semana de aquisição' : 'por semana do período'}
-            </CardTitle>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {modo === 'aquisicao'
-                ? 'Cada linha = clientes NOVOS naquela semana (1ª visita histórica). Colunas = % deles que voltaram nas semanas seguintes.'
-                : 'Cada linha = clientes cuja 1ª visita DO PERÍODO foi naquela semana (mesmo que fossem antigos). Colunas = % deles que voltaram.'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <select
-              value={modo}
-              onChange={e => setModo(e.target.value as any)}
-              className="h-8 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs"
-            >
-              <option value="aquisicao">Aquisição (novos)</option>
-              <option value="periodo">Período (todos)</option>
-            </select>
-            <select
-              value={weeks}
-              onChange={e => setWeeks(Number(e.target.value))}
-              className="h-8 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs"
-            >
-              {[12, 24, 36, 52].map(w => <option key={w} value={w}>{w} sem</option>)}
-            </select>
-          </div>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Repeat className="w-5 h-5 text-purple-500" />
+            Retenção de novos clientes
+          </CardTitle>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Calculado nos últimos {weeks} semanas. &quot;Cliente novo&quot; = primeira visita histórica caiu nesse período.
+          </p>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="text-xs border-collapse">
-              <thead>
-                <tr>
-                  <th className="text-left p-2 sticky left-0 bg-white dark:bg-gray-800 z-10 border-r border-gray-200 dark:border-gray-700">
-                    Cohort
-                  </th>
-                  <th className="text-right p-2 border-r border-gray-200 dark:border-gray-700">N</th>
-                  {offsets.map(off => (
-                    <th key={off} className="text-center p-2 min-w-[55px]">
-                      S+{off}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.cohorts.map(c => (
-                  <tr key={c.week_start} className="border-t border-gray-100 dark:border-gray-800">
-                    <td className="p-2 sticky left-0 bg-white dark:bg-gray-800 font-medium whitespace-nowrap border-r border-gray-200 dark:border-gray-700">
-                      {fmtData(c.week_start)}
-                    </td>
-                    <td className="p-2 text-right text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700">
-                      {c.total_clientes}
-                    </td>
-                    {offsets.map(off => {
-                      const cell = c.semanas.find(s => s.week_offset === off);
-                      if (!cell) {
-                        return <td key={off} className="p-2"></td>;
-                      }
-                      return (
-                        <td
-                          key={off}
-                          className={`p-2 text-center font-medium ${corPct(cell.pct)}`}
-                          title={`${cell.retained}/${c.total_clientes}`}
-                        >
-                          {cell.pct.toFixed(0)}%
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-                {/* Média */}
-                <tr className="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 font-bold">
-                  <td className="p-2 sticky left-0 bg-gray-50 dark:bg-gray-700/50 border-r border-gray-200 dark:border-gray-700">
-                    Média
-                  </td>
-                  <td className="p-2 border-r border-gray-200 dark:border-gray-700"></td>
-                  {offsets.map(off => {
-                    const m = data.media_por_offset.find(x => x.week_offset === off);
-                    if (!m) return <td key={off} className="p-2"></td>;
-                    return (
-                      <td key={off} className={`p-2 text-center ${corPct(m.pct_medio)}`}>
-                        {m.pct_medio.toFixed(0)}%
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tbody>
-            </table>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <RetCard
+              label="Semana seguinte"
+              titleHint="% dos novos que voltaram na 1ª semana após a primeira visita"
+              value={retencaoEm(1)}
+            />
+            <RetCard
+              label="Em 1 mês"
+              titleHint="% dos novos que ainda visitaram entre a 4ª semana após a primeira"
+              value={retencaoEm(4)}
+            />
+            <RetCard
+              label="Em 2 meses"
+              titleHint="% dos novos que visitaram na 8ª semana após a primeira"
+              value={retencaoEm(8)}
+            />
+            <RetCard
+              label="Em 3 meses"
+              titleHint="% dos novos que visitaram na 12ª semana após a primeira"
+              value={retencaoEm(12)}
+            />
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+            <div className="bg-gray-50 dark:bg-gray-800 rounded p-3">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                <Users className="w-4 h-4" /> <span>Clientes novos no período</span>
+              </div>
+              <p className="text-2xl font-bold mt-1">{totalNovos.toLocaleString('pt-BR')}</p>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded p-3">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                <TrendingUp className="w-4 h-4" /> <span>Cohorts analisadas</span>
+              </div>
+              <p className="text-2xl font-bold mt-1">{data.cohorts.length}</p>
+              <p className="text-xs text-gray-500 mt-1">{cohortsRobustos} com ≥5 clientes (robusta)</p>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded p-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Período</p>
+              <p className="text-sm font-medium mt-1">{data.periodo.weeks} semanas (a partir de {data.periodo.data_inicio})</p>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader><CardTitle className="text-base">Como ler</CardTitle></CardHeader>
-        <CardContent className="text-sm space-y-1 text-gray-700 dark:text-gray-300">
-          <p><strong>S+0</strong> = mesma semana em que o cliente veio pela primeira vez (sempre 100% por definição).</p>
-          <p><strong>S+1</strong> = % de quem voltou na semana seguinte. Quanto maior, mais retenção.</p>
-          <p>Quanto mais verde, melhor. Vermelho = perda de cliente após a primeira visita.</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-            <strong>Aquisição</strong> = cohort só com clientes verdadeiramente novos.
-            <strong> Período</strong> = qualquer cliente que veio (útil quando a maioria já era cliente antes).
+        <CardContent className="text-sm space-y-2 text-gray-700 dark:text-gray-300">
+          <p>
+            <strong>Cliente novo</strong> = telefone normalizado cuja PRIMEIRA visita histórica caiu dentro do recorte
+            de {weeks} semanas. Cada cohort é o grupo de clientes que estrearam na mesma semana.
+          </p>
+          <p>
+            <strong>Semana seguinte (S+1)</strong> mostra a % desses novos que voltaram na semana imediatamente
+            após. Se for baixa (&lt;15%), o bar está atraindo muito cliente que não vira recorrente.
+          </p>
+          <p>
+            <strong>Em 1/2/3 meses</strong> mostra retenção de prazo mais longo. Em bar a retenção em 1 mês costuma
+            ser baixa (&lt;20%) — o cliente médio não vai toda semana. O ideal é ver se a curva é estável ao longo do tempo.
           </p>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function RetCard({ label, value, titleHint }: { label: string; value: number; titleHint: string }) {
+  const cor =
+    value >= 30 ? 'text-green-600 dark:text-green-400'
+    : value >= 15 ? 'text-amber-600 dark:text-amber-400'
+    : 'text-red-600 dark:text-red-400';
+  return (
+    <Card title={titleHint}>
+      <CardContent className="p-4">
+        <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+        <p className={`text-3xl font-bold mt-1 ${cor}`}>{value.toFixed(1)}%</p>
+        <p className="text-xs text-gray-400 mt-1">retornaram</p>
+      </CardContent>
+    </Card>
   );
 }

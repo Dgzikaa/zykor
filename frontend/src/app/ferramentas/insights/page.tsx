@@ -5,13 +5,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Lightbulb, Clock, XCircle, CreditCard, Calendar, Swords, Users, DollarSign, Sparkles } from 'lucide-react';
+import { Lightbulb, Clock, XCircle, CreditCard, Calendar, Users, DollarSign, Sparkles } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { CurvaHorariaTab } from './components/CurvaHorariaTab';
 import { CancelamentosTab } from './components/CancelamentosTab';
 import { MeiosPagamentoTab } from './components/MeiosPagamentoTab';
 import { ReservasTab } from './components/ReservasTab';
-import { ConcorrenciaTab } from './components/ConcorrenciaTab';
 import { CohortTab } from './components/CohortTab';
 import { CacRoasTab } from './components/CacRoasTab';
 import { ReviewsNLPTab } from './components/ReviewsNLPTab';
@@ -68,7 +67,7 @@ export default function InsightsPage() {
         </Card>
 
         <Tabs defaultValue="curva" className="w-full">
-          <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-1 h-auto">
+          <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-1 h-auto">
             <TabsTrigger value="curva" className="flex items-center gap-2 py-2">
               <Clock className="w-4 h-4" />
               <span className="hidden lg:inline">Curva horária</span>
@@ -85,13 +84,9 @@ export default function InsightsPage() {
               <Calendar className="w-4 h-4" />
               <span className="hidden lg:inline">Reservas</span>
             </TabsTrigger>
-            <TabsTrigger value="concorrencia" className="flex items-center gap-2 py-2">
-              <Swords className="w-4 h-4" />
-              <span className="hidden lg:inline">Concorrência</span>
-            </TabsTrigger>
             <TabsTrigger value="cohort" className="flex items-center gap-2 py-2">
               <Users className="w-4 h-4" />
-              <span className="hidden lg:inline">Cohort</span>
+              <span className="hidden lg:inline">Retenção</span>
             </TabsTrigger>
             <TabsTrigger value="cac" className="flex items-center gap-2 py-2">
               <DollarSign className="w-4 h-4" />
@@ -115,11 +110,8 @@ export default function InsightsPage() {
           <TabsContent value="reservas" className="mt-4">
             <ReservasTab dataInicio={dataInicio} dataFim={dataFim} />
           </TabsContent>
-          <TabsContent value="concorrencia" className="mt-4">
-            <ConcorrenciaTab dataInicio={dataInicio} dataFim={dataFim} />
-          </TabsContent>
           <TabsContent value="cohort" className="mt-4">
-            <CohortTab weeks={12} />
+            <CohortTab weeks={24} />
           </TabsContent>
           <TabsContent value="cac" className="mt-4">
             <CacRoasTab />
