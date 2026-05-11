@@ -5,13 +5,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Lightbulb, Clock, XCircle, CreditCard, Calendar, Swords } from 'lucide-react';
+import { Lightbulb, Clock, XCircle, CreditCard, Calendar, Swords, Users, DollarSign, Sparkles } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { CurvaHorariaTab } from './components/CurvaHorariaTab';
 import { CancelamentosTab } from './components/CancelamentosTab';
 import { MeiosPagamentoTab } from './components/MeiosPagamentoTab';
 import { ReservasTab } from './components/ReservasTab';
 import { ConcorrenciaTab } from './components/ConcorrenciaTab';
+import { CohortTab } from './components/CohortTab';
+import { CacRoasTab } from './components/CacRoasTab';
+import { ReviewsNLPTab } from './components/ReviewsNLPTab';
 
 function formatDate(d: Date) {
   return d.toISOString().split('T')[0];
@@ -65,26 +68,38 @@ export default function InsightsPage() {
         </Card>
 
         <Tabs defaultValue="curva" className="w-full">
-          <TabsList className="grid grid-cols-2 md:grid-cols-5 gap-1 h-auto">
+          <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-1 h-auto">
             <TabsTrigger value="curva" className="flex items-center gap-2 py-2">
               <Clock className="w-4 h-4" />
-              <span className="hidden sm:inline">Curva horária</span>
+              <span className="hidden lg:inline">Curva horária</span>
             </TabsTrigger>
             <TabsTrigger value="cancel" className="flex items-center gap-2 py-2">
               <XCircle className="w-4 h-4" />
-              <span className="hidden sm:inline">Cancelamentos</span>
+              <span className="hidden lg:inline">Cancelamentos</span>
             </TabsTrigger>
             <TabsTrigger value="meios" className="flex items-center gap-2 py-2">
               <CreditCard className="w-4 h-4" />
-              <span className="hidden sm:inline">Meios pagamento</span>
+              <span className="hidden lg:inline">Meios pgto</span>
             </TabsTrigger>
             <TabsTrigger value="reservas" className="flex items-center gap-2 py-2">
               <Calendar className="w-4 h-4" />
-              <span className="hidden sm:inline">Reservas</span>
+              <span className="hidden lg:inline">Reservas</span>
             </TabsTrigger>
             <TabsTrigger value="concorrencia" className="flex items-center gap-2 py-2">
               <Swords className="w-4 h-4" />
-              <span className="hidden sm:inline">Concorrência</span>
+              <span className="hidden lg:inline">Concorrência</span>
+            </TabsTrigger>
+            <TabsTrigger value="cohort" className="flex items-center gap-2 py-2">
+              <Users className="w-4 h-4" />
+              <span className="hidden lg:inline">Cohort</span>
+            </TabsTrigger>
+            <TabsTrigger value="cac" className="flex items-center gap-2 py-2">
+              <DollarSign className="w-4 h-4" />
+              <span className="hidden lg:inline">CAC/ROAS</span>
+            </TabsTrigger>
+            <TabsTrigger value="nlp" className="flex items-center gap-2 py-2">
+              <Sparkles className="w-4 h-4" />
+              <span className="hidden lg:inline">Reviews IA</span>
             </TabsTrigger>
           </TabsList>
 
@@ -102,6 +117,15 @@ export default function InsightsPage() {
           </TabsContent>
           <TabsContent value="concorrencia" className="mt-4">
             <ConcorrenciaTab dataInicio={dataInicio} dataFim={dataFim} />
+          </TabsContent>
+          <TabsContent value="cohort" className="mt-4">
+            <CohortTab weeks={12} />
+          </TabsContent>
+          <TabsContent value="cac" className="mt-4">
+            <CacRoasTab />
+          </TabsContent>
+          <TabsContent value="nlp" className="mt-4">
+            <ReviewsNLPTab dataInicio={dataInicio} dataFim={dataFim} />
           </TabsContent>
         </Tabs>
       </div>
