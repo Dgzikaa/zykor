@@ -39,6 +39,7 @@ import {
   History,
   Bell,
   Star,
+  Zap,
 } from 'lucide-react';
 
 interface SubMenuItem {
@@ -98,6 +99,7 @@ const defaultSidebarItems: SidebarItem[] = [
     href: '/ferramentas',
     permission: 'ferramentas',
     subItems: [
+      { icon: Zap, label: 'Insights Estratégicos', href: '/ferramentas/insights', permission: 'gestao' },
       { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
       { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
       { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', permission: 'gestao' },

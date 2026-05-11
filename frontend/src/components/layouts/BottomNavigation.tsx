@@ -122,6 +122,7 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
       color: 'text-green-600 dark:text-green-400',
       permission: 'ferramentas',
       subItems: [
+        { icon: Zap, label: 'Insights Estratégicos', href: '/ferramentas/insights', permission: 'gestao' },
         { icon: MessageCircle, label: 'CRM', href: '/ferramentas/crm', permission: 'gestao' },
         { icon: Users, label: 'Clientes Ativos', href: '/relatorios/clientes-ativos', permission: 'relatorios' },
         { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
