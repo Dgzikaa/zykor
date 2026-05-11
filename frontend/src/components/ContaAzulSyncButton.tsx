@@ -22,12 +22,21 @@ interface SyncStats {
   erros?: number;
 }
 
+interface Totais {
+  lancamentos?: number;
+  categorias?: number;
+  centros_custo?: number;
+  pessoas?: number;
+  contas_financeiras?: number;
+}
+
 interface SyncResultado {
   success: boolean;
   bar_id?: number;
   sync_mode?: string;
   period?: { from?: string; to?: string };
   stats?: SyncStats;
+  totais?: Totais;
   duration_seconds?: number;
   error?: string;
 }
@@ -122,29 +131,50 @@ export function ContaAzulSyncButton() {
           </DialogHeader>
 
           {resultado?.success ? (
-            <div className="space-y-3 py-2">
+            <div className="space-y-4 py-2">
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Bar <strong>{selectedBar?.nome}</strong> — modo{' '}
                 <code className="text-xs">{resultado.sync_mode}</code>
               </p>
               {resultado.period?.from && resultado.period?.to && (
                 <p className="text-xs text-gray-500">
-                  Período: {resultado.period.from} a {resultado.period.to}
+                  Período sincronizado: {resultado.period.from} a {resultado.period.to}
                 </p>
               )}
 
-              <div className="grid grid-cols-2 gap-2">
-                <StatPill label="Lançamentos" value={resultado.stats?.lancamentos ?? 0} primary />
-                <StatPill label="Categorias" value={resultado.stats?.categorias ?? 0} />
-                <StatPill label="Centros de custo" value={resultado.stats?.centros_custo ?? 0} />
-                <StatPill label="Pessoas" value={resultado.stats?.pessoas ?? 0} />
-                <StatPill label="Contas financeiras" value={resultado.stats?.contas_financeiras ?? 0} />
-                <StatPill
-                  label="Erros"
-                  value={resultado.stats?.erros ?? 0}
-                  tone={resultado.stats?.erros ? 'danger' : 'normal'}
-                />
+              <div>
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Sincronizado agora (novos + atualizados)
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <StatPill label="Lançamentos" value={resultado.stats?.lancamentos ?? 0} primary />
+                  <StatPill
+                    label="Erros"
+                    value={resultado.stats?.erros ?? 0}
+                    tone={resultado.stats?.erros ? 'danger' : 'normal'}
+                  />
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1 leading-snug">
+                  Modo incremental atualiza lançamentos alterados nos últimos 2 dias.
+                  Categorias/centros/pessoas/contas são pegos junto, mas só aparecem
+                  como contagem &gt; 0 se houve mudança.
+                </p>
               </div>
+
+              {resultado.totais && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                    Total atual no banco
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <StatPill label="Lançamentos" value={resultado.totais.lancamentos ?? 0} />
+                    <StatPill label="Categorias" value={resultado.totais.categorias ?? 0} />
+                    <StatPill label="Centros de custo" value={resultado.totais.centros_custo ?? 0} />
+                    <StatPill label="Pessoas" value={resultado.totais.pessoas ?? 0} />
+                    <StatPill label="Contas financeiras" value={resultado.totais.contas_financeiras ?? 0} />
+                  </div>
+                </div>
+              )}
 
               <p className="text-xs text-gray-500 text-right">
                 Duração: {resultado.duration_seconds ?? '?'}s
