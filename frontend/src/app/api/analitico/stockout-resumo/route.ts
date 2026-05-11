@@ -10,10 +10,9 @@ const supabase = createClient(
 /**
  * GET /api/analitico/stockout-resumo?data=YYYY-MM-DD&bar_id=N
  *
- * Retorna apenas o resumo de stockout do dia (sem listas detalhadas).
- * Usado pelo card "Stockout" no header de /analitico/eventos.
- *
- * Fonte: silver.silver_contahub_operacional_stockout_processado (incluido=true)
+ * Resumo do stockout do dia (usado no header de /analitico/eventos).
+ * Fonte: RPC `public.calcular_stockout_dia` — mesma fórmula da
+ * /ferramentas/stockout (incluido=true + filtra Feijoada em não-sábados).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -43,35 +42,40 @@ export async function GET(request: NextRequest) {
           total_produtos_ativos: 0,
           produtos_stockout: 0,
           percentual_stockout: '0%',
+          por_categoria: [],
         },
       });
     }
 
-    const { data, error } = await supabase
-      .schema('silver' as never)
-      .from('silver_contahub_operacional_stockout_processado')
-      .select('prd_ativo')
-      .eq('data_consulta', dataSelecionada)
-      .eq('bar_id', barId)
-      .eq('incluido', true);
+    const { data, error } = await supabase.rpc('calcular_stockout_dia', {
+      p_bar_id: barId,
+      p_data: dataSelecionada,
+    });
 
     if (error) {
-      console.error('[stockout-resumo] erro Supabase:', error);
-      return NextResponse.json({ error: 'Erro ao consultar stockout' }, { status: 500 });
+      console.error('[stockout-resumo] RPC erro:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const linhas = data ?? [];
-    const total = linhas.length;
-    const ativos = linhas.filter((r: any) => r.prd_ativo === 'S' || r.prd_ativo === 'true').length;
-    const stockout = total - ativos;
-    const pct = total > 0 ? ((stockout / total) * 100).toFixed(1) : '0.0';
+    type Row = { categoria: string; total: number; stockout: number; disponiveis: number; pct_stockout: number };
+    const rows = (data ?? []) as Row[];
+    const total = rows.find(r => r.categoria === 'TOTAL');
+    const categorias = rows.filter(r => r.categoria !== 'TOTAL');
 
     return NextResponse.json({
       success: true,
       data: {
-        total_produtos_ativos: total,
-        produtos_stockout: stockout,
-        percentual_stockout: `${pct}%`,
+        total_produtos_ativos: total?.total ?? 0,
+        produtos_stockout: total?.stockout ?? 0,
+        produtos_disponiveis: total?.disponiveis ?? 0,
+        percentual_stockout: `${Number(total?.pct_stockout ?? 0).toFixed(2)}%`,
+        por_categoria: categorias.map(c => ({
+          categoria: c.categoria,
+          total: c.total,
+          stockout: c.stockout,
+          disponiveis: c.disponiveis,
+          pct: `${Number(c.pct_stockout ?? 0).toFixed(2)}%`,
+        })),
       },
     });
   } catch (err) {
