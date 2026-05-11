@@ -260,6 +260,8 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
           { key: 'mesa_adm_casa', label: `Funcionários (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %adm% ou %casa% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
           { key: 'mesa_beneficios_cliente', label: `Clientes (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %benefício% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
           { key: 'mesa_banda_dj', label: `Artistas (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %banda% ou %dj% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
+          { key: 'mesa_rh', label: `RH (×${fatorCmv})`, status: 'auto', fonte: 'Planilha CMV', calculo: `Mesa RH Operação + Mesa RH Escritório × ${fatorCmv}`, formato: 'moeda', drilldown: true },
+          { key: 'chegadeira', label: `Chegadeira (×${fatorCmv})`, status: 'auto', fonte: 'Planilha CMV', calculo: `Sincronizado da planilha × ${fatorCmv}`, formato: 'moeda', drilldown: true },
         ]
       },
       {
@@ -386,7 +388,7 @@ export default function CMVSemanalTabelaPage() {
     'cmv-compras': false,
     'cmv-estoque_final': false,
     'cmv-consumos': false,
-    'cmv-bonificacoes': true, // expandido por default — campos manuais editáveis
+    'cmv-bonificacoes': false, // collapsado por default — expandir quando for preencher
     // Resultados - expandido (mostra os 3 itens)
     'resultados-cmv_resultado': true,
     // CMA - grupos colapsados por padrão
@@ -760,26 +762,22 @@ export default function CMVSemanalTabelaPage() {
              (semana.estoque_final_funcionarios || 0);
     }
     // Consumações = soma dos sub-itens × fatorCmv (CMV do consumo)
-    // 4 categorias: Sócios, Funcionários, Clientes, Artistas
+    // 6 categorias: Sócios, Funcionários, Clientes, Artistas, RH, Chegadeira
     if (key === 'total_consumos') {
-      return ((semana.total_consumo_socios || 0) * fatorCmv) + 
-             ((semana.mesa_adm_casa || 0) * fatorCmv) + 
-             ((semana.mesa_beneficios_cliente || 0) * fatorCmv) + 
-             ((semana.mesa_banda_dj || 0) * fatorCmv);
+      return ((semana.total_consumo_socios || 0) * fatorCmv) +
+             ((semana.mesa_adm_casa || 0) * fatorCmv) +
+             ((semana.mesa_beneficios_cliente || 0) * fatorCmv) +
+             ((semana.mesa_banda_dj || 0) * fatorCmv) +
+             ((semana.mesa_rh || 0) * fatorCmv) +
+             ((semana.chegadeira || 0) * fatorCmv);
     }
     // Consumações individuais também × fatorCmv
-    if (key === 'total_consumo_socios') {
-      return (semana.total_consumo_socios || 0) * fatorCmv;
-    }
-    if (key === 'mesa_adm_casa') {
-      return (semana.mesa_adm_casa || 0) * fatorCmv;
-    }
-    if (key === 'mesa_beneficios_cliente') {
-      return (semana.mesa_beneficios_cliente || 0) * fatorCmv;
-    }
-    if (key === 'mesa_banda_dj') {
-      return (semana.mesa_banda_dj || 0) * fatorCmv;
-    }
+    if (key === 'total_consumo_socios') return (semana.total_consumo_socios || 0) * fatorCmv;
+    if (key === 'mesa_adm_casa') return (semana.mesa_adm_casa || 0) * fatorCmv;
+    if (key === 'mesa_beneficios_cliente') return (semana.mesa_beneficios_cliente || 0) * fatorCmv;
+    if (key === 'mesa_banda_dj') return (semana.mesa_banda_dj || 0) * fatorCmv;
+    if (key === 'mesa_rh') return (semana.mesa_rh || 0) * fatorCmv;
+    if (key === 'chegadeira') return (semana.chegadeira || 0) * fatorCmv;
     // Bonificações = soma dos sub-itens
     if (key === 'ajuste_bonificacoes') {
       return (semana.bonificacao_contrato_anual || 0) + 
@@ -868,12 +866,14 @@ export default function CMVSemanalTabelaPage() {
         return null;
       }
       case 'total_consumos':
-        // 4 categorias: Sócios, Funcionários, Clientes, Artistas
+        // 6 categorias: Sócios, Funcionários, Clientes, Artistas, RH, Chegadeira
         return [
           { label: `Sócios × ${fatorCmv}`, valor: (semana.total_consumo_socios || 0) * fatorCmv },
           { label: `Funcionários × ${fatorCmv}`, valor: (semana.mesa_adm_casa || 0) * fatorCmv },
           { label: `Clientes × ${fatorCmv}`, valor: (semana.mesa_beneficios_cliente || 0) * fatorCmv },
           { label: `Artistas × ${fatorCmv}`, valor: (semana.mesa_banda_dj || 0) * fatorCmv },
+          { label: `RH × ${fatorCmv}`, valor: (semana.mesa_rh || 0) * fatorCmv },
+          { label: `Chegadeira × ${fatorCmv}`, valor: (semana.chegadeira || 0) * fatorCmv },
         ];
       case 'ajuste_bonificacoes':
         return [
@@ -891,8 +891,8 @@ export default function CMVSemanalTabelaPage() {
         
         const estFimDetalhado = (semana.estoque_final_cozinha || 0) + (semana.estoque_final_drinks || 0) + (semana.estoque_final_bebidas || 0);
         const estoqueFinal = estFimDetalhado > 0 ? estFimDetalhado : (semana.estoque_final || 0);
-        // 4 categorias: Sócios, Funcionários, Clientes, Artistas
-        const consumosTotal = ((semana.total_consumo_socios || 0) * fatorCmv) + ((semana.mesa_adm_casa || 0) * fatorCmv) + ((semana.mesa_beneficios_cliente || 0) * fatorCmv) + ((semana.mesa_banda_dj || 0) * fatorCmv);
+        // 6 categorias: Sócios, Funcionários, Clientes, Artistas, RH, Chegadeira
+        const consumosTotal = ((semana.total_consumo_socios || 0) * fatorCmv) + ((semana.mesa_adm_casa || 0) * fatorCmv) + ((semana.mesa_beneficios_cliente || 0) * fatorCmv) + ((semana.mesa_banda_dj || 0) * fatorCmv) + ((semana.mesa_rh || 0) * fatorCmv) + ((semana.chegadeira || 0) * fatorCmv);
         const bonificacoes = (semana.bonificacao_contrato_anual || 0) + (semana.bonificacao_cashback_mensal || 0);
         return [
           { label: 'Estoque Inicial', valor: estoqueInicial },
