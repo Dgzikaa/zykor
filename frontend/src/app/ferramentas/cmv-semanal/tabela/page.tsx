@@ -33,6 +33,7 @@ import {
   BarChart3,
   Table2,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useBar } from '@/contexts/BarContext';
@@ -361,6 +362,8 @@ export default function CMVSemanalTabelaPage() {
   
   const [semanas, setSemanas] = useState<CMVSemanal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [atualizando, setAtualizando] = useState(false);
+  const [etapaAtualizacao, setEtapaAtualizacao] = useState<string>('');
   const [fatorCmv, setFatorCmv] = useState(0.35); // Fator de CMV para consumos (carregado do banco)
   
   // Gerar configuração de seções com fator CMV dinâmico
@@ -534,6 +537,49 @@ export default function CMVSemanalTabelaPage() {
     };
     carregarFatorCmv();
   }, [selectedBar?.id]);
+
+  // Atualização completa: Conta Azul + Planilha + Recálculo CMV
+  const atualizarCompleto = useCallback(async () => {
+    if (!selectedBar?.id || atualizando) return;
+    setAtualizando(true);
+    setEtapaAtualizacao('Conta Azul + Planilha (paralelo)…');
+    try {
+      const resp = await fetch('/api/cmv-semanal/atualizar-completo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: selectedBar.id, ano: new Date().getFullYear() }),
+      });
+      const result = await resp.json();
+
+      if (!resp.ok || !result.success) {
+        const onde = result.etapa_falhou
+          ? ({ contaazul: 'Conta Azul', sync_sheets: 'Planilha CMV', recalcular: 'Recálculo' } as Record<string, string>)[result.etapa_falhou] || result.etapa_falhou
+          : 'desconhecida';
+        toast({
+          title: `❌ Falhou em ${onde}`,
+          description: result.error || 'Erro ao atualizar',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setEtapaAtualizacao('Recarregando dados…');
+      await carregarDados();
+      toast({
+        title: '✅ CMV atualizado',
+        description: 'Conta Azul, planilha e cálculo aplicados.',
+      });
+    } catch (e: any) {
+      toast({
+        title: '❌ Erro ao atualizar',
+        description: e?.message || 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    } finally {
+      setAtualizando(false);
+      setEtapaAtualizacao('');
+    }
+  }, [selectedBar?.id, atualizando, toast, carregarDados]);
 
   useEffect(() => {
     if (selectedBar?.id) {
@@ -951,16 +997,28 @@ export default function CMVSemanalTabelaPage() {
               </div>
             </div>
             
-            {/* Legenda */}
-            <div className="hidden md:flex items-center gap-3 text-xs">
-              <div className="flex items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
-                <span className="text-gray-600 dark:text-gray-400">Verificar</span>
+            {/* Legenda + Atualizar */}
+            <div className="flex items-center gap-3">
+              <div className="hidden md:flex items-center gap-3 text-xs">
+                <div className="flex items-center gap-1">
+                  <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                  <span className="text-gray-600 dark:text-gray-400">Verificar</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                  <span className="text-gray-600 dark:text-gray-400">Manual</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                <span className="text-gray-600 dark:text-gray-400">Manual</span>
-              </div>
+              <Button
+                onClick={atualizarCompleto}
+                disabled={atualizando || !selectedBar?.id}
+                size="sm"
+                className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white"
+                title="Sincroniza Conta Azul + Planilha CMV e recalcula tudo"
+              >
+                <RefreshCw className={cn('w-4 h-4 mr-2', atualizando && 'animate-spin')} />
+                {atualizando ? (etapaAtualizacao || 'Atualizando…') : 'Atualizar dados'}
+              </Button>
             </div>
           </div>
         </div>
