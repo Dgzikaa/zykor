@@ -9,8 +9,8 @@ const supabase = createClient(
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' });
 const MODEL = 'claude-haiku-4-5';
-const BATCH_SIZE = 10;
-const MAX_REVIEWS_POR_CHAMADA = 30;
+const BATCH_SIZE = 5;            // 5 reviews por chamada Anthropic
+const MAX_REVIEWS_POR_CHAMADA = 20; // máximo por clique do botão
 
 /**
  * GET /api/ferramentas/insights/reviews-nlp?bar_id=N&data_inicio=...&data_fim=...&analisar=true
@@ -163,12 +163,15 @@ export async function GET(req: NextRequest) {
       const aProcessar = novos.slice(0, MAX_REVIEWS_POR_CHAMADA);
 
       // Analisar em lotes
+      console.log(`[reviews-nlp] vai processar ${aProcessar.length} reviews em ${Math.ceil(aProcessar.length / BATCH_SIZE)} lotes`);
       for (let i = 0; i < aProcessar.length; i += BATCH_SIZE) {
         const lote = aProcessar.slice(i, i + BATCH_SIZE);
+        console.log(`[reviews-nlp] lote ${i / BATCH_SIZE + 1}: ${lote.length} reviews`);
         try {
           const analises = await analisarLote(
             lote.map(r => ({ ref_id: r.ref_id, texto: r.texto, stars: r.stars })),
           );
+          console.log(`[reviews-nlp] lote retornou ${analises.length} análises`);
 
           const inserts = analises
             .map(a => {

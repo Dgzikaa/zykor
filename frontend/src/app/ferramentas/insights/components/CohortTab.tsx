@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useBar } from '@/contexts/BarContext';
 
 interface ApiData {
-  periodo: { data_inicio: string; weeks: number };
+  periodo: { data_inicio: string; weeks: number; modo: 'aquisicao' | 'periodo' };
   cohorts: Array<{
     week_start: string;
     total_clientes: number;
@@ -34,8 +34,10 @@ interface Props {
   weeks?: number;
 }
 
-export function CohortTab({ weeks = 12 }: Props) {
+export function CohortTab({ weeks: weeksDefault = 24 }: Props) {
   const { selectedBar } = useBar();
+  const [weeks, setWeeks] = useState<number>(weeksDefault);
+  const [modo, setModo] = useState<'aquisicao' | 'periodo'>('aquisicao');
   const [data, setData] = useState<ApiData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,12 +46,12 @@ export function CohortTab({ weeks = 12 }: Props) {
     if (!selectedBar?.id) return;
     setLoading(true);
     setError(null);
-    fetch(`/api/ferramentas/insights/cohort?bar_id=${selectedBar.id}&weeks=${weeks}`)
+    fetch(`/api/ferramentas/insights/cohort?bar_id=${selectedBar.id}&weeks=${weeks}&modo=${modo}`)
       .then(r => r.json())
       .then(r => { if (r.success) setData(r); else setError(r.error || 'Erro'); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [selectedBar?.id, weeks]);
+  }, [selectedBar?.id, weeks, modo]);
 
   if (loading) return <Skeleton className="h-96 w-full" />;
   if (error) return <p className="text-red-500">{error}</p>;
@@ -61,11 +63,34 @@ export function CohortTab({ weeks = 12 }: Props) {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle>Retenção por semana de aquisição</CardTitle>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Cada linha = clientes que vieram pela 1ª vez naquela semana. Colunas = % deles que voltaram em cada semana seguinte.
-          </p>
+        <CardHeader className="flex flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle>
+              Retenção {modo === 'aquisicao' ? 'por semana de aquisição' : 'por semana do período'}
+            </CardTitle>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {modo === 'aquisicao'
+                ? 'Cada linha = clientes NOVOS naquela semana (1ª visita histórica). Colunas = % deles que voltaram nas semanas seguintes.'
+                : 'Cada linha = clientes cuja 1ª visita DO PERÍODO foi naquela semana (mesmo que fossem antigos). Colunas = % deles que voltaram.'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <select
+              value={modo}
+              onChange={e => setModo(e.target.value as any)}
+              className="h-8 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs"
+            >
+              <option value="aquisicao">Aquisição (novos)</option>
+              <option value="periodo">Período (todos)</option>
+            </select>
+            <select
+              value={weeks}
+              onChange={e => setWeeks(Number(e.target.value))}
+              className="h-8 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs"
+            >
+              {[12, 24, 36, 52].map(w => <option key={w} value={w}>{w} sem</option>)}
+            </select>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -137,6 +162,10 @@ export function CohortTab({ weeks = 12 }: Props) {
           <p><strong>S+0</strong> = mesma semana em que o cliente veio pela primeira vez (sempre 100% por definição).</p>
           <p><strong>S+1</strong> = % de quem voltou na semana seguinte. Quanto maior, mais retenção.</p>
           <p>Quanto mais verde, melhor. Vermelho = perda de cliente após a primeira visita.</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            <strong>Aquisição</strong> = cohort só com clientes verdadeiramente novos.
+            <strong> Período</strong> = qualquer cliente que veio (útil quando a maioria já era cliente antes).
+          </p>
         </CardContent>
       </Card>
     </div>

@@ -50,6 +50,18 @@
     },
     "src/app/api/contahub/stockout-sync/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/api/ferramentas/insights/reviews-nlp/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/ferramentas/insights/cohort/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/contaazul/sync-manual/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/cmv-semanal/atualizar-completo/route.ts": {
+      "maxDuration": 300
     }
   },
   "git": {

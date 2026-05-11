@@ -148,13 +148,25 @@ export function CacRoasTab() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">Notas de atribuição</CardTitle></CardHeader>
-        <CardContent className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
-          <p><strong>Cliente novo</strong> = primeira visita histórica caiu naquele mês (telefone normalizado).</p>
-          <p><strong>Fat. dos novos</strong> = soma das visitas DESSES clientes no mesmo mês em que viraram clientes.</p>
-          <p><strong>Mkt investido</strong> = soma de <code>m_valor_investido</code> das semanas que tocam o mês (gold.desempenho).</p>
-          <p>Atribuição simples (mês a mês). Não considera lag — vale como tendência, não como contabilidade exata.</p>
+      <Card className="border-amber-200 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-900/10">
+        <CardHeader><CardTitle className="text-base">⚠️ Fonte e limites desta análise</CardTitle></CardHeader>
+        <CardContent className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
+          <p>
+            <strong>Mkt investido</strong> vem do campo <code>m_valor_investido</code> de <code>gold.desempenho</code>, que é
+            <strong> preenchido manualmente</strong> na tela de desempenho semanal pelo time. <strong>Não é puxado automaticamente
+            do Conta Azul</strong> — o Conta Azul não tem hoje uma categoria classificada como &quot;Marketing&quot;.
+          </p>
+          <p>
+            <strong>Cliente novo</strong> = telefone normalizado cuja PRIMEIRA visita histórica caiu naquele mês.
+          </p>
+          <p>
+            <strong>Fat. dos novos</strong> = soma das visitas DESSES clientes no mesmo mês em que viraram clientes
+            (não acompanha o ano todo de receita gerada).
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Atribuição simples (mês a mês). Não considera lag (cliente que viu mídia em janeiro mas só veio em março
+            é atribuído a março). Vale como tendência, não contabilidade exata.
+          </p>
         </CardContent>
       </Card>
     </div>

@@ -7,12 +7,18 @@ const supabase = createClient(
 );
 
 /**
- * GET /api/ferramentas/insights/cohort?bar_id=N&weeks=12
+ * GET /api/ferramentas/insights/cohort?bar_id=N&weeks=24&modo=aquisicao|periodo
  *
  * Cohort semanal de retenção:
  *   - linha = semana da PRIMEIRA visita do cliente (cohort week)
  *   - coluna = semanas após a primeira visita (0, 1, 2, …)
  *   - célula = % dos clientes daquela cohort que retornaram naquela semana
+ *
+ * Modos:
+ *   - aquisicao (default): cohort = primeira visita HISTÓRICA do cliente.
+ *     Mostra retenção de clientes recém-conquistados.
+ *   - periodo: cohort = primeira visita do cliente DENTRO do recorte.
+ *     Útil pra ver retenção mesmo de quem já era cliente antes.
  *
  * Fonte: silver.cliente_visitas (cliente_fone_norm + data_visita).
  */
@@ -22,7 +28,8 @@ export async function GET(req: NextRequest) {
   try {
     const sp = new URL(req.url).searchParams;
     const barId = Number(sp.get('bar_id'));
-    const weeks = Math.min(Number(sp.get('weeks') ?? 12), 24);
+    const weeks = Math.min(Number(sp.get('weeks') ?? 24), 52);
+    const modo = (sp.get('modo') === 'periodo' ? 'periodo' : 'aquisicao') as 'aquisicao' | 'periodo';
 
     if (!barId) {
       return NextResponse.json({ error: 'bar_id obrigatório' }, { status: 400 });
@@ -64,25 +71,28 @@ export async function GET(req: NextRequest) {
       visitasPorCliente.set(r.cliente_fone_norm, lista);
     }
 
-    // Excluir clientes que JÁ visitaram antes de data_inicio (não são novos do período)
-    const fonesPeriodo = Array.from(primeiraVisita.keys());
-    if (fonesPeriodo.length > 0) {
-      // Em lotes (Supabase tem limite de in())
-      const lotes: string[][] = [];
-      const TAM = 1000;
-      for (let i = 0; i < fonesPeriodo.length; i += TAM) lotes.push(fonesPeriodo.slice(i, i + TAM));
+    // No modo "aquisicao", excluir clientes que já visitaram antes do período
+    // (cohort de aquisição = clientes verdadeiramente novos).
+    // No modo "periodo", todos contam, mesmo quem já era cliente antes.
+    if (modo === 'aquisicao') {
+      const fonesPeriodo = Array.from(primeiraVisita.keys());
+      if (fonesPeriodo.length > 0) {
+        const lotes: string[][] = [];
+        const TAM = 1000;
+        for (let i = 0; i < fonesPeriodo.length; i += TAM) lotes.push(fonesPeriodo.slice(i, i + TAM));
 
-      for (const lote of lotes) {
-        const { data: visitasAntes } = await supabase
-          .schema('silver' as never)
-          .from('cliente_visitas')
-          .select('cliente_fone_norm')
-          .eq('bar_id', barId)
-          .lt('data_visita', dataInicio)
-          .in('cliente_fone_norm', lote);
-        for (const v of visitasAntes ?? []) {
-          primeiraVisita.delete((v as any).cliente_fone_norm);
-          visitasPorCliente.delete((v as any).cliente_fone_norm);
+        for (const lote of lotes) {
+          const { data: visitasAntes } = await supabase
+            .schema('silver' as never)
+            .from('cliente_visitas')
+            .select('cliente_fone_norm')
+            .eq('bar_id', barId)
+            .lt('data_visita', dataInicio)
+            .in('cliente_fone_norm', lote);
+          for (const v of visitasAntes ?? []) {
+            primeiraVisita.delete((v as any).cliente_fone_norm);
+            visitasPorCliente.delete((v as any).cliente_fone_norm);
+          }
         }
       }
     }
@@ -158,7 +168,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      periodo: { data_inicio: dataInicio, weeks },
+      periodo: { data_inicio: dataInicio, weeks, modo },
       cohorts: resultado,
       media_por_offset: media,
     });
