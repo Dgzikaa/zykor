@@ -47,6 +47,7 @@ async function checarCredencialBar(
 ): Promise<{
   credencial: IntegracaoResposta['credencial'];
   statusCredencial: StatusCredencial;
+  temRefreshToken: boolean;
 }> {
   const credencial: IntegracaoResposta['credencial'] = {
     fonte: null,
@@ -55,6 +56,7 @@ async function checarCredencialBar(
     detalhes_extras: {},
   };
   let statusCredencial: StatusCredencial = 'ausente';
+  let temRefreshToken = false;
 
   for (const fonte of cat.fontesAuth) {
     if (fonte.tipo === 'api_credentials' && fonte.sistema?.length) {
@@ -81,6 +83,7 @@ async function checarCredencialBar(
           scopes: row.scopes,
           last_token_refresh: row.last_token_refresh,
         };
+        temRefreshToken = Boolean(row.refresh_token);
         const temAlguma = Boolean(
           row.api_token || row.api_key || row.access_token || row.client_secret,
         );
@@ -91,7 +94,7 @@ async function checarCredencialBar(
         else if (row.expires_at && new Date(row.expires_at).getTime() < Date.now() + 7 * 86400_000)
           statusCredencial = 'expirando';
         else statusCredencial = 'ok';
-        return { credencial, statusCredencial };
+        return { credencial, statusCredencial, temRefreshToken };
       }
     }
 
@@ -109,7 +112,7 @@ async function checarCredencialBar(
         };
         credencial.detalhes_extras = row;
         statusCredencial = (row as any).ativo === false ? 'desativada' : 'ok';
-        return { credencial, statusCredencial };
+        return { credencial, statusCredencial, temRefreshToken: false };
       }
     }
 
@@ -141,17 +144,18 @@ async function checarCredencialBar(
         )
           statusCredencial = 'expirando';
         else statusCredencial = 'ok';
-        return { credencial, statusCredencial };
+        return { credencial, statusCredencial, temRefreshToken: false };
       }
     }
   }
 
-  return { credencial, statusCredencial };
+  return { credencial, statusCredencial, temRefreshToken: false };
 }
 
 async function checarCredencialGlobal(cat: IntegracaoCatalogo): Promise<{
   credencial: IntegracaoResposta['credencial'];
   statusCredencial: StatusCredencial;
+  temRefreshToken: boolean;
 }> {
   const credencial: IntegracaoResposta['credencial'] = {
     fonte: 'env_global',
@@ -179,7 +183,7 @@ async function checarCredencialGlobal(cat: IntegracaoCatalogo): Promise<{
   else if (presentes < totalEsperado) status = 'expirando'; // "parcial" — abusa do enum
   else status = 'ok';
 
-  return { credencial, statusCredencial: status };
+  return { credencial, statusCredencial: status, temRefreshToken: false };
 }
 
 async function pegarUltimaSync(
@@ -235,12 +239,23 @@ function calcularStatusGeral(
   statusCred: StatusCredencial,
   ultimaSync: string | null,
   global: boolean,
+  temRefreshToken: boolean,
 ): { status: StatusGeral; problemas: string[] } {
   const problemas: string[] = [];
 
   if (statusCred === 'ausente') return { status: 'nao_configurada', problemas: ['Credencial ausente'] };
   if (statusCred === 'desativada') return { status: 'desconectada', problemas: ['Integração desativada'] };
-  if (statusCred === 'expirado') problemas.push('Token expirado');
+
+  // Token expirado mas com refresh_token = renova sozinho na próxima sync (atenção, não erro)
+  // Token expirado SEM refresh_token = desconectada de fato
+  if (statusCred === 'expirado' && !temRefreshToken) {
+    return { status: 'desconectada', problemas: ['Token expirado e sem refresh — requer reconexão'] };
+  }
+  // Com refresh automático e sync recente, expirado é praticamente irrelevante — silencia
+  if (statusCred === 'expirado' && temRefreshToken) {
+    const horasDesdeSync = ultimaSync ? (Date.now() - new Date(ultimaSync).getTime()) / 3600_000 : 999;
+    if (horasDesdeSync > 12) problemas.push('Token expirado — aguardando próximo refresh');
+  }
   if (statusCred === 'expirando') problemas.push('Token expirando em menos de 7 dias');
 
   if (!global && ultimaSync) {
@@ -250,7 +265,6 @@ function calcularStatusGeral(
   }
 
   if (problemas.length === 0) return { status: 'conectada', problemas: [] };
-  if (statusCred === 'expirado') return { status: 'desconectada', problemas };
   return { status: 'parcial', problemas };
 }
 
@@ -296,13 +310,13 @@ export async function GET(request: NextRequest) {
     const integracoes: IntegracaoResposta[] = await Promise.all(
       CATALOGO_INTEGRACOES.map(async (cat) => {
         const ehGlobal = Boolean(cat.global);
-        const { credencial, statusCredencial } = ehGlobal
+        const { credencial, statusCredencial, temRefreshToken } = ehGlobal
           ? await checarCredencialGlobal(cat)
           : await checarCredencialBar(supabase, cat, barId);
 
         const sync = await pegarUltimaSync(supabase, cat, ehGlobal ? null : barId);
         const volume = await pegarVolume7d(supabase, cat, ehGlobal ? null : barId);
-        const { status, problemas } = calcularStatusGeral(statusCredencial, sync.ultima, ehGlobal);
+        const { status, problemas } = calcularStatusGeral(statusCredencial, sync.ultima, ehGlobal, temRefreshToken);
 
         return {
           id: cat.id,
