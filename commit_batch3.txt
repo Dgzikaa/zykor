@@ -1,5 +1,0 @@
-refactor(gold): rotas mensal, service mensal, relatorios consomem gold
-
-- /api/estrategico/desempenho/mensal: busca gold granularidade mensal
-- /services/desempenho-mensal-service: simplifica usando gold mensal
-- /api/relatorios/dados-reuniao: busca gold.desempenho semanal

@@ -1,9 +1,0 @@
-fix(ui): CMO edit usa maybeSingle para evitar erro 500
-
-UPDATE em meta.desempenho_manual com .single() quebrava quando 
-registro nao existia (semanas nunca editadas manualmente).
-
-Trocado .single() por .maybeSingle() para retornar null sem 
-erro quando UPDATE nao encontra registro.
-
-User consegue editar CMO/observacoes sem erro 500.

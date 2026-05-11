@@ -1,5 +1,0 @@
-fix(desempenho): tempos drinks/cozinha + conversao seg->min
-
-- Tempo Drinks: converter 246 segundos para 4.1 minutos
-- Atrasinho Cozinha: mapear atrasinho_cozinha do gold
-- Atrasao Cozinha: mapear atrasao_cozinha + atrasos_comida_perc

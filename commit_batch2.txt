@@ -1,7 +1,0 @@
-refactor(gold): rotas semanas, semana, todas-semanas consomem gold
-
-- /api/estrategico/desempenho/semanas: busca gold.desempenho
-- /api/estrategico/desempenho/semana: busca gold com anterior
-- /api/estrategico/desempenho/todas-semanas: busca gold semanal
-- /api/falae/detailed-summary: atualiza comentario
-- /api/configuracoes/cron: atualiza docs SQL

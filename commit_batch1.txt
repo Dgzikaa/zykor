@@ -1,5 +1,0 @@
-refactor(gold): rotas clientes-ativos, cmv, auditoria consomem gold
-
-- /api/clientes-ativos: busca gold.desempenho semanal
-- /api/cmv-semanal: enriquece com gold.desempenho
-- /api/auditoria/completa: count de gold.desempenho

@@ -1,4 +1,0 @@
-fix(nps): modal NPS Digital buscar schema integrations
-
-API detailed-summary buscava falae_respostas sem schema,
-procurando em public. Ajustado para integrations.falae_respostas.

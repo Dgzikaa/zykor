@@ -1,8 +1,0 @@
-refactor(desempenho): recalcular chama ETL Gold direto
-
-Substitui recalculo em JavaScript (500 linhas) por chamada ao 
-ETL gold.desempenho (public.etl_gold_desempenho_semanal). Gold 
-eh source-of-truth. Recalculo via UI agora aciona mesma 
-function usada pelo cron 09:00 BRT.
-
-Performance: ETL ~200ms por semana (vs ~5s JS).
