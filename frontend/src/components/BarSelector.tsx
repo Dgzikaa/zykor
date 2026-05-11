@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { MapPinIcon, CheckCircle2Icon } from 'lucide-react';
+import { ContaAzulSyncButton } from '@/components/ContaAzulSyncButton';
 
 export default function BarSelector() {
   const { selectedBar, setSelectedBar, availableBars, isLoading } = useBar();
@@ -96,13 +97,16 @@ export default function BarSelector() {
           </Select>
         </div>
 
-        {/* Status */}
+        {/* Status + ação Conta Azul */}
         {selectedBar && (
-          <div className="flex items-center space-x-2 text-xs">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-slate-400">
-              Conectado • {selectedBar.nome}
-            </span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-2 text-xs min-w-0">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse flex-shrink-0"></div>
+              <span className="text-slate-400 truncate">
+                Conectado • {selectedBar.nome}
+              </span>
+            </div>
+            <ContaAzulSyncButton />
           </div>
         )}
       </div>

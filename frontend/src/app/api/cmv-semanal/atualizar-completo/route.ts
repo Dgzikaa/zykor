@@ -3,12 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * POST /api/cmv-semanal/atualizar-completo
  *
- * Fluxo completo de atualização de CMV para /ferramentas/cmv-semanal/tabela.
- * Etapas:
- *   Fase 1 (em paralelo): contaazul-sync + sync-cmv-sheets
- *     - contaazul-sync   — puxa lançamentos do Conta Azul (compras corrigidas)
- *     - sync-cmv-sheets  — puxa contagem, bonificações e CMV teórico da planilha
- *   Fase 2: cmv-semanal-auto — recalcula CMV com dados já atualizados
+ * Atualização do CMV para /ferramentas/cmv-semanal/tabela.
+ *   1. sync-cmv-sheets  — puxa contagem, bonificações e CMV teórico da planilha
+ *   2. cmv-semanal-auto — recalcula CMV com dados frescos
+ *
+ * Para sync do Conta Azul, usar o botão global em BarSelector
+ * (/api/contaazul/sync-manual) — é independente desta tela.
  *
  * Body: { bar_id: number, ano?: number }
  */
@@ -45,26 +45,16 @@ export async function POST(request: NextRequest) {
       return { ok: r.ok, status: r.status, json };
     };
 
-    // Fase 1 — paralelo: Conta Azul + Sheets
-    const [caz, sheets] = await Promise.all([
-      callFn('contaazul-sync', { bar_id: barId, sync_mode: 'daily_incremental' }),
-      callFn('sync-cmv-sheets', { bar_id: barId, todas_semanas: true, ano }),
-    ]);
-
-    if (!caz.ok) {
-      return NextResponse.json(
-        { success: false, etapa_falhou: 'contaazul', error: caz.json.error || 'Erro Conta Azul', sheets: sheets.json },
-        { status: caz.status },
-      );
-    }
+    // Etapa 1 — sincronizar planilha Google Sheets
+    const sheets = await callFn('sync-cmv-sheets', { bar_id: barId, todas_semanas: true, ano });
     if (!sheets.ok) {
       return NextResponse.json(
-        { success: false, etapa_falhou: 'sync_sheets', error: sheets.json.error || 'Erro planilha', contaazul: caz.json },
+        { success: false, etapa_falhou: 'sync_sheets', error: sheets.json.error || 'Erro planilha' },
         { status: sheets.status },
       );
     }
 
-    // Fase 2 — recalcular CMV
+    // Etapa 2 — recalcular CMV
     const recalc = await callFn('cmv-semanal-auto', { bar_id: barId, todas_semanas: true, ano });
     if (!recalc.ok) {
       return NextResponse.json(
@@ -72,7 +62,6 @@ export async function POST(request: NextRequest) {
           success: false,
           etapa_falhou: 'recalcular',
           error: recalc.json.error || 'Erro recálculo',
-          contaazul: caz.json,
           sync_sheets: sheets.json,
         },
         { status: recalc.status },
@@ -83,7 +72,6 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'CMV atualizado com sucesso',
       etapas: {
-        contaazul: caz.json,
         sync_sheets: sheets.json,
         recalcular: recalc.json,
       },

@@ -538,11 +538,12 @@ export default function CMVSemanalTabelaPage() {
     carregarFatorCmv();
   }, [selectedBar?.id]);
 
-  // Atualização completa: Conta Azul + Planilha + Recálculo CMV
+  // Atualização do CMV: Planilha CMV + Recálculo
+  // (sync do Conta Azul é global, ao lado do seletor de bar)
   const atualizarCompleto = useCallback(async () => {
     if (!selectedBar?.id || atualizando) return;
     setAtualizando(true);
-    setEtapaAtualizacao('Conta Azul + Planilha (paralelo)…');
+    setEtapaAtualizacao('Sincronizando planilha…');
     try {
       const resp = await fetch('/api/cmv-semanal/atualizar-completo', {
         method: 'POST',
@@ -553,7 +554,7 @@ export default function CMVSemanalTabelaPage() {
 
       if (!resp.ok || !result.success) {
         const onde = result.etapa_falhou
-          ? ({ contaazul: 'Conta Azul', sync_sheets: 'Planilha CMV', recalcular: 'Recálculo' } as Record<string, string>)[result.etapa_falhou] || result.etapa_falhou
+          ? ({ sync_sheets: 'Planilha CMV', recalcular: 'Recálculo' } as Record<string, string>)[result.etapa_falhou] || result.etapa_falhou
           : 'desconhecida';
         toast({
           title: `❌ Falhou em ${onde}`,
@@ -567,7 +568,7 @@ export default function CMVSemanalTabelaPage() {
       await carregarDados();
       toast({
         title: '✅ CMV atualizado',
-        description: 'Conta Azul, planilha e cálculo aplicados.',
+        description: 'Planilha CMV sincronizada e cálculo refeito.',
       });
     } catch (e: any) {
       toast({
