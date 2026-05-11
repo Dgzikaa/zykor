@@ -78,27 +78,25 @@ serve(async (req) => {
     
     // Handler inline para notification (não redireciona)
     if (action === 'notification') {
-      const webhookUrl = Deno.env.get('DISCORD_WEBHOOK_URL');
-      if (!webhookUrl) {
-        await heartbeatEnd(supabase, heartbeatId, 'error', startTime, 0, { error: 'webhook_url_missing' });
+      // canal: 'alertas_criticos' | 'relatorios_ia' | 'insights' | 'sync_logs'
+      const canal: string = params.canal || params.webhook_type || 'alertas_criticos';
+
+      const { data: webhookUrl, error: rpcError } = await supabase.rpc('get_discord_webhook', { p_tipo: canal });
+
+      if (rpcError || !webhookUrl) {
+        await heartbeatEnd(supabase, heartbeatId, 'error', startTime, 0, { error: 'webhook_not_found', canal });
         return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'DISCORD_WEBHOOK_URL não configurada',
-          }),
-          { 
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
+          JSON.stringify({ success: false, error: `Webhook não encontrado para canal '${canal}'`, canal }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      const { title, custom_message, webhook_type } = params;
+      const { title, custom_message } = params;
       const discordPayload = {
         embeds: [{
           title: title || 'Notificação Zykor',
           description: custom_message || 'Sem detalhes',
-          color: title?.includes('✅') ? 0x00ff00 : title?.includes('⚠️') ? 0xffa500 : 0x0099ff,
+          color: title?.includes('✅') ? 0x00ff00 : title?.includes('⚠️') ? 0xffa500 : title?.includes('❌') || title?.includes('🚨') ? 0xff0000 : 0x0099ff,
           timestamp: new Date().toISOString()
         }]
       };
@@ -109,18 +107,19 @@ serve(async (req) => {
         body: JSON.stringify(discordPayload)
       });
 
-      await heartbeatEnd(supabase, heartbeatId, webhookResponse.ok ? 'success' : 'error', startTime, 1, { action, status: webhookResponse.status });
+      await heartbeatEnd(supabase, heartbeatId, webhookResponse.ok ? 'success' : 'error', startTime, 1, { action, canal, status: webhookResponse.status });
 
       return new Response(
         JSON.stringify({
           success: webhookResponse.ok,
           action: 'notification',
+          canal,
           webhook_status: webhookResponse.status,
           timestamp: new Date().toISOString(),
         }),
-        { 
+        {
           status: webhookResponse.ok ? 200 : 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }

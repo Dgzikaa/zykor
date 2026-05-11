@@ -73,26 +73,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     datasParaSincronizar.reverse(); // Ordem cronológica
     
     console.log(`📅 Datas para re-sincronizar: ${datasParaSincronizar.join(', ')}`);
-    
-    // Enviar notificação Discord de início
-    try {
-      await fetch(`${supabaseUrl}/functions/v1/discord-notification`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseServiceKey}`
-        },
-        body: JSON.stringify({
-          title: '🔄 ContaHub Re-Sync Semanal Iniciado',
-          webhook_type: 'contahub',
-          bar_id: bar_id,
-          custom_message: `📅 **Período:** ${datasParaSincronizar[0]} a ${datasParaSincronizar[datasParaSincronizar.length - 1]}\n🍺 **Bar ID:** ${bar_id}\n⏰ **Início:** ${formatarDataHoraEdge(agoraEdgeFunction())}`
-        })
-      });
-    } catch (discordError) {
-      console.warn('⚠️ Erro ao enviar notificação Discord de início:', discordError);
-    }
-    
+
     // Chamar a Edge Function de sync para cada data
     const results = {
       success: [] as any[],
@@ -179,27 +160,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.log(`- Processados: ${processedCount}/${processedData?.length || 0}`);
     console.log(`- Erros: ${summary.dias_erro}`);
     
-    // Enviar notificação Discord final
-    try {
-      const statusEmoji = summary.dias_erro === 0 ? '✅' : '⚠️';
-      const statusText = summary.dias_erro === 0 ? 'Concluído' : 'Concluído com Erros';
-      
-      await fetch(`${supabaseUrl}/functions/v1/discord-notification`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseServiceKey}`
-        },
-        body: JSON.stringify({
-          title: `${statusEmoji} ContaHub Re-Sync Semanal ${statusText}`,
-          webhook_type: 'contahub',
-          bar_id: bar_id,
-          processed_records: summary.total_registros_coletados,
-          custom_message: `📅 **Período:** ${summary.periodo}\n📊 **Dias:** ${summary.dias_sucesso}/${summary.total_dias} re-sincronizados\n📈 **Registros:** ${summary.total_registros_coletados} coletados\n⚙️ **Processamento:** ${processedCount}/${processedData?.length || 0} processados\n${summary.dias_erro > 0 ? `\n⚠️ **Erros:** ${summary.dias_erro} dias falharam` : ''}\n⏰ **Fim:** ${formatarDataHoraEdge(agoraEdgeFunction())}`
-        })
-      });
-    } catch (discordError) {
-      console.warn('⚠️ Erro ao enviar notificação Discord final:', discordError);
+    // Notificar Discord apenas em caso de erro (canal alertas_criticos)
+    if (summary.dias_erro > 0) {
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/discord-dispatcher`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`
+          },
+          body: JSON.stringify({
+            action: 'notification',
+            canal: 'alertas_criticos',
+            title: `⚠️ ContaHub Re-Sync Semanal Concluído com Erros — Bar ${bar_id}`,
+            custom_message: `📅 **Período:** ${summary.periodo}\n📊 **Dias:** ${summary.dias_sucesso}/${summary.total_dias} OK\n⚠️ **Erros:** ${summary.dias_erro} dias falharam\n📈 **Registros coletados:** ${summary.total_registros_coletados}\n⚙️ **Processados:** ${processedCount}/${processedData?.length || 0}\n⏰ **Fim:** ${formatarDataHoraEdge(agoraEdgeFunction())}`
+          })
+        });
+      } catch (discordError) {
+        console.warn('⚠️ Erro ao enviar notificação Discord:', discordError);
+      }
     }
     
     // 💓 Heartbeat: registrar sucesso

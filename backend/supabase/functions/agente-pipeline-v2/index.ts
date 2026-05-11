@@ -177,7 +177,7 @@ async function enviarNotificacoesCriticas(
 
   for (const insight of insightsCriticos) {
     try {
-      const webhookUrl = await getDiscordWebhookFromDb(supabase, 'agentes', barId);
+      const webhookUrl = await getDiscordWebhookFromDb(supabase, 'relatorios_ia');
       
       if (!webhookUrl) {
         console.warn('⚠️ Webhook Discord não configurado, pulando notificação');

@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     // 2. Disparar recálculo de desempenho (após sincronizações)
     const desempenhoResponse = await fetch(
-      `${supabaseUrl}/functions/v1/desempenho-semanal-auto`,
+      `${supabaseUrl}/functions/v1/recalcular-desempenho-v2`,
       {
         method: 'POST',
         headers: {

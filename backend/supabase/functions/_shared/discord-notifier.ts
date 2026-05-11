@@ -1,30 +1,27 @@
 /**
- * 📢 Discord Notifier - Envio Padronizado de Notificações
- * 
- * Módulo compartilhado para envio de mensagens ao Discord.
- * Suporta webhooks, embeds, e formatação rica.
+ * Discord Notifier — Envio padronizado de notificações.
+ *
+ * Fonte do webhook: tabela system.discord_webhooks (via RPC
+ * public.get_discord_webhook). Sem fallback em env var.
+ *
+ * Canais disponíveis (tipo na tabela):
+ *   - alertas_criticos: erros de pipeline, falhas de sync
+ *   - relatorios_ia:    análises IA (diária/semanal/mensal)
+ *   - insights:         alertas proativos, relatório matinal
+ *   - sync_logs:        logs informativos de sync (silenciável)
  */
+
+export type DiscordCanal = 'alertas_criticos' | 'relatorios_ia' | 'insights' | 'sync_logs';
 
 export interface DiscordEmbed {
   title?: string;
   description?: string;
   color?: number;
-  fields?: Array<{
-    name: string;
-    value: string;
-    inline?: boolean;
-  }>;
-  footer?: {
-    text: string;
-    icon_url?: string;
-  };
+  fields?: Array<{ name: string; value: string; inline?: boolean }>;
+  footer?: { text: string; icon_url?: string };
   timestamp?: string;
-  thumbnail?: {
-    url: string;
-  };
-  image?: {
-    url: string;
-  };
+  thumbnail?: { url: string };
+  image?: { url: string };
 }
 
 export interface DiscordMessage {
@@ -34,279 +31,167 @@ export interface DiscordMessage {
   avatar_url?: string;
 }
 
-/**
- * Cores padrão para embeds
- */
 export const DiscordColors = {
   SUCCESS: 0x00ff00,
-  ERROR: 0xff0000,
+  ERROR:   0xff0000,
   WARNING: 0xffaa00,
-  INFO: 0x0099ff,
+  INFO:    0x0099ff,
   NEUTRAL: 0x95a5a6,
-  PURPLE: 0x9b59b6,
-  GOLD: 0xf1c40f,
+  PURPLE:  0x9b59b6,
+  GOLD:    0xf1c40f,
 } as const;
 
 /**
- * Obter webhook URL do Discord via variáveis de ambiente
- */
-function getDiscordWebhookUrl(tipo: 'alertas' | 'agentes' | 'sync' | 'geral' = 'geral'): string {
-  const webhookMap = {
-    alertas: Deno.env.get('DISCORD_WEBHOOK_ALERTAS'),
-    agentes: Deno.env.get('DISCORD_WEBHOOK_AGENTES'),
-    sync: Deno.env.get('DISCORD_WEBHOOK_SYNC'),
-    geral: Deno.env.get('DISCORD_WEBHOOK_URL'),
-  };
-  
-  const webhook = webhookMap[tipo] || webhookMap.geral;
-  
-  if (!webhook) {
-    throw new Error(`Discord webhook não configurado para tipo: ${tipo}`);
-  }
-  
-  return webhook;
-}
-
-/**
- * Obter webhook URL do Discord via banco de dados
- * Fallback para variáveis de ambiente se não encontrar no banco
+ * Busca o webhook de um canal via RPC (tabela system.discord_webhooks).
+ * Retorna null se não houver webhook cadastrado para o canal.
  */
 export async function getDiscordWebhookFromDb(
   supabase: any,
-  tipo: string,
-  barId?: number
+  canal: DiscordCanal
 ): Promise<string | null> {
   try {
-    let query = supabase
-      .from('discord_webhooks')
-      .select('webhook_url')
-      .eq('tipo', tipo)
-      .eq('ativo', true);
-    
-    if (barId) {
-      query = query.eq('bar_id', barId);
+    const { data, error } = await supabase.rpc('get_discord_webhook', { p_tipo: canal });
+    if (error) {
+      console.error(`[discord] erro ao buscar webhook ${canal}:`, error);
+      return null;
     }
-    
-    const { data, error } = await query.single();
-    
-    if (error || !data?.webhook_url) {
-      const envMap: Record<string, string | undefined> = {
-        alertas: Deno.env.get('DISCORD_WEBHOOK_ALERTAS'),
-        agentes: Deno.env.get('DISCORD_WEBHOOK_AGENTES'),
-        sync: Deno.env.get('DISCORD_WEBHOOK_SYNC'),
-        geral: Deno.env.get('DISCORD_WEBHOOK_URL'),
-      };
-      return envMap[tipo] || envMap.geral || null;
-    }
-    
-    return data.webhook_url;
+    return (data as string | null) || null;
   } catch (err) {
-    console.error(`⚠️ Erro ao buscar webhook do tipo ${tipo}:`, err);
+    console.error(`[discord] exceção ao buscar webhook ${canal}:`, err);
     return null;
   }
 }
 
 /**
- * Enviar mensagem simples ao Discord
+ * Envia mensagem de texto simples ao Discord.
  */
 export async function sendDiscordMessage(
+  supabase: any,
+  canal: DiscordCanal,
   content: string,
-  tipo: 'alertas' | 'agentes' | 'sync' | 'geral' = 'geral'
 ): Promise<boolean> {
+  const webhookUrl = await getDiscordWebhookFromDb(supabase, canal);
+  if (!webhookUrl) {
+    console.warn(`[discord] sem webhook para canal ${canal} — mensagem ignorada`);
+    return false;
+  }
+
   try {
-    const webhookUrl = getDiscordWebhookUrl(tipo);
-    
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
     });
-    
     if (!response.ok) {
-      console.error(`❌ Erro ao enviar mensagem ao Discord: ${response.status}`);
+      console.error(`[discord] envio falhou (${canal}): ${response.status}`);
       return false;
     }
-    
     return true;
   } catch (error) {
-    console.error('❌ Erro ao enviar mensagem ao Discord:', error);
+    console.error(`[discord] exceção no envio (${canal}):`, error);
     return false;
   }
 }
 
 /**
- * Enviar embed rico ao Discord
+ * Envia embed rico ao Discord.
  */
 export async function sendDiscordEmbed(
+  supabase: any,
+  canal: DiscordCanal,
   embed: DiscordEmbed,
-  tipo: 'alertas' | 'agentes' | 'sync' | 'geral' = 'geral',
-  content?: string
+  content?: string,
 ): Promise<boolean> {
+  const webhookUrl = await getDiscordWebhookFromDb(supabase, canal);
+  if (!webhookUrl) {
+    console.warn(`[discord] sem webhook para canal ${canal} — embed ignorado`);
+    return false;
+  }
+
+  const message: DiscordMessage = { embeds: [embed] };
+  if (content) message.content = content;
+
   try {
-    const webhookUrl = getDiscordWebhookUrl(tipo);
-    
-    const message: DiscordMessage = {
-      embeds: [embed],
-    };
-    
-    if (content) {
-      message.content = content;
-    }
-    
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(message),
     });
-    
     if (!response.ok) {
-      console.error(`❌ Erro ao enviar embed ao Discord: ${response.status}`);
+      console.error(`[discord] embed falhou (${canal}): ${response.status}`);
       return false;
     }
-    
     return true;
   } catch (error) {
-    console.error('❌ Erro ao enviar embed ao Discord:', error);
+    console.error(`[discord] exceção no embed (${canal}):`, error);
     return false;
   }
 }
 
 /**
- * Enviar múltiplos embeds ao Discord
+ * Envia múltiplos embeds ao Discord.
  */
 export async function sendDiscordEmbeds(
+  supabase: any,
+  canal: DiscordCanal,
   embeds: DiscordEmbed[],
-  tipo: 'alertas' | 'agentes' | 'sync' | 'geral' = 'geral',
-  content?: string
+  content?: string,
 ): Promise<boolean> {
+  const webhookUrl = await getDiscordWebhookFromDb(supabase, canal);
+  if (!webhookUrl) {
+    console.warn(`[discord] sem webhook para canal ${canal} — embeds ignorados`);
+    return false;
+  }
+
+  const message: DiscordMessage = { embeds };
+  if (content) message.content = content;
+
   try {
-    const webhookUrl = getDiscordWebhookUrl(tipo);
-    
-    const message: DiscordMessage = { embeds };
-    
-    if (content) {
-      message.content = content;
-    }
-    
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(message),
     });
-    
     if (!response.ok) {
-      console.error(`❌ Erro ao enviar embeds ao Discord: ${response.status}`);
+      console.error(`[discord] embeds falhou (${canal}): ${response.status}`);
       return false;
     }
-    
     return true;
   } catch (error) {
-    console.error('❌ Erro ao enviar embeds ao Discord:', error);
+    console.error(`[discord] exceção nos embeds (${canal}):`, error);
     return false;
   }
 }
 
-/**
- * Criar embed de sucesso
- */
-export function createSuccessEmbed(
-  title: string,
-  description: string,
-  fields?: DiscordEmbed['fields']
-): DiscordEmbed {
-  return {
-    title: `✅ ${title}`,
-    description,
-    color: DiscordColors.SUCCESS,
-    fields,
-    timestamp: new Date().toISOString(),
-  };
+export function createSuccessEmbed(title: string, description: string, fields?: DiscordEmbed['fields']): DiscordEmbed {
+  return { title: `✅ ${title}`, description, color: DiscordColors.SUCCESS, fields, timestamp: new Date().toISOString() };
 }
 
-/**
- * Criar embed de erro
- */
-export function createErrorEmbed(
-  title: string,
-  description: string,
-  error?: Error | string
-): DiscordEmbed {
+export function createErrorEmbed(title: string, description: string, error?: Error | string): DiscordEmbed {
   const fields: DiscordEmbed['fields'] = [];
-  
   if (error) {
-    fields.push({
-      name: '❌ Erro',
-      value: typeof error === 'string' ? error : error.message,
-      inline: false,
-    });
+    fields.push({ name: '❌ Erro', value: typeof error === 'string' ? error : error.message, inline: false });
   }
-  
-  return {
-    title: `❌ ${title}`,
-    description,
-    color: DiscordColors.ERROR,
-    fields,
-    timestamp: new Date().toISOString(),
-  };
+  return { title: `❌ ${title}`, description, color: DiscordColors.ERROR, fields, timestamp: new Date().toISOString() };
 }
 
-/**
- * Criar embed de aviso
- */
-export function createWarningEmbed(
-  title: string,
-  description: string,
-  fields?: DiscordEmbed['fields']
-): DiscordEmbed {
-  return {
-    title: `⚠️ ${title}`,
-    description,
-    color: DiscordColors.WARNING,
-    fields,
-    timestamp: new Date().toISOString(),
-  };
+export function createWarningEmbed(title: string, description: string, fields?: DiscordEmbed['fields']): DiscordEmbed {
+  return { title: `⚠️ ${title}`, description, color: DiscordColors.WARNING, fields, timestamp: new Date().toISOString() };
 }
 
-/**
- * Criar embed de informação
- */
-export function createInfoEmbed(
-  title: string,
-  description: string,
-  fields?: DiscordEmbed['fields']
-): DiscordEmbed {
-  return {
-    title: `ℹ️ ${title}`,
-    description,
-    color: DiscordColors.INFO,
-    fields,
-    timestamp: new Date().toISOString(),
-  };
+export function createInfoEmbed(title: string, description: string, fields?: DiscordEmbed['fields']): DiscordEmbed {
+  return { title: `ℹ️ ${title}`, description, color: DiscordColors.INFO, fields, timestamp: new Date().toISOString() };
 }
 
-/**
- * Formatar valor monetário para Discord
- */
 export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value);
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
-/**
- * Formatar percentual para Discord
- */
 export function formatPercentage(value: number, decimals: number = 1): string {
   return `${value.toFixed(decimals)}%`;
 }
 
-/**
- * Truncar texto para caber no Discord (limite de 1024 caracteres por field)
- */
 export function truncateText(text: string, maxLength: number = 1024): string {
-  if (text.length <= maxLength) {
-    return text;
-  }
+  if (text.length <= maxLength) return text;
   return text.substring(0, maxLength - 3) + '...';
 }

@@ -37,40 +37,26 @@ function toContaHubDateFormat(isoDate: string): string {
   return toBRTISOCompact(isoDate);
 }
 
-// Função para enviar notificação Discord
-async function sendDiscordNotification(message: string, isError: boolean = false) {
+// Notificação de erro ContaHub — sempre canal alertas_criticos
+async function sendDiscordErrorNotification(message: string) {
   try {
-    const webhookUrl = Deno.env.get('DISCORD_CONTAHUB_WEBHOOK');
-    if (!webhookUrl) {
-      console.log('⚠️ Discord webhook não configurado');
-      return;
-    }
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !serviceKey) return;
 
-    const embed = {
-      title: isError ? '❌ ContaHub Sync - Erro' : '✅ ContaHub Sync',
-      description: message,
-      color: isError ? 15158332 : 3066993, // Vermelho ou Verde
-      timestamp: new Date().toISOString(),
-      footer: {
-        text: 'SGB ContaHub Automation'
-      }
-    };
-
-    const response = await fetch(webhookUrl, {
+    await fetch(`${supabaseUrl}/functions/v1/discord-dispatcher`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceKey}`
       },
       body: JSON.stringify({
-        embeds: [embed]
+        action: 'notification',
+        canal: 'alertas_criticos',
+        title: '🚨 ContaHub Sync — Erro',
+        custom_message: message
       })
     });
-
-    if (!response.ok) {
-      console.error('❌ Erro ao enviar notificação Discord:', response.status, response.statusText);
-    } else {
-      console.log('📣 Notificação Discord enviada');
-    }
   } catch (error) {
     console.error('❌ Erro ao enviar notificação Discord:', error);
   }
@@ -525,9 +511,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     
     console.log(`🎯 Processando dados para bar_id=${bar_id}, data=${data_date || `${data_inicio} a ${data_fim}`}`);
-    
-    // Enviar notificação de início
-    await sendDiscordNotification(`🚀 **Iniciando sincronização ContaHub**\n\n📊 **Dados:** ${data_date}\n🍺 **Bar ID:** ${bar_id}\n⏰ **Início:** ${formatarDataHoraEdge(agoraEdgeFunction())}`);
     
     // Configurar Supabase
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -990,34 +973,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Não precisa mais de RPC/cache de refresh — a leitura é sempre consistente.
 
 
-    // 🚀 CHAMAR DISCORD NOTIFICATION para CONTAHUB
-    try {
-      const discordResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/discord-dispatcher`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-        },
-        body: JSON.stringify({
-          action: 'notification',
-          title: summary.error_count === 0 ? '✅ ContaHub Sync Concluído' : '⚠️ ContaHub Sync com Erros',
-          webhook_type: 'contahub',
-          processed_records: summary.total_records_collected,
-          bar_id: parseInt(bar_id),
-          execution_time: `Dados: ${data_date}`,
-          custom_message: `📊 **Coleta ContaHub concluída**\n\n📈 **Resultados:**\n• Coletados: ${summary.collected_count}/5 tipos\n• Registros coletados: ${summary.total_records_collected}\n• Erros: ${summary.error_count}\n\n✅ **Processamento:** Iniciado automaticamente via pg_cron\n⏰ **Fim:** ${formatarDataHoraEdge(agoraEdgeFunction())}`
-        })
-      });
-
-      if (!discordResponse.ok) {
-        console.error('❌ Erro ao enviar notificação Discord ContaHub:', discordResponse.status);
-      } else {
-        console.log('📣 Notificação Discord ContaHub enviada');
-      }
-    } catch (discordError) {
-      console.error('❌ Erro ao enviar notificação Discord ContaHub:', discordError);
+    // Notificar Discord apenas se houve erro nessa coleta
+    if (summary.error_count > 0) {
+      await sendDiscordErrorNotification(
+        `⚠️ **ContaHub Sync com Erros — Bar ${bar_id}**\n\n📊 **Dados:** ${data_date}\n• Coletados: ${summary.collected_count}/5 tipos\n• Registros: ${summary.total_records_collected}\n• Erros: ${summary.error_count}\n⏰ **Fim:** ${formatarDataHoraEdge(agoraEdgeFunction())}`
+      );
     }
-    
+
+
     // 💓 Heartbeat: registrar sucesso e liberar lock
     await heartbeatEnd(
       supabase,
@@ -1092,7 +1055,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     // Enviar notificação de erro crítico
     const errorMessage = `❌ **Erro crítico na sincronização ContaHub**\n\n⏰ **Tempo:** ${formatarDataHoraEdge(agoraEdgeFunction())}\n🔥 **Erro:** ${error instanceof Error ? error.message : String(error)}`;
-    await sendDiscordNotification(errorMessage, true);
+    await sendDiscordErrorNotification(errorMessage);
   
   return new Response(JSON.stringify({
     success: false,

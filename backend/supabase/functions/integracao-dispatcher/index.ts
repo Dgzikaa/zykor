@@ -21,7 +21,7 @@ import { getCorsHeaders } from '../_shared/cors.ts';
 
 const ACTION_URLS: Record<string, string> = {
   'yuzer': '/functions/v1/yuzer-sync',
-  'sympla': '/functions/v1/sympla-sync',
+  // 'sympla': removido - integração desligada em 2026-05
   // 'nibo': removido - substituído pelo Conta Azul
   'getin': '/functions/v1/getin-sync-continuous',
 };
@@ -35,12 +35,12 @@ serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders }
+    return new Response('ok', { headers: corsHeaders });
+  }
 
   // Validar autenticação (JWT ou CRON_SECRET)
   const authError = requireAuth(req);
-  if (authError) return authError;);
-  }
+  if (authError) return authError;
 
   let heartbeatId: number | null = null;
   let startTime: number = Date.now();
@@ -64,7 +64,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: `Action inválida: ${action}. Use: yuzer, sympla, getin`,
+          error: `Action inválida: ${action}. Use: yuzer, getin`,
         }),
         { 
           status: 400,

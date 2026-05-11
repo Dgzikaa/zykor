@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     // Chamar a Edge Function de automação semanal (que agora pode ser usada diariamente)
     const response = await fetch(
-      `${supabaseUrl}/functions/v1/desempenho-semanal-auto`,
+      `${supabaseUrl}/functions/v1/recalcular-desempenho-v2`,
       {
         method: 'POST',
         headers: {

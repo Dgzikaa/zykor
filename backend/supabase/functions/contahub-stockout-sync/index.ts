@@ -14,42 +14,28 @@ function generateDynamicTimestamp(): string {
   return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}${String(now.getMilliseconds()).padStart(3, '0')}`;
 }
 
-// Fun├º├úo para enviar notifica├º├úo Discord
-async function sendDiscordNotification(message: string, isError: boolean = false) {
+// Notificação de erro Stockout — sempre canal alertas_criticos
+async function sendDiscordErrorNotification(message: string) {
   try {
-    const webhookUrl = Deno.env.get('DISCORD_CONTAHUB_WEBHOOK');
-    if (!webhookUrl) {
-      console.log('ÔÜá´©Å Discord webhook n├úo configurado');
-      return;
-    }
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !serviceKey) return;
 
-    const embed = {
-      title: isError ? 'ÔØî ContaHub Stockout - Erro' : '­ƒôª ContaHub Stockout',
-      description: message,
-      color: isError ? 15158332 : 3066993, // Vermelho ou Verde
-      timestamp: new Date().toISOString(),
-      footer: {
-        text: 'SGB Stockout Control'
-      }
-    };
-
-    const response = await fetch(webhookUrl, {
+    await fetch(`${supabaseUrl}/functions/v1/discord-dispatcher`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceKey}`
       },
       body: JSON.stringify({
-        embeds: [embed]
+        action: 'notification',
+        canal: 'alertas_criticos',
+        title: '🚨 ContaHub Stockout — Erro',
+        custom_message: message
       })
     });
-
-    if (!response.ok) {
-      console.error('ÔØî Erro ao enviar notifica├º├úo Discord:', response.status, response.statusText);
-    } else {
-      console.log('­ƒôó Notifica├º├úo Discord enviada');
-    }
   } catch (error) {
-    console.error('ÔØî Erro ao enviar notifica├º├úo Discord:', error);
+    console.error('Erro ao enviar notificação Discord:', error);
   }
 }
 
@@ -356,9 +342,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.log(`­ƒÅó Empresa ID: ${empresaId}`);
     console.log(`­ƒöù Base URL: ${credentials.base_url}`);
     
-    // Enviar notifica├º├úo de in├¡cio
-    await sendDiscordNotification(`­ƒÜÇ **Iniciando coleta Stockout**\n\n­ƒôè **Data:** ${data_date}\n­ƒÅ¬ **Bar ID:** ${bar_id}\n­ƒÅó **Empresa:** ${empresaId}\nÔÅ░ **In├¡cio:** ${formatarDataHoraEdge(agoraEdgeFunction())}`);
-    
     // Login no ContaHub
     const sessionToken = await loginContaHub(credentials);
     
@@ -419,8 +402,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.log(`- % Stockout: ${summary.percentual_stockout}`);
     console.log(`- Registros processados: ${summary.registros_processados}`);
     
-    const successMessage = `✅ **Stockout processado com sucesso**\n\n🏪 **Bar ID:** ${bar_id}\n🏢 **Empresa:** ${empresaId}\n\n📊 **Resultados:**\n• Total produtos: ${summary.total_produtos}\n• Produtos ativos: ${summary.produtos_ativos}\n• Produtos inativos: ${summary.produtos_inativos}\n• % Stockout: ${summary.percentual_stockout}\n\n⏱ **Fim:** ${formatarDataHoraEdge(agoraEdgeFunction())}`;
-    await sendDiscordNotification(successMessage);
+    // Sucesso: silencioso (usuário pediu para não notificar status de sync)
 
     await heartbeatEnd(supabase, heartbeatId, 'success', startTime, summary.registros_processados, { total_produtos: summary.total_produtos, percentual_stockout: summary.percentual_stockout });
     
@@ -439,7 +421,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     await heartbeatError(supabase, heartbeatId, startTime, error instanceof Error ? error : String(error));
     
     const errorMessage = `❌ **Erro na coleta Stockout**\n\n⏱ **Tempo:** ${formatarDataHoraEdge(agoraEdgeFunction())}\n🚨 **Erro:** ${error instanceof Error ? error.message : String(error)}`;
-    await sendDiscordNotification(errorMessage, true);
+    await sendDiscordErrorNotification(errorMessage);
   
     return new Response(JSON.stringify({
       success: false,

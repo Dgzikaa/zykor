@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     if (!supabaseUrl) throw new Error('URL do Supabase não configurada');
 
     const response = await fetch(
-      `${supabaseUrl}/functions/v1/desempenho-semanal-auto`,
+      `${supabaseUrl}/functions/v1/recalcular-desempenho-v2`,
       {
         method: 'POST',
         headers: {

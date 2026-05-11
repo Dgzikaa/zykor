@@ -26,7 +26,6 @@ import { requireAuth } from '../_shared/auth-guard.ts';
 import { validateFunctionEnv } from '../_shared/env-validator.ts';
 import { 
   sendDiscordEmbed,
-  sendDiscordEmbeds,
   createSuccessEmbed,
   createWarningEmbed,
   createErrorEmbed,
@@ -311,7 +310,7 @@ async function relatorioMatinal(supabase: any, barId: number) {
     footer: { text: 'Zykor - Relatório Automático' },
   };
   
-  await sendDiscordEmbed(embed, 'alertas');
+  await sendDiscordEmbed(supabase, 'insights', embed);
   
   return {
     ontem: metricasOntem,

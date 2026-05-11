@@ -283,7 +283,7 @@ Bar ID: ${bar_id}`;
           { temperature: 0.3, maxOutputTokens: 3000 }
         );
 
-        const webhookUrl = await getDiscordWebhookFromDb(supabase, 'agentes', bar_id);
+        const webhookUrl = await getDiscordWebhookFromDb(supabase, 'relatorios_ia');
 
         if (webhookUrl) {
           try {
@@ -427,6 +427,8 @@ Forneça uma análise concisa (máx 200 palavras) com:
   
   // Enviar para Discord
   await sendDiscordEmbed(
+    supabase,
+    'relatorios_ia',
     {
       title: `📊 Análise Diária - ${formatarData(dataAnalise)}`,
       description: analise,
@@ -437,8 +439,7 @@ Forneça uma análise concisa (máx 200 palavras) com:
         { name: '🎫 Ticket Médio', value: formatarMoeda(evento.t_medio), inline: true },
       ],
       timestamp: new Date().toISOString(),
-    },
-    'agentes'
+    }
   );
   
   return {
@@ -504,6 +505,8 @@ Forneça uma análise executiva (máx 250 palavras) com:
   const analise = await generateGeminiResponse(prompt, { temperature: 0.7, maxOutputTokens: 600 });
   
   await sendDiscordEmbed(
+    supabase,
+    'relatorios_ia',
     {
       title: `📊 Análise Semanal - Semana ${semanaAnalise}/${anoAnalise}`,
       description: analise,
@@ -514,8 +517,7 @@ Forneça uma análise executiva (máx 250 palavras) com:
         { name: '📈 vs Semana Anterior', value: formatarPercentual(comparacao.variacaoMedia), inline: true },
       ],
       timestamp: new Date().toISOString(),
-    },
-    'agentes'
+    }
   );
   
   return {
@@ -567,6 +569,8 @@ Forneça uma análise estratégica (máx 300 palavras) com:
   const analise = await generateGeminiResponse(prompt, { temperature: 0.7, maxOutputTokens: 700 });
   
   await sendDiscordEmbed(
+    supabase,
+    'relatorios_ia',
     {
       title: `📊 Análise Mensal - ${mesAnalise}/${anoAnalise}`,
       description: analise,
@@ -577,8 +581,7 @@ Forneça uma análise estratégica (máx 300 palavras) com:
         { name: '👥 Público', value: String(metricas.totalClientes), inline: true },
       ],
       timestamp: new Date().toISOString(),
-    },
-    'agentes'
+    }
   );
   
   return {

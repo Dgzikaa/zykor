@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     // Chamar a Edge Function de automação semanal
     const response = await fetch(
-      `${supabaseUrl}/functions/v1/desempenho-semanal-auto`,
+      `${supabaseUrl}/functions/v1/recalcular-desempenho-v2`,
       {
         method: 'POST',
         headers: {
@@ -81,7 +81,7 @@ export async function PUT(request: NextRequest) {
 
     // Chamar a Edge Function sem autenticação para teste
     const response = await fetch(
-      `${supabaseUrl}/functions/v1/desempenho-semanal-auto`,
+      `${supabaseUrl}/functions/v1/recalcular-desempenho-v2`,
       {
         method: 'POST',
         headers: {
