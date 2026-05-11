@@ -57,6 +57,22 @@ export default function FerramentasPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const ferramentas: FerramentaItem[] = [
+    // Insights Estratégicos — análises de comportamento operacional
+    {
+      title: 'Insights Estratégicos',
+      description: 'Curva horária, cancelamentos, meios de pagamento, reservas, concorrência',
+      icon: Zap,
+      href: '/ferramentas/insights',
+      badge: 'Novo',
+      badgeColor: 'border-amber-200 text-amber-700 dark:border-amber-700 dark:text-amber-300',
+      iconBgColor: 'bg-amber-100 dark:bg-amber-900/30',
+      iconTextColor: 'text-amber-600 dark:text-amber-400',
+      buttonBgColor: 'bg-amber-500/10 dark:bg-amber-900/20',
+      buttonBorderColor: 'border-amber-500 dark:border-amber-700',
+      buttonTextColor: 'text-amber-600 dark:text-amber-400',
+      features: 'Curva horária • Cancelamentos • Meios pagamento • Reservas • Concorrência',
+      status: 'active'
+    },
     // CFP - Controle Financeiro Pessoal
     {
       title: 'CFP - Financeiro Pessoal',
