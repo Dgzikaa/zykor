@@ -145,10 +145,15 @@ async function fetchContaHubData(url: string, sessionToken: string) {
 }
 
 // Locais conhecidos do Ordinário Bar (usado para dividir queries grandes)
+// IMPORTANTE: SEMPRE que um novo local for criado no ContaHub do bar, adicionar
+// aqui. Senão o fallback por local em dias movimentados deixará de puxar esses
+// produtos (já aconteceu com PP Bebidas / PP Drinks em 2026-05).
 const LOCAIS_CONTAHUB = [
-  'Bar', 'Cozinha 1', 'Cozinha 2', 'Montados', 'Baldes', 
-  'Shot e Dose', 'Chopp', 'Batidos', 'Preshh', 'Mexido', 
-  'Venda Volante', 'Pegue e Pague', '' // vazio para itens sem local
+  'Bar', 'Cozinha 1', 'Cozinha 2', 'Montados', 'Baldes',
+  'Shot e Dose', 'Chopp', 'Batidos', 'Preshh', 'Mexido',
+  'Venda Volante', 'Pegue e Pague',
+  'PP Bebidas', 'PP Drinks',  // adicionados 2026-05-12 — sem isso fallback perde vendas
+  '' // vazio para itens sem local
 ];
 
 // Função genérica para buscar com divisão quando a query for muito grande
