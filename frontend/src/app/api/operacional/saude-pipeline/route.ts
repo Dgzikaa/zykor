@@ -1,8 +1,11 @@
 /**
  * Saúde do Pipeline — endpoint de consumo.
  *
- * Lê de `gold.v_pipeline_health` (materialized view criada em
- * 2026-04-23-observability-mapping.sql) filtrando por bar_id.
+ * Lê de `gold.v_pipeline_health_completo` (view que une):
+ *   - matview gold.v_pipeline_health (edge functions com heartbeat)
+ *   - watchdog universal de data freshness por tabela bronze
+ *     (criado 2026-05-11 — cobre Apify, Umbler, Sympla, Yuzer, Inter,
+ *     que não tinham heartbeat e ficavam silenciosamente quebrados)
  *
  * Ver docs/domains/observability.md.
  */
@@ -71,8 +74,7 @@ export async function GET(request: NextRequest) {
     // Lê a view materializada. Um job sem bar_id (bar_id IS NULL) é
     // compartilhado entre bares — mostra para todos.
     const { data, error } = await supabase
-      .schema('gold' as never)
-      .from('v_pipeline_health')
+      .from('v_pipeline_health_completo')
       .select('*')
       .or(`bar_id.is.null,bar_id.eq.${barId}`)
       .order('camada', { ascending: true })
