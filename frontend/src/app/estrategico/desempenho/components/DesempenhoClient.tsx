@@ -245,9 +245,9 @@ return [
             { key: 'sex_sab', label: 'SEX+SÁB', status: 'auto' as const, fonte: 'eventos_base', calculo: 'Soma real_r sexta/sábado', formato: 'moeda' as const },
             { key: 'perc_happy_hour', label: '% PROMO HH', status: 'auto' as const, fonte: 'bronze_contahub_vendas_analitico', calculo: 'grp_desc=Happy Hour / Total vendas', formato: 'percentual' as const },
           ] : []),
-          { key: 'conta_assinada_valor', label: 'Conta Assinada', status: 'auto' as const, fonte: 'faturamento_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda_com_percentual' as const, percentualKey: 'conta_assinada_perc' },
-          { key: 'descontos_valor', label: 'Descontos', status: 'auto' as const, fonte: 'visitas', calculo: 'Soma valor_desconto', formato: 'moeda_com_percentual' as const, percentualKey: 'descontos_perc', temTooltipDetalhes: true },
-          { key: 'cancelamentos', label: 'Cancelamentos', status: 'auto' as const, fonte: 'bronze_contahub_vendas_cancelamentos', calculo: 'Soma custototal', formato: 'moeda' as const, temTooltipDetalhes: true, detalhesKey: 'cancelamentos_detalhes' },
+          { key: 'conta_assinada_valor', label: 'Conta Assinada', status: 'auto' as const, fonte: 'faturamento_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda_com_percentual' as const, percentualKey: 'conta_assinada_perc', inverso: true },
+          { key: 'descontos_valor', label: 'Descontos', status: 'auto' as const, fonte: 'visitas', calculo: 'Soma valor_desconto', formato: 'moeda_com_percentual' as const, percentualKey: 'descontos_perc', temTooltipDetalhes: true, inverso: true },
+          { key: 'cancelamentos', label: 'Cancelamentos', status: 'auto' as const, fonte: 'bronze_contahub_vendas_cancelamentos', calculo: 'Soma custototal', formato: 'moeda' as const, temTooltipDetalhes: true, detalhesKey: 'cancelamentos_detalhes', inverso: true },
           // Couvert Total e Atrações/Eventos para comparação (Deboche) - APÓS Cancelamentos
           ...(barId === 4 ? [
             { key: 'couvert_atracoes', label: 'Couvert Total R$', status: 'auto' as const, fonte: 'visitas', calculo: 'Soma valor_couvert', formato: 'moeda' as const },
@@ -710,12 +710,14 @@ export function DesempenhoClient({
     metrica: MetricaConfig | null;
     valorAtual: number | null;
     valorNovo: string;
+    operadorNovo: '>=' | '<=';
     salvando: boolean;
   }>({
     aberto: false,
     metrica: null,
     valorAtual: null,
     valorNovo: '',
+    operadorNovo: '>=',
     salvando: false,
   });
   
@@ -990,19 +992,17 @@ export function DesempenhoClient({
   // Abrir modal de edição individual de meta
   const abrirEditMeta = useCallback((metrica: MetricaConfig) => {
     const valorAtual = metas[metrica.key]?.valor ?? null;
-    const isHerdada = metasOrigens[metrica.key]?.tipo === 'herdada';
+    const operadorAtual = (metas[metrica.key]?.operador as '>=' | '<=' | undefined)
+      ?? (metrica.inverso ? '<=' : '>=');
     setEditMetaDialog({
       aberto: true,
       metrica,
       valorAtual,
       valorNovo: valorAtual !== null ? String(valorAtual) : '',
+      operadorNovo: operadorAtual === '<=' ? '<=' : '>=',
       salvando: false,
     });
-    // Se é herdada, mostrar no placeholder que o valor vem de outra semana
-    if (isHerdada && valorAtual !== null) {
-      // O valor no campo é pré-preenchido para facilitar, mas pode ser alterado
-    }
-  }, [metas, metasOrigens]);
+  }, [metas]);
 
   // Salvar meta individual com histórico
   const salvarMetaIndividual = useCallback(async () => {
@@ -1022,7 +1022,7 @@ export function DesempenhoClient({
         periodo: visao,
         metrica: editMetaDialog.metrica.key,
         valor: valorNovo,
-        operador: metas[editMetaDialog.metrica.key]?.operador || (editMetaDialog.metrica.inverso ? '<=' : '>='),
+        operador: editMetaDialog.operadorNovo,
         alterado_por: user?.nome || user?.email || 'Usuário',
       };
 
@@ -1049,7 +1049,7 @@ export function DesempenhoClient({
         ...prev,
         [editMetaDialog.metrica!.key]: {
           valor: valorNovo,
-          operador: prev[editMetaDialog.metrica!.key]?.operador || (editMetaDialog.metrica!.inverso ? '<=' : '>='),
+          operador: editMetaDialog.operadorNovo,
         },
       }));
 
@@ -1065,7 +1065,7 @@ export function DesempenhoClient({
         }));
       }
 
-      setEditMetaDialog({ aberto: false, metrica: null, valorAtual: null, valorNovo: '', salvando: false });
+      setEditMetaDialog({ aberto: false, metrica: null, valorAtual: null, valorNovo: '', operadorNovo: '>=' as const, salvando: false });
 
       const valorAnteriorFormatado = data.valor_anterior !== null
         ? formatarValor(data.valor_anterior, editMetaDialog.metrica.formato, editMetaDialog.metrica.sufixo)
@@ -3313,6 +3313,40 @@ export function DesempenhoClient({
               {!editMetaDialog.metrica?.formato?.includes('moeda') && !editMetaDialog.metrica?.formato?.includes('percentual') && 'Digite o valor numérico'}
             </p>
           </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Quando atingir a meta?</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setEditMetaDialog(prev => ({ ...prev, operadorNovo: '>=' }))}
+                className={cn(
+                  "rounded-md border-2 p-3 text-left transition-colors",
+                  editMetaDialog.operadorNovo === '>='
+                    ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                )}
+              >
+                <div className="text-sm font-semibold">Maior é melhor</div>
+                <div className="text-xs text-gray-500 mt-0.5">≥ acima do valor é verde</div>
+                <div className="text-[10px] text-gray-400 mt-1">Ex: Faturamento, NPS, Clientes</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditMetaDialog(prev => ({ ...prev, operadorNovo: '<=' }))}
+                className={cn(
+                  "rounded-md border-2 p-3 text-left transition-colors",
+                  editMetaDialog.operadorNovo === '<='
+                    ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                )}
+              >
+                <div className="text-sm font-semibold">Menor é melhor</div>
+                <div className="text-xs text-gray-500 mt-0.5">≤ abaixo do valor é verde</div>
+                <div className="text-[10px] text-gray-400 mt-1">Ex: CMV, Conta Assinada, Stockout</div>
+              </button>
+            </div>
+          </div>
           
           <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 dark:bg-gray-800 rounded p-2">
             <Pencil className="w-3 h-3" />
@@ -3324,7 +3358,7 @@ export function DesempenhoClient({
           <Button 
             type="button" 
             variant="outline" 
-            onClick={() => setEditMetaDialog({ aberto: false, metrica: null, valorAtual: null, valorNovo: '', salvando: false })}
+            onClick={() => setEditMetaDialog({ aberto: false, metrica: null, valorAtual: null, valorNovo: '', operadorNovo: '>=' as const, salvando: false })}
             disabled={editMetaDialog.salvando}
           >
             Cancelar
