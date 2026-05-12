@@ -12,9 +12,11 @@ export const dynamic = 'force-dynamic';
 
 const META_OAUTH_BASE = 'https://www.facebook.com/v21.0/dialog/oauth';
 
+// Meta migrou pra família 'instagram_business_*' em 2024-2025. Apps novos
+// (Use Case Instagram) só aceitam esses. Insights vêm embutidos via
+// pages_read_engagement + acesso ao IG Business via Page vinculada.
 const SCOPES = [
-  'instagram_basic',
-  'instagram_manage_insights',
+  'instagram_business_basic',
   'pages_show_list',
   'pages_read_engagement',
   'business_management',
