@@ -138,11 +138,11 @@ export default function StockoutAuditoriaPage() {
 
       const result = await response.json();
 
-      if (result.success) {
+      if (result.success && result.data && Array.isArray(result.data.produtos)) {
         setAuditoriaData(result.data);
         toast.success(`Auditoria carregada: ${result.data.produtos.length} produtos`);
       } else {
-        toast.error(result.error || 'Erro ao buscar auditoria');
+        toast.error(result.error || 'Sem dados de auditoria para essa data/bar');
         setAuditoriaData(null);
       }
     } catch (error) {
