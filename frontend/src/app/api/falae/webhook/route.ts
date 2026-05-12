@@ -149,9 +149,30 @@ export async function POST(request: NextRequest) {
       answer?.createdAt ||
       new Date().toISOString();
 
-    const search = answer?.search || {};
-    const client = answer?.client || {};
-    const consumption = answer?.consumption || {};
+    // Falae mudou o payload em 08/05/2026: antes vinha answer.search.name,
+    // agora só vem answer.search_id no envelope { answer, client }.
+    // Aceitar os dois formatos e resolver search_name via lookup quando necessário.
+    const search = (answer?.search && typeof answer.search === 'object') ? answer.search : {};
+    const client = answer?.client || payload?.client || {};
+    const consumption = answer?.consumption || payload?.consumption || {};
+
+    const searchId = answer?.search_id || search?.id || null;
+    let searchName: string | null = search?.name || answer?.search_name || null;
+
+    // Fallback: resolver search_name via lookup quando o payload não traz o nome
+    if (!searchName && searchId) {
+      const { data: known } = await supabase
+        .schema('bronze' as any).from('bronze_falae_respostas')
+        .select('search_name')
+        .eq('bar_id', Number(credencial.bar_id))
+        .eq('search_id', searchId)
+        .not('search_name', 'is', null)
+        .limit(1)
+        .maybeSingle();
+      if (known?.search_name) {
+        searchName = known.search_name;
+      }
+    }
 
     // Extrair "Data do pedido" dos critérios (data real da visita)
     let dataVisita: string | null = null;
@@ -171,8 +192,8 @@ export async function POST(request: NextRequest) {
       nps,
       discursive_question: answer?.discursive_question || null,
       criterios,
-      search_id: answer?.search_id || search?.id || null,
-      search_name: search?.name || null,
+      search_id: searchId,
+      search_name: searchName,
       client_id: answer?.client_id || client?.id || null,
       client_name: client?.name || null,
       client_email: client?.email || null,

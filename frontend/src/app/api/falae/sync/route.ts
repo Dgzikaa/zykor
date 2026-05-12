@@ -199,14 +199,38 @@ export async function POST(request: NextRequest) {
     }
 
     const respostas = Array.from(respostasMap.values());
+
+    // Resolver search_name a partir do banco quando a API retorna payload novo
+    // (sem objeto answer.search, só search_id) — espelha o webhook.
+    const idsSemNome = new Set<string>();
+    for (const a of respostas) {
+      const sid = a?.search?.id || a?.search_id || null;
+      const sname = a?.search?.name || a?.search_name || null;
+      if (sid && !sname) idsSemNome.add(String(sid));
+    }
+    const searchNameCache = new Map<string, string>();
+    if (idsSemNome.size > 0) {
+      const { data: known } = await supabase
+        .schema('bronze' as any).from('bronze_falae_respostas')
+        .select('search_id, search_name')
+        .eq('bar_id', barId)
+        .in('search_id', Array.from(idsSemNome))
+        .not('search_name', 'is', null);
+      for (const r of (known || []) as Array<{ search_id: string; search_name: string }>) {
+        if (r.search_id && r.search_name && !searchNameCache.has(r.search_id)) {
+          searchNameCache.set(r.search_id, r.search_name);
+        }
+      }
+    }
+
     const rows = respostas.map((answer) => {
-      const search = answer?.search || {};
+      const search = (answer?.search && typeof answer.search === 'object') ? answer.search : {};
       const client = answer?.client || {};
       const consumption = answer?.consumption || {};
       const page = answer?.page || {};
       const company = answer?.company || {};
       const criterios = answer?.criteria || [];
-      
+
       // Extrair "Data do pedido" dos critérios (data real da visita)
       let dataVisita: string | null = null;
       if (Array.isArray(criterios)) {
@@ -218,6 +242,11 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const searchId = search?.id || answer?.search_id || null;
+      const searchName = search?.name
+        || answer?.search_name
+        || (searchId ? searchNameCache.get(String(searchId)) ?? null : null);
+
       return {
         bar_id: barId,
         falae_id: String(answer?.id),
@@ -225,8 +254,8 @@ export async function POST(request: NextRequest) {
         nps: toNumber(answer?.nps) || 0,
         discursive_question: answer?.discursive_question || null,
         criterios: criterios.length > 0 ? criterios : null,
-        search_id: search?.id || answer?.search_id || null,
-        search_name: search?.name || null,
+        search_id: searchId,
+        search_name: searchName,
         client_id: client?.id || answer?.client_id || null,
         client_name: client?.name || null,
         client_email: client?.email || null,
