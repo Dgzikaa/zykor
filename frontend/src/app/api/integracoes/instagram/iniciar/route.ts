@@ -5,21 +5,23 @@ import crypto from 'crypto';
 /**
  * GET /api/integracoes/instagram/iniciar?bar_id=N
  *
- * Gera URL do Facebook Login com escopo IG e salva um `state` aleatório
- * no banco pra validar no callback. Retorna URL — cliente faz `window.location = url`.
+ * Gera URL do **Instagram Business Login** (não Facebook Login) e salva
+ * state aleatório no banco pra validar no callback.
+ *
+ * Diferente do antigo Facebook Login for Business: usa endpoint
+ * `instagram.com/oauth/authorize` direto, com o Instagram sub-app ID
+ * (não o Facebook App principal). Apps criados via "Use Case Instagram"
+ * só funcionam por esse caminho.
  */
 export const dynamic = 'force-dynamic';
 
-const META_OAUTH_BASE = 'https://www.facebook.com/v21.0/dialog/oauth';
+const INSTAGRAM_OAUTH_BASE = 'https://www.instagram.com/oauth/authorize';
 
-// Meta migrou pra família 'instagram_business_*' em 2024-2025. Apps novos
-// (Use Case Instagram) só aceitam esses. Insights vêm embutidos via
-// pages_read_engagement + acesso ao IG Business via Page vinculada.
 const SCOPES = [
   'instagram_business_basic',
-  'pages_show_list',
-  'pages_read_engagement',
-  'business_management',
+  'instagram_business_manage_comments',
+  'instagram_business_manage_messages',
+  'instagram_business_content_publish',
 ].join(',');
 
 export async function GET(req: NextRequest) {
@@ -30,22 +32,26 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'bar_id obrigatório' }, { status: 400 });
     }
 
-    const appId = process.env.META_APP_ID;
+    const appId = process.env.INSTAGRAM_APP_ID;
     const redirectUri = process.env.META_OAUTH_REDIRECT_URI;
     if (!appId || !redirectUri) {
       return NextResponse.json(
-        { error: 'META_APP_ID/META_OAUTH_REDIRECT_URI ausentes no env do Vercel' },
+        { error: 'INSTAGRAM_APP_ID/META_OAUTH_REDIRECT_URI ausentes no env do Vercel' },
         { status: 500 },
       );
     }
 
     const supabase = await getAdminClient();
 
-    // Gera state aleatório (CSRF protection) e salva temporariamente
+    // state aleatório (CSRF) com expiração de 10 minutos
     const state = crypto.randomBytes(24).toString('hex');
     const { error: stateErr } = await supabase
       .from('instagram_oauth_states')
-      .insert({ state, bar_id: barId, expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString() });
+      .insert({
+        state,
+        bar_id: barId,
+        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      });
 
     if (stateErr) {
       console.error('[ig/iniciar] erro salvando state:', stateErr);
@@ -62,7 +68,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      url: `${META_OAUTH_BASE}?${params.toString()}`,
+      url: `${INSTAGRAM_OAUTH_BASE}?${params.toString()}`,
     });
   } catch (e: any) {
     console.error('[ig/iniciar] erro:', e);

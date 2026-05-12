@@ -4,17 +4,18 @@ import { getAdminClient } from '@/lib/supabase-admin';
 /**
  * GET /api/integracoes/instagram/callback?code=...&state=...
  *
- * Meta redireciona aqui após o usuário autorizar. A gente:
- *   1. Valida o state (CSRF)
- *   2. Troca `code` por short-lived user token
- *   3. Estende pra long-lived (60 dias)
- *   4. Lista Pages do usuário e pega o IG Business vinculado
+ * Instagram Business Login (não Facebook Login). Fluxo:
+ *   1. Valida state (CSRF)
+ *   2. Troca code por short-lived token em api.instagram.com
+ *   3. Estende pra long-lived (60d) em graph.instagram.com
+ *   4. Busca info da conta (user_id, username, account_type)
  *   5. Salva em integrations.instagram_contas (1 linha por bar)
- *   6. Redireciona pro frontend com ?status=ok|erro
+ *   6. Redireciona pro frontend
  */
 export const dynamic = 'force-dynamic';
 
-const GRAPH_API = 'https://graph.facebook.com/v21.0';
+const IG_TOKEN_URL = 'https://api.instagram.com/oauth/access_token';
+const IG_GRAPH = 'https://graph.instagram.com';
 
 export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
@@ -23,8 +24,9 @@ export async function GET(req: NextRequest) {
   const erroMeta = sp.get('error');
   const erroMsg = sp.get('error_description') || sp.get('error_reason');
 
-  const baseRedirect = (process.env.NEXT_PUBLIC_SITE_URL || 'https://zykor.com.br')
-    + '/configuracoes/administracao/integracoes';
+  const baseRedirect =
+    (process.env.NEXT_PUBLIC_SITE_URL || 'https://zykor.com.br') +
+    '/configuracoes/administracao/integracoes';
 
   if (erroMeta) {
     return NextResponse.redirect(
@@ -37,11 +39,11 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const appId = process.env.META_APP_ID!;
-    const appSecret = process.env.META_APP_SECRET!;
+    const appId = process.env.INSTAGRAM_APP_ID!;
+    const appSecret = process.env.INSTAGRAM_APP_SECRET!;
     const redirectUri = process.env.META_OAUTH_REDIRECT_URI!;
     if (!appId || !appSecret || !redirectUri) {
-      throw new Error('META_APP_ID/META_APP_SECRET/META_OAUTH_REDIRECT_URI ausentes');
+      throw new Error('INSTAGRAM_APP_ID/INSTAGRAM_APP_SECRET/META_OAUTH_REDIRECT_URI ausentes');
     }
 
     const supabase = await getAdminClient();
@@ -65,29 +67,31 @@ export async function GET(req: NextRequest) {
 
     const barId = (stateRow as any).bar_id as number;
 
-    // 2. Troca code por short-lived token
-    const tokenParams = new URLSearchParams({
+    // 2. Troca code por short-lived token (api.instagram.com — form-encoded)
+    const tokenForm = new URLSearchParams({
       client_id: appId,
       client_secret: appSecret,
+      grant_type: 'authorization_code',
       redirect_uri: redirectUri,
       code,
     });
-    const shortRes = await fetch(`${GRAPH_API}/oauth/access_token?${tokenParams.toString()}`);
+    const shortRes = await fetch(IG_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenForm.toString(),
+    });
     const shortJson = await shortRes.json();
     if (!shortRes.ok || !shortJson.access_token) {
       console.error('[ig/callback] short token erro:', shortJson);
       throw new Error(`Falha trocando code: ${JSON.stringify(shortJson).slice(0, 300)}`);
     }
     const shortToken = shortJson.access_token as string;
+    const igUserId = String(shortJson.user_id);
 
-    // 3. Estende pra long-lived (60 dias)
-    const longParams = new URLSearchParams({
-      grant_type: 'fb_exchange_token',
-      client_id: appId,
-      client_secret: appSecret,
-      fb_exchange_token: shortToken,
-    });
-    const longRes = await fetch(`${GRAPH_API}/oauth/access_token?${longParams.toString()}`);
+    // 3. Estende pra long-lived (60 dias) — graph.instagram.com
+    const longRes = await fetch(
+      `${IG_GRAPH}/access_token?grant_type=ig_exchange_token&client_secret=${appSecret}&access_token=${shortToken}`,
+    );
     const longJson = await longRes.json();
     if (!longRes.ok || !longJson.access_token) {
       console.error('[ig/callback] long token erro:', longJson);
@@ -97,64 +101,54 @@ export async function GET(req: NextRequest) {
     const expiresIn = Number(longJson.expires_in) || 60 * 24 * 3600;
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
-    // 4. Lista Pages do usuário
-    const pagesRes = await fetch(
-      `${GRAPH_API}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,profile_picture_url,name}&access_token=${longToken}`,
+    // 4. Busca dados da conta
+    const meRes = await fetch(
+      `${IG_GRAPH}/v22.0/me?fields=user_id,username,name,account_type&access_token=${longToken}`,
     );
-    const pagesJson = await pagesRes.json();
-    if (!pagesRes.ok) {
-      console.error('[ig/callback] pages erro:', pagesJson);
-      throw new Error(`Falha listando pages: ${JSON.stringify(pagesJson).slice(0, 300)}`);
+    const meJson = await meRes.json();
+    if (!meRes.ok) {
+      console.error('[ig/callback] /me erro:', meJson);
+      throw new Error(`Falha lendo perfil IG: ${JSON.stringify(meJson).slice(0, 300)}`);
     }
 
-    const pages = (pagesJson.data || []) as Array<{
-      id: string;
-      name: string;
-      access_token: string;
-      instagram_business_account?: { id: string; username?: string };
-    }>;
-
-    const pageComIg = pages.find(p => p.instagram_business_account?.id);
-    if (!pageComIg) {
-      return NextResponse.redirect(
-        `${baseRedirect}?ig_status=erro&ig_msg=${encodeURIComponent(
-          'Nenhuma Page com Instagram Business vinculado encontrada — confira no app FB do dono se a Page certa foi autorizada',
-        )}`,
-      );
-    }
-
-    // 5. Marca state como consumido + upsert da conta
+    // 5. Marca state consumido + upsert da conta
     await supabase
       .from('instagram_oauth_states')
       .update({ consumido_em: new Date().toISOString() })
       .eq('state', state);
 
-    // Pega user que iniciou (header de auth Supabase) — se rolar, salva quem conectou
+    // Pega user que iniciou (best-effort)
     let conectadoPorUsuario: string | null = null;
     try {
       const authCookie = req.cookies.get('sb-access-token')?.value;
       if (authCookie) {
-        // best-effort, sem quebrar fluxo se falhar
         const { data: usr } = await supabase.auth.getUser(authCookie);
         conectadoPorUsuario = usr?.user?.id || null;
       }
-    } catch { /* ignora */ }
-
-    const igAccount = pageComIg.instagram_business_account!;
+    } catch {
+      /* ignora */
+    }
 
     const { error: upsertErr } = await supabase
       .from('instagram_contas')
       .upsert(
         {
           bar_id: barId,
-          ig_business_id: igAccount.id,
-          ig_username: igAccount.username || null,
-          facebook_page_id: pageComIg.id,
-          facebook_page_name: pageComIg.name,
-          access_token: pageComIg.access_token, // Page token (não expira se long-lived user token foi usado)
-          token_type: 'page_long_lived',
+          ig_business_id: meJson.user_id || igUserId,
+          ig_username: meJson.username || null,
+          // Sem Facebook Page intermediária no Instagram Business Login direto;
+          // armazenamos o próprio IG ID como placeholder pra constraint NOT NULL
+          facebook_page_id: meJson.user_id || igUserId,
+          facebook_page_name: meJson.name || meJson.username || null,
+          access_token: longToken,
+          token_type: 'ig_long_lived',
           expires_at: expiresAt,
-          scopes: ['instagram_basic', 'instagram_manage_insights', 'pages_show_list', 'pages_read_engagement'],
+          scopes: [
+            'instagram_business_basic',
+            'instagram_business_manage_comments',
+            'instagram_business_manage_messages',
+            'instagram_business_content_publish',
+          ],
           ativo: true,
           conectado_em: new Date().toISOString(),
           conectado_por_usuario: conectadoPorUsuario,
@@ -169,7 +163,7 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.redirect(
-      `${baseRedirect}?ig_status=ok&ig_username=${encodeURIComponent(igAccount.username || '')}`,
+      `${baseRedirect}?ig_status=ok&ig_username=${encodeURIComponent(meJson.username || '')}`,
     );
   } catch (e: any) {
     console.error('[ig/callback] exceção:', e);

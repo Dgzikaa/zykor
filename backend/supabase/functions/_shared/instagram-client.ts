@@ -6,7 +6,11 @@
  * diferentes. NUNCA usar token global do env para puxar dados de um bar.
  */
 
-const IG_API_BASE = 'https://graph.facebook.com/v21.0';
+// Apps via "Use Case Instagram" (novo modelo Meta 2024-2025) usam
+// graph.instagram.com direto, não graph.facebook.com. Mantém v22.0
+// (versão atual). Endpoints como /me, /me/media, /{media_id}/insights
+// funcionam aqui sem precisar da Facebook Page intermediária.
+const IG_API_BASE = 'https://graph.instagram.com/v22.0';
 
 export interface IgContaConfig {
   bar_id: number;
