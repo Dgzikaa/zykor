@@ -248,11 +248,9 @@ return [
           { key: 'conta_assinada_valor', label: 'Conta Assinada', status: 'auto' as const, fonte: 'faturamento_pagamentos', calculo: 'Soma meio=Conta Assinada', formato: 'moeda_com_percentual' as const, percentualKey: 'conta_assinada_perc', inverso: true },
           { key: 'descontos_valor', label: 'Descontos', status: 'auto' as const, fonte: 'visitas', calculo: 'Soma valor_desconto', formato: 'moeda_com_percentual' as const, percentualKey: 'descontos_perc', temTooltipDetalhes: true, inverso: true },
           { key: 'cancelamentos', label: 'Cancelamentos', status: 'auto' as const, fonte: 'bronze_contahub_vendas_cancelamentos', calculo: 'Soma custototal', formato: 'moeda' as const, temTooltipDetalhes: true, detalhesKey: 'cancelamentos_detalhes', inverso: true },
-          // Couvert Total e Atrações/Eventos para comparação (Deboche) - APÓS Cancelamentos
-          ...(barId === 4 ? [
-            { key: 'couvert_atracoes', label: 'Couvert Total R$', status: 'auto' as const, fonte: 'visitas', calculo: 'Soma valor_couvert', formato: 'moeda' as const },
-            { key: 'atracoes_eventos', label: 'Atrações/Eventos R$', status: 'auto' as const, fonte: 'Conta Azul', calculo: 'Soma lançamentos categoria atração', formato: 'moeda' as const },
-          ] : []),
+          // Couvert Total e Atrações/Eventos - APÓS Cancelamentos (Ordi + Deboche)
+          { key: 'couvert_atracoes', label: 'Couvert Total R$', status: 'auto' as const, fonte: 'visitas', calculo: 'Soma valor_couvert', formato: 'moeda' as const },
+          { key: 'atracoes_eventos', label: 'Atrações/Eventos R$', status: 'auto' as const, fonte: 'Conta Azul', calculo: 'Soma lançamentos categoria atração', formato: 'moeda' as const },
         ]
       }
     ]
