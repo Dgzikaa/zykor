@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
       codigo: centro.codigo || null,
       nome: centro.nome || centro.name,
       ativo: centro.ativo !== false && centro.status !== 'INATIVO',
-      updated_at: new Date().toISOString(),
+      synced_at: new Date().toISOString(),
     }));
 
     if (centrosParaSalvar.length > 0) {
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
         .schema('bronze' as any)
         .from('bronze_contaazul_centros_custo')
         .upsert(centrosParaSalvar, {
-          onConflict: 'contaazul_id',
+          onConflict: 'bar_id,contaazul_id',
         });
 
       if (upsertError) {
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
       const { error: deactivateError } = await (supabase
         .schema('bronze' as any) as any)
         .from('bronze_contaazul_centros_custo')
-        .update({ ativo: false, updated_at: new Date().toISOString() })
+        .update({ ativo: false, synced_at: new Date().toISOString() })
         .eq('bar_id', parseInt(barId))
         .not('contaazul_id', 'in', `(${idsRecebidos.map(id => `"${id}"`).join(',')})`);
       if (deactivateError) {

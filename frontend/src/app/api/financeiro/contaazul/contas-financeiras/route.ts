@@ -88,14 +88,14 @@ export async function GET(request: NextRequest) {
       numero: c.numero || c.conta || null,
       ativo: c.ativo !== false && c.status !== 'INATIVO',
       conta_padrao: c.conta_padrao === true || c.padrao === true,
-      updated_at: new Date().toISOString(),
+      synced_at: new Date().toISOString(),
     }));
 
     if (contasParaSalvar.length > 0) {
       const { error: upsertError } = await (supabase
         .schema('bronze' as any) as any)
         .from('bronze_contaazul_contas_financeiras')
-        .upsert(contasParaSalvar, { onConflict: 'contaazul_id' });
+        .upsert(contasParaSalvar, { onConflict: 'bar_id,contaazul_id' });
       if (upsertError) {
         console.error('Erro upsert contas:', upsertError);
         return NextResponse.json(
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
       const { error: deactivateError } = await (supabase
         .schema('bronze' as any) as any)
         .from('bronze_contaazul_contas_financeiras')
-        .update({ ativo: false, updated_at: new Date().toISOString() })
+        .update({ ativo: false, synced_at: new Date().toISOString() })
         .eq('bar_id', parseInt(barId))
         .not('contaazul_id', 'in', `(${idsRecebidos.map((id: string) => `"${id}"`).join(',')})`);
       if (deactivateError) {

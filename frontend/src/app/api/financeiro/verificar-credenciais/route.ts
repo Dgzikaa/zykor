@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const { data: interCredencial } = await supabase
       .from('api_credentials')
       .select('id, sistema')
-      .eq('sistema', 'inter')
+      .eq('sistema', 'banco_inter')
       .eq('bar_id', barId)
       .eq('ativo', true)
       .single();

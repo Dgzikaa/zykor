@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
       categoria_pai_id: cat.categoria_pai || cat.categoria_pai_id || null,
       ativo: cat.ativo !== false,
       categoria_macro: cat.categoria_macro || null,
-      updated_at: new Date().toISOString(),
+      synced_at: new Date().toISOString(),
     }));
 
     if (categoriasParaSalvar.length > 0) {
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
         .schema('bronze' as any)
         .from('bronze_contaazul_categorias')
         .upsert(categoriasParaSalvar, {
-          onConflict: 'contaazul_id',
+          onConflict: 'bar_id,contaazul_id',
         });
 
       if (upsertError) {
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
       const { error: deactivateError } = await (supabase
         .schema('bronze' as any) as any)
         .from('bronze_contaazul_categorias')
-        .update({ ativo: false, updated_at: new Date().toISOString() })
+        .update({ ativo: false, synced_at: new Date().toISOString() })
         .eq('bar_id', parseInt(barId))
         .not('contaazul_id', 'in', `(${idsRecebidos.map(id => `"${id}"`).join(',')})`);
       if (deactivateError) {
