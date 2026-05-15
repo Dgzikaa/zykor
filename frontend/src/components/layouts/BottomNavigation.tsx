@@ -89,7 +89,7 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
     // ═══ ROTINA — telas de uso diario ═══
     { icon: BarChart3, label: 'Desempenho', href: '/estrategico/desempenho', color: 'text-blue-600 dark:text-blue-400', permission: 'gestao', subItems: [] },
     { icon: Calendar, label: 'Planejamento', href: '/estrategico/planejamento-comercial', color: 'text-blue-600 dark:text-blue-400', permission: 'gestao', subItems: [] },
-    { icon: TrendingUp, label: 'CMV Semanal', href: '/ferramentas/cmv-semanal', color: 'text-green-600 dark:text-green-400', permission: 'relatorios', subItems: [] },
+    { icon: TrendingUp, label: 'Gestão CMV', href: '/ferramentas/cmv-semanal', color: 'text-green-600 dark:text-green-400', permission: 'relatorios', subItems: [] },
     { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', color: 'text-green-600 dark:text-green-400', permission: 'operacoes', subItems: [] },
     { icon: FileSearch, label: 'Dedo Duro', href: '/ferramentas/consultas', color: 'text-green-600 dark:text-green-400', permission: 'financeiro_agendamento', subItems: [] },
 

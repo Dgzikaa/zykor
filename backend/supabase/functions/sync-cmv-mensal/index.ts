@@ -401,7 +401,8 @@ serve(async (req) => {
           updateData.cmv_real = parseMonetario(getVal(ROW_MAP.cmv_real, col))
           updateData.faturamento_cmvivel = parseMonetario(getVal(ROW_MAP.fat_cmvivel, col))
           updateData.cmv_limpo_percentual = parsePercentual(getVal(ROW_MAP.cmv_limpo_pct, col))
-          updateData.cmv_teorico_percentual = parsePercentual(getVal(ROW_MAP.cmv_teorico_pct, col))
+          // CMV Teórico é 100% manual (input do socio na UI). NAO sobrescrever da planilha.
+          // updateData.cmv_teorico_percentual = parsePercentual(getVal(ROW_MAP.cmv_teorico_pct, col))
           updateData.gap = parsePercentual(getVal(ROW_MAP.gap, col))
           updateData.faturamento_total = parseMonetario(getVal(ROW_MAP.fat_total, col))
           updateData.cmv_real_percentual = parsePercentual(getVal(ROW_MAP.cmv_real_pct, col))

@@ -67,6 +67,33 @@ function getWeekAndYear(date: Date): { semana: number; ano: number } {
   return { semana, ano };
 }
 
+/**
+ * Marcos de fechamento (dias 03, 10, 17, 24, ultimo dia do mes).
+ * Estoque/compras sao contados nos marcos, entao o "casamento" da visao mensal
+ * exige cortar faturamento ate o ULTIMO MARCO JA PASSADO (estritamente menor
+ * que hoje). Exemplo: hoje=15/05 -> ultimo marco passado=10 -> exibe 01-10.
+ *
+ * Retorna null quando o mes consultado nao e' o corrente (mes fechado, exibe
+ * mes inteiro normalmente). Retorna null tambem quando o dia atual ainda nao
+ * passou do primeiro marco (3) — sem dados consolidados pra mostrar.
+ */
+function getDataFimMarcoCorrente(mes: number, ano: number): string | null {
+  const hoje = new Date();
+  const mesAtual = hoje.getMonth() + 1;
+  const anoAtual = hoje.getFullYear();
+  if (ano !== anoAtual || mes !== mesAtual) return null;
+
+  const dia = hoje.getDate();
+  const ultimoDiaMes = new Date(ano, mes, 0).getDate();
+  const marcos = [3, 10, 17, 24, ultimoDiaMes];
+  let ultimo = 0;
+  for (const m of marcos) {
+    if (m < dia) ultimo = m;
+  }
+  if (ultimo === 0) return null;
+  return `${ano}-${String(mes).padStart(2, '0')}-${String(ultimo).padStart(2, '0')}`;
+}
+
 // Calcular semanas com proporção de dias no mês
 function calcularSemanasComProporcao(mes: number, ano: number): { semana: number; anoISO: number; proporcao: number; diasNoMes: number }[] {
   const primeiroDia = new Date(ano, mes - 1, 1);
@@ -108,7 +135,12 @@ export async function GET(request: NextRequest) {
     // Datas do mês
     const dataInicio = `${ano}-${String(mes).padStart(2, '0')}-01`;
     const ultimoDia = new Date(ano, mes, 0).getDate();
-    const dataFim = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
+    const dataFimMesCheio = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
+    // Quando mes corrente, recorta no ultimo marco fechado (03/10/17/24/fim).
+    // Casamento: faturamento e compras vao ate o mesmo dia que o estoque foi medido.
+    const dataFimMarco = getDataFimMarcoCorrente(mes, ano);
+    const dataFim = dataFimMarco || dataFimMesCheio;
+    const ehMesCorrenteRecorte = dataFimMarco !== null;
 
     // Buscar dados diretamente da tabela cmv_mensal (alimentada por sync-cmv-mensal + agregar_cmv_mensal_auto)
     // Usado pra todos os meses, inclusive o corrente — fallback proporcional só roda se cmv_mensal não tem dados.
@@ -183,6 +215,53 @@ export async function GET(request: NextRequest) {
         cma_total: parseFloat(String(cmvMensal.cma_total || 0)),
       };
 
+      // Recorte por marco (apenas mes corrente): refazer faturamento e compras
+      // dinamicamente cortando ate `dataFim` (ultimo marco fechado). Estoque ja
+      // vem do snapshot do marco via cmv_mensal (planilha sincroniza nos marcos).
+      if (ehMesCorrenteRecorte) {
+        const { data: vendasDiarias } = await (supabase
+          .schema('silver' as any) as any)
+          .from('vendas_diarias')
+          .select('faturamento_bruto_r, faturamento_liquido_r')
+          .eq('bar_id', barId)
+          .gte('dt_gerencial', dataInicio)
+          .lte('dt_gerencial', dataFim);
+        const fatBruto = (vendasDiarias || []).reduce(
+          (s: number, r: any) => s + (parseFloat(r.faturamento_bruto_r) || 0), 0
+        );
+        const fatLiquido = (vendasDiarias || []).reduce(
+          (s: number, r: any) => s + (parseFloat(r.faturamento_liquido_r) || 0), 0
+        );
+        dadosMensais.vendas_brutas = fatBruto;
+        dadosMensais.vendas_liquidas = fatLiquido;
+        dadosMensais.faturamento_cmvivel = fatLiquido;
+
+        // Compras CMV recortadas (categorias mapeadas em operations.bar_categorias_custo)
+        const { data: catsCmv } = await (supabase
+          .schema('operations' as any) as any)
+          .from('bar_categorias_custo')
+          .select('nome_categoria')
+          .eq('bar_id', barId)
+          .eq('ativo', true)
+          .in('tipo', ['cmv_bebida', 'cmv_comida', 'cmv_drink']);
+        const nomesCmv = (catsCmv || []).map((c: any) => c.nome_categoria);
+        if (nomesCmv.length > 0) {
+          const { data: lancCmv } = await (supabase
+            .schema('bronze' as any) as any)
+            .from('bronze_contaazul_lancamentos')
+            .select('valor_bruto')
+            .eq('bar_id', barId)
+            .eq('tipo', 'DESPESA')
+            .is('excluido_em', null)
+            .in('categoria_nome', nomesCmv)
+            .gte('data_competencia', dataInicio)
+            .lte('data_competencia', dataFim);
+          dadosMensais.compras_periodo = (lancCmv || []).reduce(
+            (s: number, r: any) => s + (parseFloat(r.valor_bruto) || 0), 0
+          );
+        }
+      }
+
       const resultado = {
         ...dadosMensais,
         mes,
@@ -191,6 +270,7 @@ export async function GET(request: NextRequest) {
         numero_semana: mes,
         data_inicio: dataInicio,
         data_fim: dataFim,
+        recorte_marco: ehMesCorrenteRecorte ? dataFim : null,
         id: `${ano}-${mes}`,
       };
 

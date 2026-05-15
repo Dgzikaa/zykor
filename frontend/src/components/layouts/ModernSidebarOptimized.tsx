@@ -113,7 +113,7 @@ const defaultSidebarItems: SidebarItem[] = [
   },
   {
     icon: TrendingUp,
-    label: 'CMV Semanal',
+    label: 'Gestão CMV',
     href: '/ferramentas/cmv-semanal',
     color: 'text-green-600 dark:text-green-400',
     permission: 'gestao',
