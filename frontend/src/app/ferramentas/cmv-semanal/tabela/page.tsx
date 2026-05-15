@@ -505,24 +505,38 @@ export default function CMVSemanalTabelaPage() {
 
   // Cor da célula de KPI Resultado baseada em comparação com meta
   // Usa meta dinâmica pra cmv_real (R$): meta_pct × fat_bruto da semana
-  const getCorMetaCmv = useCallback((metricaKey: string, valor: number | null, semana?: CMVSemanal): string => {
-    if (valor === null || valor === undefined) return 'text-gray-700 dark:text-gray-300';
+  // Retorna texto. Use getBgMetaCmv pra background da celula.
+  const METRICAS_COM_META = useMemo(() => ['cmv_real', 'cmv_percentual', 'cmv_limpo_percentual', 'cmv_teorico_percentual'], []);
 
-    let metaValor: number | null = null;
+  const getMetaValor = useCallback((metricaKey: string, semana?: CMVSemanal): number | null => {
+    if (!METRICAS_COM_META.includes(metricaKey)) return null;
     if (metricaKey === 'cmv_real' && semana) {
       const metaPct = metasCmv.cmv_percentual?.valor ?? 26;
       const fatBruto = (semana.vendas_brutas || 0);
-      metaValor = (metaPct / 100) * fatBruto;
-    } else {
-      metaValor = metasCmv[metricaKey]?.valor ?? null;
+      return (metaPct / 100) * fatBruto;
     }
+    return metasCmv[metricaKey]?.valor ?? null;
+  }, [metasCmv, METRICAS_COM_META]);
 
+  const getCorMetaCmv = useCallback((metricaKey: string, valor: number | null, semana?: CMVSemanal): string => {
+    if (valor === null || valor === undefined) return 'text-gray-700 dark:text-gray-300';
+    const metaValor = getMetaValor(metricaKey, semana);
     if (metaValor === null) return 'text-gray-700 dark:text-gray-300';
     // Operador padrão dos KPIs CMV: <= (menor é melhor)
     return valor <= metaValor
-      ? 'text-green-600 dark:text-green-400'
-      : 'text-red-600 dark:text-red-400';
-  }, [metasCmv]);
+      ? 'text-green-700 dark:text-green-400 font-semibold'
+      : 'text-red-700 dark:text-red-400 font-semibold';
+  }, [getMetaValor]);
+
+  // Background da celula inteira (mais visivel que so o texto, igual Desempenho)
+  const getBgMetaCmv = useCallback((metricaKey: string, valor: number | null, semana?: CMVSemanal): string => {
+    if (valor === null || valor === undefined) return '';
+    const metaValor = getMetaValor(metricaKey, semana);
+    if (metaValor === null) return '';
+    return valor <= metaValor
+      ? 'bg-green-50 dark:bg-green-900/20'
+      : 'bg-red-50 dark:bg-red-900/20';
+  }, [getMetaValor]);
 
 
 
@@ -1461,13 +1475,15 @@ export default function CMVSemanalTabelaPage() {
                               {metricasParaMostrar.map(metrica => {
                                 const valor = getValorMetrica(semana, metrica.key);
                                 const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
-                                
+                                const bgMeta = getBgMetaCmv(metrica.key, valor, semana);
+
                                 return (
-                                  <div 
+                                  <div
                                     key={metrica.key}
                                     className={cn(
                                       "relative flex items-center justify-center px-1 border-b border-gray-100 dark:border-gray-700 group",
-                                      isSemanaAtual ? "bg-emerald-50/30 dark:bg-emerald-900/10" : "",
+                                      // bg da meta (verde/vermelho) tem prioridade sobre realce de "semana atual"
+                                      bgMeta || (isSemanaAtual ? "bg-emerald-50/30 dark:bg-emerald-900/10" : ""),
                                       metrica.drilldown && visao === 'semanal' && "cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
                                     )}
                                     style={{ height: '30px' }}
@@ -1639,7 +1655,9 @@ export default function CMVSemanalTabelaPage() {
                                       return (
                                         <span className={cn(
                                           "text-xs text-center font-mono",
-                                          metrica.formato === 'gap' && valor !== null ? getGapColor(valor) : "text-gray-700 dark:text-gray-300"
+                                          metrica.formato === 'gap' && valor !== null ? getGapColor(valor) :
+                                          METRICAS_COM_META.includes(metrica.key) ? getCorMetaCmv(metrica.key, valor, semana) :
+                                          "text-gray-700 dark:text-gray-300"
                                         )}>
                                           {valorFormatado}
                                         </span>
