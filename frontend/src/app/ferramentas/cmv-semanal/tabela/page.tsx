@@ -34,7 +34,10 @@ import {
   Table2,
   AlertTriangle,
   RefreshCw,
+  Settings,
+  Save,
 } from 'lucide-react';
+import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/hooks/use-toast';
@@ -422,6 +425,104 @@ export default function CMVSemanalTabelaPage() {
 
   // Nomes dos meses
   const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+  // ====== METAS (estilo Desempenho) ======
+  // Defaults aplicados quando bar não tem meta salva
+  const METAS_DEFAULT: Record<string, { valor: number; operador: '<=' | '>=' }> = useMemo(() => ({
+    cmv_teorico_percentual: { valor: 29, operador: '<=' },
+    cmv_limpo_percentual: { valor: 33, operador: '<=' },
+    cmv_percentual: { valor: 26, operador: '<=' },
+  }), []);
+
+  const [metasCmv, setMetasCmv] = useState<Record<string, { valor: number; operador: string }>>(METAS_DEFAULT);
+  const [metaModalOpen, setMetaModalOpen] = useState(false);
+  const [salvandoMeta, setSalvandoMeta] = useState(false);
+  const [metasEdit, setMetasEdit] = useState<Record<string, string>>({});
+
+  // Carregar metas salvas (override dos defaults)
+  useEffect(() => {
+    if (!selectedBar?.id) return;
+    fetch(`/api/cmv-semanal/metas?bar_id=${selectedBar.id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data?.metas) setMetasCmv(data.metas);
+      })
+      .catch(err => console.error('Erro ao carregar metas CMV:', err));
+  }, [selectedBar?.id]);
+
+  // Inicializa inputs do modal com valores atuais
+  useEffect(() => {
+    if (!metaModalOpen) return;
+    setMetasEdit({
+      cmv_teorico_percentual: String(metasCmv.cmv_teorico_percentual?.valor ?? 29),
+      cmv_limpo_percentual: String(metasCmv.cmv_limpo_percentual?.valor ?? 33),
+      cmv_percentual: String(metasCmv.cmv_percentual?.valor ?? 26),
+    });
+  }, [metaModalOpen, metasCmv]);
+
+  const salvarMetaCmv = useCallback(async (metrica: string, valor: number) => {
+    if (!selectedBar?.id) return false;
+    try {
+      const res = await fetch('/api/cmv-semanal/metas', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: selectedBar.id, metrica, valor, operador: '<=' }),
+      });
+      if (!res.ok) throw new Error('Falha ao salvar');
+      return true;
+    } catch (err) {
+      console.error('Erro ao salvar meta CMV:', err);
+      return false;
+    }
+  }, [selectedBar?.id]);
+
+  const salvarTodasMetas = useCallback(async () => {
+    setSalvandoMeta(true);
+    const promises = Object.entries(metasEdit).map(([metrica, valorStr]) => {
+      const valor = Number(valorStr.replace(',', '.'));
+      if (!Number.isFinite(valor)) return Promise.resolve(false);
+      return salvarMetaCmv(metrica, valor);
+    });
+    const results = await Promise.all(promises);
+    const allOk = results.every(Boolean);
+    if (allOk) {
+      // Atualizar estado local
+      const novas = { ...metasCmv };
+      for (const [metrica, valorStr] of Object.entries(metasEdit)) {
+        const valor = Number(valorStr.replace(',', '.'));
+        if (Number.isFinite(valor)) {
+          novas[metrica] = { valor, operador: '<=' };
+        }
+      }
+      setMetasCmv(novas);
+      toast({ title: 'Metas salvas', description: 'Metas atualizadas com sucesso' });
+      setMetaModalOpen(false);
+    } else {
+      toast({ title: 'Erro', description: 'Algumas metas falharam ao salvar', variant: 'destructive' });
+    }
+    setSalvandoMeta(false);
+  }, [metasEdit, salvarMetaCmv, metasCmv, toast]);
+
+  // Cor da célula de KPI Resultado baseada em comparação com meta
+  // Usa meta dinâmica pra cmv_real (R$): meta_pct × fat_bruto da semana
+  const getCorMetaCmv = useCallback((metricaKey: string, valor: number | null, semana?: CMVSemanal): string => {
+    if (valor === null || valor === undefined) return 'text-gray-700 dark:text-gray-300';
+
+    let metaValor: number | null = null;
+    if (metricaKey === 'cmv_real' && semana) {
+      const metaPct = metasCmv.cmv_percentual?.valor ?? 26;
+      const fatBruto = (semana.vendas_brutas || 0);
+      metaValor = (metaPct / 100) * fatBruto;
+    } else {
+      metaValor = metasCmv[metricaKey]?.valor ?? null;
+    }
+
+    if (metaValor === null) return 'text-gray-700 dark:text-gray-300';
+    // Operador padrão dos KPIs CMV: <= (menor é melhor)
+    return valor <= metaValor
+      ? 'text-green-600 dark:text-green-400'
+      : 'text-red-600 dark:text-red-400';
+  }, [metasCmv]);
 
 
 
@@ -1011,6 +1112,17 @@ export default function CMVSemanalTabelaPage() {
                 </div>
               </div>
               <Button
+                onClick={() => setMetaModalOpen(true)}
+                disabled={!selectedBar?.id}
+                size="sm"
+                variant="outline"
+                className="h-9"
+                title="Definir metas de CMV (Real, Limpo, Teórico)"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Metas
+              </Button>
+              <Button
                 onClick={atualizarCompleto}
                 disabled={atualizando || !selectedBar?.id}
                 size="sm"
@@ -1416,9 +1528,7 @@ export default function CMVSemanalTabelaPage() {
                                               <TooltipTrigger asChild>
                                                 <span className={cn(
                                                   "text-xs text-center font-mono cursor-help underline decoration-dotted decoration-gray-400",
-                                                  metrica.formato === 'percentual' && valor !== null && valor > 40 ? "text-red-600 dark:text-red-400" :
-                                                  metrica.formato === 'percentual' && valor !== null && valor <= 33 ? "text-green-600 dark:text-green-400" :
-                                                  "text-gray-700 dark:text-gray-300"
+                                                  getCorMetaCmv(metrica.key, valor, semana)
                                                 )}>
                                                   {valorFormatado}
                                                 </span>
@@ -1448,9 +1558,7 @@ export default function CMVSemanalTabelaPage() {
                                                     <span className="text-gray-700 dark:text-gray-300">= Resultado</span>
                                                     <span className={cn(
                                                       "font-mono",
-                                                      metrica.formato === 'percentual' && valor !== null && valor > 40 ? "text-red-600" :
-                                                      metrica.formato === 'percentual' && valor !== null && valor <= 33 ? "text-green-600" :
-                                                      "text-blue-600 dark:text-blue-400"
+                                                      getCorMetaCmv(metrica.key, valor, semana)
                                                     )}>
                                                       {valorFormatado}
                                                     </span>
@@ -1621,6 +1729,82 @@ export default function CMVSemanalTabelaPage() {
                 <p className="text-sm">Não há dados disponíveis para este item no período selecionado.</p>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Metas CMV (estilo Desempenho) */}
+      <Dialog open={metaModalOpen} onOpenChange={(open) => !salvandoMeta && setMetaModalOpen(open)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              Metas de CMV
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Operador padrão <code className="px-1 bg-gray-100 dark:bg-gray-700 rounded">≤</code> (menor é melhor).
+              CMV R$ não aparece aqui — é calculado automaticamente como{' '}
+              <strong>CMV Real % × Faturamento Bruto</strong> da semana.
+            </p>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs">CMV Teórico (%)</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={metasEdit.cmv_teorico_percentual ?? ''}
+                  onChange={(e) => setMetasEdit(prev => ({ ...prev, cmv_teorico_percentual: e.target.value }))}
+                  placeholder="29"
+                />
+                <p className="text-[10px] text-gray-500">Ideal: 29%</p>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">CMV Limpo (%)</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={metasEdit.cmv_limpo_percentual ?? ''}
+                  onChange={(e) => setMetasEdit(prev => ({ ...prev, cmv_limpo_percentual: e.target.value }))}
+                  placeholder="33"
+                />
+                <p className="text-[10px] text-gray-500">Sugerido: Teórico + 4 = 33%</p>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">CMV Real (%)</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={metasEdit.cmv_percentual ?? ''}
+                  onChange={(e) => setMetasEdit(prev => ({ ...prev, cmv_percentual: e.target.value }))}
+                  placeholder="26"
+                />
+                <p className="text-[10px] text-gray-500">Ideal: 26%</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setMetaModalOpen(false)} disabled={salvandoMeta}>
+                Cancelar
+              </Button>
+              <Button onClick={salvarTodasMetas} disabled={salvandoMeta} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                {salvandoMeta ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Salvando…
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Salvar
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
