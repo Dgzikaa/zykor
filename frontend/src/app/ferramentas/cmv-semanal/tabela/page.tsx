@@ -1262,10 +1262,10 @@ export default function CMVSemanalTabelaPage() {
           </div>
 
           {/* Coluna fixa - Meta (estilo Desempenho) */}
-          <div className="sticky left-[300px] z-20 flex-shrink-0 w-[90px] bg-amber-50/40 dark:bg-amber-900/10 border-r border-gray-200 dark:border-gray-700 shadow-md">
+          <div className="sticky left-[300px] z-20 flex-shrink-0 w-[90px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md">
             {/* Header */}
-            <div className="h-[60px] border-b border-gray-200 dark:border-gray-700 bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center sticky top-0 z-30">
-              <span className="text-xs font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wide">META</span>
+            <div className="h-[60px] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center sticky top-0 z-30">
+              <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">META</span>
             </div>
 
             {SECOES.map(secao => (
@@ -1305,15 +1305,17 @@ export default function CMVSemanalTabelaPage() {
                             key={metrica.key}
                             className={cn(
                               "flex items-center justify-center px-1 border-b border-gray-100 dark:border-gray-700",
-                              temMeta && metrica.key !== 'cmv_real' && "cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                              temMeta && metrica.key !== 'cmv_real' && "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50"
                             )}
                             style={{ height: '30px' }}
                             onClick={() => temMeta && metrica.key !== 'cmv_real' && setMetaModalOpen(true)}
                             title={temMeta && metrica.key !== 'cmv_real' ? 'Clique para editar a meta' : undefined}
                           >
                             <span className={cn(
-                              "text-xs font-mono font-semibold",
-                              temMeta ? "text-amber-700 dark:text-amber-300" : "text-gray-300 dark:text-gray-600"
+                              "text-xs font-mono",
+                              temMeta
+                                ? "text-gray-700 dark:text-gray-200 font-semibold"
+                                : "text-gray-300 dark:text-gray-600"
                             )}>
                               {valorMetaTexto}
                             </span>
