@@ -1247,6 +1247,72 @@ export default function CMVSemanalTabelaPage() {
             ))}
           </div>
 
+          {/* Coluna fixa - Meta (estilo Desempenho) */}
+          <div className="sticky left-[300px] z-20 flex-shrink-0 w-[90px] bg-amber-50/40 dark:bg-amber-900/10 border-r border-gray-200 dark:border-gray-700 shadow-md">
+            {/* Header */}
+            <div className="h-[60px] border-b border-gray-200 dark:border-gray-700 bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center sticky top-0 z-30">
+              <span className="text-xs font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wide">META</span>
+            </div>
+
+            {SECOES.map(secao => (
+              <div key={secao.id}>
+                {/* Espaco header da secao */}
+                <div className={cn(secao.cor, "opacity-80")} style={{ height: '36px' }} />
+
+                {/* Grupos */}
+                {secoesAbertas[secao.id] && secao.grupos.map(grupo => {
+                  const isGrupoAberto = gruposAbertos[`${secao.id}-${grupo.id}`] !== false;
+                  const metricasParaMostrar = grupo.semCollapse ? grupo.metricas : (isGrupoAberto ? grupo.metricas.slice(1) : []);
+
+                  return (
+                    <div key={grupo.id}>
+                      {/* Espaco header grupo */}
+                      {!grupo.semCollapse && (
+                        <div className="border-b border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700/50" style={{ height: '32px' }} />
+                      )}
+
+                      {/* Celula de meta por metrica */}
+                      {metricasParaMostrar.map(metrica => {
+                        const METRICAS_COM_META = ['cmv_real', 'cmv_percentual', 'cmv_limpo_percentual', 'cmv_teorico_percentual'];
+                        const temMeta = METRICAS_COM_META.includes(metrica.key);
+                        const meta = temMeta ? metasCmv[metrica.key] : null;
+
+                        // cmv_real e' calculado dinamicamente em runtime — meta da coluna mostra "auto"
+                        const valorMetaTexto = !temMeta
+                          ? '—'
+                          : metrica.key === 'cmv_real'
+                            ? `${metasCmv.cmv_percentual?.valor ?? 26}% × Fat`
+                            : meta
+                              ? `${meta.valor.toFixed(1)}%`
+                              : '—';
+
+                        return (
+                          <div
+                            key={metrica.key}
+                            className={cn(
+                              "flex items-center justify-center px-1 border-b border-gray-100 dark:border-gray-700",
+                              temMeta && metrica.key !== 'cmv_real' && "cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                            )}
+                            style={{ height: '30px' }}
+                            onClick={() => temMeta && metrica.key !== 'cmv_real' && setMetaModalOpen(true)}
+                            title={temMeta && metrica.key !== 'cmv_real' ? 'Clique para editar a meta' : undefined}
+                          >
+                            <span className={cn(
+                              "text-xs font-mono font-semibold",
+                              temMeta ? "text-amber-700 dark:text-amber-300" : "text-gray-300 dark:text-gray-600"
+                            )}>
+                              {valorMetaTexto}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+
           {/* Área das Semanas */}
           <div className="flex-1">
             {loading ? (
