@@ -233,6 +233,36 @@ export function BarProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Retry automático se o load terminou com lista vazia.
+  // Sintoma do usuário: ao abrir o app, seletor sai vazio até dar Ctrl+R. Causa
+  // tipica e' race entre /api/auth/me e /api/configuracoes/bars/user-bars (cookie
+  // chegando atrasado, token em renovacao). Aqui detectamos `availableBars=[]`
+  // apos o loading terminar e refazemos a busca ate 3x com backoff de 700ms.
+  useEffect(() => {
+    if (isLoading) return;
+    if (availableBars.length > 0) return;
+    if (!userInitialized) return;
+
+    let retries = 0;
+    const MAX_RETRIES = 3;
+    let timer: NodeJS.Timeout | null = null;
+
+    const retry = () => {
+      if (retries >= MAX_RETRIES) return;
+      retries++;
+      hasLoadedBarsRef.current = false;
+      setIsLoading(true);
+      window.dispatchEvent(new CustomEvent('userDataUpdated'));
+      timer = setTimeout(retry, 700);
+    };
+
+    timer = setTimeout(retry, 700);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isLoading, availableBars.length, userInitialized]);
+
   // Função para atualizar favicon baseado no bar
   const updateFavicon = (barName?: string) => {
     if (typeof window === 'undefined') return;
