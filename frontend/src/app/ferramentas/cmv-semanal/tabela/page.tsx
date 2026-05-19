@@ -1984,7 +1984,6 @@ export default function CMVSemanalTabelaPage() {
                   if (e.key === 'Escape') setEditMetaSingle(prev => ({ ...prev, aberto: false }));
                 }}
                 className="text-lg font-medium"
-                autoFocus
               />
               <p className="text-xs text-gray-500">
                 Operador: ≤ (menor é melhor) — meta vale para todas as semanas/meses deste bar.
