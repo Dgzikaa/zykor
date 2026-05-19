@@ -218,48 +218,68 @@ export async function GET(request: NextRequest) {
       // Recorte por marco (apenas mes corrente): refazer faturamento e compras
       // dinamicamente cortando ate `dataFim` (ultimo marco fechado). Estoque ja
       // vem do snapshot do marco via cmv_mensal (planilha sincroniza nos marcos).
+      //
+      // Fonte de verdade espelha gold.cmv (ETL semanal):
+      //   - bruto/liquido vem de gold.planejamento (faturamento_total_consolidado, faturamento_couvert)
+      //   - liquido = bruto - couvert - comissao
+      //   - compras = SUM(valor_bruto) WHERE categoria_nome ILIKE '%custo%' (inclui Outros,
+      //     case-insensitive — bar_categorias_custo tem case-mismatch e nao mapeia cmv_outros)
       if (ehMesCorrenteRecorte) {
-        const { data: vendasDiarias } = await (supabase
-          .schema('silver' as any) as any)
-          .from('vendas_diarias')
-          .select('faturamento_bruto_r, faturamento_liquido_r')
+        const { data: planej } = await (supabase
+          .schema('gold' as any) as any)
+          .from('planejamento')
+          .select('faturamento_total_consolidado, faturamento_couvert')
           .eq('bar_id', barId)
-          .gte('dt_gerencial', dataInicio)
-          .lte('dt_gerencial', dataFim);
-        const fatBruto = (vendasDiarias || []).reduce(
-          (s: number, r: any) => s + (parseFloat(r.faturamento_bruto_r) || 0), 0
+          .gte('data_evento', dataInicio)
+          .lte('data_evento', dataFim);
+        const fatBruto = (planej || []).reduce(
+          (s: number, r: any) => s + (parseFloat(r.faturamento_total_consolidado) || 0), 0
         );
-        const fatLiquido = (vendasDiarias || []).reduce(
-          (s: number, r: any) => s + (parseFloat(r.faturamento_liquido_r) || 0), 0
+        const couvertTotal = (planej || []).reduce(
+          (s: number, r: any) => s + (parseFloat(r.faturamento_couvert) || 0), 0
         );
+
+        const { data: comissaoData } = await (supabase
+          .schema('silver' as any) as any)
+          .from('contaazul_lancamentos_diarios')
+          .select('valor_liquido')
+          .eq('bar_id', barId)
+          .eq('tipo', 'DESPESA')
+          .ilike('categoria_nome', '%comiss%')
+          .gte('data_competencia', dataInicio)
+          .lte('data_competencia', dataFim);
+        const comissaoTotal = (comissaoData || []).reduce(
+          (s: number, r: any) => s + (parseFloat(r.valor_liquido) || 0), 0
+        );
+
+        const fatLiquido = fatBruto - couvertTotal - comissaoTotal;
         dadosMensais.vendas_brutas = fatBruto;
         dadosMensais.vendas_liquidas = fatLiquido;
         dadosMensais.faturamento_cmvivel = fatLiquido;
 
-        // Compras CMV recortadas (categorias mapeadas em operations.bar_categorias_custo)
-        const { data: catsCmv } = await (supabase
-          .schema('operations' as any) as any)
-          .from('bar_categorias_custo')
-          .select('nome_categoria')
+        // Compras recortadas — espelha ETL gold.cmv (ILIKE '%custo%' captura
+        // Custo Comida/Bebidas/Drinks/Outros independente de case)
+        const { data: lancCmv } = await (supabase
+          .schema('bronze' as any) as any)
+          .from('bronze_contaazul_lancamentos')
+          .select('valor_bruto, categoria_nome')
           .eq('bar_id', barId)
-          .eq('ativo', true)
-          .in('tipo', ['cmv_bebida', 'cmv_comida', 'cmv_drink']);
-        const nomesCmv = (catsCmv || []).map((c: any) => c.nome_categoria);
-        if (nomesCmv.length > 0) {
-          const { data: lancCmv } = await (supabase
-            .schema('bronze' as any) as any)
-            .from('bronze_contaazul_lancamentos')
-            .select('valor_bruto')
-            .eq('bar_id', barId)
-            .eq('tipo', 'DESPESA')
-            .is('excluido_em', null)
-            .in('categoria_nome', nomesCmv)
-            .gte('data_competencia', dataInicio)
-            .lte('data_competencia', dataFim);
-          dadosMensais.compras_periodo = (lancCmv || []).reduce(
-            (s: number, r: any) => s + (parseFloat(r.valor_bruto) || 0), 0
-          );
-        }
+          .eq('tipo', 'DESPESA')
+          .is('excluido_em', null)
+          .ilike('categoria_nome', '%custo%')
+          .gte('data_competencia', dataInicio)
+          .lte('data_competencia', dataFim);
+        const lanc = lancCmv || [];
+        const somaPor = (filtro: RegExp) =>
+          lanc.filter((r: any) => filtro.test(r.categoria_nome || ''))
+            .reduce((s: number, r: any) => s + (parseFloat(r.valor_bruto) || 0), 0);
+        dadosMensais.compras_periodo = lanc.reduce(
+          (s: number, r: any) => s + (parseFloat(r.valor_bruto) || 0), 0
+        );
+        dadosMensais.compras_custo_comida = somaPor(/comida/i);
+        dadosMensais.compras_custo_bebidas = somaPor(/bebida/i);
+        dadosMensais.compras_custo_drinks = somaPor(/drink/i);
+        dadosMensais.compras_custo_outros = somaPor(/outro/i);
       }
 
       const resultado = {

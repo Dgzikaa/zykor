@@ -292,7 +292,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
           { key: 'cmv_real', label: 'CMV R$', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial + Compras - Est.Final - Consumos - Bonificações', formato: 'moeda' },
           { key: 'cmv_percentual', label: 'CMV Real (%)', status: 'calculado', fonte: 'Calculado', calculo: 'CMV R$ / Faturamento Bruto × 100', formato: 'percentual' },
           { key: 'cmv_limpo_percentual', label: 'CMV Limpo (%)', status: 'calculado', fonte: 'Calculado', calculo: '(CMV R$ / Fat. Líquido) × 100', formato: 'percentual' },
-          { key: 'cmv_teorico_percentual', label: 'CMV Teórico/Meta (%)', status: 'manual', fonte: 'Planilha', calculo: 'Valor meta definido', formato: 'percentual', editavel: true },
+          { key: 'cmv_teorico_percentual', label: 'CMV Teórico/Meta (%)', status: 'manual', fonte: 'Meta', calculo: 'Espelha a meta CMV Teórico (clique na célula META pra editar)', formato: 'percentual' },
         ]
       }
     ]
@@ -439,6 +439,16 @@ export default function CMVSemanalTabelaPage() {
   const [salvandoMeta, setSalvandoMeta] = useState(false);
   const [metasEdit, setMetasEdit] = useState<Record<string, string>>({});
 
+  // Modal de edição individual de meta (estilo Desempenho)
+  const [editMetaSingle, setEditMetaSingle] = useState<{
+    aberto: boolean;
+    metricaKey: string;
+    metricaLabel: string;
+    valorAtual: number | null;
+    valorNovo: string;
+    salvando: boolean;
+  }>({ aberto: false, metricaKey: '', metricaLabel: '', valorAtual: null, valorNovo: '', salvando: false });
+
   // Carregar metas salvas (override dos defaults)
   useEffect(() => {
     if (!selectedBar?.id) return;
@@ -476,6 +486,40 @@ export default function CMVSemanalTabelaPage() {
     }
   }, [selectedBar?.id]);
 
+  const abrirEditMetaSingle = useCallback((metricaKey: string, metricaLabel: string) => {
+    const valorAtual = metasCmv[metricaKey]?.valor ?? null;
+    setEditMetaSingle({
+      aberto: true,
+      metricaKey,
+      metricaLabel,
+      valorAtual,
+      valorNovo: valorAtual !== null ? String(valorAtual) : '',
+      salvando: false,
+    });
+  }, [metasCmv]);
+
+  const salvarEditMetaSingle = useCallback(async () => {
+    if (!editMetaSingle.metricaKey) return;
+    const valor = Number(editMetaSingle.valorNovo.replace(',', '.'));
+    if (!Number.isFinite(valor)) {
+      toast({ title: 'Erro', description: 'Valor inválido', variant: 'destructive' });
+      return;
+    }
+    setEditMetaSingle(prev => ({ ...prev, salvando: true }));
+    const ok = await salvarMetaCmv(editMetaSingle.metricaKey, valor);
+    if (ok) {
+      setMetasCmv(prev => ({
+        ...prev,
+        [editMetaSingle.metricaKey]: { valor, operador: '<=' },
+      }));
+      toast({ title: 'Meta salva', description: `${editMetaSingle.metricaLabel}: ${valor}%` });
+      setEditMetaSingle({ aberto: false, metricaKey: '', metricaLabel: '', valorAtual: null, valorNovo: '', salvando: false });
+    } else {
+      toast({ title: 'Erro', description: 'Falha ao salvar meta', variant: 'destructive' });
+      setEditMetaSingle(prev => ({ ...prev, salvando: false }));
+    }
+  }, [editMetaSingle, salvarMetaCmv, toast]);
+
   const salvarTodasMetas = useCallback(async () => {
     setSalvandoMeta(true);
     const promises = Object.entries(metasEdit).map(([metrica, valorStr]) => {
@@ -506,7 +550,8 @@ export default function CMVSemanalTabelaPage() {
   // Cor da célula de KPI Resultado baseada em comparação com meta
   // Usa meta dinâmica pra cmv_real (R$): meta_pct × fat_bruto da semana
   // Retorna texto. Use getBgMetaCmv pra background da celula.
-  const METRICAS_COM_META = useMemo(() => ['cmv_real', 'cmv_percentual', 'cmv_limpo_percentual', 'cmv_teorico_percentual'], []);
+  // cmv_teorico_percentual NÃO entra aqui — espelha a propria meta, comparar consigo mesmo nao faz sentido.
+  const METRICAS_COM_META = useMemo(() => ['cmv_real', 'cmv_percentual', 'cmv_limpo_percentual'], []);
 
   const getMetaValor = useCallback((metricaKey: string, semana?: CMVSemanal): number | null => {
     if (!METRICAS_COM_META.includes(metricaKey)) return null;
@@ -909,6 +954,11 @@ export default function CMVSemanalTabelaPage() {
       const valor = semana.cmv_limpo_percentual;
       return valor ? parseFloat(String(valor)) : 0;
     }
+    // CMV Teórico (%) - sempre espelha a meta global (manual, edita na coluna META)
+    // Ignora valor sincronizado da planilha em cmv_semanal/cmv_mensal
+    if (key === 'cmv_teorico_percentual') {
+      return metasCmv.cmv_teorico_percentual?.valor ?? null;
+    }
     if (!(key in semana)) return null;
     const valor = semana[key as keyof CMVSemanal];
     return valor !== undefined && valor !== null
@@ -1034,7 +1084,7 @@ export default function CMVSemanalTabelaPage() {
       }
       case 'cmv_teorico_percentual':
         return [
-          { label: 'Meta CMV', valor: semana.cmv_teorico_percentual || 0, formula: 'Valor teórico/meta definido' },
+          { label: 'Meta CMV Teórico', valor: metasCmv.cmv_teorico_percentual?.valor ?? 0, formula: 'Manual — edita na coluna META' },
         ];
       // CMA Total
       case 'cma_total':
@@ -1287,8 +1337,9 @@ export default function CMVSemanalTabelaPage() {
 
                       {/* Celula de meta por metrica */}
                       {metricasParaMostrar.map(metrica => {
-                        const METRICAS_COM_META = ['cmv_real', 'cmv_percentual', 'cmv_limpo_percentual', 'cmv_teorico_percentual'];
-                        const temMeta = METRICAS_COM_META.includes(metrica.key);
+                        // cmv_teorico_percentual tem meta editavel mas KPI principal espelha a meta (sem comparar)
+                        const METRICAS_COM_META_LOCAL = ['cmv_real', 'cmv_percentual', 'cmv_limpo_percentual', 'cmv_teorico_percentual'];
+                        const temMeta = METRICAS_COM_META_LOCAL.includes(metrica.key);
                         const meta = temMeta ? metasCmv[metrica.key] : null;
 
                         // cmv_real e' calculado dinamicamente em runtime — meta da coluna mostra "auto"
@@ -1304,12 +1355,12 @@ export default function CMVSemanalTabelaPage() {
                           <div
                             key={metrica.key}
                             className={cn(
-                              "flex items-center justify-center px-1 border-b border-gray-100 dark:border-gray-700",
-                              temMeta && metrica.key !== 'cmv_real' && "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                              "flex items-center justify-center px-1 border-b border-gray-100 dark:border-gray-700 group",
+                              temMeta && metrica.key !== 'cmv_real' && "cursor-pointer hover:bg-amber-100/70 dark:hover:bg-amber-800/30 transition-colors"
                             )}
                             style={{ height: '30px' }}
-                            onClick={() => temMeta && metrica.key !== 'cmv_real' && setMetaModalOpen(true)}
-                            title={temMeta && metrica.key !== 'cmv_real' ? 'Clique para editar a meta' : undefined}
+                            onClick={() => temMeta && metrica.key !== 'cmv_real' && abrirEditMetaSingle(metrica.key, metrica.label)}
+                            title={temMeta && metrica.key !== 'cmv_real' ? `Clique para editar meta de ${metrica.label}` : undefined}
                           >
                             <span className={cn(
                               "text-xs font-mono",
@@ -1319,6 +1370,9 @@ export default function CMVSemanalTabelaPage() {
                             )}>
                               {valorMetaTexto}
                             </span>
+                            {temMeta && metrica.key !== 'cmv_real' && (
+                              <Pencil className="w-2.5 h-2.5 text-amber-500 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            )}
                           </div>
                         );
                       })}
@@ -1533,7 +1587,9 @@ export default function CMVSemanalTabelaPage() {
                                               <TooltipTrigger asChild>
                                                 <span className={cn(
                                                   "text-xs text-center font-mono cursor-help underline decoration-dotted decoration-gray-400",
-                                                  metrica.formato === 'gap' && valor !== null ? getGapColor(valor) : "text-gray-700 dark:text-gray-300"
+                                                  metrica.formato === 'gap' && valor !== null ? getGapColor(valor) :
+                                                  METRICAS_COM_META.includes(metrica.key) ? getCorMetaCmv(metrica.key, valor, semana) :
+                                                  "text-gray-700 dark:text-gray-300"
                                                 )}>
                                                   {valorFormatado}
                                                 </span>
@@ -1879,6 +1935,75 @@ export default function CMVSemanalTabelaPage() {
               </Button>
               <Button onClick={salvarTodasMetas} disabled={salvandoMeta} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                 {salvandoMeta ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Salvando…
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Salvar
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de edicao individual de meta (estilo Desempenho) */}
+      <Dialog
+        open={editMetaSingle.aberto}
+        onOpenChange={(aberto) => !editMetaSingle.salvando && setEditMetaSingle(prev => ({ ...prev, aberto }))}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-amber-600" />
+              Editar Meta — {editMetaSingle.metricaLabel}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">Valor atual:</span>
+              <span className="font-medium">
+                {editMetaSingle.valorAtual !== null
+                  ? `${editMetaSingle.valorAtual.toFixed(2)}%`
+                  : <span className="text-gray-400 italic">não definido</span>}
+              </span>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Novo valor (%):</Label>
+              <Input
+                type="text"
+                placeholder="Ex: 29"
+                value={editMetaSingle.valorNovo}
+                onChange={(e) => setEditMetaSingle(prev => ({ ...prev, valorNovo: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !editMetaSingle.salvando) salvarEditMetaSingle();
+                  if (e.key === 'Escape') setEditMetaSingle(prev => ({ ...prev, aberto: false }));
+                }}
+                className="text-lg font-medium"
+                autoFocus
+              />
+              <p className="text-xs text-gray-500">
+                Operador: ≤ (menor é melhor) — meta vale para todas as semanas/meses deste bar.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setEditMetaSingle(prev => ({ ...prev, aberto: false }))}
+                disabled={editMetaSingle.salvando}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={salvarEditMetaSingle}
+                disabled={editMetaSingle.salvando || !editMetaSingle.valorNovo.trim()}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                {editMetaSingle.salvando ? (
                   <>
                     <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                     Salvando…
