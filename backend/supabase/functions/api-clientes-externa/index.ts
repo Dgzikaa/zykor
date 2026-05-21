@@ -156,7 +156,7 @@ serve(async (req) => {
       const { data: statsData, error: statsError } = await supabase
         .schema('silver')
         .from('cliente_estatisticas')
-        .select('total_visitas, valor_total_consumo, valor_total_entrada, ultima_visita, cliente_fone_norm')
+        .select('total_visitas, valor_total_consumo, valor_total_entrada, ultima_visita, cliente_fone_norm, cliente_nome')
         .eq('bar_id', barId);
 
       if (statsError) {
@@ -175,7 +175,7 @@ serve(async (req) => {
       const totalConsumoGeral = statsData?.reduce((sum, c) => sum + parseFloat(c.valor_total_consumo || '0'), 0) || 0;
       const totalEntradaGeral = statsData?.reduce((sum, c) => sum + parseFloat(c.valor_total_entrada || '0'), 0) || 0;
       const totalGastoGeral = totalConsumoGeral + totalEntradaGeral;
-      const ticketMedioGeral = totalClientes > 0 ? totalGastoGeral / totalVisitasGeral : 0;
+      const ticketMedioGeral = totalVisitasGeral > 0 ? totalGastoGeral / totalVisitasGeral : 0;
       
       // Clientes VIP (top 10% que mais gastam)
       const clientesOrdenados = [...(statsData || [])].sort((a, b) => {
@@ -242,9 +242,10 @@ serve(async (req) => {
             percentual_clientes: totalClientes > 0 ? ((clientesVIP.length / totalClientes) * 100).toFixed(1) : '0.0',
             total_gasto_vip: gastoVIP.toFixed(2),
             percentual_gasto: percentualGastoVIP.toFixed(1),
-            ticket_medio_vip: clientesVIP.length > 0 
-              ? (gastoVIP / clientesVIP.reduce((sum, c) => sum + c.total_visitas, 0)).toFixed(2)
-              : '0.00'
+            ticket_medio_vip: (() => {
+              const visitasVIP = clientesVIP.reduce((sum, c) => sum + c.total_visitas, 0);
+              return visitasVIP > 0 ? (gastoVIP / visitasVIP).toFixed(2) : '0.00';
+            })()
           },
           top_5_clientes: clientesOrdenados.slice(0, 5).map(c => ({
             telefone: c.cliente_fone_norm,
@@ -266,25 +267,41 @@ serve(async (req) => {
     if (telefone) {
       // Normalizar telefone (remover caracteres não numéricos)
       const telNormalizado = telefone.replace(/\D/g, '');
-      
-      // Usar últimos 8 dígitos para busca mais flexível
-      const telUltimos8 = telNormalizado.slice(-8);
 
-      // Buscar dados do cliente usando ILIKE para encontrar com ou sem formatação
+      // Validar comprimento mínimo (DDD + 8 dígitos = 10) para evitar match arbitrário
+      if (telNormalizado.length < 10) {
+        return new Response(JSON.stringify({
+          error: 'Telefone inválido: forneça pelo menos DDD + número (mínimo 10 dígitos).',
+          code: 'INVALID_TELEFONE'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Busca por SUFIXO completo (ends-with) — elimina colisão entre DDDs
+      // e evita match no meio do número (que ocorre com '%X%')
+      // Escape de caracteres LIKE no telefone normalizado (só dígitos, então sem risco)
+      const sufixoBusca = `%${telNormalizado}`;
+
+      // Buscar dados do cliente. Pode haver múltiplos matches se houver zero-padding:
+      // ordenamos por total_visitas desc para pegar o cliente mais ativo
       const { data: cliente, error: errCliente } = await supabase
         .schema('silver')
         .from('cliente_estatisticas')
         .select('cliente_fone_norm, cliente_nome, total_visitas, ultima_visita, valor_total_consumo, valor_total_entrada, ticket_medio_consumo, ticket_medio_entrada, primeira_visita, calculado_em')
         .eq('bar_id', barId)
-        .ilike('cliente_fone_norm', `%${telUltimos8}%`)
+        .like('cliente_fone_norm', sufixoBusca)
+        .order('total_visitas', { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (errCliente) {
-        console.error('Erro ao buscar cliente:', errCliente);
+        console.error('Erro ao buscar cliente:', errCliente, 'telefone:', telNormalizado);
         return new Response(JSON.stringify({
           error: 'Erro ao buscar dados do cliente',
-          code: 'DATABASE_ERROR'
+          code: 'DATABASE_ERROR',
+          detail: errCliente.message
         }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -301,14 +318,14 @@ serve(async (req) => {
         });
       }
 
-      // Buscar histórico de visitas (modo histórico com filtros de data)
-      // Buscar por telefone normalizado
+      // Histórico: usar o cliente_fone_norm EXATO encontrado (sem ilike) — evita
+      // misturar visitas de clientes diferentes que compartilham sufixo
       let queryHistorico = supabase
         .schema('silver')
         .from('cliente_visitas')
         .select('id, data_visita, cliente_nome, valor_pagamentos, valor_consumo, valor_produtos, valor_couvert, hora_abertura')
         .eq('bar_id', barId)
-        .ilike('cliente_fone_norm', `%${telUltimos8}%`)
+        .eq('cliente_fone_norm', cliente.cliente_fone_norm)
         .order('data_visita', { ascending: false });
 
       if (dataDesde) {
@@ -326,10 +343,22 @@ serve(async (req) => {
         console.error('Erro ao buscar histórico:', errHist);
       }
 
-      // Calcular métricas adicionais
-      const primeiraVisita = cliente.primeira_visita || (historico && historico.length > 0 
-        ? historico[historico.length - 1].data_visita 
-        : null);
+      // primeira_visita: usar campo da silver (já agregado sem filtro de data).
+      // Se ainda assim vier null, buscar com query separada SEM aplicar dataDesde/Ate
+      // — o fallback antigo usava o último item do histórico filtrado, o que dava
+      // resposta errada quando havia filtro de data.
+      let primeiraVisita: string | null = cliente.primeira_visita ?? null;
+      if (!primeiraVisita) {
+        const { data: pv } = await supabase
+          .schema('silver')
+          .from('cliente_visitas')
+          .select('data_visita')
+          .eq('bar_id', barId)
+          .eq('cliente_fone_norm', cliente.cliente_fone_norm)
+          .order('data_visita', { ascending: true })
+          .limit(1);
+        primeiraVisita = pv?.[0]?.data_visita ?? null;
+      }
       
       const diasDesdeUltimaVisita = cliente.ultima_visita 
         ? Math.floor((new Date().getTime() - new Date(cliente.ultima_visita).getTime()) / (1000 * 60 * 60 * 24))
@@ -449,8 +478,17 @@ serve(async (req) => {
       .gte('total_visitas', minVisitas);
 
     // Filtro por busca (nome ou telefone)
+    // PostgREST .or() usa vírgula, parênteses e aspas como separadores/agrupadores —
+    // se vierem no input, quebram o parser e retornam erro. Sanitizar antes.
+    // Também removemos % e _ que são wildcards do LIKE (escapados ou removidos).
     if (busca) {
-      query = query.or(`cliente_nome.ilike.%${busca}%,cliente_fone_norm.ilike.%${busca}%`);
+      const buscaSanitizada = busca
+        .replace(/[,()"\\%_*]/g, ' ')
+        .trim()
+        .slice(0, 100); // limita tamanho pra evitar abuso
+      if (buscaSanitizada) {
+        query = query.or(`cliente_nome.ilike.%${buscaSanitizada}%,cliente_fone_norm.ilike.%${buscaSanitizada}%`);
+      }
     }
 
     // Filtro por data da última visita
@@ -464,7 +502,7 @@ serve(async (req) => {
     // Ordenação
     const orderColumn = ordenar === 'nome' ? 'cliente_nome'
       : ordenar === 'ultima_visita' ? 'ultima_visita'
-      : ordenar === 'total_gasto' ? 'valor_total_consumo' // Ordenar por consumo como proxy
+      : ordenar === 'total_gasto' ? 'valor_total_gasto' // coluna gerada (consumo+entrada)
       : ordenar === 'total_consumo' ? 'valor_total_consumo'
       : 'total_visitas';
     query = query.order(orderColumn, { ascending: ordem === 'asc' });
@@ -564,9 +602,11 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Erro na api-clientes-externa:', error);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const errStack = error instanceof Error ? error.stack : undefined;
+    console.error('[api-clientes-externa] INTERNAL_ERROR:', errMsg, '\nStack:', errStack, '\nURL:', req.url);
     return new Response(JSON.stringify({
-      error: error instanceof Error ? error.message : 'Erro desconhecido',
+      error: errMsg || 'Erro desconhecido',
       code: 'INTERNAL_ERROR'
     }), {
       status: 500,
