@@ -107,10 +107,22 @@ return [
         ]
       },
       {
-        id: 'custos',
-        label: 'Custos',
+        // CMO hierarquico: linha "CMO %" expande em 4 sub-linhas (Freelas, Alim, Equipe Fixa, Pro Labore)
+        // Match isGrupoHierarquico: label do grupo == label da primeira metrica (case-insensitive, sem %)
+        id: 'custos_cmo',
+        label: 'CMO %',
         metricas: [
-          { key: 'cmo', label: 'CMO %', status: 'manual', fonte: 'Simulação CMO (manual)', calculo: 'CMO Total / Faturamento × 100 (inserido manualmente até automatização)', formato: 'percentual', inverso: true, editavel: true },
+          { key: 'cmo_percentual_detalhado', label: 'CMO %', status: 'auto', fonte: 'Calculado de Freelas + Alim + Equipe Fixa + Pro Labore', calculo: '(Freelas + Alimentação + Equipe Fixa + Pro Labore) / Faturamento × 100', formato: 'percentual', inverso: true },
+          { key: 'cmo_freelas', label: 'Freelas', status: 'auto', fonte: 'Conta Azul', calculo: 'SUM categorias FREELA ATENDIMENTO/COZINHA/BAR/LIMPEZA/SEGURANÇA/BRIGADISTA', formato: 'moeda', inverso: true, indentado: true },
+          { key: 'cmo_alimentacao', label: 'Alimentação', status: 'auto', fonte: 'CMA Total', calculo: 'Estoque Inicial (F) + Compras Alimentação - Estoque Final (F)', formato: 'moeda', inverso: true, indentado: true },
+          { key: 'cmo_equipe_fixa', label: 'Equipe Fixa', status: 'manual', fonte: 'meta.cmo_manual', calculo: 'Manual mensal. Visão semanal: rateio dia a dia (mensal / dias_mes × dias_da_semana)', formato: 'moeda', inverso: true, editavel: true, indentado: true },
+          { key: 'cmo_pro_labore', label: 'Pro Labore', status: 'manual', fonte: 'meta.cmo_manual', calculo: 'Manual mensal (default R$64.000). Visão semanal: rateio dia a dia', formato: 'moeda', inverso: true, editavel: true, indentado: true },
+        ]
+      },
+      {
+        id: 'custos_atracao',
+        label: 'Atração/Fat.',
+        metricas: [
           { key: 'custo_atracao_faturamento', label: 'Atração/Fat.', status: 'auto', fonte: 'eventos_base (c_art)', calculo: 'Soma c_art eventos / Faturamento × 100', formato: 'percentual', inverso: true, temTooltipAtracao: true },
         ]
       }
@@ -539,6 +551,58 @@ export function DesempenhoClient({
   const [valorEdit, setValorEdit] = useState('');
   const [valorEditPessoas, setValorEditPessoas] = useState('');
   const [valoresLocais, setValoresLocais] = useState<Record<string, Record<string, number>>>({});
+
+  // CMO drill-down (Freelas + Alim + Equipe Fixa + Pro Labore por semana/mes).
+  // Carregado via /api/estrategico/desempenho/cmo-detalhe e mergeado no
+  // getValorComOverride pelas chaves cmo_freelas/cmo_alimentacao/cmo_equipe_fixa/
+  // cmo_pro_labore/cmo_percentual_detalhado.
+  type CmoLinhaDetalhe = {
+    freelas: number; alimentacao: number; equipe_fixa: number; pro_labore: number;
+    total: number; faturamento_total: number; cmo_percentual: number;
+  };
+  const [cmoDetalheSemanas, setCmoDetalheSemanas] = useState<Map<string, CmoLinhaDetalhe>>(new Map());
+  const [cmoDetalheMeses, setCmoDetalheMeses] = useState<Map<number, CmoLinhaDetalhe>>(new Map());
+  const [cmoManualPorMes, setCmoManualPorMes] = useState<Record<number, { equipe_fixa: number; pro_labore: number }>>({});
+
+  const carregarCmoDetalhe = useCallback(async () => {
+    if (!effectiveBarId) return;
+    try {
+      const resp = await fetch(`/api/estrategico/desempenho/cmo-detalhe?bar_id=${effectiveBarId}&ano=${anoAtual}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const semMap = new Map<string, CmoLinhaDetalhe>();
+      for (const s of (data.semanas || []) as any[]) {
+        semMap.set(`${s.ano}-${s.numero_semana}`, {
+          freelas: s.freelas || 0,
+          alimentacao: s.alimentacao || 0,
+          equipe_fixa: s.equipe_fixa || 0,
+          pro_labore: s.pro_labore || 0,
+          total: s.total || 0,
+          faturamento_total: s.faturamento_total || 0,
+          cmo_percentual: s.cmo_percentual || 0,
+        });
+      }
+      const mesMap = new Map<number, CmoLinhaDetalhe>();
+      for (const m of (data.meses || []) as any[]) {
+        mesMap.set(m.mes, {
+          freelas: m.freelas || 0,
+          alimentacao: m.alimentacao || 0,
+          equipe_fixa: m.equipe_fixa || 0,
+          pro_labore: m.pro_labore || 0,
+          total: m.total || 0,
+          faturamento_total: m.faturamento_total || 0,
+          cmo_percentual: m.cmo_percentual || 0,
+        });
+      }
+      setCmoDetalheSemanas(semMap);
+      setCmoDetalheMeses(mesMap);
+      setCmoManualPorMes(data.cmo_manual_por_mes || {});
+    } catch (err) {
+      console.error('Erro ao carregar CMO detalhe:', err);
+    }
+  }, [effectiveBarId, anoAtual]);
+
+  useEffect(() => { carregarCmoDetalhe(); }, [carregarCmoDetalhe]);
   const [falaeDialog, setFalaeDialog] = useState<{
     aberto: boolean;
     periodo: string;
@@ -1506,10 +1570,48 @@ export function DesempenhoClient({
     
     try {
       setLoading(true);
-      
+
+      // CMO manual (Equipe Fixa, Pro Labore): vai para meta.cmo_manual via API
+      // dedicada. Sempre persiste o valor MENSAL (Pro Labore semanal e' rateio).
+      if (campo === 'cmo_equipe_fixa' || campo === 'cmo_pro_labore') {
+        const semanaAtual = semanasProcessadas.find(s => s.id === semanaId);
+        if (!semanaAtual) throw new Error('Semana/mês não encontrado');
+
+        // Visão mensal: numero_semana é o mês. Semanal: derivar do data_inicio.
+        const mes = visao === 'mensal'
+          ? semanaAtual.numero_semana
+          : new Date(semanaAtual.data_inicio + 'T12:00:00Z').getUTCMonth() + 1;
+        const anoCmo = visao === 'mensal'
+          ? semanaAtual.ano
+          : new Date(semanaAtual.data_inicio + 'T12:00:00Z').getUTCFullYear();
+        const campoApi = campo === 'cmo_equipe_fixa' ? 'equipe_fixa_mensal' : 'pro_labore_mensal';
+
+        const resp = await fetch('/api/estrategico/desempenho/cmo-manual', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bar_id: effectiveBarId,
+            ano: anoCmo,
+            mes,
+            [campoApi]: numValue,
+          }),
+        });
+        if (!resp.ok) throw new Error('Erro ao salvar CMO manual');
+
+        toast({
+          title: 'Salvo!',
+          description: visao === 'semanal'
+            ? `${campo === 'cmo_equipe_fixa' ? 'Equipe Fixa' : 'Pro Labore'} mensal atualizado — proporção semanal recalculada`
+            : 'Valor atualizado',
+        });
+        setEditando(null);
+        await carregarCmoDetalhe();
+        return;
+      }
+
       // Detectar se é campo de marketing no mensal
       const isMarketingField = campo.startsWith('o_') || campo.startsWith('m_') || campo.startsWith('g_') || campo.startsWith('gmn_');
-      
+
       if (visao === 'mensal' && isMarketingField) {
         // Buscar dados da semana/mês atual para pegar ano e mes
         const semanaAtual = semanasProcessadas.find(s => s.id === semanaId);
@@ -1596,9 +1698,29 @@ export function DesempenhoClient({
   // Helper para obter valor considerando override local
   const getValorComOverride = (semana: DadosSemana, key: string): unknown => {
     const semanaId = semana.id?.toString() || '';
+
+    // Override otimista local — sempre vence
     if (valoresLocais[semanaId]?.[key] !== undefined) {
       return valoresLocais[semanaId][key];
     }
+
+    // CMO drill-down: chaves cmo_freelas/cmo_alimentacao/cmo_equipe_fixa/cmo_pro_labore/cmo_percentual_detalhado
+    // vem da API cmo-detalhe — semanal por (ano, numero_semana), mensal por numero_semana=mes
+    if (key.startsWith('cmo_')) {
+      const detalhe = visao === 'mensal'
+        ? cmoDetalheMeses.get(semana.numero_semana)
+        : cmoDetalheSemanas.get(`${semana.ano}-${semana.numero_semana}`);
+      if (!detalhe) return 0;
+      switch (key) {
+        case 'cmo_freelas': return detalhe.freelas;
+        case 'cmo_alimentacao': return detalhe.alimentacao;
+        case 'cmo_equipe_fixa': return detalhe.equipe_fixa;
+        case 'cmo_pro_labore': return detalhe.pro_labore;
+        case 'cmo_percentual_detalhado': return detalhe.cmo_percentual;
+        default: return 0;
+      }
+    }
+
     if (key in semana) {
       return semana[key as keyof DadosSemana];
     }
@@ -2293,9 +2415,22 @@ export function DesempenhoClient({
                                                </TooltipProvider>
                                              )}
                                               {!isEditandoCell && metrica.editavel && semana.id && (
-                                                 <Button size="icon" variant="ghost" className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { 
-                                                   setEditando({ semanaId: semana.id!, campo: metrica.key }); 
-                                                   setValorEdit(valor?.toString().replace('.', ',') || ''); 
+                                                 <Button size="icon" variant="ghost" className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
+                                                   setEditando({ semanaId: semana.id!, campo: metrica.key });
+                                                   // CMO Equipe Fixa / Pro Labore: editar o MENSAL (nao o rateado semanal).
+                                                   // Visao semanal mostra valor proporcional mas API persiste mensal.
+                                                   if (metrica.key === 'cmo_equipe_fixa' || metrica.key === 'cmo_pro_labore') {
+                                                     const mes = visao === 'mensal'
+                                                       ? semana.numero_semana
+                                                       : new Date(semana.data_inicio + 'T12:00:00Z').getUTCMonth() + 1;
+                                                     const mensal = cmoManualPorMes[mes];
+                                                     const valorMensal = metrica.key === 'cmo_equipe_fixa'
+                                                       ? mensal?.equipe_fixa
+                                                       : mensal?.pro_labore;
+                                                     setValorEdit(valorMensal !== undefined ? String(valorMensal).replace('.', ',') : '');
+                                                   } else {
+                                                     setValorEdit(valor?.toString().replace('.', ',') || '');
+                                                   }
                                                    if (metrica.formato === 'reservas' && metrica.keyPessoas) {
                                                      setValorEditPessoas(valorPessoas?.toString().replace('.', ',') || '');
                                                    }

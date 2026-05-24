@@ -228,58 +228,70 @@ export async function GET(request: NextRequest) {
         const { data: planej } = await (supabase
           .schema('gold' as any) as any)
           .from('planejamento')
-          .select('faturamento_total_consolidado, faturamento_couvert')
+          .select('faturamento_total_consolidado')
           .eq('bar_id', barId)
           .gte('data_evento', dataInicio)
           .lte('data_evento', dataFim);
         const fatBruto = (planej || []).reduce(
           (s: number, r: any) => s + (parseFloat(r.faturamento_total_consolidado) || 0), 0
         );
-        const couvertTotal = (planej || []).reduce(
-          (s: number, r: any) => s + (parseFloat(r.faturamento_couvert) || 0), 0
-        );
 
-        const { data: comissaoData } = await (supabase
-          .schema('silver' as any) as any)
-          .from('contaazul_lancamentos_diarios')
-          .select('valor_liquido')
-          .eq('bar_id', barId)
-          .eq('tipo', 'DESPESA')
-          .ilike('categoria_nome', '%comiss%')
-          .gte('data_competencia', dataInicio)
-          .lte('data_competencia', dataFim);
-        const comissaoTotal = (comissaoData || []).reduce(
-          (s: number, r: any) => s + (parseFloat(r.valor_liquido) || 0), 0
-        );
+        // Couvert + gorjeta (repique) vem do bronze ContaHub via RPC.
+        // Espelha o calculo da edge function cmv-semanal-auto pra que mensal
+        // bata com o que e' agregado nas semanas. Query Conta Azul "%comiss%"
+        // (antigo) trazia comissao de ARTISTAS = R$ 0 no comeco do mes,
+        // entao fat_limpo vinha quase igual ao bruto (so faltava o couvert).
+        const { data: comCouvert } = await (supabase as any)
+          .rpc('get_comissao_couvert_periodo', {
+            p_bar_id: barId,
+            p_data_inicio: dataInicio,
+            p_data_fim: dataFim,
+          });
+        const rpcRow = Array.isArray(comCouvert) ? comCouvert[0] : comCouvert;
+        const gorjetaTotal = parseFloat(String(rpcRow?.comissao || 0));
+        const couvertTotal = parseFloat(String(rpcRow?.couvert || 0));
 
-        const fatLiquido = fatBruto - couvertTotal - comissaoTotal;
+        const fatLiquido = fatBruto - couvertTotal - gorjetaTotal;
         dadosMensais.vendas_brutas = fatBruto;
         dadosMensais.vendas_liquidas = fatLiquido;
         dadosMensais.faturamento_cmvivel = fatLiquido;
+      }
 
-        // Compras recortadas — espelha ETL gold.cmv (ILIKE '%custo%' captura
-        // Custo Comida/Bebidas/Drinks/Outros independente de case)
-        const { data: lancCmv } = await (supabase
-          .schema('bronze' as any) as any)
-          .from('bronze_contaazul_lancamentos')
-          .select('valor_bruto, categoria_nome')
-          .eq('bar_id', barId)
-          .eq('tipo', 'DESPESA')
-          .is('excluido_em', null)
-          .ilike('categoria_nome', '%custo%')
-          .gte('data_competencia', dataInicio)
-          .lte('data_competencia', dataFim);
-        const lanc = lancCmv || [];
-        const somaPor = (filtro: RegExp) =>
-          lanc.filter((r: any) => filtro.test(r.categoria_nome || ''))
-            .reduce((s: number, r: any) => s + (parseFloat(r.valor_bruto) || 0), 0);
-        dadosMensais.compras_periodo = lanc.reduce(
-          (s: number, r: any) => s + (parseFloat(r.valor_bruto) || 0), 0
-        );
-        dadosMensais.compras_custo_comida = somaPor(/comida/i);
-        dadosMensais.compras_custo_bebidas = somaPor(/bebida/i);
-        dadosMensais.compras_custo_drinks = somaPor(/drink/i);
-        dadosMensais.compras_custo_outros = somaPor(/outro/i);
+      // Compras detalhadas (sub-totais por categoria) — SEMPRE rodar, tanto
+      // pra mes fechado quanto corrente. Sem isso, o drill-down "Compras" da
+      // visao mensal mostra Custo Comida/Bebidas/Drinks/Outros zerados nos
+      // meses fechados (cmv_mensal so guarda o agregado total `compras`).
+      // Para mes corrente, dataFim ja eh o ultimo marco fechado (recorta certo).
+      // Para meses fechados, dataFim eh o ultimo dia do mes.
+      const { data: lancCmv } = await (supabase
+        .schema('bronze' as any) as any)
+        .from('bronze_contaazul_lancamentos')
+        .select('valor_bruto, categoria_nome')
+        .eq('bar_id', barId)
+        .eq('tipo', 'DESPESA')
+        .is('excluido_em', null)
+        .or('categoria_nome.ilike.%custo%,categoria_nome.ilike.%alimenta%')
+        .gte('data_competencia', dataInicio)
+        .lte('data_competencia', dataFim);
+      const lanc = lancCmv || [];
+      const somaPor = (filtro: RegExp) =>
+        lanc.filter((r: any) => filtro.test(r.categoria_nome || ''))
+          .reduce((s: number, r: any) => s + (parseFloat(r.valor_bruto) || 0), 0);
+      dadosMensais.compras_custo_comida = somaPor(/comida/i);
+      dadosMensais.compras_custo_bebidas = somaPor(/bebida/i);
+      dadosMensais.compras_custo_drinks = somaPor(/drink/i);
+      dadosMensais.compras_custo_outros = somaPor(/outro/i);
+
+      if (ehMesCorrenteRecorte) {
+        // Mes corrente: total e CMA tambem precisam ser recortados ate dataFim
+        // (cmv_mensal guarda o mes inteiro, mas aqui queremos so ate o marco)
+        dadosMensais.compras_periodo = lanc
+          .filter((r: any) => /custo/i.test(r.categoria_nome || ''))
+          .reduce((s: number, r: any) => s + (parseFloat(r.valor_bruto) || 0), 0);
+        dadosMensais.compras_alimentacao = somaPor(/alimenta/i);
+        dadosMensais.cma_total = (dadosMensais.estoque_inicial_funcionarios || 0)
+          + dadosMensais.compras_alimentacao
+          - (dadosMensais.estoque_final_funcionarios || 0);
       }
 
       const resultado = {
