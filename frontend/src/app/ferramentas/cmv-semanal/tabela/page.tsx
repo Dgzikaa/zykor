@@ -292,7 +292,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
           { key: 'cmv_real', label: 'CMV R$', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial + Compras - Est.Final - Consumos - Bonificações', formato: 'moeda' },
           { key: 'cmv_percentual', label: 'CMV Real (%)', status: 'calculado', fonte: 'Calculado', calculo: 'CMV R$ / Faturamento Bruto × 100', formato: 'percentual' },
           { key: 'cmv_limpo_percentual', label: 'CMV Limpo (%)', status: 'calculado', fonte: 'Calculado', calculo: '(CMV R$ / Fat. Líquido) × 100', formato: 'percentual' },
-          { key: 'cmv_teorico_percentual', label: 'CMV Teórico/Meta (%)', status: 'manual', fonte: 'Meta', calculo: 'Espelha a meta CMV Teórico (clique na célula META pra editar)', formato: 'percentual' },
+          { key: 'cmv_teorico_percentual', label: 'CMV Teórico/Meta (%)', status: 'manual', fonte: 'Manual ou Meta', calculo: 'Valor manual da semana/mês (clique pra editar). Se vazio, espelha a meta global.', formato: 'percentual', editavel: true },
         ]
       }
     ]
@@ -549,7 +549,7 @@ export default function CMVSemanalTabelaPage() {
 
   // Cor da célula de KPI Resultado baseada em comparação com meta
   // Usa meta dinâmica pra cmv_real (R$): meta_pct × fat_bruto da semana
-  // Retorna texto. Use getBgMetaCmv pra background da celula.
+  // Só colore o texto (mesmo padrão de /estrategico/desempenho)
   // cmv_teorico_percentual NÃO entra aqui — espelha a propria meta, comparar consigo mesmo nao faz sentido.
   const METRICAS_COM_META = useMemo(() => ['cmv_real', 'cmv_percentual', 'cmv_limpo_percentual'], []);
 
@@ -571,16 +571,6 @@ export default function CMVSemanalTabelaPage() {
     return valor <= metaValor
       ? 'text-green-700 dark:text-green-400 font-semibold'
       : 'text-red-700 dark:text-red-400 font-semibold';
-  }, [getMetaValor]);
-
-  // Background da celula inteira (mais visivel que so o texto, igual Desempenho)
-  const getBgMetaCmv = useCallback((metricaKey: string, valor: number | null, semana?: CMVSemanal): string => {
-    if (valor === null || valor === undefined) return '';
-    const metaValor = getMetaValor(metricaKey, semana);
-    if (metaValor === null) return '';
-    return valor <= metaValor
-      ? 'bg-green-50 dark:bg-green-900/20'
-      : 'bg-red-50 dark:bg-red-900/20';
   }, [getMetaValor]);
 
 
@@ -954,9 +944,14 @@ export default function CMVSemanalTabelaPage() {
       const valor = semana.cmv_limpo_percentual;
       return valor ? parseFloat(String(valor)) : 0;
     }
-    // CMV Teórico (%) - sempre espelha a meta global (manual, edita na coluna META)
-    // Ignora valor sincronizado da planilha em cmv_semanal/cmv_mensal
+    // CMV Teórico (%): se a semana/mês tem valor manual salvo, usa esse.
+    // Senão, fallback para a meta global (editada via coluna META).
     if (key === 'cmv_teorico_percentual') {
+      const valorSemana = semana.cmv_teorico_percentual;
+      const valorNum = valorSemana !== undefined && valorSemana !== null
+        ? parseFloat(String(valorSemana))
+        : 0;
+      if (Number.isFinite(valorNum) && valorNum > 0) return valorNum;
       return metasCmv.cmv_teorico_percentual?.valor ?? null;
     }
     if (!(key in semana)) return null;
@@ -1082,10 +1077,17 @@ export default function CMVSemanalTabelaPage() {
           { label: '× 100', valor: (cmvReal / fatLiquido) * 100, formula: `(${formatarValor(cmvReal, 'moeda')} ÷ ${formatarValor(fatLiquido, 'moeda')}) × 100` },
         ];
       }
-      case 'cmv_teorico_percentual':
+      case 'cmv_teorico_percentual': {
+        const valorSemana = parseFloat(String(semana.cmv_teorico_percentual || 0));
+        const ehManual = Number.isFinite(valorSemana) && valorSemana > 0;
         return [
-          { label: 'Meta CMV Teórico', valor: metasCmv.cmv_teorico_percentual?.valor ?? 0, formula: 'Manual — edita na coluna META' },
+          {
+            label: ehManual ? 'Manual desta linha' : 'Meta CMV Teórico (fallback)',
+            valor: ehManual ? valorSemana : (metasCmv.cmv_teorico_percentual?.valor ?? 0),
+            formula: ehManual ? 'Editado direto na célula' : 'Click na célula para sobrescrever',
+          },
         ];
+      }
       // CMA Total
       case 'cma_total':
         return [
@@ -1531,15 +1533,13 @@ export default function CMVSemanalTabelaPage() {
                               {metricasParaMostrar.map(metrica => {
                                 const valor = getValorMetrica(semana, metrica.key);
                                 const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
-                                const bgMeta = getBgMetaCmv(metrica.key, valor, semana);
 
                                 return (
                                   <div
                                     key={metrica.key}
                                     className={cn(
                                       "relative flex items-center justify-center px-1 border-b border-gray-100 dark:border-gray-700 group",
-                                      // bg da meta (verde/vermelho) tem prioridade sobre realce de "semana atual"
-                                      bgMeta || (isSemanaAtual ? "bg-emerald-50/30 dark:bg-emerald-900/10" : ""),
+                                      isSemanaAtual && "bg-emerald-50/30 dark:bg-emerald-900/10",
                                       metrica.drilldown && visao === 'semanal' && "cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
                                     )}
                                     style={{ height: '30px' }}
