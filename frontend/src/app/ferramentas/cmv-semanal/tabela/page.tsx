@@ -80,6 +80,7 @@ interface CMVSemanal {
   cmv_percentual?: number;
   cmv_limpo_percentual: number;
   cmv_teorico_percentual: number;
+  cmv_teorico_percentual_manual?: number | null;
   gap: number;
   
   // Estoque Final Detalhado
@@ -550,8 +551,9 @@ export default function CMVSemanalTabelaPage() {
   // Cor da célula de KPI Resultado baseada em comparação com meta
   // Usa meta dinâmica pra cmv_real (R$): meta_pct × fat_bruto da semana
   // Só colore o texto (mesmo padrão de /estrategico/desempenho)
-  // cmv_teorico_percentual NÃO entra aqui — espelha a propria meta, comparar consigo mesmo nao faz sentido.
-  const METRICAS_COM_META = useMemo(() => ['cmv_real', 'cmv_percentual', 'cmv_limpo_percentual'], []);
+  // cmv_teorico_percentual: compara o manual da linha contra a meta global (29% ou
+  // o que o sócio definir). Se a linha não tem manual, mostra a meta espelhada (neutro).
+  const METRICAS_COM_META = useMemo(() => ['cmv_real', 'cmv_percentual', 'cmv_limpo_percentual', 'cmv_teorico_percentual'], []);
 
   const getMetaValor = useCallback((metricaKey: string, semana?: CMVSemanal): number | null => {
     if (!METRICAS_COM_META.includes(metricaKey)) return null;
@@ -842,6 +844,10 @@ export default function CMVSemanalTabelaPage() {
     try {
       let response: Response;
 
+      // CMV Teórico manual mora na coluna *_manual (separada da que o ETL sobrescreve).
+      // UI conhece a chave virtual cmv_teorico_percentual; aqui mapeamos pro nome real.
+      const campoBackend = campo === 'cmv_teorico_percentual' ? 'cmv_teorico_percentual_manual' : campo;
+
       if (visao === 'mensal') {
         // Visão mensal: salva em financial.cmv_mensal via upsert (bar_id, ano, mes).
         // semanaId no modo mensal é "${ano}-${mes}" (ID fictício, não existe em cmv_semanal).
@@ -855,7 +861,7 @@ export default function CMVSemanalTabelaPage() {
             bar_id: selectedBar.id,
             ano: semana.ano,
             mes: semana.semana, // no modo mensal, "semana" guarda o mês (ver carregarDados)
-            [campo]: numValue,
+            [campoBackend]: numValue,
           }),
         });
       } else {
@@ -863,7 +869,7 @@ export default function CMVSemanalTabelaPage() {
         response = await fetch('/api/cmv-semanal', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: semanaId, [campo]: numValue }),
+          body: JSON.stringify({ id: semanaId, [campoBackend]: numValue }),
         });
       }
 
@@ -944,14 +950,16 @@ export default function CMVSemanalTabelaPage() {
       const valor = semana.cmv_limpo_percentual;
       return valor ? parseFloat(String(valor)) : 0;
     }
-    // CMV Teórico (%): se a semana/mês tem valor manual salvo, usa esse.
-    // Senão, fallback para a meta global (editada via coluna META).
+    // CMV Teórico (%): usa a coluna *_manual (input do sócio) se preenchida.
+    // Senão, fallback para a meta global. A coluna cmv_teorico_percentual "crua"
+    // do banco é populada pelo ETL com o valor do CMV Limpo calculado — não dá
+    // pra usar como fonte de "manual" porque o próximo sync sobrescreve.
     if (key === 'cmv_teorico_percentual') {
-      const valorSemana = semana.cmv_teorico_percentual;
-      const valorNum = valorSemana !== undefined && valorSemana !== null
-        ? parseFloat(String(valorSemana))
-        : 0;
-      if (Number.isFinite(valorNum) && valorNum > 0) return valorNum;
+      const manual = (semana as unknown as Record<string, unknown>).cmv_teorico_percentual_manual;
+      const manualNum = manual !== undefined && manual !== null
+        ? parseFloat(String(manual))
+        : null;
+      if (manualNum !== null && Number.isFinite(manualNum) && manualNum > 0) return manualNum;
       return metasCmv.cmv_teorico_percentual?.valor ?? null;
     }
     if (!(key in semana)) return null;
@@ -1078,13 +1086,14 @@ export default function CMVSemanalTabelaPage() {
         ];
       }
       case 'cmv_teorico_percentual': {
-        const valorSemana = parseFloat(String(semana.cmv_teorico_percentual || 0));
-        const ehManual = Number.isFinite(valorSemana) && valorSemana > 0;
+        const manual = (semana as unknown as Record<string, unknown>).cmv_teorico_percentual_manual;
+        const manualNum = manual !== undefined && manual !== null ? parseFloat(String(manual)) : null;
+        const ehManual = manualNum !== null && Number.isFinite(manualNum) && manualNum > 0;
         return [
           {
             label: ehManual ? 'Manual desta linha' : 'Meta CMV Teórico (fallback)',
-            valor: ehManual ? valorSemana : (metasCmv.cmv_teorico_percentual?.valor ?? 0),
-            formula: ehManual ? 'Editado direto na célula' : 'Click na célula para sobrescrever',
+            valor: ehManual ? manualNum! : (metasCmv.cmv_teorico_percentual?.valor ?? 0),
+            formula: ehManual ? 'Editado direto na célula' : 'Click na célula pra sobrescrever',
           },
         ];
       }

@@ -208,6 +208,9 @@ export async function GET(request: NextRequest) {
         cmv_real: cmvRealEfetivo,
         cmv_limpo_percentual: cmvLimpoPctEfetivo,
         cmv_teorico_percentual: parseFloat(String(cmvMensal.cmv_teorico_percentual || 0)),
+        cmv_teorico_percentual_manual: cmvMensal.cmv_teorico_percentual_manual !== null && cmvMensal.cmv_teorico_percentual_manual !== undefined
+          ? parseFloat(String(cmvMensal.cmv_teorico_percentual_manual))
+          : null,
         gap: parseFloat(String(cmvMensal.gap || 0)),
         estoque_inicial_funcionarios: parseFloat(String(cmvMensal.estoque_inicial_funcionarios || 0)),
         compras_alimentacao: parseFloat(String(cmvMensal.compras_alimentacao || 0)),
@@ -683,7 +686,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const camposPermitidos = [
-      'cmv_teorico_percentual',
+      'cmv_teorico_percentual', 'cmv_teorico_percentual_manual',
       'consumo_socios', 'consumo_beneficios', 'consumo_artista',
       'consumo_rh_operacao', 'consumo_rh_escritorio',
       'outros_ajustes', 'ajuste_bonificacoes',

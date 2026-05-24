@@ -233,7 +233,7 @@ export async function PUT(request: NextRequest) {
       'status', 'observacoes', 'responsavel',
       'bonificacao_contrato_anual', 'bonificacao_cashback_mensal',
       'ajuste_bonificacoes', 'outros_ajustes',
-      'consumo_rh', 'cmv_teorico_percentual',
+      'consumo_rh', 'cmv_teorico_percentual', 'cmv_teorico_percentual_manual',
       'estoque_inicial_cozinha', 'estoque_inicial_bebidas', 'estoque_inicial_drinks',
       'estoque_final_cozinha', 'estoque_final_bebidas', 'estoque_final_drinks',
     ];
