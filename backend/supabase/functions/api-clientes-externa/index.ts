@@ -36,6 +36,33 @@ const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT = 100;
 const RATE_WINDOW = 60000;
 
+// Paginação para contornar limite default de 1000 rows do PostgREST
+// (mesmo padrão usado em frontend/.../indicadores/route.ts → fetchAllData)
+const PAGE_SIZE = 1000;
+const MAX_ITERATIONS = 200; // cobre até 200k clientes/bar
+
+async function fetchAllClienteEstatisticas(supabase: any, barId: number) {
+  const all: any[] = [];
+  let from = 0;
+  for (let i = 0; i < MAX_ITERATIONS; i++) {
+    // .order('id') garante paginação estável — sem isso, PostgREST pode
+    // retornar registros duplicados/faltantes entre páginas
+    const { data, error } = await supabase
+      .schema('silver')
+      .from('cliente_estatisticas')
+      .select('total_visitas, valor_total_consumo, valor_total_entrada, ultima_visita, cliente_fone_norm, cliente_nome')
+      .eq('bar_id', barId)
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return all;
+}
+
 function checkRateLimit(apiKey: string): boolean {
   const now = Date.now();
   const record = rateLimitMap.get(apiKey);
@@ -152,18 +179,16 @@ serve(async (req) => {
     // MODO STATS: estatísticas gerais do bar
     // =====================================================
     if (stats) {
-      // Buscar estatísticas agregadas da camada silver
-      const { data: statsData, error: statsError } = await supabase
-        .schema('silver')
-        .from('cliente_estatisticas')
-        .select('total_visitas, valor_total_consumo, valor_total_entrada, ultima_visita, cliente_fone_norm, cliente_nome')
-        .eq('bar_id', barId);
-
-      if (statsError) {
+      // Buscar TODAS as estatísticas paginando (contorna limite de 1000 do PostgREST)
+      let statsData: any[] = [];
+      try {
+        statsData = await fetchAllClienteEstatisticas(supabase, barId);
+      } catch (statsError: any) {
         console.error('Erro ao buscar estatísticas:', statsError);
         return new Response(JSON.stringify({
           error: 'Erro ao buscar estatísticas',
-          code: 'DATABASE_ERROR'
+          code: 'DATABASE_ERROR',
+          detail: statsError?.message
         }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -517,7 +542,8 @@ serve(async (req) => {
       console.error('Erro ao buscar clientes:', error);
       return new Response(JSON.stringify({
         error: 'Erro ao buscar dados',
-        code: 'DATABASE_ERROR'
+        code: 'DATABASE_ERROR',
+        detail: error.message
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -578,7 +604,7 @@ serve(async (req) => {
       },
       meta: {
         bar_id: barId,
-        versao_api: '2.0',
+        versao_api: '2.2',
         campos_disponiveis: [
           'telefone', 'nome', 'total_visitas', 'primeira_visita', 'ultima_visita',
           'dias_desde_ultima_visita', 'frequencia_media_dias', 'status', 'is_vip',
