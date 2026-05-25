@@ -128,7 +128,9 @@ export default function AgendamentoV2Page() {
       try {
         const parsed = JSON.parse(saved);
         if (parsed?.pagamentos) setPagamentos(parsed.pagamentos);
-      } catch {}
+      } catch (err) {
+        console.warn('Falha ao carregar pagamentos do localStorage:', err);
+      }
     }
   }, [loadOptions]);
 
@@ -519,7 +521,7 @@ export default function AgendamentoV2Page() {
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base">Adicionar Pagamento Manual</CardTitle>
-                      <CardDescription>Preencha os dados do pagamento. Vai pra lista — depois clique "Pagar todos" pra enviar.</CardDescription>
+                      <CardDescription>Preencha os dados do pagamento. Vai pra lista — depois clique &quot;Pagar todos&quot; pra enviar.</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <NovoPagamentoForm
