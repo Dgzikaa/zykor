@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,11 @@ export function ReviewsNLPTab({ dataInicio, dataFim }: Props) {
   const [processando, setProcessando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // toast em ref pra evitar loop infinito no useEffect (useToast retorna
+  // funcao nova a cada render, o que retriggava o useCallback -> useEffect)
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, [toast]);
+
   const buscar = useCallback(async (analisar = false) => {
     if (!selectedBar?.id) return;
     if (analisar) setProcessando(true); else setLoading(true);
@@ -50,18 +55,18 @@ export function ReviewsNLPTab({ dataInicio, dataFim }: Props) {
       }
       setData(j);
       if (analisar) {
-        toast({
+        toastRef.current({
           title: '✨ Análise concluída',
           description: `${j.processou_agora} reviews novos analisados. Total no período: ${j.total_reviews_analisados}.`,
         });
       }
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erro');
     } finally {
       setLoading(false);
       setProcessando(false);
     }
-  }, [selectedBar?.id, dataInicio, dataFim, toast]);
+  }, [selectedBar?.id, dataInicio, dataFim]);
 
   useEffect(() => { buscar(false); }, [buscar]);
 

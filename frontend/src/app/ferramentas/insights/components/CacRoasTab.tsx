@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { HelpCircle } from 'lucide-react';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Legend,
 } from 'recharts';
@@ -30,9 +31,9 @@ interface ApiData {
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
-export function CacRoasTab() {
+export function CacRoasTab({ ano: anoProp }: { ano?: number } = {}) {
   const { selectedBar } = useBar();
-  const [ano, setAno] = useState<number>(new Date().getFullYear());
+  const ano = anoProp ?? new Date().getFullYear();
   const [data, setData] = useState<ApiData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,19 +55,6 @@ export function CacRoasTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <label className="text-sm text-gray-600 dark:text-gray-400">Ano:</label>
-        <select
-          value={ano}
-          onChange={e => setAno(Number(e.target.value))}
-          className="h-9 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm"
-        >
-          {[new Date().getFullYear(), new Date().getFullYear() - 1].map(a => (
-            <option key={a} value={a}>{a}</option>
-          ))}
-        </select>
-      </div>
-
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <KpiCard label="Investido mkt" value={fmtBRL(data.resumo.mkt_total)} />
         <KpiCard label="Clientes novos" value={data.resumo.clientes_novos_total.toLocaleString('pt-BR')} />
@@ -75,11 +63,13 @@ export function CacRoasTab() {
           label="CAC médio"
           value={fmtBRL(data.resumo.cac_medio)}
           tone={data.resumo.cac_medio > 100 ? 'danger' : 'normal'}
+          tooltip="CAC = Custo de Aquisição de Cliente = Mkt investido ÷ Clientes novos. Quanto você gastou em marketing pra trazer cada cliente novo. Quanto MENOR melhor. Acima de R$ 100 vira alerta vermelho."
         />
         <KpiCard
           label="ROAS médio"
           value={data.resumo.roas_medio.toFixed(2) + 'x'}
           tone={data.resumo.roas_medio < 1 ? 'danger' : data.resumo.roas_medio > 3 ? 'good' : 'normal'}
+          tooltip="ROAS = Return On Ad Spend = Faturamento dos novos ÷ Mkt investido. Retorno sobre o investimento em marketing. Quanto MAIOR melhor. ROAS 1x = empatou; 3x+ = excelente (cada R$ 1 vira R$ 3+)."
         />
       </div>
 
@@ -173,16 +163,39 @@ export function CacRoasTab() {
   );
 }
 
-function KpiCard({ label, value, tone = 'normal' }: { label: string; value: string; tone?: 'normal' | 'danger' | 'good' }) {
+function KpiCard({
+  label,
+  value,
+  tone = 'normal',
+  tooltip,
+}: {
+  label: string;
+  value: string;
+  tone?: 'normal' | 'danger' | 'good';
+  tooltip?: string;
+}) {
   return (
     <Card>
       <CardContent className="p-4">
-        <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
-        <p className={`text-xl font-bold mt-1 ${
-          tone === 'danger' ? 'text-red-600 dark:text-red-400'
-          : tone === 'good' ? 'text-green-600 dark:text-green-400'
-          : 'text-gray-900 dark:text-white'
-        }`}>{value}</p>
+        <div className="flex items-center gap-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+          {tooltip && (
+            <span title={tooltip} className="cursor-help">
+              <HelpCircle className="w-3 h-3 text-gray-400 hover:text-gray-600" />
+            </span>
+          )}
+        </div>
+        <p
+          className={`text-xl font-bold mt-1 ${
+            tone === 'danger'
+              ? 'text-red-600 dark:text-red-400'
+              : tone === 'good'
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-gray-900 dark:text-white'
+          }`}
+        >
+          {value}
+        </p>
       </CardContent>
     </Card>
   );

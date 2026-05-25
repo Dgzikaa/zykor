@@ -86,7 +86,11 @@ export function ReservasTab({ dataInicio, dataFim }: Props) {
           sub={`${data.resumo.taxa_no_show_pct.toFixed(1)}%`}
           tone={data.resumo.taxa_no_show_pct > 15 ? 'danger' : 'normal'}
         />
-        <KpiCard label="Lead time médio" value={`${data.resumo.lead_time_medio_dias.toFixed(1)} dias`} sub="antecedência da reserva" />
+        <KpiCard
+          label="Lead time médio"
+          value={data.resumo.lead_time_medio_dias > 0 ? `${data.resumo.lead_time_medio_dias.toFixed(1)} dias` : 'n/d'}
+          sub={data.resumo.lead_time_medio_dias > 0 ? 'antecedência da reserva' : 'GetIn não envia data de criação'}
+        />
       </div>
 
       <Card>

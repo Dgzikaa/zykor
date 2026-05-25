@@ -1,10 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Lightbulb, Clock, XCircle, CreditCard, Calendar, Users, DollarSign, Sparkles } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { CurvaHorariaTab } from './components/CurvaHorariaTab';
@@ -15,8 +20,13 @@ import { CohortTab } from './components/CohortTab';
 import { CacRoasTab } from './components/CacRoasTab';
 import { ReviewsNLPTab } from './components/ReviewsNLPTab';
 
-function formatDate(d: Date) {
-  return d.toISOString().split('T')[0];
+const MESES_LABEL = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+function calcularRangeMes(ano: number, mes: number): { inicio: string; fim: string } {
+  const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`;
+  const ultimoDia = new Date(ano, mes, 0).getDate();
+  const fim = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
+  return { inicio, fim };
 }
 
 export default function InsightsPage() {
@@ -26,14 +36,21 @@ export default function InsightsPage() {
     return () => setPageTitle('');
   }, [setPageTitle]);
 
-  // Default: últimos 30 dias até ontem
-  const ontem = new Date();
-  ontem.setDate(ontem.getDate() - 1);
-  const trintaDiasAtras = new Date(ontem);
-  trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 29);
+  const now = new Date();
+  const [ano, setAno] = useState<number>(now.getFullYear());
+  const [mes, setMes] = useState<number>(now.getMonth() + 1);
 
-  const [dataInicio, setDataInicio] = useState(formatDate(trintaDiasAtras));
-  const [dataFim, setDataFim] = useState(formatDate(ontem));
+  const { dataInicio, dataFim } = useMemo(() => {
+    const { inicio, fim } = calcularRangeMes(ano, mes);
+    return { dataInicio: inicio, dataFim: fim };
+  }, [ano, mes]);
+
+  // Anos disponíveis: ano atual + 2 anos anteriores
+  const anos = useMemo(() => {
+    const atual = now.getFullYear();
+    return [atual, atual - 1, atual - 2];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="min-h-[calc(100vh-8px)] bg-gray-50 dark:bg-gray-900">
@@ -49,19 +66,31 @@ export default function InsightsPage() {
                   Insights Estratégicos
                 </h3>
                 <p className="text-xs text-amber-700 dark:text-amber-300">
-                  Análises de comportamento operacional para decisão executiva
+                  Análises mensais para decisão executiva
                 </p>
               </div>
             </div>
-            <div className="flex items-end gap-2 flex-wrap">
-              <div>
-                <Label className="text-xs">De</Label>
-                <Input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} className="h-9 w-40" />
-              </div>
-              <div>
-                <Label className="text-xs">Até</Label>
-                <Input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} className="h-9 w-40" />
-              </div>
+            <div className="flex items-center gap-2">
+              <Select value={String(mes)} onValueChange={v => setMes(Number(v))}>
+                <SelectTrigger className="h-9 w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                    <SelectItem key={m} value={String(m)}>{MESES_LABEL[m]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={String(ano)} onValueChange={v => setAno(Number(v))}>
+                <SelectTrigger className="h-9 w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {anos.map(a => (
+                    <SelectItem key={a} value={String(a)}>{a}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
@@ -114,7 +143,7 @@ export default function InsightsPage() {
             <CohortTab weeks={24} />
           </TabsContent>
           <TabsContent value="cac" className="mt-4">
-            <CacRoasTab />
+            <CacRoasTab ano={ano} />
           </TabsContent>
           <TabsContent value="nlp" className="mt-4">
             <ReviewsNLPTab dataInicio={dataInicio} dataFim={dataFim} />
