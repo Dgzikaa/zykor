@@ -899,6 +899,23 @@ serve(async (req: Request) => {
       await updateSyncLog(supabase, logId, 'success', stats, startTime)
     }
 
+    // MEDALLION: refresh gold.orcamento_realizado_mensal pro periodo sincronizado.
+    // Sem isso, /estrategico/orcamentacao nao reflete lancamentos novos ate o cron
+    // diario rodar (06:30 UTC). Erro nao falha o sync — gold sera refrescado pelo cron.
+    try {
+      const { data: refreshResult, error: refreshError } = await supabase.rpc(
+        'refresh_orcamento_gold',
+        { p_bar_id: barId, p_data_inicio: dateFrom, p_data_fim: dateTo }
+      )
+      if (refreshError) {
+        console.warn('[contaazul-sync] Erro ao refresh gold orcamentacao:', refreshError.message)
+      } else {
+        console.log('[contaazul-sync] Gold refresh OK:', JSON.stringify(refreshResult))
+      }
+    } catch (err) {
+      console.warn('[contaazul-sync] Excecao no refresh gold:', err)
+    }
+
     // Heartbeat sucesso
     const totalRegistros = stats.lancamentos + stats.categorias + stats.centros_custo + stats.pessoas + stats.contas_financeiras
     await heartbeatEnd(supabase, heartbeatId, 'success', startTime, totalRegistros, stats, undefined, 'contaazul-sync', barId)
