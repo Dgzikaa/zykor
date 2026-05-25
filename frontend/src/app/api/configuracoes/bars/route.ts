@@ -57,8 +57,9 @@ export const GET = requireAdmin(async (request, user) => {
       );
     }
 
-    // Buscar dados da tabela 'bares' (estrutura atual do banco)
+    // Buscar dados da tabela operations.bares
     const { data: barData, error } = await (supabase as any)
+      .schema('operations')
       .from('bares')
       .select('*')
       .order('id', { ascending: false });
@@ -68,17 +69,18 @@ export const GET = requireAdmin(async (request, user) => {
     }
 
     // Mapear dados para estrutura padronizada
+    // operations.bares tem: id, nome, cnpj, endereco, ativo, config, metas, criado_em, atualizado_em
     const data = barData.map(
       (bar: any): BarMapped => ({
         id: bar.id,
-        nome: bar.nome || bar.name || 'Sem nome',
-        endereco: bar.endereco || bar.address || 'Endereço não informado',
-        telefone: bar.telefone || bar.phone || '',
+        nome: bar.nome || 'Sem nome',
+        endereco: bar.endereco || 'Endereço não informado',
+        telefone: bar.config?.telefone || '',
         cnpj: bar.cnpj || '',
-        email: bar.email || '',
-        status: bar.status || 'ativo',
-        created_at: bar.created_at || new Date().toISOString(),
-        updated_at: bar.updated_at || new Date().toISOString(),
+        email: bar.config?.email || '',
+        status: bar.ativo === false ? 'inativo' : 'ativo',
+        created_at: bar.criado_em || new Date().toISOString(),
+        updated_at: bar.atualizado_em || new Date().toISOString(),
       })
     );
 
@@ -126,15 +128,15 @@ export const POST = requireAdmin(async (request, user) => {
       );
     }
 
-    // Criar o novo bar
+    // Criar o novo bar (operations.bares: telefone/email moram em config jsonb)
     const newBar = {
       nome,
       endereco,
-      telefone: telefone || '',
       cnpj: cnpj || '',
-      email: email || '',
-      status: 'ativo',
-      configuracoes: {
+      ativo: true,
+      config: {
+        telefone: telefone || '',
+        email: email || '',
         apis_habilitadas: ['sympla', 'yuzer', 'google_places'],
         notificacoes: true,
         sync_automatico: true,
@@ -142,6 +144,7 @@ export const POST = requireAdmin(async (request, user) => {
     };
 
     const { data, error } = await (supabase as any)
+      .schema('operations')
       .from('bares')
       .insert([newBar])
       .select()
@@ -244,24 +247,32 @@ export const PUT = requireAdmin(async (request, user) => {
       );
     }
 
-    const updates = {
-      nome,
-      endereco,
-      telefone,
-      cnpj,
-      email,
-      status,
-      updated_at: new Date().toISOString(),
+    // operations.bares: telefone/email/status moram em config jsonb e ativo
+    const updates: Record<string, unknown> = {
+      atualizado_em: new Date().toISOString(),
     };
+    if (nome !== undefined) updates.nome = nome;
+    if (endereco !== undefined) updates.endereco = endereco;
+    if (cnpj !== undefined) updates.cnpj = cnpj;
+    if (status !== undefined) updates.ativo = status !== 'inativo';
 
-    // Remover campos undefined
-    Object.keys(updates).forEach((key: string) => {
-      if (updates[key as keyof typeof updates] === undefined) {
-        delete updates[key as keyof typeof updates];
-      }
-    });
+    // config jsonb update (merge superficial)
+    if (telefone !== undefined || email !== undefined) {
+      const { data: barAtual } = await (supabase as any)
+        .schema('operations')
+        .from('bares')
+        .select('config')
+        .eq('id', id)
+        .single();
+      updates.config = {
+        ...(barAtual?.config || {}),
+        ...(telefone !== undefined ? { telefone } : {}),
+        ...(email !== undefined ? { email } : {}),
+      };
+    }
 
     const { data, error } = await (supabase as any)
+      .schema('operations')
       .from('bares')
       .update(updates)
       .eq('id', id)
@@ -316,6 +327,7 @@ export const DELETE = requireAdmin(async (request, user) => {
 
     // Buscar o bar antes de deletar
     const { data: bar } = await (supabase as any)
+      .schema('operations')
       .from('bares')
       .select('nome')
       .eq('id', parseInt(id))
@@ -332,7 +344,7 @@ export const DELETE = requireAdmin(async (request, user) => {
     }
 
     // Deletar o bar
-    const { error } = await (supabase as any).from('bares').delete().eq('id', parseInt(id));
+    const { error } = await (supabase as any).schema('operations').from('bares').delete().eq('id', parseInt(id));
 
     if (error) {
       throw error;

@@ -10,16 +10,17 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 // SEM FALLBACK: Se banco não retornar, retornar erro
 async function getBaresAtivos(supabase: any): Promise<number[] | null> {
   const { data, error } = await supabase
+    .schema('operations')
     .from('bares')
     .select('id')
     .eq('ativo', true)
     .order('id')
-  
+
   if (error || !data || data.length === 0) {
-    console.error('❌ [ERRO CONFIG] Nenhum bar ativo encontrado na tabela bares.')
+    console.error('❌ [ERRO CONFIG] Nenhum bar ativo encontrado em operations.bares.', error)
     return null
   }
-  
+
   return (data as { id: number }[]).map(b => b.id)
 }
 
