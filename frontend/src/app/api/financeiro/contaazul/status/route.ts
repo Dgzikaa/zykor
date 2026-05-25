@@ -39,12 +39,14 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
 
     const bronzeClient = supabase.schema('bronze' as any);
+    // Nota: categorias/centros_custo/contas_financeiras NAO tem coluna 'id' — PK eh contaazul_id (uuid).
+    // Usar count head:true com '*' pra evitar dependencia de coluna especifica.
     const [lancamentosCount, categoriasCount, centrosCustoCount, pessoasCount, contasCount] = await Promise.all([
-      bronzeClient.from('bronze_contaazul_lancamentos').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)).is('excluido_em', null),
-      bronzeClient.from('bronze_contaazul_categorias').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
-      bronzeClient.from('bronze_contaazul_centros_custo').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
-      bronzeClient.from('bronze_contaazul_pessoas').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
-      bronzeClient.from('bronze_contaazul_contas_financeiras').select('id', { count: 'exact', head: true }).eq('bar_id', parseInt(barId))
+      bronzeClient.from('bronze_contaazul_lancamentos').select('*', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)).is('excluido_em', null),
+      bronzeClient.from('bronze_contaazul_categorias').select('*', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
+      bronzeClient.from('bronze_contaazul_centros_custo').select('*', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
+      bronzeClient.from('bronze_contaazul_pessoas').select('*', { count: 'exact', head: true }).eq('bar_id', parseInt(barId)),
+      bronzeClient.from('bronze_contaazul_contas_financeiras').select('*', { count: 'exact', head: true }).eq('bar_id', parseInt(barId))
     ]);
 
     const { data: lastLog } = await supabase

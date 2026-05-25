@@ -168,17 +168,38 @@ export async function GET(request: NextRequest) {
     const pessoasDedupadas = Array.from(dedupMap.values());
     console.log(`[CA-stakeholders] dedup: ${pessoasParaSalvar.length} → ${pessoasDedupadas.length}`);
 
-    // Soft-delete: marca ativo=false em pessoas que sumiram do CA
-    const idsRecebidos = pessoasDedupadas.map(p => p.contaazul_id).filter(Boolean);
-    if (idsRecebidos.length > 0) {
-      const { error: deactivateError } = await (supabase
+    // Soft-delete: marca ativo=false em pessoas que sumiram do CA.
+    // Antes usavamos `.not('contaazul_id','in','(uuid1,uuid2,...)')` mas com 1454+ UUIDs
+    // a URL do PostgREST estoura (~64KB) e retorna 500. Solucao: fazer em 2 passos:
+    //   1) buscar TODOS os contaazul_id atuais no banco
+    //   2) calcular diff em memoria
+    //   3) update direcionado apenas nos que sumiram (chunks de 100 se muitos)
+    const idsRecebidos = new Set(pessoasDedupadas.map(p => p.contaazul_id).filter(Boolean));
+    if (idsRecebidos.size > 0) {
+      const { data: existentesArr } = await (supabase
         .schema('bronze' as any) as any)
         .from('bronze_contaazul_pessoas')
-        .update({ ativo: false })
+        .select('contaazul_id')
         .eq('bar_id', parseInt(barId))
-        .not('contaazul_id', 'in', `(${idsRecebidos.map(id => `"${id}"`).join(',')})`);
-      if (deactivateError) {
-        console.error('Aviso: erro ao desativar pessoas removidas (não bloqueante):', deactivateError);
+        .eq('ativo', true);
+      const removidos = ((existentesArr as any[]) || [])
+        .map(r => r.contaazul_id)
+        .filter(id => id && !idsRecebidos.has(id));
+      if (removidos.length > 0 && removidos.length < 1000) {
+        const CHUNK = 100;
+        for (let i = 0; i < removidos.length; i += CHUNK) {
+          const chunk = removidos.slice(i, i + CHUNK);
+          const { error: deactivateError } = await (supabase
+            .schema('bronze' as any) as any)
+            .from('bronze_contaazul_pessoas')
+            .update({ ativo: false })
+            .eq('bar_id', parseInt(barId))
+            .in('contaazul_id', chunk);
+          if (deactivateError) {
+            console.error('Aviso: erro ao desativar chunk (nao bloqueante):', deactivateError);
+            break;
+          }
+        }
       }
     }
 
