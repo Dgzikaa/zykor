@@ -160,6 +160,21 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     }
   };
 
+  // Tooltip de histórico: mostra os 3 meses anteriores ao mês de uma celula.
+  // Usado em mouseover nos campos editáveis (planejado/projetado) e no realizado.
+  const getHistorico = useCallback((subNome: string, campo: 'planejado' | 'projecao' | 'realizado', idxAtual: number): Array<{ label: string; valor: number; isPercentage?: boolean }> => {
+    const indices = [idxAtual - 3, idxAtual - 2, idxAtual - 1].filter(i => i >= 0 && i < meses.length);
+    const out: Array<{ label: string; valor: number; isPercentage?: boolean }> = [];
+    for (const i of indices) {
+      const mesAnt = meses[i];
+      if (!mesAnt) continue;
+      const subAnt = mesAnt.categorias.flatMap(c => c.subcategorias).find(s => s.nome === subNome);
+      if (!subAnt) continue;
+      out.push({ label: mesAnt.label, valor: subAnt[campo], isPercentage: subAnt.isPercentage });
+    }
+    return out;
+  }, [meses]);
+
   const totaisPeriodo = useMemo(() => {
     if (meses.length === 0) return { receita_planejado: 0, receita_realizado: 0, lucro_planejado: 0, lucro_projecao: 0, lucro_realizado: 0 };
     return meses.reduce((acc, mes) => ({
@@ -279,8 +294,8 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                           const isEditProj = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'projetado';
                           return (
                             <div key={sub.nome} className={cn("relative flex items-center justify-between px-1 border-b border-gray-100 dark:border-gray-700 group", isMesAtual ? "bg-emerald-50/50" : "bg-white dark:bg-gray-800")} style={{ height: '28px' }}>
-                              {/* PLANEJADO - editável */}
-                              <div className="flex-1 flex items-center justify-center">
+                              {/* PLANEJADO - editável + tooltip histórico */}
+                              <div className="flex-1 flex items-center justify-center relative group/plan">
                                 {isEditPlan ? (
                                   <div className="flex items-center gap-0.5">
                                     <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
@@ -288,15 +303,18 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                                     <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
                                   </div>
                                 ) : (
-                                  <div className="flex items-center gap-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'planejado' }); setValorEdit(sub.planejado.toString()); }}>
-                                    <span className="text-[9px] font-medium text-blue-600">{sub.isPercentage ? formatarPorcentagem(sub.planejado) : formatarMoeda(sub.planejado)}</span>
-                                    <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
-                                  </div>
+                                  <>
+                                    <HistoricoTooltip historico={getHistorico(sub.nome, 'planejado', idx)} cor="blue" />
+                                    <div className="flex items-center gap-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'planejado' }); setValorEdit(sub.planejado.toString()); }}>
+                                      <span className="text-[9px] font-medium text-blue-600">{sub.isPercentage ? formatarPorcentagem(sub.planejado) : formatarMoeda(sub.planejado)}</span>
+                                      <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
+                                    </div>
+                                  </>
                                 )}
                               </div>
                               <div className="w-px h-3 bg-gray-200" />
-                              {/* PROJETADO - editável */}
-                              <div className="flex-1 flex items-center justify-center">
+                              {/* PROJETADO - editável + tooltip histórico */}
+                              <div className="flex-1 flex items-center justify-center relative group/proj">
                                 {isEditProj ? (
                                   <div className="flex items-center gap-0.5">
                                     <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
@@ -304,16 +322,17 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                                     <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
                                   </div>
                                 ) : (
-                                  <div className="flex items-center gap-0.5 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'projetado' }); setValorEdit(sub.projecao.toString()); }}>
-                                    <span className={cn("text-[9px] font-medium", sub.projecao > 0 ? "text-green-600" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.projecao) : formatarMoeda(sub.projecao)}</span>
-                                    <Pencil className="h-2 w-2 text-green-400 opacity-0 group-hover:opacity-100" />
-                                  </div>
+                                  <>
+                                    <HistoricoTooltip historico={getHistorico(sub.nome, 'projecao', idx)} cor="green" />
+                                    <div className="flex items-center gap-0.5 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'projetado' }); setValorEdit(sub.projecao.toString()); }}>
+                                      <span className={cn("text-[9px] font-medium", sub.projecao > 0 ? "text-green-600" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.projecao) : formatarMoeda(sub.projecao)}</span>
+                                      <Pencil className="h-2 w-2 text-green-400 opacity-0 group-hover:opacity-100" />
+                                    </div>
+                                  </>
                                 )}
                               </div>
                               <div className="w-px h-3 bg-gray-200" />
-                              {/* REALIZADO - somente leitura (CA ou manual). Cor compara vs BP planejado:
-                                  - Receita (RECEITA BRUTA, CONTRATOS): real >= plan = verde (gastou menos / faturou mais)
-                                  - Despesa: real <= plan = verde (gastou menos = bom); real > plan = vermelho */}
+                              {/* REALIZADO - somente leitura + tooltip histórico. Cor compara vs BP planejado */}
                               {(() => {
                                 const isReceita = categoria.tipo === 'receita';
                                 const tem = sub.planejado > 0 || sub.realizado > 0;
@@ -326,7 +345,8 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                                   }
                                 }
                                 return (
-                                  <div className="flex-1 flex items-center justify-center">
+                                  <div className="flex-1 flex items-center justify-center relative group/real">
+                                    <HistoricoTooltip historico={getHistorico(sub.nome, 'realizado', idx)} cor="gray" />
                                     <span className={cn("text-[9px]", corClasse)}>{sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sub.realizado)}</span>
                                   </div>
                                 );
@@ -408,3 +428,49 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
   );
 }
 
+// Tooltip que mostra histórico dos meses anteriores ao passar mouse.
+// Posicionado acima da célula, escondido por padrão, aparece on group hover.
+// Usa group/plan, group/proj ou group/real conforme o pai.
+function HistoricoTooltip({
+  historico,
+  cor,
+}: {
+  historico: { label: string; valor: number; isPercentage?: boolean }[];
+  cor: 'blue' | 'green' | 'gray';
+}) {
+  if (historico.length === 0) return null;
+
+  const fmt = (v: number, pct?: boolean) => {
+    if (pct) return `${v.toFixed(1)}%`;
+    if (Math.abs(v) >= 1000) return `R$ ${(v / 1000).toFixed(1)}k`;
+    return `R$ ${v.toFixed(0)}`;
+  };
+
+  const corLabel = cor === 'blue' ? 'Plan.' : cor === 'green' ? 'Proj.' : 'Real.';
+  const groupClass =
+    cor === 'blue'
+      ? 'group-hover/plan:opacity-100 group-hover/plan:pointer-events-auto'
+      : cor === 'green'
+        ? 'group-hover/proj:opacity-100 group-hover/proj:pointer-events-auto'
+        : 'group-hover/real:opacity-100 group-hover/real:pointer-events-auto';
+
+  return (
+    <div
+      className={cn(
+        'absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 pointer-events-none opacity-0 transition-opacity duration-150',
+        groupClass,
+        'bg-gray-900 dark:bg-gray-800 text-white rounded shadow-lg px-2 py-1.5 whitespace-nowrap'
+      )}
+    >
+      <div className="text-[8px] uppercase opacity-60 mb-0.5">Histórico {corLabel}</div>
+      {historico.map((h, i) => (
+        <div key={i} className="text-[10px] font-mono leading-tight">
+          <span className="opacity-70 mr-1">{h.label}:</span>
+          <span className="font-semibold">{fmt(h.valor, h.isPercentage)}</span>
+        </div>
+      ))}
+      {/* setinha */}
+      <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-[4px] border-r-[4px] border-t-[4px] border-l-transparent border-r-transparent border-t-gray-900 dark:border-t-gray-800" />
+    </div>
+  );
+}
