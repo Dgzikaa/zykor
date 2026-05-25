@@ -31,6 +31,36 @@ export interface TotaisMes {
   margem_planejado: number;
   margem_projecao: number;
   margem_realizado: number;
+
+  // Indicadores agregados (estilo BP):
+  // Real Fixo = soma de Pessoal + Adm + Marketing + Operacionais + Ocupacao
+  //             (NAO inclui IMPOSTO, CMV, CONTRATOS, RECEITA BRUTA)
+  real_fixo_plan: number;
+  real_fixo_proj: number;
+  real_fixo_real: number;
+  // Faturamento Meta:
+  //   plan: meta.orcamento_planilha categoria='FATURAMENTO META'
+  //   proj: soma M1 do planejamento_comercial (eventos_base.m1_r)
+  //   real: real_r dos eventos
+  faturamento_meta_plan: number;
+  faturamento_meta_proj: number;
+  faturamento_meta_real: number;
+  // % CONTRIB = 1 - (IMPOSTO + CMV) (em decimal)
+  perc_contrib_plan: number;
+  perc_contrib_proj: number;
+  perc_contrib_real: number;
+  // BreakEven = Real Fixo / % CONTRIB
+  breakeven_plan: number;
+  breakeven_proj: number;
+  breakeven_real: number;
+  // EBITDA = Faturamento Meta - despesas_variaveis (IMPOSTO+CMV em valor) - Real Fixo
+  ebitda_plan: number;
+  ebitda_proj: number;
+  ebitda_real: number;
+  // Margem = EBITDA / Faturamento Meta
+  margem_ebitda_plan: number;
+  margem_ebitda_proj: number;
+  margem_ebitda_real: number;
 }
 
 export interface MesOrcamento {
@@ -70,6 +100,7 @@ const ESTRUTURA_CATEGORIAS = [
     subcategorias: [
       'CUSTO-EMPRESA FUNCIONÁRIOS',
       'ADICIONAIS',
+      'ALIMENTAÇÃO',
       'FREELA ATENDIMENTO',
       'FREELA BAR',
       'FREELA COZINHA',
@@ -82,13 +113,13 @@ const ESTRUTURA_CATEGORIAS = [
     nome: 'Administrativas',
     cor: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300',
     tipo: 'despesa',
-    subcategorias: ['Escritório Central', 'Administrativo Ordinário', 'RECURSOS HUMANOS', 'VALE TRANSPORTE']
+    subcategorias: ['Escritório Central', 'Administrativo Ordinário', 'RECURSOS HUMANOS']
   },
   {
     nome: 'Marketing e Eventos',
     cor: 'bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300',
     tipo: 'despesa',
-    subcategorias: ['Marketing', 'Atrações Programação', 'Produção Eventos']
+    subcategorias: ['Marketing', 'MKT Beneficios', 'Atrações Programação', 'Produção Eventos']
   },
   {
     nome: 'Operacionais',
@@ -99,7 +130,8 @@ const ESTRUTURA_CATEGORIAS = [
       'Estorno',
       'Equipamentos Operação',
       'Materiais de Limpeza e Descartáveis',
-      'Utensílios'
+      'Utensílios',
+      'Outros Operação'
     ]
   },
   {
@@ -282,81 +314,27 @@ async function calcularCMVMensal(supabase: SupabaseClient, barId: number, mes: n
   };
 }
 
-// ==================== BP MAPPING ====================
-// Mapeia linha do meta.bp_linha (planilha) -> subcategoria antiga (ESTRUTURA_CATEGORIAS).
-// Algumas subcategorias antigas sao mais granulares que a planilha (ex: Freela tem 5 tipos,
-// mas BP Mai26 so tem "Freela" consolidado). Nesses casos, BP concentra o valor numa
-// subcategoria primaria e as demais ficam zeradas (ate o BP ser detalhado).
-const BP_LINHA_TO_SUBCATEGORIA: Record<string, string> = {
-  // Receita
-  'Contratos': 'CONTRATOS',
-  // Variaveis (%)
-  // IMPOSTO, Comissao, Tx Maquininha somam em IMPOSTO/TX MAQ/COMISSAO
-  'IMPOSTO': 'IMPOSTO/TX MAQ/COMISSAO',
-  'Comissao': 'IMPOSTO/TX MAQ/COMISSAO',
-  'Tx Maquininha': 'IMPOSTO/TX MAQ/COMISSAO',
-  // CMV
-  'CMV Bar': 'CMV',
-  // Pessoal
-  'CMO Fixo': 'CUSTO-EMPRESA FUNCIONÁRIOS',
-  'Freela': 'FREELA ATENDIMENTO',
-  'PRO LABORE': 'PRO LABORE',
-  // Comerciais
-  'Marketing': 'Marketing',
-  'Programacao Artistica': 'Atrações Programação',
-  'Custos de evento variavel': 'Produção Eventos',
-  // Administrativas
-  'Administrativo': 'Administrativo Ordinário',
-  // Operacionais
-  'Materiais Utens Limp': 'Materiais Operação',
-  // Ocupacao
-  'ALUGUEL/COND/IPTU': 'ALUGUEL/CONDOMÍNIO/IPTU',
-  'Manutencao': 'Manutenção',
-  'AGUA': 'ÁGUA',
-  'GAS': 'GÁS',
-  'INTERNET': 'INTERNET',
-  'LUZ': 'LUZ',
-};
+// ==================== CATEGORIAS MANUAIS ====================
+// Para essas categorias, Realizado eh editado direto na tela (n vem do ContaAzul):
+//   IMPOSTO/TX MAQ/COMISSAO: depende de calculo (Stone n integrado ainda)
+//   CMV: vem de cmv_semanal mas socio pode override manual
+//   CUSTO-EMPRESA FUNCIONÁRIOS: folha CLT n esta no CA
+//   CONTRATOS: bonificacao Ambev manual
+//   FATURAMENTO META: receita projetada/realizada (vem de eventos.real_r p/ realizado)
+const CATEGORIAS_REALIZADO_MANUAL = new Set([
+  'IMPOSTO/TX MAQ/COMISSAO',
+  'CMV',
+  'CUSTO-EMPRESA FUNCIONÁRIOS',
+  'CONTRATOS',
+]);
 
-interface BpLinhaRow {
-  bloco: string;
-  linha: string;
-  valor_mensal: number | string | null;
-}
-
-// Carrega BP por ano com fallback pra versao mais recente disponivel.
-async function carregarBpPorAno(
-  supabase: SupabaseClient,
-  barId: number,
-  anos: number[]
-): Promise<Map<number, Map<string, number>>> {
-  const out = new Map<number, Map<string, number>>();
-  for (const ano of anos) {
-    const { data } = await supabase
-      .from('bp_linha')
-      .select('bloco, linha, valor_mensal')
-      .eq('bar_id', barId)
-      .eq('ano', ano)
-      .eq('ativo', true)
-      .order('ordem', { ascending: true });
-    const linhas = (data || []) as BpLinhaRow[];
-    const mapAno = new Map<string, number>();
-    // Caso especial: Faturamento Bar + Couvert -> somam em RECEITA BRUTA
-    let receitaBruta = 0;
-    for (const l of linhas) {
-      const valor = Math.abs(Number(l.valor_mensal || 0));
-      if (l.bloco === 'Receitas' && (l.linha === 'Faturamento Bar' || l.linha === 'Faturamento Couvert')) {
-        receitaBruta += valor;
-        continue;
-      }
-      const sub = BP_LINHA_TO_SUBCATEGORIA[l.linha];
-      if (!sub) continue;
-      mapAno.set(sub, (mapAno.get(sub) || 0) + valor);
-    }
-    if (receitaBruta > 0) mapAno.set('RECEITA BRUTA', receitaBruta);
-    out.set(ano, mapAno);
-  }
-  return out;
+interface OrcamentoPlanilhaRow {
+  ano: number;
+  mes: number;
+  categoria_nome: string;
+  valor_planejado: number | string | null;
+  valor_projetado: number | string | null;
+  valor_realizado_manual: number | string | null;
 }
 
 // ==================== SERVICE ====================
@@ -376,9 +354,12 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
   const dataInicio = `${primeiroMesPeriodo.ano}-${String(primeiroMesPeriodo.mes).padStart(2, '0')}-01`;
   const dataFim = `${ultimoMesPeriodo.ano}-${String(ultimoMesPeriodo.mes).padStart(2, '0')}-${String(ultimoDiaMes).padStart(2, '0')}`;
 
-  const [planejadosResult, bpPorAno, dadosNiboTodos, dadosNiboPagos, manuaisResult, eventosResult] = await Promise.all([
-    supabase.from('orcamentacao').select('*').eq('bar_id', barId).in('ano', anosUnicos),
-    carregarBpPorAno(supabase, barId, anosUnicos),
+  const [planilhaResult, dadosNiboTodos, dadosNiboPagos, manuaisResult, eventosResult] = await Promise.all([
+    supabase
+      .from('orcamento_planilha')
+      .select('ano, mes, categoria_nome, valor_planejado, valor_projetado, valor_realizado_manual')
+      .eq('bar_id', barId)
+      .in('ano', anosUnicos),
     fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia', [
       { column: 'bar_id', operator: 'eq', value: barId },
       { column: 'excluido_em', operator: 'is', value: null },
@@ -398,9 +379,15 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
       .eq('bar_id', barId).gte('data_evento', dataInicio).lte('data_evento', dataFim).eq('ativo', true)
   ]);
 
-  const dadosPlanejados = planejadosResult.data || [];
+  const dadosPlanilha = (planilhaResult.data || []) as OrcamentoPlanilhaRow[];
   const dadosManuais = manuaisResult.data || [];
   const eventosBase = eventosResult.data || [];
+
+  // Index planilha por (ano, mes, categoria) -> { plan, proj, real_manual }
+  const planilhaMap = new Map<string, OrcamentoPlanilhaRow>();
+  dadosPlanilha.forEach(p => {
+    planilhaMap.set(`${p.ano}-${p.mes}-${p.categoria_nome}`, p);
+  });
 
   const cmvResults = await Promise.all(mesesParaBuscar.map(async ({ mes, ano }) => {
     const data = await calcularCMVMensal(supabase, barId, mes, ano);
@@ -428,7 +415,9 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     const lancTodosMes = dadosNiboTodos.filter(item => item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes);
     const lancPagosMes = dadosNiboPagos.filter(item => item.data_pagamento >= dataInicioMes && item.data_pagamento <= dataFimMes);
     const manuaisMes = dadosManuais.filter(item => item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes);
-    const planejadosMes = dadosPlanejados.filter(item => Number(item.ano) === Number(ano) && Number(item.mes) === Number(mes));
+    // Lookup helper: pega planilha pra esta categoria neste mes
+    const getPlanilha = (sub: string): OrcamentoPlanilhaRow | undefined =>
+      planilhaMap.get(`${ano}-${mes}-${sub}`);
 
     let recProj = 0, recReal = 0;
     lancTodosMes.forEach(it => { if (['Receita de Eventos', 'Stone Crédito', 'Stone Débito', 'Stone Pix', 'Dinheiro', 'Pix Direto na Conta', 'RECEITA BRUTA'].includes(it.categoria_nome)) recProj += Math.abs(parseFloat(it.valor_bruto) || 0); });
@@ -462,38 +451,43 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     valProj.set('CMV', cmvMensal.cmvPercentual); valReal.set('CMV', cmvMensal.cmvPercentual);
     valProj.set('RECEITA BRUTA', recProj); valReal.set('RECEITA BRUTA', recReal);
 
-    // BP da planilha (meta.bp_linha) -> subcategoria antiga. Mesmo valor pra todos os meses do ano.
-    const bpAno = bpPorAno.get(ano) || new Map<string, number>();
-    // Para subcategorias percentuais (IMPOSTO/TX MAQ/COMISSAO), converter valor R$ -> %
-    // dividindo pelo Faturamento Bruto planejado (RECEITA BRUTA do BP).
-    const receitaBrutaBp = bpAno.get('RECEITA BRUTA') || 0;
-
     const categorias = ESTRUTURA_CATEGORIAS.map(cat => ({
       nome: cat.nome, cor: cat.cor, tipo: cat.tipo,
       subcategorias: cat.subcategorias.map(sub => {
-        // PLANEJADO e PROJETADO = meta.bp_linha (planilha BP). Mesmo valor para os 2 hoje
-        // (planilha nao distingue planejado vs projetado).
-        let bpValor = bpAno.get(sub) || 0;
         const isPct = CATEGORIAS_PERCENTUAIS.includes(sub);
-        if (isPct && sub !== 'CMV' && receitaBrutaBp > 0) {
-          // Converter R$ -> % da receita bruta planejada (apenas IMPOSTO/TX MAQ/COMISSAO)
-          bpValor = (bpValor / receitaBrutaBp) * 100;
-        }
-        const plan = bpValor;
-        const proj = bpValor;
+        const planRow = getPlanilha(sub);
 
-        // REALIZADO = Conta Azul para despesas, eventos_base para receita
-        let real = valReal.get(sub) || 0;
+        // PLANEJADO e PROJETADO = sempre da planilha (meta.orcamento_planilha)
+        const plan = Number(planRow?.valor_planejado || 0);
+        const proj = Number(planRow?.valor_projetado || 0);
+
+        // REALIZADO:
+        //   - Para categorias manuais (IMPOSTO/CMV/CUSTO-EMPRESA/CONTRATOS):
+        //     valor_realizado_manual da planilha (editavel na UI)
+        //   - Para RECEITA BRUTA: eventos_base.real_r (ContaHub+Sympla+Yuzer)
+        //   - Para CMV: cmv_semanal (calculo automatico)
+        //   - Demais: ContaAzul agregado por categoria
+        let real: number;
         if (sub === 'RECEITA BRUTA') {
           real = fatReal.realizado;
         } else if (sub === 'CMV') {
-          real = cmvMensal.cmvPercentual;
+          real = Number(planRow?.valor_realizado_manual || 0) || cmvMensal.cmvPercentual;
+        } else if (CATEGORIAS_REALIZADO_MANUAL.has(sub)) {
+          real = Number(planRow?.valor_realizado_manual || 0);
+        } else {
+          real = valReal.get(sub) || 0;
         }
+
         return { nome: sub, planejado: plan, projecao: proj, realizado: real, isPercentage: isPct };
       })
     }));
 
     let recPlanTot = 0, recProjTot = 0, recRealTot = 0, desPlanTot = 0, desProjTot = 0, desRealTot = 0;
+    // Real Fixo = soma dos blocos Pessoal + Adm + Marketing + Operacionais + Ocupacao
+    //             (NAO inclui Despesas Variaveis nem CMV nem Receitas/Contratos)
+    let realFixoPlan = 0, realFixoProj = 0, realFixoReal = 0;
+    const BLOCOS_REAL_FIXO = new Set(['Pessoal', 'Administrativas', 'Marketing e Eventos', 'Operacionais', 'Ocupação']);
+
     categorias.forEach(cat => {
       cat.subcategorias.forEach(sub => {
         if (cat.tipo === 'receita') {
@@ -509,10 +503,56 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
             desPlanTot += sub.planejado;
             desProjTot += sub.projecao;
             desRealTot += sub.realizado;
+            if (BLOCOS_REAL_FIXO.has(cat.nome)) {
+              realFixoPlan += sub.planejado;
+              realFixoProj += sub.projecao;
+              realFixoReal += sub.realizado;
+            }
           }
         }
       });
     });
+
+    // Faturamento Meta:
+    //   plan: categoria especial 'FATURAMENTO META' da planilha (digitada na UI)
+    //   proj: soma M1 dos eventos do mes (eventos_base.m1_r)
+    //   real: real_r dos eventos do mes (ContaHub+Sympla+Yuzer)
+    const fatMetaRow = getPlanilha('FATURAMENTO META');
+    const fatMetaPlan = Number(fatMetaRow?.valor_planejado || 0);
+    const fatMetaProj = fatReal.meta;
+    const fatMetaReal = fatReal.realizado;
+
+    // % Contribuicao Variavel = 1 - (IMPOSTO/TX MAQ/COMISSAO + CMV) [valores em %]
+    const subImposto = categorias.flatMap(c => c.subcategorias).find(s => s.nome === 'IMPOSTO/TX MAQ/COMISSAO');
+    const subCmv = categorias.flatMap(c => c.subcategorias).find(s => s.nome === 'CMV');
+    const impPlanPct = Number(subImposto?.planejado || 0);
+    const impProjPct = Number(subImposto?.projecao || 0);
+    const impRealPct = Number(subImposto?.realizado || 0);
+    const cmvPlanPct = Number(subCmv?.planejado || 0);
+    const cmvProjPct = Number(subCmv?.projecao || 0);
+    const cmvRealPct = Number(subCmv?.realizado || 0);
+
+    const percContribPlan = 1 - (impPlanPct + cmvPlanPct) / 100;
+    const percContribProj = 1 - (impProjPct + cmvProjPct) / 100;
+    const percContribReal = 1 - (impRealPct + cmvRealPct) / 100;
+
+    // BreakEven = Real Fixo / % CONTRIB
+    const breakEvenPlan = percContribPlan > 0 ? realFixoPlan / percContribPlan : 0;
+    const breakEvenProj = percContribProj > 0 ? realFixoProj / percContribProj : 0;
+    const breakEvenReal = percContribReal > 0 ? realFixoReal / percContribReal : 0;
+
+    // EBITDA = Faturamento Meta - despesas variaveis (R$) - Real Fixo
+    const despVarPlan = (impPlanPct / 100) * fatMetaPlan + (cmvPlanPct / 100) * fatMetaPlan;
+    const despVarProj = (impProjPct / 100) * fatMetaProj + (cmvProjPct / 100) * fatMetaProj;
+    const despVarReal = (impRealPct / 100) * fatMetaReal + (cmvRealPct / 100) * fatMetaReal;
+
+    const ebitdaPlan = fatMetaPlan - despVarPlan - realFixoPlan;
+    const ebitdaProj = fatMetaProj - despVarProj - realFixoProj;
+    const ebitdaReal = fatMetaReal - despVarReal - realFixoReal;
+
+    const margemEbitdaPlan = fatMetaPlan > 0 ? (ebitdaPlan / fatMetaPlan) * 100 : 0;
+    const margemEbitdaProj = fatMetaProj > 0 ? (ebitdaProj / fatMetaProj) * 100 : 0;
+    const margemEbitdaReal = fatMetaReal > 0 ? (ebitdaReal / fatMetaReal) * 100 : 0;
 
     return {
       mes, ano, label: `${MESES_NOMES[mes]}/${String(ano).slice(-2)}`,
@@ -524,7 +564,26 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
         lucro_planejado: recPlanTot - desPlanTot, lucro_projecao: recProjTot - desProjTot, lucro_realizado: recRealTot - desRealTot,
         margem_planejado: recPlanTot > 0 ? ((recPlanTot - desPlanTot) / recPlanTot) * 100 : 0,
         margem_projecao: recProjTot > 0 ? ((recProjTot - desProjTot) / recProjTot) * 100 : 0,
-        margem_realizado: recRealTot > 0 ? ((recRealTot - desRealTot) / recRealTot) * 100 : 0
+        margem_realizado: recRealTot > 0 ? ((recRealTot - desRealTot) / recRealTot) * 100 : 0,
+        // Indicadores agregados (BP)
+        real_fixo_plan: realFixoPlan,
+        real_fixo_proj: realFixoProj,
+        real_fixo_real: realFixoReal,
+        faturamento_meta_plan: fatMetaPlan,
+        faturamento_meta_proj: fatMetaProj,
+        faturamento_meta_real: fatMetaReal,
+        perc_contrib_plan: percContribPlan * 100,
+        perc_contrib_proj: percContribProj * 100,
+        perc_contrib_real: percContribReal * 100,
+        breakeven_plan: breakEvenPlan,
+        breakeven_proj: breakEvenProj,
+        breakeven_real: breakEvenReal,
+        ebitda_plan: ebitdaPlan,
+        ebitda_proj: ebitdaProj,
+        ebitda_real: ebitdaReal,
+        margem_ebitda_plan: margemEbitdaPlan,
+        margem_ebitda_proj: margemEbitdaProj,
+        margem_ebitda_real: margemEbitdaReal,
       }
     };
   });

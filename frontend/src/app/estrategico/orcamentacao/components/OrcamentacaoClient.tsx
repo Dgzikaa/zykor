@@ -237,9 +237,25 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                 ))}
               </div>
             ))}
-            <div className="flex items-center gap-2 px-2 border-t-2 border-gray-300 bg-emerald-100 dark:bg-emerald-900/30" style={{ height: '36px' }}>
+            {/* Indicadores agregados (estilo BP) */}
+            <div className="flex items-center gap-2 px-2 border-t-2 border-gray-400 bg-slate-100 dark:bg-slate-800" style={{ height: '28px' }}>
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Real Fixo</span>
+            </div>
+            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Faturamento Meta</span>
+            </div>
+            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">% CONTRIB</span>
+            </div>
+            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">BreakEven</span>
+            </div>
+            <div className="flex items-center gap-2 px-2 border-t-2 border-emerald-300 bg-emerald-100 dark:bg-emerald-900/30" style={{ height: '36px' }}>
               <DollarSign className="w-3 h-3 text-emerald-700" />
-              <span className="text-[10px] font-bold text-emerald-800">LUCRO</span>
+              <span className="text-[10px] font-bold text-emerald-800">EBITDA</span>
+            </div>
+            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-emerald-50 dark:bg-emerald-900/20" style={{ height: '28px' }}>
+              <span className="text-[10px] font-bold text-emerald-700">Margem</span>
             </div>
           </div>
 
@@ -304,12 +320,66 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                         })}
                       </div>
                     ))}
-                    <div className={cn("flex items-center justify-between px-1 border-t-2 border-gray-300", isMesAtual ? "bg-emerald-100" : "bg-emerald-50 dark:bg-emerald-900/20")} style={{ height: '36px' }}>
-                      <span className={cn("flex-1 text-[9px] font-bold text-center", mes.totais.lucro_planejado >= 0 ? "text-blue-700" : "text-red-600")}>{formatarMoeda(mes.totais.lucro_planejado)}</span>
+                    {/* Real Fixo */}
+                    <div className={cn("flex items-center justify-between px-1 border-t-2 border-gray-400", isMesAtual ? "bg-slate-200" : "bg-slate-100 dark:bg-slate-800")} style={{ height: '28px' }}>
+                      <span className="flex-1 text-[9px] font-bold text-center text-blue-600">{formatarMoeda(mes.totais.real_fixo_plan)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-green-600">{formatarMoeda(mes.totais.real_fixo_proj)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-gray-900 dark:text-white">{formatarMoeda(mes.totais.real_fixo_real)}</span>
+                    </div>
+                    {/* Faturamento Meta (editavel plan) */}
+                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
+                      {(() => {
+                        const isEditFM = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === 'FATURAMENTO META' && editando?.campo === 'planejado';
+                        return isEditFM ? (
+                          <div className="flex-1 flex items-center justify-center gap-0.5">
+                            <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-14 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                            <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
+                          </div>
+                        ) : (
+                          <span
+                            className="flex-1 text-[9px] font-bold text-center text-blue-600 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
+                            onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: 'FATURAMENTO META', campo: 'planejado' }); setValorEdit(mes.totais.faturamento_meta_plan.toString()); }}
+                          >{formatarMoeda(mes.totais.faturamento_meta_plan)}</span>
+                        );
+                      })()}
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-green-600">{formatarMoeda(mes.totais.faturamento_meta_proj)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-gray-900 dark:text-white">{formatarMoeda(mes.totais.faturamento_meta_real)}</span>
+                    </div>
+                    {/* % CONTRIB */}
+                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
+                      <span className="flex-1 text-[9px] font-bold text-center text-blue-600">{formatarPorcentagem(mes.totais.perc_contrib_plan)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-green-600">{formatarPorcentagem(mes.totais.perc_contrib_proj)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-gray-900 dark:text-white">{formatarPorcentagem(mes.totais.perc_contrib_real)}</span>
+                    </div>
+                    {/* BreakEven */}
+                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
+                      <span className="flex-1 text-[9px] font-bold text-center text-blue-600">{formatarMoeda(mes.totais.breakeven_plan)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-green-600">{formatarMoeda(mes.totais.breakeven_proj)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-gray-900 dark:text-white">{formatarMoeda(mes.totais.breakeven_real)}</span>
+                    </div>
+                    {/* EBITDA */}
+                    <div className={cn("flex items-center justify-between px-1 border-t-2 border-emerald-300", isMesAtual ? "bg-emerald-100" : "bg-emerald-50 dark:bg-emerald-900/20")} style={{ height: '36px' }}>
+                      <span className={cn("flex-1 text-[9px] font-bold text-center", mes.totais.ebitda_plan >= 0 ? "text-blue-700" : "text-red-600")}>{formatarMoeda(mes.totais.ebitda_plan)}</span>
                       <div className="w-px h-4 bg-emerald-300" />
-                      <span className={cn("flex-1 text-[9px] font-bold text-center", mes.totais.lucro_projecao >= 0 ? "text-green-700" : "text-red-600")}>{formatarMoeda(mes.totais.lucro_projecao)}</span>
+                      <span className={cn("flex-1 text-[9px] font-bold text-center", mes.totais.ebitda_proj >= 0 ? "text-green-700" : "text-red-600")}>{formatarMoeda(mes.totais.ebitda_proj)}</span>
                       <div className="w-px h-4 bg-emerald-300" />
-                      <span className={cn("flex-1 text-[9px] font-bold text-center", mes.totais.lucro_realizado >= 0 ? "text-emerald-800" : "text-red-600")}>{formatarMoeda(mes.totais.lucro_realizado)}</span>
+                      <span className={cn("flex-1 text-[9px] font-bold text-center", mes.totais.ebitda_real >= 0 ? "text-emerald-800" : "text-red-600")}>{formatarMoeda(mes.totais.ebitda_real)}</span>
+                    </div>
+                    {/* Margem EBITDA */}
+                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-emerald-50" : "bg-emerald-50 dark:bg-emerald-900/20")} style={{ height: '28px' }}>
+                      <span className={cn("flex-1 text-[9px] font-bold text-center", mes.totais.margem_ebitda_plan >= 0 ? "text-blue-600" : "text-red-600")}>{formatarPorcentagem(mes.totais.margem_ebitda_plan)}</span>
+                      <div className="w-px h-3 bg-emerald-200" />
+                      <span className={cn("flex-1 text-[9px] font-bold text-center", mes.totais.margem_ebitda_proj >= 0 ? "text-green-600" : "text-red-600")}>{formatarPorcentagem(mes.totais.margem_ebitda_proj)}</span>
+                      <div className="w-px h-3 bg-emerald-200" />
+                      <span className={cn("flex-1 text-[9px] font-bold text-center", mes.totais.margem_ebitda_real >= 0 ? "text-emerald-700" : "text-red-600")}>{formatarPorcentagem(mes.totais.margem_ebitda_real)}</span>
                     </div>
                   </div>
                 );

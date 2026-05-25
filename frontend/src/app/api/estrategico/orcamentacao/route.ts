@@ -376,11 +376,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { bar_id, ano, mes, categoria_nome, subcategoria, valor_planejado, valor_projetado, valor_realizado, observacoes, tipo } = body;
+    const { bar_id, ano, mes, categoria_nome, valor_planejado, valor_projetado, valor_realizado, valor_realizado_manual, observacao, atualizado_por } = body;
 
-    if (!bar_id || !ano || !categoria_nome) {
+    if (!bar_id || !ano || !mes || !categoria_nome) {
       return NextResponse.json(
-        { success: false, error: 'Parâmetros obrigatórios não fornecidos' },
+        { success: false, error: 'Parametros obrigatorios: bar_id, ano, mes, categoria_nome' },
         { status: 400 }
       );
     }
@@ -390,68 +390,57 @@ export async function POST(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    // Preparar dados para inserção/atualização
-    const dadosUpsert: any = {
-      bar_id,
-      ano,
-      mes,
+    // Upsert em meta.orcamento_planilha (via view public.orcamento_planilha)
+    const dadosUpsert: Record<string, unknown> = {
+      bar_id: Number(bar_id),
+      ano: Number(ano),
+      mes: Number(mes),
       categoria_nome,
-      subcategoria
+      atualizado_em: new Date().toISOString(),
     };
 
-    // Adicionar valor planejado se fornecido
     if (valor_planejado !== undefined) {
       dadosUpsert.valor_planejado = Number(valor_planejado) || 0;
+      dadosUpsert.fonte_planejado = 'manual';
     }
-
-    // Adicionar valor projetado se fornecido
     if (valor_projetado !== undefined) {
       dadosUpsert.valor_projetado = Number(valor_projetado) || 0;
+      dadosUpsert.fonte_projetado = 'manual';
+    }
+    // Aceita 'valor_realizado' (compat) ou 'valor_realizado_manual'
+    const realManual = valor_realizado_manual !== undefined ? valor_realizado_manual : valor_realizado;
+    if (realManual !== undefined) {
+      dadosUpsert.valor_realizado_manual = Number(realManual) || 0;
+      dadosUpsert.fonte_realizado = 'manual';
+    }
+    if (observacao !== undefined) {
+      dadosUpsert.observacao = observacao;
+    }
+    if (atualizado_por !== undefined) {
+      dadosUpsert.atualizado_por = atualizado_por;
     }
 
-    // Adicionar valor realizado se fornecido
-    if (valor_realizado !== undefined) {
-      dadosUpsert.valor_realizado = Number(valor_realizado) || 0;
-    }
-
-    // Adicionar observações se fornecidas
-    if (observacoes !== undefined) {
-      dadosUpsert.observacoes = observacoes;
-    }
-
-    // Determinar tipo se não fornecido
-    if (!tipo) {
-      const valorReferencia = valor_planejado !== undefined ? valor_planejado : valor_realizado;
-      dadosUpsert.tipo = valorReferencia >= 0 ? 'receita' : 'despesa';
-    } else {
-      dadosUpsert.tipo = tipo;
-    }
-
-    // Inserir ou atualizar
-    const { data, error } = await supabase
-      .from('orcamentacao')
+    // Tenta via schema 'meta' diretamente, fallback pra view public
+    const { data, error } = await (supabase.schema('meta' as any) as any)
+      .from('orcamento_planilha')
       .upsert(dadosUpsert, {
-        onConflict: 'bar_id,ano,mes,categoria_nome,subcategoria'
+        onConflict: 'bar_id,ano,mes,categoria_nome',
       })
       .select();
 
     if (error) {
-      console.error('Erro ao salvar orçamento:', error);
+      console.error('Erro ao salvar orcamento_planilha:', error);
       return NextResponse.json(
-        { success: false, error: 'Erro ao salvar dados do orçamento' },
+        { success: false, error: error.message || 'Erro ao salvar orcamento' },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      data: data[0]
-    });
-
-  } catch (error) {
-    console.error('Erro na API de orçamento (POST):', error);
+    return NextResponse.json({ success: true, data: data?.[0] });
+  } catch (error: any) {
+    console.error('Erro na API de orcamento (POST):', error);
     return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
+      { success: false, error: error?.message || 'Erro interno' },
       { status: 500 }
     );
   }
