@@ -417,27 +417,19 @@ export default function StockoutPage() {
     }
   };
 
-  // Funções para gerenciar filtros
+  // Funções para gerenciar filtros.
+  // Nao chamar buscar*() aqui — o useEffect ja reage a mudanca de filtrosAtivos.
+  // Antes chamava duas vezes (aqui + effect), dobrando requests.
   const toggleFiltro = (filtro: string) => {
-    setFiltrosAtivos(prev => {
-      const novos = prev.includes(filtro) 
+    setFiltrosAtivos(prev =>
+      prev.includes(filtro)
         ? prev.filter(f => f !== filtro)
-        : [...prev, filtro];
-      
-      // Recarregar dados com novos filtros
-      if (selectedDate && activeTab === 'diario') {
-        buscarDadosStockout(selectedDate, novos);
-      }
-      
-      return novos;
-    });
+        : [...prev, filtro]
+    );
   };
 
   const limparFiltros = () => {
     setFiltrosAtivos([]);
-    if (selectedDate && activeTab === 'diario') {
-      buscarDadosStockout(selectedDate, []);
-    }
   };
 
   // Configurar título da página
@@ -448,20 +440,12 @@ export default function StockoutPage() {
 
   // Carregar dados automaticamente quando o bar for selecionado ou mudar
   useEffect(() => {
-    // Não fazer nada se o bar ainda está carregando ou não foi selecionado
-    if (barLoading || !selectedBar?.id) {
-      console.log('⏳ Aguardando bar ser carregado...', { barLoading, selectedBar });
-      return;
-    }
-
-    console.log('🏪 Bar selecionado:', selectedBar.nome, '(ID:', selectedBar.id, ')');
+    if (barLoading || !selectedBar?.id) return;
 
     if (activeTab === 'diario') {
       if (modoAnalise === 'unica' && selectedDate) {
-        console.log('🚀 Carregando dados iniciais para:', selectedDate);
         buscarDadosStockout(selectedDate, filtrosAtivos);
       } else if (modoAnalise === 'periodo') {
-        console.log('🚀 Carregando dados de período:', dataInicioDiaria, 'a', dataFimDiaria);
         buscarDadosPeriodo();
       }
     } else if (activeTab === 'historico') {

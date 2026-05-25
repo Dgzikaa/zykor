@@ -159,9 +159,10 @@ export default function AgenteDashboard() {
     }
   };
 
-  useEffect(() => {
-    fetchInsightsAgente();
-  }, [selectedBar?.id]);
+  // Auto-fetch desabilitado: chamava Claude no mount de toda visita ao /home,
+  // virou gargalo de LCP (Anthropic call demora ~2-4s) e custava muito.
+  // Agora o usuario clica em "Gerar insights" pra disparar manualmente.
+  // useEffect(() => { fetchInsightsAgente(); }, [selectedBar?.id]);
 
   const getStatusColor = (status: string) => {
     switch (status) {

@@ -340,12 +340,17 @@ export async function GET(request: NextRequest) {
     const integracoes: IntegracaoResposta[] = await Promise.all(
       CATALOGO_INTEGRACOES.map(async (cat) => {
         const ehGlobal = Boolean(cat.global);
-        const { credencial, statusCredencial, temRefreshToken } = ehGlobal
-          ? await checarCredencialGlobal(cat)
-          : await checarCredencialBar(supabase, cat, barId);
-
-        const sync = await pegarUltimaSync(supabase, cat, ehGlobal ? null : barId);
-        const volume = await pegarVolume7d(supabase, cat, ehGlobal ? null : barId);
+        // Paralelizar as 3 chamadas (credencial + ultima sync + volume).
+        // Antes rodava sequencial — com 30 integracoes era O(3N) round trips,
+        // agora eh O(N) round trips (~3x mais rapido por endpoint).
+        const [credResult, sync, volume] = await Promise.all([
+          ehGlobal
+            ? checarCredencialGlobal(cat)
+            : checarCredencialBar(supabase, cat, barId),
+          pegarUltimaSync(supabase, cat, ehGlobal ? null : barId),
+          pegarVolume7d(supabase, cat, ehGlobal ? null : barId),
+        ]);
+        const { credencial, statusCredencial, temRefreshToken } = credResult;
         const { status, problemas } = calcularStatusGeral(
           statusCredencial,
           sync.ultima,
@@ -386,7 +391,13 @@ export async function GET(request: NextRequest) {
       nao_configuradas: integracoes.filter((i) => i.statusGeral === 'nao_configurada').length,
     };
 
-    return NextResponse.json({ success: true, barId, resumo, integracoes });
+    return NextResponse.json({ success: true, barId, resumo, integracoes }, {
+      headers: {
+        // Status de integracao muda lento (minutos). Cache 60s por usuario,
+        // serve stale ate 5min enquanto revalida em background.
+        'Cache-Control': 'private, max-age=60, stale-while-revalidate=300',
+      },
+    });
   } catch (error: any) {
     console.error('[integracoes] exceção:', error);
     return NextResponse.json({ error: error?.message || 'Erro interno' }, { status: 500 });

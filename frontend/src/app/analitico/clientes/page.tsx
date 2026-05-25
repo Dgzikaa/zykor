@@ -383,7 +383,7 @@ export default function ClientesPage() {
   }, [fetchClientes])
 
   const listaQuenteCarregadaRef = useRef(false)
-  
+
   useEffect(() => {
     if (activeTab === 'reservantes' && reservantes.length === 0) {
       fetchReservantes()
@@ -399,9 +399,8 @@ export default function ClientesPage() {
     setBuscaAplicada(buscaCliente.trim())
   }, [buscaCliente])
 
-  useEffect(() => {
-    fetchClientes()
-  }, [buscaAplicada, fetchClientes])
+  // O useEffect acima ja recarrega quando fetchClientes muda (deps incluem buscaAplicada).
+  // Antes tinha um effect duplicado pra buscaAplicada que disparava 2x request por mudanca.
 
   const handleWhatsAppClick = (nome: string, telefone: string | null) => {
     if (!telefone) {

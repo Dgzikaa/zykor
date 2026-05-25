@@ -6,6 +6,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { 
   BarChart3,
   Settings,
@@ -19,7 +20,6 @@ import {
   AlertCircle,
   Star
 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import Link from 'next/link';
 
 // Otimização: AgenteDashboard carregado sob demanda (contém lógica pesada)
@@ -163,28 +163,26 @@ export default function HomePage() {
     });
   }, [user]);
 
-  const currentTime = new Date().toLocaleTimeString('pt-BR', { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  });
-
-  const currentDate = new Date().toLocaleDateString('pt-BR', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  });
+  // Tempo/data calculados em state + useEffect pra evitar hydration mismatch
+  // (server vs client locale + timezone podem divergir).
+  const [currentTime, setCurrentTime] = useState('');
+  const [currentDate, setCurrentDate] = useState('');
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+      setCurrentDate(now.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+    };
+    tick();
+    const id = setInterval(tick, 60_000); // atualiza a cada minuto
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="h-full px-4 sm:px-6 py-4 sm:py-8 flex flex-col max-w-none">
         {/* Header - Apenas hora e data */}
-        <motion.div 
-          className="mb-8 flex-shrink-0"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: isLoaded ? 1 : 0, y: isLoaded ? 0 : -20 }}
-          transition={{ duration: 0.6 }}
-        >
+        <div className={cn("mb-8 flex-shrink-0 transition-all duration-500", isLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-5")}>
           <div className="flex items-center justify-end">
             <div className="text-right">
               <div className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -195,25 +193,15 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Agente Dashboard */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: isLoaded ? 1 : 0, y: isLoaded ? 0 : 20 }}
-          transition={{ duration: 0.6, delay: 0.15 }}
-          className="mb-6"
-        >
+        <div className={cn("mb-6 transition-all duration-500 delay-150", isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5")}>
           <AgenteDashboard />
-        </motion.div>
+        </div>
 
         {/* Main Content - Grid Full Width */}
-        <motion.div 
-          className="flex-1"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: isLoaded ? 1 : 0, y: isLoaded ? 0 : 20 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-        >
+        <div className={cn("flex-1 transition-all duration-500 delay-300", isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5")}>
           {quickActions.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-16">
               <div className="p-4 bg-amber-100 dark:bg-amber-900/30 rounded-full mb-4">
@@ -229,17 +217,13 @@ export default function HomePage() {
           ) : (
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6 h-full">
             {quickActions.map((action, index) => (
-              <motion.div
+              <div
                 key={index}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.1 * index }}
-                className="group"
-                whileHover={{ y: -4, scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
+                className="group animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
+                style={{ animationDelay: `${index * 60}ms` }}
               >
                 <Link href={action.href}>
-                  <div className="relative h-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl sm:rounded-2xl p-4 sm:p-8 cursor-pointer transition-all duration-300 hover:shadow-xl dark:hover:shadow-2xl hover:shadow-blue-500/10 dark:hover:shadow-blue-500/20 hover:border-blue-300 dark:hover:border-blue-600 overflow-hidden min-h-[140px] sm:min-h-[240px]">
+                  <div className="relative h-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl sm:rounded-2xl p-4 sm:p-8 cursor-pointer transition-all duration-300 hover:shadow-xl dark:hover:shadow-2xl hover:shadow-blue-500/10 dark:hover:shadow-blue-500/20 hover:border-blue-300 dark:hover:border-blue-600 hover:-translate-y-1 active:scale-95 overflow-hidden min-h-[140px] sm:min-h-[240px]">
                     
                     {/* Badge */}
                     {action.badge && (
@@ -280,11 +264,11 @@ export default function HomePage() {
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-xl sm:rounded-2xl"></div>
                   </div>
                 </Link>
-              </motion.div>
+              </div>
             ))}
           </div>
           )}
-        </motion.div>
+        </div>
 
       </div>
     </div>
