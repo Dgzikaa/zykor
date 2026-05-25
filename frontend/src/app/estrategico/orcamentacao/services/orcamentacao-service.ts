@@ -424,8 +424,13 @@ async function calcularCMVMensal(supabase: SupabaseClient, barId: number, mes: n
 // ==================== CATEGORIAS MANUAIS ====================
 // Realizado dessas categorias eh editado MANUAL na tela (nao vem do CA).
 //   CONTRATOS: cashback Ambev — calculo manual fora do CA pelo socio.
-//   Receitas Financeiras: tambem nao bate com o CA — socio preenche manual.
-const CATEGORIAS_REALIZADO_MANUAL = new Set<string>(['CONTRATOS', 'Receitas Financeiras']);
+//   Receitas Financeiras: nao bate com o CA — socio preenche manual.
+//   Outras Receitas: socio faz ajustes que nao entram no CA — manual tambem.
+const CATEGORIAS_REALIZADO_MANUAL = new Set<string>([
+  'CONTRATOS',
+  'Receitas Financeiras',
+  'Outras Receitas',
+]);
 
 // Categorias do CA que NAO entram na DRE operacional. Filtradas antes de agregar.
 // - Dividendos: distribuicao de lucro, nao OPEX
@@ -464,29 +469,24 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
   const dataInicio = `${primeiroMesPeriodo.ano}-${String(primeiroMesPeriodo.mes).padStart(2, '0')}-01`;
   const dataFim = `${ultimoMesPeriodo.ano}-${String(ultimoMesPeriodo.mes).padStart(2, '0')}-${String(ultimoDiaMes).padStart(2, '0')}`;
 
-  const [planilhaResult, dadosNiboTodos, dadosNiboPagos, manuaisResult, eventosResult] = await Promise.all([
+  // MEDALLION: realizado agora vem de gold.orcamento_realizado_mensal (pre-agregado)
+  // em vez de varrer ~15k rows do bronze toda vez. Refresh do gold via
+  // gold.fn_refresh_orcamento_periodo (rodado pos-sync CA + cron diario).
+  //
+  // Antes: 2x fetchAllPaginated em bronze + processamento de tipo/categoria/net em
+  // memoria (frágil, ja causou bug de paginacao que retornava ~50% dos valores).
+  // Agora: 1 query simples ao gold (~50 rows total).
+  const [planilhaResult, goldResult, manuaisResult, eventosResult] = await Promise.all([
     supabase
       .from('orcamento_planilha')
       .select('ano, mes, categoria_nome, valor_planejado, valor_projetado, valor_realizado_manual')
       .eq('bar_id', barId)
       .in('ano', anosUnicos),
-    fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, tipo, status, valor_bruto, data_competencia, descricao', [
-      { column: 'bar_id', operator: 'eq', value: barId },
-      { column: 'excluido_em', operator: 'is', value: null },
-      { column: 'data_competencia', operator: 'gte', value: dataInicio },
-      { column: 'data_competencia', operator: 'lte', value: dataFim }
-    ]),
-    // Realizado: TODOS os lancamentos por competencia (ACQUITTED + OVERDUE +
-    // PENDING). Antes filtrava so ACQUITTED mas a planilha do DRE no CA mostra
-    // por competencia, independente de pago. Ex: PROVISAO TRABALHISTA tem R$ 27k
-    // OVERDUE em Jan/26 que precisa aparecer; TAXA MAQUININHA R$ 36k OVERDUE; etc.
-    // Excluidos (excluido_em) e antecipacoes Stone ainda sao filtrados.
-    fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, tipo, status, valor_bruto, data_competencia, descricao', [
-      { column: 'bar_id', operator: 'eq', value: barId },
-      { column: 'excluido_em', operator: 'is', value: null },
-      { column: 'data_competencia', operator: 'gte', value: dataInicio },
-      { column: 'data_competencia', operator: 'lte', value: dataFim }
-    ]),
+    (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema('gold')
+      .from('orcamento_realizado_mensal')
+      .select('ano, mes, categoria_zykor, net, receita_total, despesa_total')
+      .eq('bar_id', barId)
+      .in('ano', anosUnicos),
     supabase.from('dre_manual').select('categoria, categoria_macro, valor, data_competencia, descricao')
       .gte('data_competencia', dataInicio).lte('data_competencia', dataFim),
     tbl(supabase, 'eventos_base').select('real_r, sympla_liquido, yuzer_liquido, m1_r, data_evento')
@@ -494,8 +494,15 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
   ]);
 
   const dadosPlanilha = (planilhaResult.data || []) as OrcamentoPlanilhaRow[];
+  const dadosGold = (goldResult.data || []) as Array<{ ano: number; mes: number; categoria_zykor: string; net: number | string }>;
   const dadosManuais = manuaisResult.data || [];
   const eventosBase = eventosResult.data || [];
+
+  // Index gold por (ano, mes, categoria_zykor) -> net (ja calculado: despesa - receita ou vice-versa)
+  const goldMap = new Map<string, number>();
+  dadosGold.forEach(g => {
+    goldMap.set(`${g.ano}-${g.mes}-${g.categoria_zykor}`, Number(g.net) || 0);
+  });
 
   // Index planilha por (ano, mes, categoria) -> { plan, proj, real_manual }
   const planilhaMap = new Map<string, OrcamentoPlanilhaRow>();
@@ -522,62 +529,9 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
   });
 
   return mesesParaBuscar.map(({ mes, ano }) => {
-    const mesFormatado = String(mes).padStart(2, '0');
-    const dataInicioMes = `${ano}-${mesFormatado}-01`;
-    const dataFimMes = `${ano}-${mesFormatado}-${new Date(ano, mes, 0).getDate()}`;
-    const cmvMensal = cmvMensalMap.get(`${ano}-${mes}`) || { cmvPercentual: 0, cmvValor: 0, faturamentoCmvivel: 0 };
-    const lancTodosMes = dadosNiboTodos.filter(item => item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes);
-    // ContaAzul v2: data_pagamento eh sempre NULL. Filtrar por data_competencia.
-    const lancPagosMes = dadosNiboPagos.filter(item => item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes);
-    const manuaisMes = dadosManuais.filter(item => item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes);
     // Lookup helper: pega planilha pra esta categoria neste mes
     const getPlanilha = (sub: string): OrcamentoPlanilhaRow | undefined =>
       planilhaMap.get(`${ano}-${mes}-${sub}`);
-
-    // Agrega ContaAzul por categoria + tipo. Lancamento com tipo=RECEITA e
-    // categoria_nome de despesa (ex: 'Custo Bebidas' RECEITA = devolucao Ambev)
-    // SUBTRAI da despesa: net = despesa_total - receita_da_mesma_categoria.
-    //
-    // Filtros:
-    // - Antecipacoes Stone (descricao 'STONE PAGAMENTO ANTECIPAC...') — R$474k em
-    //   Jan/26 que sao adiantamentos de parcelas futuras, nao venda do mes.
-    // - CATEGORIAS_IGNORADAS (Dividendos, [Investimento]*, Consultoria) — nao OPEX.
-    type CatBucket = { receita: number; despesa: number };
-    const valProj = new Map<string, CatBucket>(), valReal = new Map<string, CatBucket>();
-    const ehAntecipacaoStone = (it: any) =>
-      typeof it.descricao === 'string' &&
-      /STONE\s+PAGAMENTO\s+ANTECIPAC/i.test(it.descricao);
-    const process = (it: any, target: Map<string, CatBucket>) => {
-      if (!it.categoria_nome) return;
-      if (ehAntecipacaoStone(it)) return;
-      if (CATEGORIAS_IGNORADAS.has(it.categoria_nome)) return;
-      const cat = CATEGORIAS_MAP.get(it.categoria_nome) || it.categoria_nome;
-      const valor = Math.abs(parseFloat(it.valor_bruto) || 0);
-      const bucket = target.get(cat) || { receita: 0, despesa: 0 };
-      if (it.tipo === 'RECEITA') bucket.receita += valor;
-      else bucket.despesa += valor;
-      target.set(cat, bucket);
-    };
-    lancTodosMes.forEach(it => process(it, valProj));
-    lancPagosMes.forEach(it => process(it, valReal));
-    manuaisMes.forEach(it => {
-      let cat = it.categoria;
-      if (!CATEGORIAS_MAP.has(cat) && it.categoria_macro) cat = CATEGORIAS_MAP.get(it.categoria_macro) || it.categoria_macro;
-      if (CATEGORIAS_IGNORADAS.has(cat)) return;
-      const val = Math.abs(parseFloat(it.valor) || 0);
-      const isRec = it.categoria_macro === 'Receita';
-      const bp = valProj.get(cat) || { receita: 0, despesa: 0 };
-      const br = valReal.get(cat) || { receita: 0, despesa: 0 };
-      if (isRec) { bp.receita += val; br.receita += val; }
-      else { bp.despesa += val; br.despesa += val; }
-      valProj.set(cat, bp);
-      valReal.set(cat, br);
-    });
-
-    // Net por subcategoria: pra cat Zykor de receita, net = receita - despesa (estorno).
-    // Pra cat Zykor de despesa, net = despesa - receita (devolucao abate).
-    const netReceita = (b: CatBucket | undefined) => (b?.receita ?? 0) - (b?.despesa ?? 0);
-    const netDespesa = (b: CatBucket | undefined) => (b?.despesa ?? 0) - (b?.receita ?? 0);
 
     const fatReal = faturamentoRealMap.get(`${ano}-${mes}`) || { realizado: 0, meta: 0 };
 
@@ -591,18 +545,14 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
         const proj = Number(planRow?.valor_projetado || 0);
 
         // REALIZADO:
-        //   - Subcategorias em CATEGORIAS_REALIZADO_MANUAL (CONTRATOS): valor_realizado_manual
-        //     da planilha (user edita na tela; calculo nao vem do CA).
-        //   - Receitas: net = receitas - estornos (de valReal, todos status).
-        //   - Despesas: net = despesas - devolucoes (de valReal, todos status).
-        const isRec = SUBCAT_RECEITAS.has(sub);
+        //   - CATEGORIAS_REALIZADO_MANUAL (CONTRATOS, Receitas Financeiras, Outras
+        //     Receitas): valor_realizado_manual da planilha (socio edita na tela).
+        //   - Demais: vem do gold.orcamento_realizado_mensal (net ja calculado).
         let real: number;
         if (CATEGORIAS_REALIZADO_MANUAL.has(sub)) {
           real = Number(planRow?.valor_realizado_manual || 0);
-        } else if (isRec) {
-          real = netReceita(valReal.get(sub));
         } else {
-          real = netDespesa(valReal.get(sub));
+          real = goldMap.get(`${ano}-${mes}-${sub}`) || 0;
         }
 
         return { nome: sub, planejado: plan, projecao: proj, realizado: real, isPercentage: false };
