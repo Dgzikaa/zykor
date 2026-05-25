@@ -144,7 +144,10 @@ function isCmvBebidas(categoria: string): boolean {
   return cat.includes('destilados') || cat.includes('long neck') || cat.includes('lata') ||
          cat.includes('retornáv') || cat.includes('retornav') || cat.includes('vinhos') ||
          cat.includes('espumante') || cat.includes('não-alcóolic') || cat.includes('nao-alcoolic') ||
-         cat.includes('artesanal') || cat.includes('império') || cat.includes('imperio')
+         cat.includes('artesanal') || cat.includes('império') || cat.includes('imperio') ||
+         // OUTROS no banco contem tabacaria/chiclete/isqueiro (planilha do socio
+         // agrega isso em "Bebidas + Tabacaria" no DRE Excel).
+         cat === 'outros'
 }
 
 /**
@@ -729,28 +732,46 @@ async function calcularEstoquesSemanaais(
         .order('data_contagem', { ascending: true })
         .limit(1000)
 
-      // Buscar último dia da semana com dados
-      const { data: ultimoDia } = await supabase
-        .schema('operations')
-        .from('contagem_estoque_insumos')
-        .select('data_contagem, insumo_codigo, categoria, estoque_final, custo_unitario')
-        .eq('bar_id', barId)
-        .gte('data_contagem', semanaInicio)
-        .lte('data_contagem', semanaFimStr)
-        .order('data_contagem', { ascending: false })
-        .limit(1000)
+      // Buscar TODOS dias da semana (paginado) — vamos pegar ultima contagem de cada item.
+      // Antes filtrava so o ultimo dia, mas o socio faz contagem completa no domingo (~325
+      // itens) e durante a semana so conta os de movimento alto (~80 itens). O fix antigo
+      // perdia ~244 itens contados so na contagem inicial.
+      const todosContagensSemana: any[] = []
+      let pageStart = 0
+      const PAGE = 1000
+      while (true) {
+        const { data: pageData } = await supabase
+          .schema('operations')
+          .from('contagem_estoque_insumos')
+          .select('data_contagem, insumo_codigo, insumo_nome, categoria, estoque_final, custo_unitario')
+          .eq('bar_id', barId)
+          .gte('data_contagem', semanaInicio)
+          .lte('data_contagem', semanaFimStr)
+          .order('data_contagem', { ascending: false })
+          .range(pageStart, pageStart + PAGE - 1)
+        if (!pageData || pageData.length === 0) break
+        todosContagensSemana.push(...pageData)
+        if (pageData.length < PAGE) break
+        pageStart += PAGE
+      }
 
-      if (!primeiroDia?.length || !ultimoDia?.length) continue
+      if (!primeiroDia?.length || todosContagensSemana.length === 0) continue
 
-      // Calcular apenas estoque final (último dia com dados da semana)
+      // Reduzir pra ultima contagem POR INSUMO (chave = codigo+nome).
+      // ordem desc por data_contagem garante que pegamos o mais recente primeiro.
+      const ultimaContagemPorInsumo = new Map<string, any>()
+      for (const item of todosContagensSemana) {
+        const key = (item.insumo_codigo || '') + '|' + (item.insumo_nome || '')
+        if (!ultimaContagemPorInsumo.has(key)) {
+          ultimaContagemPorInsumo.set(key, item)
+        }
+      }
+
       let estoqueFinalCozinha = 0
       let estoqueFinalBebidas = 0
       let estoqueFinalDrinks = 0
 
-      const dataUltimo = ultimoDia[0].data_contagem
-      const dadosUltimoDia = ultimoDia.filter((d: any) => d.data_contagem === dataUltimo)
-      
-      for (const item of dadosUltimoDia) {
+      for (const item of ultimaContagemPorInsumo.values()) {
         const valor = (item.estoque_final || 0) * (item.custo_unitario || 0)
         if (isCmvCozinha(item.categoria)) estoqueFinalCozinha += valor
         if (isCmvBebidas(item.categoria)) estoqueFinalBebidas += valor
