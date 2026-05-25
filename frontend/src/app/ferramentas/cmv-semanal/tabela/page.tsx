@@ -213,7 +213,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         semCollapse: true,
         metricas: [
           { key: 'vendas_brutas', label: 'Faturamento Bruto', status: 'auto', fonte: 'ContaHub', calculo: 'SUM(valor) excluindo Conta Assinada', formato: 'moeda', drilldown: true },
-          { key: 'vendas_liquidas', label: 'Faturamento Limpo', status: 'calculado', fonte: 'Calculado', calculo: 'Fat. Bruto - Comissão - Couvert', formato: 'moeda' },
+          { key: 'vendas_liquidas', label: 'Faturamento Limpo', status: 'calculado', fonte: 'Calculado', calculo: 'Fat. Bruto - Gorjeta (vd_vrrepique) - Couvert (vd_vrcouvert)', formato: 'moeda' },
         ]
       }
     ]
@@ -293,7 +293,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
           { key: 'cmv_real', label: 'CMV R$', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial + Compras - Est.Final - Consumos - Bonificações', formato: 'moeda' },
           { key: 'cmv_percentual', label: 'CMV Real (%)', status: 'calculado', fonte: 'Calculado', calculo: 'CMV R$ / Faturamento Bruto × 100', formato: 'percentual' },
           { key: 'cmv_limpo_percentual', label: 'CMV Limpo (%)', status: 'calculado', fonte: 'Calculado', calculo: '(CMV R$ / Fat. Líquido) × 100', formato: 'percentual' },
-          { key: 'cmv_teorico_percentual', label: 'CMV Teórico/Meta (%)', status: 'manual', fonte: 'Manual ou Meta', calculo: 'Valor manual da semana/mês (clique pra editar). Se vazio, espelha a meta global.', formato: 'percentual', editavel: true },
+          { key: 'cmv_teorico_percentual', label: 'CMV Teórico (%)', status: 'manual', fonte: 'Manual ou Meta', calculo: 'Valor manual da semana/mês (clique pra editar). Se vazio, espelha a meta global.', formato: 'percentual', editavel: true },
         ]
       }
     ]
