@@ -260,11 +260,12 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         label: `(-) Consumações × ${fatorCmv}`,
         metricas: [
           { key: 'total_consumos', label: `TOTAL (×${fatorCmv})`, status: 'calculado', fonte: 'Calculado', calculo: `Soma de todas as consumações × ${fatorCmv} (CMV)`, formato: 'moeda' },
-          { key: 'total_consumo_socios', label: `Sócios (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %sócio% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'mesa_adm_casa', label: `Funcionários (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %adm% ou %casa% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'mesa_beneficios_cliente', label: `Clientes (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %benefício% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'mesa_banda_dj', label: `Artistas (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %banda% ou %dj% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'mesa_rh', label: `RH (×${fatorCmv})`, status: 'auto', fonte: 'Planilha CMV', calculo: `Mesa RH Operação + Mesa RH Escritório × ${fatorCmv}`, formato: 'moeda', drilldown: true },
+          // Usar colunas consumo_* que ja tem o fator CMV aplicado (= bruto × fator).
+          // Antes a UI mostrava mesa_* (bruto, sem fator), confundindo o usuario.
+          { key: 'consumo_socios', label: `Sócios (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %sócio% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
+          { key: 'consumo_beneficios', label: `Clientes (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %benefício% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
+          { key: 'consumo_artista', label: `Artistas (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %banda% ou %dj% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
+          { key: 'consumo_rh', label: `Funcionários/RH (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `(Operacao + Escritorio) × ${fatorCmv}`, formato: 'moeda', drilldown: true },
           { key: 'chegadeira', label: `Chegadeira (×${fatorCmv})`, status: 'auto', fonte: 'Planilha CMV', calculo: `Sincronizado da planilha × ${fatorCmv}`, formato: 'moeda', drilldown: true },
         ]
       },
