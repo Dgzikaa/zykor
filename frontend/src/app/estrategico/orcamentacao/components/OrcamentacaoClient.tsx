@@ -260,6 +260,19 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
             <div className="h-[48px] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center sticky top-0 z-30">
               <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">CATEGORIA</span>
             </div>
+            {/* Indicadores agregados (header — antes da tabela) */}
+            <div className="flex items-center gap-2 px-2 bg-slate-100 dark:bg-slate-800 border-b border-gray-200" style={{ height: '28px' }}>
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Real Fixo</span>
+            </div>
+            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Faturamento Meta</span>
+            </div>
+            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">% CONTRIB</span>
+            </div>
+            <div className="flex items-center gap-2 px-2 border-b-2 border-gray-400 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">BreakEven</span>
+            </div>
             {meses.length > 0 && meses[0].categorias.map(categoria => (
               <div key={categoria.nome}>
                 <div className={cn("flex items-center gap-2 px-2 cursor-pointer", categoria.cor)} style={{ height: '32px' }} onClick={() => toggleSecao(categoria.nome)}>
@@ -287,19 +300,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                 })}
               </div>
             ))}
-            {/* Indicadores agregados (estilo BP) */}
-            <div className="flex items-center gap-2 px-2 border-t-2 border-gray-400 bg-slate-100 dark:bg-slate-800" style={{ height: '28px' }}>
-              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Real Fixo</span>
-            </div>
-            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
-              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Faturamento Meta</span>
-            </div>
-            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
-              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">% CONTRIB</span>
-            </div>
-            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
-              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">BreakEven</span>
-            </div>
+            {/* EBITDA + Margem (rodapé) */}
             <div className="flex items-center gap-2 px-2 border-t-2 border-emerald-300 bg-emerald-100 dark:bg-emerald-900/30" style={{ height: '36px' }}>
               <DollarSign className="w-3 h-3 text-emerald-700" />
               <span className="text-[10px] font-bold text-emerald-800">EBITDA</span>
@@ -320,6 +321,48 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                       <div className="flex gap-1 text-[8px] text-gray-500">
                         <span className="text-blue-600">Plan.</span><span>|</span><span className="text-green-600">Proj.</span><span>|</span><span className="text-gray-600 dark:text-gray-300">Real.</span>
                       </div>
+                    </div>
+                    {/* Indicadores agregados (antes da tabela) */}
+                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-200" : "bg-slate-100 dark:bg-slate-800")} style={{ height: '28px' }}>
+                      <span className="flex-1 text-[9px] font-bold text-center text-blue-600">{formatarMoeda(mes.totais.real_fixo_plan)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-green-600">{formatarMoeda(mes.totais.real_fixo_proj)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-gray-900 dark:text-white">{formatarMoeda(mes.totais.real_fixo_real)}</span>
+                    </div>
+                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
+                      {(() => {
+                        const isEditFM = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === 'FATURAMENTO META' && editando?.campo === 'planejado';
+                        return isEditFM ? (
+                          <div className="flex-1 flex items-center justify-center gap-0.5">
+                            <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-14 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                            <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
+                          </div>
+                        ) : (
+                          <span
+                            className="flex-1 text-[9px] font-bold text-center text-blue-600 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
+                            onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: 'FATURAMENTO META', campo: 'planejado' }); setValorEdit(mes.totais.faturamento_meta_plan.toString()); }}
+                          >{formatarMoeda(mes.totais.faturamento_meta_plan)}</span>
+                        );
+                      })()}
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-green-600">{formatarMoeda(mes.totais.faturamento_meta_proj)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-gray-900 dark:text-white">{formatarMoeda(mes.totais.faturamento_meta_real)}</span>
+                    </div>
+                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
+                      <span className="flex-1 text-[9px] font-bold text-center text-blue-600">{formatarPorcentagem(mes.totais.perc_contrib_plan)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-green-600">{formatarPorcentagem(mes.totais.perc_contrib_proj)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-gray-900 dark:text-white">{formatarPorcentagem(mes.totais.perc_contrib_real)}</span>
+                    </div>
+                    <div className={cn("flex items-center justify-between px-1 border-b-2 border-gray-400", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
+                      <span className="flex-1 text-[9px] font-bold text-center text-blue-600">{formatarMoeda(mes.totais.breakeven_plan)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-green-600">{formatarMoeda(mes.totais.breakeven_proj)}</span>
+                      <div className="w-px h-3 bg-slate-300" />
+                      <span className="flex-1 text-[9px] font-bold text-center text-gray-900 dark:text-white">{formatarMoeda(mes.totais.breakeven_real)}</span>
                     </div>
                     {mes.categorias.map(categoria => (
                       <div key={categoria.nome}>
@@ -417,51 +460,6 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                         })}
                       </div>
                     ))}
-                    {/* Real Fixo */}
-                    <div className={cn("flex items-center justify-between px-1 border-t-2 border-gray-400", isMesAtual ? "bg-slate-200" : "bg-slate-100 dark:bg-slate-800")} style={{ height: '28px' }}>
-                      <span className="flex-1 text-[9px] font-bold text-center text-blue-600">{formatarMoeda(mes.totais.real_fixo_plan)}</span>
-                      <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[9px] font-bold text-center text-green-600">{formatarMoeda(mes.totais.real_fixo_proj)}</span>
-                      <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[9px] font-bold text-center text-gray-900 dark:text-white">{formatarMoeda(mes.totais.real_fixo_real)}</span>
-                    </div>
-                    {/* Faturamento Meta (editavel plan) */}
-                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
-                      {(() => {
-                        const isEditFM = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === 'FATURAMENTO META' && editando?.campo === 'planejado';
-                        return isEditFM ? (
-                          <div className="flex-1 flex items-center justify-center gap-0.5">
-                            <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-14 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
-                            <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
-                          </div>
-                        ) : (
-                          <span
-                            className="flex-1 text-[9px] font-bold text-center text-blue-600 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
-                            onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: 'FATURAMENTO META', campo: 'planejado' }); setValorEdit(mes.totais.faturamento_meta_plan.toString()); }}
-                          >{formatarMoeda(mes.totais.faturamento_meta_plan)}</span>
-                        );
-                      })()}
-                      <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[9px] font-bold text-center text-green-600">{formatarMoeda(mes.totais.faturamento_meta_proj)}</span>
-                      <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[9px] font-bold text-center text-gray-900 dark:text-white">{formatarMoeda(mes.totais.faturamento_meta_real)}</span>
-                    </div>
-                    {/* % CONTRIB */}
-                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
-                      <span className="flex-1 text-[9px] font-bold text-center text-blue-600">{formatarPorcentagem(mes.totais.perc_contrib_plan)}</span>
-                      <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[9px] font-bold text-center text-green-600">{formatarPorcentagem(mes.totais.perc_contrib_proj)}</span>
-                      <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[9px] font-bold text-center text-gray-900 dark:text-white">{formatarPorcentagem(mes.totais.perc_contrib_real)}</span>
-                    </div>
-                    {/* BreakEven */}
-                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
-                      <span className="flex-1 text-[9px] font-bold text-center text-blue-600">{formatarMoeda(mes.totais.breakeven_plan)}</span>
-                      <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[9px] font-bold text-center text-green-600">{formatarMoeda(mes.totais.breakeven_proj)}</span>
-                      <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[9px] font-bold text-center text-gray-900 dark:text-white">{formatarMoeda(mes.totais.breakeven_real)}</span>
-                    </div>
                     {/* EBITDA */}
                     <div className={cn("flex items-center justify-between px-1 border-t-2 border-emerald-300", isMesAtual ? "bg-emerald-100" : "bg-emerald-50 dark:bg-emerald-900/20")} style={{ height: '36px' }}>
                       <span className={cn("flex-1 text-[9px] font-bold text-center", mes.totais.ebitda_plan >= 0 ? "text-blue-700" : "text-red-600")}>{formatarMoeda(mes.totais.ebitda_plan)}</span>

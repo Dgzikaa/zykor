@@ -374,12 +374,15 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
       { column: 'data_competencia', operator: 'gte', value: dataInicio },
       { column: 'data_competencia', operator: 'lte', value: dataFim }
     ]),
-    fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_pagamento', [
+    // ATENCAO: ContaAzul v2 nao preenche data_pagamento na maioria dos lancamentos
+    // (39117 ACQUITTED com data_pagamento=NULL). Filtrar por data_competencia eh
+    // o correto pra orcamento (gasto do MES, nao quando foi pago).
+    fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia', [
       { column: 'bar_id', operator: 'eq', value: barId },
       { column: 'excluido_em', operator: 'is', value: null },
       { column: 'status', operator: 'in', value: ['ACQUITTED', 'PARTIAL'] },
-      { column: 'data_pagamento', operator: 'gte', value: dataInicio },
-      { column: 'data_pagamento', operator: 'lte', value: dataFim }
+      { column: 'data_competencia', operator: 'gte', value: dataInicio },
+      { column: 'data_competencia', operator: 'lte', value: dataFim }
     ]),
     supabase.from('dre_manual').select('categoria, categoria_macro, valor, data_competencia, descricao')
       .gte('data_competencia', dataInicio).lte('data_competencia', dataFim),
@@ -421,7 +424,8 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     const dataFimMes = `${ano}-${mesFormatado}-${new Date(ano, mes, 0).getDate()}`;
     const cmvMensal = cmvMensalMap.get(`${ano}-${mes}`) || { cmvPercentual: 0, cmvValor: 0, faturamentoCmvivel: 0 };
     const lancTodosMes = dadosNiboTodos.filter(item => item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes);
-    const lancPagosMes = dadosNiboPagos.filter(item => item.data_pagamento >= dataInicioMes && item.data_pagamento <= dataFimMes);
+    // ContaAzul v2: data_pagamento eh sempre NULL. Filtrar por data_competencia.
+    const lancPagosMes = dadosNiboPagos.filter(item => item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes);
     const manuaisMes = dadosManuais.filter(item => item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes);
     // Lookup helper: pega planilha pra esta categoria neste mes
     const getPlanilha = (sub: string): OrcamentoPlanilhaRow | undefined =>
