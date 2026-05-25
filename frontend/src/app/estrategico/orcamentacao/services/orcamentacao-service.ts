@@ -438,7 +438,7 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
       .select('ano, mes, categoria_nome, valor_planejado, valor_projetado, valor_realizado_manual')
       .eq('bar_id', barId)
       .in('ano', anosUnicos),
-    fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia', [
+    fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia, descricao', [
       { column: 'bar_id', operator: 'eq', value: barId },
       { column: 'excluido_em', operator: 'is', value: null },
       { column: 'data_competencia', operator: 'gte', value: dataInicio },
@@ -447,7 +447,7 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     // ATENCAO: ContaAzul v2 nao preenche data_pagamento na maioria dos lancamentos
     // (39117 ACQUITTED com data_pagamento=NULL). Filtrar por data_competencia eh
     // o correto pra orcamento (gasto do MES, nao quando foi pago).
-    fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia', [
+    fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia, descricao', [
       { column: 'bar_id', operator: 'eq', value: barId },
       { column: 'excluido_em', operator: 'is', value: null },
       { column: 'status', operator: 'in', value: ['ACQUITTED', 'PARTIAL'] },
@@ -502,9 +502,15 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
       planilhaMap.get(`${ano}-${mes}-${sub}`);
 
     // Agrega ContaAzul: cada subcategoria recebe a soma da(s) categoria(s) CA mapeada(s) pra ela.
+    // Filtra antecipacoes Stone (R$ 474k em Jan/26 'Stone Credito' com descricao
+    // 'STONE PAGAMENTO ANTECIPAC...'). Sao adiantamentos de parcelas futuras, nao venda do mes.
     const valProj = new Map<string, number>(), valReal = new Map<string, number>();
+    const ehAntecipacaoStone = (it: any) =>
+      typeof it.descricao === 'string' &&
+      /STONE\s+PAGAMENTO\s+ANTECIPAC/i.test(it.descricao);
     const process = (it: any, target: Map<string, number>) => {
       if (!it.categoria_nome) return;
+      if (ehAntecipacaoStone(it)) return;
       const cat = CATEGORIAS_MAP.get(it.categoria_nome) || it.categoria_nome;
       target.set(cat, (target.get(cat) || 0) + Math.abs(parseFloat(it.valor_bruto) || 0));
     };
