@@ -140,33 +140,26 @@ export function BpClient({
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-[1400px] mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Business Plan</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            DRE projetada e análise semanal vs realizado (planejamento comercial).
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Versão:</span>
-          <Select value={`${anoAtual}|${versaoAtual}`} onValueChange={handleChangeVersao}>
-            <SelectTrigger className="w-[180px] h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {versoes.length === 0 ? (
-                <SelectItem value={`${anoAtual}|${versaoAtual}`}>{`${versaoAtual} (${anoAtual})`}</SelectItem>
-              ) : (
-                versoes.map(v => (
-                  <SelectItem key={`${v.ano}|${v.versao}`} value={`${v.ano}|${v.versao}`}>
-                    {v.versao} ({v.ano})
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-        </div>
+    <div className="p-3 md:p-4 space-y-3">
+      {/* Seletor de versao no topo direito (sem titulo — ja esta dentro da aba BP) */}
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-xs text-muted-foreground">Versão:</span>
+        <Select value={`${anoAtual}|${versaoAtual}`} onValueChange={handleChangeVersao}>
+          <SelectTrigger className="w-[180px] h-8">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {versoes.length === 0 ? (
+              <SelectItem value={`${anoAtual}|${versaoAtual}`}>{`${versaoAtual} (${anoAtual})`}</SelectItem>
+            ) : (
+              versoes.map(v => (
+                <SelectItem key={`${v.ano}|${v.versao}`} value={`${v.ano}|${v.versao}`}>
+                  {v.versao} ({v.ano})
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Indicadores macro fixos */}
