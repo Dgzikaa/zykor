@@ -74,170 +74,240 @@ export interface MesOrcamento {
 
 // ==================== CONFIGURAÇÃO ====================
 
+// Estrutura DRE (espelha exatamente o ContaAzul). Todas as categorias sao valor absoluto.
 const ESTRUTURA_CATEGORIAS = [
   {
-    nome: 'Receitas',
+    nome: 'Receita',
     cor: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
     tipo: 'receita',
-    subcategorias: ['RECEITA BRUTA', 'CONTRATOS', 'Receitas Financeiras']
+    subcategorias: [
+      'Stone Crédito',
+      'Stone Débito',
+      'Stone Pix',
+      'Pix Direto na Conta',
+      'Dinheiro',
+      'Receita de Eventos',
+      'Outras Receitas',
+    ]
   },
   {
-    nome: 'Despesas Variáveis (%)',
+    nome: 'Custos Variáveis',
     cor: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
     tipo: 'despesa',
-    subcategorias: ['IMPOSTO/TX MAQ/COMISSAO']
+    subcategorias: ['IMPOSTO', 'PROVISÃO FISCAL', 'COMISSÃO 10%', 'TAXA MAQUININHA']
   },
   {
-    nome: 'CMV (%)',
+    nome: 'Custo insumos (CMV)',
     cor: 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300',
     tipo: 'despesa',
-    subcategorias: ['CMV']
+    subcategorias: ['Custo Drinks', 'Custo Bebidas', 'Custo Comida', 'Custo Outros']
   },
   {
-    nome: 'Pessoal',
+    nome: 'Mão-de-Obra',
     cor: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
     tipo: 'despesa',
     subcategorias: [
-      'CUSTO-EMPRESA FUNCIONÁRIOS',
-      'ADICIONAIS',
+      'SALARIO FUNCIONARIOS',
+      'PROVISÃO TRABALHISTA',
+      'VALE TRANSPORTE',
       'ALIMENTAÇÃO',
+      'ADICIONAIS',
       'FREELA ATENDIMENTO',
       'FREELA BAR',
       'FREELA COZINHA',
       'FREELA LIMPEZA',
       'FREELA SEGURANÇA',
-      'PRO LABORE'
+      'FREELA BRIGADISTA',
+      'PRO LABORE',
     ]
   },
   {
-    nome: 'Administrativas',
-    cor: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300',
-    tipo: 'despesa',
-    subcategorias: ['Escritório Central', 'Administrativo Ordinário', 'RECURSOS HUMANOS']
-  },
-  {
-    nome: 'Marketing e Eventos',
+    nome: 'Despesas Comerciais',
     cor: 'bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300',
     tipo: 'despesa',
-    subcategorias: ['Marketing', 'MKT Beneficios', 'Atrações Programação', 'Produção Eventos']
+    subcategorias: ['Marketing', 'Atrações Programação', 'Produção Eventos']
   },
   {
-    nome: 'Operacionais',
+    nome: 'Despesas Administrativas',
+    cor: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300',
+    tipo: 'despesa',
+    subcategorias: ['Administrativo Ordinário', 'Escritório Central', 'Recursos Humanos']
+  },
+  {
+    nome: 'Despesas Operacionais',
     cor: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300',
     tipo: 'despesa',
     subcategorias: [
       'Materiais Operação',
-      'Estorno',
       'Materiais de Limpeza e Descartáveis',
       'Utensílios',
-      'Outros Operação'
+      'Estorno',
+      'Outros Operação',
     ]
   },
   {
-    nome: 'Ocupação',
+    nome: 'Despesas de Ocupação',
     cor: 'bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-300',
     tipo: 'despesa',
-    subcategorias: ['ALUGUEL/CONDOMÍNIO/IPTU', 'ÁGUA', 'GÁS', 'INTERNET', 'Manutenção', 'LUZ', 'TENDA']
+    subcategorias: ['ALUGUEL/CONDOMÍNIO/IPTU', 'ÁGUA', 'MANUTENÇÃO', 'TENDA', 'INTERNET', 'GÁS', 'LUZ']
+  },
+  {
+    nome: 'Não Operacionais',
+    cor: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300',
+    tipo: 'receita',
+    subcategorias: ['Receitas Financeiras', 'Contratos']
   }
 ];
 
-const CATEGORIAS_MAP = new Map([
-  ['IMPOSTO/TX MAQ/COMISSAO', 'IMPOSTO/TX MAQ/COMISSAO'],
-  ['IMPOSTO', 'IMPOSTO/TX MAQ/COMISSAO'],
-  ['TAXA MAQUININHA', 'IMPOSTO/TX MAQ/COMISSAO'],
-  ['COMISSÃO', 'IMPOSTO/TX MAQ/COMISSAO'],
-  ['COMISSAO', 'IMPOSTO/TX MAQ/COMISSAO'],
-  ['COMISSÃO 10%', 'IMPOSTO/TX MAQ/COMISSAO'],
-  ['PROVISÃO FISCAL', 'IMPOSTO/TX MAQ/COMISSAO'],
-  ['PROVISAO FISCAL', 'IMPOSTO/TX MAQ/COMISSAO'],
-  ['Custo Comida', 'CMV'],
-  ['Custo Drinks', 'CMV'],
-  ['Custo Bebidas', 'CMV'],
-  ['Custo Outros', 'CMV'],
-  ['CUSTO COMIDA', 'CMV'],
-  ['CUSTO DRINKS', 'CMV'],
-  ['CUSTO BEBIDAS', 'CMV'],
-  ['CUSTO OUTROS', 'CMV'],
-  ['CUSTO-EMPRESA FUNCIONÁRIOS', 'CUSTO-EMPRESA FUNCIONÁRIOS'],
-  ['CUSTO-EMPRESA FUNCIONARIOS', 'CUSTO-EMPRESA FUNCIONÁRIOS'],
-  ['SALARIO FUNCIONARIOS', 'CUSTO-EMPRESA FUNCIONÁRIOS'],
-  ['SALÁRIO FUNCIONÁRIOS', 'CUSTO-EMPRESA FUNCIONÁRIOS'],
-  ['PROVISÃO TRABALHISTA', 'CUSTO-EMPRESA FUNCIONÁRIOS'],
-  ['PROVISAO TRABALHISTA', 'CUSTO-EMPRESA FUNCIONÁRIOS'],
-  ['FREELA SEGURANÇA', 'FREELA SEGURANÇA'],
-  ['FREELA SEGURANCA', 'FREELA SEGURANÇA'],
-  ['FREELA BRIGADISTA', 'FREELA SEGURANÇA'],
-  ['FREELA ATENDIMENTO', 'FREELA ATENDIMENTO'],
-  ['FREELA COZINHA', 'FREELA COZINHA'],
-  ['FREELA BAR', 'FREELA BAR'],
-  ['FREELA LIMPEZA', 'FREELA LIMPEZA'],
-  ['ADICIONAIS', 'ADICIONAIS'],
+// Mapping ContaAzul categoria -> subcategoria Zykor (1:1 com a estrutura DRE).
+// Variacoes (uppercase/sem acento/alias) levam ao mesmo destino canonico.
+const CATEGORIAS_MAP = new Map<string, string>([
+  // Receita
+  ['Stone Crédito', 'Stone Crédito'],
+  ['Stone Credito', 'Stone Crédito'],
+  ['STONE CRÉDITO', 'Stone Crédito'],
+  ['Stone Débito', 'Stone Débito'],
+  ['Stone Debito', 'Stone Débito'],
+  ['STONE DÉBITO', 'Stone Débito'],
+  ['Stone Pix', 'Stone Pix'],
+  ['STONE PIX', 'Stone Pix'],
+  ['Pix Direto na Conta', 'Pix Direto na Conta'],
+  ['PIX DIRETO NA CONTA', 'Pix Direto na Conta'],
+  ['Dinheiro', 'Dinheiro'],
+  ['DINHEIRO', 'Dinheiro'],
+  ['Receita de Eventos', 'Receita de Eventos'],
+  ['RECEITA DE EVENTOS', 'Receita de Eventos'],
+  ['Outras Receitas', 'Outras Receitas'],
+  ['OUTRAS RECEITAS', 'Outras Receitas'],
+
+  // Custos Variáveis
+  ['IMPOSTO', 'IMPOSTO'],
+  ['Imposto', 'IMPOSTO'],
+  ['PROVISÃO FISCAL', 'PROVISÃO FISCAL'],
+  ['PROVISAO FISCAL', 'PROVISÃO FISCAL'],
+  ['Provisão Fiscal', 'PROVISÃO FISCAL'],
+  ['COMISSÃO 10%', 'COMISSÃO 10%'],
+  ['COMISSAO 10%', 'COMISSÃO 10%'],
+  ['Comissão 10%', 'COMISSÃO 10%'],
+  ['COMISSÃO', 'COMISSÃO 10%'],
+  ['TAXA MAQUININHA', 'TAXA MAQUININHA'],
+  ['Taxa Maquininha', 'TAXA MAQUININHA'],
+
+  // Custo insumos (CMV)
+  ['Custo Drinks', 'Custo Drinks'],
+  ['CUSTO DRINKS', 'Custo Drinks'],
+  ['Custo Bebidas', 'Custo Bebidas'],
+  ['CUSTO BEBIDAS', 'Custo Bebidas'],
+  ['Custo Comida', 'Custo Comida'],
+  ['CUSTO COMIDA', 'Custo Comida'],
+  ['Custo Outros', 'Custo Outros'],
+  ['CUSTO OUTROS', 'Custo Outros'],
+
+  // Mão-de-Obra
+  ['SALARIO FUNCIONARIOS', 'SALARIO FUNCIONARIOS'],
+  ['SALÁRIO FUNCIONÁRIOS', 'SALARIO FUNCIONARIOS'],
+  ['Salário Funcionários', 'SALARIO FUNCIONARIOS'],
+  ['PROVISÃO TRABALHISTA', 'PROVISÃO TRABALHISTA'],
+  ['PROVISAO TRABALHISTA', 'PROVISÃO TRABALHISTA'],
+  ['Provisão Trabalhista', 'PROVISÃO TRABALHISTA'],
+  ['VALE TRANSPORTE', 'VALE TRANSPORTE'],
+  ['Vale Transporte', 'VALE TRANSPORTE'],
   ['ALIMENTAÇÃO', 'ALIMENTAÇÃO'],
   ['ALIMENTACAO', 'ALIMENTAÇÃO'],
+  ['Alimentação', 'ALIMENTAÇÃO'],
+  ['ADICIONAIS', 'ADICIONAIS'],
+  ['Adicionais', 'ADICIONAIS'],
+  ['FREELA ATENDIMENTO', 'FREELA ATENDIMENTO'],
+  ['FREELA BAR', 'FREELA BAR'],
+  ['FREELA COZINHA', 'FREELA COZINHA'],
+  ['FREELA LIMPEZA', 'FREELA LIMPEZA'],
+  ['FREELA SEGURANÇA', 'FREELA SEGURANÇA'],
+  ['FREELA SEGURANCA', 'FREELA SEGURANÇA'],
+  ['FREELA BRIGADISTA', 'FREELA BRIGADISTA'],
   ['PRO LABORE', 'PRO LABORE'],
-  ['VALE TRANSPORTE', 'RECURSOS HUMANOS'],
-  ['RECURSOS HUMANOS', 'RECURSOS HUMANOS'],
-  ['Recursos Humanos', 'RECURSOS HUMANOS'],
+  ['Pro Labore', 'PRO LABORE'],
+
+  // Despesas Comerciais
+  ['Marketing', 'Marketing'],
+  ['MARKETING', 'Marketing'],
+  ['Atrações Programação', 'Atrações Programação'],
+  ['ATRAÇÕES PROGRAMAÇÃO', 'Atrações Programação'],
+  ['ATRAÇÕES', 'Atrações Programação'],
+  ['Produção Eventos', 'Produção Eventos'],
+  ['PRODUÇÃO EVENTOS', 'Produção Eventos'],
+
+  // Despesas Administrativas
   ['Administrativo Ordinário', 'Administrativo Ordinário'],
+  ['ADMINISTRATIVO ORDINÁRIO', 'Administrativo Ordinário'],
   ['ADMINISTRATIVO', 'Administrativo Ordinário'],
   ['Escritório Central', 'Escritório Central'],
   ['ESCRITÓRIO CENTRAL', 'Escritório Central'],
-  ['ALUGUEL/CONDOMÍNIO/IPTU', 'ALUGUEL/CONDOMÍNIO/IPTU'],
-  ['ALUGUEL', 'ALUGUEL/CONDOMÍNIO/IPTU'],
-  ['LUZ', 'LUZ'],
-  ['ÁGUA', 'ÁGUA'],
-  ['AGUA', 'ÁGUA'],
-  ['GÁS', 'GÁS'],
-  ['GAS', 'GÁS'],
-  ['INTERNET', 'INTERNET'],
-  ['Manutenção', 'Manutenção'],
-  ['MANUTENÇÃO', 'Manutenção'],
-  ['Materiais de Limpeza e Descartáveis', 'Materiais de Limpeza e Descartáveis'],
-  ['MATERIAIS DE LIMPEZA E DESCARTÁVEIS', 'Materiais de Limpeza e Descartáveis'],
+  ['Recursos Humanos', 'Recursos Humanos'],
+  ['RECURSOS HUMANOS', 'Recursos Humanos'],
+
+  // Despesas Operacionais
   ['Materiais Operação', 'Materiais Operação'],
   ['MATERIAIS OPERAÇÃO', 'Materiais Operação'],
-  ['Outros Operação', 'Outros Operação'],
-  ['OUTROS OPERAÇÃO', 'Outros Operação'],
+  ['Materiais de Limpeza e Descartáveis', 'Materiais de Limpeza e Descartáveis'],
+  ['MATERIAIS DE LIMPEZA E DESCARTÁVEIS', 'Materiais de Limpeza e Descartáveis'],
   ['Utensílios', 'Utensílios'],
   ['UTENSÍLIOS', 'Utensílios'],
   ['Estorno', 'Estorno'],
   ['ESTORNO', 'Estorno'],
+  ['Outros Operação', 'Outros Operação'],
+  ['OUTROS OPERAÇÃO', 'Outros Operação'],
+
+  // Despesas de Ocupação
+  ['ALUGUEL/CONDOMÍNIO/IPTU', 'ALUGUEL/CONDOMÍNIO/IPTU'],
+  ['ALUGUEL', 'ALUGUEL/CONDOMÍNIO/IPTU'],
+  ['ÁGUA', 'ÁGUA'],
+  ['AGUA', 'ÁGUA'],
+  ['Água', 'ÁGUA'],
+  ['MANUTENÇÃO', 'MANUTENÇÃO'],
+  ['MANUTENCAO', 'MANUTENÇÃO'],
+  ['Manutenção', 'MANUTENÇÃO'],
   ['TENDA', 'TENDA'],
   ['Tenda', 'TENDA'],
-  ['Contratos', 'CONTRATOS'],
-  ['CONTRATOS', 'CONTRATOS'],
-  ['Contratos Anuais', 'CONTRATOS'],
+  ['INTERNET', 'INTERNET'],
+  ['Internet', 'INTERNET'],
+  ['GÁS', 'GÁS'],
+  ['GAS', 'GÁS'],
+  ['Gás', 'GÁS'],
+  ['LUZ', 'LUZ'],
+  ['Luz', 'LUZ'],
+
+  // Não Operacionais
   ['Receitas Financeiras', 'Receitas Financeiras'],
   ['RECEITAS FINANCEIRAS', 'Receitas Financeiras'],
-  ['Marketing', 'Marketing'],
-  ['MARKETING', 'Marketing'],
-  ['Produção Eventos', 'Produção Eventos'],
-  ['PRODUÇÃO EVENTOS', 'Produção Eventos'],
-  ['Atrações Programação', 'Atrações Programação'],
-  ['ATRAÇÕES PROGRAMAÇÃO', 'Atrações Programação'],
-  ['ATRAÇÕES', 'Atrações Programação'],
-  ['RECEITA BRUTA', 'RECEITA BRUTA'],
-  ['RECEITA', 'RECEITA BRUTA'],
-  ['FATURAMENTO', 'RECEITA BRUTA'],
-  ['VENDAS', 'RECEITA BRUTA'],
-  ['CONTRATOS', 'CONTRATOS'],
-  ['CONTRATO', 'CONTRATOS'],
-  ['Contratos', 'CONTRATOS'],
-  ['Contratos Anuais', 'CONTRATOS'],
-  ['OUTRAS RECEITAS', 'CONTRATOS'],
-  ['Outras Receitas', 'CONTRATOS'],
-  ['Ambev Bonificações Contrato Anual', 'CONTRATOS'],
-  ['Ambev Bonificação Contrato Cash-back Março', 'CONTRATOS'],
-  ['Ambev Bonificação Contrato Cash-back Fevereiro', 'CONTRATOS'],
-  ['Ambev Bonificação Contrato Cash-back Junho', 'CONTRATOS'],
-  ['Ambev Bonificação Contrato Cash-back Julho', 'CONTRATOS'],
-  ['MKT Beneficios', 'MKT Beneficios'],
-  ['MKT Benefícios', 'MKT Beneficios'],
-  ['Outros Operação', 'Outros Operação'],
+  ['Contratos', 'Contratos'],
+  ['CONTRATOS', 'Contratos'],
+  ['Contratos Anuais', 'Contratos'],
+  ['Ambev Bonificações Contrato Anual', 'Contratos'],
+  ['Ambev Bonificação Contrato Cash-back Março', 'Contratos'],
+  ['Ambev Bonificação Contrato Cash-back Fevereiro', 'Contratos'],
+  ['Ambev Bonificação Contrato Cash-back Junho', 'Contratos'],
+  ['Ambev Bonificação Contrato Cash-back Julho', 'Contratos'],
 ]);
 
-const CATEGORIAS_PERCENTUAIS = ['IMPOSTO/TX MAQ/COMISSAO', 'CMV'];
 const MESES_NOMES = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+// Set das subcategorias que sao RECEITA (pra filtrar quando agregamos CA).
+// Tudo que NAO esta aqui eh despesa.
+const SUBCAT_RECEITAS = new Set<string>(
+  ESTRUTURA_CATEGORIAS.filter(c => c.tipo === 'receita').flatMap(c => c.subcategorias)
+);
+
+// Set dos blocos que compoem o Real Fixo (custos operacionais NAO variaveis).
+const BLOCOS_REAL_FIXO = new Set([
+  'Mão-de-Obra',
+  'Despesas Comerciais',
+  'Despesas Administrativas',
+  'Despesas Operacionais',
+  'Despesas de Ocupação',
+]);
+
+// Set dos blocos que compoem os custos VARIAVEIS (entram no calculo de % CONTRIB).
+const BLOCOS_VARIAVEIS = new Set(['Custos Variáveis', 'Custo insumos (CMV)']);
 
 // ==================== HELPERS ====================
 
@@ -333,16 +403,10 @@ async function calcularCMVMensal(supabase: SupabaseClient, barId: number, mes: n
 }
 
 // ==================== CATEGORIAS MANUAIS ====================
-// Para essas categorias, Realizado eh editado direto na tela (n vem do ContaAzul):
-//   IMPOSTO/TX MAQ/COMISSAO: depende de calculo (Stone n integrado ainda)
-//   CMV: vem de cmv_semanal mas socio pode override manual
-//   CUSTO-EMPRESA FUNCIONÁRIOS: folha CLT n esta no CA
-//   FATURAMENTO META: receita projetada/realizada (vem de eventos.real_r p/ realizado)
-const CATEGORIAS_REALIZADO_MANUAL = new Set([
-  'IMPOSTO/TX MAQ/COMISSAO',
-  'CMV',
-  'CUSTO-EMPRESA FUNCIONÁRIOS',
-]);
+// Apos a refatoracao DRE, TUDO vem do ContaAzul (categoria por categoria).
+// Plan/Proj continuam editaveis na tela (gravam em meta.orcamento_planilha),
+// Realizado eh sempre automatico (CA). Nenhuma subcategoria com edicao manual de Real.
+const CATEGORIAS_REALIZADO_MANUAL = new Set<string>([]);
 
 interface OrcamentoPlanilhaRow {
   ano: number;
@@ -439,11 +503,7 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     const getPlanilha = (sub: string): OrcamentoPlanilhaRow | undefined =>
       planilhaMap.get(`${ano}-${mes}-${sub}`);
 
-    let recProj = 0, recReal = 0;
-    lancTodosMes.forEach(it => { if (['Receita de Eventos', 'Stone Crédito', 'Stone Débito', 'Stone Pix', 'Dinheiro', 'Pix Direto na Conta', 'RECEITA BRUTA'].includes(it.categoria_nome)) recProj += Math.abs(parseFloat(it.valor_bruto) || 0); });
-    lancPagosMes.forEach(it => { if (['Receita de Eventos', 'Stone Crédito', 'Stone Débito', 'Stone Pix', 'Dinheiro', 'Pix Direto na Conta', 'RECEITA BRUTA'].includes(it.categoria_nome)) recReal += Math.abs(parseFloat(it.valor_bruto) || 0); });
-    manuaisMes.forEach(it => { if (it.categoria_macro === 'Receita') { const val = Math.abs(parseFloat(it.valor) || 0); recProj += val; recReal += val; }});
-
+    // Agrega ContaAzul: cada subcategoria recebe a soma da(s) categoria(s) CA mapeada(s) pra ela.
     const valProj = new Map<string, number>(), valReal = new Map<string, number>();
     const process = (it: any, target: Map<string, number>) => {
       if (!it.categoria_nome) return;
@@ -461,52 +521,30 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     });
 
     const fatReal = faturamentoRealMap.get(`${ano}-${mes}`) || { realizado: 0, meta: 0 };
-    const recBasePer = fatReal.realizado > 0 ? fatReal.realizado : recReal;
-
-    CATEGORIAS_PERCENTUAIS.forEach(c => {
-      if (c === 'CMV') return;
-      if (valProj.has(c) && recProj > 0) valProj.set(c, (valProj.get(c)! / recProj) * 100);
-      if (valReal.has(c) && recBasePer > 0) valReal.set(c, (valReal.get(c)! / recBasePer) * 100);
-    });
-    valProj.set('CMV', cmvMensal.cmvPercentual); valReal.set('CMV', cmvMensal.cmvPercentual);
-    valProj.set('RECEITA BRUTA', recProj); valReal.set('RECEITA BRUTA', recReal);
 
     const categorias = ESTRUTURA_CATEGORIAS.map(cat => ({
       nome: cat.nome, cor: cat.cor, tipo: cat.tipo,
       subcategorias: cat.subcategorias.map(sub => {
-        const isPct = CATEGORIAS_PERCENTUAIS.includes(sub);
         const planRow = getPlanilha(sub);
 
         // PLANEJADO e PROJETADO = sempre da planilha (meta.orcamento_planilha)
         const plan = Number(planRow?.valor_planejado || 0);
         const proj = Number(planRow?.valor_projetado || 0);
 
-        // REALIZADO:
-        //   - Para categorias manuais (IMPOSTO/CMV/CUSTO-EMPRESA/CONTRATOS):
-        //     valor_realizado_manual da planilha (editavel na UI)
-        //   - Para RECEITA BRUTA: eventos_base.real_r (ContaHub+Sympla+Yuzer)
-        //   - Para CMV: cmv_semanal (calculo automatico)
-        //   - Demais: ContaAzul agregado por categoria
-        let real: number;
-        if (sub === 'RECEITA BRUTA') {
-          real = fatReal.realizado;
-        } else if (sub === 'CMV') {
-          real = Number(planRow?.valor_realizado_manual || 0) || cmvMensal.cmvPercentual;
-        } else if (CATEGORIAS_REALIZADO_MANUAL.has(sub)) {
-          real = Number(planRow?.valor_realizado_manual || 0);
-        } else {
-          real = valReal.get(sub) || 0;
-        }
+        // REALIZADO: sempre automatico do ContaAzul (categoria agregada).
+        // Receita usa "todos lancamentos" (proj), despesa usa "ACQUITTED" (real).
+        const isRec = SUBCAT_RECEITAS.has(sub);
+        const real = isRec ? (valProj.get(sub) || 0) : (valReal.get(sub) || 0);
 
-        return { nome: sub, planejado: plan, projecao: proj, realizado: real, isPercentage: isPct };
+        return { nome: sub, planejado: plan, projecao: proj, realizado: real, isPercentage: false };
       })
     }));
 
-    let recPlanTot = 0, recProjTot = 0, recRealTot = 0, desPlanTot = 0, desProjTot = 0, desRealTot = 0;
-    // Real Fixo = soma dos blocos Pessoal + Adm + Marketing + Operacionais + Ocupacao
-    //             (NAO inclui Despesas Variaveis nem CMV nem Receitas/Contratos)
+    // Totais simples (receita e despesa) + Real Fixo (custos operacionais nao variaveis).
+    let recPlanTot = 0, recProjTot = 0, recRealTot = 0;
+    let desPlanTot = 0, desProjTot = 0, desRealTot = 0;
     let realFixoPlan = 0, realFixoProj = 0, realFixoReal = 0;
-    const BLOCOS_REAL_FIXO = new Set(['Pessoal', 'Administrativas', 'Marketing e Eventos', 'Operacionais', 'Ocupação']);
+    let varPlanTot = 0, varProjTot = 0, varRealTot = 0; // custos variaveis (impostos + CMV)
 
     categorias.forEach(cat => {
       cat.subcategorias.forEach(sub => {
@@ -515,50 +553,41 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
           recProjTot += sub.projecao;
           recRealTot += sub.realizado;
         } else {
-          if (sub.isPercentage) {
-            desPlanTot += (sub.planejado / 100) * recPlanTot;
-            desProjTot += (sub.projecao / 100) * recProjTot;
-            desRealTot += (sub.realizado / 100) * recRealTot;
-          } else {
-            desPlanTot += sub.planejado;
-            desProjTot += sub.projecao;
-            desRealTot += sub.realizado;
-            if (BLOCOS_REAL_FIXO.has(cat.nome)) {
-              realFixoPlan += sub.planejado;
-              realFixoProj += sub.projecao;
-              realFixoReal += sub.realizado;
-            }
+          desPlanTot += sub.planejado;
+          desProjTot += sub.projecao;
+          desRealTot += sub.realizado;
+          if (BLOCOS_REAL_FIXO.has(cat.nome)) {
+            realFixoPlan += sub.planejado;
+            realFixoProj += sub.projecao;
+            realFixoReal += sub.realizado;
+          } else if (BLOCOS_VARIAVEIS.has(cat.nome)) {
+            varPlanTot += sub.planejado;
+            varProjTot += sub.projecao;
+            varRealTot += sub.realizado;
           }
         }
       });
     });
 
-    // Faturamento Meta:
-    //   plan: categoria 'FATURAMENTO META' da planilha (manual, valor_planejado)
-    //   proj: soma M1 do planejamento comercial daquele mes (eventos_base.m1_r)
+    // Faturamento Meta (referencia separada da soma da Receita do DRE):
+    //   plan: meta.orcamento_planilha categoria='FATURAMENTO META' (digitado)
+    //   proj: soma M1 do planejamento comercial (eventos_base.m1_r)
     //   real: soma receita real do planejamento comercial (eventos_base.real_r)
     const fatMetaRow = getPlanilha('FATURAMENTO META');
     const fatMetaPlan = Number(fatMetaRow?.valor_planejado || 0);
     const fatMetaProj = fatReal.meta;
     const fatMetaReal = fatReal.realizado;
 
-    // % Contribuicao Variavel = 1 - (IMPOSTO/TX MAQ/COMISSAO + CMV) [valores em %]
-    const subImposto = categorias.flatMap(c => c.subcategorias).find(s => s.nome === 'IMPOSTO/TX MAQ/COMISSAO');
-    const subCmv = categorias.flatMap(c => c.subcategorias).find(s => s.nome === 'CMV');
-    const subContratos = categorias.flatMap(c => c.subcategorias).find(s => s.nome === 'CONTRATOS');
-    const impPlanPct = Number(subImposto?.planejado || 0);
-    const impProjPct = Number(subImposto?.projecao || 0);
-    const impRealPct = Number(subImposto?.realizado || 0);
-    const cmvPlanPct = Number(subCmv?.planejado || 0);
-    const cmvProjPct = Number(subCmv?.projecao || 0);
-    const cmvRealPct = Number(subCmv?.realizado || 0);
+    // Contratos = bloco "Nao Operacionais" (somente Contratos pra EBITDA).
+    const subContratos = categorias.flatMap(c => c.subcategorias).find(s => s.nome === 'Contratos');
     const contratosPlan = Number(subContratos?.planejado || 0);
     const contratosProj = Number(subContratos?.projecao || 0);
     const contratosReal = Number(subContratos?.realizado || 0);
 
-    const percContribPlan = 1 - (impPlanPct + cmvPlanPct) / 100;
-    const percContribProj = 1 - (impProjPct + cmvProjPct) / 100;
-    const percContribReal = 1 - (impRealPct + cmvRealPct) / 100;
+    // % CONTRIB = 1 - custos_variaveis / receita. (valores absolutos agora)
+    const percContribPlan = recPlanTot > 0 ? 1 - varPlanTot / recPlanTot : 0;
+    const percContribProj = recProjTot > 0 ? 1 - varProjTot / recProjTot : 0;
+    const percContribReal = recRealTot > 0 ? 1 - varRealTot / recRealTot : 0;
 
     // BreakEven = Real Fixo / % CONTRIB
     const breakEvenPlan = percContribPlan > 0 ? realFixoPlan / percContribPlan : 0;

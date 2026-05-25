@@ -29,13 +29,9 @@ interface OrcamentacaoClientProps {
   barId: number;
 }
 
-// Subcategorias com Realizado MANUAL (digitado direto na tela).
-// Demais sao automaticas (Realizado vem do ContaAzul ou eventos_base).
-const SUBCATEGORIAS_MANUAIS = new Set([
-  'IMPOSTO/TX MAQ/COMISSAO',
-  'CMV',
-  'CUSTO-EMPRESA FUNCIONÁRIOS',
-]);
+// Apos refatoracao DRE, Realizado eh sempre automatico (vem do ContaAzul).
+// Set fica vazio pra manter retrocompatibilidade com checks .has(sub) abaixo.
+const SUBCATEGORIAS_MANUAIS = new Set<string>([]);
 
 // Formatadores
 const formatarMoeda = (valor: number | null | undefined): string => {
@@ -76,10 +72,11 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     return initialData.findIndex(m => m.mes === mesAtual && m.ano === anoAtual);
   });
   
+  // Categorias colapsadas por default. Header mostra a soma das subs.
   const [secoesAbertas, setSecoesAbertas] = useState<Record<string, boolean>>(() => {
     const secoes: Record<string, boolean> = {};
     if (initialData.length > 0) {
-      initialData[0].categorias.forEach(cat => { secoes[cat.nome] = true; });
+      initialData[0].categorias.forEach(cat => { secoes[cat.nome] = false; });
     }
     return secoes;
   });
@@ -363,10 +360,32 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                       <div className="w-px h-3 bg-slate-300" />
                       <span className="flex-1 text-[9px] font-bold text-center text-gray-900 dark:text-white">{formatarMoeda(mes.totais.breakeven_real)}</span>
                     </div>
-                    {mes.categorias.map(categoria => (
+                    {mes.categorias.map(categoria => {
+                      // Quando categoria esta collapsed, mostra a soma das subs (Plan/Proj/Real)
+                      const aberta = secoesAbertas[categoria.nome];
+                      const totPlan = categoria.subcategorias.reduce((s, sub) => s + sub.planejado, 0);
+                      const totProj = categoria.subcategorias.reduce((s, sub) => s + sub.projecao, 0);
+                      const totReal = categoria.subcategorias.reduce((s, sub) => s + sub.realizado, 0);
+                      const isReceita = categoria.tipo === 'receita';
+                      let corClasseReal = 'text-gray-700 dark:text-gray-300';
+                      if (totPlan > 0 || totReal > 0) {
+                        if (isReceita) corClasseReal = totReal >= totPlan ? 'text-emerald-600' : 'text-red-600';
+                        else corClasseReal = totReal <= totPlan ? 'text-emerald-600' : 'text-red-600';
+                      }
+                      return (
                       <div key={categoria.nome}>
-                        <div className={cn(categoria.cor, "opacity-20")} style={{ height: '32px' }} />
-                        {secoesAbertas[categoria.nome] && categoria.subcategorias.map(sub => {
+                        {aberta ? (
+                          <div className={cn(categoria.cor, "opacity-20")} style={{ height: '32px' }} />
+                        ) : (
+                          <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", categoria.cor, "bg-opacity-60 dark:bg-opacity-30")} style={{ height: '32px' }}>
+                            <span className="flex-1 text-[9px] font-bold text-center text-blue-700 dark:text-blue-300">{formatarMoeda(totPlan)}</span>
+                            <div className="w-px h-3 bg-white/40" />
+                            <span className="flex-1 text-[9px] font-bold text-center text-green-700 dark:text-green-300">{formatarMoeda(totProj)}</span>
+                            <div className="w-px h-3 bg-white/40" />
+                            <span className={cn("flex-1 text-[9px] font-bold text-center", corClasseReal)}>{formatarMoeda(totReal)}</span>
+                          </div>
+                        )}
+                        {aberta && categoria.subcategorias.map(sub => {
                           const isEditPlan = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'planejado';
                           const isEditProj = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'projetado';
                           return (
@@ -458,7 +477,8 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                           );
                         })}
                       </div>
-                    ))}
+                      );
+                    })}
                     {/* EBITDA */}
                     <div className={cn("flex items-center justify-between px-1 border-t-2 border-emerald-300", isMesAtual ? "bg-emerald-100" : "bg-emerald-50 dark:bg-emerald-900/20")} style={{ height: '36px' }}>
                       <span className={cn("flex-1 text-[9px] font-bold text-center", mes.totais.ebitda_plan >= 0 ? "text-blue-700" : "text-red-600")}>{formatarMoeda(mes.totais.ebitda_plan)}</span>
