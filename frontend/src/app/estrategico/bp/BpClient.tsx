@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import type { BpLinha, BpIndicador, AnaliseSemanal, DiaSemana } from './types';
 import { cn } from '@/lib/utils';
+import { HistoricoOrcamentoTab } from '../orcamentacao/components/HistoricoOrcamentoTab';
 
 const DIAS: { key: DiaSemana; label: string; labelLong: string }[] = [
   { key: 'seg', label: 'Seg', labelLong: 'Segunda' },
@@ -65,9 +66,10 @@ export function BpClient({
   versaoAtual,
   mesAnalise,
   analise,
+  barId,
 }: Props) {
   const router = useRouter();
-  const [tab, setTab] = useState<'dre' | 'analise'>('dre');
+  const [tab, setTab] = useState<'dre' | 'analise' | 'historico'>('dre');
 
   const indMap = useMemo(() => {
     const m = new Map<string, BpIndicador>();
@@ -181,10 +183,11 @@ export function BpClient({
         <KpiCard label="CMV Alvo" valor={fmtPct(cmvAlvo)} />
       </div>
 
-      <Tabs value={tab} onValueChange={v => setTab(v as 'dre' | 'analise')}>
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+      <Tabs value={tab} onValueChange={v => setTab(v as 'dre' | 'analise' | 'historico')}>
+        <TabsList className="grid w-full grid-cols-3 max-w-md">
           <TabsTrigger value="dre">DRE Projetada</TabsTrigger>
           <TabsTrigger value="analise">Análise Semanal</TabsTrigger>
+          <TabsTrigger value="historico">Histórico</TabsTrigger>
         </TabsList>
 
         {/* ABA 1: DRE PROJETADA — estilo Excel */}
@@ -400,6 +403,10 @@ export function BpClient({
               <p><span className="text-emerald-600">Verde</span>: dentro/melhor que o BP. <span className="text-red-600">Vermelho</span>: pior que o BP (gastou mais em cachê, vendeu menos, etc).</p>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="historico" className="mt-4">
+          <HistoricoOrcamentoTab barId={barId} />
         </TabsContent>
       </Tabs>
     </div>

@@ -20,7 +20,9 @@ import {
   Pencil,
   BarChart3,
 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { MesOrcamento, CategoriaOrcamento, TotaisMes } from '../services/orcamentacao-service';
+import { HistoricoOrcamentoTab } from './HistoricoOrcamentoTab';
 
 interface OrcamentacaoClientProps {
   initialData: MesOrcamento[];
@@ -200,7 +202,15 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
   if (!selectedBar) return null; // Or show selector logic if needed, but BarSyncCheck should handle this
 
   return (
-    <div className="h-[calc(100vh-80px)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <Tabs defaultValue="orcamento" className="h-[calc(100vh-80px)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 pt-2">
+        <TabsList className="bg-transparent">
+          <TabsTrigger value="orcamento">Orçamentação</TabsTrigger>
+          <TabsTrigger value="historico">Histórico</TabsTrigger>
+        </TabsList>
+      </div>
+
+      <TabsContent value="orcamento" className="flex-1 flex flex-col overflow-hidden mt-0">
       <div className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div className="max-w-full mx-auto px-4 py-3">
           <div className="flex items-center justify-end mb-3">
@@ -475,7 +485,12 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
           </div>
         </div>
       </div>
-    </div>
+      </TabsContent>
+
+      <TabsContent value="historico" className="flex-1 overflow-auto mt-0">
+        <HistoricoOrcamentoTab barId={selectedBar.id} />
+      </TabsContent>
+    </Tabs>
   );
 }
 
