@@ -45,7 +45,8 @@ interface OrcamentacaoClientProps {
 // Subcategorias com Realizado MANUAL (bolinha azul, editavel na tela).
 // Demais sao automaticas (vem do CA).
 //   CONTRATOS: cashback Ambev calculado pelo socio fora do CA.
-const SUBCATEGORIAS_MANUAIS = new Set<string>(['CONTRATOS']);
+//   Receitas Financeiras: socio preenche manual.
+const SUBCATEGORIAS_MANUAIS = new Set<string>(['CONTRATOS', 'Receitas Financeiras']);
 
 // Formatadores
 const formatarMoeda = (valor: number | null | undefined): string => {

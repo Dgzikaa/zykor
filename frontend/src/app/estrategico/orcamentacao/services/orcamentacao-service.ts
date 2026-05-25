@@ -405,7 +405,8 @@ async function calcularCMVMensal(supabase: SupabaseClient, barId: number, mes: n
 // ==================== CATEGORIAS MANUAIS ====================
 // Realizado dessas categorias eh editado MANUAL na tela (nao vem do CA).
 //   CONTRATOS: cashback Ambev — calculo manual fora do CA pelo socio.
-const CATEGORIAS_REALIZADO_MANUAL = new Set<string>(['CONTRATOS']);
+//   Receitas Financeiras: tambem nao bate com o CA — socio preenche manual.
+const CATEGORIAS_REALIZADO_MANUAL = new Set<string>(['CONTRATOS', 'Receitas Financeiras']);
 
 // Categorias do CA que NAO entram na DRE operacional. Filtradas antes de agregar.
 // - Dividendos: distribuicao de lucro, nao OPEX
