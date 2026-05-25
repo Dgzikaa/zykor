@@ -163,14 +163,18 @@ const CATEGORIAS_MAP = new Map([
   ['PROVISAO TRABALHISTA', 'CUSTO-EMPRESA FUNCIONÁRIOS'],
   ['FREELA SEGURANÇA', 'FREELA SEGURANÇA'],
   ['FREELA SEGURANCA', 'FREELA SEGURANÇA'],
+  ['FREELA BRIGADISTA', 'FREELA SEGURANÇA'],
   ['FREELA ATENDIMENTO', 'FREELA ATENDIMENTO'],
   ['FREELA COZINHA', 'FREELA COZINHA'],
   ['FREELA BAR', 'FREELA BAR'],
   ['FREELA LIMPEZA', 'FREELA LIMPEZA'],
   ['ADICIONAIS', 'ADICIONAIS'],
+  ['ALIMENTAÇÃO', 'ALIMENTAÇÃO'],
+  ['ALIMENTACAO', 'ALIMENTAÇÃO'],
   ['PRO LABORE', 'PRO LABORE'],
-  ['VALE TRANSPORTE', 'VALE TRANSPORTE'],
+  ['VALE TRANSPORTE', 'RECURSOS HUMANOS'],
   ['RECURSOS HUMANOS', 'RECURSOS HUMANOS'],
+  ['Recursos Humanos', 'RECURSOS HUMANOS'],
   ['Administrativo Ordinário', 'Administrativo Ordinário'],
   ['ADMINISTRATIVO', 'Administrativo Ordinário'],
   ['Escritório Central', 'Escritório Central'],
@@ -209,6 +213,7 @@ const CATEGORIAS_MAP = new Map([
   ['CONTRATOS', 'CONTRATOS'],
   ['CONTRATO', 'CONTRATOS'],
   ['Contratos', 'CONTRATOS'],
+  ['Contratos Anuais', 'CONTRATOS'],
   ['OUTRAS RECEITAS', 'CONTRATOS'],
   ['Outras Receitas', 'CONTRATOS'],
   ['Ambev Bonificações Contrato Anual', 'CONTRATOS'],
@@ -216,6 +221,9 @@ const CATEGORIAS_MAP = new Map([
   ['Ambev Bonificação Contrato Cash-back Fevereiro', 'CONTRATOS'],
   ['Ambev Bonificação Contrato Cash-back Junho', 'CONTRATOS'],
   ['Ambev Bonificação Contrato Cash-back Julho', 'CONTRATOS'],
+  ['MKT Beneficios', 'MKT Beneficios'],
+  ['MKT Benefícios', 'MKT Beneficios'],
+  ['Outros Operação', 'Outros Operação'],
 ]);
 
 const CATEGORIAS_PERCENTUAIS = ['IMPOSTO/TX MAQ/COMISSAO', 'CMV'];
@@ -369,7 +377,7 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_pagamento', [
       { column: 'bar_id', operator: 'eq', value: barId },
       { column: 'excluido_em', operator: 'is', value: null },
-      { column: 'status', operator: 'in', value: ['PAGO', 'LIQUIDADO'] },
+      { column: 'status', operator: 'in', value: ['ACQUITTED', 'PARTIAL'] },
       { column: 'data_pagamento', operator: 'gte', value: dataInicio },
       { column: 'data_pagamento', operator: 'lte', value: dataFim }
     ]),

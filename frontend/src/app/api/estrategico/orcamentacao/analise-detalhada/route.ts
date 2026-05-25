@@ -135,7 +135,7 @@ export async function GET(request: Request) {
       cat.total_registros++;
       cat.total_valor += Math.abs(parseFloat(item.valor_bruto) || 0);
       
-      if (item.status === 'PAGO' || item.status === 'LIQUIDADO') {
+      if (item.status === 'ACQUITTED' || item.status === 'PARTIAL') {
         cat.registros_pagos++;
         cat.valor_pago += Math.abs(parseFloat(item.valor_bruto) || 0);
       }

@@ -410,7 +410,7 @@ export async function GET(request: Request) {
         [
           { column: 'bar_id', operator: 'eq', value: parseInt(barId) },
           { column: 'excluido_em', operator: 'is', value: null },
-          { column: 'status', operator: 'in', value: ['PAGO', 'LIQUIDADO'] },
+          { column: 'status', operator: 'in', value: ['ACQUITTED', 'PARTIAL'] },
           { column: 'data_pagamento', operator: 'gte', value: dataInicio },
           { column: 'data_pagamento', operator: 'lte', value: dataFim }
         ]
