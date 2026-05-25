@@ -7,56 +7,55 @@ export const revalidate = 120;
 
 // ==================== HELPER PAGINAÇÃO ====================
 
-// Buscar todos os registros com paginação (limite padrão do Supabase é 1000)
+// Buscar todos os registros com paginação (limite padrão do Supabase é 1000).
+// ATENCAO: ORDER BY estavel eh CRITICO pra paginacao sem perder/duplicar rows.
+// Sem isso, com 15k+ registros, o Supabase pode retornar a mesma row em
+// paginas diferentes (perdendo outras), causando totais ~50% do esperado.
 async function fetchAllPaginated<T>(
   supabase: SupabaseClient,
   table: string,
   select: string,
   filters: { column: string; operator: string; value: any }[],
-  pageSize: number = 1000
+  pageSize: number = 1000,
+  orderBy: string = 'contaazul_id'
 ): Promise<T[]> {
-  let allData: T[] = [];
+  const allData: T[] = [];
   let offset = 0;
   let hasMore = true;
+  let pages = 0;
+  const MAX_PAGES = 100;
 
-  // Resolver schema da tabela (post-migração medallion).
   const schema = schemaOf(table);
   const fromBase = (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema(schema);
 
-  while (hasMore) {
+  while (hasMore && pages < MAX_PAGES) {
     let query = fromBase.from(table).select(select);
-
-    // Aplicar filtros
     for (const filter of filters) {
-      if (filter.operator === 'eq') {
-        query = query.eq(filter.column, filter.value);
-      } else if (filter.operator === 'gte') {
-        query = query.gte(filter.column, filter.value);
-      } else if (filter.operator === 'lte') {
-        query = query.lte(filter.column, filter.value);
-      } else if (filter.operator === 'in') {
-        query = query.in(filter.column, filter.value);
-      } else if (filter.operator === 'is') {
-        query = query.is(filter.column, filter.value);
-      }
+      if (filter.operator === 'eq') query = query.eq(filter.column, filter.value);
+      else if (filter.operator === 'gte') query = query.gte(filter.column, filter.value);
+      else if (filter.operator === 'lte') query = query.lte(filter.column, filter.value);
+      else if (filter.operator === 'in') query = query.in(filter.column, filter.value);
+      else if (filter.operator === 'is') query = query.is(filter.column, filter.value);
     }
-
-    const { data, error } = await query.range(offset, offset + pageSize - 1);
+    const { data, error } = await query
+      .order(orderBy, { ascending: true })
+      .range(offset, offset + pageSize - 1);
 
     if (error) {
-      console.error(`Erro ao buscar ${table}:`, error);
-      break;
+      console.error(`[fetchAllPaginated] Erro ao buscar ${table} pagina ${pages}:`, error);
+      throw new Error(`Erro paginando ${table}: ${error.message}`);
     }
 
     if (data && data.length > 0) {
-      allData = allData.concat(data as T[]);
+      allData.push(...(data as T[]));
       offset += pageSize;
       hasMore = data.length === pageSize;
+      pages++;
     } else {
       hasMore = false;
     }
   }
-
+  console.log(`[fetchAllPaginated] ${table}: ${allData.length} rows em ${pages} paginas`);
   return allData;
 }
 

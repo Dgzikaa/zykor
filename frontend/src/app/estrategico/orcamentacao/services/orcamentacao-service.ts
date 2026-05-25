@@ -318,15 +318,17 @@ async function fetchAllPaginated<T>(
   filters: { column: string; operator: string; value: any }[],
   pageSize: number = 1000
 ): Promise<T[]> {
-  let allData: T[] = [];
+  const allData: T[] = [];
   let offset = 0;
   let hasMore = true;
+  let pages = 0;
+  const MAX_PAGES = 100; // hard cap pra evitar loop infinito (100k registros)
 
   // Resolver schema da tabela (post-migração medallion).
   const schema = schemaOf(table);
   const fromBase = (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema(schema);
 
-  while (hasMore) {
+  while (hasMore && pages < MAX_PAGES) {
     let query = fromBase.from(table).select(select);
     for (const filter of filters) {
       if (filter.operator === 'eq') query = query.eq(filter.column, filter.value);
@@ -335,14 +337,31 @@ async function fetchAllPaginated<T>(
       else if (filter.operator === 'in') query = query.in(filter.column, filter.value);
       else if (filter.operator === 'is') query = query.is(filter.column, filter.value);
     }
-    const { data, error } = await query.range(offset, offset + pageSize - 1);
-    if (error) { console.error(`Erro ao buscar ${table}:`, error); break; }
+    // ORDER BY estavel eh CRITICO pra paginacao sem perder/duplicar rows.
+    // Sem isso, com 15k+ registros, o Supabase pode retornar a mesma row em
+    // paginas diferentes (perdendo outras), causando totais ~50% do esperado.
+    // contaazul_id eh unique e existe em todas as queries que usam essa funcao.
+    const { data, error } = await query
+      .order('contaazul_id', { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) {
+      // Antes era 'break' silencioso. Agora throw pra UI saber que dado eh incompleto.
+      console.error(`[fetchAllPaginated] Erro ao buscar ${table} pagina ${pages}:`, error);
+      throw new Error(`Erro paginando ${table}: ${error.message}`);
+    }
     if (data && data.length > 0) {
-      allData = allData.concat(data as T[]);
+      allData.push(...(data as T[]));
       offset += pageSize;
       hasMore = data.length === pageSize;
-    } else hasMore = false;
+      pages++;
+    } else {
+      hasMore = false;
+    }
   }
+  if (pages >= MAX_PAGES) {
+    console.warn(`[fetchAllPaginated] ${table}: atingiu MAX_PAGES (${MAX_PAGES * pageSize} rows). Possivelmente truncou.`);
+  }
+  console.log(`[fetchAllPaginated] ${table}: ${allData.length} rows em ${pages} paginas`);
   return allData;
 }
 
