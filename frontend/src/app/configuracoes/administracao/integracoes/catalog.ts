@@ -103,7 +103,7 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     fontesSync: [
       { schema: 'system', tabela: 'sync_logs_contahub', colunaTempo: 'created_at', colunaStatus: 'status' },
     ],
-    volumeTabela: { schema: 'bronze', tabela: 'bronze_contahub_raw_data', colunaTempo: 'criado_em' },
+    volumeTabela: { schema: 'bronze', tabela: 'bronze_contahub_raw_data', colunaTempo: 'created_at' },
     crons: ['contahub-sync-7h-ambos', 'contahub-resync-semanal-ordinario', 'contahub-resync-semanal-deboche'],
   },
 
@@ -116,12 +116,13 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     logoLabel: 'CA',
     logoCor: '#0066B3',
     acento: 'blue-600',
+    inferirPorAtividade: true,
     fontesAuth: [{ tipo: 'api_credentials', sistema: ['conta_azul', 'contaazul'] }],
     fontesSync: [
       { schema: 'bronze', tabela: 'bronze_contaazul_sync_log', colunaTempo: 'data_inicio', colunaStatus: 'status' },
       { schema: 'integrations', tabela: 'contaazul_logs_sincronizacao', colunaTempo: 'data_inicio', colunaStatus: 'status' },
     ],
-    volumeTabela: { schema: 'bronze', tabela: 'bronze_contaazul_lancamentos', colunaTempo: 'data_competencia' },
+    volumeTabela: { schema: 'bronze', tabela: 'bronze_contaazul_lancamentos', colunaTempo: 'synced_at' },
     crons: ['contaazul-sync'],
   },
   {
@@ -145,9 +146,10 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     logoLabel: 'GI',
     logoCor: '#10B981',
     acento: 'emerald-500',
+    inferirPorAtividade: true,
     fontesAuth: [{ tipo: 'api_credentials', sistema: ['getin'] }],
     fontesSync: [{ schema: 'integrations', tabela: 'getin_sync_logs', colunaTempo: 'created_at', colunaStatus: 'status', colunaBar: '' }],
-    volumeTabela: { schema: 'bronze', tabela: 'bronze_getin_reservations', colunaTempo: 'criado_em' },
+    volumeTabela: { schema: 'bronze', tabela: 'bronze_getin_reservations', colunaTempo: 'synced_at' },
     crons: ['getin-sync-continuous'],
   },
   {
@@ -163,7 +165,7 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
       { tipo: 'api_credentials', sistema: ['sympla'] },
     ],
     fontesSync: [{ schema: 'bronze', tabela: 'bronze_sympla_sync_log', colunaTempo: 'executado_em', colunaStatus: 'status' }],
-    volumeTabela: { schema: 'bronze', tabela: 'bronze_sympla_participantes', colunaTempo: 'criado_em' },
+    volumeTabela: { schema: 'bronze', tabela: 'bronze_sympla_participantes', colunaTempo: 'synced_at' },
     crons: ['sympla-sync'],
   },
   {
@@ -176,7 +178,7 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     acento: 'pink-500',
     fontesAuth: [{ tipo: 'api_credentials', sistema: ['yuzer'] }],
     fontesSync: [{ schema: 'bronze', tabela: 'bronze_yuzer_sync_log', colunaTempo: 'executed_at', colunaStatus: 'status' }],
-    volumeTabela: { schema: 'bronze', tabela: 'bronze_yuzer_eventos', colunaTempo: 'criado_em' },
+    volumeTabela: { schema: 'bronze', tabela: 'bronze_yuzer_eventos', colunaTempo: 'synced_at' },
     crons: ['yuzer-sync'],
   },
 
@@ -252,7 +254,7 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
       { tipo: 'tabela', schema: 'integrations', tabela: 'falae_config' },
       { tipo: 'api_credentials', sistema: ['falae'] },
     ],
-    volumeTabela: { schema: 'bronze', tabela: 'bronze_falae_respostas', colunaTempo: 'criado_em' },
+    volumeTabela: { schema: 'bronze', tabela: 'bronze_falae_respostas', colunaTempo: 'synced_at' },
   },
   {
     id: 'discord',
@@ -350,7 +352,7 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     acento: 'gray-900',
     global: true,
     naoExpira: true,
-    fontesAuth: [{ tipo: 'env_global', envs: ['NEXT_PUBLIC_SITE_URL'] }],
+    fontesAuth: [{ tipo: 'env_global', envs: ['VERCEL', 'VERCEL_URL', 'NEXT_PUBLIC_VERCEL_URL', 'NEXT_PUBLIC_SITE_URL'] }],
   },
   {
     id: 'sentry',

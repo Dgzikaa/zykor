@@ -127,7 +127,8 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
         { icon: Users, label: 'Clientes Ativos', href: '/relatorios/clientes-ativos', permission: 'relatorios' },
         { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
         { icon: Users, label: 'NPS', href: '/ferramentas/nps', permission: 'home' },
-        { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
+        // 'Voz do Cliente' oculto temporariamente (2026-05-25)
+        // { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
         { icon: Sparkles, label: 'Agente IA', href: '/ferramentas/agente', permission: 'home' },
       ],
     },

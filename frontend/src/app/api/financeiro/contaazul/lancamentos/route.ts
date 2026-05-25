@@ -282,6 +282,49 @@ export async function POST(request: NextRequest) {
     // Schema oficial CA v2: https://developers.contaazul.com/docs/financial-apis-openapi/v1/createpayablefinancialevent
     // Endpoint retorna 202 Accepted com { protocolId, status: PENDING|SUCCESS|ERROR, createdAt }
     const valorRound = Math.round(valorNum * 100) / 100;
+
+    // VALIDACAO ANTI-DUPLICADO (2026-05-25)
+    // Pode acontecer 2 pagamentos com valores DIFERENTES pra mesma pessoa no mesmo dia,
+    // mas se TUDO bate (valor, descricao, categoria, data, fornecedor) → quase certamente
+    // eh repeat-click acidental do usuario. Bloqueia.
+    const normalizar = (s: string) =>
+      String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+    const descricaoNorm = normalizar(descricao);
+
+    const { data: duplicados } = await (supabase
+      .schema('bronze' as any) as any)
+      .from('bronze_contaazul_lancamentos')
+      .select('contaazul_id, descricao, valor_bruto, data_competencia, categoria_id, stakeholder_id, status, created_at')
+      .eq('bar_id', barIdNum)
+      .eq('data_competencia', data_competencia)
+      .eq('categoria_id', categoria_id)
+      .is('excluido_em', null)
+      .limit(50);
+
+    const possivelDup = ((duplicados as any[]) || []).find(d => {
+      const vMatch = Math.abs(Number(d.valor_bruto || 0) - valorRound) < 0.01;
+      const dMatch = normalizar(d.descricao || '') === descricaoNorm;
+      const sMatch = !d.stakeholder_id || d.stakeholder_id === resolvedPessoaId;
+      return vMatch && dMatch && sMatch;
+    });
+
+    if (possivelDup) {
+      return NextResponse.json(
+        {
+          error: 'Possivel pagamento duplicado detectado no Conta Azul.',
+          duplicado: {
+            contaazul_id: possivelDup.contaazul_id,
+            descricao: possivelDup.descricao,
+            valor: possivelDup.valor_bruto,
+            data_competencia: possivelDup.data_competencia,
+            criado_em: possivelDup.created_at,
+            status: possivelDup.status,
+          },
+          hint: 'Mesmo valor, descricao, categoria, data e fornecedor ja existe. Se for proposital, altere a descricao ou crie em data diferente.',
+        },
+        { status: 409 }
+      );
+    }
     const caBody = {
       data_competencia,
       valor: valorRound,

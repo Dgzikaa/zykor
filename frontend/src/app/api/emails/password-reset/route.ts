@@ -25,10 +25,9 @@ export async function POST(request: NextRequest) {
     const roleDescription = roleDescriptions[role] || role;
     const loginLink = `${loginUrl}/login`;
 
-    // Em desenvolvimento, forçar para email de teste
-    const finalTo = process.env.NODE_ENV === 'development' 
-      ? 'rodrigo@grupomenosemais.com.br'
-      : to;
+    // Sempre enviar para o email real do usuário (produção e desenvolvimento).
+    // Em dev, configure RESEND_API_KEY de teste se quiser ver onde o email caiu.
+    const finalTo = to;
 
     // Template HTML profissional para reset de senha
     const htmlContent = `
@@ -144,9 +143,7 @@ export async function POST(request: NextRequest) {
     const result = await resend.emails.send({
       from: 'ZYKOR Sistema <sistema@send.zykor.com.br>',
       to: [finalTo],
-      subject: process.env.NODE_ENV === 'development' 
-        ? `[DEV] Reset de Senha ZYKOR - ${email}` 
-        : 'Reset de Senha - ZYKOR Sistema',
+      subject: 'Reset de Senha - ZYKOR Sistema',
       html: htmlContent,
       headers: {
         'X-Priority': '2', // Alta prioridade para reset de senha

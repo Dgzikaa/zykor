@@ -143,6 +143,7 @@ const defaultSidebarItems: SidebarItem[] = [
     subItems: [
       { icon: TrendingUp, label: 'Visão Geral', href: '/estrategico/visao-geral', permission: 'home' },
       { icon: DollarSign, label: 'Orçamentação', href: '/estrategico/orcamentacao', permission: 'home' },
+      { icon: TrendingUp, label: 'Business Plan', href: '/estrategico/bp', permission: 'home' },
     ],
   },
   {
@@ -176,7 +177,8 @@ const defaultSidebarItems: SidebarItem[] = [
     subItems: [
       { icon: Zap, label: 'Insights Estratégicos', href: '/ferramentas/insights', permission: 'gestao' },
       { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
-      { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
+      // 'Voz do Cliente' oculto temporariamente (2026-05-25) - rota continua ativa
+      // { icon: MessageCircle, label: 'Voz do Cliente', href: '/ferramentas/voz-cliente', permission: 'gestao' },
       { icon: Tag, label: 'Classificação de Consumos', href: '/ferramentas/consumos-classificacao', permission: 'gestao' },
     ],
   },

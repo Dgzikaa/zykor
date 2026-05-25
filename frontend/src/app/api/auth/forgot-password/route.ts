@@ -7,6 +7,31 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+async function notifyResendFailure(ctx: { email: string; nome: string; erro: string | null }) {
+  const webhook = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhook) return;
+  const payload = {
+    username: 'Zykor Monitor',
+    embeds: [{
+      title: '🚨 Falha no envio de email (reset de senha)',
+      description: `Usuário pediu reset, senha temporária foi gerada no Supabase Auth, **mas o email não foi enviado**. Conta está sem senha funcional até intervenção manual.`,
+      color: 15158332,
+      fields: [
+        { name: 'Email', value: ctx.email, inline: true },
+        { name: 'Nome', value: ctx.nome || '—', inline: true },
+        { name: 'Erro Resend', value: (ctx.erro || 'desconhecido').substring(0, 1000) },
+      ],
+      timestamp: new Date().toISOString(),
+      footer: { text: 'forgot-password route' }
+    }]
+  };
+  await fetch(webhook, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 async function handleForgotPassword(request: NextRequest) {
   try {
     const { email } = await request.json();
@@ -65,9 +90,11 @@ async function handleForgotPassword(request: NextRequest) {
     }
 
     // 5. Enviar email com nova senha temporária
+    let emailEnviado = false;
+    let emailErro: string | null = null;
     try {
-      const baseUrl = process.env.NODE_ENV === 'development' 
-        ? 'http://localhost:3000' 
+      const baseUrl = process.env.NODE_ENV === 'development'
+        ? 'http://localhost:3000'
         : (process.env.NEXT_PUBLIC_APP_URL || 'https://zykor.com.br');
 
       const emailResponse = await fetch(`${baseUrl}/api/emails/password-reset`, {
@@ -88,17 +115,30 @@ async function handleForgotPassword(request: NextRequest) {
       const contentType = emailResponse.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
         const emailResult = await emailResponse.json();
-        
-        if (!emailResponse.ok) {
-          console.warn('⚠️ Falha ao enviar email de reset:', emailResult.error);
+        if (emailResponse.ok && emailResult?.success) {
+          emailEnviado = true;
+        } else {
+          emailErro = emailResult?.error || emailResult?.details || `HTTP ${emailResponse.status}`;
         }
       } else {
-        const textResponse = await emailResponse.text();
-        console.warn('⚠️ Resposta não-JSON da API de email:', textResponse.substring(0, 200));
+        emailErro = `Resposta não-JSON HTTP ${emailResponse.status}: ${(await emailResponse.text()).substring(0, 200)}`;
       }
-    } catch (emailError) {
-      console.warn('⚠️ Erro ao enviar email de reset:', emailError);
-      // Não falhar a operação por causa do email
+    } catch (e) {
+      emailErro = e instanceof Error ? e.message : String(e);
+    }
+
+    if (!emailEnviado) {
+      console.error('❌ Falha ao enviar email de reset:', { email, emailErro });
+      await notifyResendFailure({ email, nome: usuario.nome, erro: emailErro }).catch(err =>
+        console.error('❌ Falha também ao notificar Discord:', err)
+      );
+      return NextResponse.json(
+        {
+          error: 'Senha temporária gerada, mas houve falha ao enviar o email. Equipe foi notificada — tente novamente em alguns minutos ou contate suporte@zykor.com.br',
+          email_falhou: true
+        },
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({

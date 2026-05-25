@@ -1,14 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/configuracoes/credenciais/nibo-sync-simple",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/configuracoes/cron/falae-reconciliacao",
-      "schedule": "0 6 * * *"
-    },
-    {
       "path": "/api/configuracoes/desempenho/automacao-semanal",
       "schedule": "0 9 * * 1"
     },
@@ -23,10 +15,6 @@
     {
       "path": "/api/configuracoes/desempenho/recalculo-diario",
       "schedule": "0 15 * * *"
-    },
-    {
-      "path": "/api/contahub/stockout-sync",
-      "schedule": "0 20 * * *"
     }
   ],
   "functions": {

@@ -38,6 +38,8 @@ export const MENU_LATERAL_STRUCTURE: MenuSectionConfig[] = [
       { label: 'Desempenho', href: '/estrategico/desempenho' },
       { label: 'Planejamento', href: '/estrategico/planejamento-comercial' },
       { label: 'Orçamentação', href: '/estrategico/orcamentacao' },
+      { label: 'Orçamentação v2', href: '/estrategico/orcamentacao-v2' },
+      { label: 'Business Plan', href: '/estrategico/bp' },
     ],
   },
   {
@@ -53,7 +55,8 @@ export const MENU_LATERAL_STRUCTURE: MenuSectionConfig[] = [
       { label: 'CRM', href: '/ferramentas/crm' },
       { label: 'Agendamento', href: '/ferramentas/agendamento' },
       { label: 'NPS Funcionários', href: '/ferramentas/nps' },
-      { label: 'Voz do Cliente', href: '/ferramentas/voz-cliente' },
+      // 'Voz do Cliente' oculto temporariamente (2026-05-25) - manter rota ativa
+      // { label: 'Voz do Cliente', href: '/ferramentas/voz-cliente' },
       { label: 'CMV Semanal', href: '/ferramentas/cmv-semanal' },
       { label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal' },
       { label: 'CMO - Mão de Obra', href: '/ferramentas/cmo' },

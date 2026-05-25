@@ -63,6 +63,10 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   { path: '/estrategico/desempenho', requiredModules: ['estrategico', 'estrategico_desempenho', 'desempenho', 'dashboard', 'home'] },
   { path: '/estrategico/metas', requiredModules: ['estrategico', 'estrategico_metas', 'metas', 'dashboard', 'home'] },
   { path: '/estrategico/analytics', requiredModules: ['estrategico', 'estrategico_analytics', 'analytics', 'dashboard', 'home'] },
+  { path: '/estrategico/bp', requiredModules: ['estrategico', 'estrategico_orcamentacao', 'dashboard', 'home'] },
+  { path: '/estrategico/orcamentacao-v2', requiredModules: ['estrategico', 'estrategico_orcamentacao', 'dashboard', 'home'] },
+  { path: '/ferramentas/stockout/auditoria-v2', requiredModules: ['ferramentas', 'gestao', 'dashboard', 'home'] },
+  { path: '/ferramentas/agendamento-v2', requiredModules: ['ferramentas', 'financeiro_agendamento', 'financeiro', 'dashboard', 'home'] },
   { path: '/estrategico', requiredModules: ['estrategico', 'dashboard', 'home'] },
   
   // ========================================
