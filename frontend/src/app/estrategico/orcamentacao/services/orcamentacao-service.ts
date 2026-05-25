@@ -79,7 +79,7 @@ const ESTRUTURA_CATEGORIAS = [
     nome: 'Receitas',
     cor: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
     tipo: 'receita',
-    subcategorias: ['RECEITA BRUTA', 'CONTRATOS']
+    subcategorias: ['RECEITA BRUTA', 'CONTRATOS', 'Receitas Financeiras']
   },
   {
     nome: 'Despesas Variáveis (%)',
@@ -128,7 +128,6 @@ const ESTRUTURA_CATEGORIAS = [
     subcategorias: [
       'Materiais Operação',
       'Estorno',
-      'Equipamentos Operação',
       'Materiais de Limpeza e Descartáveis',
       'Utensílios',
       'Outros Operação'
@@ -138,7 +137,7 @@ const ESTRUTURA_CATEGORIAS = [
     nome: 'Ocupação',
     cor: 'bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-300',
     tipo: 'despesa',
-    subcategorias: ['ALUGUEL/CONDOMÍNIO/IPTU', 'ÁGUA', 'GÁS', 'INTERNET', 'Manutenção', 'LUZ']
+    subcategorias: ['ALUGUEL/CONDOMÍNIO/IPTU', 'ÁGUA', 'GÁS', 'INTERNET', 'Manutenção', 'LUZ', 'TENDA']
   }
 ];
 
@@ -149,12 +148,16 @@ const CATEGORIAS_MAP = new Map([
   ['COMISSÃO', 'IMPOSTO/TX MAQ/COMISSAO'],
   ['COMISSAO', 'IMPOSTO/TX MAQ/COMISSAO'],
   ['COMISSÃO 10%', 'IMPOSTO/TX MAQ/COMISSAO'],
+  ['PROVISÃO FISCAL', 'IMPOSTO/TX MAQ/COMISSAO'],
+  ['PROVISAO FISCAL', 'IMPOSTO/TX MAQ/COMISSAO'],
   ['Custo Comida', 'CMV'],
   ['Custo Drinks', 'CMV'],
   ['Custo Bebidas', 'CMV'],
+  ['Custo Outros', 'CMV'],
   ['CUSTO COMIDA', 'CMV'],
   ['CUSTO DRINKS', 'CMV'],
   ['CUSTO BEBIDAS', 'CMV'],
+  ['CUSTO OUTROS', 'CMV'],
   ['CUSTO-EMPRESA FUNCIONÁRIOS', 'CUSTO-EMPRESA FUNCIONÁRIOS'],
   ['CUSTO-EMPRESA FUNCIONARIOS', 'CUSTO-EMPRESA FUNCIONÁRIOS'],
   ['SALARIO FUNCIONARIOS', 'CUSTO-EMPRESA FUNCIONÁRIOS'],
@@ -193,12 +196,19 @@ const CATEGORIAS_MAP = new Map([
   ['MATERIAIS DE LIMPEZA E DESCARTÁVEIS', 'Materiais de Limpeza e Descartáveis'],
   ['Materiais Operação', 'Materiais Operação'],
   ['MATERIAIS OPERAÇÃO', 'Materiais Operação'],
-  ['Equipamentos Operação', 'Equipamentos Operação'],
-  ['EQUIPAMENTOS OPERAÇÃO', 'Equipamentos Operação'],
+  ['Outros Operação', 'Outros Operação'],
+  ['OUTROS OPERAÇÃO', 'Outros Operação'],
   ['Utensílios', 'Utensílios'],
   ['UTENSÍLIOS', 'Utensílios'],
   ['Estorno', 'Estorno'],
   ['ESTORNO', 'Estorno'],
+  ['TENDA', 'TENDA'],
+  ['Tenda', 'TENDA'],
+  ['Contratos', 'CONTRATOS'],
+  ['CONTRATOS', 'CONTRATOS'],
+  ['Contratos Anuais', 'CONTRATOS'],
+  ['Receitas Financeiras', 'Receitas Financeiras'],
+  ['RECEITAS FINANCEIRAS', 'Receitas Financeiras'],
   ['Marketing', 'Marketing'],
   ['MARKETING', 'Marketing'],
   ['Produção Eventos', 'Produção Eventos'],
@@ -327,13 +337,11 @@ async function calcularCMVMensal(supabase: SupabaseClient, barId: number, mes: n
 //   IMPOSTO/TX MAQ/COMISSAO: depende de calculo (Stone n integrado ainda)
 //   CMV: vem de cmv_semanal mas socio pode override manual
 //   CUSTO-EMPRESA FUNCIONÁRIOS: folha CLT n esta no CA
-//   CONTRATOS: bonificacao Ambev manual
 //   FATURAMENTO META: receita projetada/realizada (vem de eventos.real_r p/ realizado)
 const CATEGORIAS_REALIZADO_MANUAL = new Set([
   'IMPOSTO/TX MAQ/COMISSAO',
   'CMV',
   'CUSTO-EMPRESA FUNCIONÁRIOS',
-  'CONTRATOS',
 ]);
 
 interface OrcamentoPlanilhaRow {

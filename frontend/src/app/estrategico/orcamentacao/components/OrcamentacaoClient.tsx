@@ -35,7 +35,6 @@ const SUBCATEGORIAS_MANUAIS = new Set([
   'IMPOSTO/TX MAQ/COMISSAO',
   'CMV',
   'CUSTO-EMPRESA FUNCIONÁRIOS',
-  'CONTRATOS',
 ]);
 
 // Formatadores
