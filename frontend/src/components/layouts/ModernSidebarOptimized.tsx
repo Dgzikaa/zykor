@@ -143,7 +143,6 @@ const defaultSidebarItems: SidebarItem[] = [
     subItems: [
       { icon: TrendingUp, label: 'Visão Geral', href: '/estrategico/visao-geral', permission: 'home' },
       { icon: DollarSign, label: 'Orçamentação', href: '/estrategico/orcamentacao', permission: 'home' },
-      { icon: TrendingUp, label: 'Business Plan', href: '/estrategico/bp', permission: 'home' },
     ],
   },
   {

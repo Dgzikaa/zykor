@@ -81,7 +81,6 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: BarChart3, label: 'Desempenho', href: '/estrategico/desempenho', permission: 'gestao' },
       { icon: Calendar, label: 'Planejamento', href: '/estrategico/planejamento-comercial', permission: 'planejamento' },
       { icon: DollarSign, label: 'Orçamentação', href: '/estrategico/orcamentacao', permission: 'home' },
-      { icon: TrendingUp, label: 'Business Plan', href: '/estrategico/bp', permission: 'home' },
     ],
   },
   {
