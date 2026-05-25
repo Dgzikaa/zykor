@@ -86,7 +86,7 @@ export function ReviewsNLPTab({ dataInicio, dataFim }: Props) {
               {data.total_reviews_analisados} reviews analisados no período
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Reviews novos (Google + Falaê) são analisados sob demanda. Cada review fica em cache — clique em &quot;Analisar novos&quot; para processar até 30 reviews ainda não vistos.
+              Reviews novos (Google + Falaê) são analisados sob demanda. Cada review fica em cache — clique em &quot;Analisar novos&quot; para processar até 200 reviews ainda não vistos por vez. Pra meses com muitos reviews (500+), clique 2-3 vezes seguidas.
             </p>
           </div>
           <Button

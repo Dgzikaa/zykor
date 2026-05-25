@@ -9,8 +9,8 @@ const supabase = createClient(
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' });
 const MODEL = 'claude-haiku-4-5';
-const BATCH_SIZE = 5;            // 5 reviews por chamada Anthropic
-const MAX_REVIEWS_POR_CHAMADA = 20; // máximo por clique do botão
+const BATCH_SIZE = 10;             // 10 reviews por chamada Anthropic (Haiku eh rapido)
+const MAX_REVIEWS_POR_CHAMADA = 200; // ate 200 por clique do botao (cobre meses ativos)
 
 /**
  * GET /api/ferramentas/insights/reviews-nlp?bar_id=N&data_inicio=...&data_fim=...&analisar=true
@@ -19,12 +19,12 @@ const MAX_REVIEWS_POR_CHAMADA = 20; // máximo por clique do botão
  *
  * - Sempre retorna a agregação dos reviews JÁ ANALISADOS no período
  * - Se analisar=true, processa em segundo plano reviews novos (sem análise)
- *   em lotes de 10, max 30 por chamada
+ *   em lotes de BATCH_SIZE, max MAX_REVIEWS_POR_CHAMADA por chamada.
  *
  * Fonte: bronze.bronze_google_reviews + bronze.bronze_falae_respostas
  * Cache: public.review_analise_temas
  */
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 interface AnaliseIA {
   ref_id: string;
