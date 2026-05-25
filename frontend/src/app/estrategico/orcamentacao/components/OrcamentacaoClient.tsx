@@ -83,7 +83,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     return secoes;
   });
 
-  const [editando, setEditando] = useState<{ mes: number; ano: number; subcategoria: string; campo: 'planejado' | 'projetado' } | null>(null);
+  const [editando, setEditando] = useState<{ mes: number; ano: number; subcategoria: string; campo: 'planejado' | 'projetado' | 'realizado' } | null>(null);
   const [valorEdit, setValorEdit] = useState('');
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -151,8 +151,10 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
       
       if (editando.campo === 'planejado') {
         body.valor_planejado = numValue;
-      } else {
+      } else if (editando.campo === 'projetado') {
         body.valor_projetado = numValue;
+      } else if (editando.campo === 'realizado') {
+        body.valor_realizado_manual = numValue;
       }
 
       const response = await fetch('/api/estrategico/orcamentacao', {
@@ -355,9 +357,12 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                                 )}
                               </div>
                               <div className="w-px h-3 bg-gray-200" />
-                              {/* REALIZADO - somente leitura + tooltip histórico. Cor compara vs BP planejado */}
+                              {/* REALIZADO - editável APENAS nas 4 manuais (IMPOSTO/CMV/CUSTO-EMPRESA/CONTRATOS).
+                                  Demais sao read-only (vem do Conta Azul / eventos). Cor compara vs BP planejado. */}
                               {(() => {
                                 const isReceita = categoria.tipo === 'receita';
+                                const isManualReal = SUBCATEGORIAS_MANUAIS.has(sub.nome);
+                                const isEditReal = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'realizado';
                                 const tem = sub.planejado > 0 || sub.realizado > 0;
                                 let corClasse = 'text-gray-400';
                                 if (tem) {
@@ -367,10 +372,33 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                                     corClasse = sub.realizado <= sub.planejado ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold';
                                   }
                                 }
+                                if (isEditReal) {
+                                  return (
+                                    <div className="flex-1 flex items-center justify-center">
+                                      <div className="flex items-center gap-0.5">
+                                        <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                                        <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
+                                        <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
+                                      </div>
+                                    </div>
+                                  );
+                                }
                                 return (
                                   <div className="flex-1 flex items-center justify-center relative group/real">
                                     <HistoricoTooltip historico={getHistorico(sub.nome, 'realizado', idx)} cor="gray" />
-                                    <span className={cn("text-[9px]", corClasse)}>{sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sub.realizado)}</span>
+                                    {isManualReal ? (
+                                      <div
+                                        className="flex items-center gap-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-0.5"
+                                        onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'realizado' }); setValorEdit(sub.realizado.toString()); }}
+                                      >
+                                        <span className={cn("text-[9px]", corClasse)}>{sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sub.realizado)}</span>
+                                        <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
+                                      </div>
+                                    ) : (
+                                      <span className={cn("text-[9px]", corClasse)} title="Vem automatico do Conta Azul">
+                                        {sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sub.realizado)}
+                                      </span>
+                                    )}
                                   </div>
                                 );
                               })()}
