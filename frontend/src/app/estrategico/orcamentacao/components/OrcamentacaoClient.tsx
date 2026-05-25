@@ -133,14 +133,14 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
     }
   }, [selectedBar, toast]);
 
-  // Scroll para mês atual
+  // Scroll inicial fica no começo (mostra Janeiro primeiro). User rola pra
+  // direita conforme precisa ver meses futuros. Antes scrollava direto pro
+  // mes atual escondendo o historico anterior.
   useEffect(() => {
-    if (!loading && scrollContainerRef.current && mesAtualRef.current) {
-      const g = scrollContainerRef.current;
-      const e = mesAtualRef.current;
-      g.scrollLeft = e.offsetLeft - (g.offsetWidth * 0.4) + (e.offsetWidth / 2);
+    if (!loading && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = 0;
     }
-  }, [loading, mesAtualIdx]);
+  }, [loading]);
 
   useEffect(() => {
     setPageTitle('💰 Orçamentação');
