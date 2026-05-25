@@ -38,7 +38,6 @@ export const MENU_LATERAL_STRUCTURE: MenuSectionConfig[] = [
       { label: 'Desempenho', href: '/estrategico/desempenho' },
       { label: 'Planejamento', href: '/estrategico/planejamento-comercial' },
       { label: 'Orçamentação', href: '/estrategico/orcamentacao' },
-      { label: 'Business Plan', href: '/estrategico/bp' },
     ],
   },
   {

@@ -131,7 +131,7 @@ const ESTRUTURA_CATEGORIAS = [
     nome: 'Despesas Administrativas',
     cor: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300',
     tipo: 'despesa',
-    subcategorias: ['Administrativo Ordinário', 'Escritório Central', 'Recursos Humanos']
+    subcategorias: ['Administrativo Ordinário', 'Escritório Central', 'RECURSOS HUMANOS']
   },
   {
     nome: 'Despesas Operacionais',
@@ -149,13 +149,13 @@ const ESTRUTURA_CATEGORIAS = [
     nome: 'Despesas de Ocupação',
     cor: 'bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-300',
     tipo: 'despesa',
-    subcategorias: ['ALUGUEL/CONDOMÍNIO/IPTU', 'ÁGUA', 'MANUTENÇÃO', 'TENDA', 'INTERNET', 'GÁS', 'LUZ']
+    subcategorias: ['ALUGUEL/CONDOMÍNIO/IPTU', 'ÁGUA', 'Manutenção', 'TENDA', 'INTERNET', 'GÁS', 'LUZ']
   },
   {
     nome: 'Não Operacionais',
     cor: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300',
     tipo: 'receita',
-    subcategorias: ['Receitas Financeiras', 'Contratos']
+    subcategorias: ['CONTRATOS']
   }
 ];
 
@@ -242,8 +242,8 @@ const CATEGORIAS_MAP = new Map<string, string>([
   ['ADMINISTRATIVO', 'Administrativo Ordinário'],
   ['Escritório Central', 'Escritório Central'],
   ['ESCRITÓRIO CENTRAL', 'Escritório Central'],
-  ['Recursos Humanos', 'Recursos Humanos'],
-  ['RECURSOS HUMANOS', 'Recursos Humanos'],
+  ['Recursos Humanos', 'RECURSOS HUMANOS'],
+  ['RECURSOS HUMANOS', 'RECURSOS HUMANOS'],
 
   // Despesas Operacionais
   ['Materiais Operação', 'Materiais Operação'],
@@ -263,9 +263,9 @@ const CATEGORIAS_MAP = new Map<string, string>([
   ['ÁGUA', 'ÁGUA'],
   ['AGUA', 'ÁGUA'],
   ['Água', 'ÁGUA'],
-  ['MANUTENÇÃO', 'MANUTENÇÃO'],
-  ['MANUTENCAO', 'MANUTENÇÃO'],
-  ['Manutenção', 'MANUTENÇÃO'],
+  ['MANUTENÇÃO', 'Manutenção'],
+  ['MANUTENCAO', 'Manutenção'],
+  ['Manutenção', 'Manutenção'],
   ['TENDA', 'TENDA'],
   ['Tenda', 'TENDA'],
   ['INTERNET', 'INTERNET'],
@@ -277,16 +277,14 @@ const CATEGORIAS_MAP = new Map<string, string>([
   ['Luz', 'LUZ'],
 
   // Não Operacionais
-  ['Receitas Financeiras', 'Receitas Financeiras'],
-  ['RECEITAS FINANCEIRAS', 'Receitas Financeiras'],
-  ['Contratos', 'Contratos'],
-  ['CONTRATOS', 'Contratos'],
-  ['Contratos Anuais', 'Contratos'],
-  ['Ambev Bonificações Contrato Anual', 'Contratos'],
-  ['Ambev Bonificação Contrato Cash-back Março', 'Contratos'],
-  ['Ambev Bonificação Contrato Cash-back Fevereiro', 'Contratos'],
-  ['Ambev Bonificação Contrato Cash-back Junho', 'Contratos'],
-  ['Ambev Bonificação Contrato Cash-back Julho', 'Contratos'],
+  ['Contratos', 'CONTRATOS'],
+  ['CONTRATOS', 'CONTRATOS'],
+  ['Contratos Anuais', 'CONTRATOS'],
+  ['Ambev Bonificações Contrato Anual', 'CONTRATOS'],
+  ['Ambev Bonificação Contrato Cash-back Março', 'CONTRATOS'],
+  ['Ambev Bonificação Contrato Cash-back Fevereiro', 'CONTRATOS'],
+  ['Ambev Bonificação Contrato Cash-back Junho', 'CONTRATOS'],
+  ['Ambev Bonificação Contrato Cash-back Julho', 'CONTRATOS'],
 ]);
 
 const MESES_NOMES = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -579,7 +577,7 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     const fatMetaReal = fatReal.realizado;
 
     // Contratos = bloco "Nao Operacionais" (somente Contratos pra EBITDA).
-    const subContratos = categorias.flatMap(c => c.subcategorias).find(s => s.nome === 'Contratos');
+    const subContratos = categorias.flatMap(c => c.subcategorias).find(s => s.nome === 'CONTRATOS');
     const contratosPlan = Number(subContratos?.planejado || 0);
     const contratosProj = Number(subContratos?.projecao || 0);
     const contratosReal = Number(subContratos?.realizado || 0);

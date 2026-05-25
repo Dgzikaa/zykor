@@ -23,10 +23,23 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { MesOrcamento, CategoriaOrcamento, TotaisMes } from '../services/orcamentacao-service';
 import { HistoricoOrcamentoTab } from './HistoricoOrcamentoTab';
+import { BpClient } from '../../bp/BpClient';
+import type { BpLinha, BpIndicador, AnaliseSemanal } from '../../bp/types';
+
+interface BpData {
+  linhas: BpLinha[];
+  indicadores: BpIndicador[];
+  versoes: { ano: number; versao: string }[];
+  anoAtual: number;
+  versaoAtual: string;
+  mesAnalise: number;
+  analise: AnaliseSemanal;
+}
 
 interface OrcamentacaoClientProps {
   initialData: MesOrcamento[];
   barId: number;
+  bpData?: BpData;
 }
 
 // Apos refatoracao DRE, Realizado eh sempre automatico (vem do ContaAzul).
@@ -59,7 +72,7 @@ const formatarPorcentagem = (valor: number | null | undefined): string => {
   return `${valor.toFixed(1)}%`;
 };
 
-export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoClientProps) {
+export default function OrcamentacaoClient({ initialData, barId, bpData }: OrcamentacaoClientProps) {
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
   const { toast } = useToast();
@@ -93,12 +106,13 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     setLoading(true);
     try {
       const hoje = new Date();
-      let mesInicio = hoje.getMonth() + 1 - 5;
-      let anoInicio = hoje.getFullYear();
-      if (mesInicio <= 0) { mesInicio += 12; anoInicio -= 1; }
+      const anoInicio = hoje.getFullYear();
+      const mesInicio = 1;
+      const mesAtual = hoje.getMonth() + 1;
+      const quantidade = Math.min(12, Math.max(6, mesAtual + 2));
 
       const response = await fetch(
-        `/api/estrategico/orcamentacao/todos-meses?bar_id=${selectedBar.id}&ano=${anoInicio}&mes_inicio=${mesInicio}&quantidade=7`
+        `/api/estrategico/orcamentacao/todos-meses?bar_id=${selectedBar.id}&ano=${anoInicio}&mes_inicio=${mesInicio}&quantidade=${quantidade}`
       );
       if (!response.ok) throw new Error('Erro ao carregar dados');
       const result = await response.json();
@@ -202,6 +216,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
       <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 pt-2">
         <TabsList className="bg-transparent">
           <TabsTrigger value="orcamento">Orçamentação</TabsTrigger>
+          <TabsTrigger value="bp">Business Plan</TabsTrigger>
           <TabsTrigger value="historico">Histórico</TabsTrigger>
         </TabsList>
       </div>
@@ -502,6 +517,25 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
           </div>
         </div>
       </div>
+      </TabsContent>
+
+      <TabsContent value="bp" className="flex-1 overflow-auto mt-0">
+        {bpData ? (
+          <BpClient
+            linhas={bpData.linhas}
+            indicadores={bpData.indicadores}
+            versoes={bpData.versoes}
+            anoAtual={bpData.anoAtual}
+            versaoAtual={bpData.versaoAtual}
+            mesAnalise={bpData.mesAnalise}
+            analise={bpData.analise}
+            barId={barId}
+          />
+        ) : (
+          <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+            Dados do Business Plan indisponíveis.
+          </div>
+        )}
       </TabsContent>
 
       <TabsContent value="historico" className="flex-1 overflow-auto mt-0">

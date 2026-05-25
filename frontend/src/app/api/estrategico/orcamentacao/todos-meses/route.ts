@@ -402,17 +402,17 @@ export async function GET(request: Request) {
         ]
       ),
 
-      // Query 3: Conta Azul pagos (realizado) - COM PAGINAÇÃO - usar data_pagamento
-      fetchAllPaginated<{ categoria_nome: string; status: string; valor_bruto: string; data_pagamento: string }>(
+      // Query 3: Conta Azul pagos (realizado) - usar data_competencia (data_pagamento eh sempre NULL no CA v2)
+      fetchAllPaginated<{ categoria_nome: string; status: string; valor_bruto: string; data_competencia: string }>(
         supabase,
         'bronze_contaazul_lancamentos',
-        'categoria_nome, status, valor_bruto, data_pagamento',
+        'categoria_nome, status, valor_bruto, data_competencia',
         [
           { column: 'bar_id', operator: 'eq', value: parseInt(barId) },
           { column: 'excluido_em', operator: 'is', value: null },
           { column: 'status', operator: 'in', value: ['ACQUITTED', 'PARTIAL'] },
-          { column: 'data_pagamento', operator: 'gte', value: dataInicio },
-          { column: 'data_pagamento', operator: 'lte', value: dataFim }
+          { column: 'data_competencia', operator: 'gte', value: dataInicio },
+          { column: 'data_competencia', operator: 'lte', value: dataFim }
         ]
       ),
       
@@ -489,10 +489,11 @@ export async function GET(request: Request) {
         return item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes;
       }) || [];
 
-      // Filtrar dados do Conta Azul para este mês (PAGOS - para realizado) - usar data_pagamento
+      // Filtrar dados do Conta Azul para este mês (PAGOS - para realizado) - usar data_competencia
+      // (data_pagamento eh sempre NULL no CA v2; data_competencia eh o mes do gasto)
       const niboPagosMes = dadosNiboPagos?.filter(item => {
-        if (!item.data_pagamento) return false;
-        return item.data_pagamento >= dataInicioMes && item.data_pagamento <= dataFimMes;
+        if (!item.data_competencia) return false;
+        return item.data_competencia >= dataInicioMes && item.data_competencia <= dataFimMes;
       }) || [];
 
       // Filtrar dados manuais para este mês
