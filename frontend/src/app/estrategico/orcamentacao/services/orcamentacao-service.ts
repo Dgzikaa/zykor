@@ -282,6 +282,83 @@ async function calcularCMVMensal(supabase: SupabaseClient, barId: number, mes: n
   };
 }
 
+// ==================== BP MAPPING ====================
+// Mapeia linha do meta.bp_linha (planilha) -> subcategoria antiga (ESTRUTURA_CATEGORIAS).
+// Algumas subcategorias antigas sao mais granulares que a planilha (ex: Freela tem 5 tipos,
+// mas BP Mai26 so tem "Freela" consolidado). Nesses casos, BP concentra o valor numa
+// subcategoria primaria e as demais ficam zeradas (ate o BP ser detalhado).
+const BP_LINHA_TO_SUBCATEGORIA: Record<string, string> = {
+  // Receita
+  'Contratos': 'CONTRATOS',
+  // Variaveis (%)
+  // IMPOSTO, Comissao, Tx Maquininha somam em IMPOSTO/TX MAQ/COMISSAO
+  'IMPOSTO': 'IMPOSTO/TX MAQ/COMISSAO',
+  'Comissao': 'IMPOSTO/TX MAQ/COMISSAO',
+  'Tx Maquininha': 'IMPOSTO/TX MAQ/COMISSAO',
+  // CMV
+  'CMV Bar': 'CMV',
+  // Pessoal
+  'CMO Fixo': 'CUSTO-EMPRESA FUNCIONÁRIOS',
+  'Freela': 'FREELA ATENDIMENTO',
+  'PRO LABORE': 'PRO LABORE',
+  // Comerciais
+  'Marketing': 'Marketing',
+  'Programacao Artistica': 'Atrações Programação',
+  'Custos de evento variavel': 'Produção Eventos',
+  // Administrativas
+  'Administrativo': 'Administrativo Ordinário',
+  // Operacionais
+  'Materiais Utens Limp': 'Materiais Operação',
+  // Ocupacao
+  'ALUGUEL/COND/IPTU': 'ALUGUEL/CONDOMÍNIO/IPTU',
+  'Manutencao': 'Manutenção',
+  'AGUA': 'ÁGUA',
+  'GAS': 'GÁS',
+  'INTERNET': 'INTERNET',
+  'LUZ': 'LUZ',
+};
+
+interface BpLinhaRow {
+  bloco: string;
+  linha: string;
+  valor_mensal: number | string | null;
+}
+
+// Carrega BP por ano com fallback pra versao mais recente disponivel.
+async function carregarBpPorAno(
+  supabase: SupabaseClient,
+  barId: number,
+  anos: number[]
+): Promise<Map<number, Map<string, number>>> {
+  const out = new Map<number, Map<string, number>>();
+  for (const ano of anos) {
+    const { data } = await supabase
+      .from('bp_linha')
+      .select('bloco, linha, valor_mensal')
+      .eq('bar_id', barId)
+      .eq('ano', ano)
+      .eq('ativo', true)
+      .order('ordem', { ascending: true });
+    const linhas = (data || []) as BpLinhaRow[];
+    const mapAno = new Map<string, number>();
+    // Caso especial: Faturamento Bar + Couvert -> somam em RECEITA BRUTA
+    let receitaBruta = 0;
+    for (const l of linhas) {
+      const valor = Math.abs(Number(l.valor_mensal || 0));
+      if (l.bloco === 'Receitas' && (l.linha === 'Faturamento Bar' || l.linha === 'Faturamento Couvert')) {
+        receitaBruta += valor;
+        continue;
+      }
+      const sub = BP_LINHA_TO_SUBCATEGORIA[l.linha];
+      if (!sub) continue;
+      mapAno.set(sub, (mapAno.get(sub) || 0) + valor);
+    }
+    if (receitaBruta > 0) mapAno.set('RECEITA BRUTA', receitaBruta);
+    out.set(ano, mapAno);
+  }
+  return out;
+}
+
 // ==================== SERVICE ====================
 
 export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: number, ano: number, mesInicio: number, quantidade: number = 7): Promise<MesOrcamento[]> {
@@ -299,8 +376,9 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
   const dataInicio = `${primeiroMesPeriodo.ano}-${String(primeiroMesPeriodo.mes).padStart(2, '0')}-01`;
   const dataFim = `${ultimoMesPeriodo.ano}-${String(ultimoMesPeriodo.mes).padStart(2, '0')}-${String(ultimoDiaMes).padStart(2, '0')}`;
 
-  const [planejadosResult, dadosNiboTodos, dadosNiboPagos, manuaisResult, eventosResult] = await Promise.all([
+  const [planejadosResult, bpPorAno, dadosNiboTodos, dadosNiboPagos, manuaisResult, eventosResult] = await Promise.all([
     supabase.from('orcamentacao').select('*').eq('bar_id', barId).in('ano', anosUnicos),
+    carregarBpPorAno(supabase, barId, anosUnicos),
     fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia', [
       { column: 'bar_id', operator: 'eq', value: barId },
       { column: 'excluido_em', operator: 'is', value: null },
@@ -384,13 +462,26 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     valProj.set('CMV', cmvMensal.cmvPercentual); valReal.set('CMV', cmvMensal.cmvPercentual);
     valProj.set('RECEITA BRUTA', recProj); valReal.set('RECEITA BRUTA', recReal);
 
+    // BP da planilha (meta.bp_linha) -> subcategoria antiga. Mesmo valor pra todos os meses do ano.
+    const bpAno = bpPorAno.get(ano) || new Map<string, number>();
+    // Para subcategorias percentuais (IMPOSTO/TX MAQ/COMISSAO), converter valor R$ -> %
+    // dividindo pelo Faturamento Bruto planejado (RECEITA BRUTA do BP).
+    const receitaBrutaBp = bpAno.get('RECEITA BRUTA') || 0;
+
     const categorias = ESTRUTURA_CATEGORIAS.map(cat => ({
       nome: cat.nome, cor: cat.cor, tipo: cat.tipo,
       subcategorias: cat.subcategorias.map(sub => {
-        const orcamento = planejadosMes.find(p => p.categoria_nome === sub);
-        // PLANEJADO e PROJETADO = tabela orcamentacao (100% manual)
-        let plan = Number(orcamento?.valor_planejado) || 0;
-        let proj = Number(orcamento?.valor_projetado) || 0;
+        // PLANEJADO e PROJETADO = meta.bp_linha (planilha BP). Mesmo valor para os 2 hoje
+        // (planilha nao distingue planejado vs projetado).
+        let bpValor = bpAno.get(sub) || 0;
+        const isPct = CATEGORIAS_PERCENTUAIS.includes(sub);
+        if (isPct && sub !== 'CMV' && receitaBrutaBp > 0) {
+          // Converter R$ -> % da receita bruta planejada (apenas IMPOSTO/TX MAQ/COMISSAO)
+          bpValor = (bpValor / receitaBrutaBp) * 100;
+        }
+        const plan = bpValor;
+        const proj = bpValor;
+
         // REALIZADO = Conta Azul para despesas, eventos_base para receita
         let real = valReal.get(sub) || 0;
         if (sub === 'RECEITA BRUTA') {
@@ -398,7 +489,7 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
         } else if (sub === 'CMV') {
           real = cmvMensal.cmvPercentual;
         }
-        return { nome: sub, planejado: plan, projecao: proj, realizado: real, isPercentage: CATEGORIAS_PERCENTUAIS.includes(sub) };
+        return { nome: sub, planejado: plan, projecao: proj, realizado: real, isPercentage: isPct };
       })
     }));
 
