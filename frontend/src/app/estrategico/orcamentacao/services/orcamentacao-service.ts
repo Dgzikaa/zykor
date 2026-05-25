@@ -525,12 +525,16 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     // % Contribuicao Variavel = 1 - (IMPOSTO/TX MAQ/COMISSAO + CMV) [valores em %]
     const subImposto = categorias.flatMap(c => c.subcategorias).find(s => s.nome === 'IMPOSTO/TX MAQ/COMISSAO');
     const subCmv = categorias.flatMap(c => c.subcategorias).find(s => s.nome === 'CMV');
+    const subContratos = categorias.flatMap(c => c.subcategorias).find(s => s.nome === 'CONTRATOS');
     const impPlanPct = Number(subImposto?.planejado || 0);
     const impProjPct = Number(subImposto?.projecao || 0);
     const impRealPct = Number(subImposto?.realizado || 0);
     const cmvPlanPct = Number(subCmv?.planejado || 0);
     const cmvProjPct = Number(subCmv?.projecao || 0);
     const cmvRealPct = Number(subCmv?.realizado || 0);
+    const contratosPlan = Number(subContratos?.planejado || 0);
+    const contratosProj = Number(subContratos?.projecao || 0);
+    const contratosReal = Number(subContratos?.realizado || 0);
 
     const percContribPlan = 1 - (impPlanPct + cmvPlanPct) / 100;
     const percContribProj = 1 - (impProjPct + cmvProjPct) / 100;
@@ -541,14 +545,11 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     const breakEvenProj = percContribProj > 0 ? realFixoProj / percContribProj : 0;
     const breakEvenReal = percContribReal > 0 ? realFixoReal / percContribReal : 0;
 
-    // EBITDA = Faturamento Meta - despesas variaveis (R$) - Real Fixo
-    const despVarPlan = (impPlanPct / 100) * fatMetaPlan + (cmvPlanPct / 100) * fatMetaPlan;
-    const despVarProj = (impProjPct / 100) * fatMetaProj + (cmvProjPct / 100) * fatMetaProj;
-    const despVarReal = (impRealPct / 100) * fatMetaReal + (cmvRealPct / 100) * fatMetaReal;
-
-    const ebitdaPlan = fatMetaPlan - despVarPlan - realFixoPlan;
-    const ebitdaProj = fatMetaProj - despVarProj - realFixoProj;
-    const ebitdaReal = fatMetaReal - despVarReal - realFixoReal;
+    // EBITDA = (Faturamento Meta - BreakEven) * % CONTRIB + Contratos
+    // (formula da planilha estrategica)
+    const ebitdaPlan = (fatMetaPlan - breakEvenPlan) * percContribPlan + contratosPlan;
+    const ebitdaProj = (fatMetaProj - breakEvenProj) * percContribProj + contratosProj;
+    const ebitdaReal = (fatMetaReal - breakEvenReal) * percContribReal + contratosReal;
 
     const margemEbitdaPlan = fatMetaPlan > 0 ? (ebitdaPlan / fatMetaPlan) * 100 : 0;
     const margemEbitdaProj = fatMetaProj > 0 ? (ebitdaProj / fatMetaProj) * 100 : 0;
