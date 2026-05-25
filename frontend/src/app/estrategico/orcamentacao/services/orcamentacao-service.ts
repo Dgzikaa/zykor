@@ -155,7 +155,7 @@ const ESTRUTURA_CATEGORIAS = [
     nome: 'Não Operacionais',
     cor: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300',
     tipo: 'receita',
-    subcategorias: ['CONTRATOS']
+    subcategorias: ['Receitas Financeiras', 'CONTRATOS']
   }
 ];
 
@@ -277,6 +277,8 @@ const CATEGORIAS_MAP = new Map<string, string>([
   ['Luz', 'LUZ'],
 
   // Não Operacionais
+  ['Receitas Financeiras', 'Receitas Financeiras'],
+  ['RECEITAS FINANCEIRAS', 'Receitas Financeiras'],
   ['Contratos', 'CONTRATOS'],
   ['CONTRATOS', 'CONTRATOS'],
   ['Contratos Anuais', 'CONTRATOS'],
@@ -609,15 +611,20 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     const breakEvenProj = percContribProj > 0 ? realFixoProj / percContribProj : 0;
     const breakEvenReal = percContribReal > 0 ? realFixoReal / percContribReal : 0;
 
-    // EBITDA = (Faturamento Meta - BreakEven) * % CONTRIB + Contratos
-    // (formula da planilha estrategica)
-    const ebitdaPlan = (fatMetaPlan - breakEvenPlan) * percContribPlan + contratosPlan;
-    const ebitdaProj = (fatMetaProj - breakEvenProj) * percContribProj + contratosProj;
-    const ebitdaReal = (fatMetaReal - breakEvenReal) * percContribReal + contratosReal;
+    // EBITDA = Receita Operacional + Nao Operacionais - todas despesas
+    // (soma direta de todas as linhas com sinal — receitas positivas, despesas negativas).
+    // Conferencia com user Jan/26: 1.800.088 + 39.786 - 1.724.599 = 115.275 ✓
+    const naoOpPlan = recPlanTot - recOpPlan;
+    const naoOpProj = recProjTot - recOpProj;
+    const naoOpReal = recRealTot - recOpReal;
+    const ebitdaPlan = recOpPlan + naoOpPlan - desPlanTot;
+    const ebitdaProj = recOpProj + naoOpProj - desProjTot;
+    const ebitdaReal = recOpReal + naoOpReal - desRealTot;
 
-    const margemEbitdaPlan = fatMetaPlan > 0 ? (ebitdaPlan / fatMetaPlan) * 100 : 0;
-    const margemEbitdaProj = fatMetaProj > 0 ? (ebitdaProj / fatMetaProj) * 100 : 0;
-    const margemEbitdaReal = fatMetaReal > 0 ? (ebitdaReal / fatMetaReal) * 100 : 0;
+    // Margem EBITDA = EBITDA / Receita Operacional (DRE convencional).
+    const margemEbitdaPlan = recOpPlan > 0 ? (ebitdaPlan / recOpPlan) * 100 : 0;
+    const margemEbitdaProj = recOpProj > 0 ? (ebitdaProj / recOpProj) * 100 : 0;
+    const margemEbitdaReal = recOpReal > 0 ? (ebitdaReal / recOpReal) * 100 : 0;
 
     return {
       mes, ano, label: `${MESES_NOMES[mes]}/${String(ano).slice(-2)}`,

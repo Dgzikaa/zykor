@@ -67,6 +67,9 @@ const formatarMoeda = (valor: number | null | undefined): string => {
   }).format(valor);
 };
 
+// Aplica sinal DRE: despesas viram negativas pra exibicao (dados sao Math.abs).
+const sinalDre = (valor: number, tipo: string): number => tipo === 'despesa' ? -valor : valor;
+
 const formatarPorcentagem = (valor: number | null | undefined): string => {
   if (valor === null || valor === undefined) return '0.0%';
   return `${valor.toFixed(1)}%`;
@@ -393,11 +396,11 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                           <div className={cn(categoria.cor, "opacity-20")} style={{ height: '32px' }} />
                         ) : (
                           <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", categoria.cor, "bg-opacity-60 dark:bg-opacity-30")} style={{ height: '32px' }}>
-                            <span className="flex-1 text-[9px] font-bold text-center text-blue-700 dark:text-blue-300">{formatarMoeda(totPlan)}</span>
+                            <span className="flex-1 text-[9px] font-bold text-center text-blue-700 dark:text-blue-300">{formatarMoeda(sinalDre(totPlan, categoria.tipo))}</span>
                             <div className="w-px h-3 bg-white/40" />
-                            <span className="flex-1 text-[9px] font-bold text-center text-green-700 dark:text-green-300">{formatarMoeda(totProj)}</span>
+                            <span className="flex-1 text-[9px] font-bold text-center text-green-700 dark:text-green-300">{formatarMoeda(sinalDre(totProj, categoria.tipo))}</span>
                             <div className="w-px h-3 bg-white/40" />
-                            <span className={cn("flex-1 text-[9px] font-bold text-center", corClasseReal)}>{formatarMoeda(totReal)}</span>
+                            <span className={cn("flex-1 text-[9px] font-bold text-center", corClasseReal)}>{formatarMoeda(sinalDre(totReal, categoria.tipo))}</span>
                           </div>
                         )}
                         {aberta && categoria.subcategorias.map(sub => {
@@ -417,7 +420,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                                   <>
                                     <HistoricoTooltip historico={getHistorico(sub.nome, 'planejado', idx)} cor="blue" />
                                     <div className="flex items-center gap-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'planejado' }); setValorEdit(sub.planejado.toString()); }}>
-                                      <span className="text-[9px] font-medium text-blue-600">{sub.isPercentage ? formatarPorcentagem(sub.planejado) : formatarMoeda(sub.planejado)}</span>
+                                      <span className="text-[9px] font-medium text-blue-600">{sub.isPercentage ? formatarPorcentagem(sub.planejado) : formatarMoeda(sinalDre(sub.planejado, categoria.tipo))}</span>
                                       <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
                                     </div>
                                   </>
@@ -436,7 +439,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                                   <>
                                     <HistoricoTooltip historico={getHistorico(sub.nome, 'projecao', idx)} cor="green" />
                                     <div className="flex items-center gap-0.5 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'projetado' }); setValorEdit(sub.projecao.toString()); }}>
-                                      <span className={cn("text-[9px] font-medium", sub.projecao > 0 ? "text-green-600" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.projecao) : formatarMoeda(sub.projecao)}</span>
+                                      <span className={cn("text-[9px] font-medium", sub.projecao > 0 ? "text-green-600" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.projecao) : formatarMoeda(sinalDre(sub.projecao, categoria.tipo))}</span>
                                       <Pencil className="h-2 w-2 text-green-400 opacity-0 group-hover:opacity-100" />
                                     </div>
                                   </>
@@ -477,12 +480,12 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                                         className="flex items-center gap-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-0.5"
                                         onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'realizado' }); setValorEdit(sub.realizado.toString()); }}
                                       >
-                                        <span className={cn("text-[9px]", corClasse)}>{sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sub.realizado)}</span>
+                                        <span className={cn("text-[9px]", corClasse)}>{sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sinalDre(sub.realizado, categoria.tipo))}</span>
                                         <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
                                       </div>
                                     ) : (
                                       <span className={cn("text-[9px]", corClasse)} title="Vem automatico do Conta Azul">
-                                        {sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sub.realizado)}
+                                        {sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sinalDre(sub.realizado, categoria.tipo))}
                                       </span>
                                     )}
                                   </div>
