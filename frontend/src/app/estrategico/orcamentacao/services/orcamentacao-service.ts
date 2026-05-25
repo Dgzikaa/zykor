@@ -538,8 +538,11 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
       })
     }));
 
-    // Totais simples (receita e despesa) + Real Fixo (custos operacionais nao variaveis).
-    let recPlanTot = 0, recProjTot = 0, recRealTot = 0;
+    // Totais. Distinguir Receita OPERACIONAL (bloco 'Receita') vs Nao Operacionais
+    // (Contratos). Calculos de % CONTRIB / BreakEven / EBITDA usam SO a receita
+    // operacional como base — Contratos entra como bonus no EBITDA.
+    let recPlanTot = 0, recProjTot = 0, recRealTot = 0; // total receitas (incl. Nao Op)
+    let recOpPlan = 0, recOpProj = 0, recOpReal = 0;     // somente bloco 'Receita'
     let desPlanTot = 0, desProjTot = 0, desRealTot = 0;
     let realFixoPlan = 0, realFixoProj = 0, realFixoReal = 0;
     let varPlanTot = 0, varProjTot = 0, varRealTot = 0; // custos variaveis (impostos + CMV)
@@ -550,6 +553,11 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
           recPlanTot += sub.planejado;
           recProjTot += sub.projecao;
           recRealTot += sub.realizado;
+          if (cat.nome === 'Receita') {
+            recOpPlan += sub.planejado;
+            recOpProj += sub.projecao;
+            recOpReal += sub.realizado;
+          }
         } else {
           desPlanTot += sub.planejado;
           desProjTot += sub.projecao;
@@ -582,10 +590,13 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     const contratosProj = Number(subContratos?.projecao || 0);
     const contratosReal = Number(subContratos?.realizado || 0);
 
-    // % CONTRIB = 1 - custos_variaveis / receita. (valores absolutos agora)
-    const percContribPlan = recPlanTot > 0 ? 1 - varPlanTot / recPlanTot : 0;
-    const percContribProj = recProjTot > 0 ? 1 - varProjTot / recProjTot : 0;
-    const percContribReal = recRealTot > 0 ? 1 - varRealTot / recRealTot : 0;
+    // % CONTRIB = 1 - (custos_variaveis / receita_operacional)
+    // Base = bloco 'Receita' (Stone/Pix/Dinheiro/Eventos/Outras). NAO inclui
+    // Nao Operacionais (Contratos) — eles entram como bonus no EBITDA.
+    // Equivalente a formula da planilha =1-SOMA(imposto_pct + cmv_pct).
+    const percContribPlan = recOpPlan > 0 ? 1 - varPlanTot / recOpPlan : 0;
+    const percContribProj = recOpProj > 0 ? 1 - varProjTot / recOpProj : 0;
+    const percContribReal = recOpReal > 0 ? 1 - varRealTot / recOpReal : 0;
 
     // BreakEven = Real Fixo / % CONTRIB
     const breakEvenPlan = percContribPlan > 0 ? realFixoPlan / percContribPlan : 0;
