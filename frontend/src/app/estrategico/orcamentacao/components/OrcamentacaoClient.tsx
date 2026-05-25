@@ -27,6 +27,15 @@ interface OrcamentacaoClientProps {
   barId: number;
 }
 
+// Subcategorias com Realizado MANUAL (digitado direto na tela).
+// Demais sao automaticas (Realizado vem do ContaAzul ou eventos_base).
+const SUBCATEGORIAS_MANUAIS = new Set([
+  'IMPOSTO/TX MAQ/COMISSAO',
+  'CMV',
+  'CUSTO-EMPRESA FUNCIONÁRIOS',
+  'CONTRATOS',
+]);
+
 // Formatadores
 const formatarMoeda = (valor: number | null | undefined): string => {
   if (valor === null || valor === undefined) return 'R$ 0';
@@ -245,11 +254,25 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                   {secoesAbertas[categoria.nome] ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                   <span className="text-[10px] font-semibold truncate">{categoria.nome}</span>
                 </div>
-                {secoesAbertas[categoria.nome] && categoria.subcategorias.map(sub => (
-                  <div key={sub.nome} className="flex items-center gap-1 px-2 pl-5 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 hover:dark:bg-gray-700/50" style={{ height: '28px' }}>
-                    <span className="text-[10px] text-gray-700 dark:text-gray-300 truncate">{sub.nome}</span>
-                  </div>
-                ))}
+                {secoesAbertas[categoria.nome] && categoria.subcategorias.map(sub => {
+                  const isManual = SUBCATEGORIAS_MANUAIS.has(sub.nome);
+                  return (
+                    <div
+                      key={sub.nome}
+                      className="flex items-center gap-1.5 px-2 pl-5 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 hover:dark:bg-gray-700/50"
+                      style={{ height: '28px' }}
+                      title={isManual ? 'Realizado: Manual (digitado na tela)' : 'Realizado: Automático (Conta Azul)'}
+                    >
+                      <div
+                        className={cn(
+                          'w-2 h-2 rounded-full flex-shrink-0',
+                          isManual ? 'bg-blue-500' : 'bg-green-500'
+                        )}
+                      />
+                      <span className="text-[10px] text-gray-700 dark:text-gray-300 truncate">{sub.nome}</span>
+                    </div>
+                  );
+                })}
               </div>
             ))}
             {/* Indicadores agregados (estilo BP) */}
