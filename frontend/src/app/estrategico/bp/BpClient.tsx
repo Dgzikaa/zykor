@@ -1,8 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -10,42 +12,38 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import type { BpLinha, BpIndicador, DiaSemana } from './types';
-import { useRouter } from 'next/navigation';
+import type { BpLinha, BpIndicador, AnaliseSemanal, DiaSemana } from './types';
+import { cn } from '@/lib/utils';
 
-const DIAS: { key: DiaSemana; label: string }[] = [
-  { key: 'seg', label: 'Seg' },
-  { key: 'ter', label: 'Ter' },
-  { key: 'qua', label: 'Qua' },
-  { key: 'qui', label: 'Qui' },
-  { key: 'sex', label: 'Sex' },
-  { key: 'sab', label: 'Sáb' },
-  { key: 'dom', label: 'Dom' },
+const DIAS: { key: DiaSemana; label: string; labelLong: string }[] = [
+  { key: 'seg', label: 'Seg', labelLong: 'Segunda' },
+  { key: 'ter', label: 'Ter', labelLong: 'Terça' },
+  { key: 'qua', label: 'Qua', labelLong: 'Quarta' },
+  { key: 'qui', label: 'Qui', labelLong: 'Quinta' },
+  { key: 'sex', label: 'Sex', labelLong: 'Sexta' },
+  { key: 'sab', label: 'Sáb', labelLong: 'Sábado' },
+  { key: 'dom', label: 'Dom', labelLong: 'Domingo' },
 ];
 
-const formatBRL = (v: number | null | undefined): string => {
+const MESES_NOMES = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+const fmtBRL = (v: number | null | undefined): string => {
   if (v === null || v === undefined || Number.isNaN(v)) return '—';
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const abs = Math.abs(v);
+  if (abs >= 1000) {
+    return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+  }
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 });
 };
 
-const formatPct = (v: number | null | undefined): string => {
+const fmtPct = (v: number | null | undefined): string => {
   if (v === null || v === undefined || Number.isNaN(v)) return '—';
   return `${v.toFixed(1)}%`;
 };
 
-const formatNum = (v: number | null | undefined): string => {
+const fmtNum = (v: number | null | undefined): string => {
   if (v === null || v === undefined || Number.isNaN(v)) return '—';
-  return v.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 };
 
 interface Props {
@@ -54,21 +52,32 @@ interface Props {
   versoes: { ano: number; versao: string }[];
   anoAtual: number;
   versaoAtual: string;
+  mesAnalise: number;
+  analise: AnaliseSemanal;
   barId: number;
 }
 
-export function BpClient({ linhas, indicadores, versoes, anoAtual, versaoAtual }: Props) {
+export function BpClient({
+  linhas,
+  indicadores,
+  versoes,
+  anoAtual,
+  versaoAtual,
+  mesAnalise,
+  analise,
+}: Props) {
   const router = useRouter();
-  const [versaoSelecionada, setVersaoSelecionada] = useState(`${anoAtual}|${versaoAtual}`);
+  const [tab, setTab] = useState<'dre' | 'analise'>('dre');
 
-  const indicadorMap = useMemo(() => {
+  const indMap = useMemo(() => {
     const m = new Map<string, BpIndicador>();
     indicadores.forEach(i => m.set(i.indicador, i));
     return m;
   }, [indicadores]);
 
-  const blocos = useMemo(() => {
-    const ordemBlocos = [
+  // Agrupar linhas por bloco para DRE (exclui Metricas Operacionais)
+  const blocosDre = useMemo(() => {
+    const ordem = [
       'Receitas',
       'Despesas Variaveis',
       'CMV',
@@ -80,257 +89,130 @@ export function BpClient({ linhas, indicadores, versoes, anoAtual, versaoAtual }
       'Contratos',
     ];
     const grouped = new Map<string, BpLinha[]>();
-    linhas.forEach(l => {
-      const arr = grouped.get(l.bloco) || [];
-      arr.push(l);
-      grouped.set(l.bloco, arr);
-    });
-    return ordemBlocos
+    linhas
+      .filter(l => l.bloco !== 'Metricas Operacionais')
+      .forEach(l => {
+        const arr = grouped.get(l.bloco) || [];
+        arr.push(l);
+        grouped.set(l.bloco, arr);
+      });
+    return ordem
       .filter(b => grouped.has(b))
       .map(b => ({ bloco: b, linhas: (grouped.get(b) || []).sort((a, b) => a.ordem - b.ordem) }));
   }, [linhas]);
 
   const totaisBloco = useMemo(() => {
-    const totais = new Map<string, number>();
-    blocos.forEach(({ bloco, linhas }) => {
-      const soma = linhas.reduce((acc, l) => acc + (l.valor_mensal || 0), 0);
-      totais.set(bloco, soma);
+    const t = new Map<string, number>();
+    blocosDre.forEach(({ bloco, linhas }) => {
+      t.set(bloco, linhas.reduce((s, l) => s + (l.valor_mensal || 0), 0));
     });
-    return totais;
-  }, [blocos]);
+    return t;
+  }, [blocosDre]);
 
   const receitaTotal = totaisBloco.get('Receitas') || 0;
-  const ebitda = blocos.reduce((acc, { bloco, linhas: ls }) => {
-    if (bloco === 'Receitas') return acc + ls.reduce((s, l) => s + (l.valor_mensal || 0), 0);
-    return acc + ls.reduce((s, l) => s + (l.valor_mensal || 0), 0);
-  }, 0);
+  const ebitda = blocosDre.reduce((acc, { linhas }) => acc + linhas.reduce((s, l) => s + (l.valor_mensal || 0), 0), 0);
 
-  const distribuicaoSemana = useMemo(() => {
-    const totalPorDia: Record<DiaSemana, { receita: number; cache: number }> = {
-      seg: { receita: 0, cache: 0 },
-      ter: { receita: 0, cache: 0 },
-      qua: { receita: 0, cache: 0 },
-      qui: { receita: 0, cache: 0 },
-      sex: { receita: 0, cache: 0 },
-      sab: { receita: 0, cache: 0 },
-      dom: { receita: 0, cache: 0 },
-    };
-    linhas.forEach(l => {
-      if (!l.por_dia_semana) return;
-      const isReceita = l.tipo === 'receita';
-      DIAS.forEach(({ key }) => {
-        const v = Number(l.por_dia_semana?.[key] || 0);
-        if (isReceita) totalPorDia[key].receita += v;
-        else if (l.linha === 'Programacao Artistica') totalPorDia[key].cache += v;
-      });
-    });
-    return DIAS.map(d => ({
-      dia: d.label,
-      receita: totalPorDia[d.key].receita,
-      cache: totalPorDia[d.key].cache,
-      pct_cache: totalPorDia[d.key].receita > 0
-        ? (totalPorDia[d.key].cache / totalPorDia[d.key].receita) * 100
-        : 0,
-    }));
-  }, [linhas]);
-
-  const breakeven = Number(indicadorMap.get('breakeven_mensal')?.valor || 0);
-  const custoFixo = Number(indicadorMap.get('custo_fixo_total')?.valor || 0);
-  const margemContrib = Number(indicadorMap.get('margem_contribuicao_pct')?.valor || 0);
-  const ticketBar = Number(indicadorMap.get('ticket_medio_bar')?.valor || 0);
-  const ticketEntrada = Number(indicadorMap.get('ticket_medio_entrada')?.valor || 0);
-  const nPessoas = Number(indicadorMap.get('n_pessoas_mes')?.valor || 0);
-  const cmvAlvo = Number(indicadorMap.get('cmv_alvo_pct')?.valor || 0);
-  const margemLiquida = Number(indicadorMap.get('margem_liquida_pct')?.valor || 0);
+  const breakeven = Number(indMap.get('breakeven_mensal')?.valor || 0);
+  const margemContrib = Number(indMap.get('margem_contribuicao_pct')?.valor || 0);
+  const margemLiquida = receitaTotal > 0 ? (ebitda / receitaTotal) * 100 : 0;
+  const cmvAlvo = Number(indMap.get('cmv_alvo_pct')?.valor || 0);
 
   const handleChangeVersao = (val: string) => {
-    setVersaoSelecionada(val);
-    const [ano, versao] = val.split('|');
-    router.push(`/estrategico/bp?ano=${ano}&versao=${encodeURIComponent(versao)}`);
+    const [a, v] = val.split('|');
+    router.push(`/estrategico/bp?ano=${a}&versao=${encodeURIComponent(v)}&mes=${mesAnalise}`);
+  };
+  const handleChangeMes = (val: string) => {
+    router.push(`/estrategico/bp?ano=${anoAtual}&versao=${encodeURIComponent(versaoAtual)}&mes=${val}`);
+  };
+
+  const variacao = (real: number, plan: number, lowerIsBetter = false): { color: string; pct: number } => {
+    if (plan === 0) return { color: 'text-gray-500', pct: 0 };
+    const pct = ((real - plan) / Math.abs(plan)) * 100;
+    let color = 'text-gray-500';
+    if (lowerIsBetter) {
+      color = real <= plan ? 'text-emerald-600' : 'text-red-600';
+    } else {
+      color = real >= plan ? 'text-emerald-600' : 'text-red-600';
+    }
+    return { color, pct };
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-[1400px] mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div className="p-4 md:p-6 space-y-4 max-w-[1400px] mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Business Plan</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Plano financeiro anual com projeções por dia da semana e mensais.
+            DRE projetada e análise semanal vs realizado (planejamento comercial).
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Versão:</span>
-          <Select value={versaoSelecionada} onValueChange={handleChangeVersao}>
-            <SelectTrigger className="w-[200px]">
+          <span className="text-xs text-muted-foreground">Versão:</span>
+          <Select value={`${anoAtual}|${versaoAtual}`} onValueChange={handleChangeVersao}>
+            <SelectTrigger className="w-[180px] h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {versoes.length === 0 && (
+              {versoes.length === 0 ? (
                 <SelectItem value={`${anoAtual}|${versaoAtual}`}>{`${versaoAtual} (${anoAtual})`}</SelectItem>
+              ) : (
+                versoes.map(v => (
+                  <SelectItem key={`${v.ano}|${v.versao}`} value={`${v.ano}|${v.versao}`}>
+                    {v.versao} ({v.ano})
+                  </SelectItem>
+                ))
               )}
-              {versoes.map(v => (
-                <SelectItem key={`${v.ano}|${v.versao}`} value={`${v.ano}|${v.versao}`}>
-                  {v.versao} ({v.ano})
-                </SelectItem>
-              ))}
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {linhas.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground">
-              Nenhum BP encontrado para esta versão. Cadastre em meta.bp_linha.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Receita Total Mensal</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatBRL(receitaTotal)}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">BreakEven</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatBRL(breakeven)}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Receita necessária pra zerar
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">EBITDA Projetado</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className={`text-2xl font-bold ${ebitda >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatBRL(ebitda)}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">{formatPct(margemLiquida)} margem líquida</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Margem Contribuição</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatPct(margemContrib)}</div>
-                <p className="text-xs text-muted-foreground mt-1">Custo fixo: {formatBRL(custoFixo)}</p>
-              </CardContent>
-            </Card>
-          </div>
+      {/* Indicadores macro fixos */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <KpiCard label="Receita Mensal" valor={fmtBRL(receitaTotal)} />
+        <KpiCard label="BreakEven" valor={fmtBRL(breakeven)} sub="Receita pra zerar" />
+        <KpiCard
+          label="EBITDA Projetado"
+          valor={fmtBRL(ebitda)}
+          sub={`${margemLiquida.toFixed(1)}% margem`}
+          accent={ebitda >= 0 ? 'green' : 'red'}
+        />
+        <KpiCard label="Margem Contribuição" valor={fmtPct(margemContrib)} />
+        <KpiCard label="CMV Alvo" valor={fmtPct(cmvAlvo)} />
+      </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <MiniIndicador label="Tkt Médio Bar" valor={formatBRL(ticketBar)} />
-            <MiniIndicador label="Tkt Médio Entrada" valor={formatBRL(ticketEntrada)} />
-            <MiniIndicador label="Pessoas/mês" valor={formatNum(nPessoas)} />
-            <MiniIndicador label="CMV alvo" valor={formatPct(cmvAlvo)} />
-          </div>
+      <Tabs value={tab} onValueChange={v => setTab(v as 'dre' | 'analise')}>
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="dre">DRE Projetada</TabsTrigger>
+          <TabsTrigger value="analise">Análise Semanal</TabsTrigger>
+        </TabsList>
 
+        {/* ABA 1: DRE PROJETADA — estilo Excel */}
+        <TabsContent value="dre" className="mt-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Projeção por dia da semana</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={distribuicaoSemana}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                    <XAxis dataKey="dia" />
-                    <YAxis tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip
-                      formatter={(value, name) => [formatBRL(Number(value)), String(name) === 'receita' ? 'Receita' : 'Cachê']}
-                    />
-                    <Bar dataKey="receita" name="Receita" fill="#3b82f6">
-                      {distribuicaoSemana.map((entry, idx) => (
-                        <Cell key={idx} fill={entry.dia === 'Sex' || entry.dia === 'Sáb' ? '#1e40af' : '#3b82f6'} />
-                      ))}
-                    </Bar>
-                    <Bar dataKey="cache" name="Cachê" fill="#ef4444" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-7 gap-2 text-xs">
-                {distribuicaoSemana.map(d => (
-                  <div key={d.dia} className="border rounded p-2">
-                    <div className="font-semibold">{d.dia}</div>
-                    <div className="text-muted-foreground">Receita: {formatBRL(d.receita)}</div>
-                    <div className="text-muted-foreground">Cachê: {formatBRL(d.cache)}</div>
-                    <div className={d.pct_cache > 25 ? 'text-red-600' : 'text-green-600'}>
-                      {formatPct(d.pct_cache)} cachê/fat
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>DRE Mensal Projetado</CardTitle>
-            </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 px-2">Bloco</th>
-                      <th className="text-left py-2 px-2">Linha</th>
-                      <th className="text-right py-2 px-2">Valor Mensal</th>
-                      <th className="text-right py-2 px-2 hidden md:table-cell">% Receita</th>
-                      <th className="text-left py-2 px-2 hidden lg:table-cell">Observação</th>
+                  <thead className="bg-muted/40 sticky top-0">
+                    <tr className="text-xs uppercase text-muted-foreground border-b">
+                      <th className="text-left py-2 px-3 w-[180px]">Bloco</th>
+                      <th className="text-left py-2 px-3">Linha</th>
+                      <th className="text-right py-2 px-3 w-[140px]">Valor Mensal</th>
+                      <th className="text-right py-2 px-3 w-[80px] hidden md:table-cell">% Receita</th>
+                      <th className="text-left py-2 px-3 hidden lg:table-cell">Observação</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {blocos.map(({ bloco, linhas }) => (
-                      <>
-                        {linhas.map((l, idx) => (
-                          <tr key={l.id} className="border-b border-muted hover:bg-muted/30">
-                            {idx === 0 && (
-                              <td rowSpan={linhas.length + 1} className="align-top py-2 px-2 font-medium text-xs uppercase text-muted-foreground border-r">
-                                {bloco}
-                              </td>
-                            )}
-                            <td className="py-2 px-2">{l.linha}</td>
-                            <td className={`text-right py-2 px-2 font-mono ${(l.valor_mensal || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                              {formatBRL(l.valor_mensal)}
-                            </td>
-                            <td className="text-right py-2 px-2 hidden md:table-cell text-muted-foreground">
-                              {l.percentual_receita !== null ? formatPct(l.percentual_receita) : '—'}
-                            </td>
-                            <td className="py-2 px-2 hidden lg:table-cell text-xs text-muted-foreground">
-                              {l.observacao || ''}
-                            </td>
-                          </tr>
-                        ))}
-                        <tr className="bg-muted/40 font-semibold border-b-2">
-                          <td className="py-2 px-2 text-xs uppercase text-muted-foreground">Subtotal {bloco}</td>
-                          <td className={`text-right py-2 px-2 font-mono ${(totaisBloco.get(bloco) || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {formatBRL(totaisBloco.get(bloco))}
-                          </td>
-                          <td className="text-right py-2 px-2 hidden md:table-cell text-muted-foreground">
-                            {receitaTotal > 0 ? formatPct(((totaisBloco.get(bloco) || 0) / receitaTotal) * 100) : '—'}
-                          </td>
-                          <td className="hidden lg:table-cell" />
-                        </tr>
-                      </>
+                    {blocosDre.map(({ bloco, linhas: ls }) => (
+                      <BlocoRows key={bloco} bloco={bloco} linhas={ls} subtotal={totaisBloco.get(bloco) || 0} receitaTotal={receitaTotal} />
                     ))}
-                    <tr className="bg-blue-50 dark:bg-blue-950 font-bold text-base border-t-4">
-                      <td className="py-3 px-2" colSpan={2}>EBITDA Projetado</td>
-                      <td className={`text-right py-3 px-2 font-mono ${ebitda >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                        {formatBRL(ebitda)}
+                    {/* EBITDA */}
+                    <tr className="bg-blue-50 dark:bg-blue-950 font-bold text-base border-t-4 border-blue-300">
+                      <td className="py-3 px-3" colSpan={2}>EBITDA</td>
+                      <td className={cn("text-right py-3 px-3 font-mono", ebitda >= 0 ? 'text-emerald-700' : 'text-red-700')}>
+                        {fmtBRL(ebitda)}
                       </td>
-                      <td className="text-right py-3 px-2 hidden md:table-cell">{formatPct(margemLiquida)}</td>
+                      <td className="text-right py-3 px-3 hidden md:table-cell font-mono">{fmtPct(margemLiquida)}</td>
                       <td className="hidden lg:table-cell" />
                     </tr>
                   </tbody>
@@ -339,32 +221,329 @@ export function BpClient({ linhas, indicadores, versoes, anoAtual, versaoAtual }
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Notas e direcionamentos</CardTitle>
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Notas do BP</CardTitle>
             </CardHeader>
             <CardContent>
-              <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-                <li>Artístico: <strong>Achar 6k de cachê por semana</strong></li>
-                <li>Produção e Material Operação: <strong>Explodir categorias e definir budgets de cada linha</strong></li>
-                <li>Marketing: <strong>Gerir o Budget total com consumações</strong></li>
+              <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
+                <li>Artístico: achar 6k de cachê por semana</li>
+                <li>Produção e Material Operação: explodir categorias e definir budgets de cada linha</li>
+                <li>Marketing: gerir o budget total com consumações</li>
                 <li>Mudar o pagamento da Meta para semanal</li>
                 <li>Mudar o benefício da semana pra R$100</li>
-                <li>Separar tipos de benefício</li>
               </ul>
             </CardContent>
           </Card>
-        </>
-      )}
+        </TabsContent>
+
+        {/* ABA 2: ANÁLISE SEMANAL — comparativo dia da semana */}
+        <TabsContent value="analise" className="mt-4 space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm text-muted-foreground">Mês de análise:</span>
+            <Select value={String(mesAnalise)} onValueChange={handleChangeMes}>
+              <SelectTrigger className="w-[160px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                  <SelectItem key={m} value={String(m)}>{MESES_NOMES[m]}/{anoAtual}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Badge variant="outline">{analise.totais.eventos_count} eventos no mês</Badge>
+          </div>
+
+          {/* Tabela: dia da semana × métrica */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                Planejado × Realizado por dia da semana — <span className="capitalize">{analise.label}</span>
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Plan = BP × ocorrências do dia no mês. Real = agregado dos eventos do mês via planejamento comercial.
+              </p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/40">
+                    <tr className="border-b text-[10px] uppercase text-muted-foreground">
+                      <th className="text-left py-2 px-2 sticky left-0 bg-muted/40 w-[150px]">Métrica</th>
+                      {DIAS.map(d => (
+                        <th key={d.key} className="text-right py-2 px-2">{d.label}</th>
+                      ))}
+                      <th className="text-right py-2 px-2 bg-blue-100 dark:bg-blue-950">Total Mês</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <LinhaMetrica
+                      label="Eventos"
+                      valores={analise.por_dia.map(d => d.eventos_count)}
+                      total={analise.totais.eventos_count}
+                      fmt={fmtNum}
+                    />
+                    <LinhaPlanReal
+                      label="Pessoas"
+                      plan={analise.por_dia.map(d => d.pessoas_plan)}
+                      real={analise.por_dia.map(d => d.pessoas_real)}
+                      totalPlan={analise.totais.pessoas_plan}
+                      totalReal={analise.totais.pessoas_real}
+                      fmt={fmtNum}
+                      lowerIsBetter={false}
+                      variacao={variacao}
+                    />
+                    <LinhaPlanReal
+                      label="Tkt M. Bar"
+                      plan={analise.por_dia.map(d => d.tb_plan)}
+                      real={analise.por_dia.map(d => d.tb_real)}
+                      totalPlan={
+                        analise.totais.pessoas_plan > 0 ? analise.totais.fat_bar_plan / analise.totais.pessoas_plan : 0
+                      }
+                      totalReal={
+                        analise.totais.pessoas_real > 0 ? analise.totais.fat_bar_real / analise.totais.pessoas_real : 0
+                      }
+                      fmt={fmtBRL}
+                      lowerIsBetter={false}
+                      variacao={variacao}
+                    />
+                    <LinhaPlanReal
+                      label="Tkt M. Entrada"
+                      plan={analise.por_dia.map(d => d.te_plan)}
+                      real={analise.por_dia.map(d => d.te_real)}
+                      totalPlan={
+                        analise.totais.pessoas_plan > 0
+                          ? analise.totais.fat_entrada_plan / analise.totais.pessoas_plan
+                          : 0
+                      }
+                      totalReal={
+                        analise.totais.pessoas_real > 0
+                          ? analise.totais.fat_entrada_real / analise.totais.pessoas_real
+                          : 0
+                      }
+                      fmt={fmtBRL}
+                      lowerIsBetter={false}
+                      variacao={variacao}
+                    />
+                    <LinhaPlanReal
+                      label="Fat. Entrada"
+                      plan={analise.por_dia.map(d => d.fat_entrada_plan)}
+                      real={analise.por_dia.map(d => d.fat_entrada_real)}
+                      totalPlan={analise.totais.fat_entrada_plan}
+                      totalReal={analise.totais.fat_entrada_real}
+                      fmt={fmtBRL}
+                      lowerIsBetter={false}
+                      variacao={variacao}
+                    />
+                    <LinhaPlanReal
+                      label="Fat. Bar"
+                      plan={analise.por_dia.map(d => d.fat_bar_plan)}
+                      real={analise.por_dia.map(d => d.fat_bar_real)}
+                      totalPlan={analise.totais.fat_bar_plan}
+                      totalReal={analise.totais.fat_bar_real}
+                      fmt={fmtBRL}
+                      lowerIsBetter={false}
+                      variacao={variacao}
+                    />
+                    <LinhaPlanReal
+                      label="Fat. Total"
+                      plan={analise.por_dia.map(d => d.fat_total_plan)}
+                      real={analise.por_dia.map(d => d.fat_total_real)}
+                      totalPlan={analise.totais.fat_total_plan}
+                      totalReal={analise.totais.fat_total_real}
+                      fmt={fmtBRL}
+                      lowerIsBetter={false}
+                      variacao={variacao}
+                      destaque
+                    />
+                    <LinhaPlanReal
+                      label="Cachê"
+                      plan={analise.por_dia.map(d => d.cache_plan)}
+                      real={analise.por_dia.map(d => d.cache_real)}
+                      totalPlan={analise.totais.cache_plan}
+                      totalReal={analise.totais.cache_real}
+                      fmt={fmtBRL}
+                      lowerIsBetter
+                      variacao={variacao}
+                    />
+                    <LinhaPlanReal
+                      label="% Cachê/Fat"
+                      plan={analise.por_dia.map(d => d.pct_cache_plan)}
+                      real={analise.por_dia.map(d => d.pct_cache_real)}
+                      totalPlan={
+                        analise.totais.fat_total_plan > 0
+                          ? (analise.totais.cache_plan / analise.totais.fat_total_plan) * 100
+                          : 0
+                      }
+                      totalReal={
+                        analise.totais.fat_total_real > 0
+                          ? (analise.totais.cache_real / analise.totais.fat_total_real) * 100
+                          : 0
+                      }
+                      fmt={fmtPct}
+                      lowerIsBetter
+                      variacao={variacao}
+                    />
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Como ler</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-muted-foreground space-y-1">
+              <p><span className="text-blue-600 font-mono">Plan</span>: o que estava no BP × número de ocorrências daquele dia da semana no mês.</p>
+              <p><span className="text-gray-900 dark:text-white font-mono">Real</span>: agregado dos eventos do mês (planejamento comercial). Cor compara vs Plan.</p>
+              <p><span className="text-emerald-600">Verde</span>: dentro/melhor que o BP. <span className="text-red-600">Vermelho</span>: pior que o BP (gastou mais em cachê, vendeu menos, etc).</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
 
-function MiniIndicador({ label, valor }: { label: string; valor: string }) {
+function KpiCard({
+  label,
+  valor,
+  sub,
+  accent,
+}: {
+  label: string;
+  valor: string;
+  sub?: string;
+  accent?: 'green' | 'red';
+}) {
+  const accentClass = accent === 'green' ? 'text-emerald-600' : accent === 'red' ? 'text-red-600' : '';
   return (
-    <div className="border rounded-lg p-3 bg-card">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-lg font-semibold">{valor}</div>
-    </div>
+    <Card>
+      <CardHeader className="pb-1">
+        <CardTitle className="text-[10px] uppercase text-muted-foreground font-medium tracking-wide">{label}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className={cn('text-lg md:text-xl font-bold', accentClass)}>{valor}</div>
+        {sub && <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BlocoRows({
+  bloco,
+  linhas,
+  subtotal,
+  receitaTotal,
+}: {
+  bloco: string;
+  linhas: BpLinha[];
+  subtotal: number;
+  receitaTotal: number;
+}) {
+  return (
+    <>
+      {linhas.map((l, idx) => (
+        <tr key={l.id} className="border-b hover:bg-muted/30">
+          {idx === 0 && (
+            <td
+              rowSpan={linhas.length + 1}
+              className="align-top py-2 px-3 font-medium text-[10px] uppercase text-muted-foreground border-r tracking-wide"
+            >
+              {bloco}
+            </td>
+          )}
+          <td className="py-2 px-3">{l.linha}</td>
+          <td className={cn('text-right py-2 px-3 font-mono', (l.valor_mensal || 0) < 0 ? 'text-red-600' : 'text-emerald-700')}>
+            {fmtBRL(l.valor_mensal)}
+          </td>
+          <td className="text-right py-2 px-3 hidden md:table-cell text-muted-foreground">
+            {l.percentual_receita !== null ? fmtPct(l.percentual_receita) : '—'}
+          </td>
+          <td className="py-2 px-3 hidden lg:table-cell text-[11px] text-muted-foreground">{l.observacao || ''}</td>
+        </tr>
+      ))}
+      <tr className="bg-muted/40 font-semibold border-b-2 text-xs">
+        <td className="py-2 px-3 uppercase text-muted-foreground">Subtotal {bloco}</td>
+        <td className={cn('text-right py-2 px-3 font-mono', subtotal < 0 ? 'text-red-700' : 'text-emerald-700')}>
+          {fmtBRL(subtotal)}
+        </td>
+        <td className="text-right py-2 px-3 hidden md:table-cell text-muted-foreground">
+          {receitaTotal > 0 ? fmtPct((subtotal / receitaTotal) * 100) : '—'}
+        </td>
+        <td className="hidden lg:table-cell" />
+      </tr>
+    </>
+  );
+}
+
+function LinhaMetrica({ label, valores, total, fmt }: { label: string; valores: number[]; total: number; fmt: (v: number) => string }) {
+  return (
+    <tr className="border-b">
+      <td className="py-2 px-2 sticky left-0 bg-background font-medium">{label}</td>
+      {valores.map((v, i) => (
+        <td key={i} className="text-right py-2 px-2 font-mono">{fmt(v)}</td>
+      ))}
+      <td className="text-right py-2 px-2 font-mono font-bold bg-blue-50 dark:bg-blue-950">{fmt(total)}</td>
+    </tr>
+  );
+}
+
+function LinhaPlanReal({
+  label,
+  plan,
+  real,
+  totalPlan,
+  totalReal,
+  fmt,
+  lowerIsBetter,
+  variacao,
+  destaque,
+}: {
+  label: string;
+  plan: number[];
+  real: number[];
+  totalPlan: number;
+  totalReal: number;
+  fmt: (v: number) => string;
+  lowerIsBetter: boolean;
+  variacao: (real: number, plan: number, lowerIsBetter?: boolean) => { color: string; pct: number };
+  destaque?: boolean;
+}) {
+  const corTotal = variacao(totalReal, totalPlan, lowerIsBetter).color;
+  return (
+    <>
+      <tr className={cn('border-b', destaque && 'bg-emerald-50/40 dark:bg-emerald-950/20')}>
+        <td className={cn('py-1 px-2 sticky left-0 bg-background font-medium', destaque && 'bg-emerald-50/40 dark:bg-emerald-950/20')} rowSpan={2}>
+          {label}
+        </td>
+        {plan.map((p, i) => (
+          <td key={i} className="text-right py-1 px-2 font-mono text-blue-600 text-[10px]">
+            <div className="opacity-60 text-[8px] uppercase">Plan</div>
+            {fmt(p)}
+          </td>
+        ))}
+        <td className={cn('text-right py-1 px-2 font-mono text-blue-700 font-bold text-[11px] bg-blue-50 dark:bg-blue-950')}>
+          <div className="opacity-60 text-[8px] uppercase">Plan</div>
+          {fmt(totalPlan)}
+        </td>
+      </tr>
+      <tr className={cn('border-b-2', destaque && 'bg-emerald-50/40 dark:bg-emerald-950/20')}>
+        {real.map((r, i) => {
+          const { color } = variacao(r, plan[i], lowerIsBetter);
+          return (
+            <td key={i} className={cn('text-right py-1 px-2 font-mono text-[10px] font-semibold', color)}>
+              <div className="opacity-60 text-[8px] uppercase">Real</div>
+              {fmt(r)}
+            </td>
+          );
+        })}
+        <td className={cn('text-right py-1 px-2 font-mono font-bold text-[11px] bg-blue-50 dark:bg-blue-950', corTotal)}>
+          <div className="opacity-60 text-[8px] uppercase">Real</div>
+          {fmt(totalReal)}
+        </td>
+      </tr>
+    </>
   );
 }
