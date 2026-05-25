@@ -26,46 +26,52 @@ export default async function DesempenhoPage({
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // Buscar configuracao de integracoes do bar
-  const { data: integConfig } = await supabase
+  let initialData: DadosSemana[] = [];
+  let semanaAtual = 0;
+  let anoAtual = new Date().getFullYear();
+
+  // Paralelizar fetch de integracoes com fetch principal (semanas/meses).
+  // Antes era sequencial: ~150ms + ~800ms. Agora corre junto.
+  const integPromise = supabase
     .schema('operations' as never)
     .from('vw_bar_tem_integracao')
     .select('getin_api, getin_modo')
     .eq('bar_id', barId)
     .single();
 
-  const integracoes = {
-    getin_api: integConfig?.getin_api ?? true,
-    getin_modo: integConfig?.getin_modo ?? null,
-  };
-
-  let initialData: DadosSemana[] = [];
-  let semanaAtual = 0;
-  let anoAtual = new Date().getFullYear();
-
+  let integResult: Awaited<typeof integPromise>;
   if (visao === 'mensal') {
-    // Lógica Mensal: Março 2025 até o mês atual (conforme original)
-    // Se estivermos antes de Março 2025, ajustar?
-    // Vou usar Março 2025 como hardcode inicial conforme regra de negócio aparente
     const anoInicio = 2025;
     const mesInicio = 3;
     const hoje = new Date();
     const mesFim = hoje.getMonth() + 1;
     const anoFim = hoje.getFullYear();
 
-    initialData = await getMeses(supabase, barId, anoInicio, mesInicio, anoFim, mesFim);
-    
-    // Para visão mensal, semanaAtual = mês atual
+    const [dados, integ] = await Promise.all([
+      getMeses(supabase, barId, anoInicio, mesInicio, anoFim, mesFim),
+      integPromise,
+    ]);
+    initialData = dados;
     semanaAtual = mesFim;
     anoAtual = anoFim;
+    integResult = integ;
   } else {
-    // Lógica Semanal
     const ano = params.ano ? parseInt(params.ano as string) : undefined;
-    const result = await getSemanas(supabase, barId, ano);
+    const [result, integ] = await Promise.all([
+      getSemanas(supabase, barId, ano),
+      integPromise,
+    ]);
     initialData = result.semanas;
     semanaAtual = result.semanaAtual;
     anoAtual = result.anoAtual;
+    integResult = integ;
   }
+
+  const integConfig = integResult.data as { getin_api: boolean | null; getin_modo: string | null } | null;
+  const integracoes = {
+    getin_api: integConfig?.getin_api ?? true,
+    getin_modo: integConfig?.getin_modo ?? null,
+  };
 
   return (
     <DesempenhoClient
