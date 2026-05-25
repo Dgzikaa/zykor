@@ -514,12 +514,14 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     });
 
     // Faturamento Meta:
-    //   plan: categoria especial 'FATURAMENTO META' da planilha (digitada na UI)
-    //   proj: soma M1 dos eventos do mes (eventos_base.m1_r)
+    //   plan: categoria 'FATURAMENTO META' da planilha (valor_planejado)
+    //   proj: categoria 'FATURAMENTO META' da planilha (valor_projetado).
+    //         Fallback: soma M1 dos eventos (eventos_base.m1_r) se planilha = 0.
     //   real: real_r dos eventos do mes (ContaHub+Sympla+Yuzer)
     const fatMetaRow = getPlanilha('FATURAMENTO META');
     const fatMetaPlan = Number(fatMetaRow?.valor_planejado || 0);
-    const fatMetaProj = fatReal.meta;
+    const fatMetaProjPlanilha = Number(fatMetaRow?.valor_projetado || 0);
+    const fatMetaProj = fatMetaProjPlanilha > 0 ? fatMetaProjPlanilha : fatReal.meta;
     const fatMetaReal = fatReal.realizado;
 
     // % Contribuicao Variavel = 1 - (IMPOSTO/TX MAQ/COMISSAO + CMV) [valores em %]
