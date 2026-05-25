@@ -108,11 +108,11 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
     if (!selectedBar) return;
     setLoading(true);
     try {
+      // Visao anual completa do ano corrente (Jan-Dez, 12 meses).
       const hoje = new Date();
       const anoInicio = hoje.getFullYear();
       const mesInicio = 1;
-      const mesAtual = hoje.getMonth() + 1;
-      const quantidade = Math.min(12, Math.max(6, mesAtual + 2));
+      const quantidade = 12;
 
       const response = await fetch(
         `/api/estrategico/orcamentacao/todos-meses?bar_id=${selectedBar.id}&ano=${anoInicio}&mes_inicio=${mesInicio}&quantidade=${quantidade}`

@@ -33,12 +33,13 @@ export default async function Page() {
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // Comecar em Janeiro do ano corrente, mostrar ate mes atual + 2 (visao planejamento)
+  // Visao anual completa: Jan a Dez do ano corrente (12 meses sempre).
+  // Garante que tudo eh do ano atual (sem cross-year).
   const hoje = new Date();
   const anoInicio = hoje.getFullYear();
   const mesInicio = 1;
   const mesAtual = hoje.getMonth() + 1;
-  const quantidade = Math.min(12, Math.max(6, mesAtual + 2));
+  const quantidade = 12;
 
   // BP: carregar em paralelo, mes corrente e versao padrao
   const bpVersao = 'Mai26';
