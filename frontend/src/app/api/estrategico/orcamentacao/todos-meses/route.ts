@@ -402,7 +402,10 @@ export async function GET(request: Request) {
         ]
       ),
 
-      // Query 3: Conta Azul pagos (realizado) - usar data_competencia (data_pagamento eh sempre NULL no CA v2)
+      // Query 3: Conta Azul realizado por competencia (todos status).
+      // Antes filtrava ACQUITTED/PARTIAL, mas a DRE do CA mostra por competencia
+      // incluindo OVERDUE/PENDING. Ex: PROVISAO TRABALHISTA tem R$27k OVERDUE
+      // em Jan/26 que precisa aparecer. Alinha com filtro do service.
       fetchAllPaginated<{ categoria_nome: string; status: string; valor_bruto: string; data_competencia: string }>(
         supabase,
         'bronze_contaazul_lancamentos',
@@ -410,7 +413,6 @@ export async function GET(request: Request) {
         [
           { column: 'bar_id', operator: 'eq', value: parseInt(barId) },
           { column: 'excluido_em', operator: 'is', value: null },
-          { column: 'status', operator: 'in', value: ['ACQUITTED', 'PARTIAL'] },
           { column: 'data_competencia', operator: 'gte', value: dataInicio },
           { column: 'data_competencia', operator: 'lte', value: dataFim }
         ]

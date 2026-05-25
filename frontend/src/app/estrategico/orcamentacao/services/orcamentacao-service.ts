@@ -446,13 +446,14 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
       { column: 'data_competencia', operator: 'gte', value: dataInicio },
       { column: 'data_competencia', operator: 'lte', value: dataFim }
     ]),
-    // ATENCAO: ContaAzul v2 nao preenche data_pagamento na maioria dos lancamentos
-    // (39117 ACQUITTED com data_pagamento=NULL). Filtrar por data_competencia eh
-    // o correto pra orcamento (gasto do MES, nao quando foi pago).
+    // Realizado: TODOS os lancamentos por competencia (ACQUITTED + OVERDUE +
+    // PENDING). Antes filtrava so ACQUITTED mas a planilha do DRE no CA mostra
+    // por competencia, independente de pago. Ex: PROVISAO TRABALHISTA tem R$ 27k
+    // OVERDUE em Jan/26 que precisa aparecer; TAXA MAQUININHA R$ 36k OVERDUE; etc.
+    // Excluidos (excluido_em) e antecipacoes Stone ainda sao filtrados.
     fetchAllPaginated<any>(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia, descricao', [
       { column: 'bar_id', operator: 'eq', value: barId },
       { column: 'excluido_em', operator: 'is', value: null },
-      { column: 'status', operator: 'in', value: ['ACQUITTED', 'PARTIAL'] },
       { column: 'data_competencia', operator: 'gte', value: dataInicio },
       { column: 'data_competencia', operator: 'lte', value: dataFim }
     ]),
