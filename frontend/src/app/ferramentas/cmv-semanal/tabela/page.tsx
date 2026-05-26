@@ -429,14 +429,16 @@ export default function CMVSemanalTabelaPage() {
   const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
   // ====== METAS (estilo Desempenho) ======
-  // Defaults aplicados quando bar não tem meta salva
-  const METAS_DEFAULT: Record<string, { valor: number; operador: '<=' | '>=' }> = useMemo(() => ({
-    cmv_teorico_percentual: { valor: 29, operador: '<=' },
+  // Defaults aplicados quando bar não tem meta salva.
+  // CMV Teórico NÃO tem default global — é 100% manual semana a semana
+  // (decisão do sócio). Se não preenchido, aparece "—" na UI.
+  const METAS_DEFAULT: Record<string, { valor: number | null; operador: '<=' | '>=' }> = useMemo(() => ({
+    cmv_teorico_percentual: { valor: null, operador: '<=' },
     cmv_limpo_percentual: { valor: 33, operador: '<=' },
     cmv_percentual: { valor: 26, operador: '<=' },
   }), []);
 
-  const [metasCmv, setMetasCmv] = useState<Record<string, { valor: number; operador: string }>>(METAS_DEFAULT);
+  const [metasCmv, setMetasCmv] = useState<Record<string, { valor: number | null; operador: string }>>(METAS_DEFAULT);
   const [metaModalOpen, setMetaModalOpen] = useState(false);
   const [salvandoMeta, setSalvandoMeta] = useState(false);
   const [metasEdit, setMetasEdit] = useState<Record<string, string>>({});
@@ -466,7 +468,7 @@ export default function CMVSemanalTabelaPage() {
   useEffect(() => {
     if (!metaModalOpen) return;
     setMetasEdit({
-      cmv_teorico_percentual: String(metasCmv.cmv_teorico_percentual?.valor ?? 29),
+      cmv_teorico_percentual: metasCmv.cmv_teorico_percentual?.valor != null ? String(metasCmv.cmv_teorico_percentual.valor) : '',
       cmv_limpo_percentual: String(metasCmv.cmv_limpo_percentual?.valor ?? 33),
       cmv_percentual: String(metasCmv.cmv_percentual?.valor ?? 26),
     });
@@ -1359,7 +1361,7 @@ export default function CMVSemanalTabelaPage() {
                           ? '—'
                           : metrica.key === 'cmv_real'
                             ? `${metasCmv.cmv_percentual?.valor ?? 26}% × Fat`
-                            : meta
+                            : meta && meta.valor != null
                               ? `${meta.valor.toFixed(1)}%`
                               : '—';
 

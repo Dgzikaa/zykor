@@ -11,13 +11,14 @@ import { createServerClient } from '@/lib/supabase-server';
  *   - cmv_teorico_percentual   (CMV Teórico %)
  *
  * Defaults aplicados quando meta ausente:
- *   teorico=29, limpo=33 (teorico+4), real_pct=26
+ *   teorico=null (100% manual semana a semana via cmv_teorico_percentual_manual)
+ *   limpo=33, real_pct=26
  *
  * Operador padrão: '<=' (CMV menor é melhor).
  */
 
-const DEFAULTS: Record<string, { valor: number; operador: '<=' | '>=' }> = {
-  cmv_teorico_percentual: { valor: 29, operador: '<=' },
+const DEFAULTS: Record<string, { valor: number | null; operador: '<=' | '>=' }> = {
+  cmv_teorico_percentual: { valor: null, operador: '<=' },
   cmv_limpo_percentual: { valor: 33, operador: '<=' },
   cmv_percentual: { valor: 26, operador: '<=' },
 };
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao buscar metas' }, { status: 500 });
     }
 
-    const metas: Record<string, { valor: number; operador: string }> = {};
+    const metas: Record<string, { valor: number | null; operador: string }> = {};
     for (const m of (data as any[]) || []) {
       metas[m.metrica] = { valor: parseFloat(m.valor_meta), operador: m.operador || '<=' };
     }
