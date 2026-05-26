@@ -17,7 +17,9 @@ import { createServerClient } from '@/lib/supabase-server';
  * PATCH body { bar_id, ano, mes, equipe_fixa_mensal?, pro_labore_mensal? }
  */
 
-const PRO_LABORE_DEFAULT = 64000;
+// Sem default hardcoded: pro_labore varia por bar (Ord 64k, Deboche 15k).
+// Se a row nao existe ainda, retorna 0 e o usuario edita pela UI.
+const PRO_LABORE_DEFAULT = 0;
 
 export async function GET(request: NextRequest) {
   try {

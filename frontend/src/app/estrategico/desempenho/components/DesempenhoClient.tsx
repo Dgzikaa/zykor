@@ -115,8 +115,8 @@ return [
           { key: 'cmo_percentual_detalhado', label: 'CMO %', status: 'auto', fonte: 'Calculado de Freelas + Alim + Equipe Fixa + Pro Labore', calculo: '(Freelas + Alimentação + Equipe Fixa + Pro Labore) / Faturamento × 100', formato: 'percentual', inverso: true },
           { key: 'cmo_freelas', label: 'Freelas', status: 'auto', fonte: 'Conta Azul', calculo: 'SUM categorias FREELA ATENDIMENTO/COZINHA/BAR/LIMPEZA/SEGURANÇA/BRIGADISTA', formato: 'moeda', inverso: true, indentado: true },
           { key: 'cmo_alimentacao', label: 'Alimentação', status: 'auto', fonte: 'CMA Total', calculo: 'Estoque Inicial (F) + Compras Alimentação - Estoque Final (F)', formato: 'moeda', inverso: true, indentado: true },
-          { key: 'cmo_equipe_fixa', label: 'Equipe Fixa', status: 'manual', fonte: 'meta.cmo_manual', calculo: 'Manual mensal. Visão semanal: rateio dia a dia (mensal / dias_mes × dias_da_semana)', formato: 'moeda', inverso: true, editavel: true, indentado: true },
-          { key: 'cmo_pro_labore', label: 'Pro Labore', status: 'manual', fonte: 'meta.cmo_manual', calculo: 'Manual mensal (default R$64.000). Visão semanal: rateio dia a dia', formato: 'moeda', inverso: true, editavel: true, indentado: true },
+          { key: 'cmo_equipe_fixa', label: 'Equipe Fixa', status: 'manual', fonte: 'meta.cmo_equipe_fixa_semanal', calculo: 'Manual SEMANAL. Editado semana a semana. Mensal = soma das semanas do mês (read-only)', formato: 'moeda', inverso: true, editavel: true, indentado: true },
+          { key: 'cmo_pro_labore', label: 'Pro Labore', status: 'manual', fonte: 'meta.cmo_manual', calculo: 'Manual mensal por bar (Ordinário R$64k, Deboche R$15k). Visão semanal: rateio dia a dia', formato: 'moeda', inverso: true, editavel: true, indentado: true },
         ]
       },
       {
@@ -1571,20 +1571,50 @@ export function DesempenhoClient({
     try {
       setLoading(true);
 
-      // CMO manual (Equipe Fixa, Pro Labore): vai para meta.cmo_manual via API
-      // dedicada. Sempre persiste o valor MENSAL (Pro Labore semanal e' rateio).
-      if (campo === 'cmo_equipe_fixa' || campo === 'cmo_pro_labore') {
+      // CMO Equipe Fixa: agora 100% SEMANAL (meta.cmo_equipe_fixa_semanal).
+      // Mensal vira read-only (SUM das semanas). Edicao mensal nao eh suportada.
+      if (campo === 'cmo_equipe_fixa') {
+        if (visao !== 'semanal') {
+          toast({
+            title: 'Edite na visão semanal',
+            description: 'Equipe Fixa agora é input semana a semana. O valor mensal é a soma das semanas do mês.',
+            variant: 'destructive',
+          });
+          setEditando(null);
+          return;
+        }
+        const semanaAtual = semanasProcessadas.find(s => s.id === semanaId);
+        if (!semanaAtual) throw new Error('Semana não encontrada');
+
+        const resp = await fetch('/api/estrategico/desempenho/cmo-equipe-fixa-semanal', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bar_id: effectiveBarId,
+            ano: semanaAtual.ano,
+            numero_semana: semanaAtual.numero_semana,
+            valor: numValue,
+          }),
+        });
+        if (!resp.ok) throw new Error('Erro ao salvar Equipe Fixa semanal');
+
+        toast({ title: 'Salvo!', description: `Equipe Fixa S${semanaAtual.numero_semana}/${semanaAtual.ano} atualizada` });
+        setEditando(null);
+        await carregarCmoDetalhe();
+        return;
+      }
+
+      // Pro Labore: continua MENSAL em meta.cmo_manual (rateio dia a dia na semanal).
+      if (campo === 'cmo_pro_labore') {
         const semanaAtual = semanasProcessadas.find(s => s.id === semanaId);
         if (!semanaAtual) throw new Error('Semana/mês não encontrado');
 
-        // Visão mensal: numero_semana é o mês. Semanal: derivar do data_inicio.
         const mes = visao === 'mensal'
           ? semanaAtual.numero_semana
           : new Date(semanaAtual.data_inicio + 'T12:00:00Z').getUTCMonth() + 1;
         const anoCmo = visao === 'mensal'
           ? semanaAtual.ano
           : new Date(semanaAtual.data_inicio + 'T12:00:00Z').getUTCFullYear();
-        const campoApi = campo === 'cmo_equipe_fixa' ? 'equipe_fixa_mensal' : 'pro_labore_mensal';
 
         const resp = await fetch('/api/estrategico/desempenho/cmo-manual', {
           method: 'PATCH',
@@ -1593,16 +1623,16 @@ export function DesempenhoClient({
             bar_id: effectiveBarId,
             ano: anoCmo,
             mes,
-            [campoApi]: numValue,
+            pro_labore_mensal: numValue,
           }),
         });
-        if (!resp.ok) throw new Error('Erro ao salvar CMO manual');
+        if (!resp.ok) throw new Error('Erro ao salvar Pro Labore');
 
         toast({
           title: 'Salvo!',
           description: visao === 'semanal'
-            ? `${campo === 'cmo_equipe_fixa' ? 'Equipe Fixa' : 'Pro Labore'} mensal atualizado — proporção semanal recalculada`
-            : 'Valor atualizado',
+            ? 'Pro Labore mensal atualizado — proporção semanal recalculada'
+            : 'Pro Labore mensal atualizado',
         });
         setEditando(null);
         await carregarCmoDetalhe();
@@ -2417,17 +2447,21 @@ export function DesempenhoClient({
                                               {!isEditandoCell && metrica.editavel && semana.id && (
                                                  <Button size="icon" variant="ghost" className="absolute right-0 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
                                                    setEditando({ semanaId: semana.id!, campo: metrica.key });
-                                                   // CMO Equipe Fixa / Pro Labore: editar o MENSAL (nao o rateado semanal).
-                                                   // Visao semanal mostra valor proporcional mas API persiste mensal.
-                                                   if (metrica.key === 'cmo_equipe_fixa' || metrica.key === 'cmo_pro_labore') {
+                                                   // CMO Pro Labore: editar o MENSAL (rateado dia a dia na semanal).
+                                                   // CMO Equipe Fixa: agora SEMANAL direto - puxa valor da semana atual.
+                                                   if (metrica.key === 'cmo_pro_labore') {
                                                      const mes = visao === 'mensal'
                                                        ? semana.numero_semana
                                                        : new Date(semana.data_inicio + 'T12:00:00Z').getUTCMonth() + 1;
                                                      const mensal = cmoManualPorMes[mes];
-                                                     const valorMensal = metrica.key === 'cmo_equipe_fixa'
-                                                       ? mensal?.equipe_fixa
-                                                       : mensal?.pro_labore;
+                                                     const valorMensal = mensal?.pro_labore;
                                                      setValorEdit(valorMensal !== undefined ? String(valorMensal).replace('.', ',') : '');
+                                                   } else if (metrica.key === 'cmo_equipe_fixa') {
+                                                     // Buscar valor semanal direto do detalhe carregado
+                                                     const key = visao === 'semanal' ? `${semana.ano}-${semana.numero_semana}` : '';
+                                                     const detalhe = cmoDetalheSemanas.get(key);
+                                                     const valorSem = detalhe?.equipe_fixa;
+                                                     setValorEdit(valorSem !== undefined ? String(valorSem).replace('.', ',') : '');
                                                    } else {
                                                      setValorEdit(valor?.toString().replace('.', ',') || '');
                                                    }

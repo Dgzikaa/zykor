@@ -14,13 +14,15 @@ import { createServerClient } from '@/lib/supabase-server';
  *   3) equipe_fixa    — meta.cmo_manual.equipe_fixa_mensal (manual)
  *                       Visao semanal: rateio dia a dia (cada dia da semana puxa do mes
  *                       correspondente, divide por dias_no_mes)
- *   4) pro_labore     — meta.cmo_manual.pro_labore_mensal (manual, default 64000)
+ *   4) pro_labore     — meta.cmo_manual.pro_labore_mensal (manual, sem default)
  *                       Mesmo rateio dia a dia
  *
  * CMO % = (freelas + alimentacao + equipe_fixa + pro_labore) / faturamento_total × 100
  */
 
-const PRO_LABORE_DEFAULT = 64000;
+// Sem default hardcoded: cada bar tem seu pro_labore manual em meta.cmo_manual.
+// Bar 3 (Ordinario) = 64k, Bar 4 (Deboche) = 15k em 2026. Se row nao existe, fica 0.
+const PRO_LABORE_DEFAULT = 0;
 const EQUIPE_FIXA_DEFAULT = 0;
 
 function diasNoMes(ano: number, mes: number): number {
@@ -99,6 +101,20 @@ export async function GET(request: NextRequest) {
         .filter((r) => r.data_competencia >= ini && r.data_competencia <= fim)
         .reduce((sum, r) => sum + (parseFloat(String(r.valor_bruto)) || 0), 0);
 
+    // 2b. Equipe Fixa SEMANAL (substitui o rateio dia-a-dia do cmo_manual.equipe_fixa_mensal)
+    // Agora cada semana tem seu input proprio em meta.cmo_equipe_fixa_semanal.
+    const { data: equipeFixaSemRows } = await (supabase as any)
+      .schema('meta')
+      .from('cmo_equipe_fixa_semanal')
+      .select('numero_semana, valor')
+      .eq('bar_id', barId)
+      .eq('ano', ano);
+
+    const equipeFixaSemanalMap = new Map<number, number>();
+    for (const r of ((equipeFixaSemRows as any[]) || [])) {
+      equipeFixaSemanalMap.set(r.numero_semana, parseFloat(String(r.valor || 0)));
+    }
+
     // 3. gold.desempenho semanal (data_inicio, data_fim, faturamento)
     const { data: semanasGold } = await (supabase as any)
       .schema('gold')
@@ -143,12 +159,14 @@ export async function GET(request: NextRequest) {
     }
 
     // 6. Montar semanas
+    // Equipe Fixa: valor SEMANAL direto da nova tabela meta.cmo_equipe_fixa_semanal.
+    // Pro Labore: continua mensal, rateado dia a dia.
     const semanas = ((semanasGold as any[]) || []).map((s) => {
       const dIni = s.data_inicio as string;
       const dFim = s.data_fim as string;
       const freelas = freelasNoIntervalo(dIni, dFim);
       const alimentacao = cmaSemanalMap.get(`${s.ano}-${s.numero_semana}`) || 0;
-      const equipe_fixa = rateioPorDia(dIni, dFim, (m) => cmoManualPorMes[m]?.equipe_fixa || 0);
+      const equipe_fixa = equipeFixaSemanalMap.get(s.numero_semana) || 0;
       const pro_labore = rateioPorDia(dIni, dFim, (m) => cmoManualPorMes[m]?.pro_labore || 0);
       const total = freelas + alimentacao + equipe_fixa + pro_labore;
       const faturamento = parseFloat(String(s.faturamento_total || 0));
@@ -189,7 +207,10 @@ export async function GET(request: NextRequest) {
       const freelas = freelasNoIntervalo(dIni, dFim);
       const cmv = cmvMensalMap.get(mes) || { faturamento_total: 0, cma_total: 0 };
       const alimentacao = cmv.cma_total;
-      const equipe_fixa = cmoManualPorMes[mes]?.equipe_fixa || 0;
+      // Equipe Fixa mensal = SUM das semanas que CAEM no mes (data_inicio dentro de [dIni, dFim])
+      const equipe_fixa = ((semanasGold as any[]) || [])
+        .filter((s) => s.data_inicio >= dIni && s.data_inicio <= dFim)
+        .reduce((acc, s) => acc + (equipeFixaSemanalMap.get(s.numero_semana) || 0), 0);
       const pro_labore = cmoManualPorMes[mes]?.pro_labore || 0;
       const total = freelas + alimentacao + equipe_fixa + pro_labore;
       const cmo_percentual = cmv.faturamento_total > 0 ? (total / cmv.faturamento_total) * 100 : 0;
