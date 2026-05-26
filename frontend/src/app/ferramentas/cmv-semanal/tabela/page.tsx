@@ -1756,10 +1756,14 @@ export default function CMVSemanalTabelaPage() {
                                       </TooltipProvider>
                                     )}
 
-                                    {/* Botão editar - semanal: todos os campos editaveis; mensal: só bonificações (têm coluna própria em cmv_mensal) */}
+                                    {/* Botão editar - semanal: todos os campos editaveis; mensal: bonificações + cmv_teorico_percentual (têm coluna própria em cmv_mensal) */}
                                     {!isEditandoCell && metrica.editavel && (
                                       visao === 'semanal' ||
-                                      (visao === 'mensal' && (metrica.key === 'bonificacao_contrato_anual' || metrica.key === 'bonificacao_cashback_mensal'))
+                                      (visao === 'mensal' && (
+                                        metrica.key === 'bonificacao_contrato_anual'
+                                        || metrica.key === 'bonificacao_cashback_mensal'
+                                        || metrica.key === 'cmv_teorico_percentual'
+                                      ))
                                     ) && (
                                       <Button
                                         size="icon"

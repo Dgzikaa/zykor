@@ -431,12 +431,15 @@ export async function GET(request: NextRequest) {
     // Agregar dados CMV com proporção
     const dadosMensais = agregarCMVProportional(semanasComProporcao, cmvMap, estoqueFinalMesAnterior, ano, mes);
 
-    // Override pelo campo manual se cmv_mensal já tiver valor pra este mês
-    // (mesmo no mês atual). Permite sócio salvar cmv_teorico_percentual manual
-    // e ver imediatamente, sem esperar o mês fechar.
+    // Override pelo campo MANUAL (cmv_teorico_percentual_manual) — a coluna sem
+    // sufixo é populada pelo ETL com o CMV Limpo calculado, então não serve
+    // como fonte do input do sócio (próximo sync sobrescreveria).
     if (cmvMensal && !errMensal) {
-      const cmvTeoricoManual = parseFloat(String(cmvMensal.cmv_teorico_percentual || 0));
-      if (cmvTeoricoManual > 0) {
+      const cmvTeoricoManual = cmvMensal.cmv_teorico_percentual_manual !== null
+        && cmvMensal.cmv_teorico_percentual_manual !== undefined
+        ? parseFloat(String(cmvMensal.cmv_teorico_percentual_manual))
+        : null;
+      if (cmvTeoricoManual !== null && Number.isFinite(cmvTeoricoManual) && cmvTeoricoManual > 0) {
         dadosMensais.cmv_teorico_percentual = cmvTeoricoManual;
       }
     }
