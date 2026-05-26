@@ -23,6 +23,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { MesOrcamento, CategoriaOrcamento, TotaisMes } from '../services/orcamentacao-service';
 import { HistoricoOrcamentoTab } from './HistoricoOrcamentoTab';
+import { DreManualTab } from './DreManualTab';
 import { BpClient } from '../../bp/BpClient';
 import type { BpLinha, BpIndicador, AnaliseSemanal } from '../../bp/types';
 
@@ -222,6 +223,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
       <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 pt-2">
         <TabsList className="bg-transparent">
           <TabsTrigger value="orcamento">Orçamentação</TabsTrigger>
+          <TabsTrigger value="manual">DRE Manual</TabsTrigger>
           <TabsTrigger value="bp">Business Plan</TabsTrigger>
           <TabsTrigger value="historico">Histórico</TabsTrigger>
         </TabsList>
@@ -542,6 +544,10 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
             Dados do Business Plan indisponíveis.
           </div>
         )}
+      </TabsContent>
+
+      <TabsContent value="manual" className="flex-1 overflow-auto mt-0">
+        <DreManualTab barId={selectedBar.id} />
       </TabsContent>
 
       <TabsContent value="historico" className="flex-1 overflow-auto mt-0">
