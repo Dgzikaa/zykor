@@ -487,7 +487,12 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
       .select('ano, mes, categoria_zykor, net, receita_total, despesa_total')
       .eq('bar_id', barId)
       .in('ano', anosUnicos),
-    supabase.from('dre_manual').select('categoria, categoria_macro, valor, data_competencia, descricao')
+    // dre_manual: ajustes manuais que o socio faz fora do CA (ex: Consumo Artistas,
+    // Consumo Beneficios). Somado ao gold no realizado por (bar, ano, mes, categoria).
+    (supabase.schema('financial' as never) as any)
+      .from('dre_manual')
+      .select('categoria, categoria_macro, valor, data_competencia, descricao')
+      .eq('bar_id', barId)
       .gte('data_competencia', dataInicio).lte('data_competencia', dataFim),
     tbl(supabase, 'eventos_base').select('real_r, sympla_liquido, yuzer_liquido, m1_r, data_evento')
       .eq('bar_id', barId).gte('data_evento', dataInicio).lte('data_evento', dataFim).eq('ativo', true)
@@ -503,6 +508,17 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
   dadosGold.forEach(g => {
     goldMap.set(`${g.ano}-${g.mes}-${g.categoria_zykor}`, Number(g.net) || 0);
   });
+
+  // Index dre_manual por (ano, mes, categoria) -> soma de ajustes manuais.
+  // Categoria deve ser o nome canonical Zykor (ex: 'Marketing', 'Produção Eventos').
+  // Sera somado ao gold no realizado final.
+  const manualMap = new Map<string, number>();
+  for (const m of dadosManuais as Array<{ categoria: string; valor: number | string; data_competencia: string }>) {
+    if (!m.data_competencia || !m.categoria) continue;
+    const [ano, mes] = m.data_competencia.split('-');
+    const key = `${parseInt(ano)}-${parseInt(mes)}-${m.categoria}`;
+    manualMap.set(key, (manualMap.get(key) || 0) + (Number(m.valor) || 0));
+  }
 
   // Index planilha por (ano, mes, categoria) -> { plan, proj, real_manual }
   const planilhaMap = new Map<string, OrcamentoPlanilhaRow>();
@@ -547,12 +563,16 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
         // REALIZADO:
         //   - CATEGORIAS_REALIZADO_MANUAL (CONTRATOS, Receitas Financeiras, Outras
         //     Receitas): valor_realizado_manual da planilha (socio edita na tela).
-        //   - Demais: vem do gold.orcamento_realizado_mensal (net ja calculado).
+        //   - Demais: gold.net + soma de financial.dre_manual da mesma categoria.
+        //     dre_manual eh pra ajustes que o socio faz fora do CA (ex: Consumo
+        //     Artistas -> Producao Eventos, Consumo Beneficios -> Marketing).
         let real: number;
         if (CATEGORIAS_REALIZADO_MANUAL.has(sub)) {
           real = Number(planRow?.valor_realizado_manual || 0);
         } else {
-          real = goldMap.get(`${ano}-${mes}-${sub}`) || 0;
+          const goldVal = goldMap.get(`${ano}-${mes}-${sub}`) || 0;
+          const manualVal = manualMap.get(`${ano}-${mes}-${sub}`) || 0;
+          real = goldVal + manualVal;
         }
 
         return { nome: sub, planejado: plan, projecao: proj, realizado: real, isPercentage: false };
