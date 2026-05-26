@@ -147,6 +147,30 @@ export async function getSemanas(
 
   const { data: metaManuais } = await metaQuery;
 
+  // CMV Teorico semanal: fonte canonical agora eh financial.cmv_semanal
+  //   - cmv_teorico_percentual_manual (input do socio na tela CMV Semanal)
+  //   - fallback cmv_teorico_percentual (auto, sobrescrito pelo ETL)
+  // Antes vinha de meta.desempenho_manual.cmv_teorico (legado mantido como fallback final)
+  let cmvSemQuery = (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema('financial')
+    .from('cmv_semanal')
+    .select('ano, semana, cmv_teorico_percentual, cmv_teorico_percentual_manual')
+    .eq('bar_id', barId);
+  if (ano) cmvSemQuery = cmvSemQuery.eq('ano', ano);
+  const { data: cmvSemanaisRows } = await cmvSemQuery;
+  const cmvSemanaisMap = new Map<string, { manual: number | null; auto: number | null }>();
+  (cmvSemanaisRows || []).forEach((c: any) => {
+    const manual = c.cmv_teorico_percentual_manual != null
+      ? parseFloat(String(c.cmv_teorico_percentual_manual))
+      : null;
+    const auto = c.cmv_teorico_percentual != null
+      ? parseFloat(String(c.cmv_teorico_percentual))
+      : null;
+    cmvSemanaisMap.set(`${c.ano}-${c.semana}`, {
+      manual: manual !== null && Number.isFinite(manual) && manual > 0 ? manual : null,
+      auto: auto !== null && Number.isFinite(auto) && auto > 0 ? auto : null,
+    });
+  });
+
   // Merge Gold (automatizado) + Meta (campos manuais)
   const metaMap = new Map<string, any>();
   (metaManuais || []).forEach(m =>
@@ -155,11 +179,14 @@ export async function getSemanas(
 
   const semanas = semanasGold.map(g => {
     const meta = metaMap.get(`${g.ano}-${g.numero_semana}`);
+    const cmvSem = cmvSemanaisMap.get(`${g.ano}-${g.numero_semana}`);
+    // Cascata cmv_teorico: cmv_semanal.manual -> meta.desempenho_manual (legado) -> cmv_semanal.auto -> gold
+    const cmvTeoricoFinal = cmvSem?.manual ?? meta?.cmv_teorico ?? cmvSem?.auto ?? g.cmv_teorico;
     return {
       ...g,
       // Campos puramente manuais: meta sempre ganha, sem fallback pro gold
       cmo: meta?.cmo ?? null, // gold.cmo e valor R$ (Conta Azul), nao %. Nunca misturar.
-      cmv_teorico: meta?.cmv_teorico ?? g.cmv_teorico,
+      cmv_teorico: cmvTeoricoFinal,
       nps_reservas: meta?.nps_reservas ?? g.nps_reservas,
       // Campos condicionais: se integracao = manual, meta ganha; se API, gold ganha
       ticket_medio: getinManual ? (meta?.ticket_medio ?? g.ticket_medio) : (g.ticket_medio ?? meta?.ticket_medio),

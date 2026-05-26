@@ -86,7 +86,7 @@ return [
         id: 'cmv',
         label: 'CMV Teórico %',
         metricas: [
-          { key: 'cmv_teorico', label: 'CMV Teórico %', status: 'manual', fonte: 'Planilha', calculo: 'Inserido manualmente', formato: 'percentual', inverso: true, editavel: true },
+          { key: 'cmv_teorico', label: 'CMV Teórico %', status: 'manual', fonte: 'CMV Semanal (financial.cmv_semanal)', calculo: 'Puxado da aba CMV Semanal — editado lá', formato: 'percentual', inverso: true, editavel: false },
           { key: 'cmv_global_real', label: 'CMV Global %', status: 'auto', fonte: 'Calculado', calculo: 'CMV R$ / Fat. Total × 100', formato: 'percentual', inverso: true, indentado: true },
           { key: 'cmv_limpo', label: 'CMV Limpo %', status: 'auto', fonte: 'CMV Semanal', calculo: 'CMV R$ / Fat. CMVível × 100', formato: 'percentual', inverso: true, indentado: true },
           { key: 'cmv_rs', label: 'CMV R$', status: 'auto', fonte: 'CMV Semanal', calculo: 'Est.Inicial + Compras - Est.Final - Consumos + Bonif.', formato: 'moeda', inverso: true, indentado: true },

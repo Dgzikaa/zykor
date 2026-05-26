@@ -69,6 +69,30 @@ export async function getMeses(
     .gte('ano', anoInicio)
     .lte('ano', anoFim);
 
+  // CMV Teorico MENSAL: fonte canonical agora eh financial.cmv_mensal
+  // (cmv_teorico_percentual_manual editado pelo socio na aba CMV Mensal).
+  const { data: cmvMensaisData } = await supabase
+    .schema('financial' as never)
+    .from('cmv_mensal')
+    .select('ano, mes, cmv_teorico_percentual, cmv_teorico_percentual_manual')
+    .eq('bar_id', barId)
+    .gte('ano', anoInicio)
+    .lte('ano', anoFim);
+  const cmvMensalMap = new Map<string, { manual: number | null; auto: number | null }>();
+  (cmvMensaisData as any[] || []).forEach((c) => {
+    const key = `${c.ano}-${String(c.mes).padStart(2, '0')}`;
+    const manual = c.cmv_teorico_percentual_manual != null
+      ? parseFloat(String(c.cmv_teorico_percentual_manual))
+      : null;
+    const auto = c.cmv_teorico_percentual != null
+      ? parseFloat(String(c.cmv_teorico_percentual))
+      : null;
+    cmvMensalMap.set(key, {
+      manual: manual !== null && Number.isFinite(manual) && manual > 0 ? manual : null,
+      auto: auto !== null && Number.isFinite(auto) && auto > 0 ? auto : null,
+    });
+  });
+
   // Agrupa marketing_semanal por (ano, mes) — quinta-feira ISO determina o mes
   // (mesma logica do ETL etl_gold_desempenho_mensal pra evitar double counting)
   const isoWeekStart = (ano: number, semana: number): Date => {
@@ -159,8 +183,11 @@ export async function getMeses(
         ? Number(manual.cmo)
         : (toNum(g.cmo) != null && faturamentoTotal > 0 ? (Number(g.cmo) / faturamentoTotal * 100) : 0),
 
-      // CMV manual override
-      cmv_teorico: manual.cmv_teorico ?? 0,
+      // CMV Teorico: cascata cmv_mensal.manual -> meta.desempenho_manual (legado) -> cmv_mensal.auto
+      cmv_teorico: cmvMensalMap.get(g.periodo)?.manual
+        ?? manual.cmv_teorico
+        ?? cmvMensalMap.get(g.periodo)?.auto
+        ?? 0,
       cmv_limpo: toNum(g.cmv_percentual) ?? manual.cmv_limpo ?? 0,
       cmv_limpo_percentual: toNum(g.cmv_percentual) ?? manual.cmv_limpo ?? 0,
       cmv_rs: toNum(g.cmv) ?? manual.cmv ?? 0,
