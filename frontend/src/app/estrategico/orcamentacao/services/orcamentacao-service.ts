@@ -421,17 +421,6 @@ async function calcularCMVMensal(supabase: SupabaseClient, barId: number, mes: n
   };
 }
 
-// ==================== CATEGORIAS MANUAIS ====================
-// Realizado dessas categorias eh editado MANUAL na tela (nao vem do CA).
-//   CONTRATOS: cashback Ambev — calculo manual fora do CA pelo socio.
-//   Receitas Financeiras: nao bate com o CA — socio preenche manual.
-//   Outras Receitas: socio faz ajustes que nao entram no CA — manual tambem.
-const CATEGORIAS_REALIZADO_MANUAL = new Set<string>([
-  'CONTRATOS',
-  'Receitas Financeiras',
-  'Outras Receitas',
-]);
-
 // Categorias do CA que NAO entram na DRE operacional. Filtradas antes de agregar.
 // - Dividendos: distribuicao de lucro, nao OPEX
 // - [Investimento] Equipamentos/Obras: CAPEX
@@ -449,7 +438,6 @@ interface OrcamentoPlanilhaRow {
   categoria_nome: string;
   valor_planejado: number | string | null;
   valor_projetado: number | string | null;
-  valor_realizado_manual: number | string | null;
 }
 
 // ==================== SERVICE ====================
@@ -479,7 +467,7 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
   const [planilhaResult, goldResult, manuaisResult, eventosResult] = await Promise.all([
     supabase
       .from('orcamento_planilha')
-      .select('ano, mes, categoria_nome, valor_planejado, valor_projetado, valor_realizado_manual')
+      .select('ano, mes, categoria_nome, valor_planejado, valor_projetado')
       .eq('bar_id', barId)
       .in('ano', anosUnicos),
     (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema('gold')
@@ -560,20 +548,14 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
         const plan = Number(planRow?.valor_planejado || 0);
         const proj = Number(planRow?.valor_projetado || 0);
 
-        // REALIZADO:
-        //   - CATEGORIAS_REALIZADO_MANUAL (CONTRATOS, Receitas Financeiras, Outras
-        //     Receitas): valor_realizado_manual da planilha (socio edita na tela).
-        //   - Demais: gold.net + soma de financial.dre_manual da mesma categoria.
-        //     dre_manual eh pra ajustes que o socio faz fora do CA (ex: Consumo
-        //     Artistas -> Producao Eventos, Consumo Beneficios -> Marketing).
-        let real: number;
-        if (CATEGORIAS_REALIZADO_MANUAL.has(sub)) {
-          real = Number(planRow?.valor_realizado_manual || 0);
-        } else {
-          const goldVal = goldMap.get(`${ano}-${mes}-${sub}`) || 0;
-          const manualVal = manualMap.get(`${ano}-${mes}-${sub}`) || 0;
-          real = goldVal + manualVal;
-        }
+        // REALIZADO = gold.net (do CA) + soma de financial.dre_manual da mesma
+        // categoria. dre_manual eh pra ajustes que o socio faz fora do CA
+        // (ex: Consumo Artistas -> Producao Eventos, cashback Ambev -> CONTRATOS,
+        // rendimentos -> Receitas Financeiras, ajuste receita ultimo dia -> Outras
+        // Receitas).
+        const goldVal = goldMap.get(`${ano}-${mes}-${sub}`) || 0;
+        const manualVal = manualMap.get(`${ano}-${mes}-${sub}`) || 0;
+        const real = goldVal + manualVal;
 
         return { nome: sub, planejado: plan, projecao: proj, realizado: real, isPercentage: false };
       })
