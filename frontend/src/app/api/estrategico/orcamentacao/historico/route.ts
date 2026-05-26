@@ -54,14 +54,42 @@ export async function GET(req: NextRequest) {
       // dre_manual error nao bloqueia - retorna so a planilha
     }
 
+    // Tipo unificado pros 2 origens (planilha_log + dre_manual)
+    type MergedEntry = {
+      id: number;
+      bar_id: number;
+      ano: number;
+      mes: number;
+      categoria_nome: string;
+      acao: string;
+      campo: string;
+      valor_antes: number | null;
+      valor_depois: number | null;
+      alterado_por: string | null;
+      alterado_em: string;
+      descricao?: string | null;
+      data_competencia?: string;
+      origem: 'planilha' | 'dre_manual';
+    };
+
     // Normalizar entries da planilha (origem='planilha')
-    const planilhaEntries = (planilhaResult.data || []).map((row: Record<string, unknown>) => ({
-      ...row,
-      origem: 'planilha' as const,
+    const planilhaEntries: MergedEntry[] = (planilhaResult.data || []).map((row: Record<string, unknown>) => ({
+      id: Number(row.id),
+      bar_id: Number(row.bar_id),
+      ano: Number(row.ano),
+      mes: Number(row.mes),
+      categoria_nome: String(row.categoria_nome || ''),
+      acao: String(row.acao || 'update'),
+      campo: String(row.campo || ''),
+      valor_antes: row.valor_antes != null ? Number(row.valor_antes) : null,
+      valor_depois: row.valor_depois != null ? Number(row.valor_depois) : null,
+      alterado_por: row.alterado_por != null ? String(row.alterado_por) : null,
+      alterado_em: String(row.alterado_em || ''),
+      origem: 'planilha',
     }));
 
     // Normalizar entries do dre_manual em formato LogEntry (origem='dre_manual')
-    const manualEntries = (manualResult.data || []).map((m: Record<string, unknown>) => {
+    const manualEntries: MergedEntry[] = (manualResult.data || []).map((m: Record<string, unknown>): MergedEntry => {
       const dc = String(m.data_competencia);
       const [a, mes] = dc.split('-');
       return {
@@ -70,7 +98,7 @@ export async function GET(req: NextRequest) {
         ano: Number(a),
         mes: Number(mes),
         categoria_nome: String(m.categoria || ''),
-        acao: 'insert' as const,
+        acao: 'insert',
         campo: 'dre_manual',
         valor_antes: null,
         valor_depois: Number(m.valor) || 0,
@@ -78,7 +106,7 @@ export async function GET(req: NextRequest) {
         alterado_em: String(m.atualizado_em || m.criado_em),
         descricao: m.descricao ? String(m.descricao) : null,
         data_competencia: dc,
-        origem: 'dre_manual' as const,
+        origem: 'dre_manual',
       };
     }).filter(e => {
       if (ano && e.ano !== ano) return false;
@@ -86,8 +114,8 @@ export async function GET(req: NextRequest) {
       return true;
     });
 
-    const merged = [...planilhaEntries, ...manualEntries]
-      .sort((x, y) => new Date(y.alterado_em as string).getTime() - new Date(x.alterado_em as string).getTime())
+    const merged: MergedEntry[] = [...planilhaEntries, ...manualEntries]
+      .sort((x, y) => new Date(y.alterado_em).getTime() - new Date(x.alterado_em).getTime())
       .slice(0, limit);
 
     return NextResponse.json({ success: true, data: merged, total: merged.length });
