@@ -19,6 +19,8 @@ interface LogEntry {
   valor_depois: number | null;
   alterado_por: string | null;
   alterado_em: string;
+  origem?: 'planilha' | 'dre_manual';
+  descricao?: string | null;
 }
 
 const MESES_NOMES = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -33,6 +35,7 @@ const fmtCampo = (campo: string): string => {
   if (campo === 'valor_planejado') return 'Planejado';
   if (campo === 'valor_projetado') return 'Projetado';
   if (campo === 'valor_realizado_manual') return 'Realizado (manual)';
+  if (campo === 'dre_manual') return 'DRE manual';
   return campo;
 };
 
@@ -98,9 +101,10 @@ export function HistoricoOrcamentoTab({ barId }: { barId: number }) {
                   <tr className="border-b">
                     <th className="text-left py-2 px-3">Quando</th>
                     <th className="text-left py-2 px-3">Quem</th>
+                    <th className="text-left py-2 px-3">Origem</th>
                     <th className="text-left py-2 px-3">Mês</th>
                     <th className="text-left py-2 px-3">Categoria</th>
-                    <th className="text-left py-2 px-3">Campo</th>
+                    <th className="text-left py-2 px-3">Descrição / Campo</th>
                     <th className="text-right py-2 px-3">Antes</th>
                     <th className="text-center py-2 px-3" />
                     <th className="text-right py-2 px-3">Depois</th>
@@ -111,20 +115,27 @@ export function HistoricoOrcamentoTab({ barId }: { barId: number }) {
                   {logs.map(log => {
                     const pct = ehPercentual(log.categoria_nome);
                     return (
-                      <tr key={log.id} className="border-b hover:bg-muted/30">
+                      <tr key={`${log.origem || 'planilha'}-${log.id}`} className="border-b hover:bg-muted/30">
                         <td className="py-2 px-3 text-xs text-muted-foreground font-mono">
                           {new Date(log.alterado_em).toLocaleString('pt-BR')}
                         </td>
                         <td className="py-2 px-3 text-xs">
-                          <Badge variant={log.alterado_por?.startsWith('cron') || log.alterado_por?.startsWith('import') ? 'secondary' : 'default'} className="text-[10px]">
+                          <Badge variant={log.alterado_por?.startsWith('cron') || log.alterado_por?.startsWith('import') || log.alterado_por?.startsWith('socio_') ? 'secondary' : 'default'} className="text-[10px]">
                             {log.alterado_por || 'sistema'}
+                          </Badge>
+                        </td>
+                        <td className="py-2 px-3 text-xs">
+                          <Badge variant={log.origem === 'dre_manual' ? 'outline' : 'secondary'} className="text-[10px]">
+                            {log.origem === 'dre_manual' ? 'DRE manual' : 'planilha'}
                           </Badge>
                         </td>
                         <td className="py-2 px-3 text-xs font-medium">
                           {MESES_NOMES[log.mes]}/{String(log.ano).slice(-2)}
                         </td>
                         <td className="py-2 px-3 text-xs">{log.categoria_nome}</td>
-                        <td className="py-2 px-3 text-xs text-muted-foreground">{fmtCampo(log.campo)}</td>
+                        <td className="py-2 px-3 text-xs text-muted-foreground">
+                          {log.descricao ? <span className="text-foreground">{log.descricao}</span> : fmtCampo(log.campo)}
+                        </td>
                         <td className="py-2 px-3 text-right text-xs font-mono text-gray-500">
                           {fmtVal(log.valor_antes, pct)}
                         </td>
