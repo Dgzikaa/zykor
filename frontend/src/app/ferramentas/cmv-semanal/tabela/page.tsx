@@ -953,17 +953,15 @@ export default function CMVSemanalTabelaPage() {
       const valor = semana.cmv_limpo_percentual;
       return valor ? parseFloat(String(valor)) : 0;
     }
-    // CMV Teórico (%): usa a coluna *_manual (input do sócio) se preenchida.
-    // Senão, fallback para a meta global. A coluna cmv_teorico_percentual "crua"
-    // do banco é populada pelo ETL com o valor do CMV Limpo calculado — não dá
-    // pra usar como fonte de "manual" porque o próximo sync sobrescreve.
+    // CMV Teórico (%): SÓ usa a coluna *_manual (input do sócio).
+    // Sem fallback pra meta global - ela é apenas referência exibida na linha "Meta"
+    // pra comparar gap. Sem manual preenchido = celula mostra "—".
     if (key === 'cmv_teorico_percentual') {
       const manual = (semana as unknown as Record<string, unknown>).cmv_teorico_percentual_manual;
       const manualNum = manual !== undefined && manual !== null
         ? parseFloat(String(manual))
         : null;
-      if (manualNum !== null && Number.isFinite(manualNum) && manualNum > 0) return manualNum;
-      return metasCmv.cmv_teorico_percentual?.valor ?? null;
+      return manualNum !== null && Number.isFinite(manualNum) && manualNum > 0 ? manualNum : null;
     }
     if (!(key in semana)) return null;
     const valor = semana[key as keyof CMVSemanal];
@@ -1092,13 +1090,10 @@ export default function CMVSemanalTabelaPage() {
         const manual = (semana as unknown as Record<string, unknown>).cmv_teorico_percentual_manual;
         const manualNum = manual !== undefined && manual !== null ? parseFloat(String(manual)) : null;
         const ehManual = manualNum !== null && Number.isFinite(manualNum) && manualNum > 0;
-        return [
-          {
-            label: ehManual ? 'Manual desta linha' : 'Meta CMV Teórico (fallback)',
-            valor: ehManual ? manualNum! : (metasCmv.cmv_teorico_percentual?.valor ?? 0),
-            formula: ehManual ? 'Editado direto na célula' : 'Click na célula pra sobrescrever',
-          },
-        ];
+        if (ehManual) {
+          return [{ label: 'Manual desta semana', valor: manualNum!, formula: 'Editado direto na célula' }];
+        }
+        return [{ label: 'Sem manual', valor: 0, formula: 'Clique na célula pra inserir valor desta semana. Meta global é só referência.' }];
       }
       // CMA Total
       case 'cma_total':
