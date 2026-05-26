@@ -2072,7 +2072,18 @@ export function DesempenhoClient({
                                                 <Tooltip>
                                                   <TooltipTrigger asChild>
                                                     <div className="flex items-center justify-center gap-1">
-                                                      <span className={cn("text-xs font-medium text-center cursor-help", getCorMeta(verificarMeta(valorPrincipal, metricaPrincipal.key, metas)))}>{valorPrincipalFormatado}</span>
+                                                      <span className={cn("text-xs font-medium text-center cursor-help", getCorMeta((() => {
+                                                        // Faturamento semanal: prioriza SUM(m1) da propria semana (meta_semanal).
+                                                        // So cai na herança/global se nao houver soma de m1 (regra do socio).
+                                                        if (metricaPrincipal.key === 'faturamento_total' && visao === 'semanal') {
+                                                          const metaM1 = numeroMetrica(getValorComOverride(semana, 'meta_semanal'));
+                                                          const fatNum = numeroMetrica(valorPrincipal);
+                                                          if (metaM1 > 0 && fatNum > 0) {
+                                                            return fatNum >= metaM1 ? 'verde' : 'vermelho';
+                                                          }
+                                                        }
+                                                        return verificarMeta(valorPrincipal, metricaPrincipal.key, metas);
+                                                      })()))}>{valorPrincipalFormatado}</span>
                                                       {metricaPrincipal.key === 'faturamento_total' && visao === 'semanal' && (() => {
                                                         const metaSemanal = numeroMetrica(getValorComOverride(semana, 'meta_semanal'));
                                                         const faturamentoTotal = numeroMetrica(valorPrincipal);
