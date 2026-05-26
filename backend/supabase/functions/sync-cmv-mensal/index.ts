@@ -387,9 +387,13 @@ serve(async (req) => {
           // Extrair valores (verificando se a linha existe)
           const getVal = (rowIdx: number, col: number) => rowIdx >= 0 && rows[rowIdx] ? rows[rowIdx][col] : undefined
           
-          updateData.estoque_inicial = parseMonetario(getVal(ROW_MAP.estoque_inicial, col))
+          // estoque_inicial e estoque_final NAO sao mais lidos da planilha mensal.
+          // Fonte unica passa a ser financial.cmv_semanal (planilha semanal do socio),
+          // agregada por public.agregar_cmv_mensal_auto que pega:
+          //   est_inicial = primeira semana do mes (quinta dentro do mes)
+          //   est_final = ultima semana do mes COM estoque_final > 0
+          // Resolve bug: planilha mensal ficava desatualizada e gravava domingo errado.
           updateData.compras = parseMonetario(getVal(ROW_MAP.compras, col))
-          updateData.estoque_final = parseMonetario(getVal(ROW_MAP.estoque_final, col))
           updateData.consumo_socios = parseMonetario(getVal(ROW_MAP.consumo_socios, col))
           updateData.consumo_beneficios = parseMonetario(getVal(ROW_MAP.consumo_beneficios, col))
           updateData.consumo_rh_operacao = parseMonetario(getVal(ROW_MAP.consumo_rh_op, col))
@@ -422,12 +426,12 @@ serve(async (req) => {
           // Fonte dos dados
           updateData.fonte = 'planilha'
 
-          // Verificar se tem dados válidos (mais permissivo - aceita se tiver qualquer valor)
-          const temDados = updateData.estoque_inicial !== 0 || 
-                          updateData.compras !== 0 || 
-                          updateData.estoque_final !== 0 ||
+          // Verificar se tem dados válidos (estoque_inicial/final agora vem do agregador)
+          const temDados = updateData.compras !== 0 ||
                           updateData.cmv_real !== 0 ||
-                          updateData.faturamento_cmvivel !== 0
+                          updateData.faturamento_cmvivel !== 0 ||
+                          updateData.consumo_socios !== 0 ||
+                          updateData.consumo_beneficios !== 0
           
           // Preview mode: coleta o que LERIA do Sheets sem upsertar
           if (preview_only) {
@@ -438,19 +442,16 @@ serve(async (req) => {
               data_fim: info.dataFim,
               col_planilha: col,
               raw: {
-                estoque_inicial_raw: getVal(ROW_MAP.estoque_inicial, col),
                 compras_raw: getVal(ROW_MAP.compras, col),
-                estoque_final_raw: getVal(ROW_MAP.estoque_final, col),
                 cmv_real_raw: getVal(ROW_MAP.cmv_real, col),
                 fat_cmvivel_raw: getVal(ROW_MAP.fat_cmvivel, col),
               },
               parsed: {
-                estoque_inicial: updateData.estoque_inicial,
                 compras: updateData.compras,
-                estoque_final: updateData.estoque_final,
                 cmv_real: updateData.cmv_real,
                 fat_cmvivel: updateData.faturamento_cmvivel,
                 tem_dados: temDados,
+                nota: 'estoque_inicial/final agora derivados de cmv_semanal via agregar_cmv_mensal_auto',
               }
             })
             continue
@@ -462,9 +463,7 @@ serve(async (req) => {
           }
 
           console.log(`📝 ${info.ano}/${info.mes}:`, JSON.stringify({
-            est_ini: updateData.estoque_inicial,
             compras: updateData.compras,
-            est_fim: updateData.estoque_final,
             cmv_real: updateData.cmv_real,
             fat_cmvivel: updateData.faturamento_cmvivel
           }))
@@ -483,6 +482,16 @@ serve(async (req) => {
             console.error(`   Dados:`, JSON.stringify(updateData))
             mesesErro++
           } else {
+            // Apos upsert da planilha, chama agregador que deriva est_inicial/final de cmv_semanal.
+            // Garante consistencia: estoque mensal SEMPRE = ultimo domingo do mes em cmv_semanal.
+            const { error: aggError } = await supabase.rpc('agregar_cmv_mensal_auto', {
+              p_bar_id: barConfig.bar_id,
+              p_ano: info.ano,
+              p_mes: info.mes,
+            })
+            if (aggError) {
+              console.warn(`⚠️ ${info.ano}/${info.mes}: upsert ok mas agregador falhou:`, aggError.message)
+            }
             console.log(`✅ ${info.ano}/${info.mes}: sucesso`)
             mesesAtualizados++
           }
