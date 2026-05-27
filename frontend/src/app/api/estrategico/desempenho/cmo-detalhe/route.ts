@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase-server';
+import { paginate } from '@/lib/supabase/paginate';
 
 /**
  * GET /api/estrategico/desempenho/cmo-detalhe?bar_id=3&ano=2026
@@ -28,28 +29,6 @@ const EQUIPE_FIXA_DEFAULT = 0;
 
 function diasNoMes(ano: number, mes: number): number {
   return new Date(ano, mes, 0).getDate();
-}
-
-/**
- * Pagina query Supabase em chunks de 1000 (limite default).
- * Sem isso, queries que retornam >1000 rows perdem dados silenciosamente —
- * causa direta do bug: freelas Ord/2026 = 1572 rows, soma final era ~63% do real.
- */
-async function fetchAllPaginated<T>(
-  buildQuery: () => any,
-  pageSize: number = 1000,
-): Promise<T[]> {
-  let all: T[] = [];
-  let from = 0;
-  while (true) {
-    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
-    if (error) throw error;
-    const rows = (data || []) as T[];
-    all = all.concat(rows);
-    if (rows.length < pageSize) break;
-    from += pageSize;
-  }
-  return all;
 }
 
 function rateioPorDia(
@@ -124,7 +103,7 @@ export async function GET(request: NextRequest) {
     // Range estendido pra suportar visao mensal cross-year (Mar/2025 -> hoje).
     const dataInicioAno = `${anoMin}-01-01`;
     const dataFimAno = `${anoMax}-12-31`;
-    const freelasLista = await fetchAllPaginated<{ valor_bruto: any; data_competencia: string }>(
+    const freelasLista = await paginate<{ valor_bruto: any; data_competencia: string }>(
       () => (supabase as any)
         .schema('bronze')
         .from('bronze_contaazul_lancamentos')
@@ -154,7 +133,7 @@ export async function GET(request: NextRequest) {
     // Mudou em 2026-05-27: era manual via meta.cmo_equipe_fixa_semanal.
     // Mesma logica do freelas — soma por intervalo de datas (semanal/mensal).
     // PAGINADO pra evitar truncamento silencioso (mesmo bug do freelas).
-    const equipeFixaLista = await fetchAllPaginated<{ valor_bruto: any; data_competencia: string }>(
+    const equipeFixaLista = await paginate<{ valor_bruto: any; data_competencia: string }>(
       () => (supabase as any)
         .schema('bronze')
         .from('bronze_contaazul_lancamentos')
@@ -179,7 +158,7 @@ export async function GET(request: NextRequest) {
         .reduce((sum, r) => sum + (parseFloat(String(r.valor_bruto)) || 0), 0);
 
     // 3. gold.desempenho semanal (data_inicio, data_fim, faturamento)
-    const semanasGold = await fetchAllPaginated<any>(
+    const semanasGold = await paginate<any>(
       () => (supabase as any)
         .schema('gold')
         .from('desempenho')
@@ -192,7 +171,7 @@ export async function GET(request: NextRequest) {
     );
 
     // 4. cmv_semanal para CMA semanal
-    const cmvSem = await fetchAllPaginated<any>(
+    const cmvSem = await paginate<any>(
       () => (supabase as any)
         .schema('financial')
         .from('cmv_semanal')
@@ -213,7 +192,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 5. cmv_mensal (mensal: faturamento total, cma total) — agora cross-year
-    const cmvMen = await fetchAllPaginated<any>(
+    const cmvMen = await paginate<any>(
       () => (supabase as any)
         .schema('financial')
         .from('cmv_mensal')

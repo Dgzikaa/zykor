@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { paginate } from '@/lib/supabase/paginate';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,23 +55,28 @@ export async function GET(request: NextRequest) {
     
     const { inicio, fim } = getWeekDates(anoFinal, semanaFinal);
 
-    // Buscar respostas da semana
-    const { data: respostas, error } = await supabase
-      .schema('bronze' as any).from('bronze_falae_respostas')
-      .select('nps, created_at, criterios')
-      .eq('bar_id', barId)
-      .gte('created_at', inicio)
-      .lte('created_at', fim + 'T23:59:59');
-
-    if (error) {
-      console.error('Erro ao buscar respostas:', error);
+    // Buscar respostas da semana — paginado pra evitar truncamento.
+    let respostas: any[];
+    try {
+      respostas = await paginate<any>(
+        () => (supabase as any)
+          .schema('bronze' as any).from('bronze_falae_respostas')
+          .select('nps, created_at, criterios')
+          .eq('bar_id', barId)
+          .gte('created_at', inicio)
+          .lte('created_at', fim + 'T23:59:59')
+          .order('created_at'),
+        { label: 'falae/nps-semanal' },
+      );
+    } catch (err: any) {
+      console.error('Erro ao buscar respostas:', err);
       return NextResponse.json({ error: 'Erro ao buscar dados' }, { status: 500 });
     }
 
     // Calcular NPS
-    const total = respostas?.length || 0;
-    const promotores = respostas?.filter(r => r.nps >= 9).length || 0;
-    const detratores = respostas?.filter(r => r.nps <= 6).length || 0;
+    const total = respostas.length;
+    const promotores = respostas.filter(r => r.nps >= 9).length;
+    const detratores = respostas.filter(r => r.nps <= 6).length;
     const npsScore = total > 0 ? Math.round(((promotores - detratores) / total) * 100) : null;
     const mediaNps = total > 0 ? Math.round((respostas.reduce((acc, r) => acc + r.nps, 0) / total) * 10) / 10 : null;
 

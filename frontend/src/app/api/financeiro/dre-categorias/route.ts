@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { paginate } from '@/lib/supabase/paginate';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,32 +79,34 @@ export async function GET(request: NextRequest) {
     const ano = searchParams.get('ano');
     const mes = searchParams.get('mes');
 
-    let query = supabase
-      .schema('bronze' as any)
-      .from('bronze_contaazul_lancamentos')
-      .select('categoria_nome, valor_bruto, bar_id')
-      .is('excluido_em', null);
-
-    if (barId) query = query.eq('bar_id', parseInt(barId));
-    if (ano && mes) {
-      const anoN = parseInt(ano);
-      const mesN = parseInt(mes);
-      const inicioMes = `${anoN}-${String(mesN).padStart(2, '0')}-01`;
-      const fimMes = mesN === 12
-        ? `${anoN + 1}-01-01`
-        : `${anoN}-${String(mesN + 1).padStart(2, '0')}-01`;
-      query = query.gte('data_competencia', inicioMes).lt('data_competencia', fimMes);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    // Paginado pra evitar truncamento em 1000 rows (bronze_contaazul_lancamentos eh grande).
+    const data = await paginate<any>(
+      () => {
+        let query = supabase
+          .schema('bronze' as any)
+          .from('bronze_contaazul_lancamentos')
+          .select('categoria_nome, valor_bruto, bar_id')
+          .is('excluido_em', null)
+          .order('id'); // ORDER estavel pra paginacao consistente
+        if (barId) query = query.eq('bar_id', parseInt(barId));
+        if (ano && mes) {
+          const anoN = parseInt(ano);
+          const mesN = parseInt(mes);
+          const inicioMes = `${anoN}-${String(mesN).padStart(2, '0')}-01`;
+          const fimMes = mesN === 12
+            ? `${anoN + 1}-01-01`
+            : `${anoN}-${String(mesN + 1).padStart(2, '0')}-01`;
+          query = query.gte('data_competencia', inicioMes).lt('data_competencia', fimMes);
+        }
+        return query;
+      },
+      { label: 'dre-categorias' },
+    );
 
     // Agregar por categoria_nome com totais
     const agregado = new Map<string, { macro: string; entradas: number; saidas: number }>();
 
-    for (const row of data || []) {
+    for (const row of data) {
       const nome = row.categoria_nome?.trim();
       if (!nome) continue;
       const macro = getCategoriaMacro(nome);

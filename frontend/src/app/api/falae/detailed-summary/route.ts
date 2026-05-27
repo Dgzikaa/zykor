@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { paginate } from '@/lib/supabase/paginate';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,27 +56,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'data_inicio e data_fim são obrigatórios' }, { status: 400 });
     }
 
-    // Usar created_at como filtro principal
-    let query = (supabase as any)
-      .schema('bronze' as any).from('bronze_falae_respostas')
-      .select('falae_id, nps, created_at, data_visita, discursive_question, client_name, client_email, search_name, criterios')
-      .eq('bar_id', barId)
-      .gte('created_at', `${dataInicio}T00:00:00`)
-      .lte('created_at', `${dataFim}T23:59:59`)
-      .order('created_at', { ascending: false });
-
-    if (searchName) {
-      query = query.eq('search_name', searchName);
-    }
-
-    const { data: respostas, error } = await query;
-
-    if (error) {
-      console.error('Erro ao buscar respostas Falaê:', error);
-      return NextResponse.json({ error: 'Erro ao buscar dados', details: error.message, code: error.code, hint: error.hint }, { status: 500 });
-    }
-
-    const filtradas = (respostas || []) as any[];
+    // Usar created_at como filtro principal. Paginado pra evitar truncamento em 1000 rows.
+    const filtradas = await paginate<any>(
+      () => {
+        let query = (supabase as any)
+          .schema('bronze' as any).from('bronze_falae_respostas')
+          .select('falae_id, nps, created_at, data_visita, discursive_question, client_name, client_email, search_name, criterios')
+          .eq('bar_id', barId)
+          .gte('created_at', `${dataInicio}T00:00:00`)
+          .lte('created_at', `${dataFim}T23:59:59`)
+          .order('created_at', { ascending: false });
+        if (searchName) query = query.eq('search_name', searchName);
+        return query;
+      },
+      { label: 'falae/detailed-summary' },
+    );
 
     const total = filtradas.length;
     const promotores = filtradas.filter(r => r.nps >= 9).length;
