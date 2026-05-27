@@ -87,7 +87,7 @@ return [
         id: 'cmv',
         label: 'CMV Teórico %',
         metricas: [
-          { key: 'cmv_teorico', label: 'CMV Teórico %', status: 'manual', fonte: 'CMV Semanal (financial.cmv_semanal)', calculo: 'Puxado da aba CMV Semanal — editado lá', formato: 'percentual', inverso: true, editavel: false },
+          { key: 'cmv_teorico', label: 'CMV Teórico %', status: 'auto', fonte: 'CMV Semanal (financial.cmv_semanal)', calculo: 'Puxado da aba CMV Semanal — editado lá (cmv_teorico_percentual_manual). Reflete automaticamente em Desempenho.', formato: 'percentual', inverso: true, editavel: false },
           { key: 'cmv_global_real', label: 'CMV Global %', status: 'auto', fonte: 'Calculado', calculo: 'CMV R$ / Fat. Total × 100', formato: 'percentual', inverso: true, indentado: true },
           { key: 'cmv_limpo', label: 'CMV Limpo %', status: 'auto', fonte: 'CMV Semanal', calculo: 'CMV R$ / Fat. CMVível × 100', formato: 'percentual', inverso: true, indentado: true },
           { key: 'cmv_rs', label: 'CMV R$', status: 'auto', fonte: 'CMV Semanal', calculo: 'Est.Inicial + Compras - Est.Final - Consumos + Bonif.', formato: 'moeda', inverso: true, indentado: true },
@@ -114,9 +114,9 @@ return [
         label: 'CMO %',
         metricas: [
           { key: 'cmo_percentual_detalhado', label: 'CMO %', status: 'auto', fonte: 'Calculado de Freelas + Alim + Equipe Fixa + Pro Labore', calculo: '(Freelas + Alimentação + Equipe Fixa + Pro Labore) / Faturamento × 100', formato: 'percentual', inverso: true },
-          { key: 'cmo_freelas', label: 'Freelas', status: 'auto', fonte: 'Conta Azul', calculo: 'SUM categorias FREELA ATENDIMENTO/COZINHA/BAR/LIMPEZA/SEGURANÇA/BRIGADISTA', formato: 'moeda', inverso: true, indentado: true },
+          { key: 'cmo_freelas', label: 'Freelas', status: 'auto', fonte: 'Conta Azul', calculo: 'SUM 6 categorias: FREELA ATENDIMENTO + COZINHA + BAR + LIMPEZA + SEGURANÇA + BRIGADISTA', formato: 'moeda', inverso: true, indentado: true },
           { key: 'cmo_alimentacao', label: 'Alimentação', status: 'auto', fonte: 'CMA Total', calculo: 'Estoque Inicial (F) + Compras Alimentação - Estoque Final (F)', formato: 'moeda', inverso: true, indentado: true },
-          { key: 'cmo_equipe_fixa', label: 'Equipe Fixa', status: 'manual', fonte: 'meta.cmo_equipe_fixa_semanal', calculo: 'Manual SEMANAL. Editado semana a semana. Mensal = soma das semanas do mês (read-only)', formato: 'moeda', inverso: true, editavel: true, indentado: true },
+          { key: 'cmo_equipe_fixa', label: 'Equipe Fixa', status: 'auto', fonte: 'Conta Azul', calculo: 'SUM categorias SALARIO FUNCIONARIOS + PROVISÃO TRABALHISTA + VALE TRANSPORTE + ADICIONAIS (por intervalo)', formato: 'moeda', inverso: true, indentado: true },
           { key: 'cmo_pro_labore', label: 'Pro Labore', status: 'manual', fonte: 'meta.cmo_manual', calculo: 'Manual mensal por bar (Ordinário R$64k, Deboche R$15k). Visão semanal: rateio dia a dia', formato: 'moeda', inverso: true, editavel: true, indentado: true },
         ]
       },
@@ -1572,36 +1572,14 @@ export function DesempenhoClient({
     try {
       setLoading(true);
 
-      // CMO Equipe Fixa: agora 100% SEMANAL (meta.cmo_equipe_fixa_semanal).
-      // Mensal vira read-only (SUM das semanas). Edicao mensal nao eh suportada.
+      // CMO Equipe Fixa: AUTO via ContaAzul (SALARIO + PROVISÃO + VT + ADICIONAIS).
+      // Removido em 2026-05-27 — nao editavel mais.
       if (campo === 'cmo_equipe_fixa') {
-        if (visao !== 'semanal') {
-          toast({
-            title: 'Edite na visão semanal',
-            description: 'Equipe Fixa agora é input semana a semana. O valor mensal é a soma das semanas do mês.',
-            variant: 'destructive',
-          });
-          setEditando(null);
-          return;
-        }
-        const semanaAtual = semanasProcessadas.find(s => s.id === semanaId);
-        if (!semanaAtual) throw new Error('Semana não encontrada');
-
-        const resp = await fetch('/api/estrategico/desempenho/cmo-equipe-fixa-semanal', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            bar_id: effectiveBarId,
-            ano: semanaAtual.ano,
-            numero_semana: semanaAtual.numero_semana,
-            valor: numValue,
-          }),
+        toast({
+          title: 'Auto via ContaAzul',
+          description: 'Equipe Fixa agora soma SALARIO FUNCIONARIOS + PROVISÃO TRABALHISTA + VALE TRANSPORTE + ADICIONAIS direto do CA.',
         });
-        if (!resp.ok) throw new Error('Erro ao salvar Equipe Fixa semanal');
-
-        toast({ title: 'Salvo!', description: `Equipe Fixa S${semanaAtual.numero_semana}/${semanaAtual.ano} atualizada` });
         setEditando(null);
-        await carregarCmoDetalhe();
         return;
       }
 

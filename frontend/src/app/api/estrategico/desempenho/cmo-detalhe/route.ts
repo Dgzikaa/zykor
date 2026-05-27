@@ -11,11 +11,12 @@ import { createServerClient } from '@/lib/supabase-server';
  *                       (FREELA ATENDIMENTO, COZINHA, BAR, LIMPEZA, SEGURANCA, BRIGADISTA)
  *   2) alimentacao    — CMA Total da semana/mes (est_ini_func + compras_alim - est_fim_func)
  *                       Semanal: financial.cmv_semanal; Mensal: financial.cmv_mensal.cma_total
- *   3) equipe_fixa    — meta.cmo_manual.equipe_fixa_mensal (manual)
- *                       Visao semanal: rateio dia a dia (cada dia da semana puxa do mes
- *                       correspondente, divide por dias_no_mes)
+ *   3) equipe_fixa    — SUM(bronze_contaazul_lancamentos) categorias:
+ *                       SALARIO FUNCIONARIOS + PROVISÃO TRABALHISTA + VALE TRANSPORTE + ADICIONAIS
+ *                       Mesma logica do freelas (auto via CA, sem rateio).
+ *                       Mudou em 2026-05-27: era manual via meta.cmo_equipe_fixa_semanal.
  *   4) pro_labore     — meta.cmo_manual.pro_labore_mensal (manual, sem default)
- *                       Mesmo rateio dia a dia
+ *                       Rateio dia a dia para visao semanal
  *
  * CMO % = (freelas + alimentacao + equipe_fixa + pro_labore) / faturamento_total × 100
  */
@@ -80,7 +81,9 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // 2. Freelas do ano inteiro (Conta Azul, todas categorias FREELA *)
+    // 2. Freelas do ano inteiro (Conta Azul, 6 categorias FREELA explicitas)
+    // Substituiu ILIKE '%freela%' em 2026-05-27 — explicito eh mais robusto contra
+    // possiveis novas categorias com "freela" no nome que nao deveriam entrar.
     const dataInicioAno = `${ano}-01-01`;
     const dataFimAno = `${ano}-12-31`;
     const { data: freelasRows } = await (supabase as any)
@@ -90,7 +93,14 @@ export async function GET(request: NextRequest) {
       .eq('bar_id', barId)
       .eq('tipo', 'DESPESA')
       .is('excluido_em', null)
-      .ilike('categoria_nome', '%freela%')
+      .in('categoria_nome', [
+        'FREELA ATENDIMENTO',
+        'FREELA COZINHA',
+        'FREELA BAR',
+        'FREELA LIMPEZA',
+        'FREELA SEGURANÇA',
+        'FREELA BRIGADISTA',
+      ])
       .gte('data_competencia', dataInicioAno)
       .lte('data_competencia', dataFimAno);
 
@@ -101,19 +111,31 @@ export async function GET(request: NextRequest) {
         .filter((r) => r.data_competencia >= ini && r.data_competencia <= fim)
         .reduce((sum, r) => sum + (parseFloat(String(r.valor_bruto)) || 0), 0);
 
-    // 2b. Equipe Fixa SEMANAL (substitui o rateio dia-a-dia do cmo_manual.equipe_fixa_mensal)
-    // Agora cada semana tem seu input proprio em meta.cmo_equipe_fixa_semanal.
-    const { data: equipeFixaSemRows } = await (supabase as any)
-      .schema('meta')
-      .from('cmo_equipe_fixa_semanal')
-      .select('numero_semana, valor')
+    // 2b. Equipe Fixa AUTO via ContaAzul (categorias SALARIO + PROVISÃO + VT + ADICIONAIS)
+    // Mudou em 2026-05-27: era manual via meta.cmo_equipe_fixa_semanal.
+    // Mesma logica do freelas — soma por intervalo de datas (semanal/mensal).
+    const { data: equipeFixaRows } = await (supabase as any)
+      .schema('bronze')
+      .from('bronze_contaazul_lancamentos')
+      .select('valor_bruto, data_competencia, categoria_nome')
       .eq('bar_id', barId)
-      .eq('ano', ano);
+      .eq('tipo', 'DESPESA')
+      .is('excluido_em', null)
+      .in('categoria_nome', [
+        'SALARIO FUNCIONARIOS',
+        'PROVISÃO TRABALHISTA',
+        'VALE TRANSPORTE',
+        'ADICIONAIS',
+      ])
+      .gte('data_competencia', dataInicioAno)
+      .lte('data_competencia', dataFimAno);
 
-    const equipeFixaSemanalMap = new Map<number, number>();
-    for (const r of ((equipeFixaSemRows as any[]) || [])) {
-      equipeFixaSemanalMap.set(r.numero_semana, parseFloat(String(r.valor || 0)));
-    }
+    const equipeFixaLista = (equipeFixaRows || []) as { valor_bruto: any; data_competencia: string }[];
+
+    const equipeFixaNoIntervalo = (ini: string, fim: string): number =>
+      equipeFixaLista
+        .filter((r) => r.data_competencia >= ini && r.data_competencia <= fim)
+        .reduce((sum, r) => sum + (parseFloat(String(r.valor_bruto)) || 0), 0);
 
     // 3. gold.desempenho semanal (data_inicio, data_fim, faturamento)
     const { data: semanasGold } = await (supabase as any)
@@ -159,14 +181,14 @@ export async function GET(request: NextRequest) {
     }
 
     // 6. Montar semanas
-    // Equipe Fixa: valor SEMANAL direto da nova tabela meta.cmo_equipe_fixa_semanal.
+    // Equipe Fixa: AUTO via ContaAzul (mesma logica do freelas, soma por intervalo).
     // Pro Labore: continua mensal, rateado dia a dia.
     const semanas = ((semanasGold as any[]) || []).map((s) => {
       const dIni = s.data_inicio as string;
       const dFim = s.data_fim as string;
       const freelas = freelasNoIntervalo(dIni, dFim);
       const alimentacao = cmaSemanalMap.get(`${s.ano}-${s.numero_semana}`) || 0;
-      const equipe_fixa = equipeFixaSemanalMap.get(s.numero_semana) || 0;
+      const equipe_fixa = equipeFixaNoIntervalo(dIni, dFim);
       const pro_labore = rateioPorDia(dIni, dFim, (m) => cmoManualPorMes[m]?.pro_labore || 0);
       const total = freelas + alimentacao + equipe_fixa + pro_labore;
       const faturamento = parseFloat(String(s.faturamento_total || 0));
@@ -207,10 +229,8 @@ export async function GET(request: NextRequest) {
       const freelas = freelasNoIntervalo(dIni, dFim);
       const cmv = cmvMensalMap.get(mes) || { faturamento_total: 0, cma_total: 0 };
       const alimentacao = cmv.cma_total;
-      // Equipe Fixa mensal = SUM das semanas que CAEM no mes (data_inicio dentro de [dIni, dFim])
-      const equipe_fixa = ((semanasGold as any[]) || [])
-        .filter((s) => s.data_inicio >= dIni && s.data_inicio <= dFim)
-        .reduce((acc, s) => acc + (equipeFixaSemanalMap.get(s.numero_semana) || 0), 0);
+      // Equipe Fixa mensal = AUTO via CA (mesma logica do freelas, soma do mes inteiro)
+      const equipe_fixa = equipeFixaNoIntervalo(dIni, dFim);
       const pro_labore = cmoManualPorMes[mes]?.pro_labore || 0;
       const total = freelas + alimentacao + equipe_fixa + pro_labore;
       const cmo_percentual = cmv.faturamento_total > 0 ? (total / cmv.faturamento_total) * 100 : 0;
