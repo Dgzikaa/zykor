@@ -390,10 +390,10 @@ export async function GET(request: Request) {
         .in('ano', anosUnicos),
       
       // Query 2: Conta Azul todos (projeção) - COM PAGINAÇÃO
-      fetchAllPaginated<{ categoria_nome: string; status: string; valor_bruto: string; data_competencia: string }>(
+      fetchAllPaginated<{ categoria_nome: string; status: string; valor_bruto: string; valor_pago: string; data_competencia: string }>(
         supabase,
         'bronze_contaazul_lancamentos',
-        'categoria_nome, status, valor_bruto, data_competencia',
+        'categoria_nome, status, valor_bruto, valor_pago, data_competencia',
         [
           { column: 'bar_id', operator: 'eq', value: parseInt(barId) },
           { column: 'excluido_em', operator: 'is', value: null },
@@ -406,10 +406,10 @@ export async function GET(request: Request) {
       // Antes filtrava ACQUITTED/PARTIAL, mas a DRE do CA mostra por competencia
       // incluindo OVERDUE/PENDING. Ex: PROVISAO TRABALHISTA tem R$27k OVERDUE
       // em Jan/26 que precisa aparecer. Alinha com filtro do service.
-      fetchAllPaginated<{ categoria_nome: string; status: string; valor_bruto: string; data_competencia: string }>(
+      fetchAllPaginated<{ categoria_nome: string; status: string; valor_bruto: string; valor_pago: string; data_competencia: string }>(
         supabase,
         'bronze_contaazul_lancamentos',
-        'categoria_nome, status, valor_bruto, data_competencia',
+        'categoria_nome, status, valor_bruto, valor_pago, data_competencia',
         [
           { column: 'bar_id', operator: 'eq', value: parseInt(barId) },
           { column: 'excluido_em', operator: 'is', value: null },
@@ -513,10 +513,12 @@ export async function GET(request: Request) {
       const faturamentoReal = faturamentoRealMap.get(`${ano}-${mes}`) || { realizado: 0, meta: 0 };
 
       // REALIZADO de despesas = Conta Azul (apenas status=PAGO/LIQUIDADO)
+      // valor_pago se >0 (efetivo), senao valor_bruto (planejado) — mesmo padrao do CA/planilha
       const valoresRealizado = new Map<string, number>();
       niboPagosMes.forEach(item => {
         if (!item.categoria_nome || item.categoria_nome.trim() === '') return;
-        const valor = Math.abs(parseFloat(item.valor_bruto) || 0);
+        const pago = parseFloat((item as any).valor_pago) || 0;
+        const valor = Math.abs(pago > 0 ? pago : (parseFloat(item.valor_bruto) || 0));
         const categoriaNormalizada = CATEGORIAS_MAP.get(item.categoria_nome) || item.categoria_nome;
         
         if (!valoresRealizado.has(categoriaNormalizada)) {

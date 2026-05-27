@@ -80,12 +80,13 @@ export async function GET(request: NextRequest) {
     const mes = searchParams.get('mes');
 
     // Paginado pra evitar truncamento em 1000 rows (bronze_contaazul_lancamentos eh grande).
+    // valor_pago > 0 ? pago : bruto — CA mostra o que efetivamente saiu.
     const data = await paginate<any>(
       () => {
         let query = supabase
           .schema('bronze' as any)
           .from('bronze_contaazul_lancamentos')
-          .select('categoria_nome, valor_bruto, bar_id')
+          .select('categoria_nome, valor_bruto, valor_pago, bar_id')
           .is('excluido_em', null)
           .order('id'); // ORDER estavel pra paginacao consistente
         if (barId) query = query.eq('bar_id', parseInt(barId));
@@ -112,7 +113,9 @@ export async function GET(request: NextRequest) {
       const macro = getCategoriaMacro(nome);
       if (!macro) continue;
 
-      const valor = parseFloat(row.valor_bruto) || 0;
+      // valor_pago se >0 (efetivo), senao valor_bruto (planejado/futuro)
+      const pago = parseFloat(row.valor_pago) || 0;
+      const valor = pago > 0 ? pago : (parseFloat(row.valor_bruto) || 0);
       if (!agregado.has(nome)) {
         agregado.set(nome, { macro, entradas: 0, saidas: 0 });
       }

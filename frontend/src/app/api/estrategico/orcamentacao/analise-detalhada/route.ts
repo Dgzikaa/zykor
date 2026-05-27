@@ -91,7 +91,8 @@ export async function GET(request: Request) {
     }
 
     // Buscar lançamentos do Conta Azul para o período (bronze pós-medallion)
-    const lancamentosData = await fetchAllData(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, data_competencia, data_pagamento', {
+    // Inclui valor_pago pra usar valor efetivo (pago>0 ? pago : bruto).
+    const lancamentosData = await fetchAllData(supabase, 'bronze_contaazul_lancamentos', 'categoria_nome, status, valor_bruto, valor_pago, data_competencia, data_pagamento', {
       'eq_bar_id': parseInt(barId),
       'is_excluido_em': null,
       'gte_data_competencia': startDate,
@@ -133,11 +134,14 @@ export async function GET(request: Request) {
       
       const cat = categoriasDisponiveis.get(categoria);
       cat.total_registros++;
-      cat.total_valor += Math.abs(parseFloat(item.valor_bruto) || 0);
-      
+      // valor efetivo: pago se >0, senao bruto (CA mostra pago)
+      const pago = parseFloat(item.valor_pago) || 0;
+      const valorEf = pago > 0 ? pago : (parseFloat(item.valor_bruto) || 0);
+      cat.total_valor += Math.abs(valorEf);
+
       if (item.status === 'ACQUITTED' || item.status === 'PARTIAL') {
         cat.registros_pagos++;
-        cat.valor_pago += Math.abs(parseFloat(item.valor_bruto) || 0);
+        cat.valor_pago += Math.abs(valorEf);
       }
     });
 

@@ -268,11 +268,13 @@ export async function GET(request: NextRequest) {
       // Para mes corrente, dataFim ja eh o ultimo marco fechado (recorta certo).
       // Para meses fechados, dataFim eh o ultimo dia do mes.
       // PAGINADO: meses pesados podem passar de 1000 lancamentos.
+      // valor_efetivo: usa valor_pago quando >0 (o que efetivamente saiu), senao valor_bruto.
+      // CA/planilha mostra valor_pago — diff de R$ 30 era 1 lancamento freela com ajuste no pagto.
       const lanc = await paginate<any>(
         () => (supabase as any)
           .schema('bronze' as any)
           .from('bronze_contaazul_lancamentos')
-          .select('valor_bruto, categoria_nome')
+          .select('valor_bruto, valor_pago, categoria_nome')
           .eq('bar_id', barId)
           .eq('tipo', 'DESPESA')
           .is('excluido_em', null)
@@ -282,9 +284,13 @@ export async function GET(request: NextRequest) {
           .order('data_competencia'),
         { label: 'cmv-semanal/mensal:lanc' },
       );
+      const valEfetivo = (r: any) => {
+        const pago = parseFloat(r.valor_pago) || 0;
+        return pago > 0 ? pago : (parseFloat(r.valor_bruto) || 0);
+      };
       const somaPor = (filtro: RegExp) =>
         lanc.filter((r: any) => filtro.test(r.categoria_nome || ''))
-          .reduce((s: number, r: any) => s + (parseFloat(r.valor_bruto) || 0), 0);
+          .reduce((s: number, r: any) => s + valEfetivo(r), 0);
       dadosMensais.compras_custo_comida = somaPor(/comida/i);
       dadosMensais.compras_custo_bebidas = somaPor(/bebida/i);
       dadosMensais.compras_custo_drinks = somaPor(/drink/i);
@@ -295,7 +301,7 @@ export async function GET(request: NextRequest) {
         // (cmv_mensal guarda o mes inteiro, mas aqui queremos so ate o marco)
         dadosMensais.compras_periodo = lanc
           .filter((r: any) => /custo/i.test(r.categoria_nome || ''))
-          .reduce((s: number, r: any) => s + (parseFloat(r.valor_bruto) || 0), 0);
+          .reduce((s: number, r: any) => s + valEfetivo(r), 0);
         dadosMensais.compras_alimentacao = somaPor(/alimenta/i);
         dadosMensais.cma_total = (dadosMensais.estoque_inicial_funcionarios || 0)
           + dadosMensais.compras_alimentacao

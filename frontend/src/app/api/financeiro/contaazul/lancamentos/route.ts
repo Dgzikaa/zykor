@@ -125,6 +125,8 @@ export async function GET(request: NextRequest) {
 
       totalizadores.total_bruto += valor;
       totalizadores.total_pago += pago;
+      // Nota: total_bruto/total_pago aqui sao separados intencionalmente — UI exibe os dois.
+      // Em outros lugares (CMV, CMO, DRE) usamos valor_pago>0?pago:bruto pra bater com CA.
 
       if (lanc.tipo === 'RECEITA') {
         totalizadores.count_receitas++;

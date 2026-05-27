@@ -101,13 +101,16 @@ export async function GET(request: NextRequest) {
     // PAGINADO em 2026-05-27: Ord 2026 tem 1572 rows, limite default Supabase
     // (1000) causava UI mostrar ~63% do valor real.
     // Range estendido pra suportar visao mensal cross-year (Mar/2025 -> hoje).
+    // VALOR PAGO em 2026-05-27: usa valor_pago quando > 0 (o que realmente saiu),
+    // fallback valor_bruto. CA/planilha mostra valor_pago — diff de R$ 30 era 1
+    // lancamento Ord/Abr/26 onde freela ganhou ajuste (bruto 130, pago 160).
     const dataInicioAno = `${anoMin}-01-01`;
     const dataFimAno = `${anoMax}-12-31`;
-    const freelasLista = await paginate<{ valor_bruto: any; data_competencia: string }>(
+    const freelasLista = await paginate<{ valor_bruto: any; valor_pago: any; data_competencia: string }>(
       () => (supabase as any)
         .schema('bronze')
         .from('bronze_contaazul_lancamentos')
-        .select('valor_bruto, data_competencia')
+        .select('valor_bruto, valor_pago, data_competencia')
         .eq('bar_id', barId)
         .eq('tipo', 'DESPESA')
         .is('excluido_em', null)
@@ -124,20 +127,26 @@ export async function GET(request: NextRequest) {
         .order('data_competencia'),
     );
 
+    const valorEfetivo = (r: { valor_bruto: any; valor_pago: any }) => {
+      const pago = parseFloat(String(r.valor_pago)) || 0;
+      const bruto = parseFloat(String(r.valor_bruto)) || 0;
+      return pago > 0 ? pago : bruto;
+    };
+
     const freelasNoIntervalo = (ini: string, fim: string): number =>
       freelasLista
         .filter((r) => r.data_competencia >= ini && r.data_competencia <= fim)
-        .reduce((sum, r) => sum + (parseFloat(String(r.valor_bruto)) || 0), 0);
+        .reduce((sum, r) => sum + valorEfetivo(r), 0);
 
     // 2b. Equipe Fixa AUTO via ContaAzul (categorias SALARIO + PROVISÃO + VT + ADICIONAIS)
     // Mudou em 2026-05-27: era manual via meta.cmo_equipe_fixa_semanal.
-    // Mesma logica do freelas — soma por intervalo de datas (semanal/mensal).
+    // Mesma logica do freelas — soma valorEfetivo (pago se >0, senao bruto) por intervalo.
     // PAGINADO pra evitar truncamento silencioso (mesmo bug do freelas).
-    const equipeFixaLista = await paginate<{ valor_bruto: any; data_competencia: string }>(
+    const equipeFixaLista = await paginate<{ valor_bruto: any; valor_pago: any; data_competencia: string }>(
       () => (supabase as any)
         .schema('bronze')
         .from('bronze_contaazul_lancamentos')
-        .select('valor_bruto, data_competencia, categoria_nome')
+        .select('valor_bruto, valor_pago, data_competencia, categoria_nome')
         .eq('bar_id', barId)
         .eq('tipo', 'DESPESA')
         .is('excluido_em', null)
@@ -155,7 +164,7 @@ export async function GET(request: NextRequest) {
     const equipeFixaNoIntervalo = (ini: string, fim: string): number =>
       equipeFixaLista
         .filter((r) => r.data_competencia >= ini && r.data_competencia <= fim)
-        .reduce((sum, r) => sum + (parseFloat(String(r.valor_bruto)) || 0), 0);
+        .reduce((sum, r) => sum + valorEfetivo(r), 0);
 
     // 3. gold.desempenho semanal (data_inicio, data_fim, faturamento)
     const semanasGold = await paginate<any>(
