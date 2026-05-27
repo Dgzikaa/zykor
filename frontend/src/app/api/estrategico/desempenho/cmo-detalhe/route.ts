@@ -30,10 +30,32 @@ function diasNoMes(ano: number, mes: number): number {
   return new Date(ano, mes, 0).getDate();
 }
 
+/**
+ * Pagina query Supabase em chunks de 1000 (limite default).
+ * Sem isso, queries que retornam >1000 rows perdem dados silenciosamente —
+ * causa direta do bug: freelas Ord/2026 = 1572 rows, soma final era ~63% do real.
+ */
+async function fetchAllPaginated<T>(
+  buildQuery: () => any,
+  pageSize: number = 1000,
+): Promise<T[]> {
+  let all: T[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+    if (error) throw error;
+    const rows = (data || []) as T[];
+    all = all.concat(rows);
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
 function rateioPorDia(
   dataInicio: string,
   dataFim: string,
-  valorMensalDoMes: (mes: number, ano: number) => number,
+  valorMensalDoMes: (ano: number, mes: number) => number,
 ): number {
   const dIni = new Date(dataInicio + 'T00:00:00Z');
   const dFim = new Date(dataFim + 'T00:00:00Z');
@@ -41,7 +63,7 @@ function rateioPorDia(
   for (let d = new Date(dIni); d <= dFim; d.setUTCDate(d.getUTCDate() + 1)) {
     const mes = d.getUTCMonth() + 1;
     const ano = d.getUTCFullYear();
-    total += valorMensalDoMes(mes, ano) / diasNoMes(ano, mes);
+    total += valorMensalDoMes(ano, mes) / diasNoMes(ano, mes);
   }
   return total;
 }
@@ -50,7 +72,13 @@ export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
     const barId = Number(sp.get('bar_id'));
-    const ano = Number(sp.get('ano') ?? new Date().getFullYear());
+    const anoParam = Number(sp.get('ano') ?? new Date().getFullYear());
+    // ano_min/ano_max para visao mensal que cruza anos (ex: Mar/2025 -> hoje).
+    // Sem isso, ano=2026 truncava todos os meses/semanas de 2025 da UI.
+    const anoMin = Number(sp.get('ano_min') ?? anoParam);
+    const anoMax = Number(sp.get('ano_max') ?? anoParam);
+    // Mantemos `ano` interno como max pra cmo_manual (que ainda eh por ano unico).
+    const ano = anoMax;
 
     if (!barId) {
       return NextResponse.json({ error: 'bar_id obrigatorio' }, { status: 400 });
@@ -58,53 +86,64 @@ export async function GET(request: NextRequest) {
 
     const supabase = createServerClient();
 
-    // 1. cmo_manual do ano (12 meses) — manual de Equipe Fixa e Pro Labore
+    // Array de anos no range (pra queries que filtram por ano)
+    const anosNoRange: number[] = [];
+    for (let a = anoMin; a <= anoMax; a++) anosNoRange.push(a);
+
+    // 1. cmo_manual do range — manual de Equipe Fixa e Pro Labore (Pro Labore eh mensal)
+    // Indexado por `${ano}-${mes}` agora pra suportar cross-year.
     const { data: cmoManualRows, error: errCmo } = await supabase
       .schema('meta' as never)
       .from('cmo_manual')
-      .select('mes, equipe_fixa_mensal, pro_labore_mensal')
+      .select('ano, mes, equipe_fixa_mensal, pro_labore_mensal')
       .eq('bar_id', barId)
-      .eq('ano', ano);
+      .in('ano', anosNoRange);
 
     if (errCmo) {
       console.error('[cmo-detalhe] erro cmo_manual:', errCmo);
     }
 
-    const cmoManualPorMes: Record<number, { equipe_fixa: number; pro_labore: number }> = {};
-    for (let m = 1; m <= 12; m++) {
-      cmoManualPorMes[m] = { equipe_fixa: EQUIPE_FIXA_DEFAULT, pro_labore: PRO_LABORE_DEFAULT };
+    const cmoManualPorMes: Record<string, { equipe_fixa: number; pro_labore: number }> = {};
+    for (const a of anosNoRange) {
+      for (let m = 1; m <= 12; m++) {
+        cmoManualPorMes[`${a}-${m}`] = { equipe_fixa: EQUIPE_FIXA_DEFAULT, pro_labore: PRO_LABORE_DEFAULT };
+      }
     }
     for (const r of ((cmoManualRows as any[]) || [])) {
-      cmoManualPorMes[r.mes] = {
+      cmoManualPorMes[`${r.ano}-${r.mes}`] = {
         equipe_fixa: parseFloat(String(r.equipe_fixa_mensal || 0)),
         pro_labore: parseFloat(String(r.pro_labore_mensal || 0)),
       };
     }
 
-    // 2. Freelas do ano inteiro (Conta Azul, 6 categorias FREELA explicitas)
+    // 2. Freelas do range (Conta Azul, 6 categorias FREELA explicitas)
     // Substituiu ILIKE '%freela%' em 2026-05-27 — explicito eh mais robusto contra
     // possiveis novas categorias com "freela" no nome que nao deveriam entrar.
-    const dataInicioAno = `${ano}-01-01`;
-    const dataFimAno = `${ano}-12-31`;
-    const { data: freelasRows } = await (supabase as any)
-      .schema('bronze')
-      .from('bronze_contaazul_lancamentos')
-      .select('valor_bruto, data_competencia')
-      .eq('bar_id', barId)
-      .eq('tipo', 'DESPESA')
-      .is('excluido_em', null)
-      .in('categoria_nome', [
-        'FREELA ATENDIMENTO',
-        'FREELA COZINHA',
-        'FREELA BAR',
-        'FREELA LIMPEZA',
-        'FREELA SEGURANÇA',
-        'FREELA BRIGADISTA',
-      ])
-      .gte('data_competencia', dataInicioAno)
-      .lte('data_competencia', dataFimAno);
-
-    const freelasLista = (freelasRows || []) as { valor_bruto: any; data_competencia: string }[];
+    // PAGINADO em 2026-05-27: Ord 2026 tem 1572 rows, limite default Supabase
+    // (1000) causava UI mostrar ~63% do valor real.
+    // Range estendido pra suportar visao mensal cross-year (Mar/2025 -> hoje).
+    const dataInicioAno = `${anoMin}-01-01`;
+    const dataFimAno = `${anoMax}-12-31`;
+    const freelasLista = await fetchAllPaginated<{ valor_bruto: any; data_competencia: string }>(
+      () => (supabase as any)
+        .schema('bronze')
+        .from('bronze_contaazul_lancamentos')
+        .select('valor_bruto, data_competencia')
+        .eq('bar_id', barId)
+        .eq('tipo', 'DESPESA')
+        .is('excluido_em', null)
+        .in('categoria_nome', [
+          'FREELA ATENDIMENTO',
+          'FREELA COZINHA',
+          'FREELA BAR',
+          'FREELA LIMPEZA',
+          'FREELA SEGURANÇA',
+          'FREELA BRIGADISTA',
+        ])
+        .gte('data_competencia', dataInicioAno)
+        .lte('data_competencia', dataFimAno)
+        .order('data_competencia'),
+    );
 
     const freelasNoIntervalo = (ini: string, fim: string): number =>
       freelasLista
@@ -114,23 +153,25 @@ export async function GET(request: NextRequest) {
     // 2b. Equipe Fixa AUTO via ContaAzul (categorias SALARIO + PROVISÃO + VT + ADICIONAIS)
     // Mudou em 2026-05-27: era manual via meta.cmo_equipe_fixa_semanal.
     // Mesma logica do freelas — soma por intervalo de datas (semanal/mensal).
-    const { data: equipeFixaRows } = await (supabase as any)
-      .schema('bronze')
-      .from('bronze_contaazul_lancamentos')
-      .select('valor_bruto, data_competencia, categoria_nome')
-      .eq('bar_id', barId)
-      .eq('tipo', 'DESPESA')
-      .is('excluido_em', null)
-      .in('categoria_nome', [
-        'SALARIO FUNCIONARIOS',
-        'PROVISÃO TRABALHISTA',
-        'VALE TRANSPORTE',
-        'ADICIONAIS',
-      ])
-      .gte('data_competencia', dataInicioAno)
-      .lte('data_competencia', dataFimAno);
-
-    const equipeFixaLista = (equipeFixaRows || []) as { valor_bruto: any; data_competencia: string }[];
+    // PAGINADO pra evitar truncamento silencioso (mesmo bug do freelas).
+    const equipeFixaLista = await fetchAllPaginated<{ valor_bruto: any; data_competencia: string }>(
+      () => (supabase as any)
+        .schema('bronze')
+        .from('bronze_contaazul_lancamentos')
+        .select('valor_bruto, data_competencia, categoria_nome')
+        .eq('bar_id', barId)
+        .eq('tipo', 'DESPESA')
+        .is('excluido_em', null)
+        .in('categoria_nome', [
+          'SALARIO FUNCIONARIOS',
+          'PROVISÃO TRABALHISTA',
+          'VALE TRANSPORTE',
+          'ADICIONAIS',
+        ])
+        .gte('data_competencia', dataInicioAno)
+        .lte('data_competencia', dataFimAno)
+        .order('data_competencia'),
+    );
 
     const equipeFixaNoIntervalo = (ini: string, fim: string): number =>
       equipeFixaLista
@@ -138,25 +179,32 @@ export async function GET(request: NextRequest) {
         .reduce((sum, r) => sum + (parseFloat(String(r.valor_bruto)) || 0), 0);
 
     // 3. gold.desempenho semanal (data_inicio, data_fim, faturamento)
-    const { data: semanasGold } = await (supabase as any)
-      .schema('gold')
-      .from('desempenho')
-      .select('numero_semana, ano, data_inicio, data_fim, faturamento_total')
-      .eq('bar_id', barId)
-      .eq('ano', ano)
-      .eq('granularidade', 'semanal')
-      .order('numero_semana');
+    const semanasGold = await fetchAllPaginated<any>(
+      () => (supabase as any)
+        .schema('gold')
+        .from('desempenho')
+        .select('numero_semana, ano, data_inicio, data_fim, faturamento_total')
+        .eq('bar_id', barId)
+        .in('ano', anosNoRange)
+        .eq('granularidade', 'semanal')
+        .order('ano')
+        .order('numero_semana'),
+    );
 
     // 4. cmv_semanal para CMA semanal
-    const { data: cmvSem } = await (supabase as any)
-      .schema('financial')
-      .from('cmv_semanal')
-      .select('ano, semana, estoque_inicial_funcionarios, compras_alimentacao, estoque_final_funcionarios')
-      .eq('bar_id', barId)
-      .eq('ano', ano);
+    const cmvSem = await fetchAllPaginated<any>(
+      () => (supabase as any)
+        .schema('financial')
+        .from('cmv_semanal')
+        .select('ano, semana, estoque_inicial_funcionarios, compras_alimentacao, estoque_final_funcionarios')
+        .eq('bar_id', barId)
+        .in('ano', anosNoRange)
+        .order('ano')
+        .order('semana'),
+    );
 
     const cmaSemanalMap = new Map<string, number>();
-    for (const r of ((cmvSem as any[]) || [])) {
+    for (const r of (cmvSem || [])) {
       const cma =
         (parseFloat(String(r.estoque_inicial_funcionarios || 0)) || 0)
         + (parseFloat(String(r.compras_alimentacao || 0)) || 0)
@@ -164,17 +212,22 @@ export async function GET(request: NextRequest) {
       cmaSemanalMap.set(`${r.ano}-${r.semana}`, cma);
     }
 
-    // 5. cmv_mensal (mensal: faturamento total, cma total)
-    const { data: cmvMen } = await (supabase as any)
-      .schema('financial')
-      .from('cmv_mensal')
-      .select('mes, faturamento_total, cma_total')
-      .eq('bar_id', barId)
-      .eq('ano', ano);
+    // 5. cmv_mensal (mensal: faturamento total, cma total) — agora cross-year
+    const cmvMen = await fetchAllPaginated<any>(
+      () => (supabase as any)
+        .schema('financial')
+        .from('cmv_mensal')
+        .select('ano, mes, faturamento_total, cma_total')
+        .eq('bar_id', barId)
+        .in('ano', anosNoRange)
+        .order('ano')
+        .order('mes'),
+    );
 
-    const cmvMensalMap = new Map<number, { faturamento_total: number; cma_total: number }>();
-    for (const r of ((cmvMen as any[]) || [])) {
-      cmvMensalMap.set(r.mes, {
+    // Indexado por `${ano}-${mes}` (cross-year).
+    const cmvMensalMap = new Map<string, { faturamento_total: number; cma_total: number }>();
+    for (const r of (cmvMen || [])) {
+      cmvMensalMap.set(`${r.ano}-${r.mes}`, {
         faturamento_total: parseFloat(String(r.faturamento_total || 0)),
         cma_total: parseFloat(String(r.cma_total || 0)),
       });
@@ -183,13 +236,13 @@ export async function GET(request: NextRequest) {
     // 6. Montar semanas
     // Equipe Fixa: AUTO via ContaAzul (mesma logica do freelas, soma por intervalo).
     // Pro Labore: continua mensal, rateado dia a dia.
-    const semanas = ((semanasGold as any[]) || []).map((s) => {
+    const semanas = (semanasGold || []).map((s) => {
       const dIni = s.data_inicio as string;
       const dFim = s.data_fim as string;
       const freelas = freelasNoIntervalo(dIni, dFim);
       const alimentacao = cmaSemanalMap.get(`${s.ano}-${s.numero_semana}`) || 0;
       const equipe_fixa = equipeFixaNoIntervalo(dIni, dFim);
-      const pro_labore = rateioPorDia(dIni, dFim, (m) => cmoManualPorMes[m]?.pro_labore || 0);
+      const pro_labore = rateioPorDia(dIni, dFim, (a, m) => cmoManualPorMes[`${a}-${m}`]?.pro_labore || 0);
       const total = freelas + alimentacao + equipe_fixa + pro_labore;
       const faturamento = parseFloat(String(s.faturamento_total || 0));
       const cmo_percentual = faturamento > 0 ? (total / faturamento) * 100 : 0;
@@ -208,7 +261,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // 7. Montar meses
+    // 7. Montar meses (cross-year: anoMin..anoMax)
     const meses: Array<{
       mes: number;
       ano: number;
@@ -222,25 +275,26 @@ export async function GET(request: NextRequest) {
       faturamento_total: number;
       cmo_percentual: number;
     }> = [];
-    for (let mes = 1; mes <= 12; mes++) {
-      const dias = diasNoMes(ano, mes);
-      const dIni = `${ano}-${String(mes).padStart(2, '0')}-01`;
-      const dFim = `${ano}-${String(mes).padStart(2, '0')}-${String(dias).padStart(2, '0')}`;
-      const freelas = freelasNoIntervalo(dIni, dFim);
-      const cmv = cmvMensalMap.get(mes) || { faturamento_total: 0, cma_total: 0 };
-      const alimentacao = cmv.cma_total;
-      // Equipe Fixa mensal = AUTO via CA (mesma logica do freelas, soma do mes inteiro)
-      const equipe_fixa = equipeFixaNoIntervalo(dIni, dFim);
-      const pro_labore = cmoManualPorMes[mes]?.pro_labore || 0;
-      const total = freelas + alimentacao + equipe_fixa + pro_labore;
-      const cmo_percentual = cmv.faturamento_total > 0 ? (total / cmv.faturamento_total) * 100 : 0;
-      meses.push({
-        mes, ano,
-        data_inicio: dIni, data_fim: dFim,
-        freelas, alimentacao, equipe_fixa, pro_labore, total,
-        faturamento_total: cmv.faturamento_total,
-        cmo_percentual,
-      });
+    for (const a of anosNoRange) {
+      for (let mes = 1; mes <= 12; mes++) {
+        const dias = diasNoMes(a, mes);
+        const dIni = `${a}-${String(mes).padStart(2, '0')}-01`;
+        const dFim = `${a}-${String(mes).padStart(2, '0')}-${String(dias).padStart(2, '0')}`;
+        const freelas = freelasNoIntervalo(dIni, dFim);
+        const cmv = cmvMensalMap.get(`${a}-${mes}`) || { faturamento_total: 0, cma_total: 0 };
+        const alimentacao = cmv.cma_total;
+        const equipe_fixa = equipeFixaNoIntervalo(dIni, dFim);
+        const pro_labore = cmoManualPorMes[`${a}-${mes}`]?.pro_labore || 0;
+        const total = freelas + alimentacao + equipe_fixa + pro_labore;
+        const cmo_percentual = cmv.faturamento_total > 0 ? (total / cmv.faturamento_total) * 100 : 0;
+        meses.push({
+          mes, ano: a,
+          data_inicio: dIni, data_fim: dFim,
+          freelas, alimentacao, equipe_fixa, pro_labore, total,
+          faturamento_total: cmv.faturamento_total,
+          cmo_percentual,
+        });
+      }
     }
 
     return NextResponse.json({

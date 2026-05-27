@@ -570,13 +570,20 @@ export function DesempenhoClient({
     total: number; faturamento_total: number; cmo_percentual: number;
   };
   const [cmoDetalheSemanas, setCmoDetalheSemanas] = useState<Map<string, CmoLinhaDetalhe>>(new Map());
-  const [cmoDetalheMeses, setCmoDetalheMeses] = useState<Map<number, CmoLinhaDetalhe>>(new Map());
+  // Map indexado por `${ano}-${mes}` (cross-year — Mar/2025 -> hoje na visao mensal)
+  const [cmoDetalheMeses, setCmoDetalheMeses] = useState<Map<string, CmoLinhaDetalhe>>(new Map());
   const [cmoManualPorMes, setCmoManualPorMes] = useState<Record<number, { equipe_fixa: number; pro_labore: number }>>({});
 
   const carregarCmoDetalhe = useCallback(async () => {
     if (!effectiveBarId) return;
     try {
-      const resp = await fetch(`/api/estrategico/desempenho/cmo-detalhe?bar_id=${effectiveBarId}&ano=${anoAtual}`);
+      // Visao mensal cobre Mar/2025 -> hoje. Passamos range pra API trazer cross-year.
+      // Visao semanal: ano unico (ano selecionado).
+      const anoMin = visao === 'mensal' ? Math.min(2025, anoAtual) : anoAtual;
+      const anoMax = anoAtual;
+      const resp = await fetch(
+        `/api/estrategico/desempenho/cmo-detalhe?bar_id=${effectiveBarId}&ano_min=${anoMin}&ano_max=${anoMax}`
+      );
       if (!resp.ok) return;
       const data = await resp.json();
       const semMap = new Map<string, CmoLinhaDetalhe>();
@@ -591,9 +598,9 @@ export function DesempenhoClient({
           cmo_percentual: s.cmo_percentual || 0,
         });
       }
-      const mesMap = new Map<number, CmoLinhaDetalhe>();
+      const mesMap = new Map<string, CmoLinhaDetalhe>();
       for (const m of (data.meses || []) as any[]) {
-        mesMap.set(m.mes, {
+        mesMap.set(`${m.ano}-${m.mes}`, {
           freelas: m.freelas || 0,
           alimentacao: m.alimentacao || 0,
           equipe_fixa: m.equipe_fixa || 0,
@@ -609,7 +616,7 @@ export function DesempenhoClient({
     } catch (err) {
       console.error('Erro ao carregar CMO detalhe:', err);
     }
-  }, [effectiveBarId, anoAtual]);
+  }, [effectiveBarId, anoAtual, visao]);
 
   useEffect(() => { carregarCmoDetalhe(); }, [carregarCmoDetalhe]);
   const [falaeDialog, setFalaeDialog] = useState<{
@@ -1714,10 +1721,10 @@ export function DesempenhoClient({
     }
 
     // CMO drill-down: chaves cmo_freelas/cmo_alimentacao/cmo_equipe_fixa/cmo_pro_labore/cmo_percentual_detalhado
-    // vem da API cmo-detalhe — semanal por (ano, numero_semana), mensal por numero_semana=mes
+    // vem da API cmo-detalhe — semanal por (ano, numero_semana), mensal por (ano, mes)
     if (key.startsWith('cmo_')) {
       const detalhe = visao === 'mensal'
-        ? cmoDetalheMeses.get(semana.numero_semana)
+        ? cmoDetalheMeses.get(`${semana.ano}-${semana.numero_semana}`)
         : cmoDetalheSemanas.get(`${semana.ano}-${semana.numero_semana}`);
       if (!detalhe) return 0;
       switch (key) {
