@@ -22,6 +22,9 @@ import {
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/hooks/use-toast';
 
+// Singleton no escopo do modulo (Intl.NumberFormat e' caro).
+const FMT_CMP_MENSAL_BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
 interface IndicadorMensal {
   mes: string;
   mesNome: string;
@@ -125,8 +128,7 @@ export function ComparativoMensal() {
     setMesReferencia(novoMes);
   };
 
-  const formatarMoeda = (valor: number) => 
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+  const formatarMoeda = (valor: number) => FMT_CMP_MENSAL_BRL.format(valor);
   
   const formatarNumero = (num: number) => num.toLocaleString('pt-BR');
   

@@ -25,6 +25,9 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { toast } from 'sonner';
 
+// Singleton no escopo do modulo (Intl.NumberFormat e' caro).
+const FMT_EVT_CMP_BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
 interface EventoComparativo {
   data_evento: string;
   nome: string;
@@ -114,12 +117,7 @@ export default function EventosComparativoPage() {
     }
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value || 0);
-  };
+  const formatCurrency = (value: number) => FMT_EVT_CMP_BRL.format(value || 0);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString + 'T12:00:00Z');

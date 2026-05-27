@@ -44,6 +44,9 @@ import {
 } from 'lucide-react';
 import { PlanejamentoData } from '../services/planejamento-service';
 
+// Singleton no escopo do modulo (Intl.NumberFormat e' caro).
+const FMT_PLAN_BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
 interface EventoEdicaoCompleta {
   id: number;
   nome: string;
@@ -378,7 +381,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
 
   const formatarMoeda = (valor: number | null | undefined): string => {
     if (!valor && valor !== 0) return 'R$ 0,00';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+    return FMT_PLAN_BRL.format(valor);
   };
 
   const formatarPercentual = (valor: number | null | undefined): string => {

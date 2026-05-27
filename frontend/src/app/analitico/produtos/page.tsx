@@ -16,6 +16,9 @@ import { useBar } from '@/contexts/BarContext'
 import { AnimatedCounter, AnimatedCurrency } from '@/components/ui/animated-counter'
 import { motion } from 'framer-motion'
 
+// Singleton no escopo do modulo (Intl.NumberFormat e' caro).
+const FMT_PRD_BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
 interface Produto {
   produto: string
   grupo: string
@@ -105,12 +108,7 @@ export default function ProdutosPage() {
     fetchProdutos()
   }, [fetchProdutos])
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value)
-  }
+  const formatCurrency = (value: number) => FMT_PRD_BRL.format(value)
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString + 'T12:00:00Z')

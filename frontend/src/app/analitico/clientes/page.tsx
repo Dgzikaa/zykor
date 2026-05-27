@@ -34,6 +34,9 @@ import {
 
 const ITEMS_PER_PAGE = 50
 
+// Singleton no escopo do modulo (Intl.NumberFormat e' caro de instanciar).
+const FMT_CLI_BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
 const diasSemana = [
   { value: 'todos', label: 'Todos os dias' },
   { value: '0', label: 'Domingo' },
@@ -413,8 +416,7 @@ export default function ClientesPage() {
     toast({ title: 'WhatsApp aberto', description: `Conversa iniciada com ${nome}` })
   }
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+  const formatCurrency = (value: number) => FMT_CLI_BRL.format(value)
 
   const exportarCSV = () => {
     try {
