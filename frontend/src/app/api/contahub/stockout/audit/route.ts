@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getAdminClient } from '@/lib/supabase-admin';
 
 /**
  * POST /api/contahub/stockout/audit
@@ -21,7 +21,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await getSupabaseClient();
+    // Admin client (SERVICE_ROLE) — bronze/silver tem RLS sem policies, ANON nao acessa
+    const supabase = await getAdminClient();
     if (!supabase) {
       return NextResponse.json(
         { success: false, error: 'Erro ao conectar com o banco de dados' },
