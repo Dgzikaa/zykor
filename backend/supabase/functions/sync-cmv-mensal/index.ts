@@ -439,20 +439,25 @@ serve(async (req) => {
               ano: info.ano,
               mes: info.mes,
               data_inicio: info.dataInicio,
-              data_fim: info.dataFim,
               col_planilha: col,
               raw: {
-                compras_raw: getVal(ROW_MAP.compras, col),
-                estoque_inicial_raw: getVal(ROW_MAP.estoque_inicial, col),
-                estoque_final_raw: getVal(ROW_MAP.estoque_final, col),
+                compras: getVal(ROW_MAP.compras, col),
+                estoque_inicial: getVal(ROW_MAP.estoque_inicial, col),
+                estoque_final: getVal(ROW_MAP.estoque_final, col),
+                est_ini_func: getVal(ROW_MAP.estoque_inicial_func ?? -1, col),
+                compras_alim: getVal(ROW_MAP.compras_alimentacao ?? -1, col),
+                est_fim_func: getVal(ROW_MAP.estoque_final_func ?? -1, col),
               },
               parsed: {
                 compras: updateData.compras,
                 estoque_inicial: updateData.estoque_inicial,
                 estoque_final: updateData.estoque_final,
+                est_ini_func: updateData.estoque_inicial_funcionarios,
+                compras_alim: updateData.compras_alimentacao,
+                est_fim_func: updateData.estoque_final_funcionarios,
+                cma_total: updateData.cma_total,
                 tem_dados: temDados,
-                nota: 'Sync escreve so INPUTS da planilha (estoque/compras/consumos). Calculados vem do agregador.',
-              }
+              },
             })
             continue
           }
