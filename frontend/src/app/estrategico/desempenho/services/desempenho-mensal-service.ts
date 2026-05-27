@@ -197,6 +197,9 @@ export async function getMeses(
       qtd_bebidas: mixQtd?.qtd_bebidas,
       qtd_drinks:  mixQtd?.qtd_drinks,
       qtd_comida:  mixQtd?.qtd_comida,
+      // Fat. Bar: real_r (ContaHub) inclui couvert. UI espera "produtos vendidos no bar"
+      // = real_r - couvert. Calculado on-the-fly aqui pra evitar mexer em gold.planejamento.
+      faturamento_bar: Math.max(0, (toNum(g.faturamento_bar) ?? 0) - (toNum(g.couvert_atracoes) ?? 0)),
 
       // CMO: manual.cmo eh o % editado pelo socio. cmo_valor (R$) vem do gold.
       // cmo_percentual: se tiver manual override, usa ele; senao calcula de gold.cmo/faturamento.

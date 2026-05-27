@@ -592,6 +592,9 @@ export async function getSemanas(
       ...s,
       // Mapear cancelamentos_total (gold) para cancelamentos (types)
       cancelamentos: toNum((s as any).cancelamentos_total) ?? toNum(s.cancelamentos) ?? s.cancelamentos,
+      // Fat. Bar: real_r (ContaHub) inclui couvert. UI espera "produtos vendidos no bar"
+      // = real_r - couvert. Calculado on-the-fly aqui pra evitar mexer em gold.planejamento.
+      faturamento_bar: Math.max(0, (toNum((s as any).faturamento_bar) ?? 0) - (toNum((s as any).couvert_atracoes) ?? 0)),
       // Mapear tempos de drinks (gold ETL v2): tempo_drinks em SEGUNDOS -> converter para MINUTOS
       // Filtrar clamp 9999 (outliers) como null para UI mostrar "-"
       tempo_saida_bar: ((s as any).tempo_drinks && toNum((s as any).tempo_drinks)! < 9999) ? Math.round(toNum((s as any).tempo_drinks)! / 60 * 100) / 100 : null,
