@@ -75,6 +75,8 @@ const REGRAS_FILTRAGEM: RegraFiltragem[] = [
   { tipo: 'palavra_meio', valor: 'Combo ', motivo: 'palavra_combo', descricao: 'Combo promocional' },
   { tipo: 'palavra_meio', valor: 'Adicional', motivo: 'palavra_adicional', descricao: 'Contém "Adicional" no nome' },
   { tipo: 'palavra_meio', valor: 'Embalagem', motivo: 'palavra_embalagem', descricao: 'Contém "Embalagem" no nome' },
+  { tipo: 'palavra_meio', valor: 'Feijoada', motivo: 'palavra_feijoada', descricao: 'Contém "Feijoada" no nome (sazonal)' },
+  { tipo: 'palavra_meio', valor: 'Feijada', motivo: 'palavra_feijoada', descricao: 'Contém "Feijada" no nome (typo)' },
 ];
 
 interface ResultadoFiltragem {

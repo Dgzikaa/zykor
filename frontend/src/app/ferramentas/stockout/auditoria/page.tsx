@@ -88,7 +88,8 @@ const MOTIVOS_EXCLUSAO: Record<string, string> = {
   'palavra_garrafa': 'Contém "Garrafa" no nome',
   'palavra_combo': 'Combo promocional',
   'palavra_adicional': 'Contém "Adicional" no nome',
-  'palavra_embalagem': 'Contém "Embalagem" no nome'
+  'palavra_embalagem': 'Contém "Embalagem" no nome',
+  'palavra_feijoada': 'Contém "Feijoada" no nome (sazonal)'
 };
 
 export default function StockoutAuditoriaPage() {
