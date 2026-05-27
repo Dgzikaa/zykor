@@ -387,12 +387,16 @@ serve(async (req) => {
           // Extrair valores (verificando se a linha existe)
           const getVal = (rowIdx: number, col: number) => rowIdx >= 0 && rows[rowIdx] ? rows[rowIdx][col] : undefined
           
-          // estoque_inicial e estoque_final NAO sao mais lidos da planilha mensal.
-          // Fonte unica passa a ser financial.cmv_semanal (planilha semanal do socio),
-          // agregada por public.agregar_cmv_mensal_auto que pega:
-          //   est_inicial = primeira semana do mes (quinta dentro do mes)
-          //   est_final = ultima semana do mes COM estoque_final > 0
-          // Resolve bug: planilha mensal ficava desatualizada e gravava domingo errado.
+          // Estoque inicial/final voltaram a ser lidos da planilha mensal (linhas 1 e 3).
+          // Revisao do fix de 2026-05-26: aquela versao derivava estoque de cmv_semanal,
+          // resolvendo a visao semanal mas quebrando a mensal (o socio queria bater com
+          // o inventario do bloco mensal da planilha, que tem datas proprias e numeros
+          // bem diferentes da virada de semana ISO). Agora:
+          //   - sync-cmv-mensal le estoque_inicial/final da planilha (fonte='planilha')
+          //   - agregar_cmv_mensal_auto PRESERVA esses valores quando fonte='planilha'
+          //     (igual ja faz com bonificacoes/cma manual)
+          updateData.estoque_inicial = parseMonetario(getVal(ROW_MAP.estoque_inicial, col))
+          updateData.estoque_final = parseMonetario(getVal(ROW_MAP.estoque_final, col))
           updateData.compras = parseMonetario(getVal(ROW_MAP.compras, col))
           updateData.consumo_socios = parseMonetario(getVal(ROW_MAP.consumo_socios, col))
           updateData.consumo_beneficios = parseMonetario(getVal(ROW_MAP.consumo_beneficios, col))
@@ -426,8 +430,10 @@ serve(async (req) => {
           // Fonte dos dados
           updateData.fonte = 'planilha'
 
-          // Verificar se tem dados válidos (estoque_inicial/final agora vem do agregador)
+          // Verificar se tem dados válidos
           const temDados = updateData.compras !== 0 ||
+                          updateData.estoque_inicial !== 0 ||
+                          updateData.estoque_final !== 0 ||
                           updateData.cmv_real !== 0 ||
                           updateData.faturamento_cmvivel !== 0 ||
                           updateData.consumo_socios !== 0 ||
@@ -451,7 +457,9 @@ serve(async (req) => {
                 cmv_real: updateData.cmv_real,
                 fat_cmvivel: updateData.faturamento_cmvivel,
                 tem_dados: temDados,
-                nota: 'estoque_inicial/final agora derivados de cmv_semanal via agregar_cmv_mensal_auto',
+                estoque_inicial: updateData.estoque_inicial,
+                estoque_final: updateData.estoque_final,
+                nota: 'estoque_inicial/final lidos da planilha mensal (linhas 1 e 3), preservados pelo agregador quando fonte=planilha',
               }
             })
             continue
