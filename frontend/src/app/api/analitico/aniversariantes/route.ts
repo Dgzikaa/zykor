@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase-admin'
 import { authenticateUser, authErrorResponse } from '@/middleware/auth'
+import { paginate } from '@/lib/supabase/paginate'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 600 // 10min — base muda lentamente
@@ -24,22 +25,27 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await getAdminClient()
-    const { data, error } = await (supabase as unknown as { schema: (s: string) => any })
-      .schema('silver')
-      .from('cliente_estatisticas')
-      .select('cliente_nome, cliente_fone_norm, cliente_dtnasc, total_visitas, ultima_visita, dias_desde_ultima_visita, status, eh_vip, ticket_medio_consumo, valor_total_consumo, produtos_favoritos')
-      .eq('bar_id', barId)
-      .not('cliente_dtnasc', 'is', null)
-      .filter('cliente_dtnasc', 'gte', '1900-01-01') // sanity
-      .order('cliente_dtnasc', { ascending: true })
-
-    if (error) {
+    // PAGINADO: cliente_estatisticas pode ter >>1000 clientes por bar.
+    let data: any[]
+    try {
+      data = await paginate<any>(
+        () => (supabase as any)
+          .schema('silver')
+          .from('cliente_estatisticas')
+          .select('cliente_nome, cliente_fone_norm, cliente_dtnasc, total_visitas, ultima_visita, dias_desde_ultima_visita, status, eh_vip, ticket_medio_consumo, valor_total_consumo, produtos_favoritos')
+          .eq('bar_id', barId)
+          .not('cliente_dtnasc', 'is', null)
+          .filter('cliente_dtnasc', 'gte', '1900-01-01') // sanity
+          .order('cliente_dtnasc', { ascending: true }),
+        { label: 'analitico/aniversariantes' },
+      )
+    } catch (error: any) {
       console.error('Erro aniversariantes:', error)
       return NextResponse.json({ error: 'Erro ao carregar aniversariantes', details: error.message }, { status: 500 })
     }
 
     // Filtrar por mes em JS (PostgREST nao tem EXTRACT direto via .filter)
-    const aniversariantes = (data || [])
+    const aniversariantes = data
       .filter((c: any) => {
         if (!c.cliente_dtnasc) return false
         // dtnasc em formato YYYY-MM-DD; pega o mes (posicao 5-6) sem timezone shift
