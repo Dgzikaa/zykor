@@ -50,6 +50,7 @@ import { useRefreshOnVisible } from '@/hooks/useRefreshOnVisible';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { DadosSemana, SecaoConfig, GrupoMetricas, MetricaConfig, TipoAgregacao, MetasDesempenhoMap } from '../types';
+import { MetasModal } from './MetasModal';
 
 // ============================================================================
 // CONFIGURAÇÃO UI (SECOES, ETC)
@@ -520,7 +521,8 @@ export function DesempenhoClient({
   const [metasOrigens, setMetasOrigens] = useState<Record<string, { tipo: 'definida' | 'herdada'; semana?: number; ano?: number }>>({});
   const [metasModalAberto, setMetasModalAberto] = useState(false);
   const [salvandoMetas, setSalvandoMetas] = useState(false);
-  const [metasEditValues, setMetasEditValues] = useState<Record<string, string>>({});
+  // metasEditValues movido para MetasModal (state local isolado evita re-render
+  // das 3557 linhas do DesempenhoClient ao digitar nos inputs de meta).
   
   const [secoesAbertas, setSecoesAbertas] = useState<Record<string, boolean>>({
     guardrail: true,
@@ -982,19 +984,11 @@ export function DesempenhoClient({
   };
 
   const abrirModalMetas = useCallback(() => {
-    const valoresIniciais: Record<string, string> = {};
-    metricasParaMetaFlat.forEach((m) => {
-      const valorAtual = metas[m.key]?.valor;
-      valoresIniciais[m.key] =
-        valorAtual !== null && valorAtual !== undefined && Number.isFinite(valorAtual)
-          ? String(valorAtual)
-          : '';
-    });
-    setMetasEditValues(valoresIniciais);
+    // Inicializacao dos values e' feita pelo MetasModal quando `open` vira true.
     setMetasModalAberto(true);
-  }, [metricasParaMetaFlat, metas]);
+  }, []);
 
-  const salvarMetasDesempenho = useCallback(async () => {
+  const salvarMetasDesempenho = useCallback(async (editValues: Record<string, string>) => {
     if (!selectedBar?.id) {
       toast({ title: 'Erro', description: 'Selecione um bar para salvar metas', variant: 'destructive' });
       return;
@@ -1002,7 +996,7 @@ export function DesempenhoClient({
 
     const metasPayload = metricasParaMetaFlat
       .map((m) => {
-        const raw = (metasEditValues[m.key] || '').toString().trim();
+        const raw = (editValues[m.key] || '').toString().trim();
         if (!raw) return null;
         const valor = Number(raw.replace(',', '.'));
         if (!Number.isFinite(valor)) return null;
@@ -1056,7 +1050,7 @@ export function DesempenhoClient({
     } finally {
       setSalvandoMetas(false);
     }
-  }, [selectedBar, visao, metricasParaMetaFlat, metasEditValues, metas, semanaSelecionada, toast]);
+  }, [selectedBar, visao, metricasParaMetaFlat, metas, semanaSelecionada, toast]);
 
   // Abrir modal de edição individual de meta
   const abrirEditMeta = useCallback((metrica: MetricaConfig) => {
@@ -2503,58 +2497,17 @@ export function DesempenhoClient({
         </div>
       </div>
     </div>
-    <Dialog open={metasModalAberto} onOpenChange={setMetasModalAberto}>
-      <DialogContent className="max-w-6xl">
-        <DialogHeader>
-          <DialogTitle>Metas de Desempenho ({visao === 'semanal' ? 'Semanal' : 'Mensal'})</DialogTitle>
-          <DialogDescription>
-            Metas agrupadas por bloco do desempenho. Edite e salve quando quiser.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="max-h-[70vh] overflow-y-auto px-1">
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 py-2">
-            {metasPorSecao.map((secao) => (
-              <section key={secao.id} className="rounded-md border p-3 bg-gray-50 dark:bg-gray-800/60 space-y-3">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{secao.titulo}</h3>
-                {secao.grupos.map((grupo) => (
-                  <div key={`${secao.id}-${grupo.id}`} className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-2.5 space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{grupo.label}</p>
-                    {grupo.metricas.map((m) => (
-                      <div key={m.key} className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-2 items-center">
-                        <div>
-                          <p className="text-sm text-gray-900 dark:text-gray-100">{m.label} - Meta</p>
-                          <p className="text-[11px] text-gray-500">
-                            Atual: {metas[m.key] ? formatarValor(metas[m.key].valor, m.formato, m.sufixo) : '-'} • Op. {metas[m.key]?.operador || (m.inverso ? '<=' : '>=')}
-                          </p>
-                        </div>
-                        <Input
-                          value={metasEditValues[m.key] || ''}
-                          onChange={(e) =>
-                            setMetasEditValues((prev) => ({
-                              ...prev,
-                              [m.key]: e.target.value,
-                            }))
-                          }
-                          placeholder={`Ex: ${m.formato.includes('moeda') ? '103.00' : '95'}`}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </section>
-            ))}
-          </div>
-        </div>
-        <DialogFooter className="p-0 pt-2">
-          <Button type="button" variant="outline" onClick={() => setMetasModalAberto(false)} disabled={salvandoMetas}>
-            Cancelar
-          </Button>
-          <Button type="button" onClick={salvarMetasDesempenho} disabled={salvandoMetas}>
-            {salvandoMetas ? 'Salvando...' : 'Salvar Metas'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <MetasModal
+      open={metasModalAberto}
+      onOpenChange={setMetasModalAberto}
+      visao={visao}
+      metasPorSecao={metasPorSecao}
+      metricasParaMetaFlat={metricasParaMetaFlat}
+      metas={metas}
+      salvando={salvandoMetas}
+      formatarValor={formatarValor}
+      onSave={salvarMetasDesempenho}
+    />
     <Dialog open={falaeDialog.aberto} onOpenChange={(aberto) => setFalaeDialog((prev) => ({ ...prev, aberto }))}>
       <DialogContent className="max-w-5xl">
         <DialogHeader>
