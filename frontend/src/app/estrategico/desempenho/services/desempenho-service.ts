@@ -124,6 +124,24 @@ export async function getSemanas(
 
   const getinManual = integConfig?.modo === 'manual';
 
+  // Mix de Vendas — QUANTIDADES por semana (categoria_mix BEBIDA/DRINK/COMIDA).
+  // Exibido em parenteses na UI ao lado do %. Vem de silver.vendas_item.
+  const anosUnicos = Array.from(new Set(semanasGold.map((s: any) => s.ano)));
+  const mixQtdPorSemana = new Map<string, { qtd_bebidas: number; qtd_drinks: number; qtd_comida: number }>();
+  for (const a of anosUnicos) {
+    const { data: rpcRows } = await (supabase as any).rpc('get_mix_qtd_por_semana', {
+      p_bar_id: barId,
+      p_ano: a,
+    });
+    for (const r of (rpcRows || []) as any[]) {
+      mixQtdPorSemana.set(`${r.ano}-${r.numero_semana}`, {
+        qtd_bebidas: parseFloat(String(r.qtd_bebidas || 0)),
+        qtd_drinks: parseFloat(String(r.qtd_drinks || 0)),
+        qtd_comida: parseFloat(String(r.qtd_comida || 0)),
+      });
+    }
+  }
+
   // LEFT JOIN meta.desempenho_manual para campos manuais (RH, checklists, observacoes, audit)
   let metaQuery = supabase
     .schema('meta' as never)
@@ -589,6 +607,10 @@ export async function getSemanas(
       atrasos_bar_perc: toNum((s as any).atrasos_drinks_perc) ?? toNum(s.atrasos_bar_perc) ?? s.atrasos_bar_perc,
       atrasos_drinks_perc: toNum((s as any).atrasos_drinks_perc) ?? (s as any).atrasos_drinks_perc,
       qtd_drinks_total: toNum((s as any).qtd_drinks_total) ?? (s as any).qtd_drinks_total,
+      // Mix de Vendas: quantidades vendidas por categoria (exibido em parenteses ao lado do %)
+      qtd_bebidas: mixQtdPorSemana.get(`${s.ano}-${s.numero_semana}`)?.qtd_bebidas,
+      qtd_drinks:  mixQtdPorSemana.get(`${s.ano}-${s.numero_semana}`)?.qtd_drinks,
+      qtd_comida:  mixQtdPorSemana.get(`${s.ano}-${s.numero_semana}`)?.qtd_comida,
       atrasinhos_bar_perc: toNum(s.atrasinhos_bar_perc) ?? s.atrasinhos_bar_perc,
       // Mapear atrasinhos/atrasões cozinha (gold ETL v2)
       atrasinhos_cozinha: toNum((s as any).atrasinho_cozinha) ?? toNum(s.atrasinhos_cozinha) ?? s.atrasinhos_cozinha,

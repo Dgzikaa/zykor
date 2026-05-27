@@ -153,6 +153,24 @@ export async function getMeses(
     marketingMensalMap.set(key, agg);
   });
 
+  // Mix de Vendas — QUANTIDADES por mes (categoria_mix BEBIDA/DRINK/COMIDA).
+  // Exibido em parenteses na UI ao lado do %. Vem de silver.vendas_item.
+  const anosUnicos = Array.from(new Set(mesesGold.map((m: any) => parseInt(m.periodo.split('-')[0]))));
+  const mixQtdPorMes = new Map<string, { qtd_bebidas: number; qtd_drinks: number; qtd_comida: number }>();
+  for (const a of anosUnicos) {
+    const { data: rpcRows } = await (supabase as any).rpc('get_mix_qtd_por_mes', {
+      p_bar_id: barId,
+      p_ano: a,
+    });
+    for (const r of (rpcRows || []) as any[]) {
+      mixQtdPorMes.set(`${r.ano}-${String(r.mes).padStart(2, '0')}`, {
+        qtd_bebidas: parseFloat(String(r.qtd_bebidas || 0)),
+        qtd_drinks: parseFloat(String(r.qtd_drinks || 0)),
+        qtd_comida: parseFloat(String(r.qtd_comida || 0)),
+      });
+    }
+  }
+
   // Mapeamento gold.desempenho -> nomes esperados pelo front
   const toNum = (v: unknown): number | null => {
     if (v === null || v === undefined) return null;
@@ -169,11 +187,16 @@ export async function getMeses(
     const mkt = marketingMensalMap.get(g.periodo);
     const manual = manuaisMap.get(g.periodo) || {};
 
+    const mixQtd = mixQtdPorMes.get(g.periodo);
     return {
       ...g,
       numero_semana: parseInt(g.periodo.split('-')[1]),
       atualizado_em: manual.atualizado_em ?? g.calculado_em,
       atualizado_por_nome: manual.id ? 'Manual' : 'Sistema ETL',
+      // Mix de Vendas: qtds vendidas por categoria (exibido em parenteses na UI)
+      qtd_bebidas: mixQtd?.qtd_bebidas,
+      qtd_drinks:  mixQtd?.qtd_drinks,
+      qtd_comida:  mixQtd?.qtd_comida,
 
       // CMO: manual.cmo eh o % editado pelo socio. cmo_valor (R$) vem do gold.
       // cmo_percentual: se tiver manual override, usa ele; senao calcula de gold.cmo/faturamento.

@@ -69,6 +69,10 @@ export interface DadosSemana {
   perc_drinks: number;
   perc_comida: number;
   perc_happy_hour: number;
+  // Quantidades vendidas por categoria_mix (exibidas em parenteses na UI ao lado do %).
+  qtd_bebidas?: number;
+  qtd_drinks?: number;
+  qtd_comida?: number;
   qtde_itens_bar: number;
   atrasos_bar: number;
   atrasos_bar_perc?: number;
@@ -176,6 +180,8 @@ export interface MetricaConfig {
   detalhesKey?: string;
   respostasKey?: string;
   totalKey?: string;
+  // Quando setado, render exibe "{valor formatado} ({qtd})" — usado em Mix de Vendas.
+  qtdKey?: string;
 }
 
 export type TipoAgregacao = 'media' | 'soma' | 'fixa' | 'campo';
