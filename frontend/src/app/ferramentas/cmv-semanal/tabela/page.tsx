@@ -238,11 +238,10 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         id: 'compras',
         label: '(+) Compras',
         metricas: [
-          { key: 'compras_periodo', label: 'TOTAL', status: 'calculado', fonte: 'Conta Azul', calculo: 'Cozinha + Drinks + Bebidas + Outros', formato: 'moeda', drilldown: true },
+          { key: 'compras_periodo', label: 'TOTAL', status: 'calculado', fonte: 'Conta Azul', calculo: 'Cozinha + Drinks + Bebidas', formato: 'moeda', drilldown: true },
           { key: 'compras_custo_comida', label: 'Custo Cozinha', status: 'auto', fonte: 'Conta Azul', calculo: 'categoria_nome = CUSTO COMIDA', formato: 'moeda', drilldown: true },
           { key: 'compras_custo_drinks', label: 'Custo Drinks', status: 'auto', fonte: 'Conta Azul', calculo: 'categoria_nome = CUSTO DRINKS', formato: 'moeda', drilldown: true },
-          { key: 'compras_custo_bebidas', label: 'Custo Bebidas', status: 'auto', fonte: 'Conta Azul', calculo: 'Custo Bebidas', formato: 'moeda', drilldown: true },
-          { key: 'compras_custo_outros', label: 'Custo Outros', status: 'auto', fonte: 'Conta Azul', calculo: 'Materiais de limpeza/operação', formato: 'moeda', drilldown: true },
+          { key: 'compras_custo_bebidas', label: 'Custo Bebidas', status: 'auto', fonte: 'Conta Azul', calculo: 'Custo Bebidas (+ Outros residuais)', formato: 'moeda', drilldown: true },
         ]
       },
       {
@@ -910,8 +909,7 @@ export default function CMVSemanalTabelaPage() {
     if (key === 'compras_periodo') {
       const somaDetalhados = (semana.compras_custo_comida || 0) +
              (semana.compras_custo_drinks || 0) +
-             (semana.compras_custo_bebidas || 0) +
-             (semana.compras_custo_outros || 0);
+             (semana.compras_custo_bebidas || 0);
       return somaDetalhados > 0 ? somaDetalhados : (semana.compras_periodo || 0);
     }
     // CMA Total = Estoque Inicial (F) + Compras Alimentação - Estoque Final (F)
@@ -1003,13 +1001,12 @@ export default function CMVSemanalTabelaPage() {
         return [{ label: 'Total (Planilha)', valor: semana.estoque_final || 0 }];
       }
       case 'compras_periodo': {
-        const somaDetalhados = (semana.compras_custo_comida || 0) + (semana.compras_custo_drinks || 0) + (semana.compras_custo_bebidas || 0) + (semana.compras_custo_outros || 0);
+        const somaDetalhados = (semana.compras_custo_comida || 0) + (semana.compras_custo_drinks || 0) + (semana.compras_custo_bebidas || 0);
         if (somaDetalhados > 0) {
           return [
             { label: 'Cozinha', valor: semana.compras_custo_comida || 0 },
             { label: 'Drinks', valor: semana.compras_custo_drinks || 0 },
             { label: 'Bebidas', valor: semana.compras_custo_bebidas || 0 },
-            { label: 'Outros', valor: semana.compras_custo_outros || 0 },
           ];
         }
         return [{ label: 'Total (Planilha)', valor: semana.compras_periodo || 0 }];
@@ -1055,7 +1052,7 @@ export default function CMVSemanalTabelaPage() {
         const estIniDetalhado = (semana.estoque_inicial_cozinha || 0) + (semana.estoque_inicial_drinks || 0) + (semana.estoque_inicial_bebidas || 0);
         const estoqueInicial = estIniDetalhado > 0 ? estIniDetalhado : (semana.estoque_inicial || 0);
         
-        const comprasDetalhado = (semana.compras_custo_comida || 0) + (semana.compras_custo_drinks || 0) + (semana.compras_custo_bebidas || 0) + (semana.compras_custo_outros || 0);
+        const comprasDetalhado = (semana.compras_custo_comida || 0) + (semana.compras_custo_drinks || 0) + (semana.compras_custo_bebidas || 0);
         const compras = comprasDetalhado > 0 ? comprasDetalhado : (semana.compras_periodo || 0);
         
         const estFimDetalhado = (semana.estoque_final_cozinha || 0) + (semana.estoque_final_drinks || 0) + (semana.estoque_final_bebidas || 0);
@@ -1745,7 +1742,7 @@ export default function CMVSemanalTabelaPage() {
                                                 ⚠️ Sem compras registradas
                                               </div>
                                               <div className="text-[11px] text-gray-700 dark:text-gray-300">
-                                                Nenhum lançamento de compra foi encontrado no ContaAzul para esta semana. Verifique se a equipe lançou as notas (categorias <em>Custo Comida / Bebida / Drink / Outros</em>).
+                                                Nenhum lançamento de compra foi encontrado no ContaAzul para esta semana. Verifique se a equipe lançou as notas (categorias <em>Custo Comida / Bebida / Drink</em>).
                                               </div>
                                             </div>
                                           </TooltipContent>

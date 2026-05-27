@@ -204,9 +204,9 @@ export default function CMVSemanalPage() {
                             (dados.estoque_final_drinks || 0);
       
       // 3. Calcular compras do período total
-      dados.compras_periodo = (dados.compras_custo_comida || 0) + 
-                              (dados.compras_custo_bebidas || 0) + 
-                              (dados.compras_custo_outros || 0) + 
+      // (Custo Outros foi agregado em Custo Bebidas no backend)
+      dados.compras_periodo = (dados.compras_custo_comida || 0) +
+                              (dados.compras_custo_bebidas || 0) +
                               (dados.compras_custo_drinks || 0);
       
       // 4. Calcular CMV Real
@@ -575,9 +575,9 @@ export default function CMVSemanalPage() {
                                       (dadosCalculados.estoque_final_drinks || 0);
       
       // 3. Calcular compras do período total
-      dadosCalculados.compras_periodo = (dadosCalculados.compras_custo_comida || 0) + 
-                                        (dadosCalculados.compras_custo_bebidas || 0) + 
-                                        (dadosCalculados.compras_custo_outros || 0) + 
+      // (Custo Outros foi agregado em Custo Bebidas no backend)
+      dadosCalculados.compras_periodo = (dadosCalculados.compras_custo_comida || 0) +
+                                        (dadosCalculados.compras_custo_bebidas || 0) +
                                         (dadosCalculados.compras_custo_drinks || 0);
       
       // 4. Calcular CMV Real
@@ -1175,15 +1175,6 @@ export default function CMVSemanalPage() {
                   step="0.01"
                   value={formData.compras_custo_bebidas || 0}
                   onChange={(e) => setFormData({ ...formData, compras_custo_bebidas: parseFloat(e.target.value) || 0 })}
-                  className="input-dark"
-                />
-              </ModalField>
-              <ModalField label="Custo Outros">
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={formData.compras_custo_outros || 0}
-                  onChange={(e) => setFormData({ ...formData, compras_custo_outros: parseFloat(e.target.value) || 0 })}
                   className="input-dark"
                 />
               </ModalField>

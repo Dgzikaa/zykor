@@ -297,9 +297,11 @@ export async function GET(request: NextRequest) {
             return s + (r.tipo === 'RECEITA' ? -valor : valor);
           }, 0);
       dadosMensais.compras_custo_comida = somaPor(/comida/i);
-      dadosMensais.compras_custo_bebidas = somaPor(/bebida/i);
+      // "Custo Outros" agrupado em Bebidas: CA n separa, esse balde so tem
+      // material de limpeza/operacao residual e o socio quer ver junto.
+      dadosMensais.compras_custo_bebidas = somaPor(/bebida/i) + somaPor(/outro/i);
       dadosMensais.compras_custo_drinks = somaPor(/drink/i);
-      dadosMensais.compras_custo_outros = somaPor(/outro/i);
+      dadosMensais.compras_custo_outros = 0;
 
       if (ehMesCorrenteRecorte) {
         // Mes corrente: total e CMA tambem precisam ser recortados ate dataFim
