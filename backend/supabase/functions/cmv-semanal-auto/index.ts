@@ -352,7 +352,7 @@ serve(async (req) => {
         const { data: compras } = await supabase
           .schema('bronze')
           .from('bronze_contaazul_lancamentos')
-          .select('valor_bruto, categoria_nome, tipo')
+          .select('valor_bruto, valor_pago, categoria_nome, tipo')
           .eq('bar_id', barId)
           .gte('data_competencia', dataInicio)
           .lte('data_competencia', dataFim)
@@ -368,14 +368,17 @@ serve(async (req) => {
           alimentacao: 0 // ALIMENTAÇÃO (CMA - separado do CMV)
         };
 
+        // valor_pago > 0 ? pago : bruto — CA/planilha usa valor que efetivamente saiu.
+        // Antes usava so valor_bruto (planejado), gerava diff quando havia ajuste no pagto.
         // Calcular: despesas são positivas, receitas (devoluções/créditos) são negativas
         compras?.forEach(c => {
-          const valorBruto = parseFloat(String(c.valor_bruto)) || 0;
+          const pago = parseFloat(String(c.valor_pago)) || 0;
+          const valorEfetivo = pago > 0 ? pago : (parseFloat(String(c.valor_bruto)) || 0);
           const tipo = (c.tipo || '').toLowerCase();
           const cat = (c.categoria_nome || '').toLowerCase();
 
           // Se for receita (crédito/devolução), subtrai; se for despesa, soma
-          const valor = tipo === 'receita' ? -valorBruto : valorBruto;
+          const valor = tipo === 'receita' ? -valorEfetivo : valorEfetivo;
 
           if (cat.includes('custo comida')) comprasPorCategoria.cozinha += valor;
           else if (cat.includes('custo bebida')) comprasPorCategoria.bebidas += valor;
