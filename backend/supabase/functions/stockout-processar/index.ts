@@ -60,6 +60,8 @@ const REGRAS_FILTRAGEM: RegraFiltragem[] = [
   { tipo: 'grp_desc', valor: 'Uso interno', motivo: 'grp_uso_interno', descricao: 'Grupo Uso Interno' },
   { tipo: 'grp_desc', valor: 'Uso Interno', motivo: 'grp_uso_interno', descricao: 'Grupo Uso Interno' },
   { tipo: 'grp_desc', valor: 'Pegue e Pague', motivo: 'grp_pegue_pague', descricao: 'Grupo Pegue e Pague' },
+  { tipo: 'grp_desc', valor: 'Feijoada', motivo: 'grp_feijoada', descricao: 'Grupo Feijoada (produto sazonal, exclui do calculo)' },
+  { tipo: 'grp_desc', valor: 'feijoada', motivo: 'grp_feijoada', descricao: 'Grupo Feijoada (produto sazonal, exclui do calculo)' },
   
   // Palavras no meio do nome
   { tipo: 'palavra_meio', valor: 'Happy Hour', motivo: 'palavra_happy_hour', descricao: 'Contém "Happy Hour" no nome' },

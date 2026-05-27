@@ -80,6 +80,7 @@ const MOTIVOS_EXCLUSAO: Record<string, string> = {
   'grp_promo_chivas': 'Grupo: Promo Chivas',
   'grp_uso_interno': 'Grupo: Uso Interno',
   'grp_pegue_pague': 'Grupo: Pegue e Pague',
+  'grp_feijoada': 'Grupo: Feijoada (produto sazonal)',
   'palavra_happy_hour': 'Contém "Happy Hour" no nome',
   'palavra_hh': 'Contém " HH" no nome',
   'palavra_dose_dupla': 'Contém "Dose Dupla" no nome',
