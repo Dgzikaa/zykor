@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -195,9 +195,7 @@ function UsuariosPage() {
   }, [toast]);
 
   useEffect(() => {
-    fetchUsuarios();
-    fetchModulos();
-    fetchBares();
+    Promise.all([fetchUsuarios(), fetchModulos(), fetchBares()]);
   }, []); // Remove as dependências para evitar loop infinito
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -299,7 +297,7 @@ function UsuariosPage() {
     }
   };
 
-  const handleEdit = (usuario: Usuario) => {
+  const handleEdit = useCallback((usuario: Usuario) => {
     setEditingUser(usuario);
     
     // Garantir que modulos_permitidos seja sempre um array
@@ -341,9 +339,9 @@ function UsuariosPage() {
       estado: usuario.estado || '',
     });
     setIsDialogOpen(true);
-  };
+  }, []);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = useCallback(async (id: number) => {
     if (!confirm('⚠️ ATENÇÃO: Tem certeza que deseja EXCLUIR PERMANENTEMENTE este usuário?\n\nEsta ação:\n• Remove o usuário da tabela\n• Remove do sistema de autenticação\n• NÃO PODE SER DESFEITA\n\nDigite "CONFIRMAR" para prosseguir:')) return;
 
     const confirmacao = prompt('Digite "CONFIRMAR" para excluir permanentemente:');
@@ -379,7 +377,7 @@ function UsuariosPage() {
         variant: 'destructive',
       });
     }
-  };
+  }, [toast, fetchUsuarios]);
 
   const resetForm = () => {
     setEditingUser(null);
@@ -427,7 +425,7 @@ function UsuariosPage() {
     avisoEmail?: string; // Aviso se email for diferente
   }>({ open: false, email: '', nome: '', resetLink: '', expiresAt: '', emailSent: false, message: '' });
 
-  const handleResetPassword = async (usuario: Usuario) => {
+  const handleResetPassword = useCallback(async (usuario: Usuario) => {
     if (!confirm('⚠️ Tem certeza que deseja resetar a senha deste usuário?\n\nUma nova senha temporária será gerada e você poderá compartilhá-la com o usuário.\n\nO sistema tentará enviar um email, mas mesmo se falhar, você terá a senha temporária para compartilhar.')) return;
 
     try {
@@ -480,7 +478,7 @@ function UsuariosPage() {
         variant: 'destructive',
       });
     }
-  };
+  }, [toast]);
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -540,14 +538,25 @@ function UsuariosPage() {
     });
   };
 
-  const filteredUsuarios = usuarios.filter(usuario => {
-    const matchesSearch = usuario.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         usuario.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === 'todos' || usuario.role === roleFilter;
-    return matchesSearch && matchesRole;
-  });
+  const deferredSearch = useDeferredValue(searchTerm);
 
-  const getRoleBadge = (role: string) => {
+  const filteredUsuarios = useMemo(() => {
+    const q = deferredSearch.toLowerCase();
+    return usuarios.filter(usuario => {
+      const matchesSearch = !q
+        || usuario.nome.toLowerCase().includes(q)
+        || usuario.email.toLowerCase().includes(q);
+      const matchesRole = roleFilter === 'todos' || usuario.role === roleFilter;
+      return matchesSearch && matchesRole;
+    });
+  }, [usuarios, deferredSearch, roleFilter]);
+
+  const baresMap = useMemo(
+    () => new Map(bares.map(b => [b.id, b.nome])),
+    [bares]
+  );
+
+  const getRoleBadge = useCallback((role: string) => {
     const roleConfig = ROLES_OPCOES.find(r => r.value === role);
     return roleConfig ? (
       <Badge variant="outline">
@@ -556,15 +565,105 @@ function UsuariosPage() {
     ) : (
       <Badge variant="outline">{role}</Badge>
     );
-  };
+  }, []);
 
-  const modulosPorCategoria = modulos.reduce((acc, modulo) => {
-    if (!acc[modulo.categoria]) {
-      acc[modulo.categoria] = [];
-    }
-    acc[modulo.categoria].push(modulo);
-    return acc;
-  }, {} as Record<string, Modulo[]>);
+  const modulosPorCategoria = useMemo(() => {
+    return modulos.reduce((acc, modulo) => {
+      if (!acc[modulo.categoria]) {
+        acc[modulo.categoria] = [];
+      }
+      acc[modulo.categoria].push(modulo);
+      return acc;
+    }, {} as Record<string, Modulo[]>);
+  }, [modulos]);
+
+  const tableColumns = useMemo(() => [
+    { key: 'nome', header: 'Nome', sortable: true },
+    { key: 'email', header: 'Email', sortable: true },
+    { key: 'role', header: 'Função', render: (u: Usuario) => getRoleBadge(u.role) },
+    {
+      key: 'bares',
+      header: 'Bares',
+      render: (u: Usuario) => {
+        const baresDoUsuario = u.bares_ids && u.bares_ids.length > 0
+          ? u.bares_ids
+          : (u.bar_id ? [u.bar_id] : []);
+        const nomesDosBares = baresDoUsuario
+          .map(barId => baresMap.get(barId) || 'N/A')
+          .join(', ');
+        return (
+          <div className="flex flex-wrap gap-1">
+            {baresDoUsuario.length === 0 ? (
+              <Badge variant="outline" className="text-xs opacity-50">Nenhum</Badge>
+            ) : baresDoUsuario.length <= 2 ? (
+              baresDoUsuario.map(barId => (
+                <Badge key={barId} variant="outline" className="text-xs">
+                  {baresMap.get(barId) || 'N/A'}
+                </Badge>
+              ))
+            ) : (
+              <Badge variant="outline" className="text-xs" title={nomesDosBares}>
+                {baresDoUsuario.length} bares
+              </Badge>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'modulos',
+      header: 'Módulos',
+      render: (u: Usuario) => (
+        <Badge variant="outline" className="text-xs">{u.modulos_permitidos?.length || 0} módulos</Badge>
+      ),
+    },
+    {
+      key: 'ativo',
+      header: 'Status',
+      render: (u: Usuario) => (
+        u.ativo ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4 opacity-30" />
+      ),
+    },
+    {
+      key: 'acoes',
+      header: 'Ações',
+      align: 'right' as const,
+      render: (u: Usuario) => (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleEdit(u)}
+            aria-label={`Editar usuário ${u.nome}`}
+            title="Editar"
+            leftIcon={<Edit className="w-4 h-4" />}
+          >
+            Editar
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleResetPassword(u)}
+            aria-label={`Redefinir senha do usuário ${u.nome}`}
+            title="Redefinir senha"
+            leftIcon={<Key className="w-4 h-4" />}
+          >
+            Senha
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleDelete(u.id)}
+            aria-label={`Excluir usuário ${u.nome}`}
+            title="Excluir"
+            leftIcon={<Trash2 className="w-4 h-4" />}
+          >
+            Excluir
+          </Button>
+        </div>
+      ),
+    },
+  ], [baresMap, getRoleBadge, handleEdit, handleResetPassword, handleDelete]);
 
   // Mostrar loading enquanto verifica permissões
   if (permissionsLoading) {
@@ -648,76 +747,7 @@ function UsuariosPage() {
           data={filteredUsuarios}
           selectableRows
           searchable={false}
-          columns={[
-            { key: 'nome', header: 'Nome', sortable: true },
-            { key: 'email', header: 'Email', sortable: true },
-            { key: 'role', header: 'Função', render: (u: Usuario) => getRoleBadge(u.role) },
-            { key: 'bares', header: 'Bares', render: (u: Usuario) => {
-              const baresDoUsuario = u.bares_ids && u.bares_ids.length > 0 
-                ? u.bares_ids 
-                : (u.bar_id ? [u.bar_id] : []);
-              const nomesDosBares = baresDoUsuario
-                .map(barId => bares.find(b => b.id === barId)?.nome || 'N/A')
-                .join(', ');
-              return (
-                <div className="flex flex-wrap gap-1">
-                  {baresDoUsuario.length === 0 ? (
-                    <Badge variant="outline" className="text-xs opacity-50">Nenhum</Badge>
-                  ) : baresDoUsuario.length <= 2 ? (
-                    baresDoUsuario.map(barId => (
-                      <Badge key={barId} variant="outline" className="text-xs">
-                        {bares.find(b => b.id === barId)?.nome || 'N/A'}
-                      </Badge>
-                    ))
-                  ) : (
-                    <Badge variant="outline" className="text-xs" title={nomesDosBares}>
-                      {baresDoUsuario.length} bares
-                    </Badge>
-                  )}
-                </div>
-              );
-            }},
-            { key: 'modulos', header: 'Módulos', render: (u: Usuario) => (
-              <Badge variant="outline" className="text-xs">{u.modulos_permitidos?.length || 0} módulos</Badge>
-            ) },
-            { key: 'ativo', header: 'Status', render: (u: Usuario) => (
-              u.ativo ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4 opacity-30" />
-            ) },
-            { key: 'acoes', header: 'Ações', align: 'right', render: (u: Usuario) => (
-              <div className="flex items-center justify-end gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleEdit(u)}
-                  aria-label={`Editar usuário ${u.nome}`}
-                  title="Editar"
-                  leftIcon={<Edit className="w-4 h-4" />}
-                >
-                  Editar
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleResetPassword(u)}
-                  aria-label={`Redefinir senha do usuário ${u.nome}`}
-                  title="Redefinir senha"
-                  leftIcon={<Key className="w-4 h-4" />}
-                >
-                  Senha
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDelete(u.id)}
-                  aria-label={`Excluir usuário ${u.nome}`}
-                  title="Excluir"
-                  leftIcon={<Trash2 className="w-4 h-4" />}
-                >
-                  Excluir
-                </Button>
-              </div>
-            ) },
-          ]}
+          columns={tableColumns}
         />
       )}
 

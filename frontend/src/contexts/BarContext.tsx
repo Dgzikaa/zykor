@@ -34,6 +34,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
   const [selectedBar, setSelectedBar] = useState<Bar | null>(null);
   const [availableBars, setAvailableBars] = useState<Bar[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const resetBars = () => {
     setSelectedBar(null);
@@ -213,7 +214,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [user, userInitialized]);
+  }, [user, userInitialized, retryNonce]);
 
   // Listener para mudanças no usuário
   useEffect(() => {
@@ -233,35 +234,30 @@ export function BarProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Retry automático se o load terminou com lista vazia.
-  // Sintoma do usuário: ao abrir o app, seletor sai vazio até dar Ctrl+R. Causa
-  // tipica e' race entre /api/auth/me e /api/configuracoes/bars/user-bars (cookie
-  // chegando atrasado, token em renovacao). Aqui detectamos `availableBars=[]`
-  // apos o loading terminar e refazemos a busca ate 3x com backoff de 700ms.
+  // Retry automatico se o load terminou com lista vazia (race entre /api/auth/me
+  // e /api/configuracoes/bars/user-bars, cookie/token chegando atrasado).
+  // Implementacao anterior usava setTimeout encadeado que nao re-disparava o main
+  // effect (deps estaticas) — virou no-op. Agora incrementa `retryNonce` que faz
+  // parte das deps do main effect, garantindo re-execucao real do fetch.
+  const retriesRef = useRef(0);
   useEffect(() => {
     if (isLoading) return;
-    if (availableBars.length > 0) return;
+    if (availableBars.length > 0) {
+      retriesRef.current = 0;
+      return;
+    }
     if (!userInitialized) return;
+    if (!user?.email) return; // Sem usuario, retry e' inutil.
+    if (retriesRef.current >= 2) return;
 
-    let retries = 0;
-    const MAX_RETRIES = 3;
-    let timer: NodeJS.Timeout | null = null;
-
-    const retry = () => {
-      if (retries >= MAX_RETRIES) return;
-      retries++;
+    const timer = setTimeout(() => {
+      retriesRef.current++;
       hasLoadedBarsRef.current = false;
-      setIsLoading(true);
-      window.dispatchEvent(new CustomEvent('userDataUpdated'));
-      timer = setTimeout(retry, 700);
-    };
+      setRetryNonce((n) => n + 1);
+    }, 1500);
 
-    timer = setTimeout(retry, 700);
-
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [isLoading, availableBars.length, userInitialized]);
+    return () => clearTimeout(timer);
+  }, [isLoading, availableBars.length, userInitialized, user?.email]);
 
   // Função para atualizar favicon baseado no bar
   const updateFavicon = (barName?: string) => {

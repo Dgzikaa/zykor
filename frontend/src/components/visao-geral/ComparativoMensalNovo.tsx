@@ -22,6 +22,13 @@ import {
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/hooks/use-toast';
 
+// Singletons no escopo do modulo (Intl.NumberFormat e' caro de instanciar).
+const FMT_CMN_MOEDA = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL'
+});
+const FMT_CMN_NUM = new Intl.NumberFormat('pt-BR');
+
 interface IndicadorMensal {
   mes: string;
   mesNome: string;
@@ -121,16 +128,9 @@ export function ComparativoMensalNovo({ initialData, barId }: ComparativoMensalN
   }, [selectedBar?.id, mesReferencia]);
 
   // Funções auxiliares
-  const formatarMoeda = (valor: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(valor);
-  };
+  const formatarMoeda = (valor: number) => FMT_CMN_MOEDA.format(valor);
 
-  const formatarNumero = (valor: number) => {
-    return new Intl.NumberFormat('pt-BR').format(valor);
-  };
+  const formatarNumero = (valor: number) => FMT_CMN_NUM.format(valor);
 
   const formatarPercentual = (valor: number) => {
     return `${valor.toFixed(1)}%`;

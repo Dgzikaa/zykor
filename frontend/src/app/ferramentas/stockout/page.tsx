@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -476,11 +476,9 @@ export default function StockoutPage() {
     return 'badge-error';
   };
 
-  // Função para listar locais da análise (dinâmico por bar)
-  const agruparLocaisPorCategoria = () => {
+  const gruposLocais = useMemo(() => {
     if (!stockoutData?.analise_por_local) return [];
 
-    // Se estiver no modo período, usar dados já agrupados
     if (modoAnalise === 'periodo') {
       return stockoutData.analise_por_local
         .filter((item: any) => item.local && item.local !== 'Sem local definido')
@@ -496,7 +494,6 @@ export default function StockoutPage() {
         .sort((a: any, b: any) => b.perc_stockout - a.perc_stockout);
     }
 
-    // Modo data única - usar locais diretamente da API
     return stockoutData.analise_por_local
       .filter((local: any) => {
         const localProducao = local.local_producao || local.loc_desc || '';
@@ -515,29 +512,26 @@ export default function StockoutPage() {
         };
       })
       .sort((a: any, b: any) => b.perc_stockout - a.perc_stockout);
-  };
+  }, [stockoutData, modoAnalise]);
 
-  // Função para filtrar produtos por local selecionado (dinâmico)
-  const getProdutosPorLocal = () => {
+  const agruparLocaisPorCategoria = useCallback(() => gruposLocais, [gruposLocais]);
+
+  const produtosPorLocal = useMemo(() => {
     if (!localSelecionado || !stockoutData) {
-      return { disponiveis: [], indisponiveis: [] };
+      return { disponiveis: [] as any[], indisponiveis: [] as any[] };
     }
 
-    // Encontrar o nome do local selecionado
-    const gruposAtuais = agruparLocaisPorCategoria();
-    const grupoSelecionadoData = gruposAtuais.find((g: any) => g.key === localSelecionado);
+    const grupoSelecionadoData = gruposLocais.find((g: any) => g.key === localSelecionado);
     if (!grupoSelecionadoData) return { disponiveis: [], indisponiveis: [] };
 
     const nomeLocal = grupoSelecionadoData.nome;
 
-    // Se estiver no modo período e tiver dados de analise_por_local com produtos_por_dia
     if (modoAnalise === 'periodo' && stockoutData.analise_por_local) {
       const localData = stockoutData.analise_por_local.find(
         (item: any) => item.local === nomeLocal
       );
-      
+
       if (localData) {
-        // Se tem um dia selecionado, mostrar produtos daquele dia
         if (diaSelecionado && localData.produtos_por_dia) {
           const produtosDoDia = localData.produtos_por_dia.find(
             (dia: any) => dia.data === diaSelecionado
@@ -549,8 +543,7 @@ export default function StockoutPage() {
             };
           }
         }
-        
-        // Se não tem dia selecionado, mostrar produtos gerais do período
+
         if (localData.produtos_detalhados) {
           return {
             disponiveis: localData.produtos_detalhados.disponiveis || [],
@@ -560,8 +553,6 @@ export default function StockoutPage() {
       }
     }
 
-    // Usar categoria_local que já vem normalizada da view
-    // Isso garante consistência com os cards superiores
     const disponiveis = (stockoutData.produtos?.ativos || []).filter(produto => {
       const categoriaLocal = produto.categoria_local || '';
       return categoriaLocal === nomeLocal;
@@ -573,27 +564,28 @@ export default function StockoutPage() {
     });
 
     return { disponiveis, indisponiveis };
-  };
-  
-  // Função para pegar os dias disponíveis de uma categoria (dinâmico)
-  const getDiasDaCategoria = () => {
+  }, [localSelecionado, stockoutData, modoAnalise, diaSelecionado, gruposLocais]);
+
+  const getProdutosPorLocal = useCallback(() => produtosPorLocal, [produtosPorLocal]);
+
+  const diasDaCategoria = useMemo(() => {
     if (!localSelecionado || !stockoutData?.analise_por_local || modoAnalise !== 'periodo') {
-      return [];
+      return [] as any[];
     }
-    
-    // Encontrar o nome do local selecionado
-    const gruposAtuais = agruparLocaisPorCategoria();
-    const grupoSelecionadoData = gruposAtuais.find((g: any) => g.key === localSelecionado);
+
+    const grupoSelecionadoData = gruposLocais.find((g: any) => g.key === localSelecionado);
     if (!grupoSelecionadoData) return [];
-    
+
     const nomeLocal = grupoSelecionadoData.nome;
-    
+
     const localData = stockoutData.analise_por_local.find(
       (item: any) => item.local === nomeLocal
     );
-    
+
     return localData?.produtos_por_dia || [];
-  };
+  }, [localSelecionado, stockoutData, modoAnalise, gruposLocais]);
+
+  const getDiasDaCategoria = useCallback(() => diasDaCategoria, [diasDaCategoria]);
 
   return (
     <div className="p-4 space-y-4">

@@ -11,6 +11,15 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+// Singletons no escopo do modulo - IndicadorCard renderiza dezenas de vezes por dashboard.
+const FMT_IND_MOEDA = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0
+});
+const FMT_IND_NUM = new Intl.NumberFormat('pt-BR');
+
 interface IndicadorCardProps {
   titulo: string;
   valor: number;
@@ -54,19 +63,14 @@ export function IndicadorCard({
   const formatarValor = (val: number) => {
     switch (formato) {
       case 'moeda':
-        return new Intl.NumberFormat('pt-BR', {
-          style: 'currency',
-          currency: 'BRL',
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0
-        }).format(val);
+        return FMT_IND_MOEDA.format(val);
       case 'percentual':
         return `${val.toFixed(1)}%`;
       case 'decimal':
         return val.toFixed(1);
       case 'numero':
       default:
-        return new Intl.NumberFormat('pt-BR').format(Math.round(val));
+        return FMT_IND_NUM.format(Math.round(val));
     }
   };
 

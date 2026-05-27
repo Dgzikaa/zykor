@@ -5,12 +5,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Intl.NumberFormat e' caro (~1ms por instancia). Cache singleton no escopo do modulo
+// evita realocar a cada chamada em renders de listas/tabelas.
+const FMT_BRL = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+});
+
 // Função para formatar valores monetários
 export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value);
+  return FMT_BRL.format(value);
 }
 
 // =====================================================

@@ -151,9 +151,9 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
     return () => setPageTitle('');
   }, [setPageTitle]);
 
-  const toggleSecao = (nome: string) => {
+  const toggleSecao = useCallback((nome: string) => {
     setSecoesAbertas(prev => ({ ...prev, [nome]: !prev[nome] }));
-  };
+  }, []);
 
   const salvarValor = async () => {
     if (!editando || !selectedBar) return;
@@ -214,6 +214,25 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
       lucro_projecao: acc.lucro_projecao + mes.totais.lucro_projecao,
       lucro_realizado: acc.lucro_realizado + mes.totais.lucro_realizado,
     }), { receita_planejado: 0, receita_realizado: 0, lucro_planejado: 0, lucro_projecao: 0, lucro_realizado: 0 });
+  }, [meses]);
+
+  // Pré-calcula totais por categoria/mês uma única vez quando `meses` muda,
+  // evitando rodar `reduce` 12 x N categorias dentro do render. Indexado por
+  // `${idxMes}::${categoriaNome}` para lookup O(1).
+  const totaisPorCategoriaPorMes = useMemo(() => {
+    const map = new Map<string, { totPlan: number; totProj: number; totReal: number }>();
+    meses.forEach((mes, idxMes) => {
+      mes.categorias.forEach(cat => {
+        let totPlan = 0, totProj = 0, totReal = 0;
+        for (const sub of cat.subcategorias) {
+          totPlan += sub.planejado;
+          totProj += sub.projecao;
+          totReal += sub.realizado;
+        }
+        map.set(`${idxMes}::${cat.nome}`, { totPlan, totProj, totReal });
+      });
+    });
+    return map;
   }, [meses]);
 
   if (!selectedBar) return null; // Or show selector logic if needed, but BarSyncCheck should handle this
@@ -386,9 +405,8 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                     {mes.categorias.map(categoria => {
                       // Quando categoria esta collapsed, mostra a soma das subs (Plan/Proj/Real)
                       const aberta = secoesAbertas[categoria.nome];
-                      const totPlan = categoria.subcategorias.reduce((s, sub) => s + sub.planejado, 0);
-                      const totProj = categoria.subcategorias.reduce((s, sub) => s + sub.projecao, 0);
-                      const totReal = categoria.subcategorias.reduce((s, sub) => s + sub.realizado, 0);
+                      const totais = totaisPorCategoriaPorMes.get(`${idx}::${categoria.nome}`) ?? { totPlan: 0, totProj: 0, totReal: 0 };
+                      const { totPlan, totProj, totReal } = totais;
                       const isReceita = categoria.tipo === 'receita';
                       let corClasseReal = 'text-gray-700 dark:text-gray-300';
                       if (totPlan > 0 || totReal > 0) {

@@ -377,6 +377,13 @@ function numeroMetrica(v: unknown): number {
   return 0;
 }
 
+// Intl.NumberFormat e' caro de instanciar (~1ms) e formatarValor roda 200x+ por render.
+// Cache singletons no escopo do modulo.
+const FMT_MOEDA = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+const FMT_MOEDA_DECIMAL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const FMT_NUM_INTEIRO = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const FMT_NUM_DECIMAL = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
 const formatarValor = (valor: unknown, formato: string, sufixo?: string): string => {
   if (valor !== null && typeof valor === 'object') return '-';
   if (typeof valor === 'boolean') return '-';
@@ -386,9 +393,9 @@ const formatarValor = (valor: unknown, formato: string, sufixo?: string): string
 
   switch (formato) {
     case 'moeda':
-      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(num);
+      return FMT_MOEDA.format(num);
     case 'moeda_decimal':
-      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+      return FMT_MOEDA_DECIMAL.format(num);
     case 'percentual':
       return `${num.toFixed(1)}%`;
     case 'decimal':
@@ -396,7 +403,7 @@ const formatarValor = (valor: unknown, formato: string, sufixo?: string): string
     default: {
       const valorArredondado = Math.round(num * 100) / 100;
       const isInteiro = valorArredondado === Math.floor(valorArredondado);
-      return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: isInteiro ? 0 : 2 }).format(valorArredondado) + (sufixo || '');
+      return (isInteiro ? FMT_NUM_INTEIRO : FMT_NUM_DECIMAL).format(valorArredondado) + (sufixo || '');
     }
   }
 };
@@ -956,9 +963,9 @@ export function DesempenhoClient({
     setGruposAbertos(prev => ({ ...prev, [grupoId]: !prev[grupoId] }));
   }, []);
 
-  const toggleSecao = (id: string) => {
+  const toggleSecao = useCallback((id: string) => {
     setSecoesAbertas(prev => ({ ...prev, [id]: !prev[id] }));
-  };
+  }, []);
 
   const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   const formatarHeaderColuna = (item: DadosSemana): { titulo: string; subtitulo: string } => {

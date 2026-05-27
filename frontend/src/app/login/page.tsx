@@ -3,9 +3,18 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, Eye, EyeOff, Fingerprint } from 'lucide-react';
-import BiometricAuth from '@/components/auth/BiometricAuth';
+import dynamic from 'next/dynamic';
 import { api } from '@/lib/api-client';
 import Image from 'next/image';
+
+const BiometricAuth = dynamic(() => import('@/components/auth/BiometricAuth'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center py-4">
+      <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
