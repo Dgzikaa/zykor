@@ -377,6 +377,7 @@ export default function GoogleReviewsPage() {
                           {/* Avatar */}
                           <div className="flex-shrink-0">
                             {review.reviewer_photo_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element -- avatar de URL externa variavel
                               <img
                                 src={review.reviewer_photo_url}
                                 alt={review.reviewer_name}

@@ -137,11 +137,13 @@ export function shouldUseCache(request: Request): boolean {
   return true;
 }
 
-export default {
+const apiCache = {
   CACHE_TIMES,
   API_CACHE_CONFIG,
   createCacheHeaders,
   jsonWithCache,
   shouldUseCache,
 };
+
+export default apiCache;
 

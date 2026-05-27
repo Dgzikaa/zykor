@@ -476,6 +476,7 @@ export function ImageReveal({
         ease: [0.4, 0, 0.2, 1] as any,
       }}
     >
+      {/* eslint-disable-next-line @next/next/no-img-element -- componente generico com src dinamico arbitrario */}
       <img
         src={src}
         alt={alt}

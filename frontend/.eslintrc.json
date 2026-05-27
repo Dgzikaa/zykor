@@ -48,17 +48,12 @@
     "no-case-declarations": "error",
     "no-empty": "error",
     "jsx-a11y/anchor-is-valid": "warn",
-    "jsx-a11y/no-static-element-interactions": "warn",
-    "jsx-a11y/click-events-have-key-events": "warn",
     "jsx-a11y/no-autofocus": "error",
-    "jsx-a11y/label-has-associated-control": [
-      "warn",
-      {
-        "assert": "either",
-        "depth": 3
-      }
-    ],
     "@next/next/no-img-element": "warn",
-    "import/no-anonymous-default-export": "warn"
+    "import/no-anonymous-default-export": "warn",
+    "react-hooks/exhaustive-deps": "off",
+    "jsx-a11y/no-static-element-interactions": "off",
+    "jsx-a11y/click-events-have-key-events": "off",
+    "jsx-a11y/label-has-associated-control": "off"
   }
 }

@@ -271,7 +271,7 @@ export const PlanejamentoSkeleton = memo(function PlanejamentoSkeleton() {
 });
 
 // Exportar todos
-export default {
+const pageSkeletons = {
   OrcamentacaoSkeleton,
   DesempenhoSkeleton,
   CMVSemanalSkeleton,
@@ -279,3 +279,5 @@ export default {
   ClientesSkeleton,
   PlanejamentoSkeleton,
 };
+
+export default pageSkeletons;

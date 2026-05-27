@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { getFatorCmv } from '@/lib/config/getFatorCmv';
 import { tbl } from '@/lib/supabase/table-schemas';
 
-// Cache por 2 minutos para detalhes de CMV
+// Rota dinamica (usa request.url) — cache via headers HTTP na resposta
+export const dynamic = 'force-dynamic';
 export const revalidate = 120;
 
 const supabase = createClient(

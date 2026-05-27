@@ -2,7 +2,8 @@
 import { NextResponse } from 'next/server';
 import { schemaOf, tbl, type ZykorTable } from '@/lib/supabase/table-schemas';
 
-// Cache por 2 minutos, revalidar em background por até 10 minutos
+// Rota dinamica (usa request.url) — cache via headers HTTP na resposta
+export const dynamic = 'force-dynamic';
 export const revalidate = 120;
 
 // ==================== HELPER PAGINAÇÃO ====================

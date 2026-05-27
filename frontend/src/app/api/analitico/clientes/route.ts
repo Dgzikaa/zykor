@@ -3,7 +3,8 @@ import { getAdminClient } from '@/lib/supabase-admin'
 import { silver } from '@/lib/medallion/silver'
 import { authenticateUser, authErrorResponse } from '@/middleware/auth'
 
-// Cache por 3 minutos para dados de clientes
+// Rota dinamica (usa request.url e request.headers) — cache via headers HTTP na resposta
+export const dynamic = 'force-dynamic';
 export const revalidate = 180;
 
 export async function GET(request: NextRequest) {
