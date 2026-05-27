@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { paginate } from '@/lib/supabase/paginate';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,30 +24,39 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'bar_id, data_inicio e data_fim obrigatórios' }, { status: 400 });
     }
 
-    // Cancelamentos
-    const { data: canc, error: errC } = await supabase
-      .schema('bronze' as never)
-      .from('bronze_contahub_avendas_cancelamentos')
-      .select('dt_gerencial, itm_qtd, itm_vrunitario, itm_vrcheio, grp_desc, prd_desc, motivocancdesconto, lancou, cancelou')
-      .eq('bar_id', barId)
-      .gte('dt_gerencial', dataInicio)
-      .lte('dt_gerencial', dataFim);
-
-    if (errC) {
+    // Cancelamentos — paginado (range customizavel pode passar de 1000 rows)
+    let canc: any[];
+    try {
+      canc = await paginate<any>(
+        () => (supabase as any)
+          .schema('bronze' as never)
+          .from('bronze_contahub_avendas_cancelamentos')
+          .select('dt_gerencial, itm_qtd, itm_vrunitario, itm_vrcheio, grp_desc, prd_desc, motivocancdesconto, lancou, cancelou')
+          .eq('bar_id', barId)
+          .gte('dt_gerencial', dataInicio)
+          .lte('dt_gerencial', dataFim)
+          .order('dt_gerencial'),
+        { label: 'insights/cancelamentos' },
+      );
+    } catch (errC: any) {
       console.error('[insights/cancelamentos]', errC);
       return NextResponse.json({ error: errC.message }, { status: 500 });
     }
 
-    // Faturamento bruto do período (denominador para % cancelamento)
-    const { data: pagamentos } = await supabase
-      .schema('silver' as never)
-      .from('faturamento_pagamentos')
-      .select('valor_bruto')
-      .eq('bar_id', barId)
-      .gte('data_pagamento', dataInicio)
-      .lte('data_pagamento', dataFim);
+    // Faturamento bruto do período (denominador para % cancelamento) — tambem paginado
+    const pagamentos = await paginate<any>(
+      () => (supabase as any)
+        .schema('silver' as never)
+        .from('faturamento_pagamentos')
+        .select('valor_bruto')
+        .eq('bar_id', barId)
+        .gte('data_pagamento', dataInicio)
+        .lte('data_pagamento', dataFim)
+        .order('data_pagamento'),
+      { label: 'insights/cancelamentos:fat' },
+    );
 
-    const fatBruto = (pagamentos ?? []).reduce((s: number, p: any) => s + (Number(p.valor_bruto) || 0), 0);
+    const fatBruto = pagamentos.reduce((s: number, p: any) => s + (Number(p.valor_bruto) || 0), 0);
 
     type Cancel = {
       dt_gerencial: string;
@@ -59,7 +69,7 @@ export async function GET(req: NextRequest) {
       lancou: string | null;
       cancelou: string | null;
     };
-    const rows = (canc ?? []) as Cancel[];
+    const rows = canc as Cancel[];
 
     let totalQtd = 0;
     let totalValor = 0;

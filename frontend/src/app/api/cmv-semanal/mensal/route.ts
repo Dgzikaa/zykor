@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { getFatorCmv, safeDivideCmv } from '@/lib/config/getFatorCmv';
 import { tbl } from '@/lib/supabase/table-schemas';
+import { paginate } from '@/lib/supabase/paginate';
 
 // Cache por 2 minutos para dados mensais de CMV
 export const revalidate = 120;
@@ -266,17 +267,21 @@ export async function GET(request: NextRequest) {
       // meses fechados (cmv_mensal so guarda o agregado total `compras`).
       // Para mes corrente, dataFim ja eh o ultimo marco fechado (recorta certo).
       // Para meses fechados, dataFim eh o ultimo dia do mes.
-      const { data: lancCmv } = await (supabase
-        .schema('bronze' as any) as any)
-        .from('bronze_contaazul_lancamentos')
-        .select('valor_bruto, categoria_nome')
-        .eq('bar_id', barId)
-        .eq('tipo', 'DESPESA')
-        .is('excluido_em', null)
-        .or('categoria_nome.ilike.%custo%,categoria_nome.ilike.%alimenta%')
-        .gte('data_competencia', dataInicio)
-        .lte('data_competencia', dataFim);
-      const lanc = lancCmv || [];
+      // PAGINADO: meses pesados podem passar de 1000 lancamentos.
+      const lanc = await paginate<any>(
+        () => (supabase as any)
+          .schema('bronze' as any)
+          .from('bronze_contaazul_lancamentos')
+          .select('valor_bruto, categoria_nome')
+          .eq('bar_id', barId)
+          .eq('tipo', 'DESPESA')
+          .is('excluido_em', null)
+          .or('categoria_nome.ilike.%custo%,categoria_nome.ilike.%alimenta%')
+          .gte('data_competencia', dataInicio)
+          .lte('data_competencia', dataFim)
+          .order('data_competencia'),
+        { label: 'cmv-semanal/mensal:lanc' },
+      );
       const somaPor = (filtro: RegExp) =>
         lanc.filter((r: any) => filtro.test(r.categoria_nome || ''))
           .reduce((s: number, r: any) => s + (parseFloat(r.valor_bruto) || 0), 0);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { paginate } from '@/lib/supabase/paginate';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY!;
@@ -84,26 +85,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const queryTotais = supabase
-      .schema('bronze' as any)
-      .from('bronze_contaazul_lancamentos')
-      .select('valor_bruto, valor_pago, status, tipo')
-      .eq('bar_id', parseInt(barId))
-      .is('excluido_em', null);
-
-    if (tipo) queryTotais.eq('tipo', tipo);
-    if (status) queryTotais.eq('status', status);
-    if (dataVencimentoDe) queryTotais.gte('data_vencimento', dataVencimentoDe);
-    if (dataVencimentoAte) queryTotais.lte('data_vencimento', dataVencimentoAte);
-    if (dataCompetenciaDe) queryTotais.gte('data_competencia', dataCompetenciaDe);
-    if (dataCompetenciaAte) queryTotais.lte('data_competencia', dataCompetenciaAte);
-    if (categoriaId) queryTotais.eq('categoria_id', categoriaId);
-    if (centroCustoId) queryTotais.eq('centro_custo_id', centroCustoId);
-    if (busca) {
-      queryTotais.or(`descricao.ilike.%${busca}%,pessoa_nome.ilike.%${busca}%`);
-    }
-
-    const { data: todosLancamentos } = await queryTotais;
+    // PAGINADO: queryTotais agrega TODOS os filtrados pra calcular totalizadores.
+    // Sem paginacao, truncava a 1000 rows -> total_bruto/total_pago errados.
+    const todosLancamentos = await paginate<any>(
+      () => {
+        let q = supabase
+          .schema('bronze' as any)
+          .from('bronze_contaazul_lancamentos')
+          .select('valor_bruto, valor_pago, status, tipo')
+          .eq('bar_id', parseInt(barId))
+          .is('excluido_em', null)
+          .order('id'); // ORDER estavel pra paginacao
+        if (tipo) q = q.eq('tipo', tipo);
+        if (status) q = q.eq('status', status);
+        if (dataVencimentoDe) q = q.gte('data_vencimento', dataVencimentoDe);
+        if (dataVencimentoAte) q = q.lte('data_vencimento', dataVencimentoAte);
+        if (dataCompetenciaDe) q = q.gte('data_competencia', dataCompetenciaDe);
+        if (dataCompetenciaAte) q = q.lte('data_competencia', dataCompetenciaAte);
+        if (categoriaId) q = q.eq('categoria_id', categoriaId);
+        if (centroCustoId) q = q.eq('centro_custo_id', centroCustoId);
+        if (busca) q = q.or(`descricao.ilike.%${busca}%,pessoa_nome.ilike.%${busca}%`);
+        return q;
+      },
+      { label: 'contaazul/lancamentos:totalizadores' },
+    );
 
     const totalizadores = {
       total_bruto: 0,
@@ -114,7 +119,7 @@ export async function GET(request: NextRequest) {
       count_despesas: 0,
     };
 
-    (todosLancamentos || []).forEach((lanc: any) => {
+    todosLancamentos.forEach((lanc: any) => {
       const valor = parseFloat(lanc.valor_bruto || 0);
       const pago = parseFloat(lanc.valor_pago || 0);
 
