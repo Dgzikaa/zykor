@@ -387,14 +387,14 @@ serve(async (req) => {
           // Extrair valores (verificando se a linha existe)
           const getVal = (rowIdx: number, col: number) => rowIdx >= 0 && rows[rowIdx] ? rows[rowIdx][col] : undefined
           
-          // Estoque inicial/final voltaram a ser lidos da planilha mensal (linhas 1 e 3).
-          // Revisao do fix de 2026-05-26: aquela versao derivava estoque de cmv_semanal,
-          // resolvendo a visao semanal mas quebrando a mensal (o socio queria bater com
-          // o inventario do bloco mensal da planilha, que tem datas proprias e numeros
-          // bem diferentes da virada de semana ISO). Agora:
-          //   - sync-cmv-mensal le estoque_inicial/final da planilha (fonte='planilha')
-          //   - agregar_cmv_mensal_auto PRESERVA esses valores quando fonte='planilha'
-          //     (igual ja faz com bonificacoes/cma manual)
+          // Sync escreve APENAS campos de INPUT da planilha (estoque, compras, consumos).
+          // Campos CALCULADOS (cmv_real, percentuais, faturamento) NAO vem mais da planilha —
+          // o agregador (agregar_cmv_mensal_auto) recalcula com gold.planejamento + silver
+          // (fontes autoritativas). Antes lia esses campos da planilha e dava numeric overflow
+          // quando a planilha tinha formula bugada (ex: cmv_limpo_percentual=1.241.440%).
+          //
+          // Estoque inicial/final voltaram a ser lidos da planilha mensal (linhas 1 e 3) em
+          // 2026-05-27 — agregar_cmv_mensal_auto PRESERVA esses valores quando fonte='planilha'.
           updateData.estoque_inicial = parseMonetario(getVal(ROW_MAP.estoque_inicial, col))
           updateData.estoque_final = parseMonetario(getVal(ROW_MAP.estoque_final, col))
           updateData.compras = parseMonetario(getVal(ROW_MAP.compras, col))
@@ -406,14 +406,9 @@ serve(async (req) => {
           updateData.outros_ajustes = parseMonetario(getVal(ROW_MAP.outros_ajustes, col))
           // Bonificações são 100% manuais (UI cmv_mensal). NÃO ler da planilha.
           // updateData.ajuste_bonificacoes — preservado pelo upsert via DEFAULT
-          updateData.cmv_real = parseMonetario(getVal(ROW_MAP.cmv_real, col))
-          updateData.faturamento_cmvivel = parseMonetario(getVal(ROW_MAP.fat_cmvivel, col))
-          updateData.cmv_limpo_percentual = parsePercentual(getVal(ROW_MAP.cmv_limpo_pct, col))
           // CMV Teórico é 100% manual (input do socio na UI). NAO sobrescrever da planilha.
-          // updateData.cmv_teorico_percentual = parsePercentual(getVal(ROW_MAP.cmv_teorico_pct, col))
-          updateData.gap = parsePercentual(getVal(ROW_MAP.gap, col))
-          updateData.faturamento_total = parseMonetario(getVal(ROW_MAP.fat_total, col))
-          updateData.cmv_real_percentual = parsePercentual(getVal(ROW_MAP.cmv_real_pct, col))
+          // CALCULADOS (cmv_real, fat_cmvivel, cmv_limpo_pct, gap, fat_total, cmv_real_pct)
+          // sao recalculados pelo agregador chamado abaixo. Nao escrever da planilha.
           
           // CMA — Custo de Alimentação (lê do Sheet linhas 39-41, 0-indexed 38-40)
           const estIniFuncIdx = ROW_MAP.estoque_inicial_func ?? -1
@@ -430,14 +425,13 @@ serve(async (req) => {
           // Fonte dos dados
           updateData.fonte = 'planilha'
 
-          // Verificar se tem dados válidos
+          // Verificar se tem dados válidos (so campos de INPUT que escrevemos)
           const temDados = updateData.compras !== 0 ||
                           updateData.estoque_inicial !== 0 ||
                           updateData.estoque_final !== 0 ||
-                          updateData.cmv_real !== 0 ||
-                          updateData.faturamento_cmvivel !== 0 ||
                           updateData.consumo_socios !== 0 ||
-                          updateData.consumo_beneficios !== 0
+                          updateData.consumo_beneficios !== 0 ||
+                          updateData.consumo_artista !== 0
           
           // Preview mode: coleta o que LERIA do Sheets sem upsertar
           if (preview_only) {
@@ -449,17 +443,15 @@ serve(async (req) => {
               col_planilha: col,
               raw: {
                 compras_raw: getVal(ROW_MAP.compras, col),
-                cmv_real_raw: getVal(ROW_MAP.cmv_real, col),
-                fat_cmvivel_raw: getVal(ROW_MAP.fat_cmvivel, col),
+                estoque_inicial_raw: getVal(ROW_MAP.estoque_inicial, col),
+                estoque_final_raw: getVal(ROW_MAP.estoque_final, col),
               },
               parsed: {
                 compras: updateData.compras,
-                cmv_real: updateData.cmv_real,
-                fat_cmvivel: updateData.faturamento_cmvivel,
-                tem_dados: temDados,
                 estoque_inicial: updateData.estoque_inicial,
                 estoque_final: updateData.estoque_final,
-                nota: 'estoque_inicial/final lidos da planilha mensal (linhas 1 e 3), preservados pelo agregador quando fonte=planilha',
+                tem_dados: temDados,
+                nota: 'Sync escreve so INPUTS da planilha (estoque/compras/consumos). Calculados vem do agregador.',
               }
             })
             continue
@@ -488,6 +480,10 @@ serve(async (req) => {
             console.error(`❌ Erro ${info.ano}/${info.mes}:`, upsertError.message)
             console.error(`   Detalhes:`, JSON.stringify(upsertError))
             console.error(`   Dados:`, JSON.stringify(updateData))
+            // Propagar pra resposta HTTP pra facilitar diagnostico
+            if (!previewMeses.find((p: any) => p.error_diag)) {
+              previewMeses.push({ error_diag: true, ano: info.ano, mes: info.mes, error: upsertError, data: updateData })
+            }
             mesesErro++
           } else {
             // Apos upsert da planilha, chama agregador que deriva est_inicial/final de cmv_semanal.
@@ -513,7 +509,8 @@ serve(async (req) => {
           success: true,
           meses_atualizados: mesesAtualizados,
           meses_erro: mesesErro,
-          ...(preview_only ? { preview_meses: previewMeses } : {})
+          // Sempre incluir preview_meses se tem erros pra facilitar debug
+          ...((preview_only || mesesErro > 0) ? { preview_meses: previewMeses } : {})
         })
 
       } catch (barError: any) {
