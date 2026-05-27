@@ -78,7 +78,7 @@ return [
         label: 'Faturamento Total',
         metricas: [
           { key: 'faturamento_total', label: 'Faturamento Total', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Faturamento bruto - Conta Assinada', formato: 'moeda', temTooltipFaturamento: true },
-          { key: 'faturamento_entrada', label: 'Fat. Couvert', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Soma de (te_real × cl_real) de todos os eventos', formato: 'moeda', indentado: true },
+          { key: 'couvert_atracoes', label: 'Fat. Couvert', status: 'auto', fonte: 'gold.planejamento.faturamento_couvert', calculo: 'Soma do couvert pago no periodo (todo o couvert, nao so Yuzer)', formato: 'moeda', indentado: true },
           { key: 'faturamento_bar', label: 'Fat. Bar', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Soma de real_r de todos os eventos', formato: 'moeda', indentado: true },
           { key: 'faturamento_cmovivel', label: 'Fat. CMvível', status: 'auto', fonte: 'Calculado', calculo: 'Bar - Repique', formato: 'moeda', indentado: true },
         ]
