@@ -101,12 +101,12 @@ return [
         id: 'ticket',
         label: 'Ticket Médio',
         metricas: [
-          // Ticket Médio: manual se bar sem API Getin, auto se com API
-          ...(!getinAuto ? [
-            { key: 'ticket_medio', label: 'Ticket Médio', status: 'manual' as const, fonte: 'Stone (manual)', calculo: 'Inserido manualmente da Stone', formato: 'moeda_decimal' as const, editavel: true },
-          ] : [
-            { key: 'ticket_medio', label: 'Ticket Médio', status: 'auto' as const, fonte: 'eventos_base (consolidado)', calculo: 'Faturamento Total / Público Total', formato: 'moeda_decimal' as const },
-          ]),
+          // Ticket Médio: SEMPRE auto pros 2 bares.
+          // Antes estava amarrado ao getinAuto, errado — GetIn = reservas, n tem
+          // nada com ticket. Calculo eh fat/clientes_atendidos, e Deboche tem
+          // clientes_atendidos via ContaHub no gold tambem. Quem editou manualmente
+          // por engano (sem 21/22 com 0 salvo) era reflexo desse bug.
+          { key: 'ticket_medio', label: 'Ticket Médio', status: 'auto', fonte: 'gold.desempenho', calculo: 'Faturamento Total / Clientes Atendidos', formato: 'moeda_decimal' },
           { key: 'tm_entrada', label: 'TM Entrada', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Fat. Entrada / Público Total', formato: 'moeda_decimal', indentado: true },
           { key: 'tm_bar', label: 'TM Bar', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Fat. Bar / Público Total', formato: 'moeda_decimal', indentado: true },
         ]

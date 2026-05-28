@@ -207,7 +207,10 @@ export async function getSemanas(
       cmv_teorico: cmvTeoricoFinal,
       nps_reservas: meta?.nps_reservas ?? g.nps_reservas,
       // Campos condicionais: se integracao = manual, meta ganha; se API, gold ganha
-      ticket_medio: getinManual ? (meta?.ticket_medio ?? g.ticket_medio) : (g.ticket_medio ?? meta?.ticket_medio),
+      // Ticket Medio: SEMPRE auto via gold (fat/clientes_atendidos). N depende de
+      // GetIn (que eh so reserva). Bug antigo: amarrado a getinManual, e zeros
+      // salvos por engano em meta.desempenho_manual sobrescreviam o gold.
+      ticket_medio: g.ticket_medio ?? meta?.ticket_medio,
       // Reservas: cascata gold._quantidade/_pessoas (novo) ?? gold.legado ?? meta (bar 4)
       mesas_totais: getinManual
         ? (meta?.mesas_totais ?? g.reservas_totais_quantidade ?? g.mesas_totais)
