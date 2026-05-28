@@ -37,6 +37,7 @@ const MAX_RECORDS_PER_SYNC = 10000 // Limitar registros por execução (aumentad
 interface SyncRequest {
   bar_id: number
   sync_mode: 'daily_incremental' | 'full_month' | 'full_sync' | 'custom'
+    | 'alteracao_incremental' | 'alteracao_full_ano'
   date_from?: string
   date_to?: string
 }
@@ -256,8 +257,16 @@ async function syncLancamentos(
       }
 
       if (useAlteracaoFilter) {
+        // API CA EXIGE data_vencimento_de sempre. Combinamos venc range muito
+        // amplo (-5y/+5y) + filtro data_alteracao pra pegar so o que mudou.
         params.data_alteracao_de = dateFrom + 'T00:00:00'
         params.data_alteracao_ate = dateTo + 'T23:59:59'
+        const vencDe = new Date(); vencDe.setFullYear(vencDe.getFullYear() - 5)
+        const vencAte = new Date(); vencAte.setFullYear(vencAte.getFullYear() + 5)
+        params.data_vencimento_de = vencDe.toISOString().split('T')[0]
+        params.data_vencimento_ate = vencAte.toISOString().split('T')[0]
+        rangeVencDe = params.data_vencimento_de
+        rangeVencAte = params.data_vencimento_ate
       } else {
         // API do Conta Azul exige data_vencimento (não aceita data_competencia como filtro)
         // Buscar período AMPLO (-12/+12 meses) pra capturar lançamentos com competência
@@ -853,6 +862,37 @@ serve(async (req: Request) => {
         dateTo = body.date_to
         break
 
+      // SYNC ROBUSTO via data_alteracao (resolve o bug de back-date).
+      // API do CA aceita filtro por alteracao — pega TUDO que foi criado/editado
+      // no CA na janela, independente de venc ou comp. Usado pelo cron de 1h.
+      case 'alteracao_incremental': {
+        // Le cursor do state (com overlap de 1h pra evitar perder edges)
+        const { data: state } = await supabase
+          .schema('bronze' as never)
+          .from('contaazul_sync_state')
+          .select('ultima_data_alteracao')
+          .eq('bar_id', barId)
+          .maybeSingle()
+        const cursorISO = (state as any)?.ultima_data_alteracao
+          || new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString()
+        const cursor = new Date(cursorISO)
+        cursor.setHours(cursor.getHours() - 1) // overlap 1h
+        dateFrom = formatDate(cursor)
+        dateTo = formatDate(now)
+        useAlteracaoFilter = true
+        break
+      }
+
+      // Reconciliacao semanal: pega 1 ano de alteracoes pra fechar gaps eventuais
+      case 'alteracao_full_ano': {
+        const umAnoAtras = new Date(now)
+        umAnoAtras.setFullYear(umAnoAtras.getFullYear() - 1)
+        dateFrom = formatDate(umAnoAtras)
+        dateTo = formatDate(now)
+        useAlteracaoFilter = true
+        break
+      }
+
       default:
         return errorResponse('sync_mode invalido: ' + body.sync_mode, req, undefined, 400)
     }
@@ -900,6 +940,23 @@ serve(async (req: Request) => {
     // Atualizar log
     if (logId) {
       await updateSyncLog(supabase, logId, 'success', stats, startTime)
+    }
+
+    // Atualiza cursor do state quando modo alteracao (sem timeout)
+    if ((body.sync_mode === 'alteracao_incremental' || body.sync_mode === 'alteracao_full_ano')
+        && !lancResult.timedOut) {
+      try {
+        await supabase
+          .schema('bronze' as never)
+          .from('contaazul_sync_state')
+          .upsert({
+            bar_id: barId,
+            ultima_data_alteracao: now.toISOString(),
+            ultima_sync_em: new Date().toISOString(),
+          } as never, { onConflict: 'bar_id', ignoreDuplicates: false } as never)
+      } catch (err) {
+        console.warn('[contaazul-sync] Erro ao gravar sync_state:', err)
+      }
     }
 
     // MEDALLION: refresh gold.orcamento_realizado_mensal pro periodo sincronizado.
