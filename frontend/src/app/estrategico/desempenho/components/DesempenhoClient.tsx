@@ -1987,7 +1987,7 @@ export function DesempenhoClient({
                      }}
                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSemanaAtualIdx(idx); } }}
                      className={cn(
-                       "flex-shrink-0 w-[120px] border-r border-gray-200 dark:border-gray-700 cursor-pointer transition-colors",
+                       "flex-shrink-0 w-[140px] border-r border-gray-200 dark:border-gray-700 cursor-pointer transition-colors",
                        isAtual && "bg-emerald-50 dark:bg-emerald-900/20",
                        !isAtual && "hover:bg-gray-100 dark:hover:bg-gray-700/50"
                      )}
