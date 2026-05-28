@@ -406,175 +406,112 @@ async function buscarDetalhesEstoqueGeneric(
 }
 
 /**
- * Buscar detalhes de consumo dos sócios (Onda 2A: recebe fator do banco)
+ * Buscar detalhes de consumos classificados via RPC canonica.
+ *
+ * Antes: 6 handlers separados usavam silver.cliente_visitas + ILIKE hardcoded em
+ * motivo_desconto — divergia do cell pq cmv-semanal-auto usa
+ * public.classificar_consumo() (data-driven via financial.consumos_keywords).
+ *
+ * Agora: chama get_consumos_detalhes_semana (mesma logica do
+ * get_consumos_classificados_semana). Bate na virgula com cmv_semanal.
+ *
+ * Categoria RPC → handler/cell:
+ *   socios                  → buscarDetalhesConsumoSocios     (total_consumo_socios)
+ *   clientes                → buscarDetalhesConsumoBeneficios (mesa_beneficios_cliente)
+ *   funcionarios_escritorio → buscarDetalhesConsumoAdm        (mesa_adm_casa)
+ *   funcionarios_operacao   → buscarDetalhesConsumoRH         (mesa_rh)
+ *   artistas                → buscarDetalhesConsumoArtista    (mesa_banda_dj)
+ *
+ * Chegadeira eh subset de 'clientes' filtrado por motivo ILIKE %chegadeira%.
  */
+async function buscarDetalhesConsumoClassificado(
+  barId: number,
+  dataInicio: string,
+  dataFim: string,
+  categoria: 'socios' | 'clientes' | 'funcionarios_escritorio' | 'funcionarios_operacao' | 'artistas',
+  fatorCmv: number,
+  filtroMotivo?: string,
+) {
+  const { data, error } = await (supabase as any).rpc('get_consumos_detalhes_semana', {
+    input_bar_id: barId,
+    input_data_inicio: dataInicio,
+    input_data_fim: dataFim,
+    input_categoria: categoria,
+  });
+
+  if (error) {
+    console.error('[cmv-semanal/detalhes] erro RPC get_consumos_detalhes_semana:', error);
+    return [];
+  }
+  if (!data) return [];
+
+  const rotulo: Record<typeof categoria, string> = {
+    socios: 'Consumo Sócio',
+    clientes: 'Benefício Cliente',
+    funcionarios_escritorio: 'Consumo ADM',
+    funcionarios_operacao: 'Consumo RH',
+    artistas: 'Consumo Banda/DJ',
+  };
+
+  const filtroLower = filtroMotivo?.toLowerCase();
+  const detalhes: any[] = [];
+
+  for (const r of data as any[]) {
+    const motivo = r.motivo || '';
+    if (filtroLower && !motivo.toLowerCase().includes(filtroLower)) continue;
+
+    const desconto = parseFloat(String(r.valor_desconto || 0)) || 0;
+    const qtd = parseFloat(String(r.qtd || 0)) || 0;
+    // CELL eh BRUTO (cmv-semanal-auto guarda sem fator — fator entra so no cmv_real).
+    // Popup soma `valor` na UI, entao valor = desconto bruto p/ fechar com cell.
+    // `valor_cmv` exposto p/ inspecao do custo efetivo (bruto × fator).
+    const valor = desconto;
+    const valorCmv = desconto * fatorCmv;
+
+    detalhes.push({
+      tipo: filtroMotivo ? 'chegadeira' : `consumo_${categoria}`,
+      descricao: r.prd_desc || rotulo[categoria],
+      data: r.data,
+      mesa: r.mesa || '-',
+      motivo: motivo || '-',
+      quantidade: qtd,
+      valor_desconto: desconto,         // bruto (== valor, mantido p/ compat)
+      valor,                              // bruto — soma == cell value
+      valor_cmv: valorCmv,                // efetivo apos fator (p/ tooltip/debug)
+      detalhes: `${motivo || rotulo[categoria]} — Mesa ${r.mesa ?? '-'} — Bruto R$ ${desconto.toFixed(2)} (CMV apos fator ${fatorCmv.toFixed(2)}: R$ ${valorCmv.toFixed(2)})`,
+    });
+  }
+
+  // Ja vem ordenado por (data DESC, desconto DESC) do RPC, mas o filtro pode
+  // ter mudado a distribuicao — reordena por valor decrescente p/ destacar maiores.
+  detalhes.sort((a, b) => b.valor - a.valor);
+  return detalhes;
+}
+
 async function buscarDetalhesConsumoSocios(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
-  // Sócios: sócio, socio, x-socio, x-sócio, gonza, corbal, diogo, cadu, augusto, rodrigo, digao, vinicius, vini, bueno, kaizen, caisen, joão pedro, joao pedro, jp, 3v, cantucci
-  const { data, error } = await supabase
-    .schema('silver')
-    .from('cliente_visitas')
-    .select('*')
-    .eq('bar_id', barId)
-    .gte('data_visita', dataInicio)
-    .lte('data_visita', dataFim)
-    .or('motivo_desconto.ilike.%sócio%,motivo_desconto.ilike.%socio%,motivo_desconto.ilike.%x-socio%,motivo_desconto.ilike.%x-sócio%,motivo_desconto.ilike.%gonza%,motivo_desconto.ilike.%corbal%,motivo_desconto.ilike.%diogo%,motivo_desconto.ilike.%cadu%,motivo_desconto.ilike.%augusto%,motivo_desconto.ilike.%rodrigo%,motivo_desconto.ilike.%digao%,motivo_desconto.ilike.%vinicius%,motivo_desconto.ilike.%vini%,motivo_desconto.ilike.%bueno%,motivo_desconto.ilike.%kaizen%,motivo_desconto.ilike.%caisen%,motivo_desconto.ilike.%joão pedro%,motivo_desconto.ilike.%joao pedro%,motivo_desconto.ilike.%jp%,motivo_desconto.ilike.%3v%,motivo_desconto.ilike.%cantucci%')
-    .order('data_visita', { ascending: true });
-
-  if (error || !data) return [];
-
-  return data.map((conta: any) => ({
-    tipo: 'consumo_socio',
-    descricao: conta.cliente_nome || 'Conta não especificada',
-    data: conta.data_visita,
-    motivo: conta.motivo_desconto || '-',
-    valor_produtos: parseFloat(conta.valor_produtos || 0),
-    valor_desconto: parseFloat(conta.valor_desconto || 0),
-    valor: (parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)) * fatorCmv,
-    detalhes: `${conta.motivo_desconto || 'Consumo Sócio'} - Valor Bruto: R$ ${(parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)).toFixed(2)}`
-  }));
+  return buscarDetalhesConsumoClassificado(barId, dataInicio, dataFim, 'socios', fatorCmv);
 }
 
-/**
- * Buscar detalhes de consumo de benefícios (Onda 2A: recebe fator do banco)
- */
 async function buscarDetalhesConsumoBeneficios(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
-  // Clientes: aniver, anivers, aniversário, aniversario, aniversariante, niver, voucher, benefício, beneficio, mesa mágica, mágica, influencer, influ, influencia, influência, club, clube, midia, mídia, social, insta, digital, cliente, ambev, chegadeira, chegador
-  const { data, error } = await supabase
-    .schema('silver')
-    .from('cliente_visitas')
-    .select('*')
-    .eq('bar_id', barId)
-    .gte('data_visita', dataInicio)
-    .lte('data_visita', dataFim)
-    .or('motivo_desconto.ilike.%aniver%,motivo_desconto.ilike.%anivers%,motivo_desconto.ilike.%aniversário%,motivo_desconto.ilike.%aniversario%,motivo_desconto.ilike.%aniversariante%,motivo_desconto.ilike.%niver%,motivo_desconto.ilike.%voucher%,motivo_desconto.ilike.%benefício%,motivo_desconto.ilike.%beneficio%,motivo_desconto.ilike.%mesa mágica%,motivo_desconto.ilike.%mágica%,motivo_desconto.ilike.%influencer%,motivo_desconto.ilike.%influ%,motivo_desconto.ilike.%influencia%,motivo_desconto.ilike.%influência%,motivo_desconto.ilike.%club%,motivo_desconto.ilike.%clube%,motivo_desconto.ilike.%midia%,motivo_desconto.ilike.%mídia%,motivo_desconto.ilike.%social%,motivo_desconto.ilike.%insta%,motivo_desconto.ilike.%digital%,motivo_desconto.ilike.%cliente%,motivo_desconto.ilike.%ambev%,motivo_desconto.ilike.%chegadeira%,motivo_desconto.ilike.%chegador%')
-    .order('data_visita', { ascending: true });
-
-  if (error || !data) return [];
-
-  return data.map((conta: any) => ({
-    tipo: 'consumo_beneficio',
-    descricao: conta.cliente_nome || 'Conta não especificada',
-    data: conta.data_visita,
-    motivo: conta.motivo_desconto || '-',
-    valor_produtos: parseFloat(conta.valor_produtos || 0),
-    valor_desconto: parseFloat(conta.valor_desconto || 0),
-    valor: (parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)) * fatorCmv,
-    detalhes: `${conta.motivo_desconto || 'Benefício Cliente'} - Valor Bruto: R$ ${(parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)).toFixed(2)}`
-  }));
+  return buscarDetalhesConsumoClassificado(barId, dataInicio, dataFim, 'clientes', fatorCmv);
 }
 
-/**
- * Buscar detalhes de consumo ADM (Onda 2A: recebe fator do banco)
- */
 async function buscarDetalhesConsumoAdm(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
-  // Funcionários: funcionários, funcionario, rh, recursos humanos, financeiro, fin, mkt, marketing, slu, adm, administrativo, prêmio, confra
-  const { data, error } = await supabase
-    .schema('silver')
-    .from('cliente_visitas')
-    .select('*')
-    .eq('bar_id', barId)
-    .gte('data_visita', dataInicio)
-    .lte('data_visita', dataFim)
-    .or('motivo_desconto.ilike.%funcionários%,motivo_desconto.ilike.%funcionario%,motivo_desconto.ilike.%rh%,motivo_desconto.ilike.%recursos humanos%,motivo_desconto.ilike.%financeiro%,motivo_desconto.ilike.%fin%,motivo_desconto.ilike.%mkt%,motivo_desconto.ilike.%marketing%,motivo_desconto.ilike.%slu%,motivo_desconto.ilike.%adm%,motivo_desconto.ilike.%administrativo%,motivo_desconto.ilike.%prêmio%,motivo_desconto.ilike.%confra%')
-    .order('data_visita', { ascending: true });
-
-  if (error || !data) return [];
-
-  return data.map((conta: any) => ({
-    tipo: 'consumo_adm',
-    descricao: conta.cliente_nome || 'Conta não especificada',
-    data: conta.data_visita,
-    motivo: conta.motivo_desconto || '-',
-    valor_produtos: parseFloat(conta.valor_produtos || 0),
-    valor_desconto: parseFloat(conta.valor_desconto || 0),
-    valor: (parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)) * fatorCmv,
-    detalhes: `${conta.motivo_desconto || 'Consumo ADM'} - Valor Bruto: R$ ${(parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)).toFixed(2)}`
-  }));
+  return buscarDetalhesConsumoClassificado(barId, dataInicio, dataFim, 'funcionarios_escritorio', fatorCmv);
 }
 
-/**
- * Buscar detalhes de consumo de artista/banda (Onda 2A: recebe fator do banco)
- */
 async function buscarDetalhesConsumoArtista(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
-  // Artistas: musico, músicos, dj, banda, artista, breno, benza, stz, zelia, tia, samba, sambadona, doze, boca, boka, pé, chão, segunda, resenha, pagode, roda, reconvexa, rodie, roudier, roudi, som, técnico, tecnico, pv, paulo victor, prod
-  const { data, error } = await supabase
-    .schema('silver')
-    .from('cliente_visitas')
-    .select('*')
-    .eq('bar_id', barId)
-    .gte('data_visita', dataInicio)
-    .lte('data_visita', dataFim)
-    .or('motivo_desconto.ilike.%musico%,motivo_desconto.ilike.%músicos%,motivo_desconto.ilike.%dj%,motivo_desconto.ilike.%banda%,motivo_desconto.ilike.%artista%,motivo_desconto.ilike.%breno%,motivo_desconto.ilike.%benza%,motivo_desconto.ilike.%stz%,motivo_desconto.ilike.%zelia%,motivo_desconto.ilike.%tia%,motivo_desconto.ilike.%samba%,motivo_desconto.ilike.%sambadona%,motivo_desconto.ilike.%doze%,motivo_desconto.ilike.%boca%,motivo_desconto.ilike.%boka%,motivo_desconto.ilike.%pé%,motivo_desconto.ilike.%chão%,motivo_desconto.ilike.%segunda%,motivo_desconto.ilike.%resenha%,motivo_desconto.ilike.%pagode%,motivo_desconto.ilike.%roda%,motivo_desconto.ilike.%reconvexa%,motivo_desconto.ilike.%rodie%,motivo_desconto.ilike.%roudier%,motivo_desconto.ilike.%roudi%,motivo_desconto.ilike.%som%,motivo_desconto.ilike.%técnico%,motivo_desconto.ilike.%tecnico%,motivo_desconto.ilike.%pv%,motivo_desconto.ilike.%paulo victor%,motivo_desconto.ilike.%prod%')
-    .order('data_visita', { ascending: true });
-
-  if (error || !data) return [];
-
-  return data.map((conta: any) => ({
-    tipo: 'consumo_artista',
-    descricao: conta.cliente_nome || 'Conta não especificada',
-    data: conta.data_visita,
-    motivo: conta.motivo_desconto || '-',
-    valor_produtos: parseFloat(conta.valor_produtos || 0),
-    valor_desconto: parseFloat(conta.valor_desconto || 0),
-    valor: (parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)) * fatorCmv,
-    detalhes: `${conta.motivo_desconto || 'Consumo Banda/DJ'} - Valor Bruto: R$ ${(parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)).toFixed(2)}`
-  }));
+  return buscarDetalhesConsumoClassificado(barId, dataInicio, dataFim, 'artistas', fatorCmv);
 }
 
-/**
- * Buscar detalhes de chegadeira (Onda 2A: recebe fator do banco)
- */
 async function buscarDetalhesChegadeira(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
-  const { data, error } = await supabase
-    .schema('silver')
-    .from('cliente_visitas')
-    .select('*')
-    .eq('bar_id', barId)
-    .gte('data_visita', dataInicio)
-    .lte('data_visita', dataFim)
-    .ilike('motivo_desconto', '%chegadeira%')
-    .order('data_visita', { ascending: true });
-
-  if (error || !data) return [];
-
-  return data.map((conta: any) => ({
-    tipo: 'chegadeira',
-    descricao: conta.cliente_nome || 'Conta não especificada',
-    data: conta.data_visita,
-    valor_produtos: parseFloat(conta.valor_produtos || 0),
-    valor_desconto: parseFloat(conta.valor_desconto || 0),
-    valor: (parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)) * fatorCmv,
-    detalhes: `Chegadeira - Valor Bruto: R$ ${(parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)).toFixed(2)}`
-  }));
+  // Subset de 'clientes' filtrado por motivo ILIKE %chegadeira%
+  return buscarDetalhesConsumoClassificado(barId, dataInicio, dataFim, 'clientes', fatorCmv, 'chegadeira');
 }
 
-/**
- * Buscar detalhes de consumo RH (Onda 2A: recebe fator do banco)
- */
 async function buscarDetalhesConsumoRH(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
-  // RH: rh, recursos humanos (os demais funcionários estão em ADM)
-  const { data, error } = await supabase
-    .schema('silver')
-    .from('cliente_visitas')
-    .select('*')
-    .eq('bar_id', barId)
-    .gte('data_visita', dataInicio)
-    .lte('data_visita', dataFim)
-    .or('motivo_desconto.ilike.%rh%,motivo_desconto.ilike.%recursos humanos%')
-    .order('data_visita', { ascending: true });
-
-  if (error || !data) return [];
-
-  return data.map((conta: any) => ({
-    tipo: 'consumo_rh',
-    descricao: conta.cliente_nome || 'Conta não especificada',
-    data: conta.data_visita,
-    motivo: conta.motivo_desconto || '-',
-    valor_produtos: parseFloat(conta.valor_produtos || 0),
-    valor_desconto: parseFloat(conta.valor_desconto || 0),
-    valor: (parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)) * fatorCmv,
-    detalhes: `${conta.motivo_desconto || 'Consumo RH'} - Valor Bruto: R$ ${(parseFloat(conta.valor_produtos || 0) + parseFloat(conta.valor_desconto || 0)).toFixed(2)}`
-  }));
+  // RH = funcionarios_operacao na classificacao canonica
+  return buscarDetalhesConsumoClassificado(barId, dataInicio, dataFim, 'funcionarios_operacao', fatorCmv);
 }
 
 /**
