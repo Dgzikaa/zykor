@@ -380,7 +380,7 @@ function numeroMetrica(v: unknown): number {
 
 // Intl.NumberFormat e' caro de instanciar (~1ms) e formatarValor roda 200x+ por render.
 // Cache singletons no escopo do modulo.
-const FMT_MOEDA = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+const FMT_MOEDA = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const FMT_MOEDA_DECIMAL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const FMT_NUM_INTEIRO = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const FMT_NUM_DECIMAL = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -2202,7 +2202,7 @@ export function DesempenhoClient({
                                       }
                                       // Formato moeda_com_percentual: R$ 27.520 (3,5%)
                                        if (metrica.formato === 'moeda_com_percentual' && valor !== null && valor !== undefined) {
-                                         const moedaFormatada = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(numeroMetrica(valor));
+                                         const moedaFormatada = FMT_MOEDA.format(numeroMetrica(valor));
                                          if (valorPercentualKey !== null && valorPercentualKey !== undefined && typeof valorPercentualKey === 'number') {
                                            valorFormatado = `${moedaFormatada} (${valorPercentualKey.toFixed(1)}%)`;
                                          } else {

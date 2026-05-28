@@ -325,7 +325,7 @@ const formatarValor = (valor: number | null | undefined, formato: string, sufixo
   
   switch (formato) {
     case 'moeda':
-      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(valor);
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(valor);
     case 'percentual':
       return `${valor.toFixed(2)}%`;
     case 'decimal':
