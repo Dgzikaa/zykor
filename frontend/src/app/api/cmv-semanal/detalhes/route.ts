@@ -151,73 +151,94 @@ export async function GET(request: NextRequest) {
 // ==================== FUNÇÕES AUXILIARES ====================
 
 /**
- * Buscar detalhes de compras do Conta Azul
+ * Buscar detalhes de compras do Conta Azul (bronze_contaazul_lancamentos).
+ *
+ * Antes lia de financial.lancamentos_financeiros (tabela legada Nibo que nem
+ * existe mais) — query falhava silencioso e popup mostrava zero.
+ *
+ * Categorias CA por bar:
+ *   Comida:  CUSTO COMIDA (Ord), CUSTO COMIDAS (Deb)
+ *   Bebidas: Custo Bebidas (Ord), CUSTO BEBIDAS (Deb) — agrupa CUSTO OUTROS junto
+ *            (UI n mostra linha separada — ver cmv-semanal-auto + mensal/route.ts)
+ *   Drinks:  Custo Drinks (Ord), CUSTO DRINKS (Deb)
+ *
+ * Valor: valor_pago se >0 (efetivo) senao valor_bruto (planejado).
+ * RECEITA subtrai (devolucao/credito do CA).
  */
 async function buscarDetalhesCompras(barId: number, dataInicio: string, dataFim: string, campo: string) {
-  const { data, error } = await tbl(supabase, 'lancamentos_financeiros')
-    .select('*')
+  const { data, error } = await (supabase as any)
+    .schema('bronze')
+    .from('bronze_contaazul_lancamentos')
+    .select('valor_bruto, valor_pago, categoria_nome, tipo, data_competencia, descricao, pessoa_nome, status_traduzido, numero_documento')
     .eq('bar_id', barId)
-    .gte('data_vencimento', dataInicio)
-    .lte('data_vencimento', dataFim)
-    .eq('tipo', 'DESPESA')
-    .order('data_vencimento', { ascending: true });
+    .in('tipo', ['DESPESA', 'RECEITA'])
+    .is('excluido_em', null)
+    .or('categoria_nome.ilike.%custo comida%,categoria_nome.ilike.%custo bebida%,categoria_nome.ilike.%custo drink%,categoria_nome.ilike.%custo outros%')
+    .gte('data_competencia', dataInicio)
+    .lte('data_competencia', dataFim)
+    .order('data_competencia', { ascending: true });
 
   if (error) {
-    console.error('Erro ao buscar compras:', error);
+    console.error('[cmv-semanal/detalhes] Erro ao buscar compras:', error);
     return [];
   }
 
   if (!data || data.length === 0) return [];
 
-  // Mapear categorias - baseado nas categorias reais do Conta Azul
-  const categoriasCozinha = ['Custo Comida', 'Custo Cozinha', 'COMIDA', 'ALIMENTAÇÃO'];
-  const categoriasBebidas = ['Custo Bebidas', 'BEBIDAS', 'Cerveja', 'Vinho'];
-  const categoriasDrinks = ['Custo Drinks', 'DESTILADOS', 'DRINKS'];
+  const detalhes: any[] = [];
 
-  let detalhes: any[] = [];
+  for (const r of data as any[]) {
+    const valorBruto = parseFloat(String(r.valor_bruto || 0)) || 0;
+    const valorPago = parseFloat(String(r.valor_pago || 0)) || 0;
+    const valorEfetivo = valorPago > 0 ? valorPago : valorBruto;
+    const tipo = String(r.tipo || '').toUpperCase();
+    const sinal = tipo === 'RECEITA' ? -1 : 1;
+    const valor = valorEfetivo * sinal;
 
-  data.forEach((agendamento: any) => {
-    const valor = parseFloat(agendamento.valor || 0);
-    const categoria = agendamento.categoria || '';
-    const fornecedor = agendamento.stakeholder_nome || 'Fornecedor não especificado';
-    const descricao = agendamento.descricao || agendamento.titulo || categoria;
+    const categoria = String(r.categoria_nome || '');
+    const catLower = categoria.toLowerCase();
+    const isComida = catLower.includes('custo comida');
+    const isBebida = catLower.includes('custo bebida');
+    const isDrink = catLower.includes('custo drink');
+    const isOutros = catLower.includes('custo outros');
 
-    // Filtrar por campo específico
     let incluir = false;
     if (campo === 'compras_periodo') {
-      // Todas as compras
       incluir = true;
-    } else if (campo === 'compras_custo_comida' && categoriasCozinha.some(c => categoria.toUpperCase().includes(c.toUpperCase()))) {
+    } else if (campo === 'compras_custo_comida' && isComida) {
       incluir = true;
-    } else if (campo === 'compras_custo_bebidas' && categoriasBebidas.some(c => categoria.toUpperCase().includes(c.toUpperCase()))) {
+    } else if (campo === 'compras_custo_bebidas' && (isBebida || isOutros)) {
+      // Custo Outros agrupado em Bebidas (mesma logica do mensal + edge fn)
       incluir = true;
-    } else if (campo === 'compras_custo_drinks' && categoriasDrinks.some(c => categoria.toUpperCase().includes(c.toUpperCase()))) {
+    } else if (campo === 'compras_custo_drinks' && isDrink) {
       incluir = true;
-    } else if (campo === 'compras_custo_outros') {
-      // Outros = tudo que não é comida/bebida/drinks
-      const isComida = categoriasCozinha.some(c => categoria.toUpperCase().includes(c.toUpperCase()));
-      const isBebida = categoriasBebidas.some(c => categoria.toUpperCase().includes(c.toUpperCase()));
-      const isDrink = categoriasDrinks.some(c => categoria.toUpperCase().includes(c.toUpperCase()));
-      incluir = !isComida && !isBebida && !isDrink;
+    } else if (campo === 'compras_custo_outros' && isOutros) {
+      // Mantido p/ caso o sócio queira ver isolado mesmo agrupado na soma
+      incluir = true;
     }
 
-    if (!incluir) return;
+    if (!incluir) continue;
+
+    const fornecedor = r.pessoa_nome || 'Fornecedor não especificado';
+    const descricao = r.descricao || categoria;
 
     detalhes.push({
       tipo: 'compra',
-      descricao: descricao,
-      fornecedor: fornecedor,
-      data: agendamento.data_vencimento || agendamento.data_pagamento,
-      categoria: categoria,
-      documento: agendamento.numero_documento || '-',
-      status: agendamento.status || 'Pendente',
-      valor: valor,
-      detalhes: `${fornecedor} - ${categoria}`
+      descricao,
+      fornecedor,
+      data: r.data_competencia,
+      categoria,
+      documento: r.numero_documento || '-',
+      status: r.status_traduzido || (tipo === 'RECEITA' ? 'Receita' : 'Despesa'),
+      valor,
+      valor_bruto: valorBruto,
+      valor_pago: valorPago,
+      detalhes: `${fornecedor} - ${categoria}${tipo === 'RECEITA' ? ' (Devolução)' : ''}`,
     });
-  });
+  }
 
-  // Ordenar por valor decrescente
-  detalhes.sort((a, b) => b.valor - a.valor);
+  // Ordenar por valor decrescente (em modulo, pra devolucao aparecer junto)
+  detalhes.sort((a, b) => Math.abs(b.valor) - Math.abs(a.valor));
 
   return detalhes;
 }
