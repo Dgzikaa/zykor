@@ -244,180 +244,164 @@ async function buscarDetalhesCompras(barId: number, dataInicio: string, dataFim:
 }
 
 /**
- * Buscar detalhes de estoque inicial
+ * Categorias canonicas de insumos (sincronizado com buscar-dados-automaticos)
+ * Cada bar tem cadastro proprio + typos historicos. Listas hard mas pelo menos
+ * unica fonte de verdade — se uma categoria nova aparecer, atualizar nos 2 lados.
  */
-async function buscarDetalhesEstoqueInicial(barId: number, dataInicio: string, dataFim: string, campo: string) {
-  // Buscar a contagem mais recente ANTES do período
-  const { data: ultimaContagem } = await tbl(supabase, 'contagem_estoque_insumos')
-    .select('data_contagem')
-    .eq('bar_id', barId)
-    .lt('data_contagem', dataInicio)
-    .order('data_contagem', { ascending: false })
-    .limit(1)
-    .single();
+const CATEGORIAS_COZINHA_CANONICAS = [
+  'cozinha',           // genericos (~280 no Ord)
+  'ARMAZÉM (C)', 'HORTIFRUTI (C)', 'MERCADO (C)', 'Mercado (S)',
+  'PÃES', 'PEIXE', 'PROTEÍNA', 'PROTEÍNA (C)', 'PROTEÍNA - FEIJOADA',
+  'MERCADO (B)', 'ARMAZÉM (B)', 'HORTIFRUTI (B)',
+  'tempero', 'hortifruti', 'líquido', 'Categoria',
+];
+const CATEGORIAS_DRINKS_CANONICAS = [
+  'ARMAZÉM B', 'DESTILADOS', 'DESTILADO', 'DESTILADOS LOG', 'DESTILADOS (LOG)',
+  'HORTIFRUTI B', 'IMPÉRIO', 'MERCADO B', 'POLPAS', 'POLPA',
+  'OUTROS', 'IMPÉRIO',
+];
+const CATEGORIAS_BEBIDAS_CANONICAS = [
+  'Retornáveis', 'retornáveis', 'Retornável',
+  'Vinhos', 'Long Neck', 'Lata', 'Artesanal', 'Chopp', 'Chicles',
+  'polpa', 'fruta',
+];
+const CATEGORIAS_EXCLUIR = [
+  'HORTIFRUTI (F)', 'MERCADO (F)', 'PROTEÍNA (F)',  // Funcionarios (CMA)
+  'Descartáveis', 'Limpeza', 'Material de Escritório', 'Uniformes',
+];
 
-  if (!ultimaContagem) {
-    return [{
-      tipo: 'aviso',
-      descricao: 'Nenhuma contagem de estoque encontrada antes deste período',
-      valor: 0
-    }];
+type CategoriaMix = 'cozinha' | 'drinks' | 'bebidas' | null;
+
+function classificarInsumoMix(insumo: { tipo_local?: string; categoria?: string }, codigo?: string): CategoriaMix {
+  const cat = insumo.categoria || '';
+  if (CATEGORIAS_EXCLUIR.includes(cat)) return null;
+
+  // BEBIDAS: tipo_local = 'bar'
+  if (insumo.tipo_local === 'bar') return 'bebidas';
+
+  // PRODUCAO: codigo pd* = drinks, pc* = cozinha (override de categoria)
+  if (codigo?.startsWith('pd')) return 'drinks';
+  if (codigo?.startsWith('pc')) return 'cozinha';
+
+  if (insumo.tipo_local === 'cozinha') {
+    if (CATEGORIAS_DRINKS_CANONICAS.includes(cat)) return 'drinks';
+    if (CATEGORIAS_COZINHA_CANONICAS.includes(cat)) return 'cozinha';
+    if (cat === 'Não-alcóolicos') return 'drinks';  // bebida do tipo_local cozinha
   }
+  // Bebidas canonicas (categoria veio do bar mas pode aparecer marcada em cozinha)
+  if (CATEGORIAS_BEBIDAS_CANONICAS.includes(cat)) return 'bebidas';
 
-  const dataContagem = ultimaContagem.data_contagem;
-
-  // Buscar insumos
-  const { data: insumos } = await tbl(supabase, 'insumos')
-    .select('id, nome, tipo_local, categoria, custo_unitario, unidade')
-    .eq('bar_id', barId);
-
-  if (!insumos) return [];
-
-  // Buscar contagens
-  const { data: contagens } = await tbl(supabase, 'contagem_estoque_insumos')
-    .select('insumo_id, estoque_final')
-    .eq('bar_id', barId)
-    .eq('data_contagem', dataContagem);
-
-  if (!contagens) return [];
-
-  const insumosMap = new Map<number, any>(insumos.map((i: any) => [i.id, i]));
-  const categoriasCozinha = ['ARMAZÉM (C)', 'HORTIFRUTI (C)', 'MERCADO (C)', 'PÃES', 'PEIXE', 'PROTEÍNA', 'Mercado (S)', 'tempero', 'hortifruti', 'líquido'];
-  const categoriasDrinks = ['ARMAZÉM B', 'DESTILADOS', 'DESTILADOS LOG', 'HORTIFRUTI B', 'IMPÉRIO', 'MERCADO B', 'POLPAS', 'Não-alcóolicos', 'OUTROS', 'polpa', 'fruta'];
-  const categoriasExcluir = ['Descartáveis', 'Limpeza', 'Material de Escritório', 'Uniformes'];
-
-  let detalhes: any[] = [];
-
-  contagens.forEach((contagem: any) => {
-    const insumo = insumosMap.get(contagem.insumo_id);
-    if (!insumo || categoriasExcluir.includes(insumo.categoria)) return;
-
-    const quantidade = parseFloat(contagem.estoque_final || 0);
-    const custoUnitario = parseFloat(insumo.custo_unitario || 0);
-    const valor = quantidade * custoUnitario;
-
-    if (valor === 0) return;
-
-    // Filtrar por campo específico
-    let incluir = false;
-    if (campo === 'estoque_inicial') {
-      incluir = true;
-    } else if (campo === 'estoque_inicial_cozinha' && insumo.tipo_local === 'cozinha' && categoriasCozinha.includes(insumo.categoria)) {
-      incluir = true;
-    } else if (campo === 'estoque_inicial_drinks' && insumo.tipo_local === 'cozinha' && categoriasDrinks.includes(insumo.categoria)) {
-      incluir = true;
-    } else if (campo === 'estoque_inicial_bebidas' && insumo.tipo_local === 'bar') {
-      incluir = true;
-    }
-
-    if (!incluir) return;
-
-    detalhes.push({
-      tipo: 'estoque',
-      descricao: insumo.nome,
-      data: dataContagem,
-      categoria: insumo.categoria,
-      local: insumo.tipo_local === 'cozinha' ? 'Cozinha' : 'Bar',
-      quantidade: quantidade,
-      unidade: insumo.unidade || 'un',
-      custo_unitario: custoUnitario,
-      valor: valor,
-      detalhes: `${quantidade.toFixed(2)} ${insumo.unidade || 'un'} × R$ ${custoUnitario.toFixed(2)}`
-    });
-  });
-
-  // Ordenar por valor decrescente
-  detalhes.sort((a, b) => b.valor - a.valor);
-
-  return detalhes;
+  return null;
 }
 
 /**
- * Buscar detalhes de estoque
+ * Buscar a data da contagem relevante p/ o periodo + montar detalhes de estoque.
+ * Lógica canonica espelhada de cmv-semanal/buscar-dados-automaticos:
+ *   - inicial: ultima contagem ANTES de dataInicio
+ *   - final:   ultima contagem ATE dataFim
+ * Categorias via classificarInsumoMix. Valor = estoque_final * custo_unitario
+ * da CONTAGEM (preco congelado no momento, n usa preco atual do insumo).
  */
+async function buscarDetalhesEstoqueInicial(barId: number, dataInicio: string, dataFim: string, campo: string) {
+  return buscarDetalhesEstoqueGeneric(barId, dataInicio, dataFim, campo, 'inicial');
+}
+
 async function buscarDetalhesEstoque(barId: number, dataInicio: string, dataFim: string, campo: string) {
-  // Buscar a última contagem do período
-  const { data: ultimaContagem } = await tbl(supabase, 'contagem_estoque_insumos')
+  return buscarDetalhesEstoqueGeneric(barId, dataInicio, dataFim, campo, 'final');
+}
+
+async function buscarDetalhesEstoqueGeneric(
+  barId: number,
+  dataInicio: string,
+  dataFim: string,
+  campo: string,
+  momento: 'inicial' | 'final',
+) {
+  // 1. Achar a contagem relevante
+  let qContagem = (supabase as any)
+    .schema('operations')
+    .from('contagem_estoque_insumos')
     .select('data_contagem')
     .eq('bar_id', barId)
-    .lte('data_contagem', dataFim)
     .order('data_contagem', { ascending: false })
-    .limit(1)
-    .single();
+    .limit(1);
+  qContagem = momento === 'inicial'
+    ? qContagem.lt('data_contagem', dataInicio)
+    : qContagem.lte('data_contagem', dataFim);
 
+  const { data: ultimaContagemArr } = await qContagem;
+  const ultimaContagem = ultimaContagemArr?.[0];
   if (!ultimaContagem) {
     return [{
       tipo: 'aviso',
-      descricao: 'Nenhuma contagem de estoque encontrada para este período',
-      valor: 0
+      descricao: `Nenhuma contagem de estoque encontrada ${momento === 'inicial' ? 'antes desse' : 'ate o fim desse'} periodo`,
+      valor: 0,
     }];
   }
-
   const dataContagem = ultimaContagem.data_contagem;
 
-  // Buscar insumos
-  const { data: insumos } = await tbl(supabase, 'insumos')
-    .select('id, nome, tipo_local, categoria, custo_unitario, unidade')
+  // 2. Insumos do bar (lookup map)
+  const { data: insumos } = await (supabase as any)
+    .schema('operations')
+    .from('insumos')
+    .select('id, nome, tipo_local, categoria, unidade_medida, codigo')
     .eq('bar_id', barId);
-
   if (!insumos) return [];
+  const insumosMap = new Map<number, any>(insumos.map((i: any) => [i.id, i]));
 
-  // Buscar contagens
-  const { data: contagens } = await tbl(supabase, 'contagem_estoque_insumos')
-    .select('insumo_id, estoque_final')
+  // 3. Contagens dessa data (com custo congelado)
+  const { data: contagens } = await (supabase as any)
+    .schema('operations')
+    .from('contagem_estoque_insumos')
+    .select('insumo_id, insumo_codigo, estoque_final, custo_unitario')
     .eq('bar_id', barId)
     .eq('data_contagem', dataContagem);
-
   if (!contagens) return [];
 
-  const insumosMap = new Map<number, any>(insumos.map((i: any) => [i.id, i]));
-  const categoriasCozinha = ['ARMAZÉM (C)', 'HORTIFRUTI (C)', 'MERCADO (C)', 'PÃES', 'PEIXE', 'PROTEÍNA', 'Mercado (S)', 'tempero', 'hortifruti', 'líquido'];
-  const categoriasDrinks = ['ARMAZÉM B', 'DESTILADOS', 'DESTILADOS LOG', 'HORTIFRUTI B', 'IMPÉRIO', 'MERCADO B', 'POLPAS', 'Não-alcóolicos', 'OUTROS', 'polpa', 'fruta'];
-  const categoriasExcluir = ['Descartáveis', 'Limpeza', 'Material de Escritório', 'Uniformes'];
+  const campoPrefix = momento === 'inicial' ? 'estoque_inicial' : 'estoque_final';
+  const detalhes: any[] = [];
 
-  let detalhes: any[] = [];
+  for (const c of contagens as any[]) {
+    const insumo = insumosMap.get(c.insumo_id);
+    if (!insumo) continue;
 
-  contagens.forEach((contagem: any) => {
-    const insumo = insumosMap.get(contagem.insumo_id);
-    if (!insumo || categoriasExcluir.includes(insumo.categoria)) return;
-
-    const quantidade = parseFloat(contagem.estoque_final || 0);
-    const custoUnitario = parseFloat(insumo.custo_unitario || 0);
+    const quantidade = parseFloat(String(c.estoque_final || 0)) || 0;
+    const custoUnitario = parseFloat(String(c.custo_unitario || 0)) || 0;
     const valor = quantidade * custoUnitario;
+    if (valor === 0) continue;
 
-    if (valor === 0) return;
+    const mix = classificarInsumoMix(insumo, c.insumo_codigo);
+    if (mix === null) continue;
 
-    // Filtrar por campo específico
     let incluir = false;
-    if (campo === 'estoque_final') {
+    if (campo === campoPrefix) {
       incluir = true;
-    } else if (campo === 'estoque_final_cozinha' && insumo.tipo_local === 'cozinha' && categoriasCozinha.includes(insumo.categoria)) {
+    } else if (campo === `${campoPrefix}_cozinha` && mix === 'cozinha') {
       incluir = true;
-    } else if (campo === 'estoque_final_drinks' && insumo.tipo_local === 'cozinha' && categoriasDrinks.includes(insumo.categoria)) {
+    } else if (campo === `${campoPrefix}_drinks` && mix === 'drinks') {
       incluir = true;
-    } else if (campo === 'estoque_final_bebidas' && insumo.tipo_local === 'bar') {
+    } else if (campo === `${campoPrefix}_bebidas` && mix === 'bebidas') {
       incluir = true;
     }
+    if (!incluir) continue;
 
-    if (!incluir) return;
-
+    const unidade = insumo.unidade_medida || 'un';
     detalhes.push({
       tipo: 'estoque',
       descricao: insumo.nome,
       data: dataContagem,
       categoria: insumo.categoria,
       local: insumo.tipo_local === 'cozinha' ? 'Cozinha' : 'Bar',
-      quantidade: quantidade,
-      unidade: insumo.unidade || 'un',
+      mix,
+      quantidade,
+      unidade,
       custo_unitario: custoUnitario,
-      valor: valor,
-      detalhes: `${quantidade.toFixed(2)} ${insumo.unidade || 'un'} × R$ ${custoUnitario.toFixed(2)}`
+      valor,
+      detalhes: `${quantidade.toFixed(2)} ${unidade} × R$ ${custoUnitario.toFixed(2)}`,
     });
-  });
+  }
 
-  // Ordenar por valor decrescente
   detalhes.sort((a, b) => b.valor - a.valor);
-
   return detalhes;
 }
 
