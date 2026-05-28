@@ -12,10 +12,13 @@ import { paginate } from '@/lib/supabase/paginate';
  *                       (FREELA ATENDIMENTO, COZINHA, BAR, LIMPEZA, SEGURANCA, BRIGADISTA)
  *   2) alimentacao    — CMA Total da semana/mes (est_ini_func + compras_alim - est_fim_func)
  *                       Semanal: financial.cmv_semanal; Mensal: financial.cmv_mensal.cma_total
- *   3) equipe_fixa    — SUM(bronze_contaazul_lancamentos) categorias:
- *                       SALARIO FUNCIONARIOS + PROVISÃO TRABALHISTA + VALE TRANSPORTE + ADICIONAIS
- *                       Mesma logica do freelas (auto via CA, sem rateio).
- *                       Mudou em 2026-05-27: era manual via meta.cmo_equipe_fixa_semanal.
+ *   3) equipe_fixa    — MENSAL: SUM(bronze_contaazul_lancamentos) categorias
+ *                         SALARIO FUNCIONARIOS / SALÁRIO FUNCIONÁRIOS (Ord sem acento,
+ *                         Deboche com acento) + PROVISÃO TRABALHISTA + VALE TRANSPORTE
+ *                         + ADICIONAIS. Auto via CA.
+ *                       SEMANAL: meta.cmo_equipe_fixa_semanal (manual, bolinha azul).
+ *                         Socio insere semana a semana — folha mensal nao rateia
+ *                         linearmente em 4-5 semanas (depende do mes).
  *   4) pro_labore     — meta.cmo_manual.pro_labore_mensal (manual, sem default)
  *                       Rateio dia a dia para visao semanal
  *
@@ -138,10 +141,15 @@ export async function GET(request: NextRequest) {
         .filter((r) => r.data_competencia >= ini && r.data_competencia <= fim)
         .reduce((sum, r) => sum + valorEfetivo(r), 0);
 
-    // 2b. Equipe Fixa AUTO via ContaAzul (categorias SALARIO + PROVISÃO + VT + ADICIONAIS)
-    // Mudou em 2026-05-27: era manual via meta.cmo_equipe_fixa_semanal.
-    // Mesma logica do freelas — soma valorEfetivo (pago se >0, senao bruto) por intervalo.
-    // PAGINADO pra evitar truncamento silencioso (mesmo bug do freelas).
+    // 2b. Equipe Fixa MENSAL via ContaAzul (categorias SALARIO + PROVISÃO + VT + ADICIONAIS)
+    // SEMANAL passou a ser MANUAL em 2026-05-28 (meta.cmo_equipe_fixa_semanal),
+    // porque folha mensal nao rateia linearmente nas 4-5 semanas — socio insere.
+    //
+    // Deboche cadastrou as categorias do CA com ACENTO (SALÁRIO FUNCIONÁRIOS) e
+    // Ordinario sem acento (SALARIO FUNCIONARIOS). .in() eh exact-match — precisa
+    // listar AMBAS variantes pra nao perder R$ 130k+/ano do Deboche silenciosamente.
+    // Bug identificado 2026-05-28 (sem 'SALÁRIO' acentuado o mensal do Deboche
+    // mostrava ~26% do valor real).
     const equipeFixaLista = await paginate<{ valor_bruto: any; valor_pago: any; data_competencia: string }>(
       () => (supabase as any)
         .schema('bronze')
@@ -151,7 +159,8 @@ export async function GET(request: NextRequest) {
         .eq('tipo', 'DESPESA')
         .is('excluido_em', null)
         .in('categoria_nome', [
-          'SALARIO FUNCIONARIOS',
+          'SALARIO FUNCIONARIOS',   // Ordinario (sem acento)
+          'SALÁRIO FUNCIONÁRIOS',   // Deboche (com acento)
           'PROVISÃO TRABALHISTA',
           'VALE TRANSPORTE',
           'ADICIONAIS',
@@ -165,6 +174,20 @@ export async function GET(request: NextRequest) {
       equipeFixaLista
         .filter((r) => r.data_competencia >= ini && r.data_competencia <= fim)
         .reduce((sum, r) => sum + valorEfetivo(r), 0);
+
+    // 2c. Equipe Fixa SEMANAL manual (meta.cmo_equipe_fixa_semanal)
+    // Indexado por `${ano}-${numero_semana}`.
+    const { data: equipeFixaSemanalRows } = await supabase
+      .schema('meta' as never)
+      .from('cmo_equipe_fixa_semanal')
+      .select('ano, numero_semana, valor')
+      .eq('bar_id', barId)
+      .in('ano', anosNoRange);
+
+    const equipeFixaSemanalMap = new Map<string, number>();
+    for (const r of ((equipeFixaSemanalRows as any[]) || [])) {
+      equipeFixaSemanalMap.set(`${r.ano}-${r.numero_semana}`, parseFloat(String(r.valor || 0)));
+    }
 
     // 3. gold.desempenho semanal (data_inicio, data_fim, faturamento)
     const semanasGold = await paginate<any>(
@@ -222,14 +245,14 @@ export async function GET(request: NextRequest) {
     }
 
     // 6. Montar semanas
-    // Equipe Fixa: AUTO via ContaAzul (mesma logica do freelas, soma por intervalo).
+    // Equipe Fixa SEMANAL: MANUAL via meta.cmo_equipe_fixa_semanal (bolinha azul).
     // Pro Labore: continua mensal, rateado dia a dia.
     const semanas = (semanasGold || []).map((s) => {
       const dIni = s.data_inicio as string;
       const dFim = s.data_fim as string;
       const freelas = freelasNoIntervalo(dIni, dFim);
       const alimentacao = cmaSemanalMap.get(`${s.ano}-${s.numero_semana}`) || 0;
-      const equipe_fixa = equipeFixaNoIntervalo(dIni, dFim);
+      const equipe_fixa = equipeFixaSemanalMap.get(`${s.ano}-${s.numero_semana}`) || 0;
       const pro_labore = rateioPorDia(dIni, dFim, (a, m) => cmoManualPorMes[`${a}-${m}`]?.pro_labore || 0);
       const total = freelas + alimentacao + equipe_fixa + pro_labore;
       const faturamento = parseFloat(String(s.faturamento_total || 0));

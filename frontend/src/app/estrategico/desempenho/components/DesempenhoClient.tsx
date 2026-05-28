@@ -63,7 +63,11 @@ const STATUS_COLORS = {
   nao_confiavel: { dot: 'bg-amber-500', text: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' }
 };
 
-const getSecoesConfig = (barId?: number, integracoes?: { getin_api?: boolean }): SecaoConfig[] => {
+const getSecoesConfig = (
+  barId?: number,
+  integracoes?: { getin_api?: boolean },
+  visao: 'semanal' | 'mensal' = 'semanal',
+): SecaoConfig[] => {
 const getinAuto = integracoes?.getin_api ?? (barId !== 4);
 
 return [
@@ -116,7 +120,11 @@ return [
           { key: 'cmo_percentual_detalhado', label: 'CMO %', status: 'auto', fonte: 'Calculado de Freelas + Alim + Equipe Fixa + Pro Labore', calculo: '(Freelas + Alimentação + Equipe Fixa + Pro Labore) / Faturamento × 100', formato: 'percentual', inverso: true },
           { key: 'cmo_freelas', label: 'Freelas', status: 'auto', fonte: 'Conta Azul', calculo: 'SUM 6 categorias: FREELA ATENDIMENTO + COZINHA + BAR + LIMPEZA + SEGURANÇA + BRIGADISTA', formato: 'moeda', inverso: true, indentado: true },
           { key: 'cmo_alimentacao', label: 'Alimentação', status: 'auto', fonte: 'CMA Total', calculo: 'Estoque Inicial (F) + Compras Alimentação - Estoque Final (F)', formato: 'moeda', inverso: true, indentado: true },
-          { key: 'cmo_equipe_fixa', label: 'Equipe Fixa', status: 'auto', fonte: 'Conta Azul', calculo: 'SUM categorias SALARIO FUNCIONARIOS + PROVISÃO TRABALHISTA + VALE TRANSPORTE + ADICIONAIS (por intervalo)', formato: 'moeda', inverso: true, indentado: true },
+          ...(visao === 'mensal' ? [
+            { key: 'cmo_equipe_fixa', label: 'Equipe Fixa', status: 'auto' as const, fonte: 'Conta Azul', calculo: 'SUM categorias SALARIO/SALÁRIO FUNCIONÁRIOS + PROVISÃO TRABALHISTA + VALE TRANSPORTE + ADICIONAIS (por intervalo)', formato: 'moeda' as const, inverso: true, indentado: true },
+          ] : [
+            { key: 'cmo_equipe_fixa', label: 'Equipe Fixa', status: 'manual' as const, fonte: 'meta.cmo_equipe_fixa_semanal', calculo: 'Manual semana a semana — folha mensal n rateia linearmente nas 4-5 semanas', formato: 'moeda' as const, inverso: true, editavel: true, indentado: true },
+          ]),
           { key: 'cmo_pro_labore', label: 'Pro Labore', status: 'manual', fonte: 'meta.cmo_manual', calculo: 'Manual mensal por bar (Ordinário R$64k, Deboche R$15k). Visão semanal: rateio dia a dia', formato: 'moeda', inverso: true, editavel: true, indentado: true },
         ]
       },
@@ -511,8 +519,9 @@ export function DesempenhoClient({
   // Resolve race condition onde cookie server-side fica dessincronizado do contexto client
   const effectiveBarId = selectedBar?.id || barId;
 
-  // Gerar configuração de seções baseada no barId
-  const SECOES = useMemo(() => getSecoesConfig(effectiveBarId, integracoes), [effectiveBarId, integracoes]);
+  // Gerar configuração de seções baseada no barId + visao
+  // (visao afeta cmo_equipe_fixa: auto/verde no mensal, manual/azul editavel no semanal)
+  const SECOES = useMemo(() => getSecoesConfig(effectiveBarId, integracoes, visao), [effectiveBarId, integracoes, visao]);
   
   const [loading, setLoading] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
@@ -1579,14 +1588,40 @@ export function DesempenhoClient({
     try {
       setLoading(true);
 
-      // CMO Equipe Fixa: AUTO via ContaAzul (SALARIO + PROVISÃO + VT + ADICIONAIS).
-      // Removido em 2026-05-27 — nao editavel mais.
+      // CMO Equipe Fixa:
+      //   SEMANAL — manual em meta.cmo_equipe_fixa_semanal (bolinha azul, editavel).
+      //     Folha mensal n rateia linearmente nas 4-5 semanas, socio insere semana
+      //     a semana.
+      //   MENSAL  — AUTO via ContaAzul (soma 4 categorias por intervalo), n editavel.
       if (campo === 'cmo_equipe_fixa') {
-        toast({
-          title: 'Auto via ContaAzul',
-          description: 'Equipe Fixa agora soma SALARIO FUNCIONARIOS + PROVISÃO TRABALHISTA + VALE TRANSPORTE + ADICIONAIS direto do CA.',
+        if (visao === 'mensal') {
+          toast({
+            title: 'Auto via ContaAzul',
+            description: 'Equipe Fixa mensal soma SALARIO/SALÁRIO + PROVISÃO TRABALHISTA + VALE TRANSPORTE + ADICIONAIS direto do CA.',
+          });
+          setEditando(null);
+          return;
+        }
+
+        const semanaAtual = semanasProcessadas.find(s => s.id === semanaId);
+        if (!semanaAtual) throw new Error('Semana não encontrada');
+
+        const resp = await fetch('/api/estrategico/desempenho/cmo-equipe-fixa-semanal', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bar_id: effectiveBarId,
+            ano: semanaAtual.ano,
+            numero_semana: semanaAtual.numero_semana,
+            valor: numValue,
+            atualizado_por: user?.email ?? null,
+          }),
         });
+        if (!resp.ok) throw new Error('Erro ao salvar Equipe Fixa semanal');
+
+        toast({ title: 'Salvo!', description: 'Equipe Fixa semanal atualizada' });
         setEditando(null);
+        await carregarCmoDetalhe();
         return;
       }
 

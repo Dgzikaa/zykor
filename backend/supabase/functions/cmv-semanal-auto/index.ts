@@ -361,10 +361,15 @@ serve(async (req) => {
 
         const comprasPorCategoria = {
           cozinha: 0,    // CUSTO COMIDA / CUSTO COMIDAS
-          bebidas: 0,    // Custo Bebidas / CUSTO BEBIDAS
+          bebidas: 0,    // Custo Bebidas / CUSTO BEBIDAS — inclui Custo Outros
+                         //                no agregado final (mesma logica do mensal:
+                         //                frontend/.../cmv-semanal/mensal/route.ts:302)
           drinks: 0,     // Custo Drinks / CUSTO DRINKS
           outros: 0,     // Custo Outros — produtos/insumos que nao sao
                          //                comida/bebida/drink (limpeza, descartavel, etc)
+                         //                Mantido separado durante o sum p/ poder
+                         //                merge em bebidas no write (UI ja n mostra
+                         //                linha "Outros" desde commit 76955318).
           alimentacao: 0 // ALIMENTAÇÃO (CMA - separado do CMV)
         };
 
@@ -656,16 +661,24 @@ serve(async (req) => {
           faturamento_bruto: faturamentoBruto,
           faturamento_cmvivel: faturamentoLimpo,
           // CMV - Total de compras (sem alimentação)
+          // "Custo Outros" agrupa em Bebidas: CA n separa, esse balde so tem
+          // material de limpeza/operacao residual e o socio quer ver junto.
+          // Mesmo merge que o mensal (frontend/.../cmv-semanal/mensal/route.ts:302).
+          // Bug anterior: outros entrava em comprasCmvTotal mas n era escrito em
+          // nenhuma coluna decomposta — UI somava comida+bebida+drinks+outros e
+          // perdia outros (compras_custo_outros ficava 0). Diff aparecia em
+          // semanas com compras "outros" (limpeza, descartavel).
           compras_periodo: comprasCmvTotal,
           compras_cozinha: comprasPorCategoria.cozinha,
-          compras_bebidas: comprasPorCategoria.bebidas,
+          compras_bebidas: comprasPorCategoria.bebidas + comprasPorCategoria.outros,
           compras_drinks: comprasPorCategoria.drinks,
           // CMA - Alimentação (separado)
           compras_alimentacao: comprasPorCategoria.alimentacao,
-          // Campos legado (manter compatibilidade)
+          // Campos legado (manter compatibilidade) — UI le compras_custo_*
           compras_custo_comida: comprasPorCategoria.cozinha,
-          compras_custo_bebidas: comprasPorCategoria.bebidas,
+          compras_custo_bebidas: comprasPorCategoria.bebidas + comprasPorCategoria.outros,
           compras_custo_drinks: comprasPorCategoria.drinks,
+          compras_custo_outros: 0, // outros ja foi mergeado em bebidas — zerado p/ n duplicar
           // Consumações (valores BRUTOS - multiplicador aplicado no cálculo do CMV)
           total_consumo_socios: consumacoes.total_consumo_socios,
           mesa_banda_dj: consumacoes.mesa_banda_dj,
