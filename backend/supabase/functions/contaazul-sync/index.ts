@@ -30,8 +30,8 @@ import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbe
 const CONTA_AZUL_API_URL = 'https://api-v2.contaazul.com'
 const CONTA_AZUL_AUTH_URL = 'https://auth.contaazul.com'
 const REQUEST_TIMEOUT_MS = 25000
-const PAGE_SIZE = 200
-const SAFE_TIMEOUT_MS = 120000 // 120s (30s antes do limite de 150s do Supabase)
+const PAGE_SIZE = 500
+const SAFE_TIMEOUT_MS = 360000 // 360s (40s antes do limite de 400s do Supabase Pro)
 const MAX_RECORDS_PER_SYNC = 10000 // Limitar registros por execução (aumentado para capturar todos)
 
 interface SyncRequest {
@@ -260,12 +260,15 @@ async function syncLancamentos(
         params.data_alteracao_ate = dateTo + 'T23:59:59'
       } else {
         // API do Conta Azul exige data_vencimento (não aceita data_competencia como filtro)
-        // Buscar período amplo (3 meses) para capturar lançamentos com competência no período
-        // mas vencimento futuro. Depois filtramos por data_competencia no banco.
+        // Buscar período AMPLO (-12/+12 meses) pra capturar lançamentos com competência
+        // no período pedido mas com vencimento muito anterior/posterior.
+        // Caso real (2026-05-28): salário Edson Albino comp 15/04/26 tinha venc 10/10/25.
+        // Janela antiga -1/+2 deixava esses casos de fora. Depois filtramos por
+        // data_competencia no banco, então o range amplo é só pra a API retornar.
         const fromDate = new Date(dateFrom)
-        fromDate.setMonth(fromDate.getMonth() - 1) // 1 mês antes
+        fromDate.setMonth(fromDate.getMonth() - 12)
         const toDate = new Date(dateTo)
-        toDate.setMonth(toDate.getMonth() + 2) // 2 meses depois
+        toDate.setMonth(toDate.getMonth() + 12)
         
         params.data_vencimento_de = fromDate.toISOString().split('T')[0]
         params.data_vencimento_ate = toDate.toISOString().split('T')[0]
