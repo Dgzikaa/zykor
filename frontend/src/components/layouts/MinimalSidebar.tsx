@@ -128,6 +128,7 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
       { icon: Instagram, label: 'Instagram', href: '/ferramentas/instagram', permission: 'gestao' },
       { icon: Bot, label: 'Zykor Assistant', href: '/ferramentas/assistente-zykor', permission: 'gestao' },
+      { icon: CheckSquare, label: 'Checklist Validação', href: '/checklist-validacao', permission: 'gestao' },
     ],
   },
   {
