@@ -121,33 +121,39 @@ async function syncBar(
     // Estrategia: 2 chamadas separadas (metric_type=total_value vs legacy).
     const insightsData: Record<string, number> = {};
 
-    // 2a) Metrics legacy (retornam array com end_time por dia)
+    // 2a) `reach` eh a unica que aceita period=day legacy (com end_time array).
+    //     Pegamos o ultimo valor com end_time <= now (= janela D-1 completa).
     try {
-      const metricsLegacy = ['reach', 'profile_views', 'website_clicks'];
       const r = await fetch(
-        `${IG_GRAPH}/me/insights?metric=${metricsLegacy.join(',')}&period=day&access_token=${token}`,
+        `${IG_GRAPH}/me/insights?metric=reach&period=day&access_token=${token}`,
       );
       if (r.ok) {
         const j = await r.json();
         for (const item of (j.data || [])) {
-          // Array values: [{ value, end_time }]. O valor cuja end_time eh
-          // "hoje 7am UTC" corresponde ao D-1 (janela completa de ontem).
-          // Pegamos o ULTIMO valor com end_time <= now (D-1 completo).
           const nowMs = Date.now();
           const vals = (item.values || []).filter((v: any) => new Date(v.end_time).getTime() <= nowMs);
-          const lastCompleta = vals[vals.length - 1];
-          if (lastCompleta?.value != null) {
-            insightsData[item.name] = Number(lastCompleta.value) || 0;
-          }
+          const last = vals[vals.length - 1];
+          if (last?.value != null) insightsData[item.name] = Number(last.value) || 0;
         }
       }
     } catch (e) {
-      console.warn(`[ig-sync] insights legacy falhou bar ${barId}:`, e);
+      console.warn(`[ig-sync] insights reach falhou bar ${barId}:`, e);
     }
 
-    // 2b) Metrics nova v22 (precisam metric_type=total_value)
+    // 2b) Metrics que mudaram pra metric_type=total_value na v22.
+    //     profile_views, website_clicks, accounts_engaged, total_interactions,
+    //     views (substitui impressions), follower_count, profile_links_taps
+    //     (novo: toques em endereco/ligar/email/sms).
     try {
-      const metricsTotal = ['accounts_engaged', 'total_interactions', 'views', 'follower_count'];
+      const metricsTotal = [
+        'profile_views',
+        'website_clicks',
+        'profile_links_taps',
+        'accounts_engaged',
+        'total_interactions',
+        'views',
+        'follower_count',
+      ];
       const r = await fetch(
         `${IG_GRAPH}/me/insights?metric=${metricsTotal.join(',')}&period=day&metric_type=total_value&access_token=${token}`,
       );
