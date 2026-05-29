@@ -17,12 +17,6 @@ import {
   PlayCircle,
   Image as ImageIcon,
   Layers,
-  AtSign,
-  LayoutDashboard,
-  Inbox as InboxIcon,
-  GitCompare,
-  Camera,
-  Sparkles,
 } from 'lucide-react';
 import {
   LineChart,
@@ -182,18 +176,6 @@ export default function InstagramDashboardPage() {
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-      {/* NAV */}
-      <nav className="flex items-center gap-1 border-b overflow-x-auto">
-        <NavLink href="/ferramentas/instagram" icone={<LayoutDashboard className="w-4 h-4" />} ativo>Dashboard</NavLink>
-        <NavLink href="/ferramentas/instagram/ai-insights" icone={<Sparkles className="w-4 h-4" />}>IA Insights</NavLink>
-        <NavLink href="/ferramentas/instagram/reels" icone={<PlayCircle className="w-4 h-4" />}>Reels</NavLink>
-        <NavLink href="/ferramentas/instagram/stories" icone={<Camera className="w-4 h-4" />}>Stories</NavLink>
-        <NavLink href="/ferramentas/instagram/demografia" icone={<Users className="w-4 h-4" />}>Demografia</NavLink>
-        <NavLink href="/ferramentas/instagram/inbox" icone={<InboxIcon className="w-4 h-4" />}>Inbox</NavLink>
-        <NavLink href="/ferramentas/instagram/mencoes" icone={<AtSign className="w-4 h-4" />}>Menções</NavLink>
-        <NavLink href="/ferramentas/instagram/comparativo" icone={<GitCompare className="w-4 h-4" />}>Comparativo</NavLink>
-      </nav>
-
       {/* HEADER PERFIL */}
       <Card className="p-6">
         <div className="flex items-start gap-6">
@@ -405,32 +387,6 @@ export default function InstagramDashboardPage() {
         </Card>
       )}
     </main>
-  );
-}
-
-function NavLink({
-  href,
-  icone,
-  children,
-  ativo,
-}: {
-  href: string;
-  icone: React.ReactNode;
-  children: React.ReactNode;
-  ativo?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-        ativo
-          ? 'border-pink-600 text-pink-600'
-          : 'border-transparent text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
-      }`}
-    >
-      {icone}
-      {children}
-    </Link>
   );
 }
 
