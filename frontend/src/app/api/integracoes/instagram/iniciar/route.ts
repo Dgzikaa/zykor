@@ -17,10 +17,14 @@ export const dynamic = 'force-dynamic';
 
 const INSTAGRAM_OAUTH_BASE = 'https://www.instagram.com/oauth/authorize';
 
+// Scopes pedidos no OAuth.
+// IMPORTANTE: ao adicionar um scope novo aqui, contas ja conectadas precisam
+// reconectar (Desconectar + Conectar de novo) p/ regenerar token com a permission.
 const SCOPES = [
   'instagram_business_basic',
   'instagram_business_manage_comments',
   'instagram_business_manage_messages',
+  'instagram_business_manage_insights',  // adicionado 2026-05-29 — dashboard de metricas
   'instagram_business_content_publish',
 ].join(',');
 
