@@ -39,12 +39,16 @@ export async function GET(req: NextRequest) {
       .order('timestamp_post', { ascending: true });
 
     // Estrutura em arvore: top-level + replies
-    const byId = new Map((comments || []).map((c: any) => [c.ig_comment_id, { ...c, replies: [] as any[] }]));
+    const byId = new Map<string, any>(
+      (comments || []).map((c: any) => [c.ig_comment_id, { ...c, replies: [] as any[] }]),
+    );
     const tree: any[] = [];
     for (const c of (comments || [])) {
-      const node = byId.get(c.ig_comment_id);
-      if (c.parent_comment_id && byId.has(c.parent_comment_id)) {
-        byId.get(c.parent_comment_id).replies.push(node);
+      const node = byId.get((c as any).ig_comment_id);
+      if (!node) continue;
+      const parent = (c as any).parent_comment_id ? byId.get((c as any).parent_comment_id) : null;
+      if (parent) {
+        parent.replies.push(node);
       } else {
         tree.push(node);
       }
