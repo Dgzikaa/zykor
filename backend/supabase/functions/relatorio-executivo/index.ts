@@ -143,6 +143,13 @@ serve(async (req) => {
 
 Período: **${di} a ${df}**
 
+⚠️ UNIDADES E CONVENÇÕES IMPORTANTES (não interpretar errado):
+- **tempo_cozinha** e **tempo_drinks** estão em **SEGUNDOS** (não minutos). Ex: 546 = ~9 minutos, 153 = ~2,5 minutos.
+- **NPS Geral está MORTO** (não existe mais). Não cite "NPS Geral sem dado". Use **NPS Digital** como NPS principal (peso 25% no Quality Score).
+- **NPS Salão** tem volume pequeno (poucas respostas) — se for menos de 5 respostas, mencione amostra pequena, evite afirmar "100" como verdade.
+- Faturamento em R$. Atrasos/stockout em %. CMV global real em decimal (0.32 = 32%).
+- Se métrica está NULL no snapshot, diga "não medido nesta semana" e NÃO use no peso do score.
+
 DADOS BRUTOS (snapshot agora):
 ${JSON.stringify(snap, null, 2)}
 
