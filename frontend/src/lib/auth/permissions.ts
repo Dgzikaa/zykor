@@ -3,6 +3,7 @@
  */
 
 import type { AuthenticatedUser } from './types';
+import { userHasModule, userHasAnyModule } from '@/lib/permissions/resolver';
 
 /**
  * Módulos disponíveis no sistema
@@ -93,13 +94,13 @@ export function hasPermission(
   if (user.role === 'admin') {
     return true;
   }
-  
-  // Verificar se tem o módulo específico ou 'todos'
-  return (
-    user.modulos_permitidos.includes(permission) ||
-    user.modulos_permitidos.includes(MODULES.TODOS) ||
-    user.modulos_permitidos.includes(MODULES.ADMIN)
-  );
+
+  if (user.modulos_permitidos.includes(MODULES.ADMIN)) {
+    return true;
+  }
+
+  // Resolver único (alias + generics + 'todos')
+  return userHasModule(user.modulos_permitidos, permission);
 }
 
 /**
@@ -114,18 +115,13 @@ export function hasAnyPermission(
     return true;
   }
   
-  // Verificar se tem 'todos' ou 'admin'
-  if (
-    user.modulos_permitidos.includes(MODULES.TODOS) ||
-    user.modulos_permitidos.includes(MODULES.ADMIN)
-  ) {
+  // Verificar se tem 'admin'
+  if (user.modulos_permitidos.includes(MODULES.ADMIN)) {
     return true;
   }
-  
-  // Verificar se tem pelo menos uma das permissões
-  return permissions.some(permission =>
-    user.modulos_permitidos.includes(permission)
-  );
+
+  // Resolver único (alias + generics + 'todos')
+  return userHasAnyModule(user.modulos_permitidos, permissions);
 }
 
 /**

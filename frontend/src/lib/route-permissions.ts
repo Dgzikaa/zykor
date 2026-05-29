@@ -1,4 +1,5 @@
 import { getMenuRoutePermissions } from './menu-config';
+import { userHasAnyModule } from './permissions/resolver';
 
 /**
  * Mapeamento de rotas para módulos/permissões necessárias
@@ -222,25 +223,12 @@ export function hasRoutePermission(
 }
 
 /**
- * Verifica se usuário tem pelo menos um dos módulos necessários
+ * Verifica se usuário tem pelo menos um dos módulos necessários.
+ * Delega ao resolver único (alias + generics + 'todos').
  */
 function hasAnyModule(
   userModules: string[] | Record<string, any>,
   requiredModules: string[]
 ): boolean {
-  const userModulesArray = Array.isArray(userModules)
-    ? userModules.map(m => m.toLowerCase())
-    : Object.keys(userModules)
-        .filter(k => userModules[k])
-        .map(k => k.toLowerCase());
-  
-  // Verificar se tem "todos"
-  if (userModulesArray.includes('todos')) {
-    return true;
-  }
-  
-  // Verificar se tem pelo menos um módulo necessário
-  return requiredModules.some(module => 
-    userModulesArray.includes(module.toLowerCase())
-  );
+  return userHasAnyModule(userModules, requiredModules);
 }

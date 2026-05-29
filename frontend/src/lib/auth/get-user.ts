@@ -10,6 +10,7 @@
 import { NextRequest } from 'next/server';
 import { validateToken } from './jwt';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { userHasModule } from '@/lib/permissions/resolver';
 import type { AuthenticatedUser } from './types';
 
 export type { AuthenticatedUser };
@@ -239,12 +240,9 @@ export function hasPermission(
   if (user.role === 'admin') {
     return true;
   }
-  
-  // Verificar se tem o módulo ou 'todos'
-  return (
-    user.modulos_permitidos.includes(module) ||
-    user.modulos_permitidos.includes('todos')
-  );
+
+  // Resolver único (alias + generics + 'todos')
+  return userHasModule(user.modulos_permitidos, module);
 }
 
 /**
