@@ -52,15 +52,14 @@ export default function QualidadePage() {
   const historico = data?.historico ?? [];
 
   const componentes = atual ? [
-    { rotulo: 'NPS Geral',         valor: Number(atual.comp_nps_geral),     peso: '25%' },
+    { rotulo: 'NPS Digital',       valor: Number(atual.comp_nps_digital),   peso: '25%' },
     { rotulo: 'Stockout',          valor: Number(atual.comp_stockout),      peso: '15%' },
+    { rotulo: 'NPS Salão',         valor: Number(atual.comp_nps_salao),     peso: '10%' },
     { rotulo: 'Atrasos',           valor: Number(atual.comp_atrasos),       peso: '10%' },
     { rotulo: 'Reservas cumpridas', valor: Number(atual.comp_reservas),     peso: '10%' },
-    { rotulo: 'Felicidade equipe', valor: Number(atual.comp_felicidade),    peso: '10%' },
-    { rotulo: 'Tempo cozinha',     valor: Number(atual.comp_tempo_cozinha), peso: '7.5%' },
-    { rotulo: 'Tempo drinks',      valor: Number(atual.comp_tempo_drinks),  peso: '7.5%' },
-    { rotulo: 'NPS digital',       valor: Number(atual.comp_nps_digital),   peso: '5%' },
-    { rotulo: 'NPS reservas',      valor: Number(atual.comp_nps_reservas),  peso: '5%' },
+    { rotulo: 'Tempo cozinha',     valor: Number(atual.comp_tempo_cozinha), peso: '10%' },
+    { rotulo: 'Tempo drinks',      valor: Number(atual.comp_tempo_drinks),  peso: '10%' },
+    { rotulo: 'NPS Reservas',      valor: Number(atual.comp_nps_reservas),  peso: '5%' },
     { rotulo: 'IG engagement',     valor: Number(atual.comp_ig_engagement), peso: '5%' },
   ].filter(c => !isNaN(c.valor)) : [];
 
