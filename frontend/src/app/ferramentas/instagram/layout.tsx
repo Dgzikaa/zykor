@@ -8,21 +8,17 @@ import {
   PlayCircle,
   Camera,
   Users,
-  Inbox as InboxIcon,
-  AtSign,
-  GitCompare,
   Trophy,
+  DollarSign,
 } from 'lucide-react';
 
 const TABS = [
   { href: '/ferramentas/instagram', label: 'Dashboard', icone: LayoutDashboard },
+  { href: '/ferramentas/instagram/ig-roi', label: 'ROI por post', icone: DollarSign },
   { href: '/ferramentas/instagram/ai-insights', label: 'IA Insights', icone: Sparkles },
   { href: '/ferramentas/instagram/reels', label: 'Reels', icone: PlayCircle },
   { href: '/ferramentas/instagram/stories', label: 'Stories', icone: Camera },
   { href: '/ferramentas/instagram/demografia', label: 'Demografia', icone: Users },
-  { href: '/ferramentas/instagram/inbox', label: 'Inbox', icone: InboxIcon },
-  { href: '/ferramentas/instagram/mencoes', label: 'Menções', icone: AtSign },
-  { href: '/ferramentas/instagram/comparativo', label: 'Comparativo', icone: GitCompare },
   { href: '/ferramentas/instagram/concorrentes', label: 'Concorrentes', icone: Trophy },
 ];
 

@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Users, Crown, Megaphone } from 'lucide-react';
+import { Users, Crown, Megaphone, AlertTriangle } from 'lucide-react';
 
 const TABS = [
   { href: '/analitico/clientes', label: 'Visão Geral', icone: Users },
   { href: '/analitico/clientes/clube', label: 'Clube Ordi', icone: Crown },
+  { href: '/analitico/clientes/em-queda', label: 'Em queda', icone: AlertTriangle },
   { href: '/analitico/clientes/campanhas', label: 'Campanhas Clube', icone: Megaphone },
 ];
 

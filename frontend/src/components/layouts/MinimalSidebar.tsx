@@ -46,6 +46,8 @@ import {
   Compass,
   FileText,
   ShieldAlert,
+  Trophy,
+  Layers,
 } from 'lucide-react';
 
 interface SubMenuItem {
@@ -89,6 +91,8 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: DollarSign, label: 'Orçamentação', href: '/estrategico/orcamentacao', permission: 'home' },
       { icon: Award, label: 'Quality Scorecard', href: '/estrategico/qualidade', permission: 'gestao' },
       { icon: ChefHat, label: 'Engenharia Cardápio', href: '/estrategico/cardapio', permission: 'gestao' },
+      { icon: Layers, label: 'Combos que Convertem', href: '/estrategico/combos', permission: 'gestao' },
+      { icon: Trophy, label: 'Performance Garçom', href: '/estrategico/garcons', permission: 'gestao' },
       { icon: Compass, label: 'Previsão Demanda', href: '/estrategico/previsao', permission: 'gestao' },
       { icon: FileText, label: 'Relatório Semanal IA', href: '/estrategico/relatorio-semanal', permission: 'gestao' },
       { icon: ShieldAlert, label: 'Integridade', href: '/estrategico/integridade', permission: 'gestao' },
