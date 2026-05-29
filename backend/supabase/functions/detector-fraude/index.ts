@@ -36,6 +36,12 @@ interface Alerta {
 async function detectarParaBar(supabase: any, barId: number, data: string): Promise<Alerta[]> {
   const alertas: Alerta[] = [];
 
+  // Whitelist de funcionarios autorizados a dar desconto (recepcao, admin, etc)
+  const { data: whitelistRows } = await supabase
+    .schema('integridade').from('funcionarios_whitelist')
+    .select('usr_lancou').eq('bar_id', barId).eq('ativo', true);
+  const whitelist = new Set<string>((whitelistRows ?? []).map((r: any) => r.usr_lancou));
+
   // Itens do dia
   const { data: itens } = await supabase
     .schema('gold').from('gold_contahub_avendas_porproduto_analitico')
@@ -44,37 +50,74 @@ async function detectarParaBar(supabase: any, barId: number, data: string): Prom
 
   if (!itens || itens.length === 0) return alertas;
 
-  // 1) Desconto alto por item: >30% do valor OU cortesia 100% (valorfinal=0) com desconto >= R$30
-  const descontosAltos = itens.filter((i: any) => {
+  // 1) Cortesias por funcionario: alerta apenas se MESMO gar deu > 5 OU cortesia individual > R$ 200
+  const cortesiasPorUsr: Record<string, { qtd: number; valor: number; items: any[] }> = {};
+  const descontosAltosNaoCortesia: any[] = [];
+
+  for (const i of itens) {
     const v = Number(i.valorfinal) || 0;
     const d = Number(i.desconto) || 0;
-    if (d < 30) return false;
-    if (v === 0) return d >= 30;          // cortesia 100% com valor relevante
-    return d / v > 0.3;                    // desconto > 30% do valor
-  });
-  for (const i of descontosAltos.slice(0, 50)) {
+    if (d < 30) continue;
+    const usr = i.usr_lancou || 'desconhecido';
+    if (whitelist.has(usr)) continue; // ignora autorizados
+
+    if (v === 0) {
+      // Cortesia 100%
+      cortesiasPorUsr[usr] ??= { qtd: 0, valor: 0, items: [] };
+      cortesiasPorUsr[usr].qtd++;
+      cortesiasPorUsr[usr].valor += d;
+      cortesiasPorUsr[usr].items.push(i);
+      // Cortesia GIGANTE individual (>R$200) gera alerta direto
+      if (d > 200) {
+        alertas.push({
+          bar_id: barId, data_referencia: data,
+          tipo: 'cortesia_alta',
+          severidade: d > 500 ? 'alta' : 'media',
+          titulo: `Cortesia grande: ${i.prd_desc} (R$ ${d.toFixed(2)})`,
+          descricao: `Mesa ${i.vd_mesadesc} · ${usr}`,
+          entidade: usr, valor_envolvido: d, detalhes: i,
+        });
+      }
+    } else if (d / v > 0.3) {
+      descontosAltosNaoCortesia.push(i);
+    }
+  }
+
+  // Cortesias acumuladas: alerta se > 5 do mesmo gar ou valor > R$ 500
+  for (const [usr, stat] of Object.entries(cortesiasPorUsr)) {
+    if (stat.qtd > 5 || stat.valor > 500) {
+      alertas.push({
+        bar_id: barId, data_referencia: data,
+        tipo: 'cortesia_volume',
+        severidade: stat.valor > 1000 ? 'alta' : 'media',
+        titulo: `${usr} deu ${stat.qtd} cortesias (R$ ${stat.valor.toFixed(2)})`,
+        descricao: `${stat.qtd} cortesias 100% off. Items: ${stat.items.slice(0,3).map(i => i.prd_desc).join(', ')}${stat.items.length > 3 ? '...' : ''}`,
+        entidade: usr, valor_envolvido: stat.valor,
+        detalhes: { qtd: stat.qtd, valor: stat.valor, items_sample: stat.items.slice(0, 10) },
+      });
+    }
+  }
+
+  // Descontos altos NAO cortesia (>30% do valor) — alerta direto pra >R$80
+  for (const i of descontosAltosNaoCortesia.filter((x: any) => Number(x.desconto) > 80).slice(0, 30)) {
     const v = Number(i.valorfinal) || 0;
     const d = Number(i.desconto) || 0;
-    const cortesia = v === 0;
-    const pct = v > 0 ? (d / v * 100).toFixed(1) : '100';
+    const pct = (d / v * 100).toFixed(1);
     alertas.push({
       bar_id: barId, data_referencia: data,
-      tipo: cortesia ? 'cortesia' : 'desconto_alto',
-      severidade: d > 200 ? 'alta' : d > 80 ? 'media' : 'baixa',
-      titulo: cortesia
-        ? `Cortesia: ${i.prd_desc} (R$ ${d.toFixed(2)})`
-        : `Desconto ${pct}% no item ${i.prd_desc}`,
+      tipo: 'desconto_alto',
+      severidade: d > 200 ? 'alta' : 'media',
+      titulo: `Desconto ${pct}% no item ${i.prd_desc}`,
       descricao: `Mesa ${i.vd_mesadesc} · ${i.usr_lancou} · R$ ${d.toFixed(2)} de R$ ${(d + v).toFixed(2)}`,
-      entidade: i.usr_lancou,
-      valor_envolvido: d,
-      detalhes: i,
+      entidade: i.usr_lancou, valor_envolvido: d, detalhes: i,
     });
   }
 
-  // 2) Funcionário com taxa de desconto anormal
+  // 2) Funcionário com taxa de desconto anormal (ignora whitelist)
   const porUsr: Record<string, { soma_valor: number; soma_desc: number; itens: number }> = {};
   for (const i of itens) {
     const u = i.usr_lancou || 'desconhecido';
+    if (whitelist.has(u)) continue;
     porUsr[u] ??= { soma_valor: 0, soma_desc: 0, itens: 0 };
     porUsr[u].soma_valor += Number(i.valorfinal) || 0;
     porUsr[u].soma_desc += Number(i.desconto) || 0;
