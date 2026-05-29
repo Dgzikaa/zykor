@@ -14,15 +14,16 @@ export default function ReelsPage() {
   const [data, setData] = useState<any>(null);
   const [hashtags, setHashtags] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [dias, setDias] = useState<number>(365);
 
   useEffect(() => {
     if (!selectedBar?.id) return;
     setLoading(true);
     Promise.all([
-      fetch(`/api/instagram/reels?bar_id=${selectedBar.id}&dias=30`).then(r => r.json()),
-      fetch(`/api/instagram/hashtags?bar_id=${selectedBar.id}&dias=60`).then(r => r.json()),
+      fetch(`/api/instagram/reels?bar_id=${selectedBar.id}&dias=${dias}`).then(r => r.json()),
+      fetch(`/api/instagram/hashtags?bar_id=${selectedBar.id}&dias=${dias}`).then(r => r.json()),
     ]).then(([reels, htags]) => { setData(reels); setHashtags(htags); }).finally(() => setLoading(false));
-  }, [selectedBar?.id]);
+  }, [selectedBar?.id, dias]);
 
   if (loading) return <main className="max-w-7xl mx-auto px-6 py-8"><Skeleton className="h-96" /></main>;
 
@@ -31,9 +32,21 @@ export default function ReelsPage() {
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><PlayCircle className="w-6 h-6 text-pink-600" /> Reels Analytics</h1>
-        <p className="text-sm text-gray-500">Últimos 30 dias.</p>
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><PlayCircle className="w-6 h-6 text-pink-600" /> Reels Analytics</h1>
+          <p className="text-sm text-gray-500">Últimos {dias} dias.</p>
+        </div>
+        <select
+          value={dias}
+          onChange={e => setDias(parseInt(e.target.value, 10))}
+          className="px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
+        >
+          <option value={30}>30 dias</option>
+          <option value={90}>90 dias</option>
+          <option value={180}>180 dias</option>
+          <option value={365}>365 dias</option>
+        </select>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

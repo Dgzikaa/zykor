@@ -290,7 +290,7 @@ async function syncBar(
     let posts: any[] = [];
     let paginas = 0;
 
-    while (nextUrl && paginas < 10) {
+    while (nextUrl && paginas < 30) {
       const r: Response = await fetch(nextUrl);
       if (!r.ok) {
         console.warn(`[ig-sync] erro listando posts bar ${barId}:`, await r.text());
@@ -460,7 +460,7 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const filterBarId: number | undefined = body?.bar_id;
-    const diasPosts: number = body?.dias_posts ?? 30;
+    const diasPosts: number = body?.dias_posts ?? 365;
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
