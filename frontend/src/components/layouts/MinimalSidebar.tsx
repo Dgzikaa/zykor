@@ -40,6 +40,12 @@ import {
   Bell,
   Star,
   Zap,
+  Instagram,
+  Award,
+  Crown,
+  Bot,
+  Compass,
+  Heart,
 } from 'lucide-react';
 
 interface SubMenuItem {
@@ -81,6 +87,18 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: BarChart3, label: 'Desempenho', href: '/estrategico/desempenho', permission: 'gestao' },
       { icon: Calendar, label: 'Planejamento', href: '/estrategico/planejamento-comercial', permission: 'planejamento' },
       { icon: DollarSign, label: 'Orçamentação', href: '/estrategico/orcamentacao', permission: 'home' },
+      { icon: Award, label: 'Quality Scorecard', href: '/estrategico/qualidade', permission: 'gestao' },
+      { icon: ChefHat, label: 'Engenharia Cardápio', href: '/estrategico/cardapio', permission: 'gestao' },
+      { icon: Compass, label: 'Previsão Demanda', href: '/estrategico/previsao', permission: 'gestao' },
+    ],
+  },
+  {
+    icon: Heart,
+    label: 'CRM',
+    href: '/crm',
+    permission: 'relatorios',
+    subItems: [
+      { icon: Crown, label: 'Clube Ordi', href: '/crm/clube', permission: 'relatorios' },
     ],
   },
   {
@@ -105,6 +123,8 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: Tag, label: 'Classificação de Consumos', href: '/ferramentas/consumos-classificacao', permission: 'gestao' },
       { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
       { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
+      { icon: Instagram, label: 'Instagram', href: '/ferramentas/instagram', permission: 'gestao' },
+      { icon: Bot, label: 'Zykor Assistant', href: '/ferramentas/assistente-zykor', permission: 'gestao' },
     ],
   },
   {
