@@ -171,17 +171,20 @@ function aplicarRegrasFiltragem(produto: any, ordemInicial: number = 1): Resulta
 
 function calcularCategoriaMix(produto: any, barId: number): string {
   const locDesc = (produto.loc_desc || '').toLowerCase();
-  
+
   if (barId === 3) {
-    if (['bar', 'shot', 'dose', 'chopp'].some(loc => locDesc.includes(loc))) return 'BEBIDA';
-    if (['batidos', 'montados', 'mexido', 'preshh'].some(loc => locDesc.includes(loc))) return 'DRINK';
+    // DRINK primeiro (antes de BEBIDA) — 'pp drinks' precisa bater aqui antes do
+    // catch genérico de BEBIDA. 'preshh', 'batidos', 'montados', 'mexido' são
+    // bares de preparo. 'pp drinks' = Pegue e Pague de drinks.
+    if (['batidos', 'montados', 'mexido', 'preshh', 'pp drinks'].some(loc => locDesc.includes(loc))) return 'DRINK';
+    if (['shot', 'dose', 'chopp', 'pp bebidas', 'bar'].some(loc => locDesc.includes(loc))) return 'BEBIDA';
     if (locDesc.includes('cozinha')) return 'COMIDA';
   } else if (barId === 4) {
     if (locDesc === 'salao') return 'BEBIDA';
     if (locDesc === 'bar') return 'DRINK';
     if (locDesc.includes('cozinha')) return 'COMIDA';
   }
-  
+
   return 'OUTRO';
 }
 

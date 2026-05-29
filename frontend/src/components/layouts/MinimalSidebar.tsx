@@ -42,10 +42,8 @@ import {
   Zap,
   Instagram,
   Award,
-  Crown,
   Bot,
   Compass,
-  Heart,
   FileText,
   ShieldAlert,
 } from 'lucide-react';
@@ -95,16 +93,6 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: FileText, label: 'Relatório Semanal IA', href: '/estrategico/relatorio-semanal', permission: 'gestao' },
       { icon: ShieldAlert, label: 'Integridade', href: '/estrategico/integridade', permission: 'gestao' },
       { icon: Wallet, label: 'Fluxo de Caixa 90d', href: '/financeiro/fluxo-caixa-90d', permission: 'gestao' },
-    ],
-  },
-  {
-    icon: Heart,
-    label: 'CRM',
-    href: '/crm',
-    permission: 'relatorios',
-    subItems: [
-      { icon: Crown, label: 'Clube Ordi', href: '/crm/clube', permission: 'relatorios' },
-      { icon: Megaphone, label: 'Campanhas Clube', href: '/crm/clube/campanhas', permission: 'relatorios' },
     ],
   },
   {
