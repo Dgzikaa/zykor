@@ -19,6 +19,8 @@ import {
   Layers,
   AtSign,
   LayoutDashboard,
+  Inbox as InboxIcon,
+  GitCompare,
 } from 'lucide-react';
 import {
   LineChart,
@@ -179,10 +181,12 @@ export default function InstagramDashboardPage() {
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
       {/* NAV */}
-      <nav className="flex items-center gap-1 border-b">
+      <nav className="flex items-center gap-1 border-b overflow-x-auto">
         <NavLink href="/ferramentas/instagram" icone={<LayoutDashboard className="w-4 h-4" />} ativo>Dashboard</NavLink>
         <NavLink href="/ferramentas/instagram/demografia" icone={<Users className="w-4 h-4" />}>Demografia</NavLink>
+        <NavLink href="/ferramentas/instagram/inbox" icone={<InboxIcon className="w-4 h-4" />}>Inbox</NavLink>
         <NavLink href="/ferramentas/instagram/mencoes" icone={<AtSign className="w-4 h-4" />}>Menções</NavLink>
+        <NavLink href="/ferramentas/instagram/comparativo" icone={<GitCompare className="w-4 h-4" />}>Comparativo</NavLink>
       </nav>
 
       {/* HEADER PERFIL */}
