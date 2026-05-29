@@ -366,8 +366,10 @@ export function ModernSidebarOptimized() {
   const hasAnyMappedPermission = useCallback((permissionKey: string) => {
     if (!permissionKey) return false;
     if (hasPermission('todos')) return true;
-    
-    const mappedPermissions = PERMISSION_MAPPINGS[permissionKey] || [permissionKey];
+
+    // Checa a própria chave (o resolver já trata alias/generic) + mapeamentos legados
+    if (hasPermission(permissionKey)) return true;
+    const mappedPermissions = PERMISSION_MAPPINGS[permissionKey] || [];
     return mappedPermissions.some(perm => hasPermission(perm));
   }, [hasPermission]);
 

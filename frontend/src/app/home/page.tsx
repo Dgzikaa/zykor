@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
+import { userHasAnyModule } from '@/lib/permissions/resolver';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { 
@@ -102,7 +103,7 @@ const allQuickActions: QuickAction[] = [
     href: '/ferramentas/agendamento',
     icon: CreditCard,
     color: 'from-emerald-500 to-teal-600',
-    permissions: ['todos', 'ferramentas_agendamento', 'ferramentas', 'operacoes', 'financeiro']
+    permissions: ['todos', 'ferramentas_agendamento', 'financeiro_agendamento', 'ferramentas', 'operacoes', 'financeiro']
   },
   {
     title: 'Stockout',
@@ -110,7 +111,7 @@ const allQuickActions: QuickAction[] = [
     href: '/ferramentas/stockout',
     icon: Package,
     color: 'from-red-500 to-rose-600',
-    permissions: ['todos', 'ferramentas_stockout', 'ferramentas', 'operacoes']
+    permissions: ['todos', 'ferramentas_stockout', 'gestao_stockout', 'ferramentas', 'operacoes']
   },
   {
     title: 'Configurações',
@@ -125,7 +126,7 @@ const allQuickActions: QuickAction[] = [
 export default function HomePage() {
   const { setPageTitle } = usePageTitle();
   const { selectedBar } = useBar();
-  const { user } = useUser();
+  const { user, loading: userLoading } = useUser();
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -133,34 +134,22 @@ export default function HomePage() {
     setIsLoaded(true);
   }, [setPageTitle]);
 
-  // Filtrar ações baseado nas permissões do usuário
+  // Filtrar ações baseado nas permissões do usuário.
+  // Usa o resolver único (@/lib/permissions/resolver) — mesma lógica de
+  // alias/generic/'todos' do sidebar e dos route guards.
   const quickActions = useMemo(() => {
     if (!user) return [];
-    
-    // Se é admin, mostrar tudo
-    if (user.role === 'admin') {
+
+    // Admin sem permissões específicas = acesso total
+    const modulos = user.modulos_permitidos;
+    const isAdminFull =
+      user.role === 'admin' &&
+      !(Array.isArray(modulos) ? modulos.length > 0 : modulos && Object.values(modulos).some(Boolean));
+    if (isAdminFull) {
       return allQuickActions;
     }
-    
-    // Obter permissões do usuário
-    let userPermissions: string[] = [];
-    if (Array.isArray(user.modulos_permitidos)) {
-      userPermissions = user.modulos_permitidos;
-    } else if (typeof user.modulos_permitidos === 'object' && user.modulos_permitidos) {
-      userPermissions = Object.keys(user.modulos_permitidos).filter(
-        key => user.modulos_permitidos[key] === true
-      );
-    }
-    
-    // Se tem permissão 'todos', mostrar tudo
-    if (userPermissions.includes('todos')) {
-      return allQuickActions;
-    }
-    
-    // Filtrar cards que o usuário tem permissão
-    return allQuickActions.filter(action => {
-      return action.permissions.some(perm => userPermissions.includes(perm));
-    });
+
+    return allQuickActions.filter(action => userHasAnyModule(modulos, action.permissions));
   }, [user]);
 
   // Tempo/data calculados em state + useEffect pra evitar hydration mismatch
@@ -202,7 +191,12 @@ export default function HomePage() {
 
         {/* Main Content - Grid Full Width */}
         <div className={cn("flex-1 transition-all duration-500 delay-300", isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5")}>
-          {quickActions.length === 0 ? (
+          {userLoading || !user ? (
+            <div className="flex flex-col items-center justify-center h-full py-16">
+              <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+              <p className="text-gray-600 dark:text-gray-400">Carregando seus módulos...</p>
+            </div>
+          ) : quickActions.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-16">
               <div className="p-4 bg-amber-100 dark:bg-amber-900/30 rounded-full mb-4">
                 <AlertCircle className="w-12 h-12 text-amber-600 dark:text-amber-400" />

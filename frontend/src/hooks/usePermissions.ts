@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { safeLocalStorage, isClient } from '@/lib/client-utils';
-import { MODULO_TO_PERMISSIONS } from '@/lib/menu-config';
+import { userHasModule, userHasAnyModule } from '@/lib/permissions/resolver';
 
 interface Usuario {
   id: number;
@@ -116,49 +116,6 @@ export function usePermissions(): PermissionsHook {
     loadUserData();
   }, []);
 
-  // Memoizar as permissões do usuário para evitar recálculos desnecessários
-  // Agora também expande módulos específicos para permissões genéricas
-  const userPermissions = useMemo(() => {
-    if (!user || !user.ativo || !user.modulos_permitidos) {
-      return new Set<string>();
-    }
-    
-    const permissions = new Set<string>();
-    const modulosDoUsuario: string[] = [];
-    
-    // Se modulos_permitidos é um array
-    if (Array.isArray(user.modulos_permitidos)) {
-      user.modulos_permitidos.forEach(modulo => {
-        if (typeof modulo === 'string') {
-          const moduloLower = modulo.toLowerCase();
-          permissions.add(moduloLower);
-          modulosDoUsuario.push(moduloLower);
-        }
-      });
-    }
-    // Se modulos_permitidos é um objeto
-    else if (typeof user.modulos_permitidos === 'object') {
-      Object.entries(user.modulos_permitidos).forEach(([modulo, value]) => {
-        if (value === true) {
-          const moduloLower = modulo.toLowerCase();
-          permissions.add(moduloLower);
-          modulosDoUsuario.push(moduloLower);
-        }
-      });
-    }
-
-    // Expandir módulos específicos para permissões genéricas
-    // Ex: 'ferramentas_producao' -> também concede 'operacoes' e 'ferramentas'
-    for (const modulo of modulosDoUsuario) {
-      const permissoesGenericas = MODULO_TO_PERMISSIONS[modulo];
-      if (permissoesGenericas) {
-        permissoesGenericas.forEach(perm => permissions.add(perm.toLowerCase()));
-      }
-    }
-
-    return permissions;
-  }, [user]);
-
   // Memoizar se o admin tem permissões específicas
   const adminHasExplicitPermissions = useMemo(() => {
     if (!user || user.role !== 'admin') return false;
@@ -178,103 +135,37 @@ export function usePermissions(): PermissionsHook {
     return false;
   }, [user]);
 
+  // Toda a resolução de alias/generic/'todos' vive no resolver único
+  // (@/lib/permissions/resolver) — fonte única de verdade compartilhada
+  // entre client (sidebar, home) e server (route guards, get-user).
   const hasPermission = useCallback(
     (moduloId: string): boolean => {
       if (!user || !user.ativo) {
         return false;
       }
 
-      // Se admin tem permissões específicas configuradas, respeitar elas
-      if (user.role === 'admin') {
-        if (adminHasExplicitPermissions) {
-          // Primeiro verificar se tem permissão "todos"
-          if (userPermissions.has('todos')) {
-            return true;
-          }
-          return userPermissions.has(moduloId.toLowerCase());
-        }
-        // Admin sem permissões específicas = acesso total
+      // Admin sem permissões específicas = acesso total
+      if (user.role === 'admin' && !adminHasExplicitPermissions) {
         return true;
       }
 
-      // Verificar permissão especial "todos"
-      const hasTodos = userPermissions.has('todos');
-      if (hasTodos) {
-        return true;
-      }
-
-      // Verificar se o módulo está na lista de permissões
-      const hasDirectPermission = userPermissions.has(moduloId.toLowerCase());
-
-      // Se é o módulo "operacoes", verificar se tem qualquer permissão relacionada
-      if (moduloId === 'operacoes') {
-        const operacoesPermissions = [
-          'operacoes',
-          'operacoes_checklist_abertura',
-          'terminal_producao',
-          'receitas_insumos',
-          'gestao_tempo',
-          'produtos_estoque',
-          'planejamento_operacional',
-          'recorrencia_tarefas',
-          'controle_periodo',
-          'checklists',
-          'vendas',
-          'eventos',
-          'clientes',
-          'producao',
-          'produtos',
-        ];
-
-        const hasAnyOperacoesPermission = operacoesPermissions.some(perm => 
-          userPermissions.has(perm.toLowerCase())
-        );
-        return hasDirectPermission || hasAnyOperacoesPermission;
-      }
-
-      // Se é o módulo "financeiro", verificar se tem qualquer permissão relacionada
-      if (moduloId === 'financeiro' || moduloId.startsWith('financeiro_')) {
-        const financeiroPermissions = [
-          'financeiro',
-          'financeiro_agendamento',
-          'pagamentos',
-          'dashboard_financeiro_mensal',
-          'nfs',
-          'fatporhora',
-          'vendas',
-          'eventos',
-          'clientes',
-          'producao',
-          'produtos',
-        ];
-
-        const hasAnyFinanceiroPermission = financeiroPermissions.some(perm => 
-          userPermissions.has(perm.toLowerCase())
-        );
-        return hasDirectPermission || hasAnyFinanceiroPermission;
-      }
-
-      return hasDirectPermission;
+      return userHasModule(user.modulos_permitidos, moduloId);
     },
-    [user, userPermissions, adminHasExplicitPermissions]
+    [user, adminHasExplicitPermissions]
   );
 
   const hasAnyPermission = useCallback(
     (modulosIds: string[]): boolean => {
       if (!user || !user.ativo) return false;
 
-      // Se admin tem permissões específicas configuradas, respeitar elas
-      if (user.role === 'admin') {
-        if (adminHasExplicitPermissions) {
-          return modulosIds.some(modulo => userPermissions.has(modulo.toLowerCase()));
-        }
+      // Admin sem permissões específicas = acesso total
+      if (user.role === 'admin' && !adminHasExplicitPermissions) {
         return true;
       }
 
-      // Verificar se tem pelo menos uma permissão
-      return modulosIds.some(modulo => userPermissions.has(modulo.toLowerCase()));
+      return userHasAnyModule(user.modulos_permitidos, modulosIds);
     },
-    [user, userPermissions, adminHasExplicitPermissions]
+    [user, adminHasExplicitPermissions]
   );
 
   const isRole = useCallback(
