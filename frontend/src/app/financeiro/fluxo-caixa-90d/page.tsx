@@ -172,7 +172,7 @@ export default function FluxoCaixa90dPage() {
         {carregando && <p className="text-sm text-gray-500 py-8 text-center">Carregando...</p>}
         {!carregando && chartData.length === 0 && (
           <p className="text-sm text-gray-500 py-8 text-center">
-            Sem projeção. Clique em "Gerar projeção" pra criar.
+            Sem projeção. Clique em &ldquo;Gerar projeção&rdquo; pra criar.
           </p>
         )}
         {chartData.length > 0 && (

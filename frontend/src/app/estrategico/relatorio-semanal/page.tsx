@@ -133,7 +133,7 @@ export default function RelatorioSemanalPage() {
       {!carregando && rels.length === 0 && (
         <Card className="p-12 text-center">
           <FileText className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500 mb-4">Nenhum relatório ainda. Clique em "Gerar agora" pra criar o da última semana.</p>
+          <p className="text-gray-500 mb-4">Nenhum relatório ainda. Clique em &ldquo;Gerar agora&rdquo; pra criar o da última semana.</p>
         </Card>
       )}
 
