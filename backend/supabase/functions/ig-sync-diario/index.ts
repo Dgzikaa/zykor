@@ -110,26 +110,56 @@ async function syncBar(
 
     // ====== 2. INSIGHTS DIARIOS DE CONTA (D-1) ======
     //
-    // Algumas metricas viraram "views" na v22, mantemos compatibilidade
-    // tentando reach + outras. Se falhar, n quebra o sync.
-    let insightsData: any = {};
+    // v22 mudou MUITO. Lessons learned:
+    //   - since/until exato (=ontem) retorna data:[] vazio. Sem isso retorna
+    //     array com ate ~2 valores recentes (ultimo completo + parcial hoje).
+    //   - Varias metrics (accounts_engaged, total_interactions, views) so
+    //     funcionam com metric_type=total_value (retorna 1 agregado, n array).
+    //   - profile_views/website_clicks/reach aceitam period=day legacy.
+    //   - 'impressions' foi depreciado; substituto eh 'views'.
+    //
+    // Estrategia: 2 chamadas separadas (metric_type=total_value vs legacy).
+    const insightsData: Record<string, number> = {};
+
+    // 2a) Metrics legacy (retornam array com end_time por dia)
     try {
-      const metricsList = [
-        'reach', 'profile_views', 'website_clicks', 'accounts_engaged',
-        'total_interactions', 'follower_count',
-      ].join(',');
-      const insRes = await fetch(
-        `${IG_GRAPH}/${igBusinessId}/insights?metric=${metricsList}&period=day&since=${ontem}&until=${ontem}&access_token=${token}`,
+      const metricsLegacy = ['reach', 'profile_views', 'website_clicks'];
+      const r = await fetch(
+        `${IG_GRAPH}/me/insights?metric=${metricsLegacy.join(',')}&period=day&access_token=${token}`,
       );
-      if (insRes.ok) {
-        const j = await insRes.json();
+      if (r.ok) {
+        const j = await r.json();
         for (const item of (j.data || [])) {
-          const v = item.values?.[0]?.value;
-          insightsData[item.name] = typeof v === 'object' ? v : Number(v) || 0;
+          // Array values: [{ value, end_time }]. O valor cuja end_time eh
+          // "hoje 7am UTC" corresponde ao D-1 (janela completa de ontem).
+          // Pegamos o ULTIMO valor com end_time <= now (D-1 completo).
+          const nowMs = Date.now();
+          const vals = (item.values || []).filter((v: any) => new Date(v.end_time).getTime() <= nowMs);
+          const lastCompleta = vals[vals.length - 1];
+          if (lastCompleta?.value != null) {
+            insightsData[item.name] = Number(lastCompleta.value) || 0;
+          }
         }
       }
     } catch (e) {
-      console.warn(`[ig-sync] insights diario falhou bar ${barId}:`, e);
+      console.warn(`[ig-sync] insights legacy falhou bar ${barId}:`, e);
+    }
+
+    // 2b) Metrics nova v22 (precisam metric_type=total_value)
+    try {
+      const metricsTotal = ['accounts_engaged', 'total_interactions', 'views', 'follower_count'];
+      const r = await fetch(
+        `${IG_GRAPH}/me/insights?metric=${metricsTotal.join(',')}&period=day&metric_type=total_value&access_token=${token}`,
+      );
+      if (r.ok) {
+        const j = await r.json();
+        for (const item of (j.data || [])) {
+          const v = item.total_value?.value;
+          if (v != null) insightsData[item.name] = Number(v) || 0;
+        }
+      }
+    } catch (e) {
+      console.warn(`[ig-sync] insights total_value falhou bar ${barId}:`, e);
     }
 
     // online_followers (heatmap por hora) — endpoint separado
@@ -144,7 +174,9 @@ async function syncBar(
       }
     } catch { /* nao critico */ }
 
-    // Upsert conta_metricas
+    // Upsert conta_metricas (v22: views substitui impressions; total_interactions
+    // e accounts_engaged ficam em raw_data por enquanto — features F2 podem
+    // adicionar colunas tipadas).
     const metricasRow: Record<string, any> = {
       bar_id: barId,
       data_snapshot: ontem,
@@ -152,6 +184,7 @@ async function syncBar(
       follows_count: perfil.follows_count ?? null,
       media_count: perfil.media_count ?? null,
       reach: insightsData.reach ?? null,
+      impressions: insightsData.views ?? null,  // v22: views eh o novo impressions
       profile_views: insightsData.profile_views ?? null,
       website_clicks: insightsData.website_clicks ?? null,
       online_followers: onlineFollowers ? JSON.stringify(onlineFollowers) : null,
