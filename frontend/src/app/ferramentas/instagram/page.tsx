@@ -21,6 +21,8 @@ import {
   LayoutDashboard,
   Inbox as InboxIcon,
   GitCompare,
+  Camera,
+  Sparkles,
 } from 'lucide-react';
 import {
   LineChart,
@@ -183,6 +185,9 @@ export default function InstagramDashboardPage() {
       {/* NAV */}
       <nav className="flex items-center gap-1 border-b overflow-x-auto">
         <NavLink href="/ferramentas/instagram" icone={<LayoutDashboard className="w-4 h-4" />} ativo>Dashboard</NavLink>
+        <NavLink href="/ferramentas/instagram/ai-insights" icone={<Sparkles className="w-4 h-4" />}>IA Insights</NavLink>
+        <NavLink href="/ferramentas/instagram/reels" icone={<PlayCircle className="w-4 h-4" />}>Reels</NavLink>
+        <NavLink href="/ferramentas/instagram/stories" icone={<Camera className="w-4 h-4" />}>Stories</NavLink>
         <NavLink href="/ferramentas/instagram/demografia" icone={<Users className="w-4 h-4" />}>Demografia</NavLink>
         <NavLink href="/ferramentas/instagram/inbox" icone={<InboxIcon className="w-4 h-4" />}>Inbox</NavLink>
         <NavLink href="/ferramentas/instagram/mencoes" icone={<AtSign className="w-4 h-4" />}>Menções</NavLink>
