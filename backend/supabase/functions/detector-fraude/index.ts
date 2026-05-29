@@ -44,22 +44,27 @@ async function detectarParaBar(supabase: any, barId: number, data: string): Prom
 
   if (!itens || itens.length === 0) return alertas;
 
-  // 1) Desconto alto por item (>30% do valor) e valor absoluto > R$50
+  // 1) Desconto alto por item: >30% do valor OU cortesia 100% (valorfinal=0) com desconto >= R$30
   const descontosAltos = itens.filter((i: any) => {
     const v = Number(i.valorfinal) || 0;
     const d = Number(i.desconto) || 0;
-    return d > 50 && (v > 0 ? d / v > 0.3 : false);
+    if (d < 30) return false;
+    if (v === 0) return d >= 30;          // cortesia 100% com valor relevante
+    return d / v > 0.3;                    // desconto > 30% do valor
   });
-  for (const i of descontosAltos.slice(0, 30)) {
+  for (const i of descontosAltos.slice(0, 50)) {
     const v = Number(i.valorfinal) || 0;
     const d = Number(i.desconto) || 0;
-    const pct = v > 0 ? (d / v * 100).toFixed(1) : '?';
+    const cortesia = v === 0;
+    const pct = v > 0 ? (d / v * 100).toFixed(1) : '100';
     alertas.push({
       bar_id: barId, data_referencia: data,
-      tipo: 'desconto_alto',
-      severidade: d > 200 ? 'alta' : 'media',
-      titulo: `Desconto ${pct}% no item ${i.prd_desc}`,
-      descricao: `Mesa ${i.vd_mesadesc} · ${i.usr_lancou} · R$ ${d.toFixed(2)} de R$ ${v.toFixed(2)}`,
+      tipo: cortesia ? 'cortesia' : 'desconto_alto',
+      severidade: d > 200 ? 'alta' : d > 80 ? 'media' : 'baixa',
+      titulo: cortesia
+        ? `Cortesia: ${i.prd_desc} (R$ ${d.toFixed(2)})`
+        : `Desconto ${pct}% no item ${i.prd_desc}`,
+      descricao: `Mesa ${i.vd_mesadesc} · ${i.usr_lancou} · R$ ${d.toFixed(2)} de R$ ${(d + v).toFixed(2)}`,
       entidade: i.usr_lancou,
       valor_envolvido: d,
       detalhes: i,
