@@ -104,8 +104,17 @@ async function preverBar(supabase: any, barId: number, diasFrente: number): Prom
     const cArtMed = mediana(porDow[dow]?.cArt ?? []);
     const ajusteAtracao = cArtPrev && cArtMed > 0 ? cArtPrev / cArtMed : 1.0;
 
-    const fatPrevisto = Math.round(fatMed * ajusteAtracao);
-    const pubPrevisto = Math.round(pubMed * ajusteAtracao);
+    // NOVO: Ajuste por feriado/evento (operations.feriados_eventos)
+    const { data: feriado } = await supabase
+      .schema('operations').from('feriados_eventos')
+      .select('nome, tipo, ajuste_ord, ajuste_deb')
+      .eq('data', dataIso).maybeSingle();
+    const ajusteFeriado = feriado
+      ? Number(barId === 4 ? feriado.ajuste_deb : feriado.ajuste_ord) || 1.0
+      : 1.0;
+
+    const fatPrevisto = Math.round(fatMed * ajusteAtracao * ajusteFeriado);
+    const pubPrevisto = Math.round(pubMed * ajusteAtracao * ajusteFeriado);
 
     previsoes.push({
       bar_id: barId,
@@ -113,11 +122,11 @@ async function preverBar(supabase: any, barId: number, diasFrente: number): Prom
       dia_semana: dow,
       fat_previsto: fatPrevisto,
       publico_previsto: pubPrevisto,
-      ic_inferior: Math.round(Math.max(0, fatPrevisto - 1.28 * sdFat)),
-      ic_superior: Math.round(fatPrevisto + 1.28 * sdFat),
-      modelo_usado: 'mediana_8_dow_x_atracao',
+      ic_inferior: Math.round(Math.max(0, fatPrevisto * ajusteFeriado - 1.28 * sdFat)),
+      ic_superior: Math.round(fatPrevisto * ajusteFeriado + 1.28 * sdFat),
+      modelo_usado: feriado ? `mediana_8_dow_x_atracao_x_feriado(${feriado.nome})` : 'mediana_8_dow_x_atracao',
       base_n_ocorrencias: ultimosFat.length,
-      ajuste_atracao: ajusteAtracao,
+      ajuste_atracao: ajusteAtracao * ajusteFeriado,
     });
   }
 
