@@ -46,12 +46,13 @@ export default function CombosPage() {
   const topCombos = useMemo(() => {
     const seen = new Set<string>();
     const out: any[] = [];
-    for (const c of [...combos].sort((a: any, b: any) => Number(b.lift) - Number(a.lift))) {
+    // Ordena por confidence (% de chance) — sócio quer saber o combo mais provável
+    for (const c of [...combos].sort((a: any, b: any) => Number(b.confidence_pct) - Number(a.confidence_pct))) {
       const key = [c.produto_a, c.produto_b].sort().join('|');
       if (seen.has(key)) continue;
       seen.add(key);
       out.push(c);
-      if (out.length >= 15) break;
+      if (out.length >= 20) break;
     }
     return out;
   }, [combos]);
@@ -84,9 +85,9 @@ export default function CombosPage() {
 
       {/* Top combos por lift */}
       <Card className="p-4">
-        <h2 className="font-semibold mb-3">🔥 Top 15 combos mais fortes (por lift)</h2>
+        <h2 className="font-semibold mb-3">🔥 Top 20 combos mais prováveis (ordenado por confidence)</h2>
         <p className="text-xs text-gray-500 mb-3">
-          <strong>Lift</strong> = força da associação. Lift &gt; 5 significa que esses 2 produtos aparecem juntos MUITO mais que o acaso. <strong>Confidence</strong> = % das vezes que A leva também B.
+          <strong>Confidence</strong> = de toda vez que o cliente pede A, % das vezes que ele também pede B. Quanto maior, mais provável o combo. <strong>Lift</strong> = força além do acaso (lift &gt; 5 = muito associado).
         </p>
         <div className="space-y-2">
           {topCombos.map((c: any, i: number) => (

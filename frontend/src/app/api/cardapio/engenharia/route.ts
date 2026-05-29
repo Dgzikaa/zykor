@@ -20,8 +20,8 @@ export async function GET(req: NextRequest) {
 
     const supabase = await getAdminClient();
     const { data, error } = await (supabase as any).rpc('menu_engineering', {
-      p_bar_id: barId, p_data_ini: ini, p_data_fim: fim,
-    }, { count: 'exact' });
+      p_bar_id: barId, p_di: ini, p_df: fim,
+    });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

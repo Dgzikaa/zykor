@@ -6,6 +6,22 @@ const nextConfig = {
   poweredByHeader: false,
   compress: true,
   reactStrictMode: false, // Desabilitar para evitar chamadas duplas da API
+
+  // ✅ Redirects de rotas movidas pra /ferramentas/analises (2026-05-29)
+  async redirects() {
+    return [
+      { source: '/estrategico/qualidade',            destination: '/ferramentas/analises/quality',       permanent: true },
+      { source: '/estrategico/cardapio',             destination: '/ferramentas/analises/cardapio',      permanent: true },
+      { source: '/estrategico/combos',               destination: '/ferramentas/analises/combos',        permanent: true },
+      { source: '/estrategico/garcons',              destination: '/ferramentas/analises/garcons',       permanent: true },
+      { source: '/estrategico/heatmap-vendas',       destination: '/ferramentas/analises/heatmap',       permanent: true },
+      { source: '/estrategico/previsao',             destination: '/ferramentas/analises/previsao',      permanent: true },
+      { source: '/estrategico/integridade',          destination: '/ferramentas/analises/integridade',   permanent: true },
+      { source: '/estrategico/relatorio-semanal',    destination: '/ferramentas/analises/relatorio-ia',  permanent: true },
+      { source: '/financeiro/fluxo-caixa-90d',       destination: '/ferramentas/analises/fluxo-caixa',   permanent: true },
+      { source: '/financeiro/conciliacao-pagamentos',destination: '/ferramentas/analises/conciliacao',   permanent: true },
+    ];
+  },
   
   // ✅ Definir raiz do workspace explicitamente para evitar warning de múltiplos lockfiles
   outputFileTracingRoot: __dirname,
