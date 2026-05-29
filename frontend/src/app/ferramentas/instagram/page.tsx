@@ -156,9 +156,12 @@ export default function InstagramDashboardPage() {
         <p className="text-gray-500 mb-6">
           {data?.mensagem || `Conecte o Instagram do ${selectedBar?.nome ?? 'bar selecionado'} pra ver as métricas.`}
         </p>
-        <Button asChild>
-          <a href="/configuracoes/administracao/integracoes">Ir para Integrações</a>
-        </Button>
+        <a
+          href="/configuracoes/administracao/integracoes"
+          className="inline-flex items-center justify-center rounded-md bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700 transition-colors"
+        >
+          Ir para Integrações
+        </a>
       </main>
     );
   }
