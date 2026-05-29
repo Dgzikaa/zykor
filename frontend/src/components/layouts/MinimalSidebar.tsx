@@ -48,6 +48,9 @@ import {
   ShieldAlert,
   Trophy,
   Layers,
+  Cake,
+  UserX,
+  Flame,
 } from 'lucide-react';
 
 interface SubMenuItem {
@@ -93,10 +96,12 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: ChefHat, label: 'Engenharia Cardápio', href: '/estrategico/cardapio', permission: 'gestao' },
       { icon: Layers, label: 'Combos que Convertem', href: '/estrategico/combos', permission: 'gestao' },
       { icon: Trophy, label: 'Performance Garçom', href: '/estrategico/garcons', permission: 'gestao' },
+      { icon: Flame, label: 'Mapa de Calor Vendas', href: '/estrategico/heatmap-vendas', permission: 'gestao' },
       { icon: Compass, label: 'Previsão Demanda', href: '/estrategico/previsao', permission: 'gestao' },
       { icon: FileText, label: 'Relatório Semanal IA', href: '/estrategico/relatorio-semanal', permission: 'gestao' },
       { icon: ShieldAlert, label: 'Integridade', href: '/estrategico/integridade', permission: 'gestao' },
       { icon: Wallet, label: 'Fluxo de Caixa 90d', href: '/financeiro/fluxo-caixa-90d', permission: 'gestao' },
+      { icon: Wallet, label: 'Conciliação Pagamentos', href: '/financeiro/conciliacao-pagamentos', permission: 'gestao' },
     ],
   },
   {
