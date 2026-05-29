@@ -141,7 +141,6 @@ export default function AssistenteZykorPage() {
             onChange={e => setTexto(e.target.value)}
             placeholder="Pergunta o que quiser..."
             disabled={enviando}
-            autoFocus
           />
           <Button type="submit" disabled={enviando || !texto.trim()}>
             <Send className="w-4 h-4" />

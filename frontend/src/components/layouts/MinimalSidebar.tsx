@@ -46,6 +46,8 @@ import {
   Bot,
   Compass,
   Heart,
+  FileText,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface SubMenuItem {
@@ -90,6 +92,9 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: Award, label: 'Quality Scorecard', href: '/estrategico/qualidade', permission: 'gestao' },
       { icon: ChefHat, label: 'Engenharia Cardápio', href: '/estrategico/cardapio', permission: 'gestao' },
       { icon: Compass, label: 'Previsão Demanda', href: '/estrategico/previsao', permission: 'gestao' },
+      { icon: FileText, label: 'Relatório Semanal IA', href: '/estrategico/relatorio-semanal', permission: 'gestao' },
+      { icon: ShieldAlert, label: 'Integridade', href: '/estrategico/integridade', permission: 'gestao' },
+      { icon: Wallet, label: 'Fluxo de Caixa 90d', href: '/financeiro/fluxo-caixa-90d', permission: 'gestao' },
     ],
   },
   {
@@ -99,6 +104,7 @@ const defaultSidebarItems: SidebarItem[] = [
     permission: 'relatorios',
     subItems: [
       { icon: Crown, label: 'Clube Ordi', href: '/crm/clube', permission: 'relatorios' },
+      { icon: Megaphone, label: 'Campanhas Clube', href: '/crm/clube/campanhas', permission: 'relatorios' },
     ],
   },
   {
