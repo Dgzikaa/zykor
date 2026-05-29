@@ -5,6 +5,7 @@ import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import Link from 'next/link';
 import {
   Instagram,
   Users,
@@ -16,6 +17,8 @@ import {
   PlayCircle,
   Image as ImageIcon,
   Layers,
+  AtSign,
+  LayoutDashboard,
 } from 'lucide-react';
 import {
   LineChart,
@@ -175,6 +178,13 @@ export default function InstagramDashboardPage() {
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+      {/* NAV */}
+      <nav className="flex items-center gap-1 border-b">
+        <NavLink href="/ferramentas/instagram" icone={<LayoutDashboard className="w-4 h-4" />} ativo>Dashboard</NavLink>
+        <NavLink href="/ferramentas/instagram/demografia" icone={<Users className="w-4 h-4" />}>Demografia</NavLink>
+        <NavLink href="/ferramentas/instagram/mencoes" icone={<AtSign className="w-4 h-4" />}>Menções</NavLink>
+      </nav>
+
       {/* HEADER PERFIL */}
       <Card className="p-6">
         <div className="flex items-start gap-6">
@@ -324,7 +334,10 @@ export default function InstagramDashboardPage() {
                   <tr key={post.ig_media_id} className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-900/30">
                     <td className="py-3 text-gray-400">{idx + 1}</td>
                     <td className="py-3 max-w-md">
-                      <div className="flex items-center gap-3">
+                      <Link
+                        href={`/ferramentas/instagram/posts/${post.ig_media_id}`}
+                        className="flex items-center gap-3 group"
+                      >
                         {(post.thumbnail_url || post.media_url) && (
                           <img
                             src={post.thumbnail_url || post.media_url}
@@ -332,10 +345,10 @@ export default function InstagramDashboardPage() {
                             className="w-12 h-12 rounded object-cover flex-shrink-0"
                           />
                         )}
-                        <p className="line-clamp-2 text-xs text-gray-700 dark:text-gray-300">
+                        <p className="line-clamp-2 text-xs text-gray-700 dark:text-gray-300 group-hover:text-pink-600 transition-colors">
                           {post.caption || <span className="text-gray-400 italic">sem legenda</span>}
                         </p>
-                      </div>
+                      </Link>
                     </td>
                     <td className="py-3">
                       <span className="inline-flex items-center gap-1 text-xs text-gray-600">
@@ -383,6 +396,32 @@ export default function InstagramDashboardPage() {
         </Card>
       )}
     </main>
+  );
+}
+
+function NavLink({
+  href,
+  icone,
+  children,
+  ativo,
+}: {
+  href: string;
+  icone: React.ReactNode;
+  children: React.ReactNode;
+  ativo?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+        ativo
+          ? 'border-pink-600 text-pink-600'
+          : 'border-transparent text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
+      }`}
+    >
+      {icone}
+      {children}
+    </Link>
   );
 }
 
