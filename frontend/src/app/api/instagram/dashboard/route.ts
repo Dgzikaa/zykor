@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       .schema('integrations')
       .from('instagram_conta_metricas')
       .select(
-        'data_snapshot, followers_count, follows_count, media_count, reach, profile_views, website_clicks, online_followers',
+        'data_snapshot, followers_count, follows_count, media_count, reach, impressions, profile_views, website_clicks, profile_links_taps, accounts_engaged, total_interactions, online_followers, reach_breakdown, audience_city, audience_country, audience_gender_age, engaged_audience',
       )
       .eq('bar_id', barId)
       .gte('data_snapshot', desde30)
@@ -178,11 +178,22 @@ export async function GET(req: NextRequest) {
       },
       hoje: {
         reach: ultimoSnap?.reach ?? null,
+        impressions: ultimoSnap?.impressions ?? null,
         profile_views: ultimoSnap?.profile_views ?? null,
         website_clicks: ultimoSnap?.website_clicks ?? null,
+        profile_links_taps: ultimoSnap?.profile_links_taps ?? null,
+        accounts_engaged: ultimoSnap?.accounts_engaged ?? null,
+        total_interactions: ultimoSnap?.total_interactions ?? null,
         followers_diff: (ultimoSnap?.followers_count ?? 0) - (penultimoSnap?.followers_count ?? 0),
         data: ultimoSnap?.data_snapshot ?? null,
       },
+      demografia: {
+        audience_city: ultimoSnap?.audience_city ?? null,
+        audience_country: ultimoSnap?.audience_country ?? null,
+        audience_gender_age: ultimoSnap?.audience_gender_age ?? null,
+        engaged_audience: ultimoSnap?.engaged_audience ?? null,
+      },
+      reach_breakdown: ultimoSnap?.reach_breakdown ?? null,
       ultimos_7_dias: soma7,
       evolucao_followers: evolucaoFollowers,
       online_followers_heatmap: onlineFollowers,

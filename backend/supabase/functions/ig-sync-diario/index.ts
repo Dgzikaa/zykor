@@ -141,9 +141,6 @@ async function syncBar(
     }
 
     // 2b) Metrics que mudaram pra metric_type=total_value na v22.
-    //     profile_views, website_clicks, accounts_engaged, total_interactions,
-    //     views (substitui impressions), follower_count, profile_links_taps
-    //     (novo: toques em endereco/ligar/email/sms).
     try {
       const metricsTotal = [
         'profile_views',
@@ -168,6 +165,69 @@ async function syncBar(
       console.warn(`[ig-sync] insights total_value falhou bar ${barId}:`, e);
     }
 
+    // 2c) Reach breakdown por media_product_type (POST, REEL, STORY, AD, ...)
+    let reachBreakdown: Record<string, number> | null = null;
+    try {
+      const r = await fetch(
+        `${IG_GRAPH}/me/insights?metric=reach&period=day&metric_type=total_value&breakdown=media_product_type&access_token=${token}`,
+      );
+      if (r.ok) {
+        const j = await r.json();
+        const bds = j.data?.[0]?.total_value?.breakdowns?.[0]?.results || [];
+        reachBreakdown = {};
+        for (const it of bds) {
+          const key = it.dimension_values?.[0];
+          if (key) reachBreakdown[key] = Number(it.value) || 0;
+        }
+      }
+    } catch (e) {
+      console.warn(`[ig-sync] reach breakdown falhou bar ${barId}:`, e);
+    }
+
+    // 2d) Follower demographics (lifetime, breakdowns separados)
+    //
+    // Helper: chama lifetime com um breakdown e retorna { dimVal: count }
+    async function fetchDemographics(metricName: string, breakdown: string): Promise<Record<string, number> | null> {
+      try {
+        const r = await fetch(
+          `${IG_GRAPH}/me/insights?metric=${metricName}&period=lifetime&metric_type=total_value&breakdown=${breakdown}&access_token=${token}`,
+        );
+        if (!r.ok) return null;
+        const j = await r.json();
+        const bds = j.data?.[0]?.total_value?.breakdowns?.[0]?.results || [];
+        const out: Record<string, number> = {};
+        for (const it of bds) {
+          const key = it.dimension_values?.[0];
+          if (key) out[key] = Number(it.value) || 0;
+        }
+        return out;
+      } catch {
+        return null;
+      }
+    }
+
+    const followerCity   = await fetchDemographics('follower_demographics', 'city');
+    const followerCountry = await fetchDemographics('follower_demographics', 'country');
+    const followerAge    = await fetchDemographics('follower_demographics', 'age');
+    const followerGender = await fetchDemographics('follower_demographics', 'gender');
+
+    const engagedCity    = await fetchDemographics('engaged_audience_demographics', 'city');
+    const engagedCountry = await fetchDemographics('engaged_audience_demographics', 'country');
+    const engagedAge     = await fetchDemographics('engaged_audience_demographics', 'age');
+    const engagedGender  = await fetchDemographics('engaged_audience_demographics', 'gender');
+
+    const audienceGenderAge = (followerGender || followerAge)
+      ? { gender: followerGender ?? {}, age: followerAge ?? {} }
+      : null;
+    const engagedAudience = (engagedGender || engagedAge || engagedCity || engagedCountry)
+      ? {
+          gender: engagedGender ?? {},
+          age: engagedAge ?? {},
+          city: engagedCity ?? {},
+          country: engagedCountry ?? {},
+        }
+      : null;
+
     // online_followers (heatmap por hora) — endpoint separado
     let onlineFollowers: any = null;
     try {
@@ -180,20 +240,31 @@ async function syncBar(
       }
     } catch { /* nao critico */ }
 
-    // Upsert conta_metricas (v22: views substitui impressions; total_interactions
-    // e accounts_engaged ficam em raw_data por enquanto — features F2 podem
-    // adicionar colunas tipadas).
+    // Upsert conta_metricas com tudo (account metrics + demographics + breakdowns)
     const metricasRow: Record<string, any> = {
       bar_id: barId,
       data_snapshot: ontem,
       followers_count: perfil.followers_count ?? null,
       follows_count: perfil.follows_count ?? null,
       media_count: perfil.media_count ?? null,
+      // account metrics (v22)
       reach: insightsData.reach ?? null,
-      impressions: insightsData.views ?? null,  // v22: views eh o novo impressions
+      impressions: insightsData.views ?? null,  // views eh o novo impressions
       profile_views: insightsData.profile_views ?? null,
       website_clicks: insightsData.website_clicks ?? null,
+      profile_links_taps: insightsData.profile_links_taps ?? null,
+      accounts_engaged: insightsData.accounts_engaged ?? null,
+      total_interactions: insightsData.total_interactions ?? null,
+      // heatmap online_followers por hora
       online_followers: onlineFollowers ? JSON.stringify(onlineFollowers) : null,
+      // reach by media_product_type (POST/REEL/STORY/AD/CAROUSEL_CONTAINER)
+      reach_breakdown: reachBreakdown,
+      // follower demographics
+      audience_city: followerCity,
+      audience_country: followerCountry,
+      audience_gender_age: audienceGenderAge,
+      // engaged audience (subset que realmente interage)
+      engaged_audience: engagedAudience,
       raw_data: { perfil, insights: insightsData },
       capturado_em: new Date().toISOString(),
     };
