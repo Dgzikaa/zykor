@@ -112,6 +112,7 @@ const defaultSidebarItems: SidebarItem[] = [
     subItems: [
       { icon: Zap, label: 'Insights Estratégicos', href: '/ferramentas/insights', permission: 'gestao' },
       { icon: BarChart3, label: 'Análises Avançadas', href: '/ferramentas/analises', permission: 'gestao' },
+      { icon: Wallet, label: 'Financeiro', href: '/ferramentas/financeiro', permission: 'gestao' },
       { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
       { icon: TrendingUp, label: 'Gestão CMV', href: '/ferramentas/cmv-semanal', permission: 'gestao' },
       { icon: Tag, label: 'Classificação de Consumos', href: '/ferramentas/consumos-classificacao', permission: 'gestao' },
@@ -119,7 +120,6 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
       { icon: Instagram, label: 'Instagram', href: '/ferramentas/instagram', permission: 'gestao' },
       { icon: Bot, label: 'Zykor Assistant', href: '/ferramentas/assistente-zykor', permission: 'gestao' },
-      { icon: CheckSquare, label: 'Checklist Validação', href: '/checklist-validacao', permission: 'gestao' },
     ],
   },
   {
@@ -134,6 +134,7 @@ const defaultSidebarItems: SidebarItem[] = [
       // Auditoria removida — libs deletadas
       { icon: Activity, label: 'Saúde dos Dados', href: '/configuracoes/saude-dados', permission: 'configuracoes' },
       { icon: Activity, label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },
+      { icon: CheckSquare, label: 'Checklist Validação', href: '/checklist-validacao', permission: 'configuracoes' },
     ],
   },
 ];

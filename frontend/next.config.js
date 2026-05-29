@@ -18,8 +18,10 @@ const nextConfig = {
       { source: '/estrategico/previsao',             destination: '/ferramentas/analises/previsao',      permanent: true },
       { source: '/estrategico/integridade',          destination: '/ferramentas/analises/integridade',   permanent: true },
       { source: '/estrategico/relatorio-semanal',    destination: '/ferramentas/analises/relatorio-ia',  permanent: true },
-      { source: '/financeiro/fluxo-caixa-90d',       destination: '/ferramentas/analises/fluxo-caixa',   permanent: true },
-      { source: '/financeiro/conciliacao-pagamentos',destination: '/ferramentas/analises/conciliacao',   permanent: true },
+      { source: '/financeiro/fluxo-caixa-90d',       destination: '/ferramentas/financeiro/fluxo-caixa', permanent: true },
+      { source: '/financeiro/conciliacao-pagamentos',destination: '/ferramentas/financeiro/conciliacao', permanent: true },
+      { source: '/ferramentas/analises/fluxo-caixa', destination: '/ferramentas/financeiro/fluxo-caixa', permanent: true },
+      { source: '/ferramentas/analises/conciliacao', destination: '/ferramentas/financeiro/conciliacao', permanent: true },
     ];
   },
   

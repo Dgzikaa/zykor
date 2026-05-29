@@ -3,22 +3,24 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Award, ChefHat, Layers, Trophy, Flame, Compass,
-  ShieldAlert, FileText,
+  Receipt, FileText, Wallet, CreditCard, TrendingDown,
+  Calculator, Target, Tag, Building2, Activity,
 } from 'lucide-react';
 
 const TABS = [
-  { href: '/ferramentas/analises/quality', label: 'Quality Score', icone: Award },
-  { href: '/ferramentas/analises/cardapio', label: 'Engenharia Cardápio', icone: ChefHat },
-  { href: '/ferramentas/analises/combos', label: 'Combos', icone: Layers },
-  { href: '/ferramentas/analises/garcons', label: 'Garçons', icone: Trophy },
-  { href: '/ferramentas/analises/heatmap', label: 'Mapa de Calor', icone: Flame },
-  { href: '/ferramentas/analises/previsao', label: 'Previsão', icone: Compass },
-  { href: '/ferramentas/analises/integridade', label: 'Integridade', icone: ShieldAlert },
-  { href: '/ferramentas/analises/relatorio-ia', label: 'Relatório IA', icone: FileText },
+  { href: '/ferramentas/financeiro/lancamentos', label: 'Lançamentos', icone: Receipt },
+  { href: '/ferramentas/financeiro/dre', label: 'DRE', icone: FileText },
+  { href: '/ferramentas/financeiro/fluxo-caixa', label: 'Fluxo Caixa 90d', icone: Wallet },
+  { href: '/ferramentas/financeiro/conciliacao', label: 'Conciliação', icone: CreditCard },
+  { href: '/ferramentas/financeiro/contas', label: 'Contas Pagar/Receber', icone: TrendingDown },
+  { href: '/ferramentas/financeiro/cmv', label: 'CMV', icone: Calculator },
+  { href: '/ferramentas/financeiro/orcamentacao', label: 'Orçamentação', icone: Target },
+  { href: '/ferramentas/financeiro/categorias', label: 'Categorias', icone: Tag },
+  { href: '/ferramentas/financeiro/centros-custo', label: 'Centros Custo', icone: Building2 },
+  { href: '/ferramentas/financeiro/sync', label: 'Saúde Sync', icone: Activity },
 ];
 
-export default function AnalisesLayout({ children }: { children: React.ReactNode }) {
+export default function FinanceiroLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
@@ -33,7 +35,7 @@ export default function AnalisesLayout({ children }: { children: React.ReactNode
                 key={href} href={href}
                 className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
                   ativo
-                    ? 'border-pink-600 text-pink-600'
+                    ? 'border-emerald-600 text-emerald-600'
                     : 'border-transparent text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
                 }`}
               >
