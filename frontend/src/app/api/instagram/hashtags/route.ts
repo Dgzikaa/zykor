@@ -41,9 +41,9 @@ export async function GET(req: NextRequest) {
       const ins = insMap.get(p.ig_media_id) ?? {};
       const reach = ins.reach ?? 0;
       const engaj = (ins.likes ?? 0) + (ins.comments ?? 0) + (ins.shares ?? 0) + (ins.saved ?? 0);
-      const tags = (p.caption || '').match(HASHTAG_RE) || [];
+      const tags = ((p.caption as string) || '').match(HASHTAG_RE) || [];
       const tipo = p.media_product_type === 'REELS' ? 'REEL' : p.media_type === 'CAROUSEL_ALBUM' ? 'CAROUSEL' : p.media_type === 'VIDEO' ? 'VIDEO' : 'IMAGE';
-      const tagsUnicas = new Set(tags.map((t: string) => t.toLowerCase()));
+      const tagsUnicas: Set<string> = new Set((tags as string[]).map((t) => t.toLowerCase()));
       for (const tag of tagsUnicas) {
         const cur = stats.get(tag) ?? { usos: 0, reach_total: 0, engaj_total: 0, tipos: new Set<string>() };
         cur.usos++;
