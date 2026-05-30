@@ -14,7 +14,8 @@
       "mcp__claude_ai_Vercel__get_runtime_logs",
       "mcp__claude_ai_Supabase__list_edge_functions",
       "mcp__claude_ai_Supabase__list_tables",
-      "mcp__claude_ai_Supabase__get_advisors"
+      "mcp__claude_ai_Supabase__get_advisors",
+      "mcp__claude_ai_Google_Drive__search_files"
     ]
   },
   "mcpServers": {
