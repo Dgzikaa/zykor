@@ -248,7 +248,11 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
         </TabsList>
       </div>
 
-      <TabsContent value="orcamento" className="flex-1 flex flex-col overflow-hidden mt-0">
+      {/* BUGFIX 2026-05-29: data-[state=active]:flex evita display:flex vazar
+          pra estado inativo (Tailwind 'flex flex-col' overridava o atributo
+          hidden do Radix e a aba Orcamentacao continuava ocupando ~50% da
+          altura mesmo quando o usuario clicava em DRE Manual / BP / Historico) */}
+      <TabsContent value="orcamento" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex data-[state=active]:flex-col">
       <div className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div className="max-w-full mx-auto px-4 py-3">
           <div className="flex items-center justify-end mb-3">
