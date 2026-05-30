@@ -3,18 +3,17 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Receipt, FileText, Wallet, CreditCard, TrendingDown,
+  Receipt, Wallet, CreditCard, TrendingDown,
   Calculator, Target, Tag, Building2, Activity,
 } from 'lucide-react';
 
 const TABS = [
   { href: '/ferramentas/financeiro/lancamentos', label: 'Lançamentos', icone: Receipt },
-  { href: '/ferramentas/financeiro/dre', label: 'DRE', icone: FileText },
   { href: '/ferramentas/financeiro/fluxo-caixa', label: 'Fluxo Caixa 90d', icone: Wallet },
   { href: '/ferramentas/financeiro/conciliacao', label: 'Conciliação', icone: CreditCard },
   { href: '/ferramentas/financeiro/contas', label: 'Contas Pagar/Receber', icone: TrendingDown },
   { href: '/ferramentas/financeiro/cmv', label: 'CMV', icone: Calculator },
-  { href: '/ferramentas/financeiro/orcamentacao', label: 'Orçamentação', icone: Target },
+  { href: '/ferramentas/financeiro/orcamentacao', label: 'Orçamentação + DRE', icone: Target },
   { href: '/ferramentas/financeiro/categorias', label: 'Categorias', icone: Tag },
   { href: '/ferramentas/financeiro/centros-custo', label: 'Centros Custo', icone: Building2 },
   { href: '/ferramentas/financeiro/sync', label: 'Saúde Sync', icone: Activity },
