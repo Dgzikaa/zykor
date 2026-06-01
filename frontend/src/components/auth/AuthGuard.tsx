@@ -3,6 +3,7 @@
 import { useUser } from '@/contexts/UserContext';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { userHasModule } from '@/lib/permissions/resolver';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -100,21 +101,10 @@ export default function AuthGuard({
 
       // Verificar permissões se necessário
       if (requiredPermissions.length > 0) {
-        const hasRequiredPermissions = requiredPermissions.some(permission => {
-          if (!user.modulos_permitidos) return false;
-
-          // Se modulos_permitidos é um array
-          if (Array.isArray(user.modulos_permitidos)) {
-            return user.modulos_permitidos.includes(permission);
-          }
-
-          // Se modulos_permitidos é um objeto
-          if (typeof user.modulos_permitidos === 'object') {
-            return user.modulos_permitidos[permission] === true;
-          }
-
-          return false;
-        });
+        const hasRequiredPermissions = requiredPermissions.some(permission =>
+          // Resolver único: trata array/objeto + aliases/generics + 'todos'.
+          userHasModule(user.modulos_permitidos, permission)
+        );
 
         if (!hasRequiredPermissions) {
           console.log(

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { userHasModule } from '@/lib/permissions/resolver';
 
 interface UserInfo {
   id: number;
@@ -83,18 +84,8 @@ export function useAuth() {
 
   const hasPermission = (permission: string) => {
     if (!user || !user.modulos_permitidos) return false;
-
-    // Se modulos_permitidos é um array
-    if (Array.isArray(user.modulos_permitidos)) {
-      return user.modulos_permitidos.includes(permission);
-    }
-
-    // Se modulos_permitidos é um objeto
-    if (typeof user.modulos_permitidos === 'object') {
-      return user.modulos_permitidos[permission] === true;
-    }
-
-    return false;
+    // Resolver único: trata array/objeto + aliases/generics + 'todos'.
+    return userHasModule(user.modulos_permitidos, permission);
   };
 
   const hasAnyPermission = (permissions: string[]) => {
