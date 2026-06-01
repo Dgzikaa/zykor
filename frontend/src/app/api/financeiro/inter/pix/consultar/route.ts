@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import https from 'https';
 import { getInterAccessToken } from '@/lib/inter/getAccessToken';
+import { resolveInterCredential } from '@/lib/inter/resolveCredential';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     let credQuery = supabase
       .from('api_credentials')
-      .select('id, client_id, client_secret, configuracoes')
+      .select('id, client_id, empresa_nome, empresa_cnpj, configuracoes')
       .eq('bar_id', barId)
       .in('sistema', ['inter', 'banco_inter'])
       .eq('ativo', true);
@@ -45,24 +46,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credencial Inter não encontrada' }, { status: 404 });
     }
 
-    const contaCorrente = cred.configuracoes?.conta_corrente;
-    const certFile = cred.configuracoes?.cert_file;
-    const keyFile = cred.configuracoes?.key_file;
-    if (!contaCorrente || !certFile || !keyFile) {
+    let resolved;
+    try {
+      resolved = await resolveInterCredential(cred);
+    } catch (e: any) {
+      return NextResponse.json({ error: e?.message || 'Falha ao resolver credencial' }, { status: 400 });
+    }
+    const contaCorrente = resolved.contaCorrente;
+    if (!contaCorrente) {
       return NextResponse.json({ error: 'Credencial incompleta' }, { status: 400 });
     }
-
-    const { data: certBlob } = await supabase.storage.from('inter').download(certFile);
-    const { data: keyBlob } = await supabase.storage.from('inter').download(keyFile);
-    if (!certBlob || !keyBlob) {
-      return NextResponse.json({ error: 'Cert/key não encontrados' }, { status: 400 });
-    }
-    const cert = Buffer.from(await certBlob.arrayBuffer());
-    const key = Buffer.from(await keyBlob.arrayBuffer());
+    const { cert, key } = resolved.mtls;
 
     const token = await getInterAccessToken(
-      cred.client_id,
-      cred.client_secret,
+      resolved.clientId,
+      resolved.clientSecret,
       'pagamento-pix.read pagamento-pix.write',
       { cert, key }
     );

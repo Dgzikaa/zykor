@@ -85,7 +85,8 @@ async function checarCredencialBar(
         };
         temRefreshToken = Boolean(row.refresh_token);
         const temAlguma = Boolean(
-          row.api_token || row.api_key || row.access_token || row.client_secret,
+          row.api_token || row.api_key || row.access_token || row.client_secret ||
+          row.configuracoes?.enc, // credenciais no formato envelope (cifrado)
         );
         const desativada = row.ativo === false;
         if (desativada) statusCredencial = 'desativada';

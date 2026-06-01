@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getInterAccessToken } from '@/lib/inter/getAccessToken';
-import { getInterCredentials } from '@/lib/api-credentials';
+import { resolveInterCredential } from '@/lib/inter/resolveCredential';
 
 export const dynamic = 'force-dynamic'
 
@@ -21,9 +21,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Obter credenciais do Inter
-    const credentials = await getInterCredentials(bar_id.toString());
-    if (!credentials) {
+    // Obter credenciais do Inter (linha) e resolver (envelope, server-side)
+    const { data: credRow } = await supabase
+      .from('api_credentials')
+      .select('id, client_id, empresa_nome, empresa_cnpj, configuracoes')
+      .eq('bar_id', bar_id)
+      .in('sistema', ['inter', 'banco_inter'])
+      .eq('ativo', true)
+      .order('id', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (!credRow) {
       return NextResponse.json({
         error: 'Credenciais do Inter não encontradas',
         webhook: {
@@ -34,10 +43,22 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    let resolved;
+    try {
+      resolved = await resolveInterCredential(credRow);
+    } catch (e: any) {
+      return NextResponse.json({
+        error: e?.message || 'Falha ao resolver credencial',
+        webhook: { url: '', status: 'error', events: [] },
+      });
+    }
+
     // Obter token de acesso
     const accessToken = await getInterAccessToken(
-      credentials.client_id,
-      credentials.client_secret
+      resolved.clientId,
+      resolved.clientSecret,
+      'webhook.read webhook.write',
+      resolved.mtls
     );
     if (!accessToken) {
       return NextResponse.json({

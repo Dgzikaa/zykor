@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import https from 'https';
 import crypto from 'crypto';
 import { getInterAccessToken } from '@/lib/inter/getAccessToken';
+import { resolveInterCredential } from '@/lib/inter/resolveCredential';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,46 +29,6 @@ async function getInterCredentials(barId: number, credentialId?: number) {
   const { data, error } = await query;
   if (error || !data?.[0]) return null;
   return data[0];
-}
-
-async function loadMtlSCredentials(configuracoes: any) {
-  const certFile =
-    configuracoes?.cert_file ||
-    configuracoes?.cert_path ||
-    configuracoes?.certificate_file ||
-    null;
-  const keyFile =
-    configuracoes?.key_file ||
-    configuracoes?.key_path ||
-    configuracoes?.private_key_file ||
-    null;
-
-  if (!certFile || !keyFile) {
-    return { certFile, keyFile, cert: null as Buffer | null, key: null as Buffer | null };
-  }
-
-  const { data: certBlob, error: certError } = await supabase.storage.from('inter').download(certFile);
-  const { data: keyBlob, error: keyError } = await supabase.storage.from('inter').download(keyFile);
-
-  if (certError || keyError || !certBlob || !keyBlob) {
-    return {
-      certFile,
-      keyFile,
-      cert: null as Buffer | null,
-      key: null as Buffer | null,
-      certError: certError?.message || null,
-      keyError: keyError?.message || null,
-    };
-  }
-
-  return {
-    certFile,
-    keyFile,
-    cert: Buffer.from(await certBlob.arrayBuffer()),
-    key: Buffer.from(await keyBlob.arrayBuffer()),
-    certError: null,
-    keyError: null,
-  };
 }
 
 async function probePixAuth(token: string, contaCorrente: string, cert: Buffer, key: Buffer) {
@@ -127,8 +88,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const contaCorrente = cred.configuracoes?.conta_corrente || null;
-    const mtls = await loadMtlSCredentials(cred.configuracoes);
+    let resolved;
+    let resolveError: string | null = null;
+    try {
+      resolved = await resolveInterCredential(cred);
+    } catch (e: any) {
+      resolveError = e?.message || 'Falha ao resolver credencial';
+    }
+    const contaCorrente = resolved?.contaCorrente || null;
 
     const report: any = {
       credencial: {
@@ -138,24 +105,18 @@ export async function POST(request: NextRequest) {
         bar_id: cred.bar_id,
         conta_corrente: contaCorrente,
         client_id_tail: cred.client_id ? String(cred.client_id).slice(-8) : null,
-        client_secret_present: !!cred.client_secret,
-        cert_file: mtls.certFile || null,
-        key_file: mtls.keyFile || null,
+        formato: cred.configuracoes?.enc ? 'envelope (cifrado)' : 'não-cifrado/indefinido',
       },
       checks: {
         has_client_id: !!cred.client_id,
-        has_client_secret: !!cred.client_secret,
+        is_envelope: !!cred.configuracoes?.enc,
+        resolved_ok: !!resolved,
         has_conta_corrente: !!contaCorrente,
-        has_cert_file: !!mtls.certFile,
-        has_key_file: !!mtls.keyFile,
-        cert_download_ok: !!mtls.cert,
-        key_download_ok: !!mtls.key,
-        cert_size_bytes: mtls.cert?.length || 0,
-        key_size_bytes: mtls.key?.length || 0,
+        cert_size_bytes: resolved?.mtls.cert?.length || 0,
+        key_size_bytes: resolved?.mtls.key?.length || 0,
       },
       errors: {
-        cert_download_error: mtls.certError || null,
-        key_download_error: mtls.keyError || null,
+        resolve_error: resolveError,
       },
       token: {
         success: false,
@@ -170,24 +131,25 @@ export async function POST(request: NextRequest) {
       diagnosis: '',
     };
 
-    if (!cred.client_id || !cred.client_secret || !contaCorrente || !mtls.cert || !mtls.key) {
+    if (!resolved || !contaCorrente) {
       report.diagnosis =
-        'Credencial incompleta: falta client_id/client_secret/conta_corrente/certificado/chave.';
+        resolveError ||
+        'Credencial incompleta: precisa estar no formato envelope (client_secret/cert/key cifrados) + conta_corrente.';
       return NextResponse.json({ success: true, report });
     }
 
     try {
       const token = await getInterAccessToken(
-        cred.client_id,
-        cred.client_secret,
+        resolved.clientId,
+        resolved.clientSecret,
         'pagamento-pix.write',
-        { cert: mtls.cert, key: mtls.key }
+        resolved.mtls
       );
       report.token.success = true;
       report.token.token_tail = token.slice(-8);
 
       report.pix_probe.attempted = true;
-      const probe = await probePixAuth(token, contaCorrente, mtls.cert, mtls.key);
+      const probe = await probePixAuth(token, contaCorrente, resolved.mtls.cert, resolved.mtls.key);
       report.pix_probe.status_code = probe.statusCode;
       report.pix_probe.body = probe.body;
 

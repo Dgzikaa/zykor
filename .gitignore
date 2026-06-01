@@ -54,6 +54,9 @@ credentials_deboche_ordinario.json
 **/google-service-account.json
 google-service-account.json
 exemplo_teste/
+# Inputs de cadastro de credencial cifrada (texto puro temporário — DELETE após rodar)
+scripts/*.local.json
+credenciais-inter.local.json
 
 # --- Vercel / Supabase ---
 .vercel

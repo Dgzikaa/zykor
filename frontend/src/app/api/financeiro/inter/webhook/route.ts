@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import https from 'https';
-import { getInterCertificates } from '@/lib/inter/certificates';
+import { getInterAccessToken } from '@/lib/inter/getAccessToken';
+import { resolveInterCredential } from '@/lib/inter/resolveCredential';
 import { getSupabaseFunctionUrl } from '@/lib/supabase-functions-url';
+
+type Mtls = { cert: Buffer; key: Buffer };
 
 export const dynamic = 'force-dynamic';
 
@@ -33,62 +36,15 @@ async function getInterCredentials(barId: number) {
   return credencial;
 }
 
-// Função para obter token OAuth com mTLS
-async function getAccessToken(clientId: string, clientSecret: string): Promise<string> {
-  const { cert, key } = getInterCertificates();
-
-  const data = new URLSearchParams({
-    grant_type: 'client_credentials',
-    client_id: clientId,
-    client_secret: clientSecret,
-    scope: 'webhook.write',
-  }).toString();
-
-  const options = {
-    hostname: 'cdpj.partners.bancointer.com.br',
-    port: 443,
-    path: '/oauth/v2/token',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Content-Length': Buffer.byteLength(data),
-    },
-    cert: cert,
-    key: key,
-  };
-
-  return new Promise<string>((resolve, reject) => {
-    const request = https.request(options, response => {
-      let body = '';
-      response.on('data', chunk => (body += chunk));
-      response.on('end', () => {
-        try {
-          const parsed = JSON.parse(body);
-          if (parsed.access_token) {
-            resolve(parsed.access_token);
-          } else {
-            reject(new Error(`Token não encontrado: ${body}`));
-          }
-        } catch (error) {
-          reject(new Error(`Erro ao parsear resposta: ${body}`));
-        }
-      });
-    });
-
-    request.on('error', error => reject(error));
-    request.write(data);
-    request.end();
-  });
-}
-
 // Função para registrar webhook no Inter
 async function registrarWebhook(
-  accessToken: string, 
-  chavePix: string, 
+  accessToken: string,
+  chavePix: string,
   webhookUrl: string,
+  mtls: Mtls,
   contaCorrente?: string
 ): Promise<{ success: boolean; error?: string }> {
-  const { cert, key } = getInterCertificates();
+  const { cert, key } = mtls;
 
   const body = JSON.stringify({ webhookUrl });
 
@@ -145,11 +101,12 @@ async function registrarWebhook(
 
 // Função para consultar webhook cadastrado
 async function consultarWebhook(
-  accessToken: string, 
+  accessToken: string,
   chavePix: string,
+  mtls: Mtls,
   contaCorrente?: string
 ): Promise<{ success: boolean; data?: any; error?: string }> {
-  const { cert, key } = getInterCertificates();
+  const { cert, key } = mtls;
 
   const headers: Record<string, string> = {
     'Authorization': `Bearer ${accessToken}`,
@@ -230,25 +187,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const clientId = credenciais.client_id;
-    const clientSecret = credenciais.client_secret;
-    const contaCorrente = credenciais.configuracoes?.conta_corrente;
-
-    if (!clientId || !clientSecret) {
-      return NextResponse.json(
-        { success: false, error: 'Credenciais Inter incompletas' },
-        { status: 400 }
-      );
+    let resolved;
+    try {
+      resolved = await resolveInterCredential(credenciais);
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: e?.message || 'Falha ao resolver credencial' }, { status: 400 });
     }
+    const contaCorrente = resolved.contaCorrente;
 
     // 1. Obter token com scope webhook.write
-    const accessToken = await getAccessToken(clientId, clientSecret);
+    const accessToken = await getInterAccessToken(
+      resolved.clientId,
+      resolved.clientSecret,
+      'webhook.write',
+      resolved.mtls
+    );
 
     // 2. Registrar webhook
     const resultado = await registrarWebhook(
       accessToken,
       chave_pix,
       WEBHOOK_URL,
+      resolved.mtls,
       contaCorrente
     );
 
@@ -328,12 +288,21 @@ export async function GET(request: NextRequest) {
     }
 
     // Se passou chave_pix, consultar no Inter
-    const clientId = credenciais.client_id;
-    const clientSecret = credenciais.client_secret;
-    const contaCorrente = credenciais.configuracoes?.conta_corrente;
+    let resolved;
+    try {
+      resolved = await resolveInterCredential(credenciais);
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: e?.message || 'Falha ao resolver credencial' }, { status: 400 });
+    }
+    const contaCorrente = resolved.contaCorrente;
 
-    const accessToken = await getAccessToken(clientId, clientSecret);
-    const resultado = await consultarWebhook(accessToken, chavePix, contaCorrente);
+    const accessToken = await getInterAccessToken(
+      resolved.clientId,
+      resolved.clientSecret,
+      'webhook.read webhook.write',
+      resolved.mtls
+    );
+    const resultado = await consultarWebhook(accessToken, chavePix, resolved.mtls, contaCorrente);
 
     return NextResponse.json({
       success: resultado.success,
@@ -373,13 +342,22 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { cert, key } = getInterCertificates();
-    const clientId = credenciais.client_id;
-    const clientSecret = credenciais.client_secret;
-    const contaCorrente = credenciais.configuracoes?.conta_corrente;
+    let resolved;
+    try {
+      resolved = await resolveInterCredential(credenciais);
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: e?.message || 'Falha ao resolver credencial' }, { status: 400 });
+    }
+    const { cert, key } = resolved.mtls;
+    const contaCorrente = resolved.contaCorrente;
 
     // Obter token
-    const accessToken = await getAccessToken(clientId, clientSecret);
+    const accessToken = await getInterAccessToken(
+      resolved.clientId,
+      resolved.clientSecret,
+      'webhook.write',
+      resolved.mtls
+    );
 
     // Deletar webhook
     const headers: Record<string, string> = {

@@ -168,63 +168,32 @@ export default function WebhooksPage() {
     setAuthResult(null);
 
     try {
-      console.log('🔐 Testando autenticação do Inter...');
-
-      // Primeiro, buscar as credenciais do Inter
-      const credenciaisResponse = await fetch(
-        `/api/configuracoes/credenciais/inter?bar_id=${selectedBar?.id}`
-      );
-      const credenciaisData = await credenciaisResponse.json();
-
-      if (!credenciaisData.success || !credenciaisData.data) {
-        throw new Error('Credenciais do Inter não encontradas');
-      }
-
-      const credenciais = credenciaisData.data;
-      console.log('✅ Credenciais encontradas:', {
-        client_id: credenciais.client_id,
-        client_secret: credenciais.client_secret ? '***' : 'não encontrado',
-      });
-
-      // Agora testar a autenticação com as credenciais
-      const response = await fetch('/api/configuracoes/webhooks/inter-auth', {
+      // Tudo server-side: o navegador NUNCA recebe client_secret nem cert.
+      // debug-auth resolve a credencial cifrada, obtém o token e faz uma prova no Banking.
+      const response = await fetch('/api/financeiro/inter/debug-auth', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          bar_id: '3',
-          client_id: credenciais.client_id,
-          client_secret: credenciais.client_secret,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: String(selectedBar?.id || '') }),
       });
+      const data = await response.json();
+      const report = data?.report;
+      const ok = !!report?.token?.success;
 
-      const data: InterAuthResponse = await response.json();
-      setAuthResult(data);
-
-      if (data.access_token) {
+      if (ok) {
+        // sentinela só pra liberar o passo de configurar webhook (o token real fica no servidor)
+        setAuthResult({ access_token: 'verificado-no-servidor', token_type: 'Bearer' } as InterAuthResponse);
         toast({
           title: 'Autenticação bem-sucedida!',
-          description: `Token obtido: ${data.access_token.substring(0, 20)}...`,
+          description: report?.diagnosis || 'Token obtido com sucesso (server-side).',
         });
-        console.log('✅ Token do Inter:', {
-          access_token: data.access_token.substring(0, 20) + '...',
-          expires_in: data.expires_in,
-          token_type: data.token_type,
-        });
-      } else if (data.error) {
-        toast({
-          title: 'Erro na autenticação',
-          description: data.error,
-          variant: 'destructive',
-        });
-      } else if (data.raw) {
-        toast({
-          title: 'Resposta inesperada',
-          description: 'Verifique os logs para mais detalhes',
-          variant: 'destructive',
-        });
-        console.log('📄 Resposta raw:', data.raw);
+      } else {
+        const erro =
+          report?.token?.error ||
+          report?.errors?.resolve_error ||
+          report?.diagnosis ||
+          'Falha na autenticação';
+        setAuthResult({ error: erro } as InterAuthResponse);
+        toast({ title: 'Erro na autenticação', description: erro, variant: 'destructive' });
       }
     } catch (error) {
       console.error('❌ Erro ao testar autenticação:', error);

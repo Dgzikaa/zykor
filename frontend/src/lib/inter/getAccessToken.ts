@@ -40,12 +40,8 @@ export async function getInterAccessToken(
     scope: scope,
   }).toString();
 
-  console.log('🔐 Dados OAuth2:', {
-    grant_type: 'client_credentials',
-    client_id: clientId,
-    client_secret: clientSecret.substring(0, 8) + '...',
-    scope: scope,
-  });
+  // NOTA: nunca logar client_secret nem o access_token (vai pro Vercel/Sentry).
+  console.log('🔐 OAuth2 Inter:', { grant_type: 'client_credentials', scope });
 
   // Configurar requisição HTTPS com mTLS (produção)
   const options = {
@@ -64,24 +60,16 @@ export async function getInterAccessToken(
   // Fazer requisição HTTPS
   const token = await new Promise<string>((resolve, reject) => {
     const request = https.request(options, response => {
-      console.log('📡 Status da resposta:', response.statusCode);
-      console.log('📡 Headers da resposta:', response.headers);
+      console.log('📡 Status da resposta token:', response.statusCode);
 
       let body = '';
       response.on('data', chunk => (body += chunk));
       response.on('end', () => {
-        console.log('📡 Corpo da resposta:', body);
-
         try {
           const parsed = JSON.parse(body);
-          console.log('🔐 Resposta completa do token:', parsed);
           if (parsed.access_token) {
-            console.log(
-              '🔐 Token obtido com sucesso:',
-              parsed.access_token.substring(0, 20) + '...'
-            );
-            console.log('🔐 Scope do token:', parsed.scope);
-            console.log('🔐 Expira em:', parsed.expires_in, 'segundos');
+            // Não logar o token; só metadados não-sensíveis.
+            console.log('🔐 Token obtido. Scope:', parsed.scope, 'expira_em:', parsed.expires_in);
 
             // Cache do token por credencial + escopo
             tokenCache.set(cacheKey, {

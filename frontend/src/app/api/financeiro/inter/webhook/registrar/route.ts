@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import https from 'https';
 import { getInterAccessToken } from '@/lib/inter/getAccessToken';
+import { resolveInterCredential } from '@/lib/inter/resolveCredential';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,18 +39,6 @@ function getSupabaseAdmin() {
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-}
-
-async function loadCert(supabase: any, configuracoes: any): Promise<{ cert: Buffer; key: Buffer } | null> {
-  const certFile = configuracoes?.cert_file || configuracoes?.certificate_file;
-  const keyFile = configuracoes?.key_file || configuracoes?.private_key_file;
-  if (!certFile || !keyFile) return null;
-  const { data: certBlob } = await supabase.storage.from('inter').download(certFile);
-  const { data: keyBlob } = await supabase.storage.from('inter').download(keyFile);
-  if (!certBlob || !keyBlob) return null;
-  const cert = Buffer.from(await certBlob.arrayBuffer());
-  const key = Buffer.from(await keyBlob.arrayBuffer());
-  return { cert, key };
 }
 
 async function chamarInter(
@@ -106,7 +95,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { data: cred, error } = await supabase
       .from('api_credentials')
-      .select('id, client_id, client_secret, configuracoes')
+      .select('id, client_id, empresa_nome, empresa_cnpj, configuracoes')
       .eq('id', credId)
       .eq('bar_id', barId)
       .in('sistema', ['inter', 'banco_inter'])
@@ -115,19 +104,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Credencial Inter não encontrada' }, { status: 404 });
     }
 
-    const contaCorrente = cred.configuracoes?.conta_corrente;
+    let resolved;
+    try {
+      resolved = await resolveInterCredential(cred);
+    } catch (e: any) {
+      return NextResponse.json({ error: e?.message || 'Falha ao resolver credencial' }, { status: 400 });
+    }
+    const contaCorrente = resolved.contaCorrente;
     if (!contaCorrente) {
       return NextResponse.json({ error: 'conta_corrente não configurada' }, { status: 400 });
     }
-
-    const mtls = await loadCert(supabase, cred.configuracoes);
-    if (!mtls) {
-      return NextResponse.json({ error: 'Certificados mTLS não encontrados no Storage' }, { status: 400 });
-    }
+    const mtls = resolved.mtls;
 
     const token = await getInterAccessToken(
-      cred.client_id,
-      cred.client_secret,
+      resolved.clientId,
+      resolved.clientSecret,
       'pagamento-pix.write pagamento-pix.read webhook-banking.write webhook-banking.read',
       mtls
     );
@@ -206,21 +197,27 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { data: cred } = await supabase
       .from('api_credentials')
-      .select('id, client_id, client_secret, configuracoes')
+      .select('id, client_id, empresa_nome, empresa_cnpj, configuracoes')
       .eq('id', credId)
       .eq('bar_id', barId)
       .single();
     if (!cred) return NextResponse.json({ error: 'Credencial não encontrada' }, { status: 404 });
 
-    const contaCorrente = cred.configuracoes?.conta_corrente;
-    const mtls = await loadCert(supabase, cred.configuracoes);
-    if (!mtls || !contaCorrente) {
+    let resolved;
+    try {
+      resolved = await resolveInterCredential(cred);
+    } catch (e: any) {
+      return NextResponse.json({ error: e?.message || 'Falha ao resolver credencial' }, { status: 400 });
+    }
+    const contaCorrente = resolved.contaCorrente;
+    const mtls = resolved.mtls;
+    if (!contaCorrente) {
       return NextResponse.json({ error: 'Credencial incompleta' }, { status: 400 });
     }
 
     const token = await getInterAccessToken(
-      cred.client_id,
-      cred.client_secret,
+      resolved.clientId,
+      resolved.clientSecret,
       'pagamento-pix.write pagamento-pix.read webhook-banking.write webhook-banking.read',
       mtls
     );

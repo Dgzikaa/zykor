@@ -5,6 +5,12 @@ certificates/
 *.cer
 *.key
 *.csr
+*.crt
+# Certificados/segredos NUNCA em public/ (é servido na web)
+public/inter/
+public/**/*cert*
+public/**/*key*
+public/**/*credential*
 # Sentry Config File
 .env.sentry-build-plugin
 .env*.local

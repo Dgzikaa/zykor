@@ -1,0 +1,35 @@
+[
+  {
+    "bar_id": 3,
+    "nome": "ORDI BAR - Conta 1",
+    "cnpj": "00000000000000",
+    "client_id": "PREENCHER",
+    "client_secret": "PREENCHER",
+    "conta_corrente": "PREENCHER",
+    "cert_path": "C:/caminho/para/ordi-conta1.crt",
+    "key_path": "C:/caminho/para/ordi-conta1.key",
+    "ambiente": "producao"
+  },
+  {
+    "bar_id": 3,
+    "nome": "ORDI BAR - Conta 2",
+    "cnpj": "00000000000000",
+    "client_id": "PREENCHER",
+    "client_secret": "PREENCHER",
+    "conta_corrente": "PREENCHER",
+    "cert_path": "C:/caminho/para/ordi-conta2.crt",
+    "key_path": "C:/caminho/para/ordi-conta2.key",
+    "ambiente": "producao"
+  },
+  {
+    "bar_id": 4,
+    "nome": "DEBOCHE - Conta BB Inter",
+    "cnpj": "40433371000181",
+    "client_id": "PREENCHER",
+    "client_secret": "PREENCHER",
+    "conta_corrente": "PREENCHER",
+    "cert_path": "C:/caminho/para/deboche.crt",
+    "key_path": "C:/caminho/para/deboche.key",
+    "ambiente": "producao"
+  }
+]

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getInterAccessToken, clearInterTokenCache } from '@/lib/inter/getAccessToken';
 import { realizarPagamentoPixInter } from '@/lib/inter/pixPayment';
+import { resolveInterCredential } from '@/lib/inter/resolveCredential';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,37 +35,6 @@ async function getInterCredentials(barId: number = 3, credentialId?: number) {
   }
 
   return credencial;
-}
-
-async function loadCredentialCertificates(configuracoes: any): Promise<{ cert: Buffer; key: Buffer } | null> {
-  const certFile =
-    configuracoes?.cert_file ||
-    configuracoes?.cert_path ||
-    configuracoes?.certificate_file ||
-    null;
-  const keyFile =
-    configuracoes?.key_file ||
-    configuracoes?.key_path ||
-    configuracoes?.private_key_file ||
-    null;
-
-  if (!certFile || !keyFile) {
-    return null;
-  }
-
-  const { data: certBlob, error: certError } = await supabase.storage.from('inter').download(certFile);
-  if (certError || !certBlob) {
-    throw new Error(`Não foi possível baixar certificado no bucket inter: ${certFile}`);
-  }
-
-  const { data: keyBlob, error: keyError } = await supabase.storage.from('inter').download(keyFile);
-  if (keyError || !keyBlob) {
-    throw new Error(`Não foi possível baixar chave privada no bucket inter: ${keyFile}`);
-  }
-
-  const cert = Buffer.from(await certBlob.arrayBuffer());
-  const key = Buffer.from(await keyBlob.arrayBuffer());
-  return { cert, key };
 }
 
 // Funções de validação de chave PIX
@@ -218,24 +188,24 @@ export async function POST(request: NextRequest) {
     // MODO PRODUÇÃO - Chamada real à API do Inter
     // ============================================================
 
-    // Extrair credenciais
-    const clientId = credenciais.client_id;
-    const clientSecret = credenciais.client_secret;
-    const contaCorrente = credenciais.configuracoes?.conta_corrente;
+    // Resolver credencial (envelope: client_secret + cert/key descriptografados em runtime
+    // com a chave-mestra do Vercel; nada utilizável vem do Supabase)
+    let resolved;
+    try {
+      resolved = await resolveInterCredential(credenciais);
+    } catch (e: any) {
+      return NextResponse.json(
+        { success: false, error: e?.message || 'Falha ao resolver credencial Inter' },
+        { status: 400 }
+      );
+    }
+    const clientId = resolved.clientId;
+    const clientSecret = resolved.clientSecret;
+    const contaCorrente = resolved.contaCorrente;
     const credencialDebug = {
-      credencial_id: credenciais.id,
-      empresa_nome: credenciais.empresa_nome || null,
+      credencial_id: resolved.id,
+      empresa_nome: resolved.empresaNome,
       conta_corrente: contaCorrente || null,
-      cert_file:
-        credenciais.configuracoes?.cert_file ||
-        credenciais.configuracoes?.cert_path ||
-        credenciais.configuracoes?.certificate_file ||
-        null,
-      key_file:
-        credenciais.configuracoes?.key_file ||
-        credenciais.configuracoes?.key_path ||
-        credenciais.configuracoes?.private_key_file ||
-        null,
     };
 
     if (!clientId || !clientSecret || !contaCorrente) {
@@ -246,8 +216,8 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // 1. Obter access_token via OAuth2 com mTLS
-      const mtlsCredentials = await loadCredentialCertificates(credenciais.configuracoes);
+      // 1. Obter access_token via OAuth2 com mTLS (cert/key já descriptografados)
+      const mtlsCredentials = resolved.mtls;
 
       // Se o body tiver force_new_token, limpar cache primeiro
       const forceNewToken = body.force_new_token;

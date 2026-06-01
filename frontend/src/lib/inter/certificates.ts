@@ -53,36 +53,12 @@ export function getInterCertificates(): { cert: Buffer; key: Buffer } {
     return { cert, key };
   }
 
-  // 3. Tentar base64 de public/inter (fallback)
-  const certBase64Path = path.join(
-    process.cwd(),
-    'public',
-    'inter',
-    'cert_base64.txt'
-  );
-  const keyBase64Path = path.join(
-    process.cwd(),
-    'public',
-    'inter',
-    'key_base64.txt'
-  );
-
-  if (fs.existsSync(certBase64Path) && fs.existsSync(keyBase64Path)) {
-    const certBase64 = fs.readFileSync(certBase64Path, 'utf8').trim();
-    const keyBase64 = fs.readFileSync(keyBase64Path, 'utf8').trim();
-
-    const cert = Buffer.from(certBase64, 'base64');
-    const key = Buffer.from(keyBase64, 'base64');
-
-    console.log('📄 Certificado base64 carregado:', cert.length, 'bytes');
-    console.log('🔑 Chave privada base64 carregada:', key.length, 'bytes');
-
-    cachedCert = cert;
-    cachedKey = key;
-    return { cert, key };
-  }
+  // NOTA: o fallback antigo que lia de public/inter/*.txt foi REMOVIDO por segurança
+  // (public/ é servido na web → chave privada mTLS ficava exposta). Os certificados
+  // de produção vêm do bucket privado `inter` (por credencial, via configuracoes.cert_file)
+  // ou de INTER_CERT/INTER_KEY no Vercel. Nunca colocar certificado em public/.
 
   throw new Error(
-    'Certificados mTLS não encontrados. Configure INTER_CERT e INTER_KEY no Vercel (base64).'
+    'Certificados mTLS não encontrados. Configure INTER_CERT e INTER_KEY no Vercel (base64) ou cert_file/key_file na credencial (bucket inter).'
   );
 }
