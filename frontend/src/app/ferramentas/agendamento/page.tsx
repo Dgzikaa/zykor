@@ -521,7 +521,12 @@ export default function AgendamentoPage() {
   };
 
   const handlePagamentoAdicionado = (novo: PagamentoAgendamento) => {
-    setPagamentos(prev => [...prev, novo]);
+    const comAutor: PagamentoAgendamento = {
+      ...novo,
+      criado_por_id: novo.criado_por_id || user?.auth_id,
+      criado_por_nome: novo.criado_por_nome || user?.nome || user?.email || 'Usuário',
+    };
+    setPagamentos(prev => [...prev, comAutor]);
   };
 
   const handleEditar = (id: string) => {

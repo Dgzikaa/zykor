@@ -219,6 +219,8 @@ export function PagamentosList({
             <TableHead>Categoria</TableHead>
             <TableHead>Centro de custo</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead className="whitespace-nowrap">Criado em</TableHead>
+            <TableHead>Criado por</TableHead>
             <TableHead className="text-right w-[1%] whitespace-nowrap">
               Ações
             </TableHead>
@@ -279,6 +281,20 @@ export function PagamentosList({
                       </span>
                     )}
                   </div>
+                </TableCell>
+                <TableCell className="text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">
+                  {pagamento.created_at
+                    ? new Date(pagamento.created_at).toLocaleString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '—'}
+                </TableCell>
+                <TableCell className="text-gray-700 dark:text-gray-300 text-xs max-w-[140px]">
+                  <span className="line-clamp-2">{pagamento.criado_por_nome || '—'}</span>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex flex-wrap items-center justify-end gap-1">
