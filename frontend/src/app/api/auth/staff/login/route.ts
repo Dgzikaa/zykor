@@ -10,7 +10,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-this'
+// Sem fallback adivinhável: se JWT_SECRET não estiver setado, as ops de token
+// falham (fail-closed) em vez de usar um segredo conhecido.
+const JWT_SECRET = process.env.JWT_SECRET || ''
 
 export async function POST(request: NextRequest) {
   try {

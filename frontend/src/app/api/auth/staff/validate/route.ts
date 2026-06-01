@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken'
 
 export const dynamic = 'force-dynamic'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-this'
+const JWT_SECRET = process.env.JWT_SECRET || ''
 
 export async function GET(request: NextRequest) {
   try {

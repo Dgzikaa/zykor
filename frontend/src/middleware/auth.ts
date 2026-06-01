@@ -69,35 +69,34 @@ export async function authenticateUser(
       }
     }
 
-    // PRIORIDADE 2: Cookie sgb_user (fallback)
-    // TODO(rodrigo/2026-05): Remover sgb_user quando migração estiver completa
+    // PRIORIDADE 2: Cookie auth_token (JWT ASSINADO, httpOnly — setado no login).
+    // Substitui o antigo fallback no cookie sgb_user, que era JSON não-assinado e
+    // portanto forjável (dava pra autenticar como qualquer id). Agora a identidade
+    // só vem de token assinado: header Bearer OU cookie auth_token. O sgb_user
+    // continua existindo só pra leitura client-side (display), nunca pra autorização.
     if (!authenticatedUser) {
-      const userCookie = request.cookies.get('sgb_user')?.value;
-      
-      if (userCookie) {
-        try {
-          const userData = JSON.parse(decodeURIComponent(userCookie));
+      const tokenCookie = request.cookies.get('auth_token')?.value;
 
-          if (userData && userData.email && userData.id) {
-            // Validar se o usuário ainda existe e está ativo
-            const supabase = await getAdminClient();
-            const { data: usuario, error } = await supabase
-      .schema('auth_custom')
-      .from('usuarios')
-              .select('*')
-              .eq('id', userData.id)
-              .eq('ativo', true)
-              .single();
+      if (tokenCookie) {
+        const decoded = validateToken(tokenCookie);
 
-            if (!error && usuario) {
-              if (VERBOSE_AUTH_LOGS) {
-                console.log('✅ Usuário autenticado via cookie:', usuario.nome);
-              }
-              authenticatedUser = usuario as AuthenticatedUser;
+        if (decoded && decoded.user_id) {
+          // Valida se o usuário ainda existe e está ativo
+          const supabase = await getAdminClient();
+          const { data: usuario, error } = await supabase
+            .schema('auth_custom')
+            .from('usuarios')
+            .select('*')
+            .eq('id', decoded.user_id)
+            .eq('ativo', true)
+            .single();
+
+          if (!error && usuario) {
+            if (VERBOSE_AUTH_LOGS) {
+              console.log('✅ Usuário autenticado via cookie auth_token:', usuario.nome);
             }
+            authenticatedUser = usuario as AuthenticatedUser;
           }
-        } catch {
-          // Cookie inválido, ignora
         }
       }
     }

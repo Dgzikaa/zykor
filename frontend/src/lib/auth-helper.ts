@@ -1,5 +1,5 @@
-import { headers } from 'next/headers';
 import { NextRequest } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 export interface UserAuth {
   id: number;
@@ -20,63 +20,25 @@ export interface UserAuth {
 export async function getUserAuth(
   request?: NextRequest
 ): Promise<UserAuth | null> {
-  try {
-    let userData: string | null = null;
-    let selectedBarId: number | null = null;
+  // Delega pro resolver seguro (token assinado: header Bearer ou cookie auth_token,
+  // sempre revalidado no banco). Antes este helper confiava em role/bar_id lidos do
+  // cookie sgb_user cru (não assinado) — forjável. Sem request não dá pra autenticar.
+  if (!request) return null;
 
-    if (request) {
-      // Pegar bar_id do header x-selected-bar-id
-      const barIdHeader = request.headers.get('x-selected-bar-id');
-      if (barIdHeader) {
-        selectedBarId = parseInt(barIdHeader, 10) || null;
-      }
+  const user = await authenticateUser(request);
+  if (!user || !user.bar_id) return null;
 
-      // Tentar pegar dados do usuário do cookie
-      // TODO(rodrigo/2026-05): Remover sgb_user quando migração estiver completa
-      const cookieValue = request.cookies.get('sgb_user')?.value;
-      if (cookieValue) {
-        userData = cookieValue;
-      }
-    } else {
-      // Usar o headers() do Next.js
-      const headersList = await headers();
-      const barIdHeader = headersList.get('x-selected-bar-id');
-      if (barIdHeader) {
-        selectedBarId = parseInt(barIdHeader, 10) || null;
-      }
-    }
-
-    if (!userData) {
-      return null;
-    }
-
-    // Decodificar URL encoding antes de fazer JSON.parse
-    const decodedUserData = decodeURIComponent(userData);
-    const parsedUser = JSON.parse(decodedUserData);
-
-    if (!parsedUser || !parsedUser.email || !parsedUser.id) {
-      return null;
-    }
-
-    // Normalizar dados para garantir compatibilidade
-    // Usar bar_id do header x-selected-bar-id se disponível, senão do cookie
-    const user: UserAuth = {
-      id: parsedUser.id,
-      user_id: parsedUser.user_id || parsedUser.id.toString(),
-      email: parsedUser.email,
-      nome: parsedUser.nome || parsedUser.email,
-      role: parsedUser.role || parsedUser.permissao || 'funcionario',
-      bar_id: selectedBarId || parsedUser.bar_id,
-      permissao: parsedUser.role || parsedUser.permissao || 'funcionario',
-      modulos_permitidos: parsedUser.modulos_permitidos || [],
-      ativo: parsedUser.ativo !== false,
-    };
-
-    return user;
-  } catch (error) {
-    console.error('❌ Erro ao processar autenticação:', error);
-    return null;
-  }
+  return {
+    id: user.id,
+    user_id: user.auth_id,
+    email: user.email,
+    nome: user.nome,
+    role: user.role,
+    bar_id: user.bar_id,
+    permissao: user.role,
+    modulos_permitidos: user.modulos_permitidos,
+    ativo: user.ativo,
+  };
 }
 
 /**

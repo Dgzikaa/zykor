@@ -37,8 +37,8 @@ const DEFAULT_CONFIG: SessionConfig = {
   maxConcurrentSessions: 3,
   requireMFAForAdmin: true,
   sessionTimeoutMinutes: 60, // 1 hora de inatividade
-  jwtSecret: process.env.JWT_SECRET || 'zykor-jwt-secret-2024',
-  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'zykor-refresh-secret-2024'
+  jwtSecret: process.env.JWT_SECRET || '',
+  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || ''
 };
 
 export class SessionManager {
