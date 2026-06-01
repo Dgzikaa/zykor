@@ -176,6 +176,7 @@ const defaultSidebarItems: SidebarItem[] = [
     subItems: [
       { icon: Zap, label: 'Insights Estratégicos', href: '/ferramentas/insights', permission: 'gestao' },
       { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
+      { icon: Receipt, label: 'Pedidos de Pagamento', href: '/ferramentas/pedidos-pagamento', permission: 'home' },
       { icon: Tag, label: 'Classificação de Consumos', href: '/ferramentas/consumos-classificacao', permission: 'gestao' },
     ],
   },
