@@ -92,13 +92,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const origin = new URL(request.url).origin;
   const competencia = p.data_competencia || p.data_vencimento;
 
+  // Repassa a identidade do aprovador pras chamadas internas (que agora exigem auth).
+  // Sem isso, a aprovação bateria 401 nos endpoints de PIX/Conta Azul.
+  const internalHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+  const fwdAuth = request.headers.get('authorization');
+  const fwdCookie = request.headers.get('cookie');
+  const fwdBar = request.headers.get('x-selected-bar-id');
+  if (fwdAuth) internalHeaders['authorization'] = fwdAuth;
+  if (fwdCookie) internalHeaders['cookie'] = fwdCookie;
+  if (fwdBar) internalHeaders['x-selected-bar-id'] = fwdBar;
+
   // ---------- Etapa 1: Conta a pagar no Conta Azul (pula se já criada) ----------
   let contaazulLancamentoId = p.contaazul_lancamento_id || null;
   if (!contaazulLancamentoId) {
     try {
       const r = await fetch(`${origin}/api/financeiro/contaazul/lancamentos`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: internalHeaders,
         body: JSON.stringify({
           bar_id: pedido.bar_id,
           data_competencia: competencia,
@@ -134,7 +144,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     try {
       const r = await fetch(`${origin}/api/financeiro/inter/pix`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: internalHeaders,
         body: JSON.stringify({
           valor: p.valor,
           descricao: p.descricao,

@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getInterAccessToken, clearInterTokenCache } from '@/lib/inter/getAccessToken';
 import { realizarPagamentoPixInter } from '@/lib/inter/pixPayment';
 import { resolveInterCredential } from '@/lib/inter/resolveCredential';
+import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -107,6 +108,21 @@ function identificarTipoChave(chave: string): { tipo: string; chaveFormatada: st
 // POST - Enviar PIX via Inter
 export async function POST(request: NextRequest) {
   try {
+    // AUTENTICAÇÃO: envia dinheiro real — exige usuário logado com perfil financeiro/admin.
+    // bar_id vem SEMPRE do usuário autenticado (nunca do corpo), evitando ação cross-tenant.
+    const user = await authenticateUser(request);
+    if (!user) return authErrorResponse('Usuário não autenticado');
+    if (user.role !== 'admin' && user.role !== 'financeiro') {
+      return permissionErrorResponse('Sem permissão para enviar PIX');
+    }
+    const bar_id = user.bar_id;
+    if (!bar_id) {
+      return NextResponse.json(
+        { success: false, error: 'Usuário sem bar associado' },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
     const {
       valor,
@@ -114,18 +130,9 @@ export async function POST(request: NextRequest) {
       destinatario,
       chave,
       data_pagamento,
-      bar_id,
       inter_credencial_id,
       agendamento_id // ID da tabela de agendamentos (legado) para atualizar com o código de solicitação
     } = body;
-
-    // Validar bar_id - OBRIGATÓRIO
-    if (!bar_id) {
-      return NextResponse.json(
-        { success: false, error: 'bar_id é obrigatório' },
-        { status: 400 }
-      );
-    }
 
     // Validações
     if (!chave || !valor) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { normalizeEmail } from '@/lib/email-utils';
+import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +30,10 @@ interface AuthUser {
 
 export async function GET(request: NextRequest) {
   try {
+    const authUser = await authenticateUser(request);
+    if (!authUser) return authErrorResponse('Usuário não autenticado');
+    if (authUser.role !== 'admin') return permissionErrorResponse('Apenas administradores podem listar usuários');
+
     const { searchParams } = new URL(request.url);
     const bar_id = searchParams.get('bar_id');
 
@@ -79,6 +84,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const caller = await authenticateUser(request);
+    if (!caller) return authErrorResponse('Usuário não autenticado');
+    if (caller.role !== 'admin') return permissionErrorResponse('Apenas administradores podem criar usuários');
+
     const body = (await request.json()) as UsuarioInput;
     const { bar_id, nome, password, role, modulos_permitidos } = body;
     const email = normalizeEmail(body.email); // ✅ Normaliza email

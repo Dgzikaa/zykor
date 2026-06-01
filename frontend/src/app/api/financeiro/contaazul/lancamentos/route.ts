@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { paginate } from '@/lib/supabase/paginate';
+import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY!;
@@ -172,9 +173,15 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    // AUTENTICAÇÃO: cria conta a pagar real no Conta Azul — exige financeiro/admin.
+    // bar_id vem do usuário autenticado (nunca do corpo).
+    const user = await authenticateUser(request);
+    if (!user) return authErrorResponse('Usuário não autenticado');
+    if (user.role !== 'admin' && user.role !== 'financeiro') {
+      return permissionErrorResponse('Sem permissão para criar lançamentos');
+    }
     const body = await request.json();
     const {
-      bar_id,
       data_competencia,
       data_vencimento,
       valor,
@@ -187,9 +194,9 @@ export async function POST(request: NextRequest) {
       pessoa_id,
     } = body || {};
 
-    const barIdNum = Number(bar_id);
+    const barIdNum = Number(user.bar_id);
     if (!Number.isFinite(barIdNum)) {
-      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
+      return NextResponse.json({ error: 'Usuário sem bar associado' }, { status: 400 });
     }
     const valorNum = Number(valor);
     if (!Number.isFinite(valorNum) || valorNum <= 0) {
