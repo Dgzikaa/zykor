@@ -114,6 +114,7 @@ const defaultSidebarItems: SidebarItem[] = [
       { icon: BarChart3, label: 'Análises Avançadas', href: '/ferramentas/analises', permission: 'gestao' },
       { icon: Wallet, label: 'Financeiro', href: '/ferramentas/financeiro', permission: 'gestao' },
       { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
+      { icon: Receipt, label: 'Pedidos de Pagamento', href: '/ferramentas/pedidos-pagamento', permission: 'home' },
       { icon: TrendingUp, label: 'Gestão CMV', href: '/ferramentas/cmv-semanal', permission: 'gestao' },
       { icon: Tag, label: 'Classificação de Consumos', href: '/ferramentas/consumos-classificacao', permission: 'gestao' },
       { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
