@@ -697,25 +697,18 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                         {dados.map((evento, idx) => {
-                          // Calcular número da semana ISO (segunda a domingo)
+                          // Número da semana ISO 8601 (segunda a domingo; semana 1 = a que
+                          // contém a 1ª quinta-feira do ano). Mesma fórmula usada no banco
+                          // (EXTRACT(WEEK)) e no /desempenho — a versão anterior contava a
+                          // partir da 1ª segunda e ignorava a semana ISO parcial, ficando 1 a menos
+                          // (ex: 25/05–31/05 aparecia como S21 em vez de S22).
                           const getWeekNumber = (dateStr: string) => {
-                            const date = new Date(dateStr + 'T00:00:00');
-                            
-                            // Ajustar para segunda-feira ser o primeiro dia da semana
-                            const day = date.getDay();
-                            const diff = (day === 0 ? -6 : 1) - day; // Se domingo (0), volta 6 dias; senão, vai para segunda
-                            const monday = new Date(date);
-                            monday.setDate(date.getDate() + diff);
-                            
-                            // Calcular semana do ano baseada na segunda-feira
-                            const firstDayOfYear = new Date(monday.getFullYear(), 0, 1);
-                            const firstMonday = new Date(firstDayOfYear);
-                            const firstDayOfWeek = firstDayOfYear.getDay();
-                            const daysToMonday = (firstDayOfWeek === 0 ? 1 : (8 - firstDayOfWeek)) % 7;
-                            firstMonday.setDate(firstDayOfYear.getDate() + daysToMonday);
-                            
-                            const daysSinceFirstMonday = Math.floor((monday.getTime() - firstMonday.getTime()) / 86400000);
-                            return Math.floor(daysSinceFirstMonday / 7) + 1;
+                            const [y, m, dd] = dateStr.split('-').map(Number);
+                            const d = new Date(Date.UTC(y, m - 1, dd));
+                            // Move para a quinta-feira da mesma semana ISO
+                            d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+                            const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+                            return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
                           };
                           
                           const currentWeek = getWeekNumber(evento.data_evento);
