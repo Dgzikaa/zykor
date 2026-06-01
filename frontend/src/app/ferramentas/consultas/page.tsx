@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import {
   User,
   DollarSign,
   TrendingDown,
+  TrendingUp,
   FileText,
   ChevronDown,
   ChevronRight,
@@ -143,6 +144,7 @@ export default function ConsultasPage() {
   
   // Estados de UI
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [showUsuarios, setShowUsuarios] = useState(true);
   const [showCategorias, setShowCategorias] = useState(false);
 
@@ -231,6 +233,54 @@ export default function ConsultasPage() {
       return newSet;
     });
   };
+
+  const toggleGroup = (categoria: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoria)) {
+        newSet.delete(categoria);
+      } else {
+        newSet.add(categoria);
+      }
+      return newSet;
+    });
+  };
+
+  // Agrupa os lançamentos por categoria. total = receitas (+) menos despesas (-),
+  // pra colorir o grupo de verde (entrada líquida) ou vermelho (saída líquida).
+  const grupos = useMemo(() => {
+    if (!resultado) {
+      return [] as Array<{ categoria: string; items: LancamentoRetroativo[]; total: number; count: number; tipos: string[] }>;
+    }
+    const map = new Map<string, { categoria: string; items: LancamentoRetroativo[]; total: number; count: number; tipos: Set<string> }>();
+    for (const l of resultado.data) {
+      const key = l.categoriaNome || 'Sem categoria';
+      let g = map.get(key);
+      if (!g) {
+        g = { categoria: key, items: [], total: 0, count: 0, tipos: new Set<string>() };
+        map.set(key, g);
+      }
+      g.items.push(l);
+      g.count++;
+      g.total += l.tipo === 'RECEITA' ? Math.abs(l.valor) : -Math.abs(l.valor);
+      g.tipos.add(l.tipo);
+    }
+    return Array.from(map.values())
+      .map(g => ({ categoria: g.categoria, items: g.items, total: g.total, count: g.count, tipos: Array.from(g.tipos) }))
+      .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+  }, [resultado]);
+
+  // Totais separados por tipo, pra colorir entradas (verde) e saídas (vermelho).
+  const totais = useMemo(() => {
+    let entradas = 0, saidas = 0, countEntradas = 0, countSaidas = 0;
+    if (resultado) {
+      for (const l of resultado.data) {
+        if (l.tipo === 'RECEITA') { entradas += Math.abs(l.valor); countEntradas++; }
+        else { saidas += Math.abs(l.valor); countSaidas++; }
+      }
+    }
+    return { entradas, saidas, saldo: entradas - saidas, countEntradas, countSaidas };
+  }, [resultado]);
 
   const handleExportCSV = () => {
     if (!resultado || resultado.data.length === 0) {
@@ -596,34 +646,39 @@ export default function ConsultasPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-muted-foreground text-xs font-medium">Valor Total</p>
-                      <p className="text-lg font-bold text-foreground">{formatCurrency(resultado.estatisticas.valorTotal)}</p>
+                      <p className="text-muted-foreground text-xs font-medium">Entradas</p>
+                      <p className="text-lg font-bold text-green-600 dark:text-green-400">{formatCurrency(totais.entradas)}</p>
+                      <p className="text-xs text-muted-foreground">{totais.countEntradas} lançamentos</p>
+                    </div>
+                    <TrendingUp className="w-8 h-8 text-green-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="card-dark border-border shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-muted-foreground text-xs font-medium">Saídas</p>
+                      <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(totais.saidas)}</p>
+                      <p className="text-xs text-muted-foreground">{totais.countSaidas} lançamentos</p>
+                    </div>
+                    <TrendingDown className="w-8 h-8 text-red-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="card-dark border-border shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-muted-foreground text-xs font-medium">Saldo</p>
+                      <p className={`text-lg font-bold ${totais.saldo >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {totais.saldo >= 0 ? '+' : '-'}{formatCurrency(Math.abs(totais.saldo))}
+                      </p>
+                      <p className="text-xs text-muted-foreground">entradas - saídas</p>
                     </div>
                     <DollarSign className="w-8 h-8 text-muted-foreground" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="card-dark border-border shadow-sm">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-muted-foreground text-xs font-medium">Pagos</p>
-                      <p className="text-2xl font-bold text-foreground">{resultado.estatisticas.totalPagos}</p>
-                    </div>
-                    <CheckCircle2 className="w-8 h-8 text-muted-foreground" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="card-dark border-border shadow-sm">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-muted-foreground text-xs font-medium">Pendentes</p>
-                      <p className="text-2xl font-bold text-foreground">{resultado.estatisticas.totalPendentes}</p>
-                    </div>
-                    <Clock className="w-8 h-8 text-muted-foreground" />
                   </div>
                 </CardContent>
               </Card>
@@ -731,116 +786,145 @@ export default function ConsultasPage() {
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                    {resultado.data
-                      .slice(0, resultado.total)
-                      .map((lancamento) => {
-                      const isExpanded = expandedItems.has(lancamento.id);
-                      
+                    {grupos.map((grupo) => {
+                      const groupOpen = expandedGroups.has(grupo.categoria);
+                      const isReceita = grupo.total >= 0;
+
                       return (
                         <div
-                          key={lancamento.id}
-                          className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+                          key={grupo.categoria}
+                          className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
                         >
-                          {/* Header do item */}
+                          {/* Cabeçalho do grupo (categoria) */}
                           <button
-                            onClick={() => toggleExpand(lancamento.id)}
-                            className="w-full p-3 sm:p-4 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+                            onClick={() => toggleGroup(grupo.categoria)}
+                            className="w-full p-3 sm:p-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-left flex items-center justify-between gap-3"
                           >
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                              <div className="flex items-center gap-3 min-w-0 flex-1">
-                                <div className={`p-2 rounded-lg flex-shrink-0 ${
-                                  lancamento.isPaid 
-                                    ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-                                    : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
-                                }`}>
-                                  {lancamento.isPaid ? (
-                                    <CheckCircle2 className="w-4 h-4" />
-                                  ) : (
-                                    <Clock className="w-4 h-4" />
-                                  )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                                    {lancamento.descricao || lancamento.stakeholderNome || 'Sem descrição'}
-                                  </p>
-                                  <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    <span className="flex items-center gap-1">
-                                      <Calendar className="w-3 h-3" />
-                                      Comp: {formatDate(lancamento.dataCompetencia)}
-                                    </span>
-                                    <span className="hidden sm:inline">•</span>
-                                    <span className="flex items-center gap-1">
-                                      <Clock className="w-3 h-3" />
-                                      Criado: {formatDate(lancamento.dataCriacao)}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <div className="text-right">
-                                  <p className="text-base font-bold text-red-600 dark:text-red-400">
-                                    {formatCurrency(lancamento.valor)}
-                                  </p>
-                                  <Badge variant={lancamento.isPaid ? "default" : "secondary"} className="text-xs">
-                                    {lancamento.status}
-                                  </Badge>
-                                </div>
-                                {isExpanded ? (
-                                  <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                                ) : (
-                                  <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                                )}
-                              </div>
+                            <div className="flex items-center gap-2 min-w-0">
+                              {groupOpen ? (
+                                <ChevronDown className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                              )}
+                              <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                                {grupo.categoria}
+                              </span>
+                              <Badge variant="secondary" className="text-xs flex-shrink-0">{grupo.count}</Badge>
                             </div>
+                            <span className={`text-base font-bold flex-shrink-0 ${isReceita ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                              {isReceita ? '+' : '-'}{formatCurrency(Math.abs(grupo.total))}
+                            </span>
                           </button>
 
-                          {/* Detalhes expandidos */}
-                          {isExpanded && (
-                            <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                                <div>
-                                  <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">ID</p>
-                                  <p className="text-gray-900 dark:text-white font-mono text-xs truncate">{lancamento.id}</p>
-                                </div>
-                                <div>
-                                  <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Tipo</p>
-                                  <p className="text-gray-900 dark:text-white">{lancamento.tipo}</p>
-                                </div>
-                                <div>
-                                  <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Categoria</p>
-                                  <p className="text-gray-900 dark:text-white">{lancamento.categoriaNome || '-'}</p>
-                                </div>
-                                <div>
-                                  <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Stakeholder</p>
-                                  <p className="text-gray-900 dark:text-white">{lancamento.stakeholderNome || '-'}</p>
-                                </div>
-                                <div>
-                                  <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Criado por</p>
-                                  <p className="text-gray-900 dark:text-white font-medium">{lancamento.criadoPor || '-'}</p>
-                                </div>
-                                <div>
-                                  <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Data/Hora Criação</p>
-                                  <p className="text-gray-900 dark:text-white">{formatDateTime(lancamento.dataCriacao)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Data Vencimento</p>
-                                  <p className="text-gray-900 dark:text-white">{formatDate(lancamento.dataVencimento)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Atualizado por</p>
-                                  <p className="text-gray-900 dark:text-white">{lancamento.atualizadoPor || '-'}</p>
-                                </div>
-                                <div>
-                                  <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Última Atualização</p>
-                                  <p className="text-gray-900 dark:text-white">{formatDateTime(lancamento.dataAtualizacao)}</p>
-                                </div>
-                                {lancamento.referencia && (
-                                  <div className="sm:col-span-2 lg:col-span-3">
-                                    <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Referência</p>
-                                    <p className="text-gray-900 dark:text-white">{lancamento.referencia}</p>
+                          {/* Lançamentos individuais do grupo */}
+                          {groupOpen && (
+                            <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                              {grupo.items.map((lancamento) => {
+                                const isExpanded = expandedItems.has(lancamento.id);
+                                const itemReceita = lancamento.tipo === 'RECEITA';
+
+                                return (
+                                  <div key={lancamento.id}>
+                                    {/* Header do item */}
+                                    <button
+                                      onClick={() => toggleExpand(lancamento.id)}
+                                      className="w-full p-3 sm:p-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                                    >
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                          <div className={`p-2 rounded-lg flex-shrink-0 ${
+                                            lancamento.isPaid
+                                              ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                                              : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                                          }`}>
+                                            {lancamento.isPaid ? (
+                                              <CheckCircle2 className="w-4 h-4" />
+                                            ) : (
+                                              <Clock className="w-4 h-4" />
+                                            )}
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                                              {lancamento.descricao || lancamento.stakeholderNome || 'Sem descrição'}
+                                            </p>
+                                            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                              <span className="flex items-center gap-1">
+                                                <Calendar className="w-3 h-3" />
+                                                Comp: {formatDate(lancamento.dataCompetencia)}
+                                              </span>
+                                              <span className="hidden sm:inline">•</span>
+                                              <span className="flex items-center gap-1">
+                                                <Clock className="w-3 h-3" />
+                                                Criado: {formatDate(lancamento.dataCriacao)}
+                                              </span>
+                                              {lancamento.stakeholderNome && (
+                                                <>
+                                                  <span className="hidden sm:inline">•</span>
+                                                  <span className="flex items-center gap-1">
+                                                    <User className="w-3 h-3" />
+                                                    {lancamento.stakeholderNome}
+                                                  </span>
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                          <div className="text-right">
+                                            <p className={`text-base font-bold ${itemReceita ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                              {itemReceita ? '+' : '-'}{formatCurrency(Math.abs(lancamento.valor))}
+                                            </p>
+                                            <Badge variant={lancamento.isPaid ? "default" : "secondary"} className="text-xs">
+                                              {lancamento.status}
+                                            </Badge>
+                                          </div>
+                                          {isExpanded ? (
+                                            <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                                          ) : (
+                                            <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                                          )}
+                                        </div>
+                                      </div>
+                                    </button>
+
+                                    {/* Detalhes expandidos */}
+                                    {isExpanded && (
+                                      <div className="p-4 bg-gray-50 dark:bg-gray-900/40 border-t border-gray-200 dark:border-gray-700">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                                          <div>
+                                            <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">ID</p>
+                                            <p className="text-gray-900 dark:text-white font-mono text-xs truncate">{lancamento.id}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Tipo</p>
+                                            <p className="text-gray-900 dark:text-white">{lancamento.tipo}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Categoria</p>
+                                            <p className="text-gray-900 dark:text-white">{lancamento.categoriaNome || '-'}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Stakeholder</p>
+                                            <p className="text-gray-900 dark:text-white">{lancamento.stakeholderNome || '-'}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Data/Hora Criação</p>
+                                            <p className="text-gray-900 dark:text-white">{formatDateTime(lancamento.dataCriacao)}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Data Vencimento</p>
+                                            <p className="text-gray-900 dark:text-white">{formatDate(lancamento.dataVencimento)}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Última Atualização</p>
+                                            <p className="text-gray-900 dark:text-white">{formatDateTime(lancamento.dataAtualizacao)}</p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
-                                )}
-                              </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
