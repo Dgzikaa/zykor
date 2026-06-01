@@ -320,12 +320,20 @@ export default function AgendamentoPage() {
   };
 
   /**
-   * Fluxo end-to-end de um único pagamento:
-   * 1) Cria conta a pagar no Conta Azul (despesa, vencimento = data_pagamento)
-   * 2) Envia PIX no Inter com dataPagamento (Inter agenda no banco)
+   * Fluxo end-to-end de um único pagamento — ORDEM: Inter PIX → depois Conta Azul.
+   * 1) Envia PIX no Inter (com agendamento se data futura)
+   * 2) SÓ se o Inter aceitar, cria a conta a pagar (despesa) no Conta Azul
    *
-   * Se CA falhar: status=erro_ca, NÃO envia PIX.
-   * Se Inter falhar: status=erro_inter, lançamento CA já existe (usuário cancela manualmente).
+   * Por que PIX primeiro? O Conta Azul NÃO permite excluir uma conta a pagar via API.
+   * Se criássemos o CA antes e o PIX falhasse (ex.: chave errada), ficaria uma conta a
+   * pagar órfã no CA impossível de apagar. Invertendo, chave errada falha no PIX e
+   * nada é criado no CA.
+   *
+   * Idempotência: se o PIX já foi enviado (codigo_solic salvo), NÃO reenvia — só
+   * completa a etapa CA que faltou. Se o CA já existe, não recria (anti-duplicata).
+   *
+   * - PIX falha   -> status=erro_inter, NADA criado no CA.
+   * - PIX ok + CA falha -> status=erro_ca (PIX já enviado; reenviar só registra o CA).
    */
   /** Parse correto pra valores BRL (R$ 1.089,10 → 1089.10). */
   const parseValorBRL = (valor: string): number => {
@@ -342,13 +350,78 @@ export default function AgendamentoPage() {
   ): Promise<{ ok: boolean; etapa: 'ca' | 'inter'; mensagem?: string }> => {
     const valorNumerico = parseValorBRL(pagamento.valor);
     if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) {
-      return { ok: false, etapa: 'ca', mensagem: 'Valor inválido' };
+      return { ok: false, etapa: 'inter', mensagem: 'Valor inválido' };
     }
 
     const dataVenc = pagamento.data_pagamento;
     const dataComp = pagamento.data_competencia || dataVenc;
 
-    // ETAPA 1 — Conta Azul
+    // ETAPA 1 — Inter PIX PRIMEIRO (pula se já enviado: idempotência anti-duplo-PIX)
+    let codigoSolic = pagamento.codigo_solic || pagamento.inter_aprovacao_id || '';
+    if (!codigoSolic) {
+      try {
+        const response = await fetch('/api/financeiro/inter/pix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            // Envia como NUMBER pra evitar bug do parse pt-BR no backend
+            valor: valorNumerico,
+            destinatario: pagamento.nome_beneficiario,
+            chave: pagamento.chave_pix,
+            data_pagamento: dataVenc,
+            descricao:
+              pagamento.descricao || `Pagamento para ${pagamento.nome_beneficiario}`,
+            bar_id: pagamento.bar_id || barId,
+            inter_credencial_id: Number(interCredencialSelecionadaId),
+            // ID local pra correlação com pix_enviados via webhook
+            agendamento_id: pagamento.id,
+          }),
+        });
+        const data = await response.json();
+        if (!data.success) {
+          const msg = data?.error || `Inter HTTP ${response.status}`;
+          setPagamentos(prev =>
+            prev.map(p =>
+              p.id === pagamento.id
+                ? {
+                    ...p,
+                    status: 'erro_inter' as const,
+                    erro_mensagem: msg,
+                    updated_at: new Date().toISOString(),
+                  }
+                : p
+            )
+          );
+          return { ok: false, etapa: 'inter', mensagem: msg };
+        }
+        codigoSolic = data.data?.codigoSolicitacao || '';
+        setPagamentos(prev =>
+          prev.map(p =>
+            p.id === pagamento.id
+              ? {
+                  ...p,
+                  inter_aprovacao_id: codigoSolic,
+                  codigo_solic: codigoSolic,
+                  erro_mensagem: undefined,
+                  updated_at: new Date().toISOString(),
+                }
+              : p
+          )
+        );
+      } catch (e: any) {
+        const msg = e?.message || 'Falha rede Inter';
+        setPagamentos(prev =>
+          prev.map(p =>
+            p.id === pagamento.id
+              ? { ...p, status: 'erro_inter' as const, erro_mensagem: msg }
+              : p
+          )
+        );
+        return { ok: false, etapa: 'inter', mensagem: msg };
+      }
+    }
+
+    // ETAPA 2 — Conta Azul (conta a pagar). Só chega aqui se o PIX foi aceito.
     let contaazulLancamentoId = pagamento.contaazul_lancamento_id;
     if (!contaazulLancamentoId) {
       try {
@@ -381,7 +454,8 @@ export default function AgendamentoPage() {
                 ? {
                     ...p,
                     status: 'erro_ca' as const,
-                    erro_mensagem: msg,
+                    // PIX já foi enviado — deixa claro que só falta registrar no CA
+                    erro_mensagem: `PIX já enviado. Falta registrar no Conta Azul: ${msg}`,
                     updated_at: new Date().toISOString(),
                   }
                 : p
@@ -390,23 +464,16 @@ export default function AgendamentoPage() {
           return { ok: false, etapa: 'ca', mensagem: msg };
         }
         contaazulLancamentoId = caData.contaazul_id;
-        setPagamentos(prev =>
-          prev.map(p =>
-            p.id === pagamento.id
-              ? {
-                  ...p,
-                  contaazul_lancamento_id: contaazulLancamentoId,
-                  updated_at: new Date().toISOString(),
-                }
-              : p
-          )
-        );
       } catch (e: any) {
         const msg = e?.message || 'Falha rede CA';
         setPagamentos(prev =>
           prev.map(p =>
             p.id === pagamento.id
-              ? { ...p, status: 'erro_ca' as const, erro_mensagem: msg }
+              ? {
+                  ...p,
+                  status: 'erro_ca' as const,
+                  erro_mensagem: `PIX já enviado. Falta registrar no Conta Azul: ${msg}`,
+                }
               : p
           )
         );
@@ -414,68 +481,21 @@ export default function AgendamentoPage() {
       }
     }
 
-    // ETAPA 2 — Inter PIX (com agendamento se data_pagamento futura)
-    try {
-      const response = await fetch('/api/financeiro/inter/pix', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          // Envia como NUMBER pra evitar bug do parse pt-BR no backend
-          valor: valorNumerico,
-          destinatario: pagamento.nome_beneficiario,
-          chave: pagamento.chave_pix,
-          data_pagamento: dataVenc,
-          descricao:
-            pagamento.descricao || `Pagamento para ${pagamento.nome_beneficiario}`,
-          bar_id: pagamento.bar_id || barId,
-          inter_credencial_id: Number(interCredencialSelecionadaId),
-          // ID local pra correlação com pix_enviados via webhook
-          agendamento_id: pagamento.id,
-        }),
-      });
-      const data = await response.json();
-      if (!data.success) {
-        const msg = data?.error || `Inter HTTP ${response.status}`;
-        setPagamentos(prev =>
-          prev.map(p =>
-            p.id === pagamento.id
-              ? {
-                  ...p,
-                  status: 'erro_inter' as const,
-                  erro_mensagem: msg,
-                  updated_at: new Date().toISOString(),
-                }
-              : p
-          )
-        );
-        return { ok: false, etapa: 'inter', mensagem: msg };
-      }
-      setPagamentos(prev =>
-        prev.map(p =>
-          p.id === pagamento.id
-            ? {
-                ...p,
-                status: 'aguardando_aprovacao' as const,
-                inter_aprovacao_id: data.data?.codigoSolicitacao || '',
-                codigo_solic: data.data?.codigoSolicitacao || '',
-                erro_mensagem: undefined,
-                updated_at: new Date().toISOString(),
-              }
-            : p
-        )
-      );
-      return { ok: true, etapa: 'inter' };
-    } catch (e: any) {
-      const msg = e?.message || 'Falha rede Inter';
-      setPagamentos(prev =>
-        prev.map(p =>
-          p.id === pagamento.id
-            ? { ...p, status: 'erro_inter' as const, erro_mensagem: msg }
-            : p
-        )
-      );
-      return { ok: false, etapa: 'inter', mensagem: msg };
-    }
+    // Tudo certo: PIX aceito + conta a pagar registrada
+    setPagamentos(prev =>
+      prev.map(p =>
+        p.id === pagamento.id
+          ? {
+              ...p,
+              contaazul_lancamento_id: contaazulLancamentoId,
+              status: 'aguardando_aprovacao' as const,
+              erro_mensagem: undefined,
+              updated_at: new Date().toISOString(),
+            }
+          : p
+      )
+    );
+    return { ok: true, etapa: 'ca' };
   };
 
   const pagarPendentesInterDireto = async () => {
