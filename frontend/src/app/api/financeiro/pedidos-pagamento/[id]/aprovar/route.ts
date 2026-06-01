@@ -163,6 +163,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return NextResponse.json({ success: false, etapa: 'inter', error: msg }, { status: 400 });
       }
       interCodigo = d.data?.codigoSolicitacao || '';
+      if (!interCodigo) {
+        // Inter respondeu sucesso mas sem código de solicitação — sem isso não há
+        // rastreio/reconciliação via webhook. Trata como erro (não marca agendado).
+        const msg = 'Inter não retornou codigoSolicitacao';
+        await marcarErro(supabase, id, pedido.bar_id, 'erro_inter', msg, user);
+        return NextResponse.json({ success: false, etapa: 'inter', error: msg }, { status: 502 });
+      }
+      // IDEMPOTÊNCIA: grava o código IMEDIATAMENTE após o PIX disparar. Se o UPDATE
+      // final (status=agendado) falhar, o retry vê inter_codigo_solicitacao já setado
+      // e PULA o envio — evita PIX em duplicidade.
+      await fin(supabase)
+        .from('pedidos_pagamento')
+        .update({ inter_codigo_solicitacao: interCodigo })
+        .eq('id', id);
     } catch (e: any) {
       const msg = e?.message || 'Falha de rede ao enviar PIX';
       await marcarErro(supabase, id, pedido.bar_id, 'erro_inter', msg, user);
@@ -190,9 +204,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     pedido_id: id, bar_id: pedido.bar_id, autor: user, campo: 'status',
     valor_anterior: pedido.status, valor_novo: 'agendado',
   });
+  // Mesma lógica do /inter/pix: vencimento futuro = agendado; hoje/passado = imediato.
+  // Evita o comentário dizer "agendado" quando na verdade o Inter pagou na hora.
+  const hojeISO = new Date().toISOString().slice(0, 10);
+  const ehAgendado =
+    !!p.data_vencimento && /^\d{4}-\d{2}-\d{2}$/.test(p.data_vencimento) && p.data_vencimento > hojeISO;
   await comentarioSistema(supabase, {
     pedido_id: id, bar_id: pedido.bar_id,
-    mensagem: `Aprovado por ${user.nome}. Conta a pagar criada no Conta Azul e PIX de ${formatBRL(p.valor)} agendado no Inter para ${p.data_vencimento}. Falta o OK final do sócio no app do Inter.`,
+    mensagem: `Aprovado por ${user.nome}. Conta a pagar criada no Conta Azul e PIX de ${formatBRL(p.valor)} ${
+      ehAgendado ? `agendado no Inter para ${p.data_vencimento}` : 'enviado no Inter para pagamento imediato'
+    }. Falta o OK final do sócio no app do Inter.`,
   });
 
   return NextResponse.json({ success: true, pedido: atualizado });
