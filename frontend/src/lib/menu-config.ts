@@ -52,6 +52,7 @@ export const MENU_LATERAL_STRUCTURE: MenuSectionConfig[] = [
     subItems: [
       { label: 'CRM', href: '/ferramentas/crm' },
       { label: 'Agendamento', href: '/ferramentas/agendamento' },
+      { label: 'Pedidos de Pagamento', href: '/ferramentas/pedidos-pagamento' },
       { label: 'NPS Funcionários', href: '/ferramentas/nps' },
       { label: 'CMV Semanal', href: '/ferramentas/cmv-semanal' },
       { label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal' },
