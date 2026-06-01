@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,12 +11,16 @@ const supabase = createClient(
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const barId = Number.parseInt(searchParams.get('bar_id') || '', 10);
+    const user = await authenticateUser(request);
+    if (!user) return authErrorResponse('Usuário não autenticado');
+    if (user.role !== 'admin' && user.role !== 'financeiro') {
+      return permissionErrorResponse('Sem permissão para ver credenciais bancárias');
+    }
+    const barId = Number(user.bar_id);
 
     if (!Number.isFinite(barId)) {
       return NextResponse.json(
-        { success: false, error: 'bar_id é obrigatório' },
+        { success: false, error: 'Usuário sem bar associado' },
         { status: 400 }
       );
     }

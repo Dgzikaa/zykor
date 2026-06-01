@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -13,12 +14,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const user = await authenticateUser(request);
+    if (!user) return authErrorResponse('Usuário não autenticado');
     const { searchParams } = new URL(request.url);
-    const bar_id = searchParams.get('bar_id');
-    
+    const bar_id = user.bar_id ? String(user.bar_id) : null;
+
     if (!bar_id) {
       return NextResponse.json(
-        { error: 'bar_id é obrigatório' },
+        { error: 'Usuário sem bar associado' },
         { status: 400 }
       );
     }

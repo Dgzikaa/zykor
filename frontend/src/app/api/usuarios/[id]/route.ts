@@ -78,6 +78,13 @@ export async function PUT(
     const body = await request.json();
     const data = AtualizarUsuarioSchema.parse(body);
 
+    // Só admin pode mexer em role/permissões/status (evita auto-escalonamento).
+    const mexeEmPrivilegio =
+      data.role !== undefined || data.modulos_permitidos !== undefined || data.ativo !== undefined;
+    if (mexeEmPrivilegio && user.role !== 'admin') {
+      return authErrorResponse('Apenas administradores podem alterar perfil, permissões ou status', 403);
+    }
+
     const supabase = await getAdminClient();
 
     // Validar celular se fornecido
