@@ -6,53 +6,9 @@ import { usePathname } from 'next/navigation';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useBadges } from '@/contexts/BadgesContext';
 import { cn } from '@/lib/utils';
-import {
-  Home,
-  CheckSquare,
-  Settings,
-  BarChart3,
-  Calendar,
-  Users,
-  ChevronDown,
-  ChevronRight,
-  Target,
-  TrendingUp,
-  Wrench,
-  Package,
-  AlertTriangle,
-  ChefHat,
-  Sparkles,
-  DollarSign,
-  Clock,
-  Ticket,
-  FileSearch,
-  Activity,
-  Send,
-  MessageCircle,
-  Wallet,
-  Tag,
-  Receipt,
-  PieChart,
-  Plug,
-  Building2,
-  Megaphone,
-  History,
-  Bell,
-  Star,
-  Zap,
-  Instagram,
-  Award,
-  Bot,
-  Compass,
-  FileText,
-  ShieldAlert,
-  Trophy,
-  Layers,
-  Cake,
-  UserX,
-  Flame,
-} from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { MENU_TREE } from '@/lib/navigation/menu';
+import { iconFor } from '@/lib/navigation/menu-icons';
 
 interface SubMenuItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -82,23 +38,15 @@ const PERMISSION_MAPPINGS: Record<string, string[]> = {
   cfp: ['home'],
 };
 
-// Mapa nome-do-ícone -> componente lucide. A árvore do menu (lib/navigation/menu.ts)
-// guarda o nome como string (dados puros); aqui anexamos o componente pra renderizar.
-const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  Target, BarChart3, Wrench, Sparkles, Settings,
-  TrendingUp, Calendar, DollarSign, Users, Zap, Wallet, Receipt, MessageCircle,
-  ChefHat, Tag, AlertTriangle, FileSearch, Star, Instagram, Bot,
-  PieChart, Package, Layers, Megaphone, Ticket, Clock, FileText, CheckSquare, Activity,
-};
-
 // Itens do menu derivados da FONTE ÚNICA (lib/navigation/menu.ts).
+// Os ícones (string em menu.ts) viram componentes via iconFor (lib/navigation/menu-icons).
 const defaultSidebarItems: SidebarItem[] = MENU_TREE.map(section => ({
-  icon: ICONS[section.icon] ?? Activity,
+  icon: iconFor(section.icon),
   label: section.label,
   href: section.href,
   permission: section.permission,
   subItems: section.subItems.map(item => ({
-    icon: ICONS[item.icon] ?? Activity,
+    icon: iconFor(item.icon),
     label: item.label,
     href: item.href,
     permission: item.permission,

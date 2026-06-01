@@ -7,32 +7,16 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useBadges } from '@/contexts/BadgesContext';
 import {
   Home,
-  CheckSquare,
-  ChefHat,
-  TrendingUp,
   BarChart3,
   Menu,
   X,
-  Zap,
   Target,
   Wrench,
-  Settings,
-  Package,
-  Calendar,
-  Users,
-  Clock,
-  AlertTriangle,
   ChevronDown,
   ChevronRight,
-  Sparkles,
-  Megaphone,
-  MessageCircle,
-  Send,
-  DollarSign,
-  Star,
-  Ticket,
-  FileSearch,
 } from 'lucide-react';
+import { MENU_TREE } from '@/lib/navigation/menu';
+import { iconFor } from '@/lib/navigation/menu-icons';
 
 interface BottomNavItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -83,77 +67,27 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
     return mappedPermissions.some(perm => hasPermission(perm));
   };
 
-  // Estrutura completa do menu (igual ao sidebar)
-  // 🎯 ROTINA pinada no topo (sem sub) + AVANÇADO em accordion abaixo.
-  const allMenuSections = [
-    // ═══ ROTINA — telas de uso diario ═══
-    { icon: BarChart3, label: 'Desempenho', href: '/estrategico/desempenho', color: 'text-blue-600 dark:text-blue-400', permission: 'gestao', subItems: [] },
-    { icon: Calendar, label: 'Planejamento', href: '/estrategico/planejamento-comercial', color: 'text-blue-600 dark:text-blue-400', permission: 'gestao', subItems: [] },
-    { icon: TrendingUp, label: 'Gestão CMV', href: '/ferramentas/cmv-semanal', color: 'text-green-600 dark:text-green-400', permission: 'relatorios', subItems: [] },
-    { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', color: 'text-green-600 dark:text-green-400', permission: 'operacoes', subItems: [] },
-    { icon: FileSearch, label: 'Dedo Duro', href: '/ferramentas/consultas', color: 'text-green-600 dark:text-green-400', permission: 'financeiro_agendamento', subItems: [] },
-
-    // ═══ AVANÇADO — agrupados ═══
-    {
-      icon: Target,
-      label: 'Estratégico',
-      href: '/estrategico',
-      color: 'text-blue-600 dark:text-blue-400',
-      permission: 'gestao',
-      subItems: [
-        { icon: TrendingUp, label: 'Visão Geral', href: '/estrategico/visao-geral', permission: 'home' },
-      ],
-    },
-    {
-      icon: BarChart3,
-      label: 'Analítico',
-      href: '/analitico',
-      color: 'text-indigo-600 dark:text-indigo-400',
-      permission: 'relatorios',
-      subItems: [
-        { icon: Users, label: 'Clientes', href: '/analitico/clientes', permission: 'relatorios' },
-        { icon: Clock, label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
-      ],
-    },
-    {
-      icon: Wrench,
-      label: 'Ferramentas',
-      href: '/ferramentas',
-      color: 'text-green-600 dark:text-green-400',
-      permission: 'ferramentas',
-      subItems: [
-        { icon: Zap, label: 'Insights Estratégicos', href: '/ferramentas/insights', permission: 'gestao' },
-        { icon: MessageCircle, label: 'CRM', href: '/ferramentas/crm', permission: 'gestao' },
-        { icon: Users, label: 'Clientes Ativos', href: '/relatorios/clientes-ativos', permission: 'relatorios' },
-        { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
-        { icon: Users, label: 'NPS', href: '/ferramentas/nps', permission: 'home' },
-        { icon: Sparkles, label: 'Agente IA', href: '/ferramentas/agente', permission: 'home' },
-      ],
-    },
-    {
-      icon: Settings,
-      label: 'Configurações',
-      href: '/configuracoes',
-      color: 'text-gray-600 dark:text-gray-400',
-      permission: 'configuracoes',
-      subItems: [],
-    },
-    {
-      icon: Star,
-      label: 'Extras',
-      href: '/extras',
-      color: 'text-yellow-600 dark:text-yellow-400',
-      permission: 'home',
-      subItems: [
-        // Produção e Contagem removidos — APIs deletadas
-        { icon: DollarSign, label: 'DRE', href: '/ferramentas/dre', permission: 'dashboard_financeiro_mensal' },
-        { icon: Clock, label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
-        { icon: Sparkles, label: 'Retrospectiva 2025', href: '/retrospectiva-2025', permission: 'home' },
-        { icon: Ticket, label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'relatorios' },
-        { icon: Megaphone, label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
-      ],
-    },
-  ];
+  // Estrutura do menu derivada da FONTE ÚNICA (lib/navigation/menu.ts) — mesma da sidebar.
+  const SECTION_COLORS: Record<string, string> = {
+    'Estratégico': 'text-blue-600 dark:text-blue-400',
+    'Analítico': 'text-indigo-600 dark:text-indigo-400',
+    'Ferramentas': 'text-green-600 dark:text-green-400',
+    'Configurações': 'text-gray-600 dark:text-gray-400',
+    'Extras': 'text-yellow-600 dark:text-yellow-400',
+  };
+  const allMenuSections = MENU_TREE.map(section => ({
+    icon: iconFor(section.icon),
+    label: section.label,
+    href: section.href,
+    color: SECTION_COLORS[section.label] ?? '',
+    permission: section.permission ?? '',
+    subItems: section.subItems.map(item => ({
+      icon: iconFor(item.icon),
+      label: item.label,
+      href: item.href,
+      permission: item.permission ?? '',
+    })),
+  }));
 
   // Filtrar menu por permissões do usuário
   const menuSections = allMenuSections.filter(section => {

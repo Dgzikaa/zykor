@@ -1,8 +1,5 @@
 // Layout Components
 export { default as StandardPageLayout } from './StandardPageLayout';
-export { default as StandardPageWrapper } from './StandardPageWrapper';
-export { AuthLayout } from './AuthLayout';
-export { DarkHeader } from './DarkHeader';
 export { BottomNavigation } from './BottomNavigation';
 
 // Minimal Layout (Novo - Estilo Notion)
