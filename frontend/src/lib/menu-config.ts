@@ -1,11 +1,13 @@
 /**
- * Configuração DINÂMICA do Menu Lateral
- * 
- * Este arquivo IMPORTA a estrutura do menu lateral e gera automaticamente
- * os módulos de permissão. Assim, qualquer alteração no menu lateral
- * reflete AUTOMATICAMENTE nas permissões de usuários.
- * 
- * FONTE ÚNICA DE VERDADE: ModernSidebarOptimized.tsx
+ * Configuração de PERMISSÕES derivada do Menu Lateral
+ *
+ * Este arquivo mantém uma cópia da estrutura do menu e gera automaticamente
+ * os módulos de permissão + os route guards.
+ *
+ * IMPORTANTE: a sidebar RENDERIZADA é `components/layouts/MinimalSidebar.tsx`
+ * (via SimpleDashboardLayout -> MinimalLayout). Ao adicionar/remover itens de
+ * menu, edite a MinimalSidebar; e mantenha MENU_LATERAL_STRUCTURE abaixo em
+ * sincronia (o teste sidebar-routes.test garante que itens visíveis tenham rota).
  */
 
 // Interface para módulos de permissão (usada pela API)

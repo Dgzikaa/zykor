@@ -76,7 +76,7 @@ export function PageContent({
     </div>
   );
 
-  // Se precisa do background (para páginas fora do DarkSidebarLayout)
+  // Se precisa do background (para páginas fora do layout com sidebar)
   if (withBackground) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

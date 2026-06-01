@@ -1,11 +1,8 @@
 // Layout Components
 export { default as StandardPageLayout } from './StandardPageLayout';
 export { default as StandardPageWrapper } from './StandardPageWrapper';
-export { DarkSidebarLayout } from './DarkSidebarLayout';
-export { DashboardLayout } from './DashboardLayout';
 export { AuthLayout } from './AuthLayout';
 export { DarkHeader } from './DarkHeader';
-export { ModernSidebarOptimized as ModernSidebar } from './ModernSidebarOptimized';
 export { BottomNavigation } from './BottomNavigation';
 
 // Minimal Layout (Novo - Estilo Notion)
