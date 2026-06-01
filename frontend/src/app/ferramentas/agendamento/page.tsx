@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
@@ -85,6 +85,8 @@ export default function AgendamentoPage() {
     name: '',
   });
   const [pagamentoEditando, setPagamentoEditando] = useState<PagamentoAgendamento | null>(null);
+  // PIX cuja baixa no CA já foi tentada nesta sessão (backend é idempotente de qualquer forma)
+  const baixaCATentada = useRef<Set<string>>(new Set());
 
   const [tabAtivo, setTabAtivo] = useState('manual');
 
@@ -251,6 +253,42 @@ export default function AgendamentoPage() {
 
     let cancelado = false;
 
+    const aprovou = (st: string) =>
+      ['EXECUTADO', 'CONCLUIDO', 'PAGO', 'COMPLETED'].includes(st.toUpperCase());
+
+    // Dá baixa (quita) a conta a pagar no CA quando o PIX é aprovado — fecha a conciliação.
+    // Backend é idempotente; se a conta a pagar ainda não sincronizou, libera pra retry.
+    const darBaixaCA = async (p: PagamentoAgendamento) => {
+      if (!barId || !contaFinanceiraSelecionadaId) return;
+      try {
+        const limpo = String(p.valor || '')
+          .replace(/[R$\s]/g, '')
+          .replace(/\./g, '')
+          .replace(',', '.');
+        const valorNumerico = parseFloat(limpo);
+        if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) return;
+        const r = await fetch('/api/financeiro/contaazul/baixa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bar_id: p.bar_id || barId,
+            valor: valorNumerico,
+            descricao: p.descricao || `Pagamento ${p.nome_beneficiario}`,
+            data_competencia: p.data_competencia || p.data_pagamento,
+            data_pagamento: p.data_pagamento,
+            conta_financeira_id: contaFinanceiraSelecionadaId,
+          }),
+        });
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}));
+          // ainda não sincronizou → libera pra tentar de novo no próximo poll
+          if (d?.code === 'nao_sincronizado') baixaCATentada.current.delete(p.id);
+        }
+      } catch {
+        baixaCATentada.current.delete(p.id);
+      }
+    };
+
     const fazerPoll = async () => {
       const ids = pendentes.map(p => p.id).join(',');
       try {
@@ -263,6 +301,18 @@ export default function AgendamentoPage() {
         for (const pix of data.pix || []) {
           if (pix.pagamento_zykor_id) byZykorId.set(pix.pagamento_zykor_id, pix);
         }
+
+        // PIX recém-aprovados que já têm conta a pagar no CA → dar baixa
+        const paraBaixar = pendentes.filter(p => {
+          const upd = byZykorId.get(p.id);
+          return (
+            upd &&
+            aprovou(String(upd.inter_status || '')) &&
+            p.contaazul_lancamento_id &&
+            !baixaCATentada.current.has(p.id)
+          );
+        });
+
         setPagamentos(prev =>
           prev.map(p => {
             const upd = byZykorId.get(p.id);
@@ -270,7 +320,7 @@ export default function AgendamentoPage() {
             const interStatusUpper = String(upd.inter_status || '').toUpperCase();
             // Mapeia inter_status → status local da lista
             let novoStatus = p.status;
-            if (['EXECUTADO', 'CONCLUIDO', 'PAGO', 'COMPLETED'].includes(interStatusUpper)) {
+            if (aprovou(interStatusUpper)) {
               novoStatus = 'aprovado';
             } else if (['FALHOU', 'ERRO', 'FAILED', 'REJEITADO', 'CANCELADO', 'CANCELLED'].includes(interStatusUpper)) {
               novoStatus = 'erro_inter';
@@ -281,6 +331,11 @@ export default function AgendamentoPage() {
           })
         );
         setUltimoPoll(new Date());
+
+        for (const p of paraBaixar) {
+          baixaCATentada.current.add(p.id);
+          void darBaixaCA(p);
+        }
       } catch (e) {
         // silencioso — polling não bloqueia
       }
