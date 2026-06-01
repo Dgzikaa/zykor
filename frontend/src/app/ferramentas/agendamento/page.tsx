@@ -286,9 +286,10 @@ export default function AgendamentoPage() {
       }
     };
 
-    // Primeiro poll imediato, depois a cada 30s
+    // Primeiro poll imediato, depois a cada 5s. Barato: lê de financial.pix_enviados
+    // (não chama o Inter) e o webhook já atualiza a tabela na hora → ~tempo real.
     void fazerPoll();
-    const interval = setInterval(fazerPoll, 30000);
+    const interval = setInterval(fazerPoll, 5000);
     return () => {
       cancelado = true;
       clearInterval(interval);
