@@ -18,8 +18,8 @@ export default function OperacionalPage() {
   const operacionalItems = [
     {
       title: 'DRE',
-      description: 'Demonstrativo de Resultado do Exercício - Visão Operacional',
-      href: '/operacional/dre',
+      description: 'Demonstrativo de Resultado do Exercício',
+      href: '/ferramentas/dre',
       icon: CheckSquare,
       color: 'text-blue-600 dark:text-blue-400',
     },

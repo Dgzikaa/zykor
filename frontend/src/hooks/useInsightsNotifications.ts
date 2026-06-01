@@ -94,7 +94,7 @@ export function useInsightsNotifications(): UseInsightsNotificationsResult {
       'faturamento': '/estrategico/visao-geral',
       'meta': '/estrategico/visao-geral',
       'metas': '/estrategico/visao-geral',
-      'cmv': '/operacional/dre',
+      'cmv': '/ferramentas/dre',
       'ticket': '/analitico',
       'pagamentos': '/fp',
       
@@ -123,7 +123,7 @@ export function useInsightsNotifications(): UseInsightsNotificationsResult {
       
       // Outros
       'marketing': '/analitico',
-      'financeiro': '/operacional/dre',
+      'financeiro': '/ferramentas/dre',
       'produto': '/analitico/produtos',
       'produtos': '/analitico/produtos',
     };
