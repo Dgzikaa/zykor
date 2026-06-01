@@ -22,21 +22,24 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const { data: interCredencial } = await supabase
+    // Pode haver MAIS DE UMA credencial por bar (ex.: Ordinário tem 2 contas Inter).
+    // Por isso NÃO usar .single() — ele falha com múltiplas linhas e dava falso "não configurado".
+    const { data: interCredenciais } = await supabase
       .from('api_credentials')
-      .select('id, sistema')
+      .select('id')
       .eq('sistema', 'banco_inter')
       .eq('bar_id', barId)
-      .eq('ativo', true)
-      .single();
+      .eq('ativo', true);
+
+    const temInter = Array.isArray(interCredenciais) && interCredenciais.length > 0;
 
     return NextResponse.json({
       success: true,
       bar_id: barId,
-      inter: !!interCredencial,
-      mensagem: !interCredencial
-        ? 'Credencial Inter não configurada'
-        : 'Credencial Inter configurada',
+      inter: temInter,
+      mensagem: temInter
+        ? 'Credencial Inter configurada'
+        : 'Credencial Inter não configurada',
     });
 
   } catch (error) {
