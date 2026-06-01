@@ -41,6 +41,7 @@ import { PagamentosList } from './components/PagamentosList';
 import { NovoPagamentoForm } from './components/NovoPagamentoForm';
 import { ImportarFolhaForm } from './components/ImportarFolhaForm';
 import { StakeholderModal } from './components/StakeholderModal';
+import { EditarPagamentoModal } from './components/EditarPagamentoModal';
 
 const STORAGE_KEYS = {
   PAGAMENTOS: 'sgb_financeiro_pagamentos',
@@ -83,6 +84,7 @@ export default function AgendamentoPage() {
     document: '',
     name: '',
   });
+  const [pagamentoEditando, setPagamentoEditando] = useState<PagamentoAgendamento | null>(null);
 
   const [tabAtivo, setTabAtivo] = useState('manual');
 
@@ -525,22 +527,17 @@ export default function AgendamentoPage() {
   const handleEditar = (id: string) => {
     const pagamento = pagamentos.find(p => p.id === id);
     if (!pagamento) return;
-    const novaData = window.prompt(
-      `Nova data de pagamento (AAAA-MM-DD) para ${pagamento.nome_beneficiario}:\n\nObs: se já enviado ao Inter, cancele/rejeite no app Inter primeiro, depois clique "Reenviar" aqui.`,
-      pagamento.data_pagamento
-    );
-    if (!novaData || !/^\d{4}-\d{2}-\d{2}$/.test(novaData)) {
-      if (novaData !== null) {
-        toast({ title: '❌ Data inválida', description: 'Use o formato AAAA-MM-DD', variant: 'destructive' });
-      }
-      return;
-    }
+    setPagamentoEditando(pagamento);
+  };
+
+  const handleSalvarEdicao = (id: string, campos: Partial<PagamentoAgendamento>) => {
+    const anterior = pagamentos.find(p => p.id === id);
     setPagamentos(prev =>
       prev.map(p =>
         p.id === id
           ? {
               ...p,
-              data_pagamento: novaData,
+              ...campos,
               // Reseta status pra permitir reenvio (mantém contaazul_lancamento_id se existir — não duplica no CA)
               status: 'pendente',
               erro_mensagem: undefined,
@@ -549,9 +546,10 @@ export default function AgendamentoPage() {
           : p
       )
     );
+    setPagamentoEditando(null);
     toast({
-      title: '📅 Data atualizada',
-      description: `${pagamento.nome_beneficiario} → ${novaData}. Clique "Reenviar" pra processar com a nova data.`,
+      title: '✏️ Pagamento atualizado',
+      description: `${campos.nome_beneficiario || anterior?.nome_beneficiario || ''} — clique "Reenviar" pra processar de novo.`,
     });
   };
 
@@ -983,6 +981,12 @@ export default function AgendamentoPage() {
           initialDocument={stakeholderEmCadastro.document}
           initialName={stakeholderEmCadastro.name}
           onStakeholderCriado={handleStakeholderCriado}
+        />
+
+        <EditarPagamentoModal
+          pagamento={pagamentoEditando}
+          onClose={() => setPagamentoEditando(null)}
+          onSalvar={handleSalvarEdicao}
         />
 
         {gerenciarContasOpen && barId && interCredencialSelecionadaId && (() => {
