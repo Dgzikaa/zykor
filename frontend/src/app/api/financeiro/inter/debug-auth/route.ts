@@ -4,6 +4,7 @@ import https from 'https';
 import crypto from 'crypto';
 import { getInterAccessToken } from '@/lib/inter/getAccessToken';
 import { resolveInterCredential } from '@/lib/inter/resolveCredential';
+import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,8 +70,12 @@ async function probePixAuth(token: string, contaCorrente: string, cert: Buffer, 
 
 export async function POST(request: NextRequest) {
   try {
+    // Diagnóstico sensível (sonda o banco, expõe tails de token/cert): só admin.
+    const user = await authenticateUser(request);
+    if (!user) return authErrorResponse('Usuário não autenticado');
+    if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores podem usar o diagnóstico');
     const body = await request.json().catch(() => ({}));
-    const barId = Number.parseInt(String(body?.bar_id || ''), 10);
+    const barId = Number(user.bar_id);
     const credentialId = Number.parseInt(String(body?.inter_credencial_id || ''), 10);
 
     if (!Number.isFinite(barId)) {
