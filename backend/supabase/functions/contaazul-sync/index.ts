@@ -550,86 +550,79 @@ async function syncPessoas(
   
   let totalCount = 0
 
-  // Buscar fornecedores
-  console.log('[contaazul-sync] Buscando fornecedores...')
-  const fornecedoresResult = await fetchCA(
-    '/v1/fornecedores',
-    { page: '1', size: '500' },
-    accessToken,
-    supabase,
-    credentials
-  )
-
-  if (fornecedoresResult) {
-    const fornecedores = fornecedoresResult.data.content || fornecedoresResult.data.items || fornecedoresResult.data || []
-    console.log('[contaazul-sync] Fornecedores encontrados: ' + fornecedores.length)
-
-    if (fornecedores.length > 0) {
-      const pessoas = fornecedores.map((item: any) => ({
-        contaazul_id: item.id || item.uuid,
-        bar_id: barId,
-        nome: item.nome || item.name || item.razao_social,
-        tipo_pessoa: item.tipo_pessoa || item.person_type || (item.cpf ? 'FISICA' : 'JURIDICA'),
-        documento: item.cpf || item.cnpj || item.cpf_cnpj || item.document,
-        email: item.email,
-        telefone: item.telefone || item.phone || item.celular,
-        perfil: 'FORNECEDOR',
-        ativo: item.ativo !== false && item.status !== 'INATIVO',
-        updated_at: new Date().toISOString()
-      }))
-
-      const { error } = await supabase
-        .schema('bronze')
-        .from('bronze_contaazul_pessoas')
-        .upsert(pessoas, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
-
-      if (error) {
-        console.error('[contaazul-sync] Erro ao inserir fornecedores:', error)
-      } else {
-        totalCount += pessoas.length
-      }
+  // CA API v2: lista TODAS as pessoas em /v1/pessoas (com perfis no array `perfis`).
+  // Os endpoints antigos /v1/fornecedores e /v1/clientes NAO existem mais na v2 (404),
+  // o que deixava o sync de pessoas vazio (fornecedor cadastrado no CA nao aparecia no Zykor).
+  const TIPOS_VALIDOS = ['Física', 'Jurídica', 'Estrangeira']
+  let pagina = 1
+  const TAM = 500
+  let token = accessToken
+  while (true) {
+    console.log('[contaazul-sync] Buscando pessoas (pagina ' + pagina + ')...')
+    const result = await fetchCA(
+      '/v1/pessoas',
+      { pagina: String(pagina), tamanho_pagina: String(TAM) },
+      token,
+      supabase,
+      credentials
+    )
+    if (!result) {
+      console.error('[contaazul-sync] /v1/pessoas retornou null na pagina ' + pagina)
+      break
     }
-  }
+    if (result.newToken) token = result.newToken
 
-  // Buscar clientes
-  console.log('[contaazul-sync] Buscando clientes...')
-  const clientesResult = await fetchCA(
-    '/v1/clientes',
-    { page: '1', size: '500' },
-    accessToken,
-    supabase,
-    credentials
-  )
+    const items = result.data.items || result.data.content || []
+    const totalItems = typeof result.data.totalItems === 'number' ? result.data.totalItems : null
+    console.log('[contaazul-sync] Pessoas na pagina: ' + items.length + (totalItems !== null ? ' / total ' + totalItems : ''))
+    if (items.length === 0) break
 
-  if (clientesResult) {
-    const clientes = clientesResult.data.content || clientesResult.data.items || clientesResult.data || []
-    console.log('[contaazul-sync] Clientes encontrados: ' + clientes.length)
+    const mapped = items
+      .map((item: any) => {
+        const perfis = Array.isArray(item.perfis) ? item.perfis.map((p: any) => String(p).toUpperCase()) : []
+        const perfil = perfis.includes('FORNECEDOR')
+          ? 'FORNECEDOR'
+          : perfis.includes('CLIENTE')
+            ? 'CLIENTE'
+            : (perfis[0] || 'FORNECEDOR')
+        const doc = String(item.documento || '').replace(/\D/g, '')
+        return {
+          contaazul_id: item.id || item.uuid,
+          bar_id: barId,
+          nome: item.nome || item.name || 'SEM NOME',
+          // tipo_pessoa fica null: o CHECK constraint da tabela está mal-encodado
+          // (FÃ­sica) e o valor correto do CA (Física) viola. Não é usado no match.
+          tipo_pessoa: null,
+          documento: doc.length ? doc : null,
+          email: item.email || null,
+          telefone: item.telefone || null,
+          perfil,
+          ativo: item.ativo !== false,
+          sincronizado_em: new Date().toISOString()
+        }
+      })
+      .filter((p: any) => p.contaazul_id)
 
-    if (clientes.length > 0) {
-      const pessoas = clientes.map((item: any) => ({
-        contaazul_id: item.id || item.uuid,
-        bar_id: barId,
-        nome: item.nome || item.name || item.razao_social,
-        tipo_pessoa: item.tipo_pessoa || item.person_type || (item.cpf ? 'FISICA' : 'JURIDICA'),
-        documento: item.cpf || item.cnpj || item.cpf_cnpj || item.document,
-        email: item.email,
-        telefone: item.telefone || item.phone || item.celular,
-        perfil: 'CLIENTE',
-        ativo: item.ativo !== false && item.status !== 'INATIVO',
-        updated_at: new Date().toISOString()
-      }))
+    // Dedupe por contaazul_id (upsert em lote falha com id repetido na mesma página)
+    const porId = new Map<string, any>()
+    for (const p of mapped) porId.set(p.contaazul_id, p)
+    const pessoas = Array.from(porId.values())
 
-      const { error } = await supabase
-        .schema('bronze')
-        .from('bronze_contaazul_pessoas')
-        .upsert(pessoas, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
+    const { error } = await supabase
+      .schema('bronze')
+      .from('bronze_contaazul_pessoas')
+      .upsert(pessoas, { onConflict: 'contaazul_id,bar_id', ignoreDuplicates: false })
 
-      if (error) {
-        console.error('[contaazul-sync] Erro ao inserir clientes:', error)
-      } else {
-        totalCount += pessoas.length
-      }
+    if (error) {
+      console.error('[contaazul-sync] Erro upsert pessoas (pagina ' + pagina + '):', error.message || error)
+      break
     }
+    totalCount += pessoas.length
+
+    if (totalItems !== null && totalCount >= totalItems) break
+    if (items.length < TAM) break
+    pagina += 1
+    if (pagina > 100) break // safety cap
   }
 
   console.log('[contaazul-sync] Total pessoas sincronizadas: ' + totalCount)
