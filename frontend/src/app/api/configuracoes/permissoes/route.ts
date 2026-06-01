@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getModulosParaPermissoes, ROLES_PADRAO } from '@/lib/menu-config';
+import { getModulosParaPermissoes, ROLES_PADRAO } from '@/lib/permissions/modules';
 
 export const dynamic = 'force-dynamic'
 
 // Módulos são agora gerados automaticamente a partir do menu lateral
-// Fonte única de verdade: /lib/menu-config.ts
+// Módulos derivados da fonte única do menu: /lib/permissions/modules.ts
 
 // GET - Listar módulos do sistema e roles padrão
 export async function GET() {

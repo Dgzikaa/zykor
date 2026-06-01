@@ -52,6 +52,7 @@ import {
   UserX,
   Flame,
 } from 'lucide-react';
+import { MENU_TREE } from '@/lib/navigation/menu';
 
 interface SubMenuItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -81,85 +82,28 @@ const PERMISSION_MAPPINGS: Record<string, string[]> = {
   cfp: ['home'],
 };
 
-const defaultSidebarItems: SidebarItem[] = [
-  {
-    icon: Target,
-    label: 'Estratégico',
-    href: '/estrategico',
-    permission: 'gestao',
-    subItems: [
-      { icon: TrendingUp, label: 'Visão Geral', href: '/estrategico/visao-geral', permission: 'home' },
-      { icon: BarChart3, label: 'Desempenho', href: '/estrategico/desempenho', permission: 'gestao' },
-      { icon: Calendar, label: 'Planejamento', href: '/estrategico/planejamento-comercial', permission: 'planejamento' },
-      { icon: DollarSign, label: 'Orçamentação', href: '/estrategico/orcamentacao', permission: 'home' },
-    ],
-  },
-  {
-    icon: BarChart3,
-    label: 'Analítico',
-    href: '/analitico',
-    permission: 'relatorios',
-    subItems: [
-      { icon: Users, label: 'Clientes', href: '/analitico/clientes', permission: 'relatorios' },
-      { icon: BarChart3, label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
-    ],
-  },
-  {
-    icon: Wrench,
-    label: 'Ferramentas',
-    href: '/ferramentas',
-    permission: 'ferramentas',
-    subItems: [
-      { icon: Zap, label: 'Insights Estratégicos', href: '/ferramentas/insights', permission: 'gestao' },
-      { icon: BarChart3, label: 'Análises Avançadas', href: '/ferramentas/analises', permission: 'gestao' },
-      { icon: Wallet, label: 'Financeiro', href: '/ferramentas/financeiro', permission: 'gestao' },
-      { icon: Calendar, label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
-      { icon: Receipt, label: 'Pedidos de Pagamento', href: '/ferramentas/pedidos-pagamento', permission: 'home' },
-      { icon: MessageCircle, label: 'CRM', href: '/ferramentas/crm', permission: 'gestao' },
-      { icon: TrendingUp, label: 'Gestão CMV', href: '/ferramentas/cmv-semanal', permission: 'gestao' },
-      { icon: ChefHat, label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal', permission: 'gestao' },
-      { icon: Users, label: 'CMO - Mão de Obra', href: '/ferramentas/cmo', permission: 'gestao' },
-      { icon: Tag, label: 'Classificação de Consumos', href: '/ferramentas/consumos-classificacao', permission: 'gestao' },
-      { icon: AlertTriangle, label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
-      { icon: FileSearch, label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
-      { icon: Star, label: 'NPS Funcionários', href: '/ferramentas/nps', permission: 'gestao' },
-      { icon: Instagram, label: 'Instagram', href: '/ferramentas/instagram', permission: 'gestao' },
-      { icon: Bot, label: 'Zykor Assistant', href: '/ferramentas/assistente-zykor', permission: 'gestao' },
-    ],
-  },
-  {
-    icon: Sparkles,
-    label: 'Extras',
-    href: '/extras',
-    permission: 'home',
-    subItems: [
-      { icon: PieChart, label: 'DRE', href: '/ferramentas/dre', permission: 'gestao' },
-      { icon: Package, label: 'Produção e Insumos', href: '/ferramentas/producao-insumos', permission: 'gestao' },
-      { icon: Layers, label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque', permission: 'gestao' },
-      { icon: Megaphone, label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
-      { icon: Ticket, label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'gestao' },
-      { icon: Clock, label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
-      { icon: FileText, label: 'Fichas Técnicas', href: '/extras/fichas-tecnicas', permission: 'gestao' },
-      { icon: CheckSquare, label: 'Checklists', href: '/extras/checklists', permission: 'gestao' },
-      { icon: Calendar, label: 'Calendário Operacional', href: '/extras/calendario-operacional', permission: 'home' },
-    ],
-  },
-  {
-    icon: Settings,
-    label: 'Configurações',
-    href: '/configuracoes',
-    permission: 'configuracoes',
-    subItems: [
-      { icon: Users, label: 'Administração', href: '/configuracoes/administracao/usuarios', permission: 'configuracoes' },
-      { icon: Target, label: 'Metas', href: '/configuracoes/metas', permission: 'configuracoes' },
-      { icon: Activity, label: 'Teste de Produção', href: '/configuracoes/teste-producao', permission: 'configuracoes' },
-      // Auditoria removida — libs deletadas
-      { icon: Activity, label: 'Saúde dos Dados', href: '/configuracoes/saude-dados', permission: 'configuracoes' },
-      { icon: Activity, label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },
-      { icon: CheckSquare, label: 'Checklist Validação', href: '/checklist-validacao', permission: 'configuracoes' },
-    ],
-  },
-];
+// Mapa nome-do-ícone -> componente lucide. A árvore do menu (lib/navigation/menu.ts)
+// guarda o nome como string (dados puros); aqui anexamos o componente pra renderizar.
+const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  Target, BarChart3, Wrench, Sparkles, Settings,
+  TrendingUp, Calendar, DollarSign, Users, Zap, Wallet, Receipt, MessageCircle,
+  ChefHat, Tag, AlertTriangle, FileSearch, Star, Instagram, Bot,
+  PieChart, Package, Layers, Megaphone, Ticket, Clock, FileText, CheckSquare, Activity,
+};
+
+// Itens do menu derivados da FONTE ÚNICA (lib/navigation/menu.ts).
+const defaultSidebarItems: SidebarItem[] = MENU_TREE.map(section => ({
+  icon: ICONS[section.icon] ?? Activity,
+  label: section.label,
+  href: section.href,
+  permission: section.permission,
+  subItems: section.subItems.map(item => ({
+    icon: ICONS[item.icon] ?? Activity,
+    label: item.label,
+    href: item.href,
+    permission: item.permission,
+  })),
+}));
 
 // Componente do item de menu (memoizado)
 const SidebarMenuItem = memo(({ item, isActive, isExpanded, onToggle, badges }: {

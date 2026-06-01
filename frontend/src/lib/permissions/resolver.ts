@@ -20,7 +20,7 @@
  * sidebar) quanto no server (get-user, route guards).
  */
 
-import { MODULOS_MENU } from '../menu-config';
+import { MODULOS_MENU } from './modules';
 
 export type ModulosPermitidos = string[] | Record<string, unknown> | null | undefined;
 
@@ -29,7 +29,7 @@ const TODOS = 'todos';
 
 /**
  * Generics de cada categoria do menu. Mantido consistente com
- * `buildSectionFallbackModules` em menu-config.ts.
+ * `buildSectionFallbackModules` em ./modules.ts.
  */
 const CATEGORY_GENERICS: Record<string, string[]> = {
   'Estratégico': ['estrategico', 'gestao', 'dashboard', 'home'],
@@ -50,7 +50,7 @@ const MODULE_EXTRA_GENERICS: Record<string, string[]> = {
 
 /**
  * Classes de equivalência (alias legado/sinônimo -> id canônico do menu).
- * O id canônico é o gerado por menu-config (categoria_nome).
+ * O id canônico é o gerado por ./modules (categoria_nome).
  * Cobre TODAS as strings legadas encontradas no banco em produção.
  */
 const ALIAS_TO_CANONICAL: Record<string, string> = {

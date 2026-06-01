@@ -1,14 +1,21 @@
 /**
- * Configuração de PERMISSÕES derivada do Menu Lateral
+ * MÓDULOS DE PERMISSÃO + ROUTE GUARDS (derivados do menu lateral)
  *
- * Este arquivo mantém uma cópia da estrutura do menu e gera automaticamente
- * os módulos de permissão + os route guards.
+ * Antigo `lib/menu-config.ts`. Não define mais a estrutura do menu — ele DERIVA da
+ * FONTE ÚNICA (`lib/navigation/menu.ts`). Assim a sidebar renderizada e as permissões
+ * saem do mesmo lugar e não divergem.
  *
- * IMPORTANTE: a sidebar RENDERIZADA é `components/layouts/MinimalSidebar.tsx`
- * (via SimpleDashboardLayout -> MinimalLayout). Ao adicionar/remover itens de
- * menu, edite a MinimalSidebar; e mantenha MENU_LATERAL_STRUCTURE abaixo em
- * sincronia (o teste sidebar-routes.test garante que itens visíveis tenham rota).
+ * Gera:
+ * - MODULOS_MENU: ids canônicos de módulo (categoria_nome) usados pelo resolver e pela
+ *   tela de permissões.
+ * - getMenuRoutePermissions(): mapa rota -> módulos exigidos (route guards).
+ * - ROLES_PADRAO: presets de papel.
+ *
+ * A CHECAGEM de permissão (alias/generics/'todos') vive no resolver único
+ * (`lib/permissions/resolver.ts`).
  */
+
+import { MENU_TREE } from '../navigation/menu';
 
 // Interface para módulos de permissão (usada pela API)
 export interface ModuloPermissao {
@@ -28,78 +35,23 @@ export interface MenuSectionConfig {
 }
 
 /**
- * Estrutura do menu lateral (importada dinamicamente)
- * Esta é uma cópia da estrutura do ModernSidebarOptimized.tsx
- * para evitar dependências circulares e problemas de importação client/server
+ * Estrutura do menu para fins de permissão, derivada da fonte única.
+ * (Só precisamos de label + href + categoria aqui; ícones ficam na sidebar.)
  */
-export const MENU_LATERAL_STRUCTURE: MenuSectionConfig[] = [
-  {
-    label: 'Estratégico',
-    subItems: [
-      { label: 'Visão Geral', href: '/estrategico/visao-geral' },
-      { label: 'Desempenho', href: '/estrategico/desempenho' },
-      { label: 'Planejamento', href: '/estrategico/planejamento-comercial' },
-      { label: 'Orçamentação', href: '/estrategico/orcamentacao' },
-    ],
-  },
-  {
-    label: 'Analítico',
-    subItems: [
-      { label: 'Clientes', href: '/analitico/clientes' },
-      { label: 'Eventos', href: '/analitico/eventos' },
-    ],
-  },
-  {
-    label: 'Ferramentas',
-    subItems: [
-      { label: 'CRM', href: '/ferramentas/crm' },
-      { label: 'Agendamento', href: '/ferramentas/agendamento' },
-      { label: 'Pedidos de Pagamento', href: '/ferramentas/pedidos-pagamento' },
-      { label: 'NPS Funcionários', href: '/ferramentas/nps' },
-      { label: 'CMV Semanal', href: '/ferramentas/cmv-semanal' },
-      { label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal' },
-      { label: 'CMO - Mão de Obra', href: '/ferramentas/cmo' },
-      { label: 'Stockout', href: '/ferramentas/stockout' },
-      { label: 'Consultas', href: '/ferramentas/consultas' },
-    ],
-  },
-  {
-    label: 'Configurações',
-    subItems: [
-      { label: 'Administração', href: '/configuracoes/administracao/usuarios' },
-      { label: 'Metas', href: '/configuracoes/metas' },
-      { label: 'Teste de Produção', href: '/configuracoes/teste-producao' },
-      { label: 'Auditoria', href: '/configuracoes/auditoria' },
-      { label: 'Saúde dos Dados', href: '/configuracoes/saude-dados' },
-      { label: 'Monitoramento', href: '/configuracoes/monitoramento' },
-    ],
-  },
-  {
-    label: 'Extras',
-    subItems: [
-      { label: 'Produção e Insumos', href: '/ferramentas/producao-insumos' },
-      { label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque' },
-      { label: 'DRE', href: '/ferramentas/dre' },
-      { label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia' },
-      { label: 'Retrospectiva 2025', href: '/retrospectiva-2025' },
-      { label: 'Impacto Entrada', href: '/ferramentas/analise-couvert' },
-      { label: 'Central Comercial', href: '/ferramentas/comercial' },
-      { label: 'Fichas Técnicas', href: '/extras/fichas-tecnicas' },
-      { label: 'Checklists', href: '/extras/checklists' },
-      { label: 'Calendário Operacional', href: '/extras/calendario-operacional' },
-    ],
-  },
-];
+export const MENU_LATERAL_STRUCTURE: MenuSectionConfig[] = MENU_TREE.map(secao => ({
+  label: secao.label,
+  subItems: secao.subItems.map(item => ({ label: item.label, href: item.href })),
+}));
 
 /**
  * Gera ID único para o módulo baseado na categoria e nome
  */
 function gerarIdModulo(categoria: string, nome: string): string {
-  const categoriaSlug = categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const categoriaSlug = categoria.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
   const nomeSlug = nome
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\p{Diacritic}/gu, '')
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_|_$/g, '');
   return `${categoriaSlug}_${nomeSlug}`;
@@ -107,7 +59,6 @@ function gerarIdModulo(categoria: string, nome: string): string {
 
 /**
  * MÓDULOS GERADOS AUTOMATICAMENTE DO MENU LATERAL
- * Esta lista é gerada dinamicamente da estrutura acima
  */
 export const MODULOS_MENU: ModuloPermissao[] = MENU_LATERAL_STRUCTURE.flatMap(secao =>
   secao.subItems.map(item => ({
@@ -187,14 +138,6 @@ export function getMenuRoutePermissions(): MenuRoutePermissionEntry[] {
 
 /**
  * MAPEAMENTO AUTOMÁTICO: Módulo específico -> Permissões genéricas
- * 
- * Este mapeamento é gerado automaticamente baseado na categoria do módulo.
- * Regras:
- * - Estratégico -> ['gestao', 'home']
- * - Analítico -> ['relatorios']
- * - Ferramentas -> ['ferramentas', 'operacoes']
- * - Configurações -> ['configuracoes']
- * - Extras -> ['home', 'relatorios']
  */
 function gerarPermissoesAutomaticas(categoria: string): string[] {
   const mapa: Record<string, string[]> = {
@@ -218,7 +161,7 @@ export const MODULO_TO_PERMISSIONS: Record<string, string[]> = MODULOS_MENU.redu
  */
 export function getPermissoesFromModulos(modulos: string[]): string[] {
   const permissoes = new Set<string>();
-  
+
   for (const modulo of modulos) {
     const perms = MODULO_TO_PERMISSIONS[modulo];
     if (perms) {
@@ -227,7 +170,7 @@ export function getPermissoesFromModulos(modulos: string[]): string[] {
     // Também adiciona o próprio módulo como permissão
     permissoes.add(modulo);
   }
-  
+
   return Array.from(permissoes);
 }
 

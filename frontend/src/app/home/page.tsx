@@ -43,7 +43,7 @@ interface QuickAction {
 }
 
 // Todos os módulos disponíveis
-// IMPORTANTE: As permissões devem bater com os IDs gerados em /lib/menu-config.ts
+// IMPORTANTE: As permissões devem bater com os IDs gerados em /lib/permissions/modules.ts
 // Padrão: {categoria}_{nome_slug} (ex: estrategico_visao_geral, ferramentas_crm)
 // Fallbacks genéricos: gestao, ferramentas, operacoes, relatorios, home, configuracoes, analitico, estrategico
 const allQuickActions: QuickAction[] = [

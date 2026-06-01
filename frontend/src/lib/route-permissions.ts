@@ -1,4 +1,4 @@
-import { getMenuRoutePermissions } from './menu-config';
+import { getMenuRoutePermissions } from './permissions/modules';
 import { userHasAnyModule } from './permissions/resolver';
 
 /**
