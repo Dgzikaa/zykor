@@ -218,9 +218,10 @@ async function syncLancamentos(
   dateTo: string,
   useAlteracaoFilter: boolean,
   functionStartTime: number
-): Promise<{ count: number; newToken?: string; timedOut?: boolean }> {
-  
+): Promise<{ count: number; newToken?: string; timedOut?: boolean; erros: number }> {
+
   let totalCount = 0
+  let erros = 0
   let currentToken = accessToken
 
   const tipos = [
@@ -243,7 +244,7 @@ async function syncLancamentos(
       // Verificar timeout safety
       if (Date.now() - functionStartTime > SAFE_TIMEOUT_MS) {
         console.warn('[contaazul-sync] ⚠️ Approaching timeout, saving progress and stopping')
-        return { count: totalCount, newToken: currentToken !== accessToken ? currentToken : undefined, timedOut: true }
+        return { count: totalCount, newToken: currentToken !== accessToken ? currentToken : undefined, timedOut: true, erros }
       }
 
       // Verificar limite de registros por execução (desabilitado para sincronização completa)
@@ -383,6 +384,7 @@ async function syncLancamentos(
 
           if (error) {
             console.error('[contaazul-sync] Erro ao inserir lancamentos batch ' + (batchIdx + 1) + ':', JSON.stringify(error))
+            erros++
           } else {
             console.log('[contaazul-sync] Upsert OK batch ' + (batchIdx + 1) + ': ' + (upsertData?.length || lancamentos.length) + ' registros')
             totalCount += lancamentos.length
@@ -431,8 +433,8 @@ async function syncLancamentos(
     }
   }
 
-  console.log('[contaazul-sync] Total lancamentos sincronizados: ' + totalCount)
-  return { count: totalCount, newToken: currentToken !== accessToken ? currentToken : undefined }
+  console.log('[contaazul-sync] Total lancamentos sincronizados: ' + totalCount + ' (erros de batch: ' + erros + ')')
+  return { count: totalCount, newToken: currentToken !== accessToken ? currentToken : undefined, erros }
 }
 
 // ============ SYNC CATEGORIAS ============
@@ -924,15 +926,20 @@ serve(async (req: Request) => {
       startTime
     )
     stats.lancamentos = lancResult.count
-    
+    stats.erros += lancResult.erros || 0
+
     // Se houve timeout ou limite atingido, registrar no log
     if (lancResult.timedOut) {
       console.warn('[contaazul-sync] ⚠️ Sync interrompido por timeout safety')
     }
 
+    // Status: 'partial' se algum batch falhou ou houve timeout — dispara alerta no
+    // heartbeat (antes reportava 'success' mesmo perdendo lançamentos silenciosamente).
+    const syncStatus = (stats.erros > 0 || lancResult.timedOut) ? 'partial' : 'success'
+
     // Atualizar log
     if (logId) {
-      await updateSyncLog(supabase, logId, 'success', stats, startTime)
+      await updateSyncLog(supabase, logId, syncStatus, stats, startTime)
     }
 
     // Atualiza cursor do state quando modo alteracao (sem timeout)
@@ -969,9 +976,9 @@ serve(async (req: Request) => {
       console.warn('[contaazul-sync] Excecao no refresh gold:', err)
     }
 
-    // Heartbeat sucesso
+    // Heartbeat: success só se não houve erro/timeout (senão 'partial', que alerta)
     const totalRegistros = stats.lancamentos + stats.categorias + stats.centros_custo + stats.pessoas + stats.contas_financeiras
-    await heartbeatEnd(supabase, heartbeatId, 'success', startTime, totalRegistros, stats, undefined, 'contaazul-sync', barId)
+    await heartbeatEnd(supabase, heartbeatId, syncStatus, startTime, totalRegistros, stats, undefined, 'contaazul-sync', barId)
 
     console.log('[contaazul-sync] Sync concluido com sucesso')
 

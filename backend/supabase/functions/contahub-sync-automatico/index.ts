@@ -527,24 +527,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // 💓 Heartbeat: registrar início da execução com advisory lock
-    // TEMPORARIAMENTE DESABILITADO HEARTBEAT E LOCK PARA DEBUG CRÍTICO
-    // const hbResult = await heartbeatStart(
-    //   supabase,
-    //   'contahub-sync-automatico',
-    //   bar_id || null,
-    //   data_inicio && data_fim ? 'backfill' : 'sync',
-    //   'pgcron',
-    //   false, // useLock
-    //   30    // timeout 30 minutos
-    // );
-    // heartbeatId = hbResult.heartbeatId;
-    // startTime = hbResult.startTime;
-    
-    heartbeatId = null;
-    startTime = Date.now();
-    
-    console.log('⚠️ [DEBUG] Heartbeat e lock DESABILITADOS temporariamente');
+    // 💓 Heartbeat: registra início da execução (visível pro cron-watchdog).
+    // useLock=false — a proteção anti-triplicação fica no advisory lock do processor
+    // (process_*_data, no banco), não aqui.
+    const hbResult = await heartbeatStart(
+      supabase,
+      'contahub-sync-automatico',
+      bar_id || null,
+      data_inicio && data_fim ? 'backfill' : 'sync',
+      'pgcron',
+      false, // useLock
+      30    // timeout 30 minutos
+    );
+    heartbeatId = hbResult.heartbeatId;
+    startTime = hbResult.startTime;
     
     // Resolver emp_id do ContaHub:
     // 1) payload (emp_id/contahub_emp_id), 2) bares.config.contahub_emp_id, 3) api_credentials.empresa_id
