@@ -1,0 +1,6 @@
+-- Novas gold (aplicadas via MCP 2026-06-01):
+-- gold.cancelamentos_diario: perda por dia (valor cheio itm_vrcheio + custo custototal)
+--   + % sobre faturamento (join silver.vendas_diarias). Fonte: bronze cancelamentos.
+-- gold.cliente_coorte_mensal: coorte mensal por cliente_fone_norm (silver.cliente_visitas);
+--   mes_offset 0 = tamanho da coorte, offsets seguintes = recompra/retenção.
+-- (definições completas no histórico de migração Supabase)
