@@ -60,7 +60,6 @@ export const MENU_TREE: MenuSection[] = [
     href: '/ferramentas',
     permission: 'ferramentas',
     subItems: [
-      { icon: 'Zap', label: 'Insights Estratégicos', href: '/ferramentas/insights', permission: 'gestao' },
       { icon: 'BarChart3', label: 'Análises Avançadas', href: '/ferramentas/analises', permission: 'gestao' },
       { icon: 'Calendar', label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
       { icon: 'Receipt', label: 'Pedidos de Pagamento', href: '/ferramentas/pedidos-pagamento', permission: 'home' },
@@ -83,7 +82,6 @@ export const MENU_TREE: MenuSection[] = [
     href: '/extras',
     permission: 'home',
     subItems: [
-      { icon: 'Package', label: 'Produção e Insumos', href: '/ferramentas/producao-insumos', permission: 'gestao' },
       { icon: 'Layers', label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque', permission: 'gestao' },
       { icon: 'Megaphone', label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
       { icon: 'Ticket', label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'gestao' },
