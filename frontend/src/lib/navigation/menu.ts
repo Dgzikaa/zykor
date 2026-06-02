@@ -95,7 +95,6 @@ export const MENU_TREE: MenuSection[] = [
     permission: 'configuracoes',
     subItems: [
       { icon: 'Users', label: 'Administração', href: '/configuracoes/administracao/usuarios', permission: 'configuracoes' },
-      { icon: 'Activity', label: 'Teste de Produção', href: '/configuracoes/teste-producao', permission: 'configuracoes' },
       { icon: 'Activity', label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },
       { icon: 'CheckSquare', label: 'Checklist Validação', href: '/checklist-validacao', permission: 'configuracoes' },
     ],
