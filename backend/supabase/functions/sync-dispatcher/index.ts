@@ -33,7 +33,8 @@ const ACTION_URLS: Record<string, string> = {
   // calculada on-demand a partir da matview `visitas` (nao precisa mais de sync).
   'conhecimento': '/functions/v1/sync-conhecimento',
   'marketing': '/functions/v1/sync-marketing-meta',
-  'perfil-consumo': '/functions/v1/sync-cliente-perfil-consumo',
+  // 'perfil-consumo' removido em jun/2026: edge fn sync-cliente-perfil-consumo
+  // deletada; sync agora é via RPC etl_silver_cliente_estatisticas_full.
 };
 
 interface DispatcherRequest {

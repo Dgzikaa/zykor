@@ -171,13 +171,17 @@ async function buscarComparativos(
       .slice(0, 5);
   }
   
-  const media4Sem = eventos4SemArr.length > 0 ? {
+  // Só dias COM movimento entram na baseline: dias fechados/sem dado (real_r=0)
+  // distorceriam a média do mesmo dia da semana (ex.: Deboche fecha toda segunda).
+  // Se todos os 4 dias estiverem zerados, media4Sem=null e a detecção é pulada.
+  const eventos4SemValidos = eventos4SemArr.filter((e) => (e.real_r || 0) > 0);
+  const media4Sem = eventos4SemValidos.length > 0 ? {
     data: 'média_4_semanas',
-    faturamento: eventos4SemArr.reduce((s, e) => s + (e.real_r || 0), 0) / eventos4SemArr.length,
-    clientes: eventos4SemArr.reduce((s, e) => s + (e.cl_real || 0), 0) / eventos4SemArr.length,
-    ticket_medio: eventos4SemArr.reduce((s, e) => s + (e.t_medio || 0), 0) / eventos4SemArr.length,
-    reservas: eventos4SemArr.reduce((s, e) => s + (e.reservas || 0), 0) / eventos4SemArr.length,
-    custo_total: eventos4SemArr.reduce((s, e) => s + (e.custo_total || 0), 0) / eventos4SemArr.length,
+    faturamento: eventos4SemValidos.reduce((s, e) => s + (e.real_r || 0), 0) / eventos4SemValidos.length,
+    clientes: eventos4SemValidos.reduce((s, e) => s + (e.cl_real || 0), 0) / eventos4SemValidos.length,
+    ticket_medio: eventos4SemValidos.reduce((s, e) => s + (e.t_medio || 0), 0) / eventos4SemValidos.length,
+    reservas: eventos4SemValidos.reduce((s, e) => s + (e.reservas || 0), 0) / eventos4SemValidos.length,
+    custo_total: eventos4SemValidos.reduce((s, e) => s + (e.custo_total || 0), 0) / eventos4SemValidos.length,
     top_produtos: topProdutos4Sem,
   } : null;
 
@@ -190,7 +194,7 @@ async function buscarComparativos(
     .gte('data_evento', dataInicioMes)
     .lte('data_evento', dataFimMesStr);
 
-  const eventosMesArr = (eventosMes || []) as any[];
+  const eventosMesArr = ((eventosMes || []) as any[]).filter((e) => (e.real_r || 0) > 0);
   const mediaMensal = eventosMesArr.length > 0 ? {
     data: 'média_mensal',
     faturamento: eventosMesArr.reduce((s, e) => s + (e.real_r || 0), 0) / eventosMesArr.length,
