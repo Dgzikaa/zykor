@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { 
   Search,
   Clock,
-  Sparkles,
   Ticket,
   Megaphone,
   ArrowRight,
@@ -55,21 +54,6 @@ export default function ExtrasPage() {
       buttonBorderColor: 'border-purple-500 dark:border-purple-700',
       buttonTextColor: 'text-purple-600 dark:text-purple-400',
       features: 'Tempo Médio • Análise de Permanência • Insights',
-    },
-    // Retrospectiva 2025
-    {
-      title: 'Retrospectiva 2025',
-      description: 'Análise completa do ano com métricas e conquistas',
-      icon: Sparkles,
-      href: '/retrospectiva-2025',
-      badge: 'Especial',
-      badgeColor: 'border-blue-200 text-blue-700 dark:border-blue-700 dark:text-blue-300',
-      iconBgColor: 'bg-blue-100 dark:bg-blue-900/30',
-      iconTextColor: 'text-blue-600 dark:text-blue-400',
-      buttonBgColor: 'bg-blue-500/10 dark:bg-blue-900/20',
-      buttonBorderColor: 'border-blue-500 dark:border-blue-700',
-      buttonTextColor: 'text-blue-600 dark:text-blue-400',
-      features: 'Métricas Anuais • Conquistas • Destaques • Insights',
     },
     // Impacto Entrada
     {
