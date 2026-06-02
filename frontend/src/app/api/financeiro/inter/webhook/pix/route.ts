@@ -40,13 +40,19 @@ export async function POST(request: NextRequest) {
     request.headers.get('x-real-ip') ||
     null;
 
-  // Validação do token compartilhado — OBRIGATÓRIA (fail-closed). Sem token válido,
-  // ou sem a env INTER_WEBHOOK_TOKEN configurada, a chamada é rejeitada — assim
-  // ninguém forja status de pagamento (marcar PIX como pago/erro indevidamente).
-  const tokenRecebido = request.nextUrl.searchParams.get('token');
-  if (!WEBHOOK_TOKEN || tokenRecebido !== WEBHOOK_TOKEN) {
-    console.warn('[INTER-WEBHOOK] Token inválido/ausente (ou env não configurada). IP:', ipOrigem);
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  // Validação do token compartilhado. HARDENING OPT-IN: se INTER_WEBHOOK_TOKEN
+  // estiver setada no Vercel, exige ?token=<valor> e rejeita o resto (fecha o forge
+  // de status). Enquanto a env NÃO estiver setada, aceita (pra não derrubar a
+  // reconciliação de PIX). Pra ativar: setar a env + re-registrar o webhook no Inter
+  // com a URL contendo ?token=<valor>.
+  if (WEBHOOK_TOKEN) {
+    const tokenRecebido = request.nextUrl.searchParams.get('token');
+    if (tokenRecebido !== WEBHOOK_TOKEN) {
+      console.warn('[INTER-WEBHOOK] Token inválido ou ausente. IP:', ipOrigem);
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    }
+  } else {
+    console.warn('[INTER-WEBHOOK] INTER_WEBHOOK_TOKEN não configurada — aceitando sem auth (configure pra ativar o hardening).');
   }
 
   let payload: any = null;
