@@ -6,9 +6,11 @@ interface CalendarioMesProps {
   mes: number
   ano: number
   datasImportantes: DataImportante[]
+  /** Atrações planejadas por dia (data 'YYYY-MM-DD' -> nome da atração) */
+  atracoes?: Record<string, string>
 }
 
-export function CalendarioMes({ mes, ano, datasImportantes }: CalendarioMesProps) {
+export function CalendarioMes({ mes, ano, datasImportantes, atracoes = {} }: CalendarioMesProps) {
   const primeiroDia = new Date(ano, mes, 1)
   const ultimoDia = new Date(ano, mes + 1, 0)
   const diasNoMes = ultimoDia.getDate()
@@ -81,33 +83,59 @@ export function CalendarioMes({ mes, ano, datasImportantes }: CalendarioMesProps
             return <div key={`empty-${idx}`} className="aspect-square" />
           }
           
+          const dataStr = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
           const evento = getEventoDia(dia)
+          const atracao = atracoes[dataStr]
           const isWeekend = (diaSemanaInicio + dia - 1) % 7 === 0 || (diaSemanaInicio + dia - 1) % 7 === 6
-          
+          const titleParts = [
+            evento ? `${evento.nome} - ${evento.dica}` : '',
+            atracao ? `🎤 ${atracao}` : '',
+          ].filter(Boolean)
+
           return (
             <div
               key={dia}
               className={`
                 aspect-square flex items-center justify-center rounded-lg text-sm font-medium
                 transition-all duration-200 cursor-default relative group
-                ${evento 
+                ${evento
                   ? getPotencialStyle(evento.potencial)
-                  : isWeekend
-                    ? 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/30'
+                  : atracao
+                    ? 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 ring-1 ring-violet-200 dark:ring-violet-800'
+                    : isWeekend
+                      ? 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/30'
                 }
               `}
-              title={evento ? `${evento.nome} - ${evento.dica}` : ''}
+              title={titleParts.join('\n')}
             >
               {dia}
-              
-              {evento && (
+
+              {/* Indicador de atração planejada (mantém o destaque do feriado) */}
+              {atracao && (
+                <span
+                  className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${
+                    evento ? 'bg-white/90' : 'bg-violet-500'
+                  }`}
+                />
+              )}
+
+              {(evento || atracao) && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50">
-                  <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-xl">
-                    <div className="flex items-center gap-1 font-semibold">
-                      {getTipoIcon(evento.tipo)} {evento.nome}
-                    </div>
-                    <div className="text-gray-300 mt-1">{evento.dica}</div>
+                  <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 max-w-[220px] whitespace-normal text-left shadow-xl">
+                    {evento && (
+                      <>
+                        <div className="flex items-center gap-1 font-semibold">
+                          {getTipoIcon(evento.tipo)} {evento.nome}
+                        </div>
+                        <div className="text-gray-300 mt-1">{evento.dica}</div>
+                      </>
+                    )}
+                    {atracao && (
+                      <div className={`flex items-start gap-1 ${evento ? 'mt-1.5 pt-1.5 border-t border-gray-700' : 'font-semibold'}`}>
+                        <span>🎤</span><span>{atracao}</span>
+                      </div>
+                    )}
                     <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
                   </div>
                 </div>

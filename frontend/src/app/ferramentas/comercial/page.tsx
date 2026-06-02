@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import {
   Calendar,
@@ -13,45 +13,24 @@ import {
   Info,
   Flame,
   Crown,
-  Users,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import { 
-  DATAS_2026, 
-  FERIADOES_2026, 
-  EventoConcorrenciaBD 
+import {
+  DATAS_2026,
+  FERIADOES_2026,
 } from './data/constants'
-import { buscarEventosConcorrencia } from './services/comercial-service'
 import {
   CalendarioVisualTab,
   ListaDatasTab,
   FeriadoesTab,
   PlanoAcaoTab,
-  EventosTab,
   HistoricoInsightsTab,
 } from './components'
 
 export default function ComercialPage() {
   const [searchTerm, setSearchTerm] = useState('')
-  
-  const [eventosConcorrenciaBD, setEventosConcorrenciaBD] = useState<EventoConcorrenciaBD[]>([])
-  const [loadingEventos, setLoadingEventos] = useState(false)
-
-  const handleRefreshEventos = useCallback(async () => {
-    setLoadingEventos(true)
-    try {
-      const eventos = await buscarEventosConcorrencia()
-      setEventosConcorrenciaBD(eventos)
-    } finally {
-      setLoadingEventos(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    handleRefreshEventos()
-  }, [handleRefreshEventos])
 
   const stats = useMemo(() => {
     const feriadosOuro = DATAS_2026.filter(f => f.potencial === 'maximo').length
@@ -222,10 +201,6 @@ export default function ComercialPage() {
               <Target className="w-4 h-4 mr-2" />
               Plano de Ação
             </TabsTrigger>
-            <TabsTrigger value="concorrencia" className="data-[state=active]:bg-red-500 data-[state=active]:text-white rounded-lg">
-              <Users className="w-4 h-4 mr-2" />
-              Concorrência BSB
-            </TabsTrigger>
             <TabsTrigger value="historico" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white rounded-lg">
               <TrendingUp className="w-4 h-4 mr-2" />
               Histórico 2025
@@ -250,14 +225,6 @@ export default function ComercialPage() {
 
           <TabsContent value="acoes" className="space-y-6">
             <PlanoAcaoTab />
-          </TabsContent>
-
-          <TabsContent value="concorrencia" className="space-y-6">
-            <EventosTab
-              eventosConcorrenciaBD={eventosConcorrenciaBD}
-              loadingEventos={loadingEventos}
-              onRefresh={handleRefreshEventos}
-            />
           </TabsContent>
 
           <TabsContent value="historico" className="space-y-6">

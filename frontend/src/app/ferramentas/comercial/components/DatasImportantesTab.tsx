@@ -1,5 +1,7 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { useBar } from '@/contexts/BarContext'
 import { motion } from 'framer-motion'
 import {
   Calendar,
@@ -34,18 +36,37 @@ interface DatasImportantesTabProps {
 }
 
 export function CalendarioVisualTab() {
+  const { selectedBar } = useBar()
+  const [atracoes, setAtracoes] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    if (!selectedBar?.id) return
+    let ativo = true
+    fetch(`/api/comercial/atracoes?bar_id=${selectedBar.id}&ano=2026`)
+      .then(r => r.json())
+      .then(d => { if (ativo) setAtracoes(d?.atracoes || {}) })
+      .catch(() => { if (ativo) setAtracoes({}) })
+    return () => { ativo = false }
+  }, [selectedBar?.id])
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {MESES.map((_, idx) => (
-        <motion.div
-          key={idx}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: idx * 0.05 }}
-        >
-          <CalendarioMes mes={idx} ano={2026} datasImportantes={DATAS_2026} />
-        </motion.div>
-      ))}
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+        🎤 Atrações do planejamento de {selectedBar?.nome ?? 'seu bar'} — passe o mouse no dia para ver a programação
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {MESES.map((_, idx) => (
+          <motion.div
+            key={idx}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: idx * 0.05 }}
+          >
+            <CalendarioMes mes={idx} ano={2026} datasImportantes={DATAS_2026} atracoes={atracoes} />
+          </motion.div>
+        ))}
+      </div>
     </div>
   )
 }
