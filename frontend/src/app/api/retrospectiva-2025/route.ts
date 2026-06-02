@@ -3,11 +3,12 @@ import { getAdminClient } from '@/lib/supabase-admin'
 
 export const dynamic = 'force-dynamic'
 
-// Cache simples em memória (válido por 5 minutos)
+// Cache em memória. 2025 está fechado (dados imutáveis), então TTL longo (1h) —
+// reduz recomputação das stored procedures pesadas sem risco de dado defasado.
 let cache: { data: any; timestamp: number } | null = null
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
-// Reset cache on deploy - v13 (correção insights completos)
-const CACHE_VERSION = 27
+const CACHE_TTL = 60 * 60 * 1000 // 1 hora (era 5 min)
+// Reset cache on deploy - v28 (TTL estendido p/ dados historicos imutaveis)
+const CACHE_VERSION = 28
 
 export async function GET(request: NextRequest) {
   try {
