@@ -1,0 +1,5 @@
+-- A view _por_categoria lia a gold congelada (parou 26/abr). Aponta pra _filtrado
+-- (silver-backed, fresca). Resolve dado de abril sem mudar contrato. Via MCP 2026-06-01.
+-- (definição completa aplicada no banco; ver migração no histórico Supabase)
+-- Mudança-chave: FROM gold.gold_contahub_operacional_stockout
+--             -> FROM gold.gold_contahub_operacional_stockout_filtrado
