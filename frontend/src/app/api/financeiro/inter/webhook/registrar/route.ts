@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import https from 'https';
 import { getInterAccessToken } from '@/lib/inter/getAccessToken';
 import { resolveInterCredential } from '@/lib/inter/resolveCredential';
+import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,6 +86,12 @@ async function chamarInter(
  */
 export async function POST(request: NextRequest) {
   try {
+    // Registra webhook no banco (config de integração) — exige financeiro/admin.
+    const user = await authenticateUser(request);
+    if (!user) return authErrorResponse('Usuário não autenticado');
+    if (user.role !== 'admin' && user.role !== 'financeiro') {
+      return permissionErrorResponse('Sem permissão para registrar webhook');
+    }
     const body = await request.json();
     const barId = Number(body.bar_id);
     const credId = Number(body.inter_credencial_id);
@@ -187,6 +194,12 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    // Consulta webhook no Inter (hit no banco) — exige financeiro/admin.
+    const user = await authenticateUser(request);
+    if (!user) return authErrorResponse('Usuário não autenticado');
+    if (user.role !== 'admin' && user.role !== 'financeiro') {
+      return permissionErrorResponse('Sem permissão para consultar webhook');
+    }
     const { searchParams } = new URL(request.url);
     const barId = Number(searchParams.get('bar_id'));
     const credId = Number(searchParams.get('inter_credencial_id'));
