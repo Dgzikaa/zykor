@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, TrendingUp, History, Bell, GitCompare } from 'lucide-react';
 import CMOSimulador from '@/components/ferramentas/cmo/CMOSimulador';
 import CMODashboard from '@/components/ferramentas/cmo/CMODashboard';
+import CMOProdutividade from '@/components/ferramentas/cmo/CMOProdutividade';
 import CMOComparar from '@/components/ferramentas/cmo/CMOComparar';
 import CMOAlertas from '@/components/ferramentas/cmo/CMOAlertas';
 import CMOHistorico from '@/components/ferramentas/cmo/CMOHistorico';
@@ -63,7 +64,8 @@ export default function CMOPage() {
           <CMOSimulador />
         </TabsContent>
 
-        <TabsContent value="dashboard" className="mt-6">
+        <TabsContent value="dashboard" className="mt-6 space-y-6">
+          <CMOProdutividade />
           <CMODashboard />
         </TabsContent>
 
