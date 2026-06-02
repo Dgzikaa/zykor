@@ -14,6 +14,10 @@ export default function NoShowPage() {
   const { selectedBar } = useBar();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const hoje = new Date();
+  const [mesAno, setMesAno] = useState(`${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`);
+  const [listaMes, setListaMes] = useState<any>(null);
+  const [loadingMes, setLoadingMes] = useState(false);
 
   useEffect(() => {
     if (!selectedBar?.id) return;
@@ -22,11 +26,33 @@ export default function NoShowPage() {
       .then(r => r.json()).then(setData).finally(() => setLoading(false));
   }, [selectedBar?.id]);
 
+  useEffect(() => {
+    if (!selectedBar?.id) return;
+    const inicio = `${mesAno}-01`;
+    const [y, m] = mesAno.split('-').map(Number);
+    const fim = `${mesAno}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+    setLoadingMes(true);
+    fetch(`/api/noshow/lista?bar_id=${selectedBar.id}&inicio=${inicio}&fim=${fim}`)
+      .then(r => r.json()).then(setListaMes).finally(() => setLoadingMes(false));
+  }, [selectedBar?.id, mesAno]);
+
   if (loading) return <main className="max-w-7xl mx-auto px-6 py-8"><Skeleton className="h-96" /></main>;
 
   const r = data?.resumo || {};
   const reincidentes = data?.reincidentes || [];
   const noshowPct = Number(r.noshow_pct ?? 0);
+
+  const noshowsMes = listaMes?.noshows || [];
+  const exportarMes = () => {
+    exportarCSV(`no-show-${mesAno}`, noshowsMes as Record<string, unknown>[], [
+      { key: 'reservation_date', label: 'Data' },
+      { key: 'reservation_time', label: 'Hora' },
+      { key: 'customer_name', label: 'Cliente' },
+      { key: 'customer_phone', label: 'Telefone' },
+      { key: 'customer_email', label: 'E-mail' },
+      { key: 'people', label: 'Pessoas' },
+    ]);
+  };
 
   const exportar = () => {
     exportarCSV('no-show-reincidentes', reincidentes as Record<string, unknown>[], [
@@ -121,6 +147,61 @@ export default function NoShowPage() {
             </tbody>
           </table>
         </div>
+      </Card>
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold flex items-center gap-2">
+              <UserX className="w-4 h-4 text-red-600" /> No-shows do mês
+            </h2>
+            <p className="text-xs text-gray-500">Todos os no-shows do mês escolhido (reserva a reserva) — exporte e acione.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="month" value={mesAno} max={`${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`}
+              onChange={e => setMesAno(e.target.value)}
+              className="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900" />
+            <button onClick={exportarMes} disabled={noshowsMes.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-emerald-600 text-white disabled:opacity-40 hover:bg-emerald-700">
+              <Download className="w-3.5 h-3.5" /> Exportar ({noshowsMes.length})
+            </button>
+          </div>
+        </div>
+        {loadingMes ? (
+          <Skeleton className="h-40" />
+        ) : noshowsMes.length === 0 ? (
+          <p className="py-6 text-center text-gray-400 text-sm">Nenhum no-show neste mês. 🎉</p>
+        ) : (
+          <>
+            <p className="text-xs text-gray-500 mb-2">
+              {listaMes?.total ?? 0} no-shows · {fmt(listaMes?.pessoas ?? 0)} pessoas
+            </p>
+            <div className="overflow-x-auto max-h-[28rem] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-gray-500 border-b sticky top-0 bg-white dark:bg-gray-950">
+                  <tr>
+                    <th className="text-left py-2">Data</th>
+                    <th className="text-left py-2">Hora</th>
+                    <th className="text-left py-2">Cliente</th>
+                    <th className="text-left py-2">Telefone</th>
+                    <th className="text-right py-2">Pessoas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {noshowsMes.map((n: any, i: number) => (
+                    <tr key={i} className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-900/30">
+                      <td className="py-2">{n.reservation_date ? fmtData(n.reservation_date) : '—'}</td>
+                      <td className="py-2 text-xs text-gray-500">{n.reservation_time || '—'}</td>
+                      <td className="py-2 font-medium">{n.customer_name || <span className="italic text-gray-400">sem nome</span>}</td>
+                      <td className="py-2 text-xs font-mono text-gray-500">{n.customer_phone || '—'}</td>
+                      <td className="py-2 text-right tabular-nums">{n.people ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </Card>
     </main>
   );
