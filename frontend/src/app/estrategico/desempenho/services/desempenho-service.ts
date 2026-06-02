@@ -128,11 +128,13 @@ export async function getSemanas(
   // Exibido em parenteses na UI ao lado do %. Vem de silver.vendas_item.
   const anosUnicos = Array.from(new Set(semanasGold.map((s: any) => s.ano)));
   const mixQtdPorSemana = new Map<string, { qtd_bebidas: number; qtd_drinks: number; qtd_comida: number }>();
-  for (const a of anosUnicos) {
-    const { data: rpcRows } = await (supabase as any).rpc('get_mix_qtd_por_semana', {
-      p_bar_id: barId,
-      p_ano: a,
-    });
+  // RPC por ano em paralelo (antes era for...await sequencial).
+  const rpcResultados = await Promise.all(
+    anosUnicos.map((a) =>
+      (supabase as any).rpc('get_mix_qtd_por_semana', { p_bar_id: barId, p_ano: a })
+    )
+  );
+  for (const { data: rpcRows } of rpcResultados) {
     for (const r of (rpcRows || []) as any[]) {
       mixQtdPorSemana.set(`${r.ano}-${r.numero_semana}`, {
         qtd_bebidas: parseFloat(String(r.qtd_bebidas || 0)),
