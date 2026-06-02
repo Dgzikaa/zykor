@@ -73,6 +73,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'AlertTriangle', label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
       { icon: 'FileSearch', label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
       { icon: 'AlertTriangle', label: 'Cancelamentos', href: '/ferramentas/cancelamentos', permission: 'gestao' },
+      { icon: 'PieChart', label: 'Mix & Margem', href: '/ferramentas/mix-categoria', permission: 'gestao' },
       { icon: 'Star', label: 'NPS Funcionários', href: '/ferramentas/nps', permission: 'gestao' },
       { icon: 'Instagram', label: 'Instagram', href: '/ferramentas/instagram', permission: 'gestao' },
       { icon: 'Bot', label: 'Zykor Assistant', href: '/ferramentas/assistente-zykor', permission: 'gestao' },
