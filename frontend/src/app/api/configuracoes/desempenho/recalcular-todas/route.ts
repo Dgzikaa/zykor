@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAdminClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 min para recálculo completo
 
 /**
- * Recálculo completo de todas as semanas de desempenho.
- * Usa a Edge Function desempenho-semanal-auto com recalcular_todas: true.
- * Aplica a lógica atualizada (ex: stockout alinhado com Ferramentas).
+ * Recálculo completo das semanas de gold.desempenho.
+ * Escritor CANONICO: etl_gold_desempenho_all_bars (o v2 foi descontinuado como escritor).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -15,36 +15,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!supabaseUrl) throw new Error('URL do Supabase não configurada');
+    const supabase = await getAdminClient();
+    // janela ampla (~14 meses) para cobrir todas as semanas com dados
+    const { data, error } = await (supabase as any).rpc('etl_gold_desempenho_all_bars', {
+      p_dias_atras: 430,
+    });
 
-    const response = await fetch(
-      `${supabaseUrl}/functions/v1/recalcular-desempenho-v2`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ recalcular_todas: true }),
-      }
-    );
-
-    const result = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        message: `Recalculadas ${result.recalculadas || 0} semanas`,
-        result,
-        timestamp: new Date().toISOString(),
-      });
+    if (error) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json(
-      { success: false, error: result.error || 'Erro no recálculo', result },
-      { status: response.status }
-    );
+    return NextResponse.json({
+      success: true,
+      message: 'Recálculo completo (etl_gold_desempenho_all_bars)',
+      result: data,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error('Recálculo completo:', error);
     return NextResponse.json(

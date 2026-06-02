@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAdminClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+/**
+ * Recalcula uma semana de gold.desempenho.
+ * Escritor CANONICO: etl_gold_desempenho_semanal (o v2 foi descontinuado como escritor;
+ * etl_gold e superset — ver migration 20260602_gold_atracao_from_eventos).
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { bar_id, ano, semana, numero_semana } = body;
-
     const semanaFinal = numero_semana || semana;
 
     if (!bar_id || !ano || !semanaFinal) {
@@ -17,41 +22,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!supabaseUrl) throw new Error('URL do Supabase não configurada');
+    const supabase = await getAdminClient();
+    const { data, error } = await (supabase as any).rpc('etl_gold_desempenho_semanal', {
+      p_bar_id: bar_id,
+      p_ano: ano,
+      p_semana: semanaFinal,
+    });
 
-    const response = await fetch(
-      `${supabaseUrl}/functions/v1/recalcular-desempenho-v2`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          bar_id, 
-          ano, 
-          numero_semana: semanaFinal,
-          mode: 'write'
-        }),
-      }
-    );
-
-    const result = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        message: `Semana ${semanaFinal}/${ano} recalculada para bar ${bar_id}`,
-        result,
-        timestamp: new Date().toISOString(),
-      });
+    if (error) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json(
-      { success: false, error: result.error || 'Erro no recálculo', result },
-      { status: response.status }
-    );
+    return NextResponse.json({
+      success: true,
+      message: `Semana ${semanaFinal}/${ano} recalculada para bar ${bar_id}`,
+      result: data,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error: any) {
     console.error('Erro ao recalcular semana:', error);
     return NextResponse.json(
