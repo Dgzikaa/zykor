@@ -19,6 +19,22 @@ export async function GET(req: NextRequest) {
 
     const supabase = await getAdminClient();
 
+    // Export: lista COMPLETA do filtro (RPC retorna jsonb numa linha só -> sem o
+    // cap de 1.000 do PostgREST). Usado pelo botão Exportar da tela.
+    if (sp.get('export') === 'true') {
+      const { data: lista, error: expErr } = await (supabase as any)
+        .schema('crm')
+        .rpc('clube_export', {
+          p_bar_id: barId,
+          p_segmento: segmento || null,
+          p_nivel: nivel || null,
+        });
+      if (expErr) {
+        return NextResponse.json({ error: expErr.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, membros: lista || [] });
+    }
+
     // Agregados calculados NO BANCO (GROUP BY sobre todos os membros). Antes era
     // agregado no Node sobre um SELECT sem limite -> PostgREST cortava em 1.000 de
     // ~110k membros, zerando níveis altos ("0 consumido") e truncando o total.

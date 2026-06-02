@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Crown, Users, Star, Filter } from 'lucide-react';
+import { Crown, Users, Star, Filter, Download } from 'lucide-react';
+import { exportarCSV } from '@/lib/utils/export-csv';
 
 const fmt = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR').format(n));
 const fmtMoeda = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n));
@@ -28,6 +29,36 @@ export default function ClubePage() {
   const [loading, setLoading] = useState(true);
   const [nivel, setNivel] = useState<string>('');
   const [segmento, setSegmento] = useState<string>('');
+  const [exporting, setExporting] = useState(false);
+
+  // Exporta a lista COMPLETA do filtro atual (não só os 200 visíveis) — busca com
+  // limit alto e gera CSV pra disparo no Umbler.
+  const exportar = async () => {
+    if (!selectedBar?.id) return;
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({ bar_id: String(selectedBar.id), export: 'true' });
+      if (nivel) params.set('nivel', nivel);
+      if (segmento) params.set('segmento', segmento);
+      const res = await fetch(`/api/crm/clube?${params}`);
+      const json = await res.json();
+      const rows = (json.membros || []) as Record<string, unknown>[];
+      const sufixo = `${segmento ? '-' + segmento : ''}${nivel ? '-' + nivel : ''}`;
+      exportarCSV(`clube${sufixo}`, rows, [
+        { key: 'cliente_nome', label: 'Cliente' },
+        { key: 'cliente_fone_norm', label: 'Telefone' },
+        { key: 'nivel', label: 'Nível' },
+        { key: 'segmento', label: 'Segmento' },
+        { key: 'total_visitas', label: 'Visitas' },
+        { key: 'valor_total_consumo', label: 'Gasto total', format: v => Number(v ?? 0).toFixed(2) },
+        { key: 'ticket_medio_consumo', label: 'Ticket médio', format: v => Number(v ?? 0).toFixed(2) },
+        { key: 'pontos_total', label: 'Pontos' },
+        { key: 'dias_inativo', label: 'Dias inativo' },
+      ]);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     if (!selectedBar?.id) return;
@@ -109,11 +140,17 @@ export default function ClubePage() {
             <Star className="w-5 h-5 text-pink-600" />
             Membros {nivel || segmento ? '(filtrado)' : ''}
           </h2>
-          {(nivel || segmento) && (
-            <button onClick={() => { setNivel(''); setSegmento(''); }} className="text-xs text-pink-600 hover:underline flex items-center gap-1">
-              <Filter className="w-3 h-3" /> Limpar filtros
+          <div className="flex items-center gap-3">
+            {(nivel || segmento) && (
+              <button onClick={() => { setNivel(''); setSegmento(''); }} className="text-xs text-pink-600 hover:underline flex items-center gap-1">
+                <Filter className="w-3 h-3" /> Limpar filtros
+              </button>
+            )}
+            <button onClick={exportar} disabled={exporting}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-emerald-600 text-white disabled:opacity-40 hover:bg-emerald-700">
+              <Download className="w-3.5 h-3.5" /> {exporting ? 'Exportando…' : `Exportar ${segmento || nivel ? 'filtro' : 'tudo'}`}
             </button>
-          )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
