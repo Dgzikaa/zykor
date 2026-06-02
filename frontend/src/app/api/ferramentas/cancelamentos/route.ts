@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const dias = Math.min(Math.max(Number(searchParams.get('dias')) || 60, 7), 180);
+  const dias = Math.min(Math.max(Number(searchParams.get('dias')) || 60, 7), 365);
   const hoje = new Date();
   const desde = new Date(hoje);
   desde.setDate(desde.getDate() - dias);
