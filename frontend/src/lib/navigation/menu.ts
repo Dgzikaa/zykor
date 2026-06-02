@@ -62,7 +62,6 @@ export const MENU_TREE: MenuSection[] = [
     subItems: [
       { icon: 'Zap', label: 'Insights Estratégicos', href: '/ferramentas/insights', permission: 'gestao' },
       { icon: 'BarChart3', label: 'Análises Avançadas', href: '/ferramentas/analises', permission: 'gestao' },
-      { icon: 'Wallet', label: 'Financeiro', href: '/ferramentas/financeiro', permission: 'gestao' },
       { icon: 'Calendar', label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
       { icon: 'Receipt', label: 'Pedidos de Pagamento', href: '/ferramentas/pedidos-pagamento', permission: 'home' },
       { icon: 'MessageCircle', label: 'CRM', href: '/ferramentas/crm', permission: 'gestao' },
