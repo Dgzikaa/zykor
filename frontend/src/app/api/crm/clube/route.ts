@@ -19,25 +19,14 @@ export async function GET(req: NextRequest) {
 
     const supabase = await getAdminClient();
 
-    // Agregados por nivel e segmento
-    const { data: stats } = await (supabase as any).schema('crm').from('clube_ordi_membros')
-      .select('nivel, segmento, pontos_total, valor_total_consumo')
-      .eq('bar_id', barId);
+    // Agregados calculados NO BANCO (GROUP BY sobre todos os membros). Antes era
+    // agregado no Node sobre um SELECT sem limite -> PostgREST cortava em 1.000 de
+    // ~110k membros, zerando níveis altos ("0 consumido") e truncando o total.
+    const { data: resumo } = await (supabase as any)
+      .schema('crm')
+      .rpc('clube_resumo', { p_bar_id: barId });
 
-    const porNivel: Record<string, any> = {};
-    const porSegmento: Record<string, any> = {};
-    for (const r of stats ?? []) {
-      const n = r.nivel;
-      porNivel[n] = porNivel[n] || { qtd: 0, gasto_total: 0 };
-      porNivel[n].qtd++;
-      porNivel[n].gasto_total += Number(r.valor_total_consumo || 0);
-      const s = r.segmento;
-      porSegmento[s] = porSegmento[s] || { qtd: 0, gasto_total: 0 };
-      porSegmento[s].qtd++;
-      porSegmento[s].gasto_total += Number(r.valor_total_consumo || 0);
-    }
-
-    // Lista filtrada
+    // Lista filtrada (top N por pontos — intencionalmente limitada)
     let q = (supabase as any).schema('crm').from('clube_ordi_membros').select('*').eq('bar_id', barId);
     if (segmento) q = q.eq('segmento', segmento);
     if (nivel) q = q.eq('nivel', nivel);
@@ -45,9 +34,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      total_membros: (stats ?? []).length,
-      por_nivel: porNivel,
-      por_segmento: porSegmento,
+      total_membros: resumo?.total_membros ?? 0,
+      por_nivel: resumo?.por_nivel ?? {},
+      por_segmento: resumo?.por_segmento ?? {},
       membros: membros ?? [],
     });
   } catch (e: any) {

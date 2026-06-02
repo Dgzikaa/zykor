@@ -37,8 +37,10 @@ export default function InsightsPage() {
   }, [setPageTitle]);
 
   const now = new Date();
-  const [ano, setAno] = useState<number>(now.getFullYear());
-  const [mes, setMes] = useState<number>(now.getMonth() + 1);
+  // Default = último mês fechado: o mês atual mal começou e as abas viriam vazias.
+  const mesFechado = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const [ano, setAno] = useState<number>(mesFechado.getFullYear());
+  const [mes, setMes] = useState<number>(mesFechado.getMonth() + 1);
 
   const { dataInicio, dataFim } = useMemo(() => {
     const { inicio, fim } = calcularRangeMes(ano, mes);
