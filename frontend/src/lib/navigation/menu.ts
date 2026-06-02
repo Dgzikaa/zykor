@@ -88,7 +88,6 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Megaphone', label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
       { icon: 'Ticket', label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'gestao' },
       { icon: 'Clock', label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
-      { icon: 'Calendar', label: 'Calendário Operacional', href: '/extras/calendario-operacional', permission: 'home' },
     ],
   },
   {
