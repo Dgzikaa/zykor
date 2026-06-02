@@ -84,8 +84,6 @@ export const MENU_TREE: MenuSection[] = [
     subItems: [
       { icon: 'Layers', label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque', permission: 'gestao' },
       { icon: 'Megaphone', label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
-      { icon: 'Ticket', label: 'Impacto Entrada', href: '/ferramentas/analise-couvert', permission: 'gestao' },
-      { icon: 'Clock', label: 'Tempo de Estadia', href: '/relatorios/tempo-estadia', permission: 'relatorios' },
     ],
   },
   {
