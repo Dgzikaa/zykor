@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-export async function GET(request: NextRequest) {
+import { createServiceRoleClient } from '@/lib/supabase-admin';export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const barId = searchParams.get('barId') || '3';
     const periodo = searchParams.get('periodo') || '7'; // dias
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createServiceRoleClient();
     
     const dataInicio = new Date();
     dataInicio.setDate(dataInicio.getDate() - parseInt(periodo));

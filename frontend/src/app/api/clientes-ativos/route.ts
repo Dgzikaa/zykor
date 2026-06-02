@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-// Função para buscar dados com paginação (contorna limite de 1000 do Supabase)
+import { createServiceRoleClient } from '@/lib/supabase-admin';// Função para buscar dados com paginação (contorna limite de 1000 do Supabase)
 async function fetchAllData(supabase: any, tableName: string, columns: string, filters: any = {}) {
   let allData: any[] = [];
   let from = 0;
@@ -62,7 +57,7 @@ async function fetchAllData(supabase: any, tableName: string, columns: string, f
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createServiceRoleClient();
     const { searchParams } = new URL(request.url);
     
     const periodo = searchParams.get('periodo') || 'semana'; // dia, semana, mes

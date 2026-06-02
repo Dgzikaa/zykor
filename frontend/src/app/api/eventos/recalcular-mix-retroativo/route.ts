@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // 5 minutos
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+export const maxDuration = 300; // 5 minutosconst supabase = createServiceRoleClient();
 
 // =====================================================
 // ONDA 2C: Buscar mapeamento de locais do banco

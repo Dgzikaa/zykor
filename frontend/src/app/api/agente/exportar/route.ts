@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { tbl } from '@/lib/supabase/table-schemas';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-// Gerar HTML para o relatório
+import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { tbl } from '@/lib/supabase/table-schemas';// Gerar HTML para o relatório
 function gerarHTMLRelatorio(dados: {
   periodo: string;
   resumo: {
@@ -240,7 +235,7 @@ export async function GET(request: NextRequest) {
     const barId = searchParams.get('barId') || '3';
     const periodo = searchParams.get('periodo') || 'semana';
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createServiceRoleClient();
     
     const hoje = new Date();
     const inicioSemana = new Date(hoje);

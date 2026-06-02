@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { getUserAuth, isAdmin } from '@/lib/auth-helper';
 
-export const dynamic = 'force-dynamic'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-// ========================================
+export const dynamic = 'force-dynamic'// ========================================
 // 📅 IMPORTAR EVENTOS DO GOOGLE SHEETS
 // ========================================
 export async function POST(request: NextRequest) {
@@ -38,7 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createServiceRoleClient();
 
     let eventosImportados = 0;
     let eventosAtualizados = 0;
