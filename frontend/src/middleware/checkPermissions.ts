@@ -115,7 +115,6 @@ export function getRotasPermitidas(userRole: UserRole): string[] {
       '/operacoes',
       '/ferramentas/producao-insumos',
       '/ferramentas/terminal',
-      '/ferramentas/contagem-estoque',
       '/relatorios',
     ];
   }

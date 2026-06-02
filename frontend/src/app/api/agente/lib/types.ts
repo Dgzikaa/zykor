@@ -75,8 +75,7 @@ export const DEEP_LINKS: Record<string, { label: string; href: string }[]> = {
     { label: 'Desempenho', href: '/estrategico/desempenho' }
   ],
   produto: [
-    { label: 'Produtos Analítico', href: '/analitico/produtos' },
-    { label: 'Estoque', href: '/ferramentas/contagem-estoque' }
+    { label: 'Produtos Analítico', href: '/analitico/produtos' }
   ],
   comparativo_dias: [
     { label: 'Análise Semanal', href: '/analitico/semanal' },

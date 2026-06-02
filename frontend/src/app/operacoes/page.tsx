@@ -43,14 +43,6 @@ export default function OperacoesPage() {
       bgGradient: 'from-blue-500 to-cyan-600',
     },
     {
-      icon: ClipboardList,
-      title: 'Contagem de Estoque',
-      description: 'Registro diário de estoque',
-      href: '/ferramentas/contagem-estoque',
-      color: 'text-green-600 dark:text-green-400',
-      bgGradient: 'from-green-500 to-emerald-600',
-    },
-    {
       icon: Timer,
       title: 'Planejamento de Tempo',
       description: 'Gestão de horários e escalas',

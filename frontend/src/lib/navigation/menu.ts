@@ -73,17 +73,8 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'PieChart', label: 'Mix & Margem', href: '/ferramentas/mix-categoria', permission: 'gestao' },
       { icon: 'Star', label: 'NPS Funcionários', href: '/ferramentas/nps', permission: 'gestao' },
       { icon: 'Instagram', label: 'Instagram', href: '/ferramentas/instagram', permission: 'gestao' },
-      { icon: 'Bot', label: 'Zykor Assistant', href: '/ferramentas/assistente-zykor', permission: 'gestao' },
-    ],
-  },
-  {
-    icon: 'Sparkles',
-    label: 'Extras',
-    href: '/extras',
-    permission: 'home',
-    subItems: [
-      { icon: 'Layers', label: 'Contagem de Estoque', href: '/ferramentas/contagem-estoque', permission: 'gestao' },
       { icon: 'Megaphone', label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
+      { icon: 'Bot', label: 'Zykor Assistant', href: '/ferramentas/assistente-zykor', permission: 'gestao' },
     ],
   },
   {

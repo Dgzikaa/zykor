@@ -23,11 +23,9 @@ import {
   PieChart,
   LineChart,
   DollarSign,
-  ClipboardCheck,
   Calculator,
   Smile,
   Target,
-  MapPin,
   Terminal,
   Coffee,
   Wallet,
@@ -169,22 +167,6 @@ export default function FerramentasPage() {
       features: 'Receitas • Despesas • Lucro/Prejuízo',
       status: 'active'
     },
-    // Contagem de Estoque
-    {
-      title: 'Contagem de Estoque',
-      description: 'Sistema completo de contagem e gestão de estoque',
-      icon: ClipboardCheck,
-      href: '/ferramentas/contagem-estoque',
-      badge: 'Ativo',
-      badgeColor: 'border-amber-200 text-amber-700 dark:border-amber-700 dark:text-amber-300',
-      iconBgColor: 'bg-amber-100 dark:bg-amber-900/30',
-      iconTextColor: 'text-amber-600 dark:text-amber-400',
-      buttonBgColor: 'bg-amber-500/10 dark:bg-amber-900/20',
-      buttonBorderColor: 'border-amber-500 dark:border-amber-700',
-      buttonTextColor: 'text-amber-600 dark:text-amber-400',
-      features: 'Contagem • Histórico • Anomalias • Consolidado',
-      status: 'active'
-    },
     // Contagem Rápida
     {
       title: 'Contagem Rápida',
@@ -199,22 +181,6 @@ export default function FerramentasPage() {
       buttonBorderColor: 'border-yellow-500 dark:border-yellow-700',
       buttonTextColor: 'text-yellow-600 dark:text-yellow-400',
       features: 'Contagem Expressa • Simplicidade',
-      status: 'active'
-    },
-    // Áreas de Contagem
-    {
-      title: 'Áreas de Contagem',
-      description: 'Gestão de áreas e locais de contagem',
-      icon: MapPin,
-      href: '/ferramentas/areas-contagem',
-      badge: 'Ativo',
-      badgeColor: 'border-pink-200 text-pink-700 dark:border-pink-700 dark:text-pink-300',
-      iconBgColor: 'bg-pink-100 dark:bg-pink-900/30',
-      iconTextColor: 'text-pink-600 dark:text-pink-400',
-      buttonBgColor: 'bg-pink-500/10 dark:bg-pink-900/20',
-      buttonBorderColor: 'border-pink-500 dark:border-pink-700',
-      buttonTextColor: 'text-pink-600 dark:text-pink-400',
-      features: 'Áreas • Locais • Organização',
       status: 'active'
     },
     // NPS/Felicidade
