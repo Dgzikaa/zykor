@@ -1,7 +1,1 @@
-[
-  "adapter_contahub_to_faturamento_pagamentos(integer,date) :: relation \"faturamento_pagamentos\" does not exist",
-  "admin_upsert_api_credentials(integer,character varying,character varying,character varying,character varying,character varying,text,character varying,boolean,character varying) :: there is no unique or exclusion constraint matching the ON CONFLICT specification",
-  "insert_raw_data_without_trigger(integer,date,text,boolean,jsonb) :: relation \"contahub_raw_data\" does not exist",
-  "orcamento_planilha_roll_forward() :: query has no destination for result data",
-  "rodar_adapters_diarios(date) :: function adapter_contahub_to_visitas(integer, date) does not exist"
-]
+[]

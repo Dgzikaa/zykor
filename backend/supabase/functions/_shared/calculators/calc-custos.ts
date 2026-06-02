@@ -75,7 +75,7 @@ export async function calcCustos(
     const { data: eventosData, error: eventosError } = await supabase
       .schema('operations')
       .from('eventos_base')
-      .select('real_r')
+      .select('real_r, c_art, c_prod')
       .eq('bar_id', barId)
       .gte('data_evento', startDate)
       .lte('data_evento', endDate)
@@ -93,14 +93,13 @@ export async function calcCustos(
       (sum: number, item: any) => sum + (parseFloat(item.real_r) || 0), 0
     );
 
-    // 2. Custo Atracao - via contaazul_lancamentos
-    const categoriasAtracao = await getCategoriasAtracao(supabase, barId);
-
-    let custoAtracao = 0;
-
-    const result = await getCustoAtracao(supabase, barId, startDate, endDate, categoriasAtracao);
-    custoAtracao = result.valor;
-    console.log('[calc-custos] Custo atracao: R$' + custoAtracao.toFixed(2) + ' (' + result.count + ' registros)');
+    // 2. Custo Atracao = c_art + c_prod por evento (MESMA fonte do modal e do etl_gold_desempenho_semanal).
+    //    eventos_base ja vem do bronze do Conta Azul via calculate_evento_metrics -> sempre fresco.
+    //    (antes lia bronze_contaazul_lancamentos com categoriasAtracao = c_art so, divergindo do modal.)
+    const custoAtracao = (eventosData || []).reduce(
+      (sum: number, item: any) => sum + (parseFloat(item.c_art) || 0) + (parseFloat(item.c_prod) || 0), 0
+    );
+    console.log('[calc-custos] Custo atracao (c_art+c_prod do eventos_base): R$' + custoAtracao.toFixed(2));
 
     const custoAtracaoFaturamento = faturamentoTotal > 0
       ? (custoAtracao / faturamentoTotal) * 100
