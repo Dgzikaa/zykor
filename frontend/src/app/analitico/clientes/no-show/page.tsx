@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { UserX, AlertTriangle, TrendingDown, Download } from 'lucide-react';
+import { UserX, AlertTriangle, TrendingDown, Download, CheckCircle } from 'lucide-react';
 import { exportarCSV } from '@/lib/utils/export-csv';
 
 const fmt = (n: number) => new Intl.NumberFormat('pt-BR').format(n);
 const fmtData = (s: string) => new Date(s + 'T00:00:00').toLocaleDateString('pt-BR');
+const fmtMoeda = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
 
 export default function NoShowPage() {
   const { selectedBar } = useBar();
@@ -51,6 +52,8 @@ export default function NoShowPage() {
       { key: 'customer_phone', label: 'Telefone' },
       { key: 'customer_email', label: 'E-mail' },
       { key: 'people', label: 'Pessoas' },
+      { key: 'compareceu', label: 'Foi ao bar' },
+      { key: 'valor_dia', label: 'Consumo no dia' },
     ]);
   };
 
@@ -156,6 +159,7 @@ export default function NoShowPage() {
               <UserX className="w-4 h-4 text-red-600" /> No-shows do mês
             </h2>
             <p className="text-xs text-gray-500">Todos os no-shows do mês escolhido (reserva a reserva) — exporte e acione.</p>
+            <p className="text-xs text-gray-500">&ldquo;Foi ao bar&rdquo; = cliente marcado como no-show mas que consumiu no bar na mesma data (provável erro de operação).</p>
           </div>
           <div className="flex items-center gap-2">
             <input type="month" value={mesAno} max={`${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`}
@@ -175,6 +179,11 @@ export default function NoShowPage() {
           <>
             <p className="text-xs text-gray-500 mb-2">
               {listaMes?.total ?? 0} no-shows · {fmt(listaMes?.pessoas ?? 0)} pessoas
+              {Number(listaMes?.compareceram ?? 0) > 0 && (
+                <span className="ml-1 text-emerald-600 font-medium">
+                  · {listaMes.compareceram} foram ao bar mesmo assim (provável erro de operação)
+                </span>
+              )}
             </p>
             <div className="overflow-x-auto max-h-[28rem] overflow-y-auto">
               <table className="w-full text-sm">
@@ -185,16 +194,29 @@ export default function NoShowPage() {
                     <th className="text-left py-2">Cliente</th>
                     <th className="text-left py-2">Telefone</th>
                     <th className="text-right py-2">Pessoas</th>
+                    <th className="text-left py-2">Foi ao bar?</th>
                   </tr>
                 </thead>
                 <tbody>
                   {noshowsMes.map((n: any, i: number) => (
-                    <tr key={i} className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-900/30">
+                    <tr key={i} className={`border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-900/30 ${n.compareceu ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
                       <td className="py-2">{n.reservation_date ? fmtData(n.reservation_date) : '—'}</td>
                       <td className="py-2 text-xs text-gray-500">{n.reservation_time || '—'}</td>
                       <td className="py-2 font-medium">{n.customer_name || <span className="italic text-gray-400">sem nome</span>}</td>
                       <td className="py-2 text-xs font-mono text-gray-500">{n.customer_phone || '—'}</td>
                       <td className="py-2 text-right tabular-nums">{n.people ?? '—'}</td>
+                      <td className="py-2">
+                        {n.compareceu ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-medium">
+                            <CheckCircle className="w-3.5 h-3.5" /> Foi ao bar
+                            {n.valor_dia != null && (
+                              <span className="text-xs text-gray-500">({fmtMoeda(Number(n.valor_dia))})</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
