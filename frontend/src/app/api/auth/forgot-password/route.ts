@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { withRateLimit, RATE_LIMIT_PRESETS } from '@/lib/rate-limiter-middleware';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabase = createServiceRoleClient();
 
 async function notifyResendFailure(ctx: { email: string; nome: string; erro: string | null }) {
   const webhook = process.env.DISCORD_WEBHOOK_URL;

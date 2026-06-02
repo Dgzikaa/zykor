@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { getSupabaseFunctionUrl } from '@/lib/supabase-functions-url';
 import { withRateLimit, RATE_LIMIT_PRESETS } from '@/lib/rate-limiter-middleware';
 
 export const dynamic = 'force-dynamic'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabase = createServiceRoleClient();
 
 // =====================================================
 // ONDA 2C: Buscar configuração de operação do banco

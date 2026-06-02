@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { getFatorCmv } from '@/lib/config/getFatorCmv';
 import { tbl } from '@/lib/supabase/table-schemas';
 
@@ -7,10 +7,7 @@ import { tbl } from '@/lib/supabase/table-schemas';
 export const dynamic = 'force-dynamic';
 export const revalidate = 120;
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabase = createServiceRoleClient();
 
 /**
  * GET - Buscar detalhes granulares de um campo específico do CMV Semanal

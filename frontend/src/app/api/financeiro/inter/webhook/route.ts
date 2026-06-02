@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceRoleClient } from '@/lib/supabase-admin';
 import https from 'https';
 import { getInterAccessToken } from '@/lib/inter/getAccessToken';
 import { resolveInterCredential } from '@/lib/inter/resolveCredential';
@@ -9,10 +9,7 @@ type Mtls = { cert: Buffer; key: Buffer };
 
 export const dynamic = 'force-dynamic';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabase = createServiceRoleClient();
 
 // URL do webhook no Supabase
 const WEBHOOK_URL = getSupabaseFunctionUrl('inter-pix-webhook');

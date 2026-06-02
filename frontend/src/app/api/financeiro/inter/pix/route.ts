@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { getInterAccessToken, clearInterTokenCache } from '@/lib/inter/getAccessToken';
 import { realizarPagamentoPixInter } from '@/lib/inter/pixPayment';
 import { resolveInterCredential } from '@/lib/inter/resolveCredential';
@@ -7,10 +7,7 @@ import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/
 
 export const dynamic = 'force-dynamic';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabase = createServiceRoleClient();
 
 // Função para obter credenciais do Inter do banco
 async function getInterCredentials(barId: number = 3, credentialId?: number) {

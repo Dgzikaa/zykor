@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { tbl } from '@/lib/supabase/table-schemas';
 
 export const dynamic = 'force-dynamic';
@@ -117,10 +117,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Conectar ao Supabase
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const supabase = createServiceRoleClient();
     
     // Buscar insumos do sistema
     const { data: insumosSistema, error: errorInsumos } = await tbl(supabase, 'insumos')

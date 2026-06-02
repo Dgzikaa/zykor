@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceRoleClient } from '@/lib/supabase-admin';
 import https from 'https';
 import crypto from 'crypto';
 import { getInterAccessToken } from '@/lib/inter/getAccessToken';
@@ -8,10 +8,7 @@ import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/
 
 export const dynamic = 'force-dynamic';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabase = createServiceRoleClient();
 
 async function getInterCredentials(barId: number, credentialId?: number) {
   let query = supabase
