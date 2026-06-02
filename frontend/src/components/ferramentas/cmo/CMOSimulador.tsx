@@ -158,10 +158,11 @@ export default function CMOSimulador() {
       const json = await res.json();
 
       if (json.success && json.data) {
+        // CMA (custo de alimentação) não é CMO — buscar automático traz só componentes
+        // de mão de obra (freelas). CMA fica fora do contexto de CMO.
         setDados(prev => ({
           ...prev,
           freelas: json.data.freelas || 0,
-          cma_alimentacao: json.data.cma_alimentacao || 0,
         }));
 
         toast({
