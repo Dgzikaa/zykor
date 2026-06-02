@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 interface Toast {
   id: string;
@@ -14,7 +14,10 @@ let toastCount = 0;
 export function useToast() {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const toast = ({
+  // useCallback com deps vazias: setToasts é estável e toastCount é de módulo.
+  // Referência estável evita loops em useEffect/useCallback que dependem de `toast`
+  // (era a causa de telas "carregando eternamente", ex.: cma-semanal).
+  const toast = useCallback(({
     title,
     description,
     variant = 'default',
@@ -46,11 +49,11 @@ export function useToast() {
     console.log(
       `[${variant.toUpperCase()}] ${title}${description ? ': ' + description : ''}`
     );
-  };
+  }, []);
 
-  const dismiss = (toastId: string) => {
+  const dismiss = useCallback((toastId: string) => {
     setToasts(prev => prev.filter((t: Toast) => t.id !== toastId));
-  };
+  }, []);
 
   return {
     toast,
