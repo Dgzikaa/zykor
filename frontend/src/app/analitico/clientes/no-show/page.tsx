@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { UserX, AlertTriangle, TrendingDown } from 'lucide-react';
+import { UserX, AlertTriangle, TrendingDown, Download } from 'lucide-react';
+import { exportarCSV } from '@/lib/utils/export-csv';
 
 const fmt = (n: number) => new Intl.NumberFormat('pt-BR').format(n);
 const fmtData = (s: string) => new Date(s + 'T00:00:00').toLocaleDateString('pt-BR');
@@ -26,6 +27,18 @@ export default function NoShowPage() {
   const r = data?.resumo || {};
   const reincidentes = data?.reincidentes || [];
   const noshowPct = Number(r.noshow_pct ?? 0);
+
+  const exportar = () => {
+    exportarCSV('no-show-reincidentes', reincidentes as Record<string, unknown>[], [
+      { key: 'customer_name', label: 'Cliente' },
+      { key: 'customer_phone', label: 'Telefone' },
+      { key: 'reservas_totais', label: 'Total reservas' },
+      { key: 'no_shows', label: 'No-shows' },
+      { key: 'compareceu', label: 'Compareceu' },
+      { key: 'noshow_pct', label: '% No-show' },
+      { key: 'ultima', label: 'Última reserva' },
+    ]);
+  };
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
@@ -61,9 +74,15 @@ export default function NoShowPage() {
       </div>
 
       <Card className="p-4">
-        <h2 className="font-semibold mb-3 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-600" /> Top reincidentes (1 ano)
-        </h2>
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+          <h2 className="font-semibold flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600" /> Top reincidentes (1 ano)
+          </h2>
+          <button onClick={exportar} disabled={reincidentes.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-emerald-600 text-white disabled:opacity-40 hover:bg-emerald-700">
+            <Download className="w-3.5 h-3.5" /> Exportar ({reincidentes.length})
+          </button>
+        </div>
         <p className="text-xs text-gray-500 mb-3">
           Quem aparece aqui devia ter restrição: ou cobrar antecipado, ou bloquear nova reserva, ou ligar pra confirmar 2h antes.
         </p>

@@ -5,7 +5,8 @@ import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertTriangle, TrendingDown, Clock, DollarSign } from 'lucide-react';
+import { AlertTriangle, TrendingDown, Clock, DollarSign, Download, ArrowUpDown } from 'lucide-react';
+import { exportarCSV } from '@/lib/utils/export-csv';
 
 const fmtBRL = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n));
 const fmtData = (s: string | null) => (s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '—');
@@ -21,6 +22,8 @@ export default function ClientesEmQuedaPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [nivelFilter, setNivelFilter] = useState<string>('todos');
+  const [sortKey, setSortKey] = useState<string>('score_risco');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     if (!selectedBar?.id) return;
@@ -29,10 +32,40 @@ export default function ClientesEmQuedaPage() {
       .then(r => r.json()).then(setData).finally(() => setLoading(false));
   }, [selectedBar?.id]);
 
+  const toggleSort = (key: string) => {
+    if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('desc'); }
+  };
+
   if (loading) return <main className="max-w-7xl mx-auto px-6 py-8"><Skeleton className="h-96" /></main>;
 
-  const clientes = (data?.clientes || []).filter((c: any) => nivelFilter === 'todos' || c.nivel === nivelFilter);
+  const NUMERICAS = new Set(['total_visitas', 'ticket_ult4', 'intervalo_ult4_dias', 'dias_inativo', 'score_risco', 'valor_anual_risco', 'variacao_ticket_pct']);
+  const clientes = [...((data?.clientes || []) as any[])]
+    .filter((c: any) => nivelFilter === 'todos' || c.nivel === nivelFilter)
+    .sort((a: any, b: any) => {
+      const av = a[sortKey], bv = b[sortKey];
+      const cmp = NUMERICAS.has(sortKey)
+        ? (Number(av) || 0) - (Number(bv) || 0)
+        : String(av ?? '').localeCompare(String(bv ?? ''), 'pt-BR');
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
   const s = data?.stats || {};
+
+  const exportar = () => {
+    exportarCSV('clientes-em-queda', clientes as Record<string, unknown>[], [
+      { key: 'cliente_nome', label: 'Cliente' },
+      { key: 'cliente_fone_norm', label: 'Telefone' },
+      { key: 'nivel', label: 'Nível' },
+      { key: 'total_visitas', label: 'Visitas' },
+      { key: 'ticket_ult4', label: 'Ticket últ.4', format: v => Number(v ?? 0).toFixed(2) },
+      { key: 'variacao_ticket_pct', label: 'Var. ticket %' },
+      { key: 'intervalo_ult4_dias', label: 'Intervalo (d)' },
+      { key: 'dias_inativo', label: 'Dias inativo' },
+      { key: 'score_risco', label: 'Risco' },
+      { key: 'valor_anual_risco', label: 'Valor anual risco', format: v => Number(v ?? 0).toFixed(2) },
+      { key: 'ultima_visita', label: 'Última visita' },
+    ]);
+  };
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
@@ -65,13 +98,19 @@ export default function ClientesEmQuedaPage() {
       </div>
 
       <Card className="p-3">
-        <div className="flex gap-2">
-          {(['todos', 'diamante', 'ouro', 'prata'] as const).map(n => (
-            <button key={n} onClick={() => setNivelFilter(n)}
-              className={`px-3 py-1 text-xs rounded-md border ${nivelFilter === n ? 'bg-pink-600 text-white border-pink-600' : 'border-gray-300 dark:border-gray-700'}`}>
-              {n}
-            </button>
-          ))}
+        <div className="flex gap-2 items-center justify-between flex-wrap">
+          <div className="flex gap-2">
+            {(['todos', 'diamante', 'ouro', 'prata'] as const).map(n => (
+              <button key={n} onClick={() => setNivelFilter(n)}
+                className={`px-3 py-1 text-xs rounded-md border ${nivelFilter === n ? 'bg-pink-600 text-white border-pink-600' : 'border-gray-300 dark:border-gray-700'}`}>
+                {n}
+              </button>
+            ))}
+          </div>
+          <button onClick={exportar} disabled={clientes.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-emerald-600 text-white disabled:opacity-40 hover:bg-emerald-700">
+            <Download className="w-3.5 h-3.5" /> Exportar CSV ({clientes.length})
+          </button>
         </div>
       </Card>
 
@@ -80,14 +119,26 @@ export default function ClientesEmQuedaPage() {
           <table className="w-full text-sm">
             <thead className="text-xs text-gray-500 border-b">
               <tr>
-                <th className="text-left py-2">Cliente</th>
-                <th className="text-left py-2">Nível</th>
-                <th className="text-right py-2">Visitas</th>
-                <th className="text-right py-2">Ticket ↘</th>
-                <th className="text-right py-2">Intervalo ↗</th>
-                <th className="text-right py-2">Dias inativo</th>
-                <th className="text-right py-2">Risco</th>
-                <th className="text-right py-2">Valor anual</th>
+                {([
+                  ['cliente_nome', 'Cliente', 'left'],
+                  ['nivel', 'Nível', 'left'],
+                  ['total_visitas', 'Visitas', 'right'],
+                  ['ticket_ult4', 'Ticket ↘', 'right'],
+                  ['intervalo_ult4_dias', 'Intervalo ↗', 'right'],
+                  ['dias_inativo', 'Dias inativo', 'right'],
+                  ['score_risco', 'Risco', 'right'],
+                  ['valor_anual_risco', 'Valor anual', 'right'],
+                ] as const).map(([key, label, align]) => (
+                  <th key={key} onClick={() => toggleSort(key)}
+                    className={`py-2 cursor-pointer select-none hover:text-gray-800 dark:hover:text-gray-200 ${align === 'right' ? 'text-right' : 'text-left'}`}>
+                    <span className="inline-flex items-center gap-1">
+                      {align === 'right' && sortKey === key && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                      {label}
+                      {align === 'left' && sortKey === key && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                      {sortKey !== key && <ArrowUpDown className="w-3 h-3 opacity-30" />}
+                    </span>
+                  </th>
+                ))}
                 <th className="text-right py-2">Tel</th>
               </tr>
             </thead>
