@@ -221,9 +221,19 @@ return [
         label: 'Mix de Vendas',
         agregacao: { tipo: 'fixa', valorFixo: 100, formato: 'percentual' },
         metricas: [
-          { key: 'perc_bebidas', label: '% Bebidas', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Calculado por categoria_mix canônica (BEBIDA). Quantidade vendida em parenteses.', formato: 'percentual', qtdKey: 'qtd_bebidas' },
-          { key: 'perc_drinks', label: '% Drinks', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Calculado por categoria_mix canônica (DRINK). Quantidade vendida em parenteses.', formato: 'percentual', qtdKey: 'qtd_drinks' },
-          { key: 'perc_comida', label: '% Comida', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Calculado por categoria_mix canônica (COMIDA). Quantidade vendida em parenteses.', formato: 'percentual', qtdKey: 'qtd_comida' },
+          { key: 'perc_bebidas', label: '% Bebidas', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Calculado por categoria_mix canônica (BEBIDA).', formato: 'percentual' },
+          { key: 'perc_drinks', label: '% Drinks', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Calculado por categoria_mix canônica (DRINK).', formato: 'percentual' },
+          { key: 'perc_comida', label: '% Comida', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Calculado por categoria_mix canônica (COMIDA).', formato: 'percentual' },
+        ]
+      },
+      {
+        id: 'mix_qtd',
+        label: 'Qtde Vendida (Mix)',
+        agregacao: { tipo: 'soma', formato: 'numero' },
+        metricas: [
+          { key: 'qtd_bebidas', label: 'Qtd Bebidas', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Soma de itens vendidos na semana (categoria_mix = BEBIDA).', formato: 'numero' },
+          { key: 'qtd_drinks', label: 'Qtd Drinks', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Soma de itens vendidos na semana (categoria_mix = DRINK).', formato: 'numero' },
+          { key: 'qtd_comida', label: 'Qtd Comida', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Soma de itens vendidos na semana (categoria_mix = COMIDA).', formato: 'numero' },
         ]
       },
       {
@@ -2226,13 +2236,6 @@ export function DesempenhoClient({
                                         const total = getValorComOverride(semana, metrica.totalKey);
                                         if (total !== null && total !== undefined && typeof total === 'number' && total > 0) {
                                           valorFormatado = `${formatarValor(valor, metrica.formato, metrica.sufixo)} (${total})`;
-                                        }
-                                      }
-                                      // Mix de Vendas: mostrar quantidade vendida ao lado do % (ex: "52.1% (6.140)")
-                                      if (metrica.qtdKey && valor !== null && valor !== undefined) {
-                                        const qtd = getValorComOverride(semana, metrica.qtdKey);
-                                        if (qtd !== null && qtd !== undefined && typeof qtd === 'number' && qtd > 0) {
-                                          valorFormatado = `${formatarValor(valor, metrica.formato, metrica.sufixo)} (${FMT_NUM_INTEIRO.format(Math.round(qtd))})`;
                                         }
                                       }
                                       // Formato moeda_com_percentual: R$ 27.520 (3,5%)
