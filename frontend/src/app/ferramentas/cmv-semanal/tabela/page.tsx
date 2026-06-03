@@ -724,7 +724,7 @@ export default function CMVSemanalTabelaPage() {
       await carregarDados();
       toast({
         title: '✅ CMV atualizado',
-        description: 'Planilha CMV sincronizada e cálculo refeito.',
+        description: 'Planilha CMV (semanal + mensal) sincronizada e cálculo refeito.',
       });
     } catch (e: any) {
       toast({
@@ -1197,7 +1197,7 @@ export default function CMVSemanalTabelaPage() {
                 disabled={atualizando || !selectedBar?.id}
                 size="sm"
                 className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white"
-                title="Sincroniza Conta Azul + Planilha CMV e recalcula tudo"
+                title="Sincroniza a planilha CMV (semanal + mensal) e recalcula tudo na hora"
               >
                 <RefreshCw className={cn('w-4 h-4 mr-2', atualizando && 'animate-spin')} />
                 {atualizando ? (etapaAtualizacao || 'Atualizando…') : 'Atualizar dados'}

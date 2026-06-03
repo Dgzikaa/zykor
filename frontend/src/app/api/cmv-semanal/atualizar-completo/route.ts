@@ -3,9 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * POST /api/cmv-semanal/atualizar-completo
  *
- * Atualização do CMV para /ferramentas/cmv-semanal/tabela.
- *   1. sync-cmv-sheets  — puxa contagem, bonificações e CMV teórico da planilha
- *   2. cmv-semanal-auto — recalcula CMV com dados frescos
+ * Atualização do CMV para /ferramentas/cmv-semanal/tabela (semanal + mensal).
+ *   1. sync-cmv-sheets   — puxa contagem, bonificações e CMV teórico da planilha (semanal)
+ *   2. cmv-semanal-auto  — recalcula CMV semanal com dados frescos
+ *   3. sync-cmv-mensal   — puxa estoque/consumos da planilha (mensal)
+ *   4. agregar_cmv_mensal_auto — re-agrega o mensal (compras do ContaAzul + estoque da planilha)
  *
  * Para sync do Conta Azul, usar o botão global em BarSelector
  * (/api/contaazul/sync-manual) — é independente desta tela.
@@ -68,12 +70,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Etapa 3 — sincronizar o CMV Mensal a partir da planilha. A própria edge function
+    // sync-cmv-mensal já chama o agregador (agregar_cmv_mensal_auto) por mês após o upsert,
+    // tudo dentro da function — então não há loop de RPC aqui (evita o statement_timeout de
+    // 8s do PostgREST). Não aborta o fluxo se falhar: o mensal é complementar ao semanal.
+    const sheetsMensal = await callFn('sync-cmv-mensal', { bar_id: barId, ano });
+
     return NextResponse.json({
       success: true,
-      message: 'CMV atualizado com sucesso',
+      message: 'CMV atualizado com sucesso (semanal + mensal)',
       etapas: {
         sync_sheets: sheets.json,
         recalcular: recalc.json,
+        sync_mensal: { ok: sheetsMensal.ok, ...sheetsMensal.json },
       },
     });
   } catch (error: any) {
