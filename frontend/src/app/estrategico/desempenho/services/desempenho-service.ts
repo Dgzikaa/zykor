@@ -125,7 +125,8 @@ export async function getSemanas(
   const getinManual = integConfig?.modo === 'manual';
 
   // Mix de Vendas — QUANTIDADES por semana (categoria_mix BEBIDA/DRINK/COMIDA).
-  // Exibido em parenteses na UI ao lado do %. Vem de silver.vendas_item.
+  // Exibido em 3 linhas proprias (grupo "Qtde Vendida (Mix)"), nao mais em parenteses
+  // ao lado do %. Vem de silver.vendas_item.
   const anosUnicos = Array.from(new Set(semanasGold.map((s: any) => s.ano)));
   const mixQtdPorSemana = new Map<string, { qtd_bebidas: number; qtd_drinks: number; qtd_comida: number }>();
   // RPC por ano em paralelo (antes era for...await sequencial).
