@@ -1,0 +1,18 @@
+[
+  {
+    "bar_id": 3,
+    "nome": "Ordinário Bar",
+    "cnpj": "",
+    "ambiente": "producao",
+    "api_key": "COLE_AQUI_A_CHAVE_DO_PORTAL_STONE",
+    "stone_codes": ["SEU_STONECODE_NUMERICO"]
+  },
+  {
+    "bar_id": 4,
+    "nome": "Deboche Bar",
+    "cnpj": "40.433.371/0001-81",
+    "ambiente": "producao",
+    "api_key": "COLE_AQUI_A_CHAVE_DO_PORTAL_STONE_DO_DEBOCHE",
+    "stone_codes": ["SEU_STONECODE_NUMERICO"]
+  }
+]
