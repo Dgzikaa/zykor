@@ -238,8 +238,11 @@ export async function loadInterCredenciais(
   }
 
   try {
+    // A rota deriva o bar do usuário autenticado (user.bar_id), não do query param —
+    // o header x-selected-bar-id é obrigatório pra refletir o bar selecionado.
     const res = await fetch(
-      `/api/financeiro/inter/credenciais?bar_id=${encodeURIComponent(String(barId))}`
+      `/api/financeiro/inter/credenciais?bar_id=${encodeURIComponent(String(barId))}`,
+      { headers: { 'x-selected-bar-id': String(barId) } }
     );
     const json = (await safeJson<{
       success?: boolean;

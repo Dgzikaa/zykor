@@ -129,15 +129,29 @@ export default function AgendamentoPage() {
         setCentrosCusto(centrosArr);
       }
 
-      const interCredsResponse = await fetch(`/api/financeiro/inter/credenciais?bar_id=${barId}`);
+      // Esta rota deriva o bar do usuário autenticado (user.bar_id), não do query
+      // param — por isso o header x-selected-bar-id é OBRIGATÓRIO aqui pra refletir
+      // o bar selecionado. Sem ele, cai no bar default e mostra as contas Inter do
+      // bar errado (ex.: Deboche selecionado, dropdown mostrando contas do Ordinário).
+      const interCredsResponse = await fetch(`/api/financeiro/inter/credenciais?bar_id=${barId}`, {
+        headers: { 'x-selected-bar-id': String(barId) },
+      });
       const interCredsData = await interCredsResponse.json();
       if (interCredsData.success && Array.isArray(interCredsData.credenciais)) {
-        setInterCredenciais(interCredsData.credenciais);
-        if (!interCredencialSelecionadaId && interCredsData.credenciais.length > 0) {
-          setInterCredencialSelecionadaId(String(interCredsData.credenciais[0].id));
-        }
+        const creds = interCredsData.credenciais;
+        setInterCredenciais(creds);
+        // Ao trocar de bar, a seleção anterior pode não existir na nova lista —
+        // reescolhe a primeira credencial válida em vez de manter um id órfão.
+        setInterCredencialSelecionadaId(prev =>
+          prev && creds.some((c: InterCredencial) => String(c.id) === prev)
+            ? prev
+            : creds.length > 0
+              ? String(creds[0].id)
+              : ''
+        );
       } else {
         setInterCredenciais([]);
+        setInterCredencialSelecionadaId('');
       }
 
       // Contas financeiras CA (pra registro do lançamento)
@@ -164,7 +178,7 @@ export default function AgendamentoPage() {
     } finally {
       setIsLoadingOptions(false);
     }
-  }, [toast, barId, interCredencialSelecionadaId]);
+  }, [toast, barId]);
 
   const saveToLocalStorage = useCallback(() => {
     try {
