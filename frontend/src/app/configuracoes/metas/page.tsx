@@ -9,10 +9,23 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
-import { Target, Save, Loader2, AlertCircle } from 'lucide-react';
+import {
+  Target, Save, Loader2, AlertCircle, DollarSign, Coffee, Wallet,
+  TrendingUp, Star, Calendar,
+} from 'lucide-react';
 
 interface MetaItem { id: string; categoria: string; campo: string; nome: string; tipo: 'number' | 'text'; valor: number | string }
 interface Grupo { categoria: string; label: string; itens: MetaItem[] }
+
+const ESTILO: Record<string, { icon: any; cor: string }> = {
+  indicadores_estrategicos: { icon: Target, cor: 'from-indigo-500 to-indigo-600' },
+  indicadores_mensais: { icon: Calendar, cor: 'from-sky-500 to-sky-600' },
+  cockpit_vendas: { icon: DollarSign, cor: 'from-green-500 to-green-600' },
+  cockpit_produtos: { icon: Coffee, cor: 'from-purple-500 to-purple-600' },
+  cockpit_financeiro: { icon: Wallet, cor: 'from-emerald-500 to-emerald-600' },
+  cockpit_marketing: { icon: TrendingUp, cor: 'from-blue-500 to-blue-600' },
+  indicadores_qualidade: { icon: Star, cor: 'from-amber-500 to-amber-600' },
+};
 
 export default function MetasPage() {
   const { selectedBar } = useBar();
@@ -21,7 +34,6 @@ export default function MetasPage() {
   const [barNome, setBarNome] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
-  // edições pendentes: id -> valor (string do input)
   const [edits, setEdits] = useState<Record<string, string>>({});
 
   const carregar = useCallback(async () => {
@@ -38,7 +50,6 @@ export default function MetasPage() {
     }
   }, [toast]);
 
-  // Recarrega ao trocar o bar selecionado (o api-client envia x-selected-bar-id).
   useEffect(() => { carregar(); }, [carregar, selectedBar?.id]);
 
   const tipoPorId = useMemo(() => {
@@ -47,10 +58,11 @@ export default function MetasPage() {
     return m;
   }, [grupos]);
 
+  const totalMetricas = useMemo(() => grupos.reduce((s, g) => s + g.itens.length, 0), [grupos]);
+  const totalEdits = Object.keys(edits).length;
+
   const valorExibido = (item: MetaItem) =>
     edits[item.id] !== undefined ? edits[item.id] : String(item.valor ?? '');
-
-  const totalEdits = Object.keys(edits).length;
 
   const salvar = async () => {
     if (totalEdits === 0) return;
@@ -69,19 +81,23 @@ export default function MetasPage() {
 
   return (
     <div className="container mx-auto px-3 py-5 max-w-4xl">
-      <div className="flex items-center justify-between gap-3 mb-1">
-        <h1 className="text-xl font-bold flex items-center gap-2"><Target className="w-5 h-5" /> Metas</h1>
-        {totalEdits > 0 && (
-          <Button onClick={salvar} disabled={salvando}>
+      {/* Header fixo com resumo + salvar sempre visível */}
+      <div className="sticky top-0 z-10 -mx-3 px-3 py-3 mb-4 bg-background/85 backdrop-blur border-b border-[hsl(var(--border))]">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-xl font-bold flex items-center gap-2"><Target className="w-5 h-5" /> Metas</h1>
+            <p className="text-sm text-muted-foreground">
+              <strong>{barNome || selectedBar?.nome || 'bar selecionado'}</strong>
+              {!loading && <> · {totalMetricas} métricas em {grupos.length} categorias</>}
+              {' '}· troque o bar no seletor do topo
+            </p>
+          </div>
+          <Button onClick={salvar} disabled={salvando || totalEdits === 0}>
             {salvando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-            Salvar {totalEdits} alteração{totalEdits > 1 ? 'ões' : ''}
+            {totalEdits > 0 ? `Salvar ${totalEdits} alteração${totalEdits > 1 ? 'ões' : ''}` : 'Salvar'}
           </Button>
-        )}
+        </div>
       </div>
-      <p className="text-sm text-muted-foreground mb-5">
-        Metas de <strong>{barNome || selectedBar?.nome || 'bar selecionado'}</strong>.
-        Para editar outro bar, troque no seletor no topo.
-      </p>
 
       {loading ? (
         <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
@@ -94,36 +110,46 @@ export default function MetasPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {grupos.map(g => (
-            <Card key={g.categoria}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center justify-between">
-                  {g.label}
-                  <Badge variant="secondary">{g.itens.length}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {g.itens.map(item => {
-                    const alterado = edits[item.id] !== undefined;
-                    return (
-                      <div key={item.id}>
-                        <Label className="text-xs flex items-center gap-1">
-                          {item.nome}
-                          {alterado && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="alterado" />}
-                        </Label>
-                        <Input
-                          inputMode={item.tipo === 'number' ? 'decimal' : 'text'}
-                          value={valorExibido(item)}
-                          onChange={(e) => setEdits(prev => ({ ...prev, [item.id]: e.target.value }))}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          {grupos.map(g => {
+            const estilo = ESTILO[g.categoria] || { icon: Target, cor: 'from-gray-500 to-gray-600' };
+            const Icone = estilo.icon;
+            return (
+              <Card key={g.categoria} className="overflow-hidden">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <span className={`p-1.5 rounded-md bg-gradient-to-r ${estilo.cor} text-white`}>
+                        <Icone className="w-4 h-4" />
+                      </span>
+                      {g.label}
+                    </span>
+                    <Badge variant="secondary">{g.itens.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {g.itens.map(item => {
+                      const alterado = edits[item.id] !== undefined;
+                      return (
+                        <div key={item.id}>
+                          <Label className="text-xs flex items-center gap-1 mb-1">
+                            {item.nome}
+                            {alterado && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="alterado" />}
+                          </Label>
+                          <Input
+                            inputMode={item.tipo === 'number' ? 'decimal' : 'text'}
+                            value={valorExibido(item)}
+                            className={alterado ? 'border-amber-400' : ''}
+                            onChange={(e) => setEdits(prev => ({ ...prev, [item.id]: e.target.value }))}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
