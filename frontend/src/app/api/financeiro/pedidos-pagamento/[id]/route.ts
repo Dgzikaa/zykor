@@ -64,6 +64,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     anexos: anexos.data || [],
     historico: historico.data || [],
     pode_aprovar: podeAprovar(user),
+    pode_excluir: user.role === 'admin',
   });
 }
 
@@ -148,4 +149,65 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   return NextResponse.json({ success: true, pedido: data, alterado: true });
+}
+
+// =====================================================
+// DELETE — admin apaga o pedido de vez (ex.: pedido de teste/duplicado)
+//   Hard delete: remove anexos (storage + DB), comentários, histórico e o pedido.
+//   Diferente de "cancelar" (soft, vira status=cancelado e fica no histórico).
+// =====================================================
+const BUCKET_UPLOADS = 'uploads';
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const { id } = await params;
+
+  // Exclusão definitiva é só de admin (mais restrito que aprovar/cancelar).
+  if (user.role !== 'admin') {
+    return permissionErrorResponse('Apenas administradores podem excluir um pedido');
+  }
+
+  const supabase = await getAdminClient();
+  const pedido = await carregarPedido(supabase, id);
+  if (!pedido || pedido.bar_id !== user.bar_id) {
+    return NextResponse.json({ success: false, error: 'Pedido não encontrado' }, { status: 404 });
+  }
+
+  // Trava: se já gerou conta no Conta Azul ou PIX no Inter, apagar deixaria o
+  // registro financeiro órfão lá. Nesses casos o caminho é cancelar/tratar, não excluir.
+  if (pedido.contaazul_lancamento_id || pedido.inter_codigo_solicitacao) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Este pedido já gerou conta no Conta Azul / PIX no Inter. Cancele em vez de excluir.',
+      },
+      { status: 409 }
+    );
+  }
+
+  // Remove os arquivos dos anexos no storage (best-effort).
+  const { data: anexos } = await fin(supabase)
+    .from('pedidos_pagamento_anexos')
+    .select('caminho_storage')
+    .eq('pedido_id', id);
+  const caminhos = (anexos || [])
+    .map((a: any) => a.caminho_storage)
+    .filter((c: unknown): c is string => typeof c === 'string' && c.length > 0);
+  if (caminhos.length > 0) {
+    await supabase.storage.from(BUCKET_UPLOADS).remove(caminhos).catch(() => {});
+  }
+
+  // Apaga filhos explicitamente (não depende de ON DELETE CASCADE) e depois o pedido.
+  await fin(supabase).from('pedidos_pagamento_anexos').delete().eq('pedido_id', id);
+  await fin(supabase).from('pedidos_pagamento_comentarios').delete().eq('pedido_id', id);
+  await fin(supabase).from('pedidos_pagamento_historico').delete().eq('pedido_id', id);
+
+  const { error } = await fin(supabase).from('pedidos_pagamento').delete().eq('id', id);
+  if (error) {
+    console.error('[PEDIDOS-PAG][DELETE]', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
 }

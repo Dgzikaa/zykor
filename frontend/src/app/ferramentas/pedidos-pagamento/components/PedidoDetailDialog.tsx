@@ -37,6 +37,8 @@ export function PedidoDetailDialog({
   const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [podeAprovar, setPodeAprovar] = useState(false);
+  const [podeExcluir, setPodeExcluir] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
 
   // Edição inline dos campos do pedido
   const [edit, setEdit] = useState<Partial<Pedido>>({});
@@ -77,6 +79,7 @@ export function PedidoDetailDialog({
       setAnexos(res.anexos || []);
       setHistorico(res.historico || []);
       setPodeAprovar(!!res.pode_aprovar);
+      setPodeExcluir(!!res.pode_excluir);
       setEdit({});
       setAprov({
         categoria_id: res.pedido?.categoria_id || '',
@@ -198,6 +201,22 @@ export function PedidoDetailDialog({
       showToast({ type: 'error', title: 'Erro ao rejeitar', message: e?.message });
     } finally {
       setRejeitando(false);
+    }
+  };
+
+  const excluir = async () => {
+    if (!pedido) return;
+    if (!window.confirm('Excluir este pedido definitivamente? Esta ação não pode ser desfeita.')) return;
+    setExcluindo(true);
+    try {
+      await api.delete(`/api/financeiro/pedidos-pagamento/${pedido.id}`);
+      showToast({ type: 'success', title: 'Pedido excluído' });
+      onChange();
+      onClose();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message });
+    } finally {
+      setExcluindo(false);
     }
   };
 
@@ -444,6 +463,23 @@ export function PedidoDetailDialog({
                 </div>
               )}
             </div>
+
+            {/* Exclusão definitiva — só admin (ex.: pedido de teste/duplicado) */}
+            {podeExcluir && (
+              <div className="pt-3 border-t border-[hsl(var(--border))]">
+                <Button
+                  variant="ghost" size="sm" onClick={excluir} disabled={excluindo}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-500/10"
+                >
+                  {excluindo ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                  Excluir pedido
+                </Button>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Remove o pedido e seus anexos definitivamente. Para pedidos de teste ou duplicados —
+                  pedidos que já geraram conta no Conta Azul / PIX no Inter não podem ser excluídos (cancele).
+                </p>
+              </div>
+            )}
           </div>
         )}
       </DialogContent>
