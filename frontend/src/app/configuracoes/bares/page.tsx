@@ -84,7 +84,10 @@ export default function BaresConfigPage() {
             <button key={b.id} onClick={() => { setEditando(b); setCriando(false); }}
               className="text-left rounded-lg border border-[hsl(var(--border))] bg-card hover:bg-muted/40 transition p-4">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold">{b.nome}</span>
+                <span className="font-semibold flex items-center gap-1.5">
+                  {b.nome}
+                  {b.config?.modo_manual && <Badge variant="outline" className="text-[10px]">Manual</Badge>}
+                </span>
                 <Badge variant={b.ativo ? 'default' : 'secondary'}>{b.ativo ? 'Ativo' : 'Inativo'}</Badge>
               </div>
               <div className="text-xs text-muted-foreground mt-1">
@@ -100,6 +103,7 @@ export default function BaresConfigPage() {
         <BarEditor
           bar={editando}
           criando={criando}
+          bars={bars}
           onClose={() => setEditando(null)}
           onSaved={() => { setEditando(null); carregar(); }}
         />
@@ -108,14 +112,15 @@ export default function BaresConfigPage() {
   );
 }
 
-function BarEditor({ bar, criando, onClose, onSaved }: {
-  bar: Bar; criando: boolean; onClose: () => void; onSaved: () => void;
+function BarEditor({ bar, criando, bars, onClose, onSaved }: {
+  bar: Bar; criando: boolean; bars: Bar[]; onClose: () => void; onSaved: () => void;
 }) {
   const { toast } = useToast();
   const [form, setForm] = useState<Bar>(() => ({
     ...bar, config: { ...(bar.config || {}) }, operacao: bar.operacao || operacaoVazia(),
   }));
   const [salvando, setSalvando] = useState(false);
+  const [copiarDe, setCopiarDe] = useState('');
 
   const setCfg = (k: string, v: any) => setForm(f => ({ ...f, config: { ...f.config, [k]: v } }));
   const setOp = (k: keyof Operacao, v: any) => setForm(f => ({ ...f, operacao: { ...(f.operacao as Operacao), [k]: v } }));
@@ -131,6 +136,7 @@ function BarEditor({ bar, criando, onClose, onSaved }: {
         id: criando ? undefined : form.id,
         nome: form.nome.trim(), cnpj: form.cnpj || null, endereco: form.endereco || null,
         ativo: form.ativo, config: form.config, operacao: form.operacao,
+        ...(criando && copiarDe ? { copiar_de: Number(copiarDe) } : {}),
       };
       if (criando) await api.post('/api/configuracoes/bars', payload);
       else await api.put('/api/configuracoes/bars', payload);
@@ -149,6 +155,7 @@ function BarEditor({ bar, criando, onClose, onSaved }: {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Store className="w-5 h-5" /> {criando ? 'Novo bar' : form.nome}
+            {!criando && form.config.modo_manual && <Badge variant="outline" className="text-[10px]">Manual</Badge>}
           </DialogTitle>
         </DialogHeader>
 
@@ -169,6 +176,24 @@ function BarEditor({ bar, criando, onClose, onSaved }: {
 
           {/* PERFIL */}
           <TabsContent value="perfil" className="space-y-3 pt-3">
+            {criando && (
+              <div className="rounded-md border border-dashed border-[hsl(var(--border))] p-2.5">
+                <Label className="text-xs">Copiar configuração de (opcional)</Label>
+                <select
+                  className="mt-1 w-full h-9 rounded-md border border-[hsl(var(--border))] bg-background px-2 text-sm"
+                  value={copiarDe}
+                  onChange={(e) => setCopiarDe(e.target.value)}
+                >
+                  <option value="">Começar do zero</option>
+                  {bars.filter(b => b.id !== form.id).map(b => (
+                    <option key={b.id} value={b.id}>{b.nome}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Clona dias de operação, padrão de metas, acessos e categorias de custo. As integrações começam desligadas (bar manual).
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <Label className="text-xs">Nome *</Label>
@@ -197,6 +222,17 @@ function BarEditor({ bar, criando, onClose, onSaved }: {
 
           {/* OPERAÇÃO */}
           <TabsContent value="operacao" className="space-y-4 pt-3">
+            <label className="flex items-start gap-2 rounded-md border border-[hsl(var(--border))] p-2.5 cursor-pointer">
+              <input type="checkbox" className="mt-0.5"
+                checked={form.config.modo_manual !== false}
+                onChange={(e) => setCfg('modo_manual', e.target.checked)} />
+              <span>
+                <span className="text-sm font-medium">Modo manual (sem ContaHub)</span>
+                <span className="block text-[11px] text-muted-foreground">
+                  Dados preenchidos à mão. As telas e alertas não cobram integrações ausentes. Desligue quando o bar passar a sincronizar automaticamente.
+                </span>
+              </span>
+            </label>
             <div>
               <Label className="text-xs mb-1.5 block">Dias que o bar abre</Label>
               <div className="flex flex-wrap gap-2">

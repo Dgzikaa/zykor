@@ -86,7 +86,7 @@ export const POST = requireAdmin(async (request, _user) => {
   try {
     const supabase = await getAdminClient();
     const body = await request.json();
-    const { nome, cnpj, endereco, config: configIn, operacao } = body;
+    const { nome, cnpj, endereco, config: configIn, operacao, copiar_de, modo_manual } = body;
 
     if (!nome || !String(nome).trim()) {
       return NextResponse.json(
@@ -95,18 +95,31 @@ export const POST = requireAdmin(async (request, _user) => {
       );
     }
 
-    // Semeia `metas` clonando a estrutura do bar 3, com valores zerados.
+    const fonteId = copiar_de ? parseInt(String(copiar_de), 10) : null;
+
+    // metas: copiando de um bar -> usa as metas dele como template (com valores);
+    // senão, semeia a estrutura do bar 3 zerada.
     let metasSeed: any = {};
-    const { data: barRef } = await (supabase as any)
-      .schema('operations').from('bares').select('metas').eq('id', 3).maybeSingle();
-    if (barRef?.metas) metasSeed = zerarMetas(barRef.metas);
+    if (fonteId) {
+      const { data: src } = await (supabase as any)
+        .schema('operations').from('bares').select('metas').eq('id', fonteId).maybeSingle();
+      metasSeed = src?.metas || {};
+    } else {
+      const { data: barRef } = await (supabase as any)
+        .schema('operations').from('bares').select('metas').eq('id', 3).maybeSingle();
+      if (barRef?.metas) metasSeed = zerarMetas(barRef.metas);
+    }
+
+    // Bar novo começa em "modo manual" (sem ContaHub) por padrão.
+    const config = { ...(configIn || {}) };
+    if (config.modo_manual === undefined) config.modo_manual = modo_manual !== false;
 
     const novoBar = {
       nome: String(nome).trim(),
       cnpj: cnpj || null,
       endereco: endereco || null,
       ativo: true,
-      config: configIn || {},
+      config,
       metas: metasSeed,
     };
 
@@ -117,16 +130,51 @@ export const POST = requireAdmin(async (request, _user) => {
 
     const barId = barCriado.id;
 
-    // Linha de operação (dias/horários/flags de API). Default: bar novo SEM ContaHub.
+    // Operação: copiando de um bar -> herda dias/horários; flags de API sempre
+    // false (bar novo é manual, liga ContaHub/etc. depois).
+    let operacaoBase: Record<string, any> = {};
+    if (fonteId) {
+      const { data: srcCfg } = await (supabase as any)
+        .schema('operations').from('bares_config')
+        .select('opera_segunda,opera_terca,opera_quarta,opera_quinta,opera_sexta,opera_sabado,opera_domingo,horario_abertura,horario_fechamento,happy_hour_inicio,happy_hour_fim,dias_principais')
+        .eq('bar_id', fonteId).maybeSingle();
+      if (srcCfg) operacaoBase = srcCfg;
+    }
     const operacaoRow = {
       bar_id: barId,
+      ...operacaoBase,
+      ...pickOperacao(operacao),
       tem_api_contahub: false,
       tem_api_yuzer: false,
       tem_api_sympla: false,
-      ...pickOperacao(operacao),
     };
     await (supabase as any)
       .schema('operations').from('bares_config').insert([operacaoRow]);
+
+    // Clones best-effort a partir da fonte (não falham a criação).
+    if (fonteId) {
+      try {
+        // Acessos: mesmo time do bar de origem.
+        const { data: acessos } = await (supabase as any)
+          .schema('auth_custom').from('usuarios_bares').select('usuario_id').eq('bar_id', fonteId);
+        if (acessos?.length) {
+          await (supabase as any).schema('auth_custom').from('usuarios_bares')
+            .insert(acessos.map((a: any) => ({ usuario_id: a.usuario_id, bar_id: barId })));
+        }
+      } catch (e) { console.warn('clone acessos falhou:', e); }
+      try {
+        // Categorias de custo.
+        const { data: cats } = await (supabase as any)
+          .schema('operations').from('bar_categorias_custo').select('*').eq('bar_id', fonteId);
+        if (cats?.length) {
+          const novas = cats.map((c: any) => {
+            const { id: _id, criado_em, atualizado_em, created_at, updated_at, ...rest } = c;
+            return { ...rest, bar_id: barId };
+          });
+          await (supabase as any).schema('operations').from('bar_categorias_custo').insert(novas);
+        }
+      } catch (e) { console.warn('clone categorias_custo falhou:', e); }
+    }
 
     // Configs padrão (best-effort, não falham a criação).
     try {

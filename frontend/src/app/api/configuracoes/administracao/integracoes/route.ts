@@ -347,6 +347,15 @@ export async function GET(request: NextRequest) {
       .eq('bar_id', barId)
       .maybeSingle();
 
+    // Bar em "modo manual" (sem ContaHub/integrações) — não cobra integração ausente.
+    const { data: barRow } = await supabase
+      .schema('operations' as any)
+      .from('bares')
+      .select('config')
+      .eq('id', barId)
+      .maybeSingle();
+    const modoManual = Boolean((barRow as any)?.config?.modo_manual);
+
     const integracoes: IntegracaoResposta[] = await Promise.all(
       CATALOGO_INTEGRACOES.map(async (cat) => {
         const ehGlobal = Boolean(cat.global);
@@ -379,7 +388,7 @@ export async function GET(request: NextRequest) {
           pegarVolume7d(supabase, cat, ehGlobal ? null : barId),
         ]);
         const { credencial, statusCredencial, temRefreshToken } = credResult;
-        const { status, problemas } = calcularStatusGeral(
+        let { status, problemas } = calcularStatusGeral(
           statusCredencial,
           sync.ultima,
           volume,
@@ -387,6 +396,12 @@ export async function GET(request: NextRequest) {
           temRefreshToken,
           cat,
         );
+
+        // Bar manual: integração do bar sem credencial não é "atenção", é só "não configurada".
+        if (modoManual && escopo === 'bar' && statusCredencial === 'ausente' && status === 'parcial') {
+          status = 'nao_configurada';
+          problemas = ['Bar manual — integração não configurada'];
+        }
 
         return {
           id: cat.id,

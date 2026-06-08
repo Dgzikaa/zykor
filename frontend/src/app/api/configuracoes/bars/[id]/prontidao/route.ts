@@ -21,7 +21,7 @@ export const GET = requireAdmin(async (_request: NextRequest, _user, ctx: Ctx) =
     const barId = parseInt(id, 10);
     const supabase = await getAdminClient();
 
-    const [barRes, cfgRes, acessoRes, credRes, despRes] = await Promise.all([
+    const [barRes, cfgRes, acessoRes, credRes, despRes, evtRes] = await Promise.all([
       (supabase as any).schema('operations').from('bares')
         .select('nome, cnpj, endereco, metas, ativo').eq('id', barId).maybeSingle(),
       (supabase as any).schema('operations').from('bares_config')
@@ -31,6 +31,8 @@ export const GET = requireAdmin(async (_request: NextRequest, _user, ctx: Ctx) =
       (supabase as any).from('api_credentials')
         .select('sistema', { count: 'exact', head: false }).eq('bar_id', barId),
       (supabase as any).schema('gold').from('desempenho')
+        .select('id', { count: 'exact', head: true }).eq('bar_id', barId),
+      (supabase as any).schema('operations').from('eventos_base')
         .select('id', { count: 'exact', head: true }).eq('bar_id', barId),
     ]);
 
@@ -42,6 +44,7 @@ export const GET = requireAdmin(async (_request: NextRequest, _user, ctx: Ctx) =
     const credenciais = (credRes.data || []) as Array<{ sistema: string }>;
     const sistemas = credenciais.map((c) => c.sistema);
     const semanasDesempenho = despRes.count ?? 0;
+    const eventos = evtRes.count ?? 0;
 
     const itens: Array<{ chave: string; label: string; status: Status; detalhe: string }> = [
       {
@@ -81,6 +84,14 @@ export const GET = requireAdmin(async (_request: NextRequest, _user, ctx: Ctx) =
         detalhe: semanasDesempenho > 0
           ? `${semanasDesempenho} semanas disponíveis p/ preencher`
           : 'Sem semanas — marketing manual não terá onde ser lançado',
+      },
+      {
+        chave: 'eventos',
+        label: 'Planejamento comercial (eventos)',
+        status: eventos > 0 ? 'ok' : 'opcional',
+        detalhe: eventos > 0
+          ? `${eventos} evento(s) cadastrado(s)`
+          : 'Sem eventos — crie pelo Calendário/Gestão de eventos para planejar',
       },
       {
         chave: 'integracoes',
