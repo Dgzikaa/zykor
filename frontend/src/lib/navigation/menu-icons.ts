@@ -36,6 +36,7 @@ import {
   FileText,
   CheckSquare,
   Activity,
+  Store,
 } from 'lucide-react';
 
 export type MenuIcon = ComponentType<{ className?: string }>;
@@ -70,6 +71,7 @@ export const MENU_ICONS: Record<string, MenuIcon> = {
   FileText,
   CheckSquare,
   Activity,
+  Store,
 };
 
 /** Componente do ícone pelo nome; fallback em Activity se faltar. */

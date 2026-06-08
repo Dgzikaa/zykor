@@ -1,367 +1,213 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { createCacheHeaders } from '@/lib/api-cache';
 import { requireAdmin } from '@/lib/auth/server';
 
-// Cache de 5 minutos para lista de bares (muda pouco)
-// Nota: revalidate precisa ser valor literal, não pode usar constante
-export const revalidate = 300;
+// CRUD de bares (operations.bares + operations.bares_config).
+// Perfil e IDs de integração vivem no jsonb `config`; dias de operação,
+// horários e flags de API vivem na tabela `operations.bares_config`.
+export const dynamic = 'force-dynamic';
 
-// ========================================
-// 🏪 API PARA GERENCIAMENTO DE BARES
-// ========================================
+interface ApiError { message: string }
 
-interface ApiError {
-  message: string;
+const OPERACAO_COLS = [
+  'opera_segunda', 'opera_terca', 'opera_quarta', 'opera_quinta',
+  'opera_sexta', 'opera_sabado', 'opera_domingo',
+  'horario_abertura', 'horario_fechamento', 'happy_hour_inicio', 'happy_hour_fim',
+  'tem_api_contahub', 'tem_api_yuzer', 'tem_api_sympla', 'dias_principais',
+] as const;
+
+function pickOperacao(src: Record<string, any> | undefined): Record<string, any> {
+  const out: Record<string, any> = {};
+  if (!src) return out;
+  for (const c of OPERACAO_COLS) {
+    if (c in src && src[c] !== undefined) out[c] = src[c];
+  }
+  return out;
 }
 
-interface BarData {
-  id: number;
-  nome?: string;
-  name?: string;
-  endereco?: string;
-  address?: string;
-  telefone?: string;
-  phone?: string;
-  cnpj?: string;
-  email?: string;
-  status?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-interface BarMapped {
-  id: number;
-  nome: string;
-  endereco: string;
-  telefone: string;
-  cnpj: string;
-  email: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
+// Zera os valores de metas mantendo a estrutura (pra um bar novo começar limpo).
+function zerarMetas(v: any): any {
+  if (typeof v === 'number') return 0;
+  if (typeof v === 'string') return /^\d[\d.]*\/\d[\d.]*$/.test(v) ? '0/0' : v;
+  if (Array.isArray(v)) return v.map(zerarMetas);
+  if (v && typeof v === 'object') {
+    const o: Record<string, any> = {};
+    for (const [k, val] of Object.entries(v)) o[k] = zerarMetas(val);
+    return o;
+  }
+  return v;
 }
 
 // ========================================
-// 🏪 GET /api/bars
+// GET — lista bares com perfil + operação
 // ========================================
-
-export const GET = requireAdmin(async (request, user) => {
+export const GET = requireAdmin(async (_request, _user) => {
   try {
-    // Inicializar cliente Supabase Admin
     const supabase = await getAdminClient();
-    if (!supabase) {
-      return NextResponse.json(
-        { success: false, error: 'Erro ao conectar com banco' },
-        { status: 500 }
-      );
-    }
 
-    // Buscar dados da tabela operations.bares
-    const { data: barData, error } = await (supabase as any)
-      .schema('operations')
-      .from('bares')
-      .select('*')
-      .order('id', { ascending: false });
+    const { data: bares, error } = await (supabase as any)
+      .schema('operations').from('bares')
+      .select('id, nome, cnpj, endereco, ativo, config, criado_em, atualizado_em')
+      .order('id', { ascending: true });
+    if (error) throw error;
 
-    if (error) {
-      throw error;
-    }
-
-    // Mapear dados para estrutura padronizada
-    // operations.bares tem: id, nome, cnpj, endereco, ativo, config, metas, criado_em, atualizado_em
-    const data = barData.map(
-      (bar: any): BarMapped => ({
-        id: bar.id,
-        nome: bar.nome || 'Sem nome',
-        endereco: bar.endereco || 'Endereço não informado',
-        telefone: bar.config?.telefone || '',
-        cnpj: bar.cnpj || '',
-        email: bar.config?.email || '',
-        status: bar.ativo === false ? 'inativo' : 'ativo',
-        created_at: bar.criado_em || new Date().toISOString(),
-        updated_at: bar.atualizado_em || new Date().toISOString(),
-      })
+    const { data: configs } = await (supabase as any)
+      .schema('operations').from('bares_config').select('*');
+    const configByBar = new Map<number, any>(
+      (configs || []).map((c: any) => [c.bar_id, c])
     );
 
-    return NextResponse.json({
-      success: true,
-      bars: data,
-    }, {
-      headers: createCacheHeaders('MEDIUM'),
-    });
+    const data = (bares || []).map((bar: any) => ({
+      id: bar.id,
+      nome: bar.nome || '',
+      cnpj: bar.cnpj || '',
+      endereco: bar.endereco || '',
+      ativo: bar.ativo !== false,
+      config: bar.config || {},
+      operacao: configByBar.get(bar.id) || null,
+      criado_em: bar.criado_em,
+      atualizado_em: bar.atualizado_em,
+    }));
+
+    return NextResponse.json({ success: true, bars: data });
   } catch (error: unknown) {
-    const apiError = error as ApiError;
-    console.error('Erro ao buscar bares:', apiError);
+    console.error('Erro ao buscar bares:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: apiError.message,
-      },
+      { success: false, error: (error as ApiError).message },
       { status: 500 }
     );
   }
 });
 
-export const POST = requireAdmin(async (request, user) => {
+// ========================================
+// POST — cria bar (perfil + operação + metas semeadas)
+// ========================================
+export const POST = requireAdmin(async (request, _user) => {
   try {
-    // Inicializar cliente Supabase Admin
     const supabase = await getAdminClient();
-    if (!supabase) {
-      return NextResponse.json(
-        { success: false, error: 'Erro ao conectar com banco' },
-        { status: 500 }
-      );
-    }
-
     const body = await request.json();
-    const { nome, endereco, telefone, cnpj, email } = body;
+    const { nome, cnpj, endereco, config: configIn, operacao } = body;
 
-    // Validações básicas
-    if (!nome || !endereco) {
+    if (!nome || !String(nome).trim()) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Nome e endereço são obrigatórios',
-        },
+        { success: false, error: 'Nome é obrigatório' },
         { status: 400 }
       );
     }
 
-    // Criar o novo bar (operations.bares: telefone/email moram em config jsonb)
-    const newBar = {
-      nome,
-      endereco,
-      cnpj: cnpj || '',
+    // Semeia `metas` clonando a estrutura do bar 3, com valores zerados.
+    let metasSeed: any = {};
+    const { data: barRef } = await (supabase as any)
+      .schema('operations').from('bares').select('metas').eq('id', 3).maybeSingle();
+    if (barRef?.metas) metasSeed = zerarMetas(barRef.metas);
+
+    const novoBar = {
+      nome: String(nome).trim(),
+      cnpj: cnpj || null,
+      endereco: endereco || null,
       ativo: true,
-      config: {
-        telefone: telefone || '',
-        email: email || '',
-        apis_habilitadas: ['sympla', 'yuzer', 'google_places'],
-        notificacoes: true,
-        sync_automatico: true,
-      },
+      config: configIn || {},
+      metas: metasSeed,
     };
 
-    const { data, error } = await (supabase as any)
-      .schema('operations')
-      .from('bares')
-      .insert([newBar])
-      .select()
-      .single();
+    const { data: barCriado, error } = await (supabase as any)
+      .schema('operations').from('bares')
+      .insert([novoBar]).select().single();
+    if (error) throw error;
 
-    if (error) {
-      throw error;
+    const barId = barCriado.id;
+
+    // Linha de operação (dias/horários/flags de API). Default: bar novo SEM ContaHub.
+    const operacaoRow = {
+      bar_id: barId,
+      tem_api_contahub: false,
+      tem_api_yuzer: false,
+      tem_api_sympla: false,
+      ...pickOperacao(operacao),
+    };
+    await (supabase as any)
+      .schema('operations').from('bares_config').insert([operacaoRow]);
+
+    // Configs padrão (best-effort, não falham a criação).
+    try {
+      await supabase.from('bar_notification_configs').insert([
+        { bar_id: barId, email_enabled: true, discord_enabled: false, alerts_enabled: true },
+      ]);
+    } catch (e) {
+      console.warn('Aviso: config padrão do bar não criada:', e);
     }
-
-    // Criar configurações padrão para o bar nas tabelas relacionadas
-    await createDefaultConfigurations(data.id);
 
     return NextResponse.json({
       success: true,
-      data: data,
+      data: { ...barCriado, operacao: operacaoRow },
       message: `Bar "${nome}" criado com sucesso!`,
     });
   } catch (error: unknown) {
-    const apiError = error as ApiError;
-    console.error('Erro ao criar bar:', apiError);
+    console.error('Erro ao criar bar:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: apiError.message,
-      },
+      { success: false, error: (error as ApiError).message },
       { status: 500 }
     );
   }
 });
 
-async function createDefaultConfigurations(barId: number) {
+// ========================================
+// PUT — atualiza perfil + operação
+// ========================================
+export const PUT = requireAdmin(async (request, _user) => {
   try {
-    // Inicializar cliente Supabase Admin
     const supabase = await getAdminClient();
-    if (!supabase) {
-      throw new Error('Erro ao conectar com banco');
-    }
-
-    // Criar registros padrão nas tabelas de configuração
-    const configurationsPromises = [
-      // Configurações de API para o bar
-      await supabase.from('bar_api_configs').insert([
-        {
-          bar_id: barId,
-          api_name: 'sympla',
-          enabled: true,
-          settings: { auto_sync: true },
-        },
-      ]),
-
-      // Configurações de notificação
-      await supabase.from('bar_notification_configs').insert([
-        {
-          bar_id: barId,
-          email_enabled: true,
-          discord_enabled: false,
-          alerts_enabled: true,
-        },
-      ]),
-
-      // Criar entrada na tabela de estatísticas se não existir
-      await supabase.from('bar_stats').insert([
-        {
-          bar_id: barId,
-          total_eventos: 0,
-          total_vendas: 0,
-          ultima_sincronizacao: new Date().toISOString(),
-        },
-      ]),
-    ];
-
-    await Promise.all(configurationsPromises);
-  } catch (error) {
-    console.warn('⚠️ Erro ao criar configurações padrão:', error);
-    // Não falhar o processo principal por isso
-  }
-}
-
-export const PUT = requireAdmin(async (request, user) => {
-  try {
-    // Inicializar cliente Supabase Admin
-    const supabase = await getAdminClient();
-    if (!supabase) {
-      return NextResponse.json(
-        { success: false, error: 'Erro ao conectar com banco' },
-        { status: 500 }
-      );
-    }
-
     const body = await request.json();
-    const { id, nome, endereco, telefone, cnpj, email, status } = body;
+    const { id, nome, cnpj, endereco, ativo, config: configIn, operacao } = body;
 
     if (!id) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'ID do bar é obrigatório',
-        },
+        { success: false, error: 'ID do bar é obrigatório' },
         { status: 400 }
       );
     }
 
-    // operations.bares: telefone/email/status moram em config jsonb e ativo
-    const updates: Record<string, unknown> = {
-      atualizado_em: new Date().toISOString(),
-    };
+    const updates: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
     if (nome !== undefined) updates.nome = nome;
-    if (endereco !== undefined) updates.endereco = endereco;
     if (cnpj !== undefined) updates.cnpj = cnpj;
-    if (status !== undefined) updates.ativo = status !== 'inativo';
+    if (endereco !== undefined) updates.endereco = endereco;
+    if (ativo !== undefined) updates.ativo = ativo;
 
-    // config jsonb update (merge superficial)
-    if (telefone !== undefined || email !== undefined) {
+    // Merge superficial do config jsonb.
+    if (configIn && typeof configIn === 'object') {
       const { data: barAtual } = await (supabase as any)
-        .schema('operations')
-        .from('bares')
-        .select('config')
-        .eq('id', id)
-        .single();
-      updates.config = {
-        ...(barAtual?.config || {}),
-        ...(telefone !== undefined ? { telefone } : {}),
-        ...(email !== undefined ? { email } : {}),
-      };
+        .schema('operations').from('bares').select('config').eq('id', id).single();
+      updates.config = { ...(barAtual?.config || {}), ...configIn };
     }
 
     const { data, error } = await (supabase as any)
-      .schema('operations')
-      .from('bares')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
+      .schema('operations').from('bares')
+      .update(updates).eq('id', id).select().single();
+    if (error) throw error;
 
-    if (error) {
-      throw error;
+    // Atualiza operação (bares_config) — upsert manual por bar_id.
+    const operacaoUpd = pickOperacao(operacao);
+    if (Object.keys(operacaoUpd).length > 0) {
+      const { data: cfgExist } = await (supabase as any)
+        .schema('operations').from('bares_config').select('id').eq('bar_id', id).maybeSingle();
+      if (cfgExist) {
+        await (supabase as any).schema('operations').from('bares_config')
+          .update({ ...operacaoUpd, updated_at: new Date().toISOString() }).eq('bar_id', id);
+      } else {
+        await (supabase as any).schema('operations').from('bares_config')
+          .insert([{ bar_id: id, ...operacaoUpd }]);
+      }
     }
 
     return NextResponse.json({
       success: true,
-      data: data,
+      data,
       message: `Bar "${nome || data.nome}" atualizado com sucesso!`,
     });
   } catch (error: unknown) {
-    const apiError = error as ApiError;
-    console.error('Erro ao atualizar bar:', apiError);
+    console.error('Erro ao atualizar bar:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: apiError.message,
-      },
-      { status: 500 }
-    );
-  }
-});
-
-export const DELETE = requireAdmin(async (request, user) => {
-  try {
-    // Inicializar cliente Supabase Admin
-    const supabase = await getAdminClient();
-    if (!supabase) {
-      return NextResponse.json(
-        { success: false, error: 'Erro ao conectar com banco' },
-        { status: 500 }
-      );
-    }
-
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'ID do bar é obrigatório',
-        },
-        { status: 400 }
-      );
-    }
-
-    // Buscar o bar antes de deletar
-    const { data: bar } = await (supabase as any)
-      .schema('operations')
-      .from('bares')
-      .select('nome')
-      .eq('id', parseInt(id))
-      .single();
-
-    if (!bar) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Bar não encontrado',
-        },
-        { status: 404 }
-      );
-    }
-
-    // Deletar o bar
-    const { error } = await (supabase as any).schema('operations').from('bares').delete().eq('id', parseInt(id));
-
-    if (error) {
-      throw error;
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: `Bar "${bar.nome}" deletado com sucesso!`,
-    });
-  } catch (error: unknown) {
-    const apiError = error as ApiError;
-    console.error('Erro ao deletar bar:', apiError);
-    return NextResponse.json(
-      {
-        success: false,
-        error: apiError.message,
-      },
+      { success: false, error: (error as ApiError).message },
       { status: 500 }
     );
   }
