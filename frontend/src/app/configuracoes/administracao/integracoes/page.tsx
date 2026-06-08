@@ -42,6 +42,7 @@ interface IntegracaoApi {
   logoCor: string;
   acento: string;
   global: boolean;
+  escopo: 'plataforma' | 'bar';
   statusGeral: 'conectada' | 'parcial' | 'desconectada' | 'nao_configurada';
   statusCredencial: 'ok' | 'ausente' | 'expirando' | 'expirado' | 'desativada';
   problemas: string[];
@@ -64,6 +65,8 @@ interface ResumoApi {
   parciais: number;
   desconectadas: number;
   nao_configuradas: number;
+  plataforma_total: number;
+  plataforma_ok: number;
 }
 
 function StatusBadge({ status }: { status: IntegracaoApi['statusGeral'] }) {
@@ -192,23 +195,33 @@ export default function AdministracaoIntegracoesPage() {
     }
   };
 
+  const aplicaFiltro = (i: IntegracaoApi) => {
+    if (filtroStatus !== 'todas' && i.statusGeral !== filtroStatus) return false;
+    if (filtro) {
+      const q = filtro.toLowerCase();
+      if (!i.nome.toLowerCase().includes(q) && !i.descricao.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  };
+
+  // Integrações DO BAR, agrupadas por categoria.
   const integracoesPorCategoria = useMemo(() => {
-    const filtradas = integracoes.filter((i) => {
-      if (filtroStatus !== 'todas' && i.statusGeral !== filtroStatus) return false;
-      if (filtro) {
-        const q = filtro.toLowerCase();
-        if (!i.nome.toLowerCase().includes(q) && !i.descricao.toLowerCase().includes(q)) return false;
-      }
-      return true;
-    });
     const grupos = new Map<Categoria, IntegracaoApi[]>();
-    for (const i of filtradas) {
+    for (const i of integracoes.filter((i) => i.escopo === 'bar' && aplicaFiltro(i))) {
       const arr = grupos.get(i.categoria) || [];
       arr.push(i);
       grupos.set(i.categoria, arr);
     }
     return grupos;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [integracoes, filtro, filtroStatus]);
+
+  // Integrações de PLATAFORMA (infra/IA/global), lista única.
+  const integracoesPlataforma = useMemo(
+    () => integracoes.filter((i) => i.escopo === 'plataforma' && aplicaFiltro(i)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [integracoes, filtro, filtroStatus],
+  );
 
   return (
     <div className="space-y-4">
@@ -232,13 +245,19 @@ export default function AdministracaoIntegracoesPage() {
           </div>
 
           {resumo && (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-4">
-              <ResumoCard label="Total" valor={resumo.total} cor="text-gray-700 dark:text-gray-300" onClick={() => setFiltroStatus('todas')} ativo={filtroStatus === 'todas'} />
-              <ResumoCard label="Conectadas" valor={resumo.conectadas} cor="text-emerald-600 dark:text-emerald-400" onClick={() => setFiltroStatus('conectada')} ativo={filtroStatus === 'conectada'} />
-              <ResumoCard label="Atenção" valor={resumo.parciais} cor="text-amber-600 dark:text-amber-400" onClick={() => setFiltroStatus('parcial')} ativo={filtroStatus === 'parcial'} />
-              <ResumoCard label="Desconectadas" valor={resumo.desconectadas} cor="text-red-600 dark:text-red-400" onClick={() => setFiltroStatus('desconectada')} ativo={filtroStatus === 'desconectada'} />
-              <ResumoCard label="Sem config" valor={resumo.nao_configuradas} cor="text-gray-500 dark:text-gray-400" onClick={() => setFiltroStatus('nao_configurada')} ativo={filtroStatus === 'nao_configurada'} />
-            </div>
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-4">
+                <ResumoCard label="Do bar" valor={resumo.total} cor="text-gray-700 dark:text-gray-300" onClick={() => setFiltroStatus('todas')} ativo={filtroStatus === 'todas'} />
+                <ResumoCard label="Conectadas" valor={resumo.conectadas} cor="text-emerald-600 dark:text-emerald-400" onClick={() => setFiltroStatus('conectada')} ativo={filtroStatus === 'conectada'} />
+                <ResumoCard label="Atenção" valor={resumo.parciais} cor="text-amber-600 dark:text-amber-400" onClick={() => setFiltroStatus('parcial')} ativo={filtroStatus === 'parcial'} />
+                <ResumoCard label="Desconectadas" valor={resumo.desconectadas} cor="text-red-600 dark:text-red-400" onClick={() => setFiltroStatus('desconectada')} ativo={filtroStatus === 'desconectada'} />
+                <ResumoCard label="Sem config" valor={resumo.nao_configuradas} cor="text-gray-500 dark:text-gray-400" onClick={() => setFiltroStatus('nao_configurada')} ativo={filtroStatus === 'nao_configurada'} />
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Os números acima são as integrações <strong>deste bar</strong>. Plataforma (infra/IA, igual pra todos):{' '}
+                <strong>{resumo.plataforma_ok}/{resumo.plataforma_total}</strong> conectadas.
+              </p>
+            </>
           )}
 
           <div className="relative mt-4">
@@ -280,7 +299,29 @@ export default function AdministracaoIntegracoesPage() {
         );
       })}
 
-      {integracoes.length > 0 && integracoesPorCategoria.size === 0 && (
+      {/* Plataforma — infra/IA/global, igual pra todos os bares */}
+      {integracoesPlataforma.length > 0 && (
+        <div>
+          <div className="flex items-baseline gap-2 mb-2 px-1 mt-2">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Plataforma</h2>
+            <span className="text-xs text-muted-foreground">— infra, IA e serviços globais (iguais para todos os bares)</span>
+            <span className="ml-auto text-xs text-muted-foreground">{integracoesPlataforma.length}</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 opacity-90">
+            {integracoesPlataforma.map((item) => (
+              <IntegracaoCard
+                key={item.id}
+                item={item}
+                onDetalhe={() => setDetalheAberto(item)}
+                onAcao={executarAcao}
+                acaoPendente={acaoPendente}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {integracoes.length > 0 && integracoesPorCategoria.size === 0 && integracoesPlataforma.length === 0 && (
         <Card className="card-dark">
           <CardContent className="p-8 text-center text-muted-foreground">
             Nenhuma integração corresponde aos filtros.

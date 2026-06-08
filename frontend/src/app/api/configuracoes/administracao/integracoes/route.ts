@@ -18,6 +18,7 @@ interface IntegracaoResposta {
   logoCor: string;
   acento: string;
   global: boolean;
+  escopo: 'plataforma' | 'bar';
   statusGeral: StatusGeral;
   statusCredencial: StatusCredencial;
   problemas: string[];
@@ -338,9 +339,35 @@ export async function GET(request: NextRequest) {
 
     const supabase = await getAdminClient();
 
+    // Config de operação do bar (diz quais integrações o bar realmente usa).
+    const { data: barConfig } = await supabase
+      .schema('operations' as any)
+      .from('bares_config')
+      .select('tem_api_contahub, tem_api_yuzer, tem_api_sympla')
+      .eq('bar_id', barId)
+      .maybeSingle();
+
     const integracoes: IntegracaoResposta[] = await Promise.all(
       CATALOGO_INTEGRACOES.map(async (cat) => {
         const ehGlobal = Boolean(cat.global);
+        const escopo: 'plataforma' | 'bar' = cat.escopo ?? (ehGlobal ? 'plataforma' : 'bar');
+
+        // Integração do bar com flag desligada => o bar não usa. Não infere
+        // status por atividade/credencial global (era o que dava "ContaHub
+        // conectado" num bar sem ContaHub).
+        if (escopo === 'bar' && cat.flagBar && barConfig && (barConfig as any)[cat.flagBar] === false) {
+          return {
+            id: cat.id, nome: cat.nome, descricao: cat.descricao, categoria: cat.categoria,
+            logoLabel: cat.logoLabel, logoCor: cat.logoCor, acento: cat.acento,
+            global: ehGlobal, escopo,
+            statusGeral: 'nao_configurada' as StatusGeral,
+            statusCredencial: 'ausente' as StatusCredencial,
+            problemas: ['Este bar não usa esta integração'],
+            credencial: { fonte: null, valor_mascarado: {}, expires_at: null, detalhes_extras: {} },
+            ultimaSync: null, ultimaSyncStatus: null, volume7d: null,
+            crons: cat.crons || [], acoes: [],
+          };
+        }
         // Paralelizar as 3 chamadas (credencial + ultima sync + volume).
         // Antes rodava sequencial — com 30 integracoes era O(3N) round trips,
         // agora eh O(N) round trips (~3x mais rapido por endpoint).
@@ -370,6 +397,7 @@ export async function GET(request: NextRequest) {
           logoCor: cat.logoCor,
           acento: cat.acento,
           global: ehGlobal,
+          escopo,
           statusGeral: status,
           statusCredencial,
           problemas,
@@ -383,13 +411,18 @@ export async function GET(request: NextRequest) {
       }),
     );
 
-    // Resumo agregado
+    // Resumo: o número que importa pro bar é só das integrações DO BAR.
+    // Plataforma (infra/IA/global) conta à parte pra não inflar o "conectadas".
+    const doBar = integracoes.filter((i) => i.escopo === 'bar');
+    const plataforma = integracoes.filter((i) => i.escopo === 'plataforma');
     const resumo = {
-      total: integracoes.length,
-      conectadas: integracoes.filter((i) => i.statusGeral === 'conectada').length,
-      parciais: integracoes.filter((i) => i.statusGeral === 'parcial').length,
-      desconectadas: integracoes.filter((i) => i.statusGeral === 'desconectada').length,
-      nao_configuradas: integracoes.filter((i) => i.statusGeral === 'nao_configurada').length,
+      total: doBar.length,
+      conectadas: doBar.filter((i) => i.statusGeral === 'conectada').length,
+      parciais: doBar.filter((i) => i.statusGeral === 'parcial').length,
+      desconectadas: doBar.filter((i) => i.statusGeral === 'desconectada').length,
+      nao_configuradas: doBar.filter((i) => i.statusGeral === 'nao_configurada').length,
+      plataforma_total: plataforma.length,
+      plataforma_ok: plataforma.filter((i) => i.statusGeral === 'conectada').length,
     };
 
     return NextResponse.json({ success: true, barId, resumo, integracoes }, {

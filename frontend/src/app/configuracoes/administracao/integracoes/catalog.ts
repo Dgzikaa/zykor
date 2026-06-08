@@ -64,6 +64,18 @@ export interface IntegracaoCatalogo {
   acento: string;
   /** Se true, integração é global (não tem variação por bar) */
   global?: boolean;
+  /**
+   * Escopo da integração no ponto de vista do usuário:
+   * 'plataforma' = infra/IA/global, igual pra todos os bares (não é "do bar").
+   * 'bar' = pertence a cada bar (mesmo que a credencial seja global, como ContaHub).
+   * Default 'bar'.
+   */
+  escopo?: 'plataforma' | 'bar';
+  /**
+   * Flag em operations.bares_config que diz se ESTE bar usa a integração.
+   * Se a flag estiver desligada, a integração aparece como "não usa" pro bar.
+   */
+  flagBar?: 'tem_api_contahub' | 'tem_api_yuzer' | 'tem_api_sympla';
   /** Se true, credencial não tem TTL (webhook URL, DSN público, etc) — silencia warnings */
   naoExpira?: boolean;
   /** Se true, integração é opcional (não usado/fallback) — UI mostra cinza neutro sem alarme */
@@ -95,7 +107,9 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     logoLabel: 'CH',
     logoCor: '#F97316',
     acento: 'orange-500',
-    global: true,           // credencial é env global, não por bar
+    global: true,           // credencial é env global (login único), compartilhada
+    escopo: 'bar',          // mas cada bar usa (ou não) — gate por tem_api_contahub
+    flagBar: 'tem_api_contahub',
     inferirPorAtividade: true,
     fontesAuth: [
       { tipo: 'env_global', envs: ['CONTAHUB_EMAIL', 'CONTAHUB_PASSWORD', 'CONTAHUB_BASE_URL'] },
@@ -160,6 +174,7 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     logoLabel: 'SY',
     logoCor: '#FF7A00',
     acento: 'orange-500',
+    flagBar: 'tem_api_sympla',
     fontesAuth: [
       { tipo: 'env_global', envs: ['SYMPLA_API_TOKEN'] },
       { tipo: 'api_credentials', sistema: ['sympla'] },
@@ -176,6 +191,7 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     logoLabel: 'YZ',
     logoCor: '#EC4899',
     acento: 'pink-500',
+    flagBar: 'tem_api_yuzer',
     fontesAuth: [{ tipo: 'api_credentials', sistema: ['yuzer'] }],
     fontesSync: [{ schema: 'bronze', tabela: 'bronze_yuzer_sync_log', colunaTempo: 'executed_at', colunaStatus: 'status' }],
     volumeTabela: { schema: 'bronze', tabela: 'bronze_yuzer_eventos', colunaTempo: 'synced_at' },

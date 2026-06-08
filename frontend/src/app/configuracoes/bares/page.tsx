@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api-client';
-import { Store, Plus, Loader2, Save, Trash2, Target, ExternalLink } from 'lucide-react';
+import { Store, Plus, Loader2, Save, Trash2, Target, ExternalLink, CheckCircle2, Clock, Instagram, Plug } from 'lucide-react';
 
 interface Operacao {
   opera_segunda: boolean; opera_terca: boolean; opera_quarta: boolean;
@@ -154,11 +154,18 @@ function BarEditor({ bar, criando, onClose, onSaved }: {
 
         <Tabs defaultValue="perfil" className="px-6 pb-6">
           <TabsList>
+            <TabsTrigger value="prontidao" disabled={criando}>Prontidão</TabsTrigger>
             <TabsTrigger value="perfil">Perfil</TabsTrigger>
             <TabsTrigger value="operacao">Operação</TabsTrigger>
             <TabsTrigger value="metas">Metas</TabsTrigger>
+            <TabsTrigger value="integracoes" disabled={criando}>Integrações</TabsTrigger>
             <TabsTrigger value="acesso" disabled={criando}>Acesso</TabsTrigger>
           </TabsList>
+
+          {/* PRONTIDÃO */}
+          <TabsContent value="prontidao" className="pt-3">
+            {!criando && <ProntidaoBar barId={form.id} />}
+          </TabsContent>
 
           {/* PERFIL */}
           <TabsContent value="perfil" className="space-y-3 pt-3">
@@ -235,6 +242,11 @@ function BarEditor({ bar, criando, onClose, onSaved }: {
               </Link>
               {criando && <p className="text-[11px] text-muted-foreground">Salve o bar primeiro; a estrutura de metas é criada automaticamente.</p>}
             </div>
+          </TabsContent>
+
+          {/* INTEGRAÇÕES */}
+          <TabsContent value="integracoes" className="pt-3">
+            {!criando && <IntegracoesBar barId={form.id} />}
           </TabsContent>
 
           {/* ACESSO */}
@@ -329,6 +341,136 @@ function AcessoBar({ barId }: { barId: number }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Prontidão: checklist do que está pronto x pendente no bar ──
+interface ProntItem { chave: string; label: string; status: 'ok' | 'pendente' | 'opcional'; detalhe: string }
+
+function ProntidaoBar({ barId }: { barId: number }) {
+  const { toast } = useToast();
+  const [itens, setItens] = useState<ProntItem[]>([]);
+  const [resumo, setResumo] = useState<{ total: number; concluidos: number; pendentes: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/api/configuracoes/bars/${barId}/prontidao`);
+      setItens(res.itens || []);
+      setResumo(res.resumo || null);
+    } catch (e: any) {
+      toast({ title: 'Erro ao carregar prontidão', description: e?.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [barId, toast]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  if (loading) return <div className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></div>;
+
+  return (
+    <div className="space-y-3">
+      {resumo && (
+        <p className="text-sm text-muted-foreground">
+          <strong className="text-foreground">{resumo.concluidos}/{resumo.total}</strong> prontos
+          {resumo.pendentes > 0 && <> · {resumo.pendentes} pendente(s)</>}
+        </p>
+      )}
+      <div className="space-y-1.5">
+        {itens.map(it => {
+          const ok = it.status === 'ok';
+          const opc = it.status === 'opcional';
+          return (
+            <div key={it.chave} className="flex items-start gap-2.5 rounded-md border border-[hsl(var(--border))] px-3 py-2">
+              {ok
+                ? <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                : <Clock className={`w-4 h-4 mt-0.5 shrink-0 ${opc ? 'text-muted-foreground' : 'text-amber-500'}`} />}
+              <div className="min-w-0">
+                <div className="text-sm font-medium">{it.label}{opc && <span className="text-xs text-muted-foreground font-normal"> (opcional)</span>}</div>
+                <div className="text-xs text-muted-foreground">{it.detalhe}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Integrações do bar: status + conectar Instagram + atalho ──
+interface IntegBar { id: string; nome: string; statusGeral: string; problemas: string[] }
+
+function IntegracoesBar({ barId }: { barId: number }) {
+  const { toast } = useToast();
+  const [itens, setItens] = useState<IntegBar[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [conectando, setConectando] = useState(false);
+
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/api/configuracoes/administracao/integracoes?bar_id=${barId}`);
+      setItens((res.integracoes || []).filter((i: any) => i.escopo === 'bar'));
+    } catch (e: any) {
+      toast({ title: 'Erro ao carregar integrações', description: e?.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [barId, toast]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const conectarInstagram = async () => {
+    setConectando(true);
+    try {
+      const resp = await fetch(`/api/integracoes/instagram/iniciar?bar_id=${barId}`);
+      const json = await resp.json();
+      if (!resp.ok || !json.url) throw new Error(json?.error || 'Falha');
+      window.location.href = json.url;
+    } catch (e: any) {
+      toast({ title: 'Erro ao conectar Instagram', description: e?.message, variant: 'destructive' });
+      setConectando(false);
+    }
+  };
+
+  const STATUS_LABEL: Record<string, { txt: string; cls: string }> = {
+    conectada: { txt: 'Conectada', cls: 'bg-emerald-500/15 text-emerald-600' },
+    parcial: { txt: 'Atenção', cls: 'bg-amber-500/15 text-amber-600' },
+    desconectada: { txt: 'Desconectada', cls: 'bg-red-500/15 text-red-600' },
+    nao_configurada: { txt: 'Não configurada', cls: 'bg-muted text-muted-foreground' },
+  };
+
+  if (loading) return <div className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></div>;
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        {itens.map(i => {
+          const s = STATUS_LABEL[i.statusGeral] || STATUS_LABEL.nao_configurada;
+          return (
+            <div key={i.id} className="flex items-center justify-between gap-2 rounded-md border border-[hsl(var(--border))] px-3 py-2">
+              <div className="min-w-0">
+                <div className="text-sm font-medium">{i.nome}</div>
+                {i.problemas?.[0] && <div className="text-xs text-muted-foreground truncate">{i.problemas[0]}</div>}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {i.id === 'instagram' && i.statusGeral !== 'conectada' && (
+                  <Button size="sm" variant="outline" className="h-7" onClick={conectarInstagram} disabled={conectando}>
+                    {conectando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Instagram className="w-3.5 h-3.5 mr-1" />Conectar</>}
+                  </Button>
+                )}
+                <Badge className={`${s.cls} text-[10px]`}>{s.txt}</Badge>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <Link href="/configuracoes/administracao/integracoes" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+        <Plug className="w-3.5 h-3.5" /> Abrir tela completa de integrações <ExternalLink className="w-3 h-3" />
+      </Link>
     </div>
   );
 }
