@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { randomUUID } from 'crypto';
 import { requireAdmin } from '@/lib/auth/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { enviarEmailBoasVindas } from '@/lib/emails/user-welcome';
 
 export const dynamic = 'force-dynamic'
+
+// Senha temporária forte e única por usuário (será trocada no 1º acesso).
+function gerarSenhaTemporaria(): string {
+  return 'Zk!' + randomUUID().replace(/-/g, '').slice(0, 12);
+}
 
 // GET - Listar todos os usuários com seus bares associados
 export const GET = requireAdmin(async (request, user) => {
@@ -106,10 +113,13 @@ export const POST = requireAdmin(async (request, user) => {
     // Garantir que modulos_permitidos seja um array
     const modulosArray = Array.isArray(modulos_permitidos) ? modulos_permitidos : [];
 
+    // Senha temporária única (não mais fixa pra todos).
+    const senhaTemporaria = gerarSenhaTemporaria();
+
     // 1. Primeiro criar usuário no Supabase Auth
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
       email,
-      password: 'TempPassword123!', // Senha temporária - usuário deve redefinir
+      password: senhaTemporaria, // Senha temporária - usuário deve redefinir
       email_confirm: true, // Auto-confirmar email
       user_metadata: {
         nome,
@@ -178,57 +188,36 @@ export const POST = requireAdmin(async (request, user) => {
       // Não falhar a operação por isso, pois o usuário já foi criado
     }
 
-    // 4. Enviar email de boas-vindas com credenciais
+    // 4. Enviar email de boas-vindas — chamada DIRETA (sem fetch interno que
+    //    dependia de NEXT_PUBLIC_APP_URL, que estava apontando pro domínio antigo).
     let emailSent = false;
+    let emailErro: string | null = null;
     try {
-      const baseUrl = process.env.NODE_ENV === 'development' 
-        ? 'http://localhost:3000' 
-        : (process.env.NEXT_PUBLIC_APP_URL || 'https://sgbv2.vercel.app');
-
-      const emailResponse = await fetch(`${baseUrl}/api/emails/user-welcome`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: email,
-          nome,
-          email,
-          senha_temporaria: 'TempPassword123!',
-          role,
-          loginUrl: baseUrl
-        })
+      const r = await enviarEmailBoasVindas({
+        to: email, nome, email, senha_temporaria: senhaTemporaria, role,
       });
-
-      const contentType = emailResponse.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        const emailResult = await emailResponse.json();
-        
-        if (!emailResponse.ok) {
-          console.warn('⚠️ Falha ao enviar email de boas-vindas:', emailResult.error);
-        } else {
-          emailSent = true;
-        }
-      } else {
-        const textResponse = await emailResponse.text();
-        console.warn('⚠️ Resposta não-JSON da API de email:', textResponse.substring(0, 200));
+      emailSent = r.success;
+      if (!r.success) {
+        emailErro = r.error;
+        console.warn('⚠️ Email de boas-vindas falhou:', r.error);
       }
-    } catch (emailError) {
+    } catch (emailError: any) {
+      emailErro = emailError?.message || 'erro';
       console.warn('⚠️ Erro ao enviar email de boas-vindas:', emailError);
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       usuario: { ...usuario, bares_ids: baresParaAssociar },
-      message: emailSent 
-        ? 'Usuário criado com sucesso! Email com credenciais de acesso foi enviado.' 
-        : 'Usuário criado com sucesso! ⚠️ Email não pôde ser enviado - verifique configurações.',
+      message: emailSent
+        ? 'Usuário criado! Email com as credenciais foi enviado.'
+        : `Usuário criado! ⚠️ Email não enviado (${emailErro || 'erro'}). Repasse as credenciais abaixo.`,
       emailSent,
       credentials: emailSent ? undefined : {
         email,
-        senha_temporaria: 'TempPassword123!',
-        message: 'Como o email não foi enviado, aqui estão as credenciais:'
-      }
+        senha_temporaria: senhaTemporaria,
+        message: 'Como o email não foi enviado, repasse estas credenciais:',
+      },
     }, { status: 201 });
   } catch (error) {
     console.error('Erro ao criar usuário:', error);
