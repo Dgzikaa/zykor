@@ -447,14 +447,19 @@ function IntegracoesBar({ barId }: { barId: number }) {
 
   return (
     <div className="space-y-3">
+      {/* Conta Azul: fluxo de conexão completo (credenciais + OAuth) */}
+      <ContaAzulConnect barId={barId} />
+
       <div className="space-y-1.5">
-        {itens.map(i => {
+        {itens.filter(i => i.id !== 'contaazul').map(i => {
           const s = STATUS_LABEL[i.statusGeral] || STATUS_LABEL.nao_configurada;
           return (
             <div key={i.id} className="flex items-center justify-between gap-2 rounded-md border border-[hsl(var(--border))] px-3 py-2">
               <div className="min-w-0">
                 <div className="text-sm font-medium">{i.nome}</div>
-                {i.problemas?.[0] && <div className="text-xs text-muted-foreground truncate">{i.problemas[0]}</div>}
+                {i.id === 'inter' && i.statusGeral !== 'conectada'
+                  ? <div className="text-xs text-muted-foreground">Credencial bancária é cadastrada pelo processo seguro (cifrada, fora da web) — fale com o time técnico.</div>
+                  : i.problemas?.[0] && <div className="text-xs text-muted-foreground truncate">{i.problemas[0]}</div>}
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {i.id === 'instagram' && i.statusGeral !== 'conectada' && (
@@ -471,6 +476,103 @@ function IntegracoesBar({ barId }: { barId: number }) {
       <Link href="/configuracoes/administracao/integracoes" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
         <Plug className="w-3.5 h-3.5" /> Abrir tela completa de integrações <ExternalLink className="w-3 h-3" />
       </Link>
+    </div>
+  );
+}
+
+// ── Conta Azul: salvar client_id/secret -> conectar via OAuth -> status ──
+function ContaAzulConnect({ barId }: { barId: number }) {
+  const { toast } = useToast();
+  const [status, setStatus] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [clientId, setClientId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [mostrarForm, setMostrarForm] = useState(false);
+
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/financeiro/contaazul/status?bar_id=${barId}`);
+      setStatus(await r.json());
+    } catch {
+      setStatus(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [barId]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const salvarCredenciais = async () => {
+    if (!clientId.trim() || !clientSecret.trim()) {
+      toast({ title: 'Informe client_id e client_secret', variant: 'destructive' });
+      return;
+    }
+    setSalvando(true);
+    try {
+      const r = await fetch('/api/financeiro/contaazul/credentials', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: barId, client_id: clientId.trim(), client_secret: clientSecret.trim() }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.error || 'Falha ao salvar');
+      toast({ title: 'Credenciais salvas', description: 'Agora clique em Conectar.' });
+      setClientId(''); setClientSecret(''); setMostrarForm(false);
+      await carregar();
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e?.message, variant: 'destructive' });
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const conectar = () => { window.location.href = `/api/financeiro/contaazul/oauth/authorize?bar_id=${barId}`; };
+
+  const conectado = !!status?.connected;
+  const temCred = !!status?.has_credentials;
+
+  return (
+    <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium flex items-center gap-2">
+          <span className="w-5 h-5 rounded bg-[#0066B3] text-white text-[10px] font-bold flex items-center justify-center">CA</span>
+          Conta Azul
+        </span>
+        {loading
+          ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          : <Badge className={conectado ? 'bg-emerald-500/15 text-emerald-600 text-[10px]' : 'bg-muted text-muted-foreground text-[10px]'}>
+              {conectado ? 'Conectada' : temCred ? 'Falta autorizar' : 'Não configurada'}
+            </Badge>}
+      </div>
+
+      {!loading && conectado && (
+        <p className="text-xs text-muted-foreground">
+          {status?.stats?.lancamentos ?? 0} lançamentos · {status?.stats?.pessoas ?? 0} fornecedores sincronizados.
+        </p>
+      )}
+
+      {!loading && !conectado && (
+        <div className="space-y-2">
+          {temCred ? (
+            <Button size="sm" onClick={conectar}>Conectar Conta Azul (autorizar)</Button>
+          ) : !mostrarForm ? (
+            <Button size="sm" variant="outline" onClick={() => setMostrarForm(true)}>Configurar Conta Azul</Button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-[11px] text-muted-foreground">Cole o client_id e client_secret do app Conta Azul deste bar:</p>
+              <Input className="h-8 text-xs" placeholder="client_id" value={clientId} onChange={e => setClientId(e.target.value)} />
+              <Input className="h-8 text-xs" placeholder="client_secret" type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)} />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={salvarCredenciais} disabled={salvando}>
+                  {salvando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Salvar'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setMostrarForm(false)}>Cancelar</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
