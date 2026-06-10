@@ -69,19 +69,21 @@ const DIAS_SEMANA = [
   'Sexta',
   'Sábado',
 ];
+const MESES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
 
 type Row = Record<string, any>;
+type Gran = 'dia' | 'semana' | 'mes';
 
-// Helpers de extração com fallback (manual sobrescreve calculado quando existe)
 const num = (v: any) => (v === null || v === undefined ? 0 : Number(v) || 0);
 
 function faturamentoDe(e: Row): number {
   return num(e.faturamento_total_consolidado) || num(e.real_r);
 }
 function publicoDe(e: Row): number {
-  return (
-    num(e.publico_real_consolidado) || num(e.publico_real) || num(e.cl_real)
-  );
+  return num(e.publico_real_consolidado) || num(e.publico_real) || num(e.cl_real);
 }
 function couvertDe(e: Row): number {
   return num(e.faturamento_couvert_manual) || num(e.faturamento_couvert);
@@ -105,8 +107,25 @@ function atrasosTotalDe(e: Row): number {
   return num(e.atrasao_cozinha) + num(e.atrasao_bar);
 }
 
-// Métricas normalizadas para comparação
-function metricas(e: Row) {
+interface Metricas {
+  faturamento: number;
+  publico: number;
+  couvert: number;
+  bar: number;
+  ticket: number;
+  c_art: number;
+  c_prod: number;
+  custo_total: number;
+  resultado: number;
+  percent_comida: number;
+  percent_bebida: number;
+  percent_drink: number;
+  percent_stockout: number;
+  atrasos: number;
+  res_tot: number;
+}
+
+function metricas(e: Row): Metricas {
   return {
     faturamento: faturamentoDe(e),
     publico: publicoDe(e),
@@ -126,20 +145,139 @@ function metricas(e: Row) {
   };
 }
 
-function media(eventos: Row[]) {
+// Contexto bruto (stockout/atrasos) usado nas frases do diagnóstico
+interface Ctx {
+  stockout_bebidas_perc: number;
+  stockout_comidas_perc: number;
+  stockout_drinks_perc: number;
+  atrasao_cozinha: number;
+  atrasao_bar: number;
+}
+function ctxDe(e: Row): Ctx {
+  return {
+    stockout_bebidas_perc: num(e.stockout_bebidas_perc),
+    stockout_comidas_perc: num(e.stockout_comidas_perc),
+    stockout_drinks_perc: num(e.stockout_drinks_perc),
+    atrasao_cozinha: num(e.atrasao_cozinha),
+    atrasao_bar: num(e.atrasao_bar),
+  };
+}
+
+// Agregação de um conjunto de eventos (semana/mês)
+function agregar(eventos: Row[]): { m: Metricas; ctx: Ctx; extras: Row } {
+  const ms = eventos.map(metricas);
+  const fat = ms.reduce((s, x) => s + x.faturamento, 0);
+  const publico = ms.reduce((s, x) => s + x.publico, 0);
+  const wavg = (sel: (x: Metricas) => number) =>
+    fat > 0 ? ms.reduce((s, x) => s + sel(x) * x.faturamento, 0) / fat : 0;
+  const sum = (sel: (x: Metricas) => number) => ms.reduce((s, x) => s + sel(x), 0);
+
+  const m: Metricas = {
+    faturamento: fat,
+    publico,
+    couvert: sum((x) => x.couvert),
+    bar: sum((x) => x.bar),
+    ticket: publico > 0 ? fat / publico : 0,
+    c_art: sum((x) => x.c_art),
+    c_prod: sum((x) => x.c_prod),
+    custo_total: sum((x) => x.custo_total),
+    resultado: sum((x) => x.resultado),
+    percent_comida: wavg((x) => x.percent_comida),
+    percent_bebida: wavg((x) => x.percent_bebida),
+    percent_drink: wavg((x) => x.percent_drink),
+    percent_stockout: wavg((x) => x.percent_stockout),
+    atrasos: sum((x) => x.atrasos),
+    res_tot: sum((x) => x.res_tot),
+  };
+
+  const sumRaw = (k: string) => eventos.reduce((s, e) => s + num(e[k]), 0);
+  const wavgRaw = (k: string) =>
+    fat > 0
+      ? eventos.reduce((s, e) => s + num(e[k]) * faturamentoDe(e), 0) / fat
+      : 0;
+
+  const ctx: Ctx = {
+    stockout_bebidas_perc: wavgRaw('stockout_bebidas_perc'),
+    stockout_comidas_perc: wavgRaw('stockout_comidas_perc'),
+    stockout_drinks_perc: wavgRaw('stockout_drinks_perc'),
+    atrasao_cozinha: sumRaw('atrasao_cozinha'),
+    atrasao_bar: sumRaw('atrasao_bar'),
+  };
+
+  const extras: Row = {
+    atrasao_cozinha: sumRaw('atrasao_cozinha'),
+    atrasao_bar: sumRaw('atrasao_bar'),
+    atrasinho_cozinha: sumRaw('atrasinho_cozinha'),
+    atrasinho_bar: sumRaw('atrasinho_bar'),
+    stockout_bebidas_perc: ctx.stockout_bebidas_perc,
+    stockout_comidas_perc: ctx.stockout_comidas_perc,
+    stockout_drinks_perc: ctx.stockout_drinks_perc,
+    t_coz: wavgRaw('t_coz'),
+    t_bar: wavgRaw('t_bar'),
+    res_tot: sumRaw('res_tot'),
+    res_p: sumRaw('res_p'),
+    cancelamentos: sumRaw('cancelamentos'),
+    descontos: sumRaw('descontos'),
+  };
+
+  return { m, ctx, extras };
+}
+
+function media(eventos: Row[]): Metricas | null {
   if (!eventos.length) return null;
   const ms = eventos.map(metricas);
-  const acc: Record<string, number> = {};
-  const keys = Object.keys(ms[0]);
-  for (const k of keys) {
-    acc[k] = ms.reduce((s, m) => s + (m as any)[k], 0) / ms.length;
+  const out: any = {};
+  for (const k of Object.keys(ms[0])) {
+    out[k] = ms.reduce((s, x) => s + (x as any)[k], 0) / ms.length;
   }
-  return acc;
+  return out as Metricas;
 }
 
 function pct(atual: number, base: number): number | null {
   if (!base) return null;
   return ((atual - base) / base) * 100;
+}
+
+// Janela de período a partir de uma data âncora
+function periodoDe(data: string, gran: Gran) {
+  const [y, mo, d] = data.split('-').map(Number);
+  const iso = (dt: Date) => dt.toISOString().split('T')[0];
+  if (gran === 'mes') {
+    const inicio = new Date(Date.UTC(y, mo - 1, 1));
+    const fim = new Date(Date.UTC(y, mo, 0));
+    const pIni = new Date(Date.UTC(y, mo - 2, 1));
+    const pFim = new Date(Date.UTC(y, mo - 1, 0));
+    return {
+      inicio: iso(inicio),
+      fim: iso(fim),
+      prevInicio: iso(pIni),
+      prevFim: iso(pFim),
+      label: `${MESES[mo - 1]} ${y}`,
+      compLabel: 'o mês anterior',
+      unidade: 'mês' as const,
+    };
+  }
+  // semana ISO (segunda a domingo) contendo a data
+  const base = new Date(Date.UTC(y, mo - 1, d));
+  const dow = base.getUTCDay(); // 0=dom
+  const diffSeg = dow === 0 ? -6 : 1 - dow;
+  const seg = new Date(base);
+  seg.setUTCDate(base.getUTCDate() + diffSeg);
+  const dom = new Date(seg);
+  dom.setUTCDate(seg.getUTCDate() + 6);
+  const pSeg = new Date(seg);
+  pSeg.setUTCDate(seg.getUTCDate() - 7);
+  const pDom = new Date(pSeg);
+  pDom.setUTCDate(pSeg.getUTCDate() + 6);
+  return {
+    inicio: iso(seg),
+    fim: iso(dom),
+    prevInicio: iso(pSeg),
+    prevFim: iso(pDom),
+    label: `Semana de ${iso(seg).split('-').reverse().slice(0, 2).join('/')} a ${iso(dom).split('-').reverse().slice(0, 2).join('/')}`,
+    compLabel: 'a semana anterior',
+    unidade: 'semana' as const,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -164,8 +302,12 @@ function moeda(v: number) {
   });
 }
 
-function diagnosticar(evt: Row, base: Record<string, number> | null) {
-  const m = metricas(evt);
+function diagnosticar(
+  m: Metricas,
+  base: Metricas | null,
+  ctx: Ctx,
+  comp = 'a média das últimas 4 datas'
+) {
   const insights: Insight[] = [];
   let veredito: 'bom' | 'regular' | 'ruim' = 'regular';
 
@@ -175,7 +317,7 @@ function diagnosticar(evt: Row, base: Record<string, number> | null) {
       dimensao: 'baseline',
       titulo: 'Sem histórico comparável',
       descricao:
-        'Não há eventos anteriores suficientes no mesmo dia da semana para comparar. Indicadores mostrados sem baseline.',
+        'Não há período anterior suficiente para comparar. Indicadores mostrados sem baseline.',
     });
     return { veredito, insights };
   }
@@ -185,25 +327,19 @@ function diagnosticar(evt: Row, base: Record<string, number> | null) {
   const dTicket = pct(m.ticket, base.ticket);
   const dCart = pct(m.c_art, base.c_art);
 
-  // Veredito geral pelo faturamento vs média das últimas 4 mesmas datas
   if (dFat !== null) {
     if (dFat >= 8) veredito = 'bom';
     else if (dFat <= -10) veredito = 'ruim';
     else veredito = 'regular';
   }
 
-  // Faturamento + causa provável (público x ticket)
   if (dFat !== null && Math.abs(dFat) >= 8) {
     let causa = '';
     if (dFat < 0) {
       if (dPub !== null && dPub <= -8 && (dTicket === null || dTicket > -5)) {
-        causa = ` Causa provável: ${r1(Math.abs(dPub))}% menos pessoas na casa, com ticket médio estável.`;
-      } else if (
-        dTicket !== null &&
-        dTicket <= -5 &&
-        (dPub === null || dPub > -5)
-      ) {
-        causa = ` Público estável, mas o ticket médio caiu ${r1(Math.abs(dTicket))}%: consumo por pessoa menor.`;
+        causa = ` Causa provável: ${r1(Math.abs(dPub))}% menos pessoas, com ticket médio estável.`;
+      } else if (dTicket !== null && dTicket <= -5 && (dPub === null || dPub > -5)) {
+        causa = ` Público estável, mas ticket médio caiu ${r1(Math.abs(dTicket))}%: consumo por pessoa menor.`;
       } else if (dPub !== null && dTicket !== null && dPub < 0 && dTicket < 0) {
         causa = ` Caiu nas duas pontas: ${r1(Math.abs(dPub))}% menos pessoas e ticket ${r1(Math.abs(dTicket))}% menor.`;
       }
@@ -213,28 +349,24 @@ function diagnosticar(evt: Row, base: Record<string, number> | null) {
       dimensao: 'faturamento',
       titulo:
         dFat >= 0
-          ? `Faturamento ${r1(dFat)}% acima da média`
-          : `Faturamento ${r1(Math.abs(dFat))}% abaixo da média`,
-      descricao: `${moeda(m.faturamento)} vs média de ${moeda(base.faturamento)} das últimas ${'4'} datas.${causa}`,
+          ? `Faturamento ${r1(dFat)}% acima`
+          : `Faturamento ${r1(Math.abs(dFat))}% abaixo`,
+      descricao: `${moeda(m.faturamento)} vs ${moeda(base.faturamento)} (${comp}).${causa}`,
       delta_pct: dFat,
     });
   }
 
-  // Público
   if (dPub !== null && Math.abs(dPub) >= 10) {
     insights.push({
       tipo: dPub >= 0 ? 'positivo' : 'atencao',
       dimensao: 'publico',
       titulo:
-        dPub >= 0
-          ? `Público ${r1(dPub)}% acima da média`
-          : `Público ${r1(Math.abs(dPub))}% abaixo da média`,
-      descricao: `${Math.round(m.publico)} pessoas vs média de ${Math.round(base.publico)}.`,
+        dPub >= 0 ? `Público ${r1(dPub)}% acima` : `Público ${r1(Math.abs(dPub))}% abaixo`,
+      descricao: `${Math.round(m.publico)} pessoas vs ${Math.round(base.publico)}.`,
       delta_pct: dPub,
     });
   }
 
-  // Ticket médio
   if (dTicket !== null && Math.abs(dTicket) >= 8) {
     insights.push({
       tipo: dTicket >= 0 ? 'positivo' : 'atencao',
@@ -243,26 +375,24 @@ function diagnosticar(evt: Row, base: Record<string, number> | null) {
         dTicket >= 0
           ? `Ticket médio ${r1(dTicket)}% maior`
           : `Ticket médio ${r1(Math.abs(dTicket))}% menor`,
-      descricao: `${moeda(m.ticket)} por pessoa vs média de ${moeda(base.ticket)}.`,
+      descricao: `${moeda(m.ticket)} por pessoa vs ${moeda(base.ticket)}.`,
       delta_pct: dTicket,
     });
   }
 
-  // Custo artístico
   if (dCart !== null && m.c_art > 0 && Math.abs(dCart) >= 15) {
     insights.push({
       tipo: dCart > 0 ? 'atencao' : 'info',
       dimensao: 'custo_artistico',
       titulo:
         dCart > 0
-          ? `Custo artístico ${r1(dCart)}% acima da média`
-          : `Custo artístico ${r1(Math.abs(dCart))}% abaixo da média`,
-      descricao: `${moeda(m.c_art)} vs média de ${moeda(base.c_art)} (${moeda(m.c_art - base.c_art)} de diferença).`,
+          ? `Custo artístico ${r1(dCart)}% acima`
+          : `Custo artístico ${r1(Math.abs(dCart))}% abaixo`,
+      descricao: `${moeda(m.c_art)} vs ${moeda(base.c_art)} (${moeda(m.c_art - base.c_art)} de diferença).`,
       delta_pct: dCart,
     });
   }
 
-  // % do faturamento gasto com atração
   const percArt = m.faturamento > 0 ? (m.c_art / m.faturamento) * 100 : 0;
   if (percArt >= 20 && m.c_art > 0) {
     insights.push({
@@ -271,42 +401,36 @@ function diagnosticar(evt: Row, base: Record<string, number> | null) {
       titulo: `Atração consumiu ${r1(percArt)}% do faturamento`,
       descricao:
         percArt >= 30
-          ? 'Acima do saudável: a atração comeu boa parte da receita do dia.'
+          ? 'Acima do saudável: a atração comeu boa parte da receita.'
           : 'Dentro de uma faixa de atenção. Vale acompanhar o retorno da atração.',
     });
   }
 
-  // Mix — deslocamentos relevantes (em pontos percentuais)
   const dComida = m.percent_comida - base.percent_comida;
   const dDrink = m.percent_drink - base.percent_drink;
   const dBebida = m.percent_bebida - base.percent_bebida;
   if (Math.abs(dComida) >= 5 || Math.abs(dDrink) >= 5 || Math.abs(dBebida) >= 5) {
     const partes: string[] = [];
-    if (Math.abs(dComida) >= 5)
-      partes.push(`comida ${dComida >= 0 ? '+' : ''}${r1(dComida)}pp`);
-    if (Math.abs(dDrink) >= 5)
-      partes.push(`drinks ${dDrink >= 0 ? '+' : ''}${r1(dDrink)}pp`);
-    if (Math.abs(dBebida) >= 5)
-      partes.push(`bebidas ${dBebida >= 0 ? '+' : ''}${r1(dBebida)}pp`);
+    if (Math.abs(dComida) >= 5) partes.push(`comida ${dComida >= 0 ? '+' : ''}${r1(dComida)}pp`);
+    if (Math.abs(dDrink) >= 5) partes.push(`drinks ${dDrink >= 0 ? '+' : ''}${r1(dDrink)}pp`);
+    if (Math.abs(dBebida) >= 5) partes.push(`bebidas ${dBebida >= 0 ? '+' : ''}${r1(dBebida)}pp`);
     insights.push({
       tipo: 'info',
       dimensao: 'mix',
       titulo: 'Mix de consumo mudou',
-      descricao: `Em relação à média: ${partes.join(', ')}. Mix do dia: ${r1(m.percent_comida)}% comida / ${r1(m.percent_bebida)}% bebida / ${r1(m.percent_drink)}% drink.`,
+      descricao: `Em relação ao comparativo: ${partes.join(', ')}. Mix: ${r1(m.percent_comida)}% comida / ${r1(m.percent_bebida)}% bebida / ${r1(m.percent_drink)}% drink.`,
     });
   }
 
-  // Stockout
   if (m.percent_stockout >= 15) {
     insights.push({
       tipo: m.percent_stockout >= 25 ? 'atencao' : 'info',
       dimensao: 'stockout',
       titulo: `Stockout de ${r1(m.percent_stockout)}%`,
-      descricao: `Produtos em falta podem ter limitado vendas. Bebidas ${r1(num(evt.stockout_bebidas_perc))}%, comidas ${r1(num(evt.stockout_comidas_perc))}%, drinks ${r1(num(evt.stockout_drinks_perc))}%.`,
+      descricao: `Produtos em falta podem ter limitado vendas. Bebidas ${r1(ctx.stockout_bebidas_perc)}%, comidas ${r1(ctx.stockout_comidas_perc)}%, drinks ${r1(ctx.stockout_drinks_perc)}%.`,
     });
   }
 
-  // Atrasos
   if (m.atrasos > 0 && base.atrasos >= 0) {
     const dAtraso = pct(m.atrasos, base.atrasos);
     if (m.atrasos >= 5 && (dAtraso === null || dAtraso > 20)) {
@@ -314,22 +438,21 @@ function diagnosticar(evt: Row, base: Record<string, number> | null) {
         tipo: 'atencao',
         dimensao: 'atrasos',
         titulo: `${Math.round(m.atrasos)} atrasos no atendimento`,
-        descricao: `${num(evt.atrasao_cozinha)} na cozinha e ${num(evt.atrasao_bar)} no bar${
-          base.atrasos > 0 ? ` (média histórica ${r1(base.atrasos)}).` : '.'
+        descricao: `${ctx.atrasao_cozinha} na cozinha e ${ctx.atrasao_bar} no bar${
+          base.atrasos > 0 ? ` (referência ${r1(base.atrasos)}).` : '.'
         } Pode ter pesado na experiência e no NPS.`,
         delta_pct: dAtraso,
       });
     }
   }
 
-  // Resultado do evento (faturamento - custos)
   const dResultado = pct(m.resultado, base.resultado);
   if (dResultado !== null && Math.abs(dResultado) >= 12) {
     insights.push({
       tipo: dResultado >= 0 ? 'positivo' : 'atencao',
       dimensao: 'resultado',
-      titulo: `Resultado do evento ${dResultado >= 0 ? r1(dResultado) + '% acima' : r1(Math.abs(dResultado)) + '% abaixo'} da média`,
-      descricao: `${moeda(m.resultado)} (faturamento menos custo artístico e de produção) vs média de ${moeda(base.resultado)}.`,
+      titulo: `Resultado ${dResultado >= 0 ? r1(dResultado) + '% acima' : r1(Math.abs(dResultado)) + '% abaixo'}`,
+      descricao: `${moeda(m.resultado)} (faturamento menos custo artístico e de produção) vs ${moeda(base.resultado)}.`,
       delta_pct: dResultado,
     });
   }
@@ -338,13 +461,19 @@ function diagnosticar(evt: Row, base: Record<string, number> | null) {
     insights.push({
       tipo: 'info',
       dimensao: 'geral',
-      titulo: 'Dia dentro do esperado',
-      descricao:
-        'Nenhum indicador se desviou de forma relevante da média das últimas 4 datas equivalentes.',
+      titulo: 'Dentro do esperado',
+      descricao: `Nenhum indicador se desviou de forma relevante de ${comp}.`,
     });
   }
 
   return { veredito, insights };
+}
+
+function deltasDe(m: Metricas, base: Metricas | null) {
+  if (!base) return null;
+  return Object.fromEntries(
+    Object.keys(m).map((k) => [k, pct((m as any)[k], (base as any)[k])])
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -353,6 +482,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const data = searchParams.get('data');
     const barIdParam = searchParams.get('bar_id');
+    const gran = (searchParams.get('gran') || 'dia') as Gran;
 
     if (!data || !barIdParam) {
       return NextResponse.json(
@@ -361,78 +491,138 @@ export async function GET(request: NextRequest) {
       );
     }
     const barId = parseInt(barIdParam);
-
     const gold = (supabase as any).schema('gold');
 
-    // Evento selecionado
-    const { data: eventoRows, error: eventoErr } = await gold
-      .from('planejamento')
-      .select(CAMPOS)
-      .eq('bar_id', barId)
-      .eq('data_evento', data)
-      .order('id', { ascending: true });
+    // ---------------- DIA ----------------
+    if (gran === 'dia') {
+      const { data: eventoRows, error: eventoErr } = await gold
+        .from('planejamento')
+        .select(CAMPOS)
+        .eq('bar_id', barId)
+        .eq('data_evento', data)
+        .order('id', { ascending: true });
 
-    if (eventoErr) {
-      console.error('❌ Erro ao buscar evento:', eventoErr);
-      return NextResponse.json(
-        { success: false, error: 'Erro ao buscar evento', details: eventoErr.message },
-        { status: 500 }
+      if (eventoErr) {
+        return NextResponse.json(
+          { success: false, error: 'Erro ao buscar evento', details: eventoErr.message },
+          { status: 500 }
+        );
+      }
+      const evento: Row | null = eventoRows && eventoRows.length ? eventoRows[0] : null;
+      if (!evento) {
+        return NextResponse.json({
+          success: true,
+          encontrado: false,
+          gran,
+          data_evento: data,
+          motivo: 'Nenhum evento encontrado para esta data.',
+        });
+      }
+
+      const { data: baselineRows } = await gold
+        .from('planejamento')
+        .select(CAMPOS)
+        .eq('bar_id', barId)
+        .eq('dia_semana', evento.dia_semana)
+        .eq('ativo', true)
+        .lt('data_evento', data)
+        .order('data_evento', { ascending: false })
+        .limit(4);
+
+      const baseline: Row[] = (baselineRows || []).filter(
+        (e: Row) => faturamentoDe(e) > 0 && publicoDe(e) > 0
       );
-    }
+      const baseMedia = media(baseline);
+      const m = metricas(evento);
+      const deltas = deltasDe(m, baseMedia);
+      const { veredito, insights } = diagnosticar(m, baseMedia, ctxDe(evento));
 
-    const evento: Row | null = eventoRows && eventoRows.length ? eventoRows[0] : null;
+      const [dy, dmo, dd] = data.split('-').map(Number);
+      const diaLabel = DIAS_SEMANA[new Date(Date.UTC(dy, dmo - 1, dd)).getUTCDay()];
 
-    if (!evento) {
       return NextResponse.json({
         success: true,
-        encontrado: false,
-        data_evento: data,
-        motivo: 'Nenhum evento encontrado para esta data.',
+        encontrado: true,
+        gran,
+        periodo: { inicio: data, fim: data, label: diaLabel },
+        evento: {
+          ...evento,
+          dia_semana_label: diaLabel,
+          _faturamento: m.faturamento,
+          _publico: m.publico,
+          _couvert: m.couvert,
+          _bar: m.bar,
+          _ticket: m.ticket,
+          _custo_total: m.custo_total,
+          _resultado: m.resultado,
+        },
+        metricas: m,
+        baseline: {
+          n: baseline.length,
+          media: baseMedia,
+          eventos: baseline.map((e) => ({
+            data_evento: e.data_evento,
+            nome: e.nome || e.artista || e.nome_evento,
+            ...metricas(e),
+          })),
+        },
+        deltas,
+        diagnostico: { veredito, insights },
       });
     }
 
-    // Baseline: últimas 4 datas ativas no mesmo dia da semana, antes do evento
-    const { data: baselineRows } = await gold
-      .from('planejamento')
-      .select(CAMPOS)
-      .eq('bar_id', barId)
-      .eq('dia_semana', evento.dia_semana)
-      .eq('ativo', true)
-      .lt('data_evento', data)
-      .order('data_evento', { ascending: false })
-      .limit(4);
+    // ---------------- SEMANA / MÊS ----------------
+    const p = periodoDe(data, gran);
 
-    // Exclui eventos futuros / pré-venda (faturamento simbólico sem público real)
-    const baseline: Row[] = (baselineRows || []).filter(
-      (e: Row) => faturamentoDe(e) > 0 && publicoDe(e) > 0
-    );
-    const baseMedia = media(baseline);
+    const [{ data: rowsAtual }, { data: rowsPrev }] = await Promise.all([
+      gold
+        .from('planejamento')
+        .select(CAMPOS)
+        .eq('bar_id', barId)
+        .eq('ativo', true)
+        .gte('data_evento', p.inicio)
+        .lte('data_evento', p.fim)
+        .order('data_evento', { ascending: true }),
+      gold
+        .from('planejamento')
+        .select(CAMPOS)
+        .eq('bar_id', barId)
+        .eq('ativo', true)
+        .gte('data_evento', p.prevInicio)
+        .lte('data_evento', p.prevFim)
+        .order('data_evento', { ascending: true }),
+    ]);
 
-    const m = metricas(evento);
-    const deltas =
-      baseMedia &&
-      Object.fromEntries(
-        Object.keys(m).map((k) => [
-          k,
-          pct((m as any)[k], (baseMedia as any)[k]),
-        ])
-      );
+    const eventosAtual: Row[] = (rowsAtual || []).filter((e: Row) => faturamentoDe(e) > 0);
+    const eventosPrev: Row[] = (rowsPrev || []).filter((e: Row) => faturamentoDe(e) > 0);
 
-    const { veredito, insights } = diagnosticar(evento, baseMedia);
+    if (!eventosAtual.length) {
+      return NextResponse.json({
+        success: true,
+        encontrado: false,
+        gran,
+        periodo: { inicio: p.inicio, fim: p.fim, label: p.label },
+        motivo: `Nenhum evento com movimento entre ${p.inicio} e ${p.fim}.`,
+      });
+    }
 
-    const diaLabel = (() => {
-      const [y, mo, d] = data.split('-').map(Number);
-      const dt = new Date(Date.UTC(y, mo - 1, d));
-      return DIAS_SEMANA[dt.getUTCDay()];
-    })();
+    const { m, ctx, extras } = agregar(eventosAtual);
+    const baseMedia = eventosPrev.length ? agregar(eventosPrev).m : null;
+    const deltas = deltasDe(m, baseMedia);
+    const { veredito, insights } = diagnosticar(m, baseMedia, ctx, p.compLabel);
 
     return NextResponse.json({
       success: true,
       encontrado: true,
+      gran,
+      periodo: { inicio: p.inicio, fim: p.fim, label: p.label },
       evento: {
-        ...evento,
-        dia_semana_label: diaLabel,
-        // métricas derivadas para conveniência do front
+        ...extras,
+        dia_semana_label: p.label,
+        nome: `${eventosAtual.length} eventos`,
+        artista: `${eventosAtual.length} eventos no período`,
+        genero: null,
+        observacoes: null,
         _faturamento: m.faturamento,
         _publico: m.publico,
         _couvert: m.couvert,
@@ -443,9 +633,10 @@ export async function GET(request: NextRequest) {
       },
       metricas: m,
       baseline: {
-        n: baseline.length,
+        n: baseMedia ? 1 : 0,
         media: baseMedia,
-        eventos: baseline.map((e) => ({
+        // série = eventos DO período (para visualizar como cada evento foi)
+        eventos: eventosAtual.map((e) => ({
           data_evento: e.data_evento,
           nome: e.nome || e.artista || e.nome_evento,
           ...metricas(e),

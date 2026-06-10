@@ -35,12 +35,13 @@ export function TabQualidade({ data, dataSelecionada, barId }: Props) {
   const [nps, setNps] = useState<NpsRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const npsInicio = data.periodo?.inicio || dataSelecionada;
+  const npsFim = data.periodo?.fim || dataSelecionada;
+
   useEffect(() => {
     let ativo = true;
     setLoading(true);
-    fetch(
-      `/api/nps?bar_id=${barId}&data_inicio=${dataSelecionada}&data_fim=${dataSelecionada}`
-    )
+    fetch(`/api/nps?bar_id=${barId}&data_inicio=${npsInicio}&data_fim=${npsFim}`)
       .then((r) => r.json())
       .then((json) => {
         if (ativo && json?.success) setNps(json.data || []);
@@ -50,7 +51,7 @@ export function TabQualidade({ data, dataSelecionada, barId }: Props) {
     return () => {
       ativo = false;
     };
-  }, [dataSelecionada, barId]);
+  }, [npsInicio, npsFim, barId]);
 
   const evt = data.evento!;
   const m = data.metricas!;
@@ -88,7 +89,7 @@ export function TabQualidade({ data, dataSelecionada, barId }: Props) {
           <div className="flex items-center gap-2 mb-3">
             <Star className="w-4 h-4 text-amber-500" />
             <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              NPS do dia
+              {data.gran && data.gran !== 'dia' ? 'NPS do período' : 'NPS do dia'}
             </h3>
           </div>
           {loading ? (

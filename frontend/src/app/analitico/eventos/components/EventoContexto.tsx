@@ -24,10 +24,15 @@ interface Props {
 
 export function EventoContexto({ data, dataSelecionada }: Props) {
   const evt = data.evento;
+  const gran = data.gran || 'dia';
+  const isPeriodo = gran !== 'dia';
   const artista = evt?.artista || evt?.nome || evt?.nome_evento || 'Sem atração';
   const fat = evt?._faturamento ?? 0;
   const resultado = evt?._resultado ?? 0;
   const dFat = data.deltas?.faturamento ?? null;
+  const tituloData = isPeriodo
+    ? data.periodo?.label || ''
+    : dataLonga(dataSelecionada);
 
   return (
     <div className="rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 md:p-5">
@@ -35,7 +40,7 @@ export function EventoContexto({ data, dataSelecionada }: Props) {
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-slate-300 text-xs mb-1">
             <CalendarDays className="w-4 h-4" />
-            <span className="capitalize">{dataLonga(dataSelecionada)}</span>
+            <span className="capitalize">{tituloData}</span>
           </div>
           <div className="flex items-center gap-2">
             <Music2 className="w-5 h-5 text-violet-300 shrink-0" />

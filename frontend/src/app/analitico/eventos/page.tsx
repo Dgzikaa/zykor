@@ -75,7 +75,7 @@ function EventosAnaliticoInner() {
     let ativo = true;
     setLoading(true);
     setErro(null);
-    fetch(`/api/analitico/evento?data=${dataSelecionada}&bar_id=${barId}`)
+    fetch(`/api/analitico/evento?data=${dataSelecionada}&bar_id=${barId}&gran=${granularidade}`)
       .then((r) => r.json())
       .then((json) => {
         if (!ativo) return;
@@ -87,7 +87,7 @@ function EventosAnaliticoInner() {
     return () => {
       ativo = false;
     };
-  }, [dataSelecionada, barId]);
+  }, [dataSelecionada, barId, granularidade]);
 
   const naoEncontrado = evento && evento.success && !evento.encontrado;
 
@@ -104,20 +104,16 @@ function EventosAnaliticoInner() {
               onChange={(e) => handleDataChange(e.target.value)}
               className="px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             />
-            {/* Granularidade — dia ativo; semana/mês em breve */}
+            {/* Granularidade: dia / semana / mês */}
             <div className="inline-flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden ml-2">
               {(['dia', 'semana', 'mes'] as const).map((g) => (
                 <button
                   key={g}
-                  onClick={() => g === 'dia' && setGranularidade(g)}
-                  disabled={g !== 'dia'}
-                  title={g !== 'dia' ? 'Em breve' : ''}
+                  onClick={() => setGranularidade(g)}
                   className={`px-3 py-1.5 text-xs capitalize transition-colors ${
                     granularidade === g
                       ? 'bg-blue-600 text-white'
-                      : g === 'dia'
-                        ? 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100'
-                        : 'bg-gray-50 dark:bg-gray-800/50 text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
                   {g === 'mes' ? 'mês' : g}
@@ -196,13 +192,23 @@ function EventosAnaliticoInner() {
                   data={evento}
                   dataSelecionada={dataSelecionada}
                   onDataChange={handleDataChange}
+                  gran={granularidade}
                 />
               </TabsContent>
               <TabsContent value="publico" className="mt-4">
-                <TabPublico data={evento} dataSelecionada={dataSelecionada} barId={barId} />
+                <TabPublico
+                  data={evento}
+                  dataSelecionada={dataSelecionada}
+                  barId={barId}
+                  gran={granularidade}
+                />
               </TabsContent>
               <TabsContent value="qualidade" className="mt-4">
-                <TabQualidade data={evento} dataSelecionada={dataSelecionada} barId={barId} />
+                <TabQualidade
+                  data={evento}
+                  dataSelecionada={dataSelecionada}
+                  barId={barId}
+                />
               </TabsContent>
             </Tabs>
           </>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { CalendarCheck, Repeat, Sparkle, UserPlus, Users } from 'lucide-react';
-import { EventoResponse } from './types';
+import { EventoResponse, Gran } from './types';
 import { KpiCard } from './KpiCard';
 
 interface ClientesResp {
@@ -28,9 +28,10 @@ interface Props {
   data: EventoResponse;
   dataSelecionada: string;
   barId: number;
+  gran?: Gran;
 }
 
-export function TabPublico({ data, dataSelecionada, barId }: Props) {
+export function TabPublico({ data, dataSelecionada, barId, gran = 'dia' }: Props) {
   const [clientes, setClientes] = useState<ClientesResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -40,7 +41,7 @@ export function TabPublico({ data, dataSelecionada, barId }: Props) {
     setLoading(true);
     setErro(null);
     fetch(
-      `/api/clientes-ativos?periodo=dia&data_inicio=${dataSelecionada}&bar_id=${barId}`
+      `/api/clientes-ativos?periodo=${gran}&data_inicio=${dataSelecionada}&bar_id=${barId}`
     )
       .then((r) => r.json())
       .then((json) => {
@@ -53,7 +54,14 @@ export function TabPublico({ data, dataSelecionada, barId }: Props) {
     return () => {
       ativo = false;
     };
-  }, [dataSelecionada, barId]);
+  }, [dataSelecionada, barId, gran]);
+
+  const compTexto =
+    gran === 'mes'
+      ? 'vs o mês anterior'
+      : gran === 'semana'
+        ? 'vs a semana anterior'
+        : 'vs a mesma data da semana anterior';
 
   const evt = data.evento!;
   const resTot = Number(evt.res_tot) || 0;
@@ -64,7 +72,7 @@ export function TabPublico({ data, dataSelecionada, barId }: Props) {
   return (
     <div className="space-y-4">
       <p className="text-[11px] text-gray-400">
-        Comparação de clientes vs a mesma data da semana anterior
+        Comparação de clientes {compTexto}
         {clientes?.label ? ` · ${clientes.label}` : ''}.
       </p>
 

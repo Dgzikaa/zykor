@@ -31,9 +31,19 @@ export interface Insight {
   delta_pct?: number | null;
 }
 
+export type Gran = 'dia' | 'semana' | 'mes';
+
+export interface Periodo {
+  inicio: string;
+  fim: string;
+  label: string;
+}
+
 export interface EventoResponse {
   success: boolean;
   encontrado: boolean;
+  gran?: Gran;
+  periodo?: Periodo;
   data_evento?: string;
   motivo?: string;
   evento?: Record<string, any> & {

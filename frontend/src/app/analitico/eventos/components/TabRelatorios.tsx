@@ -16,7 +16,7 @@ import {
 import { HorarioPicoChart } from '@/components/ferramentas/HorarioPicoChart';
 import ProdutosDoDiaDataTable from '@/components/ferramentas/ProdutosDoDiaDataTable';
 import { formatCurrency } from '@/lib/utils';
-import { EventoResponse } from './types';
+import { EventoResponse, Gran } from './types';
 
 function ddmm(iso: string) {
   const [, m, d] = iso.split('-');
@@ -27,51 +27,53 @@ interface Props {
   data: EventoResponse;
   dataSelecionada: string;
   onDataChange: (d: string) => void;
+  gran?: Gran;
 }
 
-export function TabRelatorios({ data, dataSelecionada, onDataChange }: Props) {
+export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia' }: Props) {
   const m = data.metricas!;
   const baseEventos = data.baseline?.eventos ?? [];
+  const isPeriodo = gran !== 'dia';
 
-  // Cronológico: 4 anteriores (vêm desc) + este evento ao final
-  const serie = [
-    ...[...baseEventos].reverse().map((e) => ({
-      label: ddmm(e.data_evento),
-      faturamento: Math.round(e.faturamento),
-      publico: Math.round(e.publico),
-      c_art: Math.round(e.c_art),
-      ticket: Math.round(e.ticket),
-      comida: Number(e.percent_comida.toFixed(1)),
-      bebida: Number(e.percent_bebida.toFixed(1)),
-      drink: Number(e.percent_drink.toFixed(1)),
-      atual: false,
-    })),
-    {
-      label: ddmm(dataSelecionada),
-      faturamento: Math.round(m.faturamento),
-      publico: Math.round(m.publico),
-      c_art: Math.round(m.c_art),
-      ticket: Math.round(m.ticket),
-      comida: Number(m.percent_comida.toFixed(1)),
-      bebida: Number(m.percent_bebida.toFixed(1)),
-      drink: Number(m.percent_drink.toFixed(1)),
-      atual: true,
-    },
-  ];
+  const ponto = (e: any, atual: boolean) => ({
+    label: ddmm(e.data_evento),
+    faturamento: Math.round(e.faturamento),
+    publico: Math.round(e.publico),
+    c_art: Math.round(e.c_art),
+    ticket: Math.round(e.ticket),
+    comida: Number(e.percent_comida.toFixed(1)),
+    bebida: Number(e.percent_bebida.toFixed(1)),
+    drink: Number(e.percent_drink.toFixed(1)),
+    atual,
+  });
 
-  const temBaseline = baseEventos.length > 0;
+  // Dia: 4 datas anteriores (desc) + este evento. Período: eventos do período (asc).
+  const serie = isPeriodo
+    ? baseEventos.map((e) => ponto(e, false))
+    : [
+        ...[...baseEventos].reverse().map((e) => ponto(e, false)),
+        ponto({ ...m, data_evento: dataSelecionada }, true),
+      ];
+
+  const temBaseline = serie.length > 1;
 
   return (
     <div className="space-y-4">
-      {/* Faturamento por hora (componente existente) */}
-      <HorarioPicoChart dataSelecionada={dataSelecionada} onDataChange={onDataChange} />
+      {/* Faturamento por hora — só faz sentido na visão de dia único */}
+      {!isPeriodo && (
+        <HorarioPicoChart dataSelecionada={dataSelecionada} onDataChange={onDataChange} />
+      )}
 
       {temBaseline ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Faturamento x Público vs últimos eventos */}
+          {/* Faturamento x Público */}
           <ChartCard
-            titulo="Faturamento vs últimas datas equivalentes"
-            descricao="Comparação deste evento com as 4 datas anteriores do mesmo dia da semana"
+            titulo={isPeriodo ? 'Faturamento por evento' : 'Faturamento vs últimas datas equivalentes'}
+            descricao={
+              isPeriodo
+                ? 'Faturamento e público de cada evento do período'
+                : 'Comparação deste evento com as 4 datas anteriores do mesmo dia da semana'
+            }
           >
             <ResponsiveContainer width="100%" height={260}>
               <ComposedChart data={serie} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
@@ -108,10 +110,14 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange }: Props) {
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* Custo artístico vs últimos eventos */}
+          {/* Custo artístico */}
           <ChartCard
-            titulo="Custo artístico vs últimas datas"
-            descricao="Quanto a atração custou em relação às datas anteriores"
+            titulo={isPeriodo ? 'Custo artístico por evento' : 'Custo artístico vs últimas datas'}
+            descricao={
+              isPeriodo
+                ? 'Quanto cada atração custou no período'
+                : 'Quanto a atração custou em relação às datas anteriores'
+            }
           >
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={serie} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
@@ -147,9 +153,9 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange }: Props) {
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* Ticket médio vs últimos eventos */}
+          {/* Ticket médio */}
           <ChartCard
-            titulo="Ticket médio vs últimas datas"
+            titulo={isPeriodo ? 'Ticket médio por evento' : 'Ticket médio vs últimas datas'}
             descricao="Consumo médio por pessoa ao longo das datas"
           >
             <ResponsiveContainer width="100%" height={260}>
@@ -169,12 +175,14 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange }: Props) {
         </div>
       ) : (
         <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 p-6 text-center text-sm text-gray-400">
-          Sem datas anteriores suficientes para comparação histórica.
+          {isPeriodo
+            ? 'Sem eventos suficientes no período para os gráficos.'
+            : 'Sem datas anteriores suficientes para comparação histórica.'}
         </div>
       )}
 
-      {/* Produtos mais vendidos (componente existente) */}
-      <ProdutosDoDiaDataTable dataSelecionada={dataSelecionada} />
+      {/* Produtos mais vendidos — visão de dia único */}
+      {!isPeriodo && <ProdutosDoDiaDataTable dataSelecionada={dataSelecionada} />}
     </div>
   );
 }
