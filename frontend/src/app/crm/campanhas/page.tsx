@@ -907,7 +907,7 @@ export default function CampanhasPage() {
                       )}
 
                       {/* Métricas */}
-                      <div className="grid grid-cols-5 gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                         <div className="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                           <div className="text-2xl font-bold text-gray-900 dark:text-white">
                             {campanha.total_destinatarios || 0}

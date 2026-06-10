@@ -543,7 +543,7 @@ export default function CRMInteligentePage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-4 gap-6 text-center">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
                         <div>
                           <p className="text-xs text-gray-600 dark:text-gray-400">Visitas</p>
                           <p className="text-lg font-bold text-gray-900 dark:text-white">{cliente.total_visitas}</p>
@@ -624,7 +624,7 @@ export default function CRMInteligentePage() {
             {clienteSelecionado && (
               <div className="space-y-6">
                 {/* Scores RFM */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Card className="bg-card border-border">
                     <CardContent className="p-4 text-center">
                       <p className="text-xs text-muted-foreground mb-1">Recência</p>

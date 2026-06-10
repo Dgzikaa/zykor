@@ -112,7 +112,7 @@ export function ReviewsNLPTab({ dataInicio, dataFim }: Props) {
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <SentCard label="Positivos" value={data.sentimento.positivos} total={totSent} icon={ThumbsUp} cor="green" />
             <SentCard label="Neutros" value={data.sentimento.neutros} total={totSent} icon={Minus} cor="gray" />
             <SentCard label="Negativos" value={data.sentimento.negativos} total={totSent} icon={ThumbsDown} cor="red" />

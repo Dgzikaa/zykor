@@ -613,7 +613,7 @@ export default function ClientesVIPPage() {
             {clienteSelecionado && (
               <div className="space-y-6 mt-4">
                 {/* Cards de resumo */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Card className="bg-purple-50 dark:bg-purple-900/20 border-0">
                     <CardContent className="p-4 text-center">
                       <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">

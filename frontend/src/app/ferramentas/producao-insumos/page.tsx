@@ -966,7 +966,7 @@ export default function ProducaoInsumosPage() {
             {receitaDetalhes && (
               <div className="space-y-6">
                 {/* Resumo da Receita */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Card className="card-dark">
                     <CardContent className="p-4">
                       <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">

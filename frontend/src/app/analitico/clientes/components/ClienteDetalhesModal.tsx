@@ -639,7 +639,7 @@ export function ClienteDetalhesModal({
                             </div>
                           )}
                           <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-                            <div className="grid grid-cols-3 gap-4 text-center">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
                               <div>
                                 <div className="text-sm font-medium text-gray-900 dark:text-white">
                                   {Math.floor(Math.min(...tempos) / 60)}h{' '}

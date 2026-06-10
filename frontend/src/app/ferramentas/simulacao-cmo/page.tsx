@@ -929,7 +929,7 @@ export default function CMOUnificadoPage() {
                             {item.percentual_diferenca > 0 ? '+' : ''}{item.percentual_diferenca.toFixed(0)}%
                           </Badge>
                         </div>
-                        <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                           <div>
                             <p className="text-muted-foreground">Conta Azul (Real)</p>
                             <p className="font-medium">{formatarMoeda(item.valor_nibo)}</p>
@@ -1110,7 +1110,7 @@ export default function CMOUnificadoPage() {
             </Card>
 
             {/* Totais */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <Card>
                 <CardContent className="pt-4">
                   <p className="text-sm text-muted-foreground">Total Folha</p>
@@ -1322,7 +1322,7 @@ export default function CMOUnificadoPage() {
                             {prov.percentual_salario.toFixed(0)}%
                           </Badge>
                         </div>
-                        <div className="grid grid-cols-4 gap-4 mt-2 text-sm">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2 text-sm">
                           <div>
                             <p className="text-muted-foreground">13º</p>
                             <p className="font-medium text-green-600">{formatarMoeda(prov.decimo_terceiro)}</p>

@@ -411,7 +411,7 @@ export default function AnaliseCampanhasPage() {
                 </div>
 
                 {/* Status das Reservas */}
-                <div className="grid grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                   <div className="bg-emerald-500/10 rounded-lg p-3 text-center">
                     <UserCheck className="h-5 w-5 text-emerald-400 mx-auto mb-1" />
                     <p className="text-lg font-bold text-white">{selectedCampanha.metricas.reservas_seated}</p>

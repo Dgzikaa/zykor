@@ -1190,7 +1190,7 @@ export default function UmblerPage() {
                               </Button>
                             )}
                           </div>
-                          <div className="grid grid-cols-5 gap-2 text-center text-sm">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-center text-sm">
                             <div className="p-2 bg-gray-50 dark:bg-gray-700 rounded">
                               <div className="font-bold">{campanha.total_destinatarios}</div>
                               <div className="text-xs text-gray-500">Total</div>
