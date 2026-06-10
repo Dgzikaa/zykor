@@ -364,7 +364,7 @@ export default function ContaHubRawPage() {
                           value={getProgressPercentage(typeStats.processed, typeStats.total)} 
                           className="w-full" 
                         />
-                        <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                           <div>
                             <span className="text-gray-600 dark:text-gray-400">Total:</span>
                             <div className="font-semibold">{typeStats.total}</div>

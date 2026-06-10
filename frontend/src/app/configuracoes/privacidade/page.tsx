@@ -249,7 +249,7 @@ export default function PrivacidePage() {
           onValueChange={setActiveTab}
           className="space-y-6"
         >
-          <TabsList className="grid grid-cols-4 w-full max-w-2xl mx-auto">
+          <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full max-w-2xl mx-auto">
             <TabsTrigger value="consents">🍪 Cookies</TabsTrigger>
             <TabsTrigger value="rights">⚖️ Direitos</TabsTrigger>
             <TabsTrigger value="data">📄 Meus Dados</TabsTrigger>

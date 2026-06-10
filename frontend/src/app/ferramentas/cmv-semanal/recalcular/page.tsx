@@ -140,7 +140,7 @@ export default function RecalcularCMVPage() {
               <AlertDescription>
                 <div className="space-y-2 mt-2">
                   <p>{resultado.message}</p>
-                  <div className="grid grid-cols-3 gap-4 mt-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 text-sm">
                     <div className="bg-muted p-3 rounded">
                       <div className="font-semibold">Total</div>
                       <div className="text-2xl">{resultado.total_cmvs}</div>

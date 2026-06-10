@@ -803,7 +803,7 @@ function UsuariosPage() {
                   <Label className="text-sm">
                     Bares com Acesso *
                   </Label>
-                  <div className="grid grid-cols-3 gap-2 p-3 rounded-lg border border-[hsl(var(--border))]">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 rounded-lg border border-[hsl(var(--border))]">
                     {bares.map((bar) => (
                       <div key={bar.id} className="flex items-center space-x-2">
                         <Checkbox
@@ -822,7 +822,7 @@ function UsuariosPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="role" className="text-sm">
                       Função *
@@ -895,7 +895,7 @@ function UsuariosPage() {
                 <div className="pb-1">
                   <h3 className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Endereço</h3>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="cep" className="text-sm">CEP</Label>
                     <Input
