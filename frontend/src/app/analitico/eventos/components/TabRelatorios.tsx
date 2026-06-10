@@ -57,6 +57,43 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
 
   const temBaseline = serie.length > 1;
 
+  // Leitura por dia da semana (período): agrega os eventos por dow
+  const DIAS_SEM = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const porDiaSemana = (() => {
+    const acc = DIAS_SEM.map((label) => ({
+      label,
+      fat: 0,
+      publico: 0,
+      cancel: 0,
+      conta: 0,
+      n: 0,
+    }));
+    baseEventos.forEach((e: any) => {
+      const [y, mo, d] = e.data_evento.split('-').map(Number);
+      const dow = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+      const a = acc[dow];
+      a.fat += e.faturamento || 0;
+      a.publico += e.publico || 0;
+      a.cancel += e.cancelamentos || 0;
+      a.conta += e.conta_assinada || 0;
+      a.n += 1;
+    });
+    return acc
+      .filter((a) => a.n > 0)
+      .map((a) => ({
+        ...a,
+        fatMed: a.n ? Math.round(a.fat / a.n) : 0,
+        pubMed: a.n ? Math.round(a.publico / a.n) : 0,
+      }));
+  })();
+
+  // NPS por dia (silver.nps_diario)
+  const npsSerie = (data.nps_diario ?? []).map((n) => ({
+    label: ddmm(n.data),
+    score: Math.round(n.score),
+    respostas: n.respostas,
+  }));
+
   return (
     <div className="space-y-4">
       {/* Faturamento por hora — só faz sentido na visão de dia único */}
@@ -179,6 +216,103 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
             ? 'Sem eventos suficientes no período para os gráficos.'
             : 'Sem datas anteriores suficientes para comparação histórica.'}
         </div>
+      )}
+
+      {/* Leitura por DIA DA SEMANA + NPS por dia (só período) */}
+      {isPeriodo && porDiaSemana.length > 0 && (
+        <>
+          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-2">
+            Por dia da semana
+          </h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <ChartCard
+              titulo="Faturamento médio por dia da semana"
+              descricao="Qual dia da semana rende mais, em média"
+            >
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={porDiaSemana} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                  <Bar dataKey="fatMed" name="Fat. médio" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <ChartCard
+              titulo="Público médio por dia da semana"
+              descricao="Movimento típico de cada dia"
+            >
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={porDiaSemana} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={(value: any) => Number(value).toLocaleString('pt-BR')} />
+                  <Bar dataKey="pubMed" name="Público médio" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <ChartCard
+              titulo="Cancelamentos por dia da semana"
+              descricao="Onde se concentra o cancelamento (R$)"
+            >
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={porDiaSemana} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                  <Bar dataKey="cancel" name="Cancelamentos" fill="#dc2626" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <ChartCard
+              titulo="Conta assinada por dia da semana"
+              descricao="Onde se concentra a conta assinada (R$)"
+            >
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={porDiaSemana} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                  <Bar dataKey="conta" name="Conta assinada" fill="#d97706" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
+        </>
+      )}
+
+      {isPeriodo && npsSerie.length > 0 && (
+        <ChartCard
+          titulo="NPS por dia"
+          descricao="Evolução diária do NPS no período (faixa -100 a 100)"
+        >
+          <ResponsiveContainer width="100%" height={260}>
+            <ComposedChart data={npsSerie} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+              <YAxis yAxisId="l" domain={[-100, 100]} tick={{ fontSize: 10 }} />
+              <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar yAxisId="r" dataKey="respostas" name="Respostas" fill="#e5e7eb" radius={[4, 4, 0, 0]} />
+              <Line
+                yAxisId="l"
+                dataKey="score"
+                name="NPS"
+                stroke="#8b5cf6"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </ChartCard>
       )}
 
       {/* Produtos mais vendidos — visão de dia único */}

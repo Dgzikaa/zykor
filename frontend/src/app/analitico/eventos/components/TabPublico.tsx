@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CalendarCheck, Repeat, Sparkle, UserPlus, Users } from 'lucide-react';
+import { CalendarCheck, CalendarX, Repeat, Sparkle, UserPlus, Users } from 'lucide-react';
 import { EventoResponse, Gran } from './types';
 import { KpiCard } from './KpiCard';
 
@@ -180,11 +180,31 @@ export function TabPublico({ data, dataSelecionada, barId, gran = 'dia' }: Props
           }
         />
         <KpiCard
-          label="Reservas pagas"
+          label="Reservas presentes"
           value={resP.toLocaleString('pt-BR')}
           accent="slate"
           icon={<CalendarCheck className="w-4 h-4" />}
+          sub={evt.mesas_totais !== undefined ? 'sentaram' : undefined}
         />
+        {evt.reservas_quebra_pct !== undefined && (
+          <KpiCard
+            label="Quebra de reserva"
+            value={`${Number(evt.reservas_quebra_pct || 0).toFixed(1)}%`}
+            accent="red"
+            inverso
+            icon={<CalendarX className="w-4 h-4" />}
+            sub="no-show + canceladas"
+          />
+        )}
+        {evt.mesas_totais !== undefined && (
+          <KpiCard
+            label="Mesas"
+            value={`${Number(evt.mesas_presentes) || 0}/${Number(evt.mesas_totais) || 0}`}
+            accent="slate"
+            icon={<Users className="w-4 h-4" />}
+            sub="presentes/total"
+          />
+        )}
       </div>
     </div>
   );

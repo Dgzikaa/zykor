@@ -21,6 +21,14 @@ export interface EventoMetricas {
 export interface BaselineEvento extends EventoMetricas {
   data_evento: string;
   nome: string | null;
+  cancelamentos?: number;
+  conta_assinada?: number;
+}
+
+export interface NpsDia {
+  data: string;
+  score: number;
+  respostas: number;
 }
 
 export interface Insight {
@@ -82,6 +90,8 @@ export interface EventoResponse {
     preco: number | null;
     limpeza: number | null;
   } | null;
+  /** NPS por dia no período (silver.nps_diario) — para gráfico */
+  nps_diario?: NpsDia[];
   /** fonte dos dados agregados (gold.desempenho ou planejamento) */
   fonte?: string;
 }

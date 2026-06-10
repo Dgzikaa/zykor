@@ -278,11 +278,14 @@ function fromDesempenho(d: Row): {
 } {
   const fat = num(d.faturamento_total);
   const publico = num(d.clientes_atendidos);
+  // couvert real vem de couvert_atracoes (faturamento_entrada vem 0 no mensal);
+  // bar = o que sobra do faturamento (couvert e bar são as únicas receitas)
+  const couvert = num(d.couvert_atracoes);
   const m: Metricas = {
     faturamento: fat,
     publico,
-    couvert: num(d.faturamento_entrada),
-    bar: num(d.faturamento_bar),
+    couvert,
+    bar: Math.max(0, fat - couvert),
     ticket: num(d.ticket_medio) || (publico > 0 ? fat / publico : 0),
     c_art: 0,
     c_prod: 0,
@@ -315,7 +318,15 @@ function fromDesempenho(d: Row): {
     res_tot: num(d.reservas_totais_quantidade) || num(d.reservas_totais),
     res_p: num(d.reservas_presentes_quantidade) || num(d.reservas_presentes),
     cancelamentos: num(d.cancelamentos_total),
+    cancelamentos_qtd: num(d.cancelamentos_qtd),
+    conta_assinada: num(d.conta_assinada_valor),
+    conta_assinada_perc: num(d.conta_assinada_perc),
     descontos: num(d.desconto_total),
+    reservas_quebra_pct: num(d.reservas_quebra_pct),
+    mesas_totais: num(d.mesas_totais),
+    mesas_presentes: num(d.mesas_presentes),
+    clientes_ativos: num(d.clientes_ativos),
+    perc_clientes_novos: num(d.perc_clientes_novos),
   };
   const nps: Row = {
     geral: d.nps_geral,
@@ -329,6 +340,27 @@ function fromDesempenho(d: Row): {
     limpeza: d.nps_limpeza,
   };
   return { m, ctx, extras, nps };
+}
+
+// NPS por dia (silver.nps_diario) — para o gráfico de NPS diário
+async function lerNpsDiario(
+  barId: number,
+  inicio: string,
+  fim: string
+): Promise<Array<{ data: string; score: number; respostas: number }>> {
+  const silver = (supabase as any).schema('silver');
+  const { data } = await silver
+    .from('nps_diario')
+    .select('data_referencia, nps_score, total_respostas')
+    .eq('bar_id', barId)
+    .gte('data_referencia', inicio)
+    .lte('data_referencia', fim)
+    .order('data_referencia', { ascending: true });
+  return ((data || []) as Row[]).map((r) => ({
+    data: r.data_referencia,
+    score: num(r.nps_score),
+    respostas: num(r.total_respostas),
+  }));
 }
 
 function media(eventos: Row[]): Metricas | null {
@@ -763,6 +795,7 @@ export async function GET(request: NextRequest) {
 
     const deltas = deltasDe(m, baseMedia);
     const { veredito, insights } = diagnosticar(m, baseMedia, ctx, p.compLabel);
+    const npsDiario = await lerNpsDiario(barId, p.inicio, p.fim);
 
     return NextResponse.json({
       success: true,
@@ -787,6 +820,7 @@ export async function GET(request: NextRequest) {
       },
       metricas: m,
       nps,
+      nps_diario: npsDiario,
       baseline: {
         n: baseMedia ? 1 : 0,
         media: baseMedia,
@@ -795,6 +829,8 @@ export async function GET(request: NextRequest) {
           data_evento: e.data_evento,
           nome: e.nome || e.artista || e.nome_evento,
           ...metricas(e),
+          cancelamentos: num(e.cancelamentos),
+          conta_assinada: num(e.conta_assinada),
         })),
       },
       deltas,

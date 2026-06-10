@@ -5,14 +5,17 @@ import {
   Beer,
   CupSoda,
   DollarSign,
+  FileSignature,
   PackageX,
   Palette,
   Receipt,
+  Tag,
   Timer,
   TrendingUp,
   UserRound,
   Utensils,
   Wallet,
+  XCircle,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { EventoResponse } from './types';
@@ -193,6 +196,38 @@ export function TabVisaoGeral({ data }: Props) {
             />
           </div>
         </div>
+      </div>
+
+      <SectionTitle>Cancelamentos & Conta Assinada</SectionTitle>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KpiCard
+          label="Cancelamentos"
+          value={formatCurrency(Number(evt.cancelamentos) || 0)}
+          accent="red"
+          icon={<XCircle className="w-4 h-4" />}
+          sub={
+            evt.cancelamentos_qtd
+              ? `${Number(evt.cancelamentos_qtd).toLocaleString('pt-BR')} itens`
+              : undefined
+          }
+        />
+        <KpiCard
+          label="Conta Assinada"
+          value={formatCurrency(Number(evt.conta_assinada) || 0)}
+          accent="amber"
+          icon={<FileSignature className="w-4 h-4" />}
+          sub={
+            evt.conta_assinada_perc
+              ? `${Number(evt.conta_assinada_perc).toFixed(2)}% do faturamento`
+              : undefined
+          }
+        />
+        <KpiCard
+          label="Descontos"
+          value={formatCurrency(Number(evt.descontos) || 0)}
+          accent="amber"
+          icon={<Tag className="w-4 h-4" />}
+        />
       </div>
 
       {evt.observacoes && (
