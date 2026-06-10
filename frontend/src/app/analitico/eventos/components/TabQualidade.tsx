@@ -56,17 +56,35 @@ export function TabQualidade({ data, dataSelecionada, barId }: Props) {
   const evt = data.evento!;
   const m = data.metricas!;
 
-  const npsGeral = media(nps.map((n) => n.nps_geral ?? n.media_geral));
+  // Semana/mês: NPS vem agregado do gold.desempenho (mesma fonte da tela de Desempenho).
+  // Dia: cai pro fetch legado /api/nps.
+  const npsD = data.nps;
+  const usaDesemp = !!(npsD && npsD.respostas > 0);
+  const numOuNull = (v: any) => (v === null || v === undefined ? null : Number(v));
+
+  const npsGeral = usaDesemp
+    ? numOuNull(npsD!.geral)
+    : media(nps.map((n) => n.nps_geral ?? n.media_geral));
+  const respostas = usaDesemp ? npsD!.respostas : nps.length;
   const comentarios = nps.filter((n) => n.comentarios && n.comentarios.trim().length > 0);
 
-  const categorias = [
-    { label: 'Atendimento', val: media(nps.map((n) => n.nps_atendimento)) },
-    { label: 'Comida', val: media(nps.map((n) => n.nps_comida)) },
-    { label: 'Drink', val: media(nps.map((n) => n.nps_drink)) },
-    { label: 'Ambiente', val: media(nps.map((n) => n.nps_ambiente)) },
-    { label: 'Música', val: media(nps.map((n) => n.nps_musica)) },
-    { label: 'Preço', val: media(nps.map((n) => n.nps_preco)) },
-  ];
+  const categorias = usaDesemp
+    ? [
+        { label: 'Atendimento', val: numOuNull(npsD!.atendimento) },
+        { label: 'Comida', val: numOuNull(npsD!.comida) },
+        { label: 'Drink', val: numOuNull(npsD!.drink) },
+        { label: 'Ambiente', val: numOuNull(npsD!.ambiente) },
+        { label: 'Música', val: numOuNull(npsD!.musica) },
+        { label: 'Preço', val: numOuNull(npsD!.preco) },
+      ]
+    : [
+        { label: 'Atendimento', val: media(nps.map((n) => n.nps_atendimento)) },
+        { label: 'Comida', val: media(nps.map((n) => n.nps_comida)) },
+        { label: 'Drink', val: media(nps.map((n) => n.nps_drink)) },
+        { label: 'Ambiente', val: media(nps.map((n) => n.nps_ambiente)) },
+        { label: 'Música', val: media(nps.map((n) => n.nps_musica)) },
+        { label: 'Preço', val: media(nps.map((n) => n.nps_preco)) },
+      ];
 
   const stockoutCats = [
     { label: 'Geral', val: m.percent_stockout },
@@ -93,11 +111,13 @@ export function TabQualidade({ data, dataSelecionada, barId }: Props) {
               {data.gran && data.gran !== 'dia' ? 'NPS do período' : 'NPS do dia'}
             </h3>
           </div>
-          {loading ? (
+          {loading && !usaDesemp ? (
             <div className="h-20 rounded bg-gray-100 dark:bg-gray-700 animate-pulse" />
           ) : npsGeral === null ? (
             <p className="text-xs text-gray-400">
-              Sem respostas de NPS registradas nesta data.
+              {data.gran && data.gran !== 'dia'
+                ? 'Sem respostas de NPS registradas no período.'
+                : 'Sem respostas de NPS registradas nesta data.'}
             </p>
           ) : (
             <>
@@ -106,7 +126,7 @@ export function TabQualidade({ data, dataSelecionada, barId }: Props) {
                   {npsGeral.toFixed(1)}
                 </span>
                 <span className="text-xs text-gray-400">
-                  {nps.length} resposta{nps.length > 1 ? 's' : ''}
+                  {respostas} resposta{respostas > 1 ? 's' : ''}
                 </span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
@@ -229,8 +249,8 @@ function AtrasoBox({
   const minutos = (s: any) => {
     const n = Number(s);
     if (!n || isNaN(n)) return '—';
-    // t_coz/t_bar armazenados em minutos no gold
-    return `${n.toFixed(0)} min`;
+    // t_coz/t_bar estão em SEGUNDOS no gold (ex.: 546s = 9,1 min)
+    return `${(n / 60).toFixed(1).replace('.', ',')} min`;
   };
   return (
     <div className="rounded-lg border border-gray-100 dark:border-gray-700 p-3">

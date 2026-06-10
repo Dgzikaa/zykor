@@ -70,4 +70,18 @@ export interface EventoResponse {
     veredito: 'bom' | 'regular' | 'ruim';
     insights: Insight[];
   };
+  /** NPS agregado do período (gold.desempenho) — presente em semana/mês */
+  nps?: {
+    geral: number | null;
+    respostas: number;
+    comida: number | null;
+    drink: number | null;
+    atendimento: number | null;
+    ambiente: number | null;
+    musica: number | null;
+    preco: number | null;
+    limpeza: number | null;
+  } | null;
+  /** fonte dos dados agregados (gold.desempenho ou planejamento) */
+  fonte?: string;
 }

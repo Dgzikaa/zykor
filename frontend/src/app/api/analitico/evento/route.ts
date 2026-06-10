@@ -253,6 +253,84 @@ async function custosCA(
   return { c_art, c_prod };
 }
 
+// Fonte canônica de semana/mês: gold.desempenho (mesma que a tela de Desempenho usa).
+// Resolve a divergência do gold.planejamento por-evento (atrasos inflados por fan-out +
+// contar bebida). Aqui só DRINK conta como bar, igual à apresentação.
+async function lerDesempenho(
+  barId: number,
+  gran: Gran,
+  inicio: string
+): Promise<Row | null> {
+  const goldD = (supabase as any).schema('gold');
+  let q = goldD.from('desempenho').select('*').eq('bar_id', barId);
+  if (gran === 'mes')
+    q = q.eq('granularidade', 'mensal').eq('periodo', inicio.slice(0, 7));
+  else q = q.eq('granularidade', 'semanal').eq('data_inicio', inicio);
+  const { data } = await q.limit(1);
+  return data && data.length ? (data[0] as Row) : null;
+}
+
+function fromDesempenho(d: Row): {
+  m: Metricas;
+  ctx: Ctx;
+  extras: Row;
+  nps: Row;
+} {
+  const fat = num(d.faturamento_total);
+  const publico = num(d.clientes_atendidos);
+  const m: Metricas = {
+    faturamento: fat,
+    publico,
+    couvert: num(d.faturamento_entrada),
+    bar: num(d.faturamento_bar),
+    ticket: num(d.ticket_medio) || (publico > 0 ? fat / publico : 0),
+    c_art: 0,
+    c_prod: 0,
+    custo_total: 0,
+    resultado: 0,
+    percent_comida: num(d.perc_comida),
+    percent_bebida: num(d.perc_bebidas),
+    percent_drink: num(d.perc_drinks),
+    percent_stockout: num(d.stockout_total_perc),
+    atrasos: num(d.atrasao_cozinha) + num(d.atrasao_drinks),
+    res_tot: num(d.reservas_totais_quantidade) || num(d.reservas_totais),
+  };
+  const ctx: Ctx = {
+    stockout_bebidas_perc: num(d.stockout_bar_perc),
+    stockout_comidas_perc: num(d.stockout_comidas_perc),
+    stockout_drinks_perc: num(d.stockout_drinks_perc),
+    atrasao_cozinha: num(d.atrasao_cozinha),
+    atrasao_bar: num(d.atrasao_drinks),
+  };
+  const extras: Row = {
+    atrasao_cozinha: num(d.atrasao_cozinha),
+    atrasao_bar: num(d.atrasao_drinks),
+    atrasinho_cozinha: num(d.atrasinho_cozinha),
+    atrasinho_bar: num(d.atrasinho_drinks),
+    stockout_bebidas_perc: num(d.stockout_bar_perc),
+    stockout_comidas_perc: num(d.stockout_comidas_perc),
+    stockout_drinks_perc: num(d.stockout_drinks_perc),
+    t_coz: num(d.tempo_cozinha), // segundos
+    t_bar: num(d.tempo_drinks), // segundos (drinks, como na apresentação)
+    res_tot: num(d.reservas_totais_quantidade) || num(d.reservas_totais),
+    res_p: num(d.reservas_presentes_quantidade) || num(d.reservas_presentes),
+    cancelamentos: num(d.cancelamentos_total),
+    descontos: num(d.desconto_total),
+  };
+  const nps: Row = {
+    geral: d.nps_geral,
+    respostas: num(d.nps_respostas),
+    comida: d.nps_comida,
+    drink: d.nps_drink,
+    atendimento: d.nps_atendimento,
+    ambiente: d.nps_ambiente,
+    musica: d.nps_musica,
+    preco: d.nps_preco,
+    limpeza: d.nps_limpeza,
+  };
+  return { m, ctx, extras, nps };
+}
+
 function media(eventos: Row[]): Metricas | null {
   if (!eventos.length) return null;
   const ms = eventos.map(metricas);
@@ -636,10 +714,38 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const { m, ctx, extras } = agregar(eventosAtual);
-    const baseMedia = eventosPrev.length ? agregar(eventosPrev).m : null;
+    // Fonte canônica: gold.desempenho (mensal/semanal). Cai pra agregação do
+    // planejamento só se a linha de desempenho ainda não existir (período em aberto).
+    const [despAtual, despPrev] = await Promise.all([
+      lerDesempenho(barId, gran, p.inicio),
+      lerDesempenho(barId, gran, p.prevInicio),
+    ]);
 
-    // c_art/c_prod do período = 100% conforme Conta Azul (não o gold por-evento, que subconta)
+    let m: Metricas;
+    let ctx: Ctx;
+    let extras: Row;
+    let baseMedia: Metricas | null;
+    let nps: Row | null = null;
+    let fonte: string;
+
+    if (despAtual) {
+      const a = fromDesempenho(despAtual);
+      m = a.m;
+      ctx = a.ctx;
+      extras = a.extras;
+      nps = a.nps;
+      baseMedia = despPrev ? fromDesempenho(despPrev).m : null;
+      fonte = 'gold.desempenho';
+    } else {
+      const a = agregar(eventosAtual);
+      m = a.m;
+      ctx = a.ctx;
+      extras = a.extras;
+      baseMedia = eventosPrev.length ? agregar(eventosPrev).m : null;
+      fonte = 'gold.planejamento (período em aberto)';
+    }
+
+    // c_art/c_prod do período = 100% conforme Conta Azul (split que o desempenho não tem)
     const caAtual = await custosCA(barId, p.inicio, p.fim);
     m.c_art = caAtual.c_art;
     m.c_prod = caAtual.c_prod;
@@ -662,6 +768,7 @@ export async function GET(request: NextRequest) {
       success: true,
       encontrado: true,
       gran,
+      fonte,
       periodo: { inicio: p.inicio, fim: p.fim, label: p.label },
       evento: {
         ...extras,
@@ -679,6 +786,7 @@ export async function GET(request: NextRequest) {
         _resultado: m.resultado,
       },
       metricas: m,
+      nps,
       baseline: {
         n: baseMedia ? 1 : 0,
         media: baseMedia,
