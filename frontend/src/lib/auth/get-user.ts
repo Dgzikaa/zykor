@@ -181,20 +181,10 @@ async function validateBarAccess(
 ): Promise<boolean> {
   try {
     const supabase = await getAdminClient();
-    
-    // Verificar se é admin (tem acesso a todos os bares)
-    const { data: usuario } = await supabase
-      .schema('auth_custom')
-      .from('usuarios')
-      .select('role')
-      .eq('auth_id', auth_id)
-      .single();
-    
-    if (usuario?.role === 'admin') {
-      return true;
-    }
-    
-    // Verificar acesso específico ao bar
+
+    // Acesso ao bar é SEMPRE governado por usuarios_bares — inclusive para admin.
+    // O papel 'admin' libera o menu/módulos completo (ver hasPermission), NÃO todos os
+    // bares: o que ele enxerga é apenas o(s) bar(es) associado(s) a ele.
     const { data } = await supabase
       .schema('auth_custom')
       .from('usuarios_bares')
@@ -202,7 +192,7 @@ async function validateBarAccess(
       .eq('usuario_id', auth_id)
       .eq('bar_id', bar_id)
       .single();
-    
+
     return !!data;
   } catch (error) {
     console.error('Erro ao validar acesso ao bar:', error);

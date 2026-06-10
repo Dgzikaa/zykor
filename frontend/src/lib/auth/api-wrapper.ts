@@ -71,14 +71,10 @@ export function withAuth(
 async function validateBarAccessHelper(
   auth_id: string,
   bar_id: number,
-  role: string
+  _role: string
 ): Promise<boolean> {
-  // Admin tem acesso a todos os bares
-  if (role === 'admin') {
-    return true;
-  }
-  
-  // Verificar acesso específico ao bar
+  // Acesso ao bar é SEMPRE por usuarios_bares — inclusive admin.
+  // 'admin' = menu/módulos completos, NÃO todos os bares (vê só o bar associado).
   const supabase = await getAdminClient();
   const { data } = await supabase
     .schema('auth_custom')
