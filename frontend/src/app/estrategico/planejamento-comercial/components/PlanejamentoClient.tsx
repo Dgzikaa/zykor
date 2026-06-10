@@ -1214,6 +1214,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
             <DialogContent className="max-w-[70vw] max-h-[85vh] p-0 overflow-hidden rounded-lg shadow-lg bg-[hsl(var(--background))] border border-[hsl(var(--border))]">
               <DialogHeader className="bg-[hsl(var(--muted))] p-4 border-b border-[hsl(var(--border))]"><DialogTitle className="flex items-center gap-3 text-xl font-semibold text-[hsl(var(--foreground))]"><BarChart3 className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />{modoEdicao ? 'Editar Evento' : 'Visualizar Evento'} - {eventoEdicao?.nome}</DialogTitle><DialogDescription>{modoEdicao ? 'Edite os dados planejados e reais' : 'Comparativo Planejado vs Realizado'}</DialogDescription></DialogHeader>
               <div className="flex-1 overflow-y-auto p-3">
+                <div className="mb-3 p-3 bg-[hsl(var(--muted))] rounded border">
+                  <Label>Nome do Evento / Atração</Label>
+                  {modoEdicao
+                    ? <Input value={eventoEdicao?.nome || ''} onChange={e => setEventoEdicao(p => p ? {...p, nome: e.target.value} : null)} placeholder="Ex: Pagode Vira Lata - Bonsai e convidados" />
+                    : <div className="p-2 bg-[hsl(var(--background))] rounded border">{eventoEdicao?.nome || '-'}</div>}
+                </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                    <div className="space-y-3">
                       <div className="flex items-center gap-3 mb-2 pb-2 border-b"><div className="w-3 h-3 bg-blue-500 rounded-full"></div><h2 className="font-semibold">PLANEJADO</h2></div>
