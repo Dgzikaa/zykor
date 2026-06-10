@@ -207,7 +207,7 @@ export default function CMOComparar() {
               <CardTitle>CMO Total</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4 items-center">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
                 <div className="text-center">
                   <div className="text-sm text-muted-foreground mb-2">
                     Semana {dados1.semana}/{dados1.ano}
@@ -241,7 +241,7 @@ export default function CMOComparar() {
             <CardContent>
               <div className="space-y-4">
                 {/* Freelas */}
-                <div className="grid grid-cols-3 gap-4 items-center p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                   <div>
                     <div className="text-sm font-medium">Freelas</div>
                     <div className="text-lg font-bold">{formatarMoeda(dados1.freelas)}</div>
@@ -257,7 +257,7 @@ export default function CMOComparar() {
                 </div>
 
                 {/* Fixos */}
-                <div className="grid grid-cols-3 gap-4 items-center p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                   <div>
                     <div className="text-sm font-medium">
                       Fixos ({dados1.funcionarios.length} func.)
@@ -278,7 +278,7 @@ export default function CMOComparar() {
                 </div>
 
                 {/* Alimentação */}
-                <div className="grid grid-cols-3 gap-4 items-center p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                   <div>
                     <div className="text-sm font-medium">Alimentação</div>
                     <div className="text-lg font-bold">{formatarMoeda(dados1.cma_alimentacao)}</div>
@@ -294,7 +294,7 @@ export default function CMOComparar() {
                 </div>
 
                 {/* Pro Labore */}
-                <div className="grid grid-cols-3 gap-4 items-center p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                   <div>
                     <div className="text-sm font-medium">Pro Labore</div>
                     <div className="text-lg font-bold">{formatarMoeda(dados1.pro_labore_semanal)}</div>

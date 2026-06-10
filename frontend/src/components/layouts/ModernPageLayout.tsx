@@ -96,7 +96,7 @@ export function ModernPageLayout({
           <div className="space-y-4">
             <Skeleton className="h-8 w-48" />
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="grid grid-cols-4 gap-4">
+              <div key={i} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {Array.from({ length: 4 }).map((_, j) => (
                   <Skeleton key={j} className="h-6" />
                 ))}

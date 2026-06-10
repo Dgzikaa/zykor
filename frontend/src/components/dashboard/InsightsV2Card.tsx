@@ -308,7 +308,7 @@ export default function InsightsV2Card({
       <CardContent>
         {/* Stats */}
         {stats && !loading && (
-          <div className="grid grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
               <div className="text-xs text-gray-600 dark:text-gray-400">Total</div>
               <div className="text-xl font-bold text-gray-900 dark:text-white">{stats.total}</div>
