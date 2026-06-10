@@ -55,14 +55,49 @@ export const MENU_TREE: MenuSection[] = [
     ],
   },
   {
+    icon: 'Megaphone',
+    label: 'Marketing',
+    href: '/marketing/instagram',
+    permission: 'gestao',
+    subItems: [
+      { icon: 'Instagram', label: 'Instagram', href: '/marketing/instagram', permission: 'gestao' },
+    ],
+  },
+  {
+    icon: 'ClipboardList',
+    label: 'Operacional',
+    href: '/operacional/nps',
+    permission: 'gestao',
+    subItems: [
+      { icon: 'Star', label: 'NPS Funcionários', href: '/operacional/nps', permission: 'gestao' },
+    ],
+  },
+  {
+    icon: 'Wallet',
+    label: 'Financeiro',
+    href: '/financeiro/agendamentos',
+    permission: 'home',
+    subItems: [
+      { icon: 'Calendar', label: 'Agendamentos', href: '/financeiro/agendamentos', permission: 'financeiro_agendamento' },
+      { icon: 'Receipt', label: 'Pedidos de Pagamento', href: '/financeiro/pedidos-pagamento', permission: 'home' },
+    ],
+  },
+  {
+    icon: 'Briefcase',
+    label: 'Comercial',
+    href: '/comercial',
+    permission: 'gestao',
+    subItems: [
+      { icon: 'Megaphone', label: 'Central Comercial', href: '/comercial', permission: 'gestao' },
+    ],
+  },
+  {
     icon: 'Wrench',
     label: 'Ferramentas',
     href: '/ferramentas',
     permission: 'ferramentas',
     subItems: [
       { icon: 'BarChart3', label: 'Análises Avançadas', href: '/ferramentas/analises', permission: 'gestao' },
-      { icon: 'Calendar', label: 'Agendamento', href: '/ferramentas/agendamento', permission: 'financeiro_agendamento' },
-      { icon: 'Receipt', label: 'Pedidos de Pagamento', href: '/ferramentas/pedidos-pagamento', permission: 'home' },
       { icon: 'TrendingUp', label: 'Gestão CMV', href: '/ferramentas/cmv-semanal', permission: 'gestao' },
       { icon: 'ChefHat', label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal', permission: 'gestao' },
       { icon: 'Users', label: 'CMO - Mão de Obra', href: '/ferramentas/cmo', permission: 'gestao' },
@@ -71,10 +106,6 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'FileSearch', label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
       { icon: 'AlertTriangle', label: 'Cancelamentos', href: '/ferramentas/cancelamentos', permission: 'gestao' },
       { icon: 'PieChart', label: 'Mix & Margem', href: '/ferramentas/mix-categoria', permission: 'gestao' },
-      { icon: 'Star', label: 'NPS Funcionários', href: '/ferramentas/nps', permission: 'gestao' },
-      { icon: 'Instagram', label: 'Instagram', href: '/ferramentas/instagram', permission: 'gestao' },
-      { icon: 'Megaphone', label: 'Central Comercial', href: '/ferramentas/comercial', permission: 'gestao' },
-      { icon: 'Bot', label: 'Zykor Assistant', href: '/ferramentas/assistente-zykor', permission: 'gestao' },
     ],
   },
   {
@@ -87,6 +118,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Users', label: 'Administração', href: '/configuracoes/administracao/usuarios', permission: 'configuracoes' },
       { icon: 'Activity', label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },
       { icon: 'CheckSquare', label: 'Checklist Validação', href: '/checklist-validacao', permission: 'configuracoes' },
+      { icon: 'Bot', label: 'Zykor Assistant', href: '/assistente-zykor', permission: 'gestao' },
     ],
   },
 ];

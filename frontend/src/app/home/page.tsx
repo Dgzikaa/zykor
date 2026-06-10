@@ -100,7 +100,7 @@ const allQuickActions: QuickAction[] = [
   {
     title: 'Agendamento',
     description: 'Agendar e gerenciar pagamentos PIX',
-    href: '/ferramentas/agendamento',
+    href: '/financeiro/agendamentos',
     icon: CreditCard,
     color: 'from-emerald-500 to-teal-600',
     permissions: ['todos', 'ferramentas_agendamento', 'financeiro_agendamento', 'ferramentas', 'operacoes', 'financeiro']

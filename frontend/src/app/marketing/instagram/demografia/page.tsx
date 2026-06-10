@@ -109,7 +109,7 @@ export default function DemografiaPage() {
         <Users className="w-16 h-16 mx-auto text-gray-400 mb-4" />
         <h1 className="text-2xl font-bold mb-2">Sem dados demográficos ainda</h1>
         <p className="text-gray-500">
-          Dispara uma sincronização em <code>/ferramentas/instagram</code> pra coletar.
+          Dispara uma sincronização em <code>/marketing/instagram</code> pra coletar.
         </p>
       </main>
     );

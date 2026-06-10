@@ -50,7 +50,7 @@ const routeMapping: Record<string, { name: string }> = {
   '/ferramentas/dre': { name: 'DRE' },
   '/operacional/agendamentos': { name: 'Agendamentos' },
   '/ferramentas': { name: 'Ferramentas' },
-  '/ferramentas/agendamento': { name: 'Agendamento' },
+  '/financeiro/agendamentos': { name: 'Agendamento' },
   '/financeiro': { name: 'Financeiro' },
   '/configuracoes': { name: 'Configurações' },
   '/extras/checklists': { name: 'Checklists' },

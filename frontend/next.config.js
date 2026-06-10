@@ -22,6 +22,19 @@ const nextConfig = {
       { source: '/financeiro/conciliacao-pagamentos',destination: '/ferramentas/financeiro/conciliacao', permanent: true },
       { source: '/ferramentas/analises/fluxo-caixa', destination: '/ferramentas/financeiro/fluxo-caixa', permanent: true },
       { source: '/ferramentas/analises/conciliacao', destination: '/ferramentas/financeiro/conciliacao', permanent: true },
+
+      // Reorganização do menu (jun/2026): rotas movidas para áreas próprias
+      { source: '/ferramentas/instagram',            destination: '/marketing/instagram',            permanent: true },
+      { source: '/ferramentas/instagram/:path*',     destination: '/marketing/instagram/:path*',     permanent: true },
+      { source: '/ferramentas/nps',                  destination: '/operacional/nps',                permanent: true },
+      { source: '/ferramentas/nps/:path*',           destination: '/operacional/nps/:path*',         permanent: true },
+      { source: '/ferramentas/agendamento',          destination: '/financeiro/agendamentos',        permanent: true },
+      { source: '/ferramentas/agendamento/:path*',   destination: '/financeiro/agendamentos/:path*', permanent: true },
+      { source: '/ferramentas/pedidos-pagamento',          destination: '/financeiro/pedidos-pagamento',        permanent: true },
+      { source: '/ferramentas/pedidos-pagamento/:path*',   destination: '/financeiro/pedidos-pagamento/:path*', permanent: true },
+      { source: '/ferramentas/comercial',            destination: '/comercial',                      permanent: true },
+      { source: '/ferramentas/comercial/:path*',     destination: '/comercial/:path*',               permanent: true },
+      { source: '/ferramentas/assistente-zykor',     destination: '/assistente-zykor',               permanent: true },
     ];
   },
   

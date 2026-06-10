@@ -107,7 +107,7 @@ export default function PostDetalhePage({ params }: PageProps) {
 
   return (
     <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
-      <Link href="/ferramentas/instagram" className="inline-flex items-center gap-2 text-sm text-pink-600 hover:underline">
+      <Link href="/marketing/instagram" className="inline-flex items-center gap-2 text-sm text-pink-600 hover:underline">
         <ArrowLeft className="w-4 h-4" /> Voltar ao dashboard
       </Link>
 

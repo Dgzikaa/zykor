@@ -12,19 +12,19 @@ import {
 } from 'lucide-react';
 
 const TABS = [
-  { href: '/ferramentas/instagram', label: 'Dashboard', icone: LayoutDashboard },
-  { href: '/ferramentas/instagram/ig-roi', label: 'ROI por post', icone: DollarSign },
-  { href: '/ferramentas/instagram/ai-insights', label: 'IA Insights', icone: Sparkles },
-  { href: '/ferramentas/instagram/reels', label: 'Reels', icone: PlayCircle },
-  { href: '/ferramentas/instagram/stories', label: 'Stories', icone: Camera },
-  { href: '/ferramentas/instagram/demografia', label: 'Demografia', icone: Users },
+  { href: '/marketing/instagram', label: 'Dashboard', icone: LayoutDashboard },
+  { href: '/marketing/instagram/ig-roi', label: 'ROI por post', icone: DollarSign },
+  { href: '/marketing/instagram/ai-insights', label: 'IA Insights', icone: Sparkles },
+  { href: '/marketing/instagram/reels', label: 'Reels', icone: PlayCircle },
+  { href: '/marketing/instagram/stories', label: 'Stories', icone: Camera },
+  { href: '/marketing/instagram/demografia', label: 'Demografia', icone: Users },
 ];
 
 export default function InstagramLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
-    if (href === '/ferramentas/instagram') return pathname === href;
+    if (href === '/marketing/instagram') return pathname === href;
     return pathname === href || pathname.startsWith(href + '/');
   };
 

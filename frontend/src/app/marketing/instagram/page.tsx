@@ -312,7 +312,7 @@ export default function InstagramDashboardPage() {
                     <td className="py-3 text-gray-400">{idx + 1}</td>
                     <td className="py-3 max-w-md">
                       <Link
-                        href={`/ferramentas/instagram/posts/${post.ig_media_id}`}
+                        href={`/marketing/instagram/posts/${post.ig_media_id}`}
                         className="flex items-center gap-3 group"
                       >
                         {(post.thumbnail_url || post.media_url) && (

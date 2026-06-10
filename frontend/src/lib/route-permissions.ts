@@ -33,6 +33,9 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // ========================================
   { path: '/home', requiredModules: ['home', 'dashboard'] },
 
+  // Zykor Assistant na raiz (menu fica em Configurações, mas acesso é amplo)
+  { path: '/assistente-zykor', requiredModules: ['gestao', 'home', 'configuracoes'] },
+
   // ========================================
   // MENU LATERAL (fonte única de verdade)
   // ========================================

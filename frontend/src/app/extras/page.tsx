@@ -75,7 +75,7 @@ export default function ExtrasPage() {
       title: 'Central Comercial 2026',
       description: 'Planejamento estratégico: feriados, Copa do Mundo, eventos e oportunidades',
       icon: Megaphone,
-      href: '/ferramentas/comercial',
+      href: '/comercial',
       badge: 'Novo',
       badgeColor: 'border-emerald-200 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300',
       iconBgColor: 'bg-emerald-100 dark:bg-emerald-900/30',

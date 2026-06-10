@@ -111,7 +111,7 @@ export function useInsightsNotifications(): UseInsightsNotificationsResult {
       'reservas': '/ferramentas/calendario',
       
       // Avaliações
-      'avaliacoes': '/ferramentas/nps',
+      'avaliacoes': '/operacional/nps',
       
       // Clientes
       'cliente': '/analitico/clientes',

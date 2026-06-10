@@ -85,7 +85,7 @@ export default function ReelsPage() {
                   <tr key={r.ig_media_id} className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-900/30">
                     <td className="py-3 text-gray-400">{idx + 1}</td>
                     <td className="py-3 max-w-md">
-                      <a href={`/ferramentas/instagram/posts/${r.ig_media_id}`} className="flex items-center gap-3 group">
+                      <a href={`/marketing/instagram/posts/${r.ig_media_id}`} className="flex items-center gap-3 group">
                         {(r.thumbnail_url || r.media_url) && (
                           <img src={r.thumbnail_url || r.media_url} alt="" className="w-12 h-16 rounded object-cover flex-shrink-0" />
                         )}

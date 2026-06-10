@@ -88,7 +88,7 @@ const funcionalidadesImplementadas = [
       {
         titulo: 'NPS Clientes Categorizado',
         descricao: '9 categorias de NPS com drill-down de comentários',
-        url: '/ferramentas/nps/categorizado',
+        url: '/operacional/nps/categorizado',
         acesso: 'Sidebar > Ferramentas > NPS Clientes',
         status: 'completo'
       },

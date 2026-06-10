@@ -25,13 +25,13 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 
-import type { PagamentoAgendamento, Stakeholder, InterCredencial } from '../agendamento/types';
-import { AgendamentoCredenciais } from '../agendamento/components/AgendamentoCredenciais';
-import { AgendamentoStatusCA } from '../agendamento/components/AgendamentoStatusCA';
-import { PagamentosList } from '../agendamento/components/PagamentosList';
-import { NovoPagamentoForm } from '../agendamento/components/NovoPagamentoForm';
-import { ImportarFolhaForm } from '../agendamento/components/ImportarFolhaForm';
-import { StakeholderModal } from '../agendamento/components/StakeholderModal';
+import type { PagamentoAgendamento, Stakeholder, InterCredencial } from '@/app/financeiro/agendamentos/types';
+import { AgendamentoCredenciais } from '@/app/financeiro/agendamentos/components/AgendamentoCredenciais';
+import { AgendamentoStatusCA } from '@/app/financeiro/agendamentos/components/AgendamentoStatusCA';
+import { PagamentosList } from '@/app/financeiro/agendamentos/components/PagamentosList';
+import { NovoPagamentoForm } from '@/app/financeiro/agendamentos/components/NovoPagamentoForm';
+import { ImportarFolhaForm } from '@/app/financeiro/agendamentos/components/ImportarFolhaForm';
+import { StakeholderModal } from '@/app/financeiro/agendamentos/components/StakeholderModal';
 
 const STORAGE_KEYS = {
   PAGAMENTOS: 'sgb_financeiro_pagamentos',
