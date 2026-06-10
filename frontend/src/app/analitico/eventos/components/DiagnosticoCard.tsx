@@ -1,21 +1,19 @@
 'use client';
 
 import { AlertTriangle, CheckCircle2, Info, Sparkles } from 'lucide-react';
-import { Insight } from './types';
+import { Gran, Insight } from './types';
 
-const VEREDITO = {
-  bom: {
-    label: 'Dia bom',
-    cls: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-  },
-  regular: {
-    label: 'Dia dentro do esperado',
-    cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-  },
-  ruim: {
-    label: 'Dia abaixo do esperado',
-    cls: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-  },
+const UNIDADE: Record<Gran, string> = { dia: 'Dia', semana: 'Semana', mes: 'Mês' };
+
+const VEREDITO_CLS = {
+  bom: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+  regular: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+  ruim: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+};
+const VEREDITO_SUFIXO = {
+  bom: 'bom',
+  regular: 'dentro do esperado',
+  ruim: 'abaixo do esperado',
 };
 
 const TIPO = {
@@ -40,10 +38,24 @@ interface Props {
   veredito?: 'bom' | 'regular' | 'ruim';
   insights?: Insight[];
   baselineN?: number;
+  gran?: Gran;
 }
 
-export function DiagnosticoCard({ veredito = 'regular', insights = [], baselineN = 0 }: Props) {
-  const v = VEREDITO[veredito];
+export function DiagnosticoCard({
+  veredito = 'regular',
+  insights = [],
+  baselineN = 0,
+  gran = 'dia',
+}: Props) {
+  const unidade = UNIDADE[gran];
+  const vLabel = `${unidade} ${VEREDITO_SUFIXO[veredito]}`;
+  const titulo = gran === 'dia' ? 'Diagnóstico do dia' : `Diagnóstico do ${unidade.toLowerCase()}`;
+  const comparacao =
+    gran === 'mes'
+      ? 'vs o mês anterior'
+      : gran === 'semana'
+        ? 'vs a semana anterior'
+        : `vs média das últimas ${baselineN} datas`;
 
   return (
     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
@@ -51,17 +63,15 @@ export function DiagnosticoCard({ veredito = 'regular', insights = [], baselineN
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-violet-500" />
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            Diagnóstico do dia
+            {titulo}
           </h3>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${v.cls}`}>
-            {v.label}
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${VEREDITO_CLS[veredito]}`}>
+            {vLabel}
           </span>
           {baselineN > 0 && (
-            <span className="text-[10px] text-gray-400">
-              vs média das últimas {baselineN} datas
-            </span>
+            <span className="text-[10px] text-gray-400">{comparacao}</span>
           )}
         </div>
       </div>

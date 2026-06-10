@@ -89,7 +89,11 @@ function couvertDe(e: Row): number {
   return num(e.faturamento_couvert_manual) || num(e.faturamento_couvert);
 }
 function barDe(e: Row): number {
-  return num(e.faturamento_bar_manual) || num(e.faturamento_bar);
+  const direto = num(e.faturamento_bar_manual) || num(e.faturamento_bar);
+  if (direto > 0) return direto;
+  // gold.planejamento muitas vezes só guarda o couvert por evento; o bar é o resto
+  const resto = faturamentoDe(e) - couvertDe(e);
+  return resto > 0 ? resto : 0;
 }
 function ticketDe(e: Row): number {
   const t = num(e.t_medio);
@@ -221,6 +225,32 @@ function agregar(eventos: Row[]): { m: Metricas; ctx: Ctx; extras: Row } {
   };
 
   return { m, ctx, extras };
+}
+
+// Custo artístico/produção direto do Conta Azul (regime de competência) para o período.
+// Fonte autoritativa do P&L; o gold por-evento subconta (atribui só a dias com evento).
+async function custosCA(
+  barId: number,
+  inicio: string,
+  fim: string
+): Promise<{ c_art: number; c_prod: number }> {
+  const bronze = (supabase as any).schema('bronze');
+  const { data } = await bronze
+    .from('bronze_contaazul_lancamentos')
+    .select('valor_bruto, categoria_nome')
+    .eq('bar_id', barId)
+    .is('excluido_em', null)
+    .gte('data_competencia', inicio)
+    .lte('data_competencia', fim)
+    .in('categoria_nome', ['Atrações Programação', 'Produção Eventos']);
+  let c_art = 0;
+  let c_prod = 0;
+  for (const r of (data || []) as Row[]) {
+    const v = num(r.valor_bruto);
+    if (r.categoria_nome === 'Atrações Programação') c_art += v;
+    else if (r.categoria_nome === 'Produção Eventos') c_prod += v;
+  }
+  return { c_art, c_prod };
 }
 
 function media(eventos: Row[]): Metricas | null {
@@ -608,6 +638,23 @@ export async function GET(request: NextRequest) {
 
     const { m, ctx, extras } = agregar(eventosAtual);
     const baseMedia = eventosPrev.length ? agregar(eventosPrev).m : null;
+
+    // c_art/c_prod do período = 100% conforme Conta Azul (não o gold por-evento, que subconta)
+    const caAtual = await custosCA(barId, p.inicio, p.fim);
+    m.c_art = caAtual.c_art;
+    m.c_prod = caAtual.c_prod;
+    m.custo_total = m.c_art + m.c_prod;
+    m.resultado = m.faturamento - m.custo_total;
+    extras.c_art = caAtual.c_art;
+    extras.c_prod = caAtual.c_prod;
+    if (baseMedia) {
+      const caPrev = await custosCA(barId, p.prevInicio, p.prevFim);
+      baseMedia.c_art = caPrev.c_art;
+      baseMedia.c_prod = caPrev.c_prod;
+      baseMedia.custo_total = caPrev.c_art + caPrev.c_prod;
+      baseMedia.resultado = baseMedia.faturamento - baseMedia.custo_total;
+    }
+
     const deltas = deltasDe(m, baseMedia);
     const { veredito, insights } = diagnosticar(m, baseMedia, ctx, p.compLabel);
 

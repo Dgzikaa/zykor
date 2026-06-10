@@ -81,6 +81,7 @@ export function TabQualidade({ data, dataSelecionada, barId }: Props) {
         veredito={data.diagnostico?.veredito}
         insights={data.diagnostico?.insights}
         baselineN={data.baseline?.n ?? 0}
+        gran={data.gran}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

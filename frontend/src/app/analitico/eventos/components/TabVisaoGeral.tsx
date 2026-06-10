@@ -55,6 +55,7 @@ export function TabVisaoGeral({ data }: Props) {
         veredito={data.diagnostico?.veredito}
         insights={data.diagnostico?.insights}
         baselineN={baseN}
+        gran={data.gran}
       />
 
       <SectionTitle>Resultado do evento</SectionTitle>

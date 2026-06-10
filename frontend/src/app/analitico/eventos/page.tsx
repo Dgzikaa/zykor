@@ -97,13 +97,27 @@ function EventosAnaliticoInner() {
         {/* Controles: data + granularidade + comparativo */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500 dark:text-gray-400">Data</label>
-            <input
-              type="date"
-              value={dataSelecionada}
-              onChange={(e) => handleDataChange(e.target.value)}
-              className="px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            />
+            <label className="text-xs text-gray-500 dark:text-gray-400">
+              {granularidade === 'mes' ? 'Mês' : granularidade === 'semana' ? 'Semana' : 'Data'}
+            </label>
+            {granularidade === 'mes' ? (
+              <input
+                type="month"
+                value={dataSelecionada.slice(0, 7)}
+                onChange={(e) =>
+                  e.target.value && handleDataChange(`${e.target.value}-01`)
+                }
+                className="px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              />
+            ) : (
+              <input
+                type="date"
+                value={dataSelecionada}
+                onChange={(e) => handleDataChange(e.target.value)}
+                title={granularidade === 'semana' ? 'Escolha qualquer dia da semana desejada' : undefined}
+                className="px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              />
+            )}
             {/* Granularidade: dia / semana / mês */}
             <div className="inline-flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden ml-2">
               {(['dia', 'semana', 'mes'] as const).map((g) => (
