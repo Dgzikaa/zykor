@@ -171,6 +171,12 @@ export default function InstagramDashboardPage() {
   const hoje = data.hoje ?? { reach: null, profile_views: null, website_clicks: null, followers_diff: 0, data: null };
   const dias7 = data.ultimos_7_dias ?? { reach: 0, profile_views: 0, website_clicks: 0 };
   const evolucao = data.evolucao_followers ?? [];
+  // enriquece cada dia com o ganho/perda de seguidores vs o dia anterior (pro tooltip)
+  const evolucaoComDiff = evolucao.map((p, i) => {
+    const anterior = i > 0 ? evolucao[i - 1].followers : null;
+    const diff = p.followers != null && anterior != null ? p.followers - anterior : null;
+    return { ...p, diff };
+  });
   const topPosts = data.top_posts ?? [];
 
   return (
@@ -263,13 +269,29 @@ export default function InstagramDashboardPage() {
         <h2 className="text-lg font-semibold mb-4">Evolução de seguidores (30 dias)</h2>
         {evolucao.length > 1 ? (
           <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={evolucao}>
+            <LineChart data={evolucaoComDiff}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="data" tickFormatter={fmtDateOnly} fontSize={11} />
               <YAxis tickFormatter={fmtNum} fontSize={11} domain={['auto', 'auto']} />
               <Tooltip
-                labelFormatter={(s: any) => `Dia: ${fmtDateOnly(s)}`}
-                formatter={(v: any) => [fmtNum(v), 'Seguidores']}
+                content={({ active, payload }: any) => {
+                  if (!active || !payload?.length) return null;
+                  const p = payload[0].payload;
+                  const diff: number | null = p.diff;
+                  return (
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-xs shadow-md">
+                      <div className="font-medium mb-1 text-gray-900 dark:text-gray-100">{fmtDateOnly(p.data)}</div>
+                      <div className="text-gray-700 dark:text-gray-300">
+                        <b>{fmtNum(p.followers)}</b> seguidores
+                      </div>
+                      {diff != null && (
+                        <div className={diff > 0 ? 'text-emerald-600' : diff < 0 ? 'text-red-600' : 'text-gray-500'}>
+                          {diff > 0 ? `+${fmtNum(diff)}` : fmtNum(diff)} no dia
+                        </div>
+                      )}
+                    </div>
+                  );
+                }}
               />
               <Line type="monotone" dataKey="followers" stroke="#ec4899" strokeWidth={2} dot={false} />
             </LineChart>
