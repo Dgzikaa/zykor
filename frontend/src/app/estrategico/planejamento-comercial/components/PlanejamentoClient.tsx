@@ -517,7 +517,29 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
               <div className="flex-1 hidden md:block">
                 {/* Tabela Completa */}
                 <div className="bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-xl shadow-sm">
-                  <div ref={scrollContainerRef} className="planejamento-container overflow-auto max-h-[calc(100vh-120px)]">
+                  {/* MOBILE: lista de cards (a tabela densa só aparece no desktop) */}
+                  <div className="md:hidden space-y-2 px-1 pb-4">
+                    {dados.map((evento) => (
+                      <div key={evento.evento_id} className="rounded-lg border border-[hsl(var(--border))] bg-white dark:bg-gray-800 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <Link href={`/analitico/eventos?data=${evento.data_evento}`} className="min-w-0">
+                            <div className="text-[11px] text-[hsl(var(--muted-foreground))]">{evento.data_curta} · {evento.dia_semana?.substring(0, 3).toUpperCase()}</div>
+                            <div className="text-sm font-semibold text-blue-700 dark:text-blue-300 truncate">{evento.evento_nome || 'Sem atração'}</div>
+                          </Link>
+                          <Button size="sm" variant="outline" className="shrink-0" onClick={() => abrirModal(evento, true)}>Editar</Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-xs">
+                          <div className="flex justify-between"><span className="text-gray-500">Receita</span><span className={`font-medium ${evento.real_vs_m1_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.real_receita > 0 ? formatarMoeda(evento.real_receita) : '-'}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Meta M1</span><span className="font-medium">{formatarMoeda(evento.m1_receita)}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Clientes</span><span className="font-medium">{(evento.clientes_real || 0).toLocaleString('pt-BR')}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">C. Art</span><span className="font-medium">{evento.c_art > 0 ? formatarMoeda(evento.c_art) : '-'}</span></div>
+                        </div>
+                      </div>
+                    ))}
+                    {dados.length === 0 && <div className="text-center text-sm text-gray-400 py-8">Nenhum evento no período.</div>}
+                  </div>
+
+                  <div ref={scrollContainerRef} className="planejamento-container overflow-auto max-h-[calc(100vh-120px)] hidden md:block">
                   <table className="planejamento-table text-[10px] w-full" style={{borderCollapse: 'separate', borderSpacing: 0}}>
                     <thead className="bg-[hsl(var(--muted))]">
                       {/* Primeira linha - Grupos colapsáveis */}
@@ -1211,7 +1233,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
 
       {/* Modal de Edição/Visualização */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-            <DialogContent className="max-w-[70vw] max-h-[85vh] p-0 overflow-hidden rounded-lg shadow-lg bg-[hsl(var(--background))] border border-[hsl(var(--border))]">
+            <DialogContent className="max-w-[96vw] max-h-[92vh] sm:max-w-[88vw] lg:max-w-[70vw] p-0 overflow-hidden rounded-lg shadow-lg bg-[hsl(var(--background))] border border-[hsl(var(--border))]">
               <DialogHeader className="bg-[hsl(var(--muted))] p-4 border-b border-[hsl(var(--border))]"><DialogTitle className="flex items-center gap-3 text-xl font-semibold text-[hsl(var(--foreground))]"><BarChart3 className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />{modoEdicao ? 'Editar Evento' : 'Visualizar Evento'} - {eventoEdicao?.nome}</DialogTitle><DialogDescription>{modoEdicao ? 'Edite os dados planejados e reais' : 'Comparativo Planejado vs Realizado'}</DialogDescription></DialogHeader>
               <div className="flex-1 overflow-y-auto p-3">
                 <div className="mb-3 p-3 bg-[hsl(var(--muted))] rounded border">
