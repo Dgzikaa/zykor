@@ -643,9 +643,9 @@ export default function CalendarioPage() {
             </div>
           </CardHeader>
 
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             {/* Cabeçalho dos dias da semana */}
-            <div className="grid grid-cols-7 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
+            <div className="grid grid-cols-7 bg-gray-50 dark:bg-gray-800 flex-shrink-0 min-w-[700px] md:min-w-0">
               {weekDays.map((day) => (
                 <div key={day} className="py-1.5 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   {day}
@@ -654,7 +654,7 @@ export default function CalendarioPage() {
             </div>
 
             {/* Grid dos dias */}
-            <div className="grid grid-cols-7" style={{ gridTemplateRows: 'repeat(6, minmax(115px, auto))' }}>
+            <div className="grid grid-cols-7 min-w-[700px] md:min-w-0" style={{ gridTemplateRows: 'repeat(6, minmax(115px, auto))' }}>
               {generateCalendarDays().map((day, index) => {
                 if (!day.isCurrentMonth) {
                   return (

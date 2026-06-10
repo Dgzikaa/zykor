@@ -574,9 +574,9 @@ export default function CalendarioOperacionalPage() {
                 icon={<CalendarIcon className="w-4 h-4" />}
               />
             ) : (
-              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-x-auto">
                 {/* Cabeçalho dos dias da semana */}
-                <div className="grid grid-cols-7 bg-gray-100 dark:bg-gray-700">
+                <div className="grid grid-cols-7 bg-gray-100 dark:bg-gray-700 min-w-[680px] md:min-w-0">
                   {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia) => (
                     <div 
                       key={dia}
@@ -589,7 +589,7 @@ export default function CalendarioOperacionalPage() {
 
                 {/* Dias do mês */}
                 {semanas.map((semana, semanaIdx) => (
-                  <div key={semanaIdx} className="grid grid-cols-7 border-t border-gray-200 dark:border-gray-700">
+                  <div key={semanaIdx} className="grid grid-cols-7 border-t border-gray-200 dark:border-gray-700 min-w-[680px] md:min-w-0">
                     {semana.map((dia, diaIdx) => (
                       <div
                         key={diaIdx}
