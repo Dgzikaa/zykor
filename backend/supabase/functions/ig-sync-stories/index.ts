@@ -79,33 +79,44 @@ async function syncStoriesBar(supabase: any, conta: any): Promise<BarSyncResult>
       return result;
     }
 
-    // Insights por story — metricas suportadas: impressions, reach, replies,
-    // exits, taps_forward, taps_back, swipe_forward, profile_visits, follows,
-    // shares (algumas mudaram pra views/total_value na v22)
-    const metrics = [
+    // Insights por story. IMPORTANTE: na Graph API v22 algumas métricas foram
+    // depreciadas (impressions, exits, taps_forward, taps_back, swipe_forward).
+    // Num batch, UMA métrica inválida derruba a chamada inteira (400) -> tudo null.
+    // Por isso buscamos métrica por métrica (best-effort): as válidas voltam,
+    // as inválidas falham sozinhas sem afetar as outras.
+    const metricCandidates = [
       'reach', 'replies', 'profile_visits', 'follows', 'shares',
-      'taps_forward', 'taps_back', 'exits',
-      // 'impressions' depreciado; em alguns casos vira 'views' total_value
-    ].join(',');
+      'total_interactions', 'views', // novas (v22)
+      'exits', 'taps_forward', 'taps_back', 'swipe_forward', // legadas (podem 400)
+    ];
+
+    async function fetchInsights(mediaId: string): Promise<Record<string, number>> {
+      const map: Record<string, number> = {};
+      for (const metric of metricCandidates) {
+        try {
+          const res = await fetch(
+            `${IG_GRAPH}/${mediaId}/insights?metric=${metric}&access_token=${token}`,
+          );
+          if (!res.ok) {
+            // métrica não suportada nessa conta/versão — segue pras outras
+            continue;
+          }
+          const j = await res.json();
+          for (const item of (j.data || [])) {
+            // v22 usa total_value.value; versões antigas usam values[0].value
+            const v = item?.total_value?.value ?? item?.values?.[0]?.value;
+            if (v !== undefined && v !== null) map[item.name] = Number(v) || 0;
+          }
+        } catch (e) {
+          console.warn(`[ig-stories] insight ${metric} ${mediaId}:`, e);
+        }
+      }
+      return map;
+    }
 
     let inseridos = 0;
     for (const s of stories) {
-      let insMap: Record<string, number> = {};
-      try {
-        const insRes = await fetch(
-          `${IG_GRAPH}/${s.id}/insights?metric=${metrics}&access_token=${token}`,
-        );
-        if (insRes.ok) {
-          const j = await insRes.json();
-          for (const item of (j.data || [])) {
-            insMap[item.name] = Number(item.values?.[0]?.value) || 0;
-          }
-        } else {
-          console.warn(`[ig-stories] insights ${s.id}:`, await insRes.text());
-        }
-      } catch (e) {
-        console.warn(`[ig-stories] insights err ${s.id}:`, e);
-      }
+      const insMap = await fetchInsights(s.id);
 
       const row = {
         bar_id: barId,
