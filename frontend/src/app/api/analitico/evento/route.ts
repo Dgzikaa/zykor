@@ -363,6 +363,53 @@ async function lerNpsDiario(
   }));
 }
 
+// Cancelamentos por dia (bronze_contahub_avendas_cancelamentos) — mesma fonte do desempenho.
+// gold.planejamento.cancelamentos NÃO é populado pelo ETL, por isso buscamos direto.
+async function lerCancelamentosPorDia(
+  barId: number,
+  inicio: string,
+  fim: string
+): Promise<Record<string, number>> {
+  const bronze = (supabase as any).schema('bronze');
+  const { data } = await bronze
+    .from('bronze_contahub_avendas_cancelamentos')
+    .select('dt_gerencial, custototal')
+    .eq('bar_id', barId)
+    .gte('dt_gerencial', inicio)
+    .lte('dt_gerencial', fim);
+  const mapa: Record<string, number> = {};
+  for (const r of (data || []) as Row[]) {
+    const dia = r.dt_gerencial as string;
+    mapa[dia] = (mapa[dia] || 0) + num(r.custototal);
+  }
+  return mapa;
+}
+
+// Conta assinada por dia (bronze pagamentos, meio = 'Conta Assinada') — fonte do desempenho.
+async function lerContaAssinadaPorDia(
+  barId: number,
+  inicio: string,
+  fim: string
+): Promise<Record<string, number>> {
+  const bronze = (supabase as any).schema('bronze');
+  const { data } = await bronze
+    .from('bronze_contahub_financeiro_pagamentosrecebidos')
+    .select('dt_gerencial, valor')
+    .eq('bar_id', barId)
+    .eq('meio', 'Conta Assinada')
+    .gte('dt_gerencial', inicio)
+    .lte('dt_gerencial', fim);
+  const mapa: Record<string, number> = {};
+  for (const r of (data || []) as Row[]) {
+    const dia = r.dt_gerencial as string;
+    mapa[dia] = (mapa[dia] || 0) + num(r.valor);
+  }
+  return mapa;
+}
+
+const somaMapa = (m: Record<string, number>) =>
+  Object.values(m).reduce((s, v) => s + v, 0);
+
 function media(eventos: Row[]): Metricas | null {
   if (!eventos.length) return null;
   const ms = eventos.map(metricas);
@@ -680,6 +727,12 @@ export async function GET(request: NextRequest) {
       const [dy, dmo, dd] = data.split('-').map(Number);
       const diaLabel = DIAS_SEMANA[new Date(Date.UTC(dy, dmo - 1, dd)).getUTCDay()];
 
+      // Cancelamento e conta assinada DO DIA (fonte autoritativa, não do gold que vem 0)
+      const [cancelDiaMapa, contaDiaMapa] = await Promise.all([
+        lerCancelamentosPorDia(barId, data, data),
+        lerContaAssinadaPorDia(barId, data, data),
+      ]);
+
       return NextResponse.json({
         success: true,
         encontrado: true,
@@ -687,6 +740,8 @@ export async function GET(request: NextRequest) {
         periodo: { inicio: data, fim: data, label: diaLabel },
         evento: {
           ...evento,
+          cancelamentos: cancelDiaMapa[data] || 0,
+          conta_assinada: contaDiaMapa[data] || 0,
           dia_semana_label: diaLabel,
           _faturamento: m.faturamento,
           _publico: m.publico,
@@ -795,7 +850,14 @@ export async function GET(request: NextRequest) {
 
     const deltas = deltasDe(m, baseMedia);
     const { veredito, insights } = diagnosticar(m, baseMedia, ctx, p.compLabel);
-    const npsDiario = await lerNpsDiario(barId, p.inicio, p.fim);
+    const [npsDiario, cancelMapa, contaMapa] = await Promise.all([
+      lerNpsDiario(barId, p.inicio, p.fim),
+      lerCancelamentosPorDia(barId, p.inicio, p.fim),
+      lerContaAssinadaPorDia(barId, p.inicio, p.fim),
+    ]);
+    // cancelamento/conta assinada do PERÍODO inteiro, da fonte autoritativa
+    extras.cancelamentos = somaMapa(cancelMapa);
+    extras.conta_assinada = somaMapa(contaMapa);
 
     return NextResponse.json({
       success: true,
@@ -829,8 +891,8 @@ export async function GET(request: NextRequest) {
           data_evento: e.data_evento,
           nome: e.nome || e.artista || e.nome_evento,
           ...metricas(e),
-          cancelamentos: num(e.cancelamentos),
-          conta_assinada: num(e.conta_assinada),
+          cancelamentos: cancelMapa[e.data_evento] || 0,
+          conta_assinada: contaMapa[e.data_evento] || 0,
         })),
       },
       deltas,
