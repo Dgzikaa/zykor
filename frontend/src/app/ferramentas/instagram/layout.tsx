@@ -8,7 +8,6 @@ import {
   PlayCircle,
   Camera,
   Users,
-  Trophy,
   DollarSign,
 } from 'lucide-react';
 
@@ -19,7 +18,6 @@ const TABS = [
   { href: '/ferramentas/instagram/reels', label: 'Reels', icone: PlayCircle },
   { href: '/ferramentas/instagram/stories', label: 'Stories', icone: Camera },
   { href: '/ferramentas/instagram/demografia', label: 'Demografia', icone: Users },
-  { href: '/ferramentas/instagram/concorrentes', label: 'Concorrentes', icone: Trophy },
 ];
 
 export default function InstagramLayout({ children }: { children: React.ReactNode }) {

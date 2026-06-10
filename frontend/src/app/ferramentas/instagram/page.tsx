@@ -171,7 +171,6 @@ export default function InstagramDashboardPage() {
   const hoje = data.hoje ?? { reach: null, profile_views: null, website_clicks: null, followers_diff: 0, data: null };
   const dias7 = data.ultimos_7_dias ?? { reach: 0, profile_views: 0, website_clicks: 0 };
   const evolucao = data.evolucao_followers ?? [];
-  const heatmap = data.online_followers_heatmap ?? null;
   const topPosts = data.top_posts ?? [];
 
   return (
@@ -278,19 +277,6 @@ export default function InstagramDashboardPage() {
         ) : (
           <p className="text-sm text-gray-500 py-8 text-center">
             Aguardando histórico de pelo menos 2 dias pra plotar evolução.
-          </p>
-        )}
-      </Card>
-
-      {/* HEATMAP ONLINE FOLLOWERS */}
-      <Card className="p-6">
-        <h2 className="text-lg font-semibold mb-1">Seguidores online por hora do dia</h2>
-        <p className="text-xs text-gray-500 mb-4">Útil pra escolher melhor horário pra postar.</p>
-        {heatmap ? (
-          <Heatmap data={heatmap} />
-        ) : (
-          <p className="text-sm text-gray-500 py-8 text-center">
-            Sem dados de online followers ainda. Roda uma sincronização.
           </p>
         )}
       </Card>
@@ -415,33 +401,3 @@ function KpiCard({
   );
 }
 
-function Heatmap({ data }: { data: Record<string, number> }) {
-  // Espera-se chaves "0".."23" com qtd de followers online.
-  const horas = Array.from({ length: 24 }, (_, h) => ({
-    h,
-    valor: Number(data[String(h)] ?? 0),
-  }));
-  const max = Math.max(...horas.map((x) => x.valor), 1);
-
-  return (
-    <div className="grid grid-cols-24 gap-1" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
-      {horas.map(({ h, valor }) => {
-        const intensidade = valor / max;
-        const bg = intensidade === 0 ? 'bg-gray-100 dark:bg-gray-800' : '';
-        const style = intensidade > 0
-          ? { backgroundColor: `rgba(236, 72, 153, ${0.15 + intensidade * 0.85})` }
-          : undefined;
-        return (
-          <div key={h} className="flex flex-col items-center">
-            <div
-              title={`${h}h: ${fmtNum(valor)} online`}
-              className={`w-full h-10 rounded ${bg}`}
-              style={style}
-            />
-            <span className="text-[10px] text-gray-500 mt-1">{h}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}

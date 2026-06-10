@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell,
 } from 'recharts';
 import { Users, MapPin, UserCircle, TrendingUp } from 'lucide-react';
 
@@ -40,6 +40,17 @@ const COUNTRY_NOMES: Record<string, string> = {
   ES: 'Espanha', GB: 'Reino Unido', JP: 'Japão', MX: 'México', CO: 'Colômbia',
   PE: 'Peru', CA: 'Canadá', AU: 'Austrália', NL: 'Holanda', BE: 'Bélgica',
   CH: 'Suíça', NO: 'Noruega', SE: 'Suécia', DK: 'Dinamarca', FI: 'Finlândia',
+};
+
+const TIPO_CONTEUDO: Record<string, string> = {
+  AD: 'Anúncios',
+  POST: 'Posts',
+  REEL: 'Reels',
+  STORY: 'Stories',
+  CAROUSEL_CONTAINER: 'Carrossel',
+  CAROUSEL_ITEM: 'Carrossel',
+  IGTV: 'IGTV',
+  ALBUM: 'Álbum',
 };
 
 export default function DemografiaPage() {
@@ -77,7 +88,18 @@ export default function DemografiaPage() {
   }));
   const idade = ordena(demo?.audience_gender_age?.age);
   const genero = ordena(demo?.audience_gender_age?.gender);
-  const reachBd = ordena(data?.reach_breakdown);
+  // Reach por tipo de conteúdo: nomes amigáveis + junta CAROUSEL_CONTAINER/ITEM
+  const reachBd = (() => {
+    const raw = data?.reach_breakdown || {};
+    const merged: Record<string, number> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      const label = TIPO_CONTEUDO[k] || k;
+      merged[label] = (merged[label] || 0) + Number(v || 0);
+    }
+    return Object.entries(merged)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value]) => ({ name, value }));
+  })();
 
   const generoLabel: Record<string, string> = { F: 'Feminino', M: 'Masculino', U: 'Não informado' };
 
@@ -201,23 +223,26 @@ export default function DemografiaPage() {
           </p>
           {reachBd.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie
-                  data={reachBd}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={90}
-                  label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}
-                >
+              <BarChart
+                data={reachBd}
+                layout="vertical"
+                margin={{ top: 8, right: 40, left: 8, bottom: 8 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                <XAxis type="number" tickFormatter={(v) => fmt(v)} tick={{ fontSize: 11 }} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={84}
+                  tick={{ fontSize: 12 }}
+                />
+                <Tooltip formatter={(v: any) => fmt(v)} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} label={{ position: 'right', formatter: (v: any) => fmt(v), fontSize: 11 }}>
                   {reachBd.map((_, idx) => (
                     <Cell key={idx} fill={COLORS_PINK[idx % COLORS_PINK.length]} />
                   ))}
-                </Pie>
-                <Tooltip formatter={(v: any) => fmt(v)} />
-                <Legend />
-              </PieChart>
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           ) : (
             <p className="text-sm text-gray-500 text-center py-8">
