@@ -298,7 +298,7 @@ export default function DashboardAtracoesPage() {
                         </div>
 
                         {/* Métricas */}
-                        <div className="grid grid-cols-4 gap-6 text-right">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 text-right">
                           <div>
                             <div className="text-sm text-gray-500 dark:text-gray-400">Fat. Total</div>
                             <div className="text-lg font-bold text-gray-900 dark:text-white">
