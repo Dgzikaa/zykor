@@ -5,6 +5,7 @@ import { useUser } from '@/contexts/UserContext';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { apiCall } from '@/lib/api-client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -742,9 +743,26 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             }`}
                           >
                             {/* Colunas Fixas (Data, Dia, Artista, Receita Real, Meta M1) */}
-                            <td className="sticky-col-1 px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))]" style={{width: '48px', minWidth: '48px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}}>{evento.data_curta}</td>
+                            <td className="sticky-col-1 px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))]" style={{width: '48px', minWidth: '48px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}}>
+                              <Link
+                                href={`/analitico/eventos?data=${evento.data_evento}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-blue-600 dark:text-blue-400 hover:underline"
+                                title="Ver análise completa deste evento"
+                              >
+                                {evento.data_curta}
+                              </Link>
+                            </td>
                             <td className="sticky-col-2 px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
-                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))] truncate" style={{width: '140px', minWidth: '140px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}} title={evento.evento_nome || 'Sem atração'}>{evento.evento_nome || '-'}</td>
+                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))] truncate" style={{width: '140px', minWidth: '140px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}} title={evento.evento_nome || 'Sem atração'}>
+                              <Link
+                                href={`/analitico/eventos?data=${evento.data_evento}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-blue-700 dark:text-blue-300 hover:underline"
+                              >
+                                {evento.evento_nome || '-'}
+                              </Link>
+                            </td>
                             <td 
                               onClick={(e) => { 
                                 e.stopPropagation(); 

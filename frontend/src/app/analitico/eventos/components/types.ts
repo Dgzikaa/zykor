@@ -1,0 +1,63 @@
+// Tipos compartilhados da análise por evento
+
+export interface EventoMetricas {
+  faturamento: number;
+  publico: number;
+  couvert: number;
+  bar: number;
+  ticket: number;
+  c_art: number;
+  c_prod: number;
+  custo_total: number;
+  resultado: number;
+  percent_comida: number;
+  percent_bebida: number;
+  percent_drink: number;
+  percent_stockout: number;
+  atrasos: number;
+  res_tot: number;
+}
+
+export interface BaselineEvento extends EventoMetricas {
+  data_evento: string;
+  nome: string | null;
+}
+
+export interface Insight {
+  tipo: 'positivo' | 'atencao' | 'info';
+  dimensao: string;
+  titulo: string;
+  descricao: string;
+  delta_pct?: number | null;
+}
+
+export interface EventoResponse {
+  success: boolean;
+  encontrado: boolean;
+  data_evento?: string;
+  motivo?: string;
+  evento?: Record<string, any> & {
+    dia_semana_label: string;
+    nome: string | null;
+    artista: string | null;
+    nome_evento: string | null;
+    _faturamento: number;
+    _publico: number;
+    _couvert: number;
+    _bar: number;
+    _ticket: number;
+    _custo_total: number;
+    _resultado: number;
+  };
+  metricas?: EventoMetricas;
+  baseline?: {
+    n: number;
+    media: EventoMetricas | null;
+    eventos: BaselineEvento[];
+  };
+  deltas?: Partial<Record<keyof EventoMetricas, number | null>>;
+  diagnostico?: {
+    veredito: 'bom' | 'regular' | 'ruim';
+    insights: Insight[];
+  };
+}
