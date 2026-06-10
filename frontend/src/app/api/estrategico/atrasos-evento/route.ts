@@ -26,31 +26,32 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Buscar dados de tempo de produção
+    // Buscar dados de tempo de produção (medallion: mesma coluna do calculate_evento_metrics).
+    // A tabela NÃO tem t1_t3. cozinha = t0_t2 (Ordinário/bar 3) ou t0_t3 (Deboche); bar/drinks = t0_t3.
+    const cozCol = user.bar_id === 3 ? 't0_t2' : 't0_t3';
     const { data: tempoDados, error: tempoError } = await supabase
       .schema('silver' as never)
       .from('tempos_producao')
-      .select('categoria, t1_t3')
+      .select('categoria, t0_t2, t0_t3')
       .eq('data_producao', data)
-      .eq('bar_id', user.bar_id)
-      .not('t1_t3', 'is', null);
+      .eq('bar_id', user.bar_id);
 
     if (tempoError) {
       console.error('❌ Erro ao buscar dados de tempo:', tempoError);
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Erro ao buscar dados de tempo',
-        details: tempoError.message 
+        details: tempoError.message
       }, { status: 500 });
     }
 
     // Calcular atrasos
-    const atrasosCozinha = tempoDados?.filter(
-      item => item.categoria === 'comida' && parseFloat(item.t1_t3) > LIMITE_ATRASO_COZINHA
-    ).length || 0;
+    const atrasosCozinha = (tempoDados ?? []).filter(
+      (item: any) => item.categoria === 'comida' && item[cozCol] != null && parseFloat(item[cozCol]) > LIMITE_ATRASO_COZINHA
+    ).length;
 
-    const atrasosBar = tempoDados?.filter(
-      item => item.categoria === 'drink' && parseFloat(item.t1_t3) > LIMITE_ATRASO_BAR
-    ).length || 0;
+    const atrasosBar = (tempoDados ?? []).filter(
+      (item: any) => item.categoria === 'drink' && item.t0_t3 != null && parseFloat(item.t0_t3) > LIMITE_ATRASO_BAR
+    ).length;
 
     return NextResponse.json({
       success: true,

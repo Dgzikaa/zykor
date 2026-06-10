@@ -199,7 +199,7 @@ export async function getPlanejamentoComercial(
     supabase
       .schema('operations' as never)
       .from('eventos_base')
-      .select('data_evento, observacoes, c_art, c_prod, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo')
+      .select('id, data_evento, observacoes, c_art, c_prod, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo')
       .eq('bar_id', barId)
       .gte('data_evento', dataInicio)
       .lt('data_evento', dataFinalConsulta),
@@ -254,7 +254,7 @@ export async function getPlanejamentoComercial(
   if (eventosParaRecalcular.length > 0) {
     Promise.all(
       eventosParaRecalcular.map((evento: any) =>
-        supabase.rpc('calculate_evento_metrics', { evento_id: evento.id })
+        supabase.rpc('calculate_evento_metrics', { evento_id: manuaisMap.get(evento.data_evento)?.id ?? evento.id })
       )
     ).catch(err => console.error('Erro no recalculo background:', err));
   }
@@ -310,7 +310,8 @@ export async function getPlanejamentoComercial(
     const valorContahubBruto = valorContahubLiquido + Number(evento.conta_assinada || 0);
 
     return {
-      evento_id: evento.id,
+      // id do eventos_base (entidade editável) — gold.planejamento.id NÃO bate com /api/eventos/[id]
+      evento_id: manual?.id ?? evento.id,
       data_evento: evento.data_evento,
       dia_semana: typeof evento.dia_semana === 'number' 
         ? DIAS_SEMANA[evento.dia_semana] 
