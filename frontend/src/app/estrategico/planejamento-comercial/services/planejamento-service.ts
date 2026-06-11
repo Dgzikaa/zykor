@@ -199,7 +199,7 @@ export async function getPlanejamentoComercial(
     supabase
       .schema('operations' as never)
       .from('eventos_base')
-      .select('id, data_evento, observacoes, c_art, c_prod, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo')
+      .select('id, nome, data_evento, observacoes, c_art, c_prod, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo')
       .eq('bar_id', barId)
       .gte('data_evento', dataInicio)
       .lt('data_evento', dataFinalConsulta),
@@ -316,7 +316,8 @@ export async function getPlanejamentoComercial(
       dia_semana: typeof evento.dia_semana === 'number' 
         ? DIAS_SEMANA[evento.dia_semana] 
         : String(evento.dia_semana || ''),
-      evento_nome: evento.nome || '',
+      // nome vem do eventos_base (onde o edit grava) — gold.planejamento.nome só atualiza no ETL
+      evento_nome: manual?.nome ?? evento.nome ?? '',
       dia: dataEvento.getUTCDate(),
       mes: dataEvento.getUTCMonth() + 1,
       ano: dataEvento.getUTCFullYear(),
