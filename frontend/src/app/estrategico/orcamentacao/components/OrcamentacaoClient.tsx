@@ -55,7 +55,7 @@ interface OrcamentacaoClientProps {
 // Linhas de marketing/produção que não são lançadas no CA + Não Operacionais.
 const SUBCATEGORIAS_MANUAIS = new Set<string>([
   'Marketing Mídia', 'MKT Disparos', 'MKT Programa de Pontos', 'MKT Beneficios',
-  'Produção Mensal Fixo', 'Receitas Financeiras', 'CONTRATOS',
+  'Produção Mensal Fixo', 'Receitas Financeiras', 'Despesas Financeiras', 'CONTRATOS',
 ]);
 
 // Formatadores

@@ -27,7 +27,7 @@ export interface OrigemLinha {
 // Subcategorias cujo REALIZADO é digitado na tela (bolinha azul), não vem do CA.
 export const SUBCATEGORIAS_MANUAIS = new Set<string>([
   'Marketing Mídia', 'MKT Disparos', 'MKT Programa de Pontos', 'MKT Beneficios',
-  'Produção Mensal Fixo', 'Receitas Financeiras', 'CONTRATOS',
+  'Produção Mensal Fixo', 'Receitas Financeiras', 'Despesas Financeiras', 'CONTRATOS',
 ]);
 
 // --- Blocos genéricos reutilizados ---

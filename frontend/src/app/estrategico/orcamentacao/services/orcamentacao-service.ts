@@ -177,6 +177,7 @@ const ESTRUTURA: BlocoDef[] = [
   {
     nome: 'Não Operacionais', tipo: 'receita', cor: COR.naoOp, modo: 'fixo', subs: [
       { nome: 'Receitas Financeiras', manual: true },
+      { nome: 'Despesas Financeiras', manual: true },
       { nome: 'CONTRATOS', manual: true },
     ]
   },
@@ -224,7 +225,7 @@ export async function getOrcamentacaoCompleta(
   const dataInicio = `${primeiro.ano}-${String(primeiro.mes).padStart(2, '0')}-01`;
   const dataFim = `${ultimo.ano}-${String(ultimo.mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
 
-  const [planilhaResult, goldResult, eventosResult] = await Promise.all([
+  const [planilhaResult, goldResult, eventosResult, manuaisResult] = await Promise.all([
     supabase
       .from('orcamento_planilha')
       .select('ano, mes, categoria_nome, valor_planejado, valor_projetado, valor_realizado_manual')
@@ -238,15 +239,35 @@ export async function getOrcamentacaoCompleta(
     tbl(supabase, 'eventos_base')
       .select('real_r, m1_r, data_evento')
       .eq('bar_id', barId).gte('data_evento', dataInicio).lte('data_evento', dataFim).eq('ativo', true),
+    // Ajustes manuais da aba "DRE Manual" (consumo de estoque, bonificações, etc.)
+    // que somam ao realizado do Conta Azul por categoria/macro.
+    (supabase.schema('financial' as never) as any)
+      .from('dre_manual')
+      .select('valor, categoria, categoria_macro, data_competencia')
+      .eq('bar_id', barId)
+      .gte('data_competencia', dataInicio).lte('data_competencia', dataFim),
   ]);
 
   const dadosPlanilha = (planilhaResult.data || []) as OrcamentoPlanilhaRow[];
   const dadosGold = (goldResult.data || []) as Array<{ ano: number; mes: number; categoria_zykor: string; bloco_dre: string | null; net: number | string }>;
   const eventosBase = (eventosResult.data || []) as Array<{ m1_r: number | null; data_evento: string }>;
+  const dadosManuais = ((manuaisResult as { data?: unknown }).data || []) as Array<{ valor: number | string; categoria: string | null; categoria_macro: string | null; data_competencia: string }>;
 
   // Index planilha por (ano, mes, categoria_nome)
   const planilhaMap = new Map<string, OrcamentoPlanilhaRow>();
   dadosPlanilha.forEach(p => planilhaMap.set(`${p.ano}-${p.mes}-${p.categoria_nome}`, p));
+
+  // Index dre_manual por (ano-mes-categoria) e (ano-mes-macro).
+  const manualCatMap = new Map<string, number>();
+  const manualMacroMap = new Map<string, number>();
+  dadosManuais.forEach(m => {
+    if (!m.data_competencia) return;
+    const [a, mm] = m.data_competencia.split('-');
+    const ymp = `${parseInt(a)}-${parseInt(mm)}`;
+    const v = num(m.valor);
+    if (m.categoria) manualCatMap.set(`${ymp}-${m.categoria}`, (manualCatMap.get(`${ymp}-${m.categoria}`) || 0) + v);
+    if (m.categoria_macro) manualMacroMap.set(`${ymp}-${m.categoria_macro}`, (manualMacroMap.get(`${ymp}-${m.categoria_macro}`) || 0) + v);
+  });
 
   // Index gold por (ano, mes, categoria_zykor) -> net e soma por bloco_dre.
   const goldCatMap = new Map<string, number>();
@@ -275,21 +296,25 @@ export async function getOrcamentacaoCompleta(
   return mesesParaBuscar.map(({ mes, ano }) => {
     const planilha = (cat: string) => planilhaMap.get(`${ano}-${mes}-${cat}`);
     const goldCat = (cat: string) => goldCatMap.get(`${ano}-${mes}-${cat}`) || 0;
+    const manualCat = (cat: string) => manualCatMap.get(`${ano}-${mes}-${cat}`) || 0;
+    const manualMacro = (macro: string) => manualMacroMap.get(`${ano}-${mes}-${macro}`) || 0;
 
     // Faturamento Meta.
     // Real = TODA a receita do Conta Azul no mês (bloco 'Receita': Stone Créd/Déb/Pix
-    // + Pix Direto + Dinheiro + Receita de Eventos + Outras Receitas). É a mesma base
-    // de receita que a DRE usa pra calcular os % de Variáveis e CMV.
+    // + Pix Direto + Dinheiro + Receita de Eventos + Outras Receitas) + ajustes manuais
+    // de receita (DRE Manual). É a base de receita que a DRE usa pros % de Var/CMV.
     const fatPlan = num(planilha('FATURAMENTO META')?.valor_planejado);
     const fatProj = m1Map.get(`${ano}-${mes}`) || 0;
-    const fatReal = goldBlocoMap.get(`${ano}-${mes}-Receita`) || 0;
+    const fatReal = (goldBlocoMap.get(`${ano}-${mes}-Receita`) || 0) + manualMacro('Receita');
 
     const categorias: CategoriaOrcamento[] = ESTRUTURA.map(bloco => {
       if (bloco.modo === 'percentual') {
         const planPct = num(planilha(bloco.nome)?.valor_planejado);
         const projPct = num(planilha(bloco.nome)?.valor_projetado);
-        const goldBloco = goldBlocoMap.get(`${ano}-${mes}-${bloco.blocoGold}`) || 0;
-        const realPct = fatReal > 0 ? (goldBloco / fatReal) * 100 : 0;
+        // Realizado R$ = Conta Azul (gold) − ajustes manuais (DRE Manual).
+        // dre_manual usa sinal de "impacto no lucro": positivo reduz despesa, negativo aumenta.
+        const realR = (goldBlocoMap.get(`${ano}-${mes}-${bloco.blocoGold}`) || 0) - manualMacro(bloco.blocoGold);
+        const realPct = fatReal > 0 ? (realR / fatReal) * 100 : 0;
         return {
           nome: bloco.nome, cor: bloco.cor, tipo: 'despesa',
           subcategorias: [],
@@ -301,9 +326,12 @@ export async function getOrcamentacaoCompleta(
         const prow = planilha(s.nome);
         const plan = num(prow?.valor_planejado);
         const proj = num(prow?.valor_projetado);
-        const real = s.manual
-          ? num(prow?.valor_realizado_manual)
-          : (s.gold || []).reduce((sum, g) => sum + goldCat(g), 0);
+        // Realizado = Conta Azul (gold) + ajustes manuais (DRE Manual).
+        // dre_manual usa sinal de impacto no lucro: receita soma; despesa subtrai
+        // (positivo reduz custo, negativo aumenta).
+        const goldVal = (s.gold || []).reduce((sum, g) => sum + goldCat(g), 0);
+        const manualVal = manualCat(s.nome);
+        const real = bloco.tipo === 'receita' ? goldVal + manualVal : goldVal - manualVal;
         return { nome: s.nome, planejado: plan, projecao: proj, realizado: real, isPercentage: false, manual: !!s.manual };
       });
       return { nome: bloco.nome, cor: bloco.cor, tipo: bloco.tipo, subcategorias };
@@ -314,13 +342,14 @@ export async function getOrcamentacaoCompleta(
     const varPct = findPct('Custos Variáveis');
     const cmvPct = findPct('Custo insumos (CMV)');
 
-    // Custos variáveis e CMV em R$ por coluna (% × faturamento da coluna).
+    // Custos variáveis e CMV em R$ por coluna. Plan/Proj = % × faturamento da coluna;
+    // Real = Conta Azul (gold) + ajustes manuais do macro (DRE Manual).
     const varPlanR = (varPct.plan / 100) * fatPlan;
     const varProjR = (varPct.proj / 100) * fatProj;
-    const varRealR = goldBlocoMap.get(`${ano}-${mes}-Custos Variáveis`) || 0;
+    const varRealR = (goldBlocoMap.get(`${ano}-${mes}-Custos Variáveis`) || 0) - manualMacro('Custos Variáveis');
     const cmvPlanR = (cmvPct.plan / 100) * fatPlan;
     const cmvProjR = (cmvPct.proj / 100) * fatProj;
-    const cmvRealR = goldBlocoMap.get(`${ano}-${mes}-Custo insumos (CMV)`) || 0;
+    const cmvRealR = (goldBlocoMap.get(`${ano}-${mes}-Custo insumos (CMV)`) || 0) - manualMacro('Custo insumos (CMV)');
 
     // Real Fixo (soma das despesas fixas)
     let rfPlan = 0, rfProj = 0, rfReal = 0;
