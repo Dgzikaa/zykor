@@ -16,6 +16,13 @@ export interface CategoriaOrcamento {
   cor: string;
   tipo: string;
   subcategorias: SubcategoriaOrcamento[];
+  // Como o PROJETADO do bloco é determinado:
+  //   'soma'       -> soma do projetado das subcategorias (R$, default)
+  //   'm1'         -> Receita: vem do Empilhamento M1 (Σ eventos_base.m1_r)
+  //   'percentual' -> Custos Variáveis / CMV: % × Receita projetada (M1)
+  projecaoTipo?: 'soma' | 'm1' | 'percentual';
+  projecaoValor?: number;        // projetado do bloco em R$ (já calculado)
+  projecaoPercentual?: number;   // só p/ blocos 'percentual': o % editável
 }
 
 export interface TotaisMes {
@@ -539,14 +546,28 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
 
     const fatReal = faturamentoRealMap.get(`${ano}-${mes}`) || { realizado: 0, meta: 0 };
 
-    const categorias = ESTRUTURA_CATEGORIAS.map(cat => ({
-      nome: cat.nome, cor: cat.cor, tipo: cat.tipo,
-      subcategorias: cat.subcategorias.map(sub => {
+    // Receita projetada do mes = Empilhamento M1 (Σ eventos_base.m1_r). Base pro
+    // calculo do projetado de Custos Variaveis e CMV (que sao % dessa receita).
+    const receitaProjM1 = fatReal.meta;
+    // % projetado dos blocos variaveis: digitado na planilha sob o nome do bloco
+    // (categoria_nome = 'Custos Variáveis' / 'Custo insumos (CMV)'), em valor_projetado.
+    const pctVarProj = Number(getPlanilha('Custos Variáveis')?.valor_projetado || 0);
+    const pctCmvProj = Number(getPlanilha('Custo insumos (CMV)')?.valor_projetado || 0);
+
+    // Blocos cujo PROJETADO eh no nivel do bloco (nao na subcategoria):
+    //   Receita -> M1 ; Custos Variaveis / CMV -> % da receita projetada.
+    const projBlocoEspecial = (nome: string): boolean =>
+      nome === 'Receita' || BLOCOS_VARIAVEIS.has(nome);
+
+    const categorias: CategoriaOrcamento[] = ESTRUTURA_CATEGORIAS.map(cat => {
+      const subcategorias = cat.subcategorias.map(sub => {
         const planRow = getPlanilha(sub);
 
-        // PLANEJADO e PROJETADO = sempre da planilha (meta.orcamento_planilha)
+        // PLANEJADO = sempre da planilha (meta.orcamento_planilha)
         const plan = Number(planRow?.valor_planejado || 0);
-        const proj = Number(planRow?.valor_projetado || 0);
+        // PROJETADO da subcategoria = planilha, EXCETO nos blocos especiais
+        // (Receita/Variaveis/CMV), onde o projetado vive no nivel do bloco.
+        const proj = projBlocoEspecial(cat.nome) ? 0 : Number(planRow?.valor_projetado || 0);
 
         // REALIZADO = gold.net (do CA) + soma de financial.dre_manual da mesma
         // categoria. dre_manual eh pra ajustes que o socio faz fora do CA
@@ -558,8 +579,27 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
         const real = goldVal + manualVal;
 
         return { nome: sub, planejado: plan, projecao: proj, realizado: real, isPercentage: false };
-      })
-    }));
+      });
+
+      // Projetado no nivel do bloco
+      let projecaoTipo: 'soma' | 'm1' | 'percentual' = 'soma';
+      let projecaoValor = subcategorias.reduce((s, x) => s + x.projecao, 0);
+      let projecaoPercentual: number | undefined;
+      if (cat.nome === 'Receita') {
+        projecaoTipo = 'm1';
+        projecaoValor = receitaProjM1;
+      } else if (cat.nome === 'Custos Variáveis') {
+        projecaoTipo = 'percentual';
+        projecaoPercentual = pctVarProj;
+        projecaoValor = (pctVarProj / 100) * receitaProjM1;
+      } else if (cat.nome === 'Custo insumos (CMV)') {
+        projecaoTipo = 'percentual';
+        projecaoPercentual = pctCmvProj;
+        projecaoValor = (pctCmvProj / 100) * receitaProjM1;
+      }
+
+      return { nome: cat.nome, cor: cat.cor, tipo: cat.tipo, subcategorias, projecaoTipo, projecaoValor, projecaoPercentual };
+    });
 
     // Totais. Distinguir Receita OPERACIONAL (bloco 'Receita') vs Nao Operacionais
     // (Contratos). Calculos de % CONTRIB / BreakEven / EBITDA usam SO a receita
@@ -571,27 +611,34 @@ export async function getOrcamentacaoCompleta(supabase: SupabaseClient, barId: n
     let varPlanTot = 0, varProjTot = 0, varRealTot = 0; // custos variaveis (impostos + CMV)
 
     categorias.forEach(cat => {
+      // PROJETADO eh por BLOCO (cat.projecaoValor ja resolve M1/% /soma das subs).
+      // PLANEJADO e REALIZADO continuam vindo das subcategorias.
+      const projBloco = cat.projecaoValor || 0;
+      if (cat.tipo === 'receita') {
+        recProjTot += projBloco;
+        if (cat.nome === 'Receita') recOpProj += projBloco;
+      } else {
+        desProjTot += projBloco;
+        if (BLOCOS_REAL_FIXO.has(cat.nome)) realFixoProj += projBloco;
+        else if (BLOCOS_VARIAVEIS.has(cat.nome)) varProjTot += projBloco;
+      }
+
       cat.subcategorias.forEach(sub => {
         if (cat.tipo === 'receita') {
           recPlanTot += sub.planejado;
-          recProjTot += sub.projecao;
           recRealTot += sub.realizado;
           if (cat.nome === 'Receita') {
             recOpPlan += sub.planejado;
-            recOpProj += sub.projecao;
             recOpReal += sub.realizado;
           }
         } else {
           desPlanTot += sub.planejado;
-          desProjTot += sub.projecao;
           desRealTot += sub.realizado;
           if (BLOCOS_REAL_FIXO.has(cat.nome)) {
             realFixoPlan += sub.planejado;
-            realFixoProj += sub.projecao;
             realFixoReal += sub.realizado;
           } else if (BLOCOS_VARIAVEIS.has(cat.nome)) {
             varPlanTot += sub.planejado;
-            varProjTot += sub.projecao;
             varRealTot += sub.realizado;
           }
         }

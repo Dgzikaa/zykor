@@ -21,7 +21,9 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { MesOrcamento, CategoriaOrcamento, TotaisMes } from '../services/orcamentacao-service';
+import { OrigemTooltip } from './OrigemTooltip';
 import { HistoricoOrcamentoTab } from './HistoricoOrcamentoTab';
 import { DreTab } from './DreTab';
 import { DreManualTab } from './DreManualTab';
@@ -50,6 +52,11 @@ interface OrcamentacaoClientProps {
 //   Receitas Financeiras: socio preenche manual.
 //   Outras Receitas: socio faz ajustes nao registrados no CA.
 const SUBCATEGORIAS_MANUAIS = new Set<string>(['CONTRATOS', 'Receitas Financeiras', 'Outras Receitas']);
+
+// Blocos cujo PROJETADO é editado/exibido no nível do bloco (não na subcategoria):
+//   Receita -> vem do Empilhamento M1 (read-only)
+//   Custos Variáveis / CMV -> % da receita projetada (editável como %)
+const BLOCOS_PROJ_ESPECIAL = new Set<string>(['Receita', 'Custos Variáveis', 'Custo insumos (CMV)']);
 
 // Formatadores
 const formatarMoeda = (valor: number | null | undefined): string => {
@@ -224,12 +231,13 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
     const map = new Map<string, { totPlan: number; totProj: number; totReal: number }>();
     meses.forEach((mes, idxMes) => {
       mes.categorias.forEach(cat => {
-        let totPlan = 0, totProj = 0, totReal = 0;
+        let totPlan = 0, totReal = 0;
         for (const sub of cat.subcategorias) {
           totPlan += sub.planejado;
-          totProj += sub.projecao;
           totReal += sub.realizado;
         }
+        // Projetado é por bloco (M1 / % / soma das subs) — já resolvido no service.
+        const totProj = cat.projecaoValor ?? cat.subcategorias.reduce((s, x) => s + x.projecao, 0);
         map.set(`${idxMes}::${cat.nome}`, { totPlan, totProj, totReal });
       });
     });
@@ -239,6 +247,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
   if (!selectedBar) return null; // Or show selector logic if needed, but BarSyncCheck should handle this
 
   return (
+    <TooltipProvider delayDuration={150}>
     <Tabs defaultValue="orcamento" className="h-[calc(100vh-80px)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
       <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 pt-2">
         <TabsList className="bg-transparent">
@@ -306,22 +315,22 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
             </div>
             {/* Indicadores agregados (header — antes da tabela) */}
             <div className="flex items-center gap-2 px-2 bg-slate-100 dark:bg-slate-800 border-b border-gray-200" style={{ height: '28px' }}>
-              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Real Fixo</span>
+              <OrigemTooltip nome="Real Fixo" className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Real Fixo</OrigemTooltip>
             </div>
             <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
-              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Faturamento Meta</span>
+              <OrigemTooltip nome="Faturamento Meta" className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Faturamento Meta</OrigemTooltip>
             </div>
             <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
-              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">% CONTRIB</span>
+              <OrigemTooltip nome="% CONTRIB" className="text-[10px] font-bold text-slate-700 dark:text-slate-300">% CONTRIB</OrigemTooltip>
             </div>
             <div className="flex items-center gap-2 px-2 border-b-2 border-gray-400 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
-              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">BreakEven</span>
+              <OrigemTooltip nome="BreakEven" className="text-[10px] font-bold text-slate-700 dark:text-slate-300">BreakEven</OrigemTooltip>
             </div>
             {meses.length > 0 && meses[0].categorias.map(categoria => (
               <div key={categoria.nome}>
                 <div className={cn("flex items-center gap-2 px-2 cursor-pointer", categoria.cor)} style={{ height: '32px' }} onClick={() => toggleSecao(categoria.nome)}>
                   {secoesAbertas[categoria.nome] ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                  <span className="text-[10px] font-semibold truncate">{categoria.nome}</span>
+                  <OrigemTooltip nome={categoria.nome} className="text-[10px] font-semibold truncate">{categoria.nome}</OrigemTooltip>
                 </div>
                 {secoesAbertas[categoria.nome] && categoria.subcategorias.map(sub => {
                   const isManual = SUBCATEGORIAS_MANUAIS.has(sub.nome);
@@ -330,7 +339,6 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                       key={sub.nome}
                       className="flex items-center gap-1.5 px-2 pl-5 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 hover:dark:bg-gray-700/50"
                       style={{ height: '28px' }}
-                      title={isManual ? 'Realizado: Manual (digitado na tela)' : 'Realizado: Automático (Conta Azul)'}
                     >
                       <div
                         className={cn(
@@ -338,7 +346,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                           isManual ? 'bg-blue-500' : 'bg-green-500'
                         )}
                       />
-                      <span className="text-[10px] text-gray-700 dark:text-gray-300 truncate">{sub.nome}</span>
+                      <OrigemTooltip nome={sub.nome} className="text-[10px] text-gray-700 dark:text-gray-300 truncate">{sub.nome}</OrigemTooltip>
                     </div>
                   );
                 })}
@@ -347,10 +355,10 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
             {/* EBITDA + Margem (rodapé) */}
             <div className="flex items-center gap-2 px-2 border-t-2 border-emerald-300 bg-emerald-100 dark:bg-emerald-900/30" style={{ height: '36px' }}>
               <DollarSign className="w-3 h-3 text-emerald-700" />
-              <span className="text-[10px] font-bold text-emerald-800">EBITDA</span>
+              <OrigemTooltip nome="EBITDA" className="text-[10px] font-bold text-emerald-800">EBITDA</OrigemTooltip>
             </div>
             <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-emerald-50 dark:bg-emerald-900/20" style={{ height: '28px' }}>
-              <span className="text-[10px] font-bold text-emerald-700">Margem</span>
+              <OrigemTooltip nome="Margem" className="text-[10px] font-bold text-emerald-700">Margem</OrigemTooltip>
             </div>
           </div>
 
@@ -419,18 +427,46 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                         if (isReceita) corClasseReal = totReal >= totPlan ? 'text-emerald-600' : 'text-red-600';
                         else corClasseReal = totReal <= totPlan ? 'text-emerald-600' : 'text-red-600';
                       }
+                      // Projetado por BLOCO: Receita = M1 (read-only); Variáveis/CMV = % (editável).
+                      const especialProj = BLOCOS_PROJ_ESPECIAL.has(categoria.nome);
+                      const isPercentBloco = categoria.projecaoTipo === 'percentual';
+                      const isEditProjBloco = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === categoria.nome && editando?.campo === 'projetado';
                       return (
                       <div key={categoria.nome}>
-                        {aberta ? (
-                          <div className={cn(categoria.cor, "opacity-20")} style={{ height: '32px' }} />
-                        ) : (
+                        {(!aberta || especialProj) ? (
                           <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", categoria.cor, "bg-opacity-60 dark:bg-opacity-30")} style={{ height: '32px' }}>
                             <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-blue-700 dark:text-blue-300">{formatarMoeda(sinalDre(totPlan, categoria.tipo))}</span>
                             <div className="w-px h-3 bg-white/40" />
-                            <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-green-700 dark:text-green-300">{formatarMoeda(sinalDre(totProj, categoria.tipo))}</span>
+                            {/* PROJETADO do bloco */}
+                            <div className="flex-1 flex items-center justify-center">
+                              {especialProj && isPercentBloco ? (
+                                isEditProjBloco ? (
+                                  <div className="flex items-center gap-0.5">
+                                    <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                                    <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
+                                    <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
+                                  </div>
+                                ) : (
+                                  <div
+                                    className="flex items-center gap-0.5 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded px-0.5"
+                                    title={`% da Receita projetada → ${formatarMoeda(categoria.projecaoValor ?? 0)}`}
+                                    onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: categoria.nome, campo: 'projetado' }); setValorEdit(String(categoria.projecaoPercentual ?? 0)); }}
+                                  >
+                                    <span className="text-[10px] font-bold whitespace-nowrap text-green-700 dark:text-green-300">{formatarPorcentagem(categoria.projecaoPercentual ?? 0)}</span>
+                                    <Pencil className="h-2 w-2 text-green-500" />
+                                  </div>
+                                )
+                              ) : especialProj && categoria.projecaoTipo === 'm1' ? (
+                                <span className="text-[10px] font-bold whitespace-nowrap text-green-700 dark:text-green-300" title="Projetado = Empilhamento M1 (Σ m1_r dos eventos do mês)">{formatarMoeda(totProj)}</span>
+                              ) : (
+                                <span className="text-[10px] font-bold whitespace-nowrap text-green-700 dark:text-green-300">{formatarMoeda(sinalDre(totProj, categoria.tipo))}</span>
+                              )}
+                            </div>
                             <div className="w-px h-3 bg-white/40" />
                             <span className={cn("flex-1 text-[10px] font-bold text-center whitespace-nowrap", corClasseReal)}>{formatarMoeda(sinalDre(totReal, categoria.tipo))}</span>
                           </div>
+                        ) : (
+                          <div className={cn(categoria.cor, "opacity-20")} style={{ height: '32px' }} />
                         )}
                         {aberta && categoria.subcategorias.map(sub => {
                           const isEditPlan = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'planejado';
@@ -456,9 +492,13 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                                 )}
                               </div>
                               <div className="w-px h-3 bg-gray-200" />
-                              {/* PROJETADO - editável + tooltip histórico */}
+                              {/* PROJETADO - editável + tooltip histórico.
+                                  Nos blocos especiais (Receita/Variáveis/CMV) o projetado é no
+                                  nível do bloco (M1 / %), então a subcategoria mostra "—". */}
                               <div className="flex-1 flex items-center justify-center relative group/proj">
-                                {isEditProj ? (
+                                {especialProj ? (
+                                  <span className="text-[10px] text-gray-300 dark:text-gray-600" title="Projetado definido no nível do bloco (M1 / %)">—</span>
+                                ) : isEditProj ? (
                                   <div className="flex items-center gap-0.5">
                                     <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
                                     <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
@@ -582,6 +622,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
         <HistoricoOrcamentoTab barId={selectedBar.id} />
       </TabsContent>
     </Tabs>
+    </TooltipProvider>
   );
 }
 
