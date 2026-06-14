@@ -74,7 +74,8 @@ interface CMVSemanal {
   ajuste_bonificacoes: number;
   bonificacao_contrato_anual: number;
   bonificacao_cashback_mensal: number;
-  
+  bonificacoes: number;
+
   // Cálculos CMV
   cmv_real: number;
   cmv_percentual?: number;
@@ -227,11 +228,9 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
       {
         id: 'estoque_inicial',
         label: 'Estoque Inicial',
+        semCollapse: true,
         metricas: [
-          { key: 'estoque_inicial', label: 'TOTAL', status: 'calculado', fonte: 'Calculado', calculo: 'Cozinha + Drinks + Bebidas', formato: 'moeda' },
-          { key: 'estoque_inicial_cozinha', label: 'Cozinha', status: 'auto', fonte: 'Planilha CMV', calculo: 'Sincronizado da planilha', formato: 'moeda' },
-          { key: 'estoque_inicial_drinks', label: 'Drinks', status: 'auto', fonte: 'Planilha CMV', calculo: 'Sincronizado da planilha', formato: 'moeda' },
-          { key: 'estoque_inicial_bebidas', label: 'Bebidas', status: 'auto', fonte: 'Planilha CMV', calculo: 'Sincronizado da planilha', formato: 'moeda' },
+          { key: 'estoque_inicial', label: 'Estoque Inicial', status: 'calculado', fonte: 'Calculado', calculo: 'Estoque final da semana/mês anterior (propagado automaticamente)', formato: 'moeda' },
         ]
       },
       {
@@ -247,11 +246,9 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
       {
         id: 'estoque_final',
         label: '(-) Estoque Final',
+        semCollapse: true,
         metricas: [
-          { key: 'estoque_final', label: 'TOTAL', status: 'calculado', fonte: 'Calculado', calculo: 'Cozinha + Drinks + Bebidas', formato: 'moeda' },
-          { key: 'estoque_final_cozinha', label: 'Cozinha', status: 'auto', fonte: 'Planilha CMV', calculo: 'Sincronizado da planilha', formato: 'moeda' },
-          { key: 'estoque_final_drinks', label: 'Drinks', status: 'auto', fonte: 'Planilha CMV', calculo: 'Sincronizado da planilha', formato: 'moeda' },
-          { key: 'estoque_final_bebidas', label: 'Bebidas', status: 'auto', fonte: 'Planilha CMV', calculo: 'Sincronizado da planilha', formato: 'moeda' },
+          { key: 'estoque_final', label: '(-) Estoque Final', status: 'manual', fonte: 'Manual', calculo: 'Contagem de estoque (preenchimento manual)', formato: 'moeda', editavel: true },
         ]
       },
       {
@@ -271,10 +268,9 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
       {
         id: 'bonificacoes',
         label: '(+) Bonificações',
+        semCollapse: true,
         metricas: [
-          { key: 'ajuste_bonificacoes', label: 'TOTAL', status: 'manual', fonte: 'Manual', calculo: 'Contrato Anual + Cashback Mensal', formato: 'moeda' },
-          { key: 'bonificacao_contrato_anual', label: 'Contrato Anual', status: 'manual', fonte: 'Manual', calculo: 'Valor inserido manualmente', formato: 'moeda', editavel: true },
-          { key: 'bonificacao_cashback_mensal', label: 'Cashback Mensal', status: 'manual', fonte: 'Manual', calculo: 'Valor inserido manualmente', formato: 'moeda', editavel: true },
+          { key: 'bonificacoes', label: '(+) Bonificações', status: 'manual', fonte: 'Manual', calculo: 'Valor inserido manualmente (preenchimento direto)', formato: 'moeda', editavel: true },
         ]
       }
     ]
@@ -290,9 +286,10 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         label: 'CMV',
         semCollapse: true,
         metricas: [
-          { key: 'cmv_real', label: 'CMV R$', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial + Compras - Est.Final - Consumos - Bonificações', formato: 'moeda' },
+          { key: 'cmv_real', label: 'CMV R$', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial + Compras - Est.Final - Consumos + Bonificações', formato: 'moeda' },
           { key: 'cmv_percentual', label: 'CMV Real (%)', status: 'calculado', fonte: 'Calculado', calculo: 'CMV R$ / Faturamento Bruto × 100', formato: 'percentual' },
           { key: 'cmv_limpo_percentual', label: 'CMV Limpo (%)', status: 'calculado', fonte: 'Calculado', calculo: '(CMV R$ / Fat. Líquido) × 100', formato: 'percentual' },
+          { key: 'gap_cmv', label: 'GAP CMV', status: 'calculado', fonte: 'Calculado', calculo: 'CMV Limpo (%) − CMV Teórico (%), em pontos percentuais', formato: 'gap' },
           { key: 'cmv_teorico_percentual', label: 'CMV Teórico (%)', status: 'manual', fonte: 'Manual ou Meta', calculo: 'Valor manual da semana/mês (clique pra editar). Se vazio, espelha a meta global.', formato: 'percentual', editavel: true },
         ]
       }
@@ -309,9 +306,9 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         label: 'Resultado CMA',
         semCollapse: true,
         metricas: [
-          { key: 'estoque_inicial_funcionarios', label: 'Estoque Inicial (F)', status: 'auto', fonte: 'Contagem Estoque', calculo: 'HORTIFRUTI (F) + MERCADO (F) + PROTEÍNA (F)', formato: 'moeda' },
+          { key: 'estoque_inicial_funcionarios', label: 'Estoque Inicial (F)', status: 'calculado', fonte: 'Calculado', calculo: 'Estoque final (F) do período anterior (propagado)', formato: 'moeda' },
           { key: 'compras_alimentacao', label: '(+) Compras', status: 'auto', fonte: 'Conta Azul', calculo: 'categoria_nome = Alimentação', formato: 'moeda', drilldown: true },
-          { key: 'estoque_final_funcionarios', label: '(-) Estoque Final (F)', status: 'auto', fonte: 'Contagem Estoque', calculo: 'HORTIFRUTI (F) + MERCADO (F) + PROTEÍNA (F)', formato: 'moeda' },
+          { key: 'estoque_final_funcionarios', label: '(-) Estoque Final (F)', status: 'manual', fonte: 'Manual', calculo: 'Contagem de estoque (preenchimento manual)', formato: 'moeda', editavel: true },
           { key: 'cma_total', label: 'CMA Total', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial (F) + Compras Alimentação - Est.Final (F)', formato: 'moeda' },
         ]
       }
@@ -890,20 +887,13 @@ export default function CMVSemanalTabelaPage() {
     if (key === 'giro_estoque') {
       return calcularGiroEstoque(semana);
     }
-    // Estoque Inicial = soma dos sub-itens OU valor total do banco (da planilha)
+    // Estoque Inicial = coluna estoque_inicial (propagada do final anterior; usada no cálculo)
     if (key === 'estoque_inicial') {
-      const somaDetalhados = (semana.estoque_inicial_cozinha || 0) + 
-             (semana.estoque_inicial_drinks || 0) + 
-             (semana.estoque_inicial_bebidas || 0);
-      // Se tiver detalhados, usar soma; senão usar o total da planilha
-      return somaDetalhados > 0 ? somaDetalhados : (semana.estoque_inicial || 0);
+      return semana.estoque_inicial || 0;
     }
-    // Estoque Final = soma dos sub-itens OU valor total do banco (da planilha)
+    // Estoque Final = coluna estoque_final (manual; é a que o cálculo do CMV usa)
     if (key === 'estoque_final') {
-      const somaDetalhados = (semana.estoque_final_cozinha || 0) + 
-             (semana.estoque_final_drinks || 0) + 
-             (semana.estoque_final_bebidas || 0);
-      return somaDetalhados > 0 ? somaDetalhados : (semana.estoque_final || 0);
+      return semana.estoque_final || 0;
     }
     // Compras = soma dos sub-itens OU valor total do banco (da planilha/Conta Azul)
     if (key === 'compras_periodo') {
@@ -960,6 +950,21 @@ export default function CMVSemanalTabelaPage() {
         ? parseFloat(String(manual))
         : null;
       return manualNum !== null && Number.isFinite(manualNum) && manualNum > 0 ? manualNum : null;
+    }
+    // Bonificações: campo único `bonificacoes` (fallback p/ legados não migrados)
+    if (key === 'bonificacoes') {
+      const b = (semana as unknown as Record<string, unknown>).bonificacoes;
+      const bNum = b !== undefined && b !== null ? parseFloat(String(b)) : null;
+      if (bNum !== null && Number.isFinite(bNum)) return bNum;
+      return (semana.bonificacao_contrato_anual || 0) + (semana.bonificacao_cashback_mensal || 0);
+    }
+    // GAP CMV = CMV Limpo (%) − CMV Teórico (%). Null se teórico não preenchido.
+    if (key === 'gap_cmv') {
+      const limpo = semana.cmv_limpo_percentual ? parseFloat(String(semana.cmv_limpo_percentual)) : null;
+      const manual = (semana as unknown as Record<string, unknown>).cmv_teorico_percentual_manual;
+      const teorico = manual !== undefined && manual !== null ? parseFloat(String(manual)) : null;
+      if (limpo === null || teorico === null || !Number.isFinite(teorico) || teorico <= 0) return null;
+      return limpo - teorico;
     }
     if (!(key in semana)) return null;
     const valor = semana[key as keyof CMVSemanal];
@@ -1049,17 +1054,18 @@ export default function CMVSemanalTabelaPage() {
       // RESULTADOS - Tooltips com cálculos detalhados
       case 'cmv_real': {
         // Usar soma dos detalhados ou total da planilha
-        const estIniDetalhado = (semana.estoque_inicial_cozinha || 0) + (semana.estoque_inicial_drinks || 0) + (semana.estoque_inicial_bebidas || 0);
-        const estoqueInicial = estIniDetalhado > 0 ? estIniDetalhado : (semana.estoque_inicial || 0);
-        
+        const estoqueInicial = semana.estoque_inicial || 0;
+
         const comprasDetalhado = (semana.compras_custo_comida || 0) + (semana.compras_custo_drinks || 0) + (semana.compras_custo_bebidas || 0);
         const compras = comprasDetalhado > 0 ? comprasDetalhado : (semana.compras_periodo || 0);
-        
-        const estFimDetalhado = (semana.estoque_final_cozinha || 0) + (semana.estoque_final_drinks || 0) + (semana.estoque_final_bebidas || 0);
-        const estoqueFinal = estFimDetalhado > 0 ? estFimDetalhado : (semana.estoque_final || 0);
+
+        const estoqueFinal = semana.estoque_final || 0;
         // 6 categorias: Sócios, Funcionários, Clientes, Artistas, RH, Chegadeira
         const consumosTotal = ((semana.total_consumo_socios || 0) * fatorCmv) + ((semana.mesa_adm_casa || 0) * fatorCmv) + ((semana.mesa_beneficios_cliente || 0) * fatorCmv) + ((semana.mesa_banda_dj || 0) * fatorCmv) + ((semana.mesa_rh || 0) * fatorCmv) + ((semana.chegadeira || 0) * fatorCmv);
-        const bonificacoes = (semana.bonificacao_contrato_anual || 0) + (semana.bonificacao_cashback_mensal || 0);
+        const bonifVal = (semana as unknown as Record<string, unknown>).bonificacoes;
+        const bonificacoes = bonifVal !== undefined && bonifVal !== null
+          ? parseFloat(String(bonifVal))
+          : ((semana.bonificacao_contrato_anual || 0) + (semana.bonificacao_cashback_mensal || 0));
         return [
           { label: 'Estoque Inicial', valor: estoqueInicial },
           { label: '(+) Compras', valor: compras },
@@ -1292,7 +1298,7 @@ export default function CMVSemanalTabelaPage() {
                             <div className="space-y-1">
                               <div className={cn("font-semibold text-sm", STATUS_COLORS[metrica.status].text)}>
                                 {metrica.status === 'auto' && 'Automático (Verificar)'}
-                                {metrica.status === 'manual' && (visao === 'mensal' && metrica.editavel && metrica.key !== 'bonificacao_contrato_anual' && metrica.key !== 'bonificacao_cashback_mensal' ? 'Soma Proporcional (Mensal)' : 'Manual (Editável)')}
+                                {metrica.status === 'manual' && (visao === 'mensal' && metrica.editavel && metrica.key !== 'bonificacoes' ? 'Soma Proporcional (Mensal)' : 'Manual (Editável)')}
                                 {metrica.status === 'calculado' && 'Calculado (Verificar)'}
                               </div>
                               <div className="text-xs text-gray-600 dark:text-gray-300">
@@ -1301,7 +1307,7 @@ export default function CMVSemanalTabelaPage() {
                               <div className="text-xs text-gray-600 dark:text-gray-300">
                                 <strong>Cálculo:</strong> {visao === 'mensal' && metrica.editavel ? 'Soma proporcional das semanas do mês' : metrica.calculo}
                               </div>
-                              {visao === 'mensal' && metrica.editavel && metrica.key !== 'bonificacao_contrato_anual' && metrica.key !== 'bonificacao_cashback_mensal' && (
+                              {visao === 'mensal' && metrica.editavel && metrica.key !== 'bonificacoes' && (
                                 <div className="text-xs text-amber-600 dark:text-amber-400 mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
                                   ⚠️ Para editar, use a visão Semanal
                                 </div>
@@ -1754,9 +1760,10 @@ export default function CMVSemanalTabelaPage() {
                                     {!isEditandoCell && metrica.editavel && (
                                       visao === 'semanal' ||
                                       (visao === 'mensal' && (
-                                        metrica.key === 'bonificacao_contrato_anual'
-                                        || metrica.key === 'bonificacao_cashback_mensal'
+                                        metrica.key === 'bonificacoes'
                                         || metrica.key === 'cmv_teorico_percentual'
+                                        || metrica.key === 'estoque_final'
+                                        || metrica.key === 'estoque_final_funcionarios'
                                       ))
                                     ) && (
                                       <Button

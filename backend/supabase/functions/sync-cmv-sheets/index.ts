@@ -517,13 +517,11 @@ serve(async (req) => {
             temDados = true
           }
           
-          // Estoque Final - aceitar valores >= 0
-          const estoqueFinalVal = rows[ROW_MAP.estoque_final]?.[col]
-          const estoqueFinalNum = parseMonetario(estoqueFinalVal)
-          if (estoqueFinalVal !== undefined && estoqueFinalNum >= 0) {
-            updateData.estoque_final = estoqueFinalNum
-            temDados = true
-          }
+          // ESTOQUE FINAL: 100% manual a partir de 2026-06 (decisão do sócio).
+          // Sync NÃO escreve mais estoque final — preenchido na tela. Histórico preservado
+          // (o que já estava gravado continua lá; só paramos de sobrescrever daqui pra frente).
+          // O estoque inicial continua propagando do estoque_final manual da semana anterior
+          // (ver bloco "PROPAGAÇÃO OBRIGATÓRIA DE ESTOQUE INICIAL" mais abaixo).
           
           // COMPRAS do período (linha 5) - FALTAVA!
           const comprasVal = rows[ROW_MAP.compras]?.[col]
@@ -579,24 +577,8 @@ serve(async (req) => {
             if (v > 0) { updateData.estoque_inicial_drinks = v; temDados = true }
           }
           
-          // ESTOQUE FINAL detalhado
-          const estFimCozinhaVal = rows[ROW_MAP.estoque_final_cozinha]?.[col]
-          if (estFimCozinhaVal !== undefined) {
-            const v = parseMonetario(estFimCozinhaVal)
-            if (v > 0) { updateData.estoque_final_cozinha = v; temDados = true }
-          }
-          
-          const estFimBebidasVal = rows[ROW_MAP.estoque_final_bebidas]?.[col]
-          if (estFimBebidasVal !== undefined) {
-            const v = parseMonetario(estFimBebidasVal)
-            if (v > 0) { updateData.estoque_final_bebidas = v; temDados = true }
-          }
-          
-          const estFimDrinksVal = rows[ROW_MAP.estoque_final_drinks]?.[col]
-          if (estFimDrinksVal !== undefined) {
-            const v = parseMonetario(estFimDrinksVal)
-            if (v > 0) { updateData.estoque_final_drinks = v; temDados = true }
-          }
+          // ESTOQUE FINAL detalhado (cozinha/bebidas/drinks): manual a partir de 2026-06.
+          // Sync NÃO escreve mais — preenchido na tela. Histórico preservado.
           
           // CONSUMOS (linhas 7-11 - usados na fórmula CMV)
           // Esses valores já têm o fator 35% aplicado na planilha
@@ -677,14 +659,8 @@ serve(async (req) => {
             // }
           }
 
-          const estFimFuncVal = rows[ROW_MAP.estoque_final_funcionarios]?.[col]
-          if (estFimFuncVal !== undefined) {
-            const v = parseMonetario(estFimFuncVal)
-            if (v >= 0) {
-              updateData.estoque_final_funcionarios = v
-              temDados = true
-            }
-          }
+          // ESTOQUE FINAL (F) alimentação: manual a partir de 2026-06.
+          // Sync NÃO escreve mais estoque_final_funcionarios — preenchido na tela. Histórico preservado.
 
           if (!temDados) continue
 

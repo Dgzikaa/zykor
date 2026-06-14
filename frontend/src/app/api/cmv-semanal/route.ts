@@ -228,11 +228,13 @@ export async function PUT(request: NextRequest) {
     // Campos permitidos para atualização
     const camposPermitidos = [
       'status', 'observacoes', 'responsavel',
-      'bonificacao_contrato_anual', 'bonificacao_cashback_mensal',
+      'bonificacao_contrato_anual', 'bonificacao_cashback_mensal', 'bonificacoes',
       'ajuste_bonificacoes', 'outros_ajustes',
       'consumo_rh', 'cmv_teorico_percentual', 'cmv_teorico_percentual_manual',
       'estoque_inicial_cozinha', 'estoque_inicial_bebidas', 'estoque_inicial_drinks',
       'estoque_final_cozinha', 'estoque_final_bebidas', 'estoque_final_drinks',
+      // Estoques finais manuais (2026-06): total insumos + alimentação funcionários
+      'estoque_final', 'estoque_final_funcionarios',
     ];
 
     const updateData: any = {

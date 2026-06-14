@@ -395,8 +395,9 @@ serve(async (req) => {
           //
           // Estoque inicial/final voltaram a ser lidos da planilha mensal (linhas 1 e 3) em
           // 2026-05-27 — agregar_cmv_mensal_auto PRESERVA esses valores quando fonte='planilha'.
-          updateData.estoque_inicial = parseMonetario(getVal(ROW_MAP.estoque_inicial, col))
-          updateData.estoque_final = parseMonetario(getVal(ROW_MAP.estoque_final, col))
+          // ESTOQUE inicial/final: manual a partir de 2026-06 — sync NÃO escreve mais.
+          // O agregador deriva do semanal (ou preserva o manual: fonte IN planilha/manual).
+          // Histórico preservado (o que já estava gravado continua lá).
           updateData.compras = parseMonetario(getVal(ROW_MAP.compras, col))
           updateData.consumo_socios = parseMonetario(getVal(ROW_MAP.consumo_socios, col))
           updateData.consumo_beneficios = parseMonetario(getVal(ROW_MAP.consumo_beneficios, col))
@@ -410,25 +411,15 @@ serve(async (req) => {
           // CALCULADOS (cmv_real, fat_cmvivel, cmv_limpo_pct, gap, fat_total, cmv_real_pct)
           // sao recalculados pelo agregador chamado abaixo. Nao escrever da planilha.
           
-          // CMA — Custo de Alimentação (lê do Sheet linhas 39-41, 0-indexed 38-40)
-          const estIniFuncIdx = ROW_MAP.estoque_inicial_func ?? -1
-          const comprasAlimIdx = ROW_MAP.compras_alimentacao ?? -1
-          const estFimFuncIdx = ROW_MAP.estoque_final_func ?? -1
-          updateData.estoque_inicial_funcionarios = parseMonetario(getVal(estIniFuncIdx, col))
-          updateData.compras_alimentacao = parseMonetario(getVal(comprasAlimIdx, col))
-          updateData.estoque_final_funcionarios = parseMonetario(getVal(estFimFuncIdx, col))
-          // CMA total recalculado: compras + est_ini - est_fim
-          updateData.cma_total = updateData.compras_alimentacao
-            + updateData.estoque_inicial_funcionarios
-            - updateData.estoque_final_funcionarios
+          // CMA alimentação: estoque inicial/final (F) manual a partir de 2026-06 — sync NÃO escreve.
+          // compras_alimentacao e cma_total são recalculados pelo agregador (ContaAzul/silver).
+          // Estoque (F) preservado (manual/histórico) pelo agregador. Histórico preservado.
           
           // Fonte dos dados
           updateData.fonte = 'planilha'
 
           // Verificar se tem dados válidos (so campos de INPUT que escrevemos)
           const temDados = updateData.compras !== 0 ||
-                          updateData.estoque_inicial !== 0 ||
-                          updateData.estoque_final !== 0 ||
                           updateData.consumo_socios !== 0 ||
                           updateData.consumo_beneficios !== 0 ||
                           updateData.consumo_artista !== 0

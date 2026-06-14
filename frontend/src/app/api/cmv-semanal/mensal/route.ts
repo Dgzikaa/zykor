@@ -206,6 +206,10 @@ export async function GET(request: NextRequest) {
         ajuste_bonificacoes: parseFloat(String(cmvMensal.ajuste_bonificacoes || 0)),
         bonificacao_contrato_anual: parseFloat(String(cmvMensal.bonificacao_contrato_anual || 0)),
         bonificacao_cashback_mensal: parseFloat(String(cmvMensal.bonificacao_cashback_mensal || 0)),
+        // Campo único de bonificações (fallback p/ soma dos legados não migrados)
+        bonificacoes: cmvMensal.bonificacoes !== null && cmvMensal.bonificacoes !== undefined
+          ? parseFloat(String(cmvMensal.bonificacoes))
+          : (parseFloat(String(cmvMensal.bonificacao_contrato_anual || 0)) + parseFloat(String(cmvMensal.bonificacao_cashback_mensal || 0))),
         cmv_real: cmvRealEfetivo,
         cmv_limpo_percentual: cmvLimpoPctEfetivo,
         cmv_teorico_percentual: parseFloat(String(cmvMensal.cmv_teorico_percentual || 0)),
@@ -714,7 +718,7 @@ export async function PUT(request: NextRequest) {
       'consumo_socios', 'consumo_beneficios', 'consumo_artista',
       'consumo_rh_operacao', 'consumo_rh_escritorio',
       'outros_ajustes', 'ajuste_bonificacoes',
-      'bonificacao_contrato_anual', 'bonificacao_cashback_mensal',
+      'bonificacao_contrato_anual', 'bonificacao_cashback_mensal', 'bonificacoes',
       'estoque_inicial', 'estoque_final', 'compras',
       'estoque_inicial_funcionarios', 'estoque_final_funcionarios', 'compras_alimentacao',
     ];
@@ -746,6 +750,18 @@ export async function PUT(request: NextRequest) {
         { error: 'Erro ao salvar CMV mensal', details: error.message },
         { status: 500 }
       );
+    }
+
+    // Recalcular cmv_real/percentuais com o valor manual recém-salvo.
+    // O agregador preserva estoque/bonificações manuais (fonte='manual') e recomputa
+    // compras (bronze/competência) + consumos. Sem isso, a edição manual não refletiria
+    // no CMV R$ até o próximo "Atualizar".
+    try {
+      await (supabase as any).rpc('agregar_cmv_mensal_auto', {
+        p_bar_id: bar_id, p_ano: ano, p_mes: mes,
+      });
+    } catch (aggErr) {
+      console.warn('agregar_cmv_mensal_auto após PUT mensal falhou:', aggErr);
     }
 
     return NextResponse.json({

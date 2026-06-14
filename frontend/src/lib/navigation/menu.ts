@@ -80,6 +80,7 @@ export const MENU_TREE: MenuSection[] = [
     subItems: [
       { icon: 'Calendar', label: 'Agendamentos', href: '/financeiro/agendamentos', permission: 'financeiro_agendamento' },
       { icon: 'Receipt', label: 'Pedidos de Pagamento', href: '/financeiro/pedidos-pagamento', permission: 'home' },
+      { icon: 'FileSearch', label: 'Consultas ContaAzul', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
     ],
   },
   {
@@ -103,7 +104,6 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Users', label: 'CMO - Mão de Obra', href: '/ferramentas/cmo', permission: 'gestao' },
       { icon: 'Tag', label: 'Classificação de Consumos', href: '/ferramentas/consumos-classificacao', permission: 'gestao' },
       { icon: 'AlertTriangle', label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
-      { icon: 'FileSearch', label: 'Consultas', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
       { icon: 'AlertTriangle', label: 'Cancelamentos', href: '/ferramentas/cancelamentos', permission: 'gestao' },
       { icon: 'PieChart', label: 'Mix & Margem', href: '/ferramentas/mix-categoria', permission: 'gestao' },
     ],
