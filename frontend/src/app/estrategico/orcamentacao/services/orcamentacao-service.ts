@@ -94,9 +94,6 @@ export interface MesOrcamento {
 
 // ==================== CONFIGURAÇÃO ====================
 
-// Canais de venda do Conta Azul que compõem o Faturamento realizado.
-const CANAIS_VENDA = ['Stone Crédito', 'Stone Débito', 'Stone Pix', 'Pix Direto na Conta', 'Dinheiro'];
-
 type SubFixa = {
   nome: string;
   gold?: string[];   // categorias_zykor do gold que somam nessa linha
@@ -251,20 +248,15 @@ export async function getOrcamentacaoCompleta(
   const planilhaMap = new Map<string, OrcamentoPlanilhaRow>();
   dadosPlanilha.forEach(p => planilhaMap.set(`${p.ano}-${p.mes}-${p.categoria_nome}`, p));
 
-  // Index gold por (ano, mes, categoria_zykor) -> net e soma por bloco e por canal de venda.
+  // Index gold por (ano, mes, categoria_zykor) -> net e soma por bloco_dre.
   const goldCatMap = new Map<string, number>();
   const goldBlocoMap = new Map<string, number>();
-  const fatRealMap = new Map<string, number>();
   dadosGold.forEach(g => {
     const net = num(g.net);
     goldCatMap.set(`${g.ano}-${g.mes}-${g.categoria_zykor}`, (goldCatMap.get(`${g.ano}-${g.mes}-${g.categoria_zykor}`) || 0) + net);
     if (g.bloco_dre) {
       const bk = `${g.ano}-${g.mes}-${g.bloco_dre}`;
       goldBlocoMap.set(bk, (goldBlocoMap.get(bk) || 0) + net);
-    }
-    if (CANAIS_VENDA.includes(g.categoria_zykor)) {
-      const fk = `${g.ano}-${g.mes}`;
-      fatRealMap.set(fk, (fatRealMap.get(fk) || 0) + net);
     }
   });
 
@@ -284,10 +276,13 @@ export async function getOrcamentacaoCompleta(
     const planilha = (cat: string) => planilhaMap.get(`${ano}-${mes}-${cat}`);
     const goldCat = (cat: string) => goldCatMap.get(`${ano}-${mes}-${cat}`) || 0;
 
-    // Faturamento Meta
+    // Faturamento Meta.
+    // Real = TODA a receita do Conta Azul no mês (bloco 'Receita': Stone Créd/Déb/Pix
+    // + Pix Direto + Dinheiro + Receita de Eventos + Outras Receitas). É a mesma base
+    // de receita que a DRE usa pra calcular os % de Variáveis e CMV.
     const fatPlan = num(planilha('FATURAMENTO META')?.valor_planejado);
     const fatProj = m1Map.get(`${ano}-${mes}`) || 0;
-    const fatReal = fatRealMap.get(`${ano}-${mes}`) || 0;
+    const fatReal = goldBlocoMap.get(`${ano}-${mes}-Receita`) || 0;
 
     const categorias: CategoriaOrcamento[] = ESTRUTURA.map(bloco => {
       if (bloco.modo === 'percentual') {

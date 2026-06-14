@@ -88,10 +88,10 @@ const ESPECIAIS: Record<string, OrigemLinha> = {
       obs: 'Apenas eventos ativos (ativo = true).',
     },
     realizado: {
-      fonte: 'Conta Azul (entradas)',
+      fonte: 'Conta Azul (toda a receita do mês)',
       tabela: 'gold.orcamento_realizado_mensal ← bronze.bronze_contaazul_lancamentos',
-      campo: 'Σ net dos canais de venda',
-      obs: 'Stone Crédito + Débito + Pix + Pix Direto + Dinheiro.',
+      campo: 'Σ net do bloco Receita',
+      obs: 'Stone Créd/Déb/Pix + Pix Direto + Dinheiro + Receita de Eventos + Outras Receitas. Base dos % de Var/CMV.',
     },
   },
   '% CONTRIB': {
