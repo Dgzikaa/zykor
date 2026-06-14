@@ -26,9 +26,8 @@ export interface OrigemLinha {
 
 // Subcategorias cujo REALIZADO é digitado na tela (bolinha azul), não vem do CA.
 export const SUBCATEGORIAS_MANUAIS = new Set<string>([
-  'CONTRATOS',
-  'Receitas Financeiras',
-  'Outras Receitas',
+  'Marketing Mídia', 'MKT Disparos', 'MKT Programa de Pontos', 'MKT Beneficios',
+  'Produção Mensal Fixo', 'Receitas Financeiras', 'CONTRATOS',
 ]);
 
 // --- Blocos genéricos reutilizados ---
@@ -76,7 +75,7 @@ const ESPECIAIS: Record<string, OrigemLinha> = {
   },
   'Faturamento Meta': {
     titulo: 'Faturamento Meta',
-    descricao: 'Meta de faturamento do mês (referência do Empilhamento M1).',
+    descricao: 'A única linha de receita da Orçamentação (o detalhe por meio de recebimento fica na DRE).',
     planejado: {
       fonte: 'Planilha',
       tabela: 'meta.orcamento_planilha',
@@ -89,76 +88,89 @@ const ESPECIAIS: Record<string, OrigemLinha> = {
       obs: 'Apenas eventos ativos (ativo = true).',
     },
     realizado: {
-      fonte: 'ContaHub + Sympla + Yuzer',
-      tabela: 'eventos_base',
-      campo: 'Σ real_r dos eventos do mês',
-      obs: 'real_r consolidado por calculate_evento_metrics.',
+      fonte: 'Conta Azul (entradas)',
+      tabela: 'gold.orcamento_realizado_mensal ← bronze.bronze_contaazul_lancamentos',
+      campo: 'Σ net dos canais de venda',
+      obs: 'Stone Crédito + Débito + Pix + Pix Direto + Dinheiro.',
     },
   },
   '% CONTRIB': {
     titulo: '% Contribuição (Margem de Contribuição)',
     descricao: 'Quanto sobra de cada R$ vendido após os custos variáveis.',
     calculo:
-      'MC = 1 − (Custos Variáveis + CMV) ÷ Receita Operacional. Receita Op = bloco "Receita" (Stone/Pix/Dinheiro/Eventos/Outras). Não inclui Não Operacionais.',
+      'MC = 1 − (Custos Variáveis % + CMV %). Os dois % editáveis nas linhas de Variáveis e CMV.',
   },
   BreakEven: {
     titulo: 'BreakEven (Ponto de Equilíbrio)',
     descricao: 'Faturamento necessário pra cobrir as despesas fixas.',
     calculo: 'BreakEven = Real Fixo ÷ % Contribuição (Margem de Contribuição).',
   },
-  EBITDA: {
-    titulo: 'EBITDA',
-    descricao: 'Resultado operacional do mês.',
+  'Lucro Líquido': {
+    titulo: 'Lucro Líquido',
+    descricao: 'Resultado do mês na Orçamentação.',
     calculo:
-      'Receita Operacional + Não Operacionais − todas as despesas (variáveis + CMV + fixas). Cada componente segue a fonte da sua linha.',
+      'Faturamento + Não Operacionais − Custos Variáveis − CMV − Real Fixo. Cada componente segue a fonte da sua linha.',
   },
   Margem: {
-    titulo: 'Margem EBITDA',
-    descricao: 'Rentabilidade operacional.',
-    calculo: 'Margem = EBITDA ÷ Receita Operacional × 100.',
+    titulo: 'Margem',
+    descricao: 'Rentabilidade do mês.',
+    calculo: 'Margem = Lucro Líquido ÷ Faturamento × 100.',
   },
 
-  // ===== Headers de categoria (linha colapsada mostra a soma) =====
-  Receita: {
-    titulo: 'Receita',
-    descricao: 'Receita operacional bruta por meio de recebimento.',
-    calculo: 'Planejado/Realizado = soma das subcategorias. Projetado = Empilhamento M1 (no nível do bloco).',
-    planejado: PLANEJADO_PADRAO,
-    projetado: {
-      fonte: 'Planejamento Comercial (Empilhamento M1)',
-      tabela: 'eventos_base',
-      campo: 'Σ m1_r dos eventos do mês',
-      obs: 'No nível do bloco (não por meio de recebimento). Mesma fonte do Faturamento Meta.',
-    },
-    realizado: REALIZADO_CA,
-  },
+  // ===== Blocos % (Variáveis / CMV) =====
   'Custos Variáveis': {
-    titulo: 'Custos Variáveis',
-    descricao: 'Custos que crescem junto com a venda.',
-    calculo: 'Projetado em % da Receita projetada (M1): R$ = % × M1. Planejado/Realizado = soma das subcategorias.',
-    planejado: PLANEJADO_PADRAO,
+    titulo: 'Custos Variáveis (IMPOSTO / Tx Maq / Comissão)',
+    descricao: 'Custos que crescem junto com a venda. Na Orçamentação entra só como %.',
+    calculo: 'R$ = % × Faturamento. Compõe a Margem de Contribuição.',
+    planejado: {
+      fonte: 'Planilha (% editável na tela)',
+      tabela: 'meta.orcamento_planilha',
+      campo: "valor_planejado (categoria 'Custos Variáveis', em %)",
+    },
     projetado: {
-      fonte: 'Planilha (% input manual na tela)',
+      fonte: 'Planilha (% editável na tela)',
       tabela: 'meta.orcamento_planilha',
       campo: "valor_projetado (categoria 'Custos Variáveis', em %)",
-      obs: 'Valor em R$ = % × Receita projetada (M1). Compõe a Margem de Contribuição.',
-    },
-    realizado: REALIZADO_CA,
-  },
-  'Custo insumos (CMV)': {
-    titulo: 'Custo de Mercadoria Vendida (CMV)',
-    descricao: 'Custo dos insumos vendidos.',
-    calculo: 'Projetado em % da Receita projetada (M1): R$ = % × M1. Planejado/Realizado = soma das subcategorias.',
-    planejado: PLANEJADO_PADRAO,
-    projetado: {
-      fonte: 'Planilha (% input manual na tela)',
-      tabela: 'meta.orcamento_planilha',
-      campo: "valor_projetado (categoria 'Custo insumos (CMV)', em %)",
-      obs: 'Valor em R$ = % × Receita projetada (M1). Compõe a Margem de Contribuição.',
     },
     realizado: {
+      fonte: 'DRE (Conta Azul)',
+      tabela: 'gold.orcamento_realizado_mensal (bloco Custos Variáveis)',
+      campo: 'Σ net (IMPOSTO + Comissão + Tx Maq) ÷ Faturamento realizado',
+      obs: 'O % realizado vem da DRE.',
+    },
+  },
+  'Custo insumos (CMV)': {
+    titulo: 'CMV',
+    descricao: 'Custo dos insumos vendidos. Na Orçamentação entra só como %.',
+    calculo: 'R$ = % × Faturamento. Compõe a Margem de Contribuição.',
+    planejado: {
+      fonte: 'Planilha (% editável na tela)',
+      tabela: 'meta.orcamento_planilha',
+      campo: "valor_planejado (categoria 'Custo insumos (CMV)', em %)",
+    },
+    projetado: {
+      fonte: 'Planilha (% editável na tela)',
+      tabela: 'meta.orcamento_planilha',
+      campo: "valor_projetado (categoria 'Custo insumos (CMV)', em %)",
+    },
+    realizado: {
+      fonte: 'DRE (Conta Azul)',
+      tabela: 'gold.orcamento_realizado_mensal (bloco Custo insumos (CMV))',
+      campo: 'Σ net (Custo Drinks/Bebidas/Comida/Outros) ÷ Faturamento realizado',
+      obs: 'O % realizado vem da DRE.',
+    },
+  },
+
+  // ===== Linhas com fonte especial =====
+  'CUSTO-EMPRESA FUNCIONÁRIOS': {
+    titulo: 'Custo-Empresa Funcionários',
+    descricao: 'Custo total do funcionário CLT.',
+    calculo: 'Realizado = SALÁRIO + ALIMENTAÇÃO + PROVISÃO TRABALHISTA + VALE TRANSPORTE (somados do Conta Azul).',
+    planejado: PLANEJADO_PADRAO,
+    projetado: PROJETADO_PADRAO,
+    realizado: {
       ...REALIZADO_CA,
-      obs: 'Lançamentos de custo no CA. Referência cruzada: financial.cmv_semanal.',
+      campo: 'Σ net das 4 categorias CA agregadas',
     },
   },
   'Não Operacionais': {
@@ -169,38 +181,16 @@ const ESPECIAIS: Record<string, OrigemLinha> = {
     projetado: PROJETADO_PADRAO,
     realizado: REALIZADO_MANUAL,
   },
-
-  // ===== Subcategorias com fonte especial =====
-  'Receita de Eventos': {
-    titulo: 'Receita de Eventos',
-    descricao: 'Receita registrada no Conta Azul como evento.',
-    planejado: PLANEJADO_PADRAO,
-    projetado: PROJETADO_PADRAO,
-    realizado: {
-      ...REALIZADO_CA,
-      obs: "Categoria CA 'Receita de Eventos'. O faturamento real dos eventos (ContaHub) está em 'Faturamento Meta'.",
-    },
-  },
   CONTRATOS: {
     titulo: 'Contratos',
-    descricao: 'Cashback/bonificações Ambev e contratos anuais.',
-    planejado: PLANEJADO_PADRAO,
-    projetado: PROJETADO_PADRAO,
-    realizado: {
-      ...REALIZADO_MANUAL,
-      obs: 'Cashback Ambev calculado pelo sócio fora do CA. + lançamentos de cashback em financial.dre_manual.',
-    },
-  },
-  'Receitas Financeiras': {
-    titulo: 'Receitas Financeiras',
-    descricao: 'Rendimentos e juros recebidos.',
+    descricao: 'Cashback/bonificações Ambev e contratos anuais. 100% manual.',
     planejado: PLANEJADO_PADRAO,
     projetado: PROJETADO_PADRAO,
     realizado: REALIZADO_MANUAL,
   },
-  'Outras Receitas': {
-    titulo: 'Outras Receitas',
-    descricao: 'Ajustes de receita não registrados no CA.',
+  'Receitas Financeiras': {
+    titulo: 'Receitas Financeiras',
+    descricao: 'Rendimentos e juros recebidos. 100% manual.',
     planejado: PLANEJADO_PADRAO,
     projetado: PROJETADO_PADRAO,
     realizado: REALIZADO_MANUAL,

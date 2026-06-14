@@ -51,12 +51,12 @@ interface OrcamentacaoClientProps {
 //   CONTRATOS: cashback Ambev calculado pelo socio fora do CA.
 //   Receitas Financeiras: socio preenche manual.
 //   Outras Receitas: socio faz ajustes nao registrados no CA.
-const SUBCATEGORIAS_MANUAIS = new Set<string>(['CONTRATOS', 'Receitas Financeiras', 'Outras Receitas']);
-
-// Blocos cujo PROJETADO é editado/exibido no nível do bloco (não na subcategoria):
-//   Receita -> vem do Empilhamento M1 (read-only)
-//   Custos Variáveis / CMV -> % da receita projetada (editável como %)
-const BLOCOS_PROJ_ESPECIAL = new Set<string>(['Receita', 'Custos Variáveis', 'Custo insumos (CMV)']);
+// Subcategorias com Realizado MANUAL (digitado na tela) — não vêm do Conta Azul.
+// Linhas de marketing/produção que não são lançadas no CA + Não Operacionais.
+const SUBCATEGORIAS_MANUAIS = new Set<string>([
+  'Marketing Mídia', 'MKT Disparos', 'MKT Programa de Pontos', 'MKT Beneficios',
+  'Produção Mensal Fixo', 'Receitas Financeiras', 'CONTRATOS',
+]);
 
 // Formatadores
 const formatarMoeda = (valor: number | null | undefined): string => {
@@ -231,13 +231,12 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
     const map = new Map<string, { totPlan: number; totProj: number; totReal: number }>();
     meses.forEach((mes, idxMes) => {
       mes.categorias.forEach(cat => {
-        let totPlan = 0, totReal = 0;
+        let totPlan = 0, totProj = 0, totReal = 0;
         for (const sub of cat.subcategorias) {
           totPlan += sub.planejado;
+          totProj += sub.projecao;
           totReal += sub.realizado;
         }
-        // Projetado é por bloco (M1 / % / soma das subs) — já resolvido no service.
-        const totProj = cat.projecaoValor ?? cat.subcategorias.reduce((s, x) => s + x.projecao, 0);
         map.set(`${idxMes}::${cat.nome}`, { totPlan, totProj, totReal });
       });
     });
@@ -328,34 +327,43 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
             </div>
             {meses.length > 0 && meses[0].categorias.map(categoria => (
               <div key={categoria.nome}>
-                <div className={cn("flex items-center gap-2 px-2 cursor-pointer", categoria.cor)} style={{ height: '32px' }} onClick={() => toggleSecao(categoria.nome)}>
-                  {secoesAbertas[categoria.nome] ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                  <OrigemTooltip nome={categoria.nome} className="text-[10px] font-semibold truncate">{categoria.nome}</OrigemTooltip>
-                </div>
-                {secoesAbertas[categoria.nome] && categoria.subcategorias.map(sub => {
-                  const isManual = SUBCATEGORIAS_MANUAIS.has(sub.nome);
-                  return (
-                    <div
-                      key={sub.nome}
-                      className="flex items-center gap-1.5 px-2 pl-5 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 hover:dark:bg-gray-700/50"
-                      style={{ height: '28px' }}
-                    >
-                      <div
-                        className={cn(
-                          'w-2 h-2 rounded-full flex-shrink-0',
-                          isManual ? 'bg-blue-500' : 'bg-green-500'
-                        )}
-                      />
-                      <OrigemTooltip nome={sub.nome} className="text-[10px] text-gray-700 dark:text-gray-300 truncate">{sub.nome}</OrigemTooltip>
+                {categoria.modoPercentual ? (
+                  // Blocos % (Variáveis / CMV): 1 linha só, sem expandir.
+                  <div className={cn("flex items-center gap-2 px-2 border-b border-gray-200", categoria.cor)} style={{ height: '32px' }}>
+                    <OrigemTooltip nome={categoria.nome} className="text-[10px] font-semibold truncate">{categoria.nome} (%)</OrigemTooltip>
+                  </div>
+                ) : (
+                  <>
+                    <div className={cn("flex items-center gap-2 px-2 cursor-pointer", categoria.cor)} style={{ height: '32px' }} onClick={() => toggleSecao(categoria.nome)}>
+                      {secoesAbertas[categoria.nome] ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                      <OrigemTooltip nome={categoria.nome} className="text-[10px] font-semibold truncate">{categoria.nome}</OrigemTooltip>
                     </div>
-                  );
-                })}
+                    {secoesAbertas[categoria.nome] && categoria.subcategorias.map(sub => {
+                      const isManual = SUBCATEGORIAS_MANUAIS.has(sub.nome);
+                      return (
+                        <div
+                          key={sub.nome}
+                          className="flex items-center gap-1.5 px-2 pl-5 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 hover:dark:bg-gray-700/50"
+                          style={{ height: '28px' }}
+                        >
+                          <div
+                            className={cn(
+                              'w-2 h-2 rounded-full flex-shrink-0',
+                              isManual ? 'bg-blue-500' : 'bg-green-500'
+                            )}
+                          />
+                          <OrigemTooltip nome={sub.nome} className="text-[10px] text-gray-700 dark:text-gray-300 truncate">{sub.nome}</OrigemTooltip>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
               </div>
             ))}
-            {/* EBITDA + Margem (rodapé) */}
+            {/* Lucro Líquido + Margem (rodapé) */}
             <div className="flex items-center gap-2 px-2 border-t-2 border-emerald-300 bg-emerald-100 dark:bg-emerald-900/30" style={{ height: '36px' }}>
               <DollarSign className="w-3 h-3 text-emerald-700" />
-              <OrigemTooltip nome="EBITDA" className="text-[10px] font-bold text-emerald-800">EBITDA</OrigemTooltip>
+              <OrigemTooltip nome="Lucro Líquido" className="text-[10px] font-bold text-emerald-800">Lucro Líquido</OrigemTooltip>
             </div>
             <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-emerald-50 dark:bg-emerald-900/20" style={{ height: '28px' }}>
               <OrigemTooltip nome="Margem" className="text-[10px] font-bold text-emerald-700">Margem</OrigemTooltip>
@@ -427,41 +435,60 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                         if (isReceita) corClasseReal = totReal >= totPlan ? 'text-emerald-600' : 'text-red-600';
                         else corClasseReal = totReal <= totPlan ? 'text-emerald-600' : 'text-red-600';
                       }
-                      // Projetado por BLOCO: Receita = M1 (read-only); Variáveis/CMV = % (editável).
-                      const especialProj = BLOCOS_PROJ_ESPECIAL.has(categoria.nome);
-                      const isPercentBloco = categoria.projecaoTipo === 'percentual';
-                      const isEditProjBloco = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === categoria.nome && editando?.campo === 'projetado';
+
+                      // ---- Bloco % (Custos Variáveis / CMV): 1 linha; Plan% e Proj% editáveis; Real% da DRE ----
+                      if (categoria.modoPercentual) {
+                        const pct = categoria.percentual ?? { plan: 0, proj: 0, real: 0 };
+                        const isEditPlanPct = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === categoria.nome && editando?.campo === 'planejado';
+                        const isEditProjPct = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === categoria.nome && editando?.campo === 'projetado';
+                        return (
+                          <div key={categoria.nome} className={cn("flex items-center justify-between px-1 border-b border-gray-200", categoria.cor, "bg-opacity-60 dark:bg-opacity-30")} style={{ height: '32px' }}>
+                            {/* PLAN % */}
+                            <div className="flex-1 flex items-center justify-center">
+                              {isEditPlanPct ? (
+                                <div className="flex items-center gap-0.5">
+                                  <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                                  <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
+                                  <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: categoria.nome, campo: 'planejado' }); setValorEdit(String(pct.plan)); }}>
+                                  <span className="text-[10px] font-bold whitespace-nowrap text-blue-700 dark:text-blue-300">{formatarPorcentagem(pct.plan)}</span>
+                                  <Pencil className="h-2 w-2 text-blue-500" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="w-px h-3 bg-white/40" />
+                            {/* PROJ % */}
+                            <div className="flex-1 flex items-center justify-center">
+                              {isEditProjPct ? (
+                                <div className="flex items-center gap-0.5">
+                                  <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                                  <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
+                                  <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-0.5 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: categoria.nome, campo: 'projetado' }); setValorEdit(String(pct.proj)); }}>
+                                  <span className="text-[10px] font-bold whitespace-nowrap text-green-700 dark:text-green-300">{formatarPorcentagem(pct.proj)}</span>
+                                  <Pencil className="h-2 w-2 text-green-500" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="w-px h-3 bg-white/40" />
+                            {/* REAL % (vem da DRE) */}
+                            <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-gray-900 dark:text-white" title="Realizado vem da DRE (Conta Azul ÷ faturamento realizado)">{formatarPorcentagem(pct.real)}</span>
+                          </div>
+                        );
+                      }
+
+                      // ---- Blocos fixos (R$): header colapsado mostra a soma; expandido mostra subcategorias ----
                       return (
                       <div key={categoria.nome}>
-                        {(!aberta || especialProj) ? (
+                        {!aberta ? (
                           <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", categoria.cor, "bg-opacity-60 dark:bg-opacity-30")} style={{ height: '32px' }}>
                             <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-blue-700 dark:text-blue-300">{formatarMoeda(sinalDre(totPlan, categoria.tipo))}</span>
                             <div className="w-px h-3 bg-white/40" />
-                            {/* PROJETADO do bloco */}
-                            <div className="flex-1 flex items-center justify-center">
-                              {especialProj && isPercentBloco ? (
-                                isEditProjBloco ? (
-                                  <div className="flex items-center gap-0.5">
-                                    <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
-                                    <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
-                                    <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
-                                  </div>
-                                ) : (
-                                  <div
-                                    className="flex items-center gap-0.5 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded px-0.5"
-                                    title={`% da Receita projetada → ${formatarMoeda(categoria.projecaoValor ?? 0)}`}
-                                    onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: categoria.nome, campo: 'projetado' }); setValorEdit(String(categoria.projecaoPercentual ?? 0)); }}
-                                  >
-                                    <span className="text-[10px] font-bold whitespace-nowrap text-green-700 dark:text-green-300">{formatarPorcentagem(categoria.projecaoPercentual ?? 0)}</span>
-                                    <Pencil className="h-2 w-2 text-green-500" />
-                                  </div>
-                                )
-                              ) : especialProj && categoria.projecaoTipo === 'm1' ? (
-                                <span className="text-[10px] font-bold whitespace-nowrap text-green-700 dark:text-green-300" title="Projetado = Empilhamento M1 (Σ m1_r dos eventos do mês)">{formatarMoeda(totProj)}</span>
-                              ) : (
-                                <span className="text-[10px] font-bold whitespace-nowrap text-green-700 dark:text-green-300">{formatarMoeda(sinalDre(totProj, categoria.tipo))}</span>
-                              )}
-                            </div>
+                            <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-green-700 dark:text-green-300">{formatarMoeda(sinalDre(totProj, categoria.tipo))}</span>
                             <div className="w-px h-3 bg-white/40" />
                             <span className={cn("flex-1 text-[10px] font-bold text-center whitespace-nowrap", corClasseReal)}>{formatarMoeda(sinalDre(totReal, categoria.tipo))}</span>
                           </div>
@@ -492,13 +519,9 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                                 )}
                               </div>
                               <div className="w-px h-3 bg-gray-200" />
-                              {/* PROJETADO - editável + tooltip histórico.
-                                  Nos blocos especiais (Receita/Variáveis/CMV) o projetado é no
-                                  nível do bloco (M1 / %), então a subcategoria mostra "—". */}
+                              {/* PROJETADO - editável + tooltip histórico */}
                               <div className="flex-1 flex items-center justify-center relative group/proj">
-                                {especialProj ? (
-                                  <span className="text-[10px] text-gray-300 dark:text-gray-600" title="Projetado definido no nível do bloco (M1 / %)">—</span>
-                                ) : isEditProj ? (
+                                {isEditProj ? (
                                   <div className="flex items-center gap-0.5">
                                     <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
                                     <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
