@@ -102,6 +102,8 @@ type SubFixa = {
   // editável inline. NÃO vai pra DRE. Pra linhas que não existem no Conta Azul
   // (MKT Disparos/Pontos/Benefícios, Produção Mensal Fixo).
   orcOnly?: boolean;
+  // Realizado = soma mensal da Consumação Artistas (silver.consumacao_artistas).
+  consumacaoArtistas?: boolean;
 };
 
 type BlocoDef =
@@ -148,6 +150,7 @@ const ESTRUTURA: BlocoDef[] = [
       { nome: 'Atrações Programação', gold: ['Atrações Programação'] },
       { nome: 'Produção Mensal Fixo', orcOnly: true },
       { nome: 'Produção Eventos', gold: ['Produção Eventos'] },
+      { nome: 'Consumação Artistas', consumacaoArtistas: true },
     ]
   },
   {
@@ -230,7 +233,7 @@ export async function getOrcamentacaoCompleta(
   const dataInicio = `${primeiro.ano}-${String(primeiro.mes).padStart(2, '0')}-01`;
   const dataFim = `${ultimo.ano}-${String(ultimo.mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
 
-  const [planilhaResult, goldResult, eventosResult, manuaisResult] = await Promise.all([
+  const [planilhaResult, goldResult, eventosResult, manuaisResult, consumacaoResult] = await Promise.all([
     supabase
       .from('orcamento_planilha')
       .select('ano, mes, categoria_nome, valor_planejado, valor_projetado, valor_realizado_manual')
@@ -251,12 +254,28 @@ export async function getOrcamentacaoCompleta(
       .select('valor, categoria, categoria_macro, data_competencia')
       .eq('bar_id', barId)
       .gte('data_competencia', dataInicio).lte('data_competencia', dataFim),
+    // Consumação Artistas (comp do ContaHub) por dia — soma mensal vira linha na orçamentação.
+    (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema('silver')
+      .from('consumacao_artistas')
+      .select('data, valor')
+      .eq('bar_id', barId)
+      .gte('data', dataInicio).lte('data', dataFim),
   ]);
 
   const dadosPlanilha = (planilhaResult.data || []) as OrcamentoPlanilhaRow[];
   const dadosGold = (goldResult.data || []) as Array<{ ano: number; mes: number; categoria_zykor: string; bloco_dre: string | null; net: number | string }>;
   const eventosBase = (eventosResult.data || []) as Array<{ m1_r: number | null; real_r: number | null; data_evento: string }>;
   const dadosManuais = ((manuaisResult as { data?: unknown }).data || []) as Array<{ valor: number | string; categoria: string | null; categoria_macro: string | null; data_competencia: string }>;
+  const dadosConsumacao = ((consumacaoResult as { data?: unknown }).data || []) as Array<{ data: string; valor: number | string }>;
+
+  // Consumação Artistas: soma mensal por (ano-mes).
+  const consumacaoMesMap = new Map<string, number>();
+  dadosConsumacao.forEach(c => {
+    if (!c.data) return;
+    const [a, mm] = c.data.split('-');
+    const k = `${parseInt(a)}-${parseInt(mm)}`;
+    consumacaoMesMap.set(k, (consumacaoMesMap.get(k) || 0) + num(c.valor));
+  });
 
   // Index planilha por (ano, mes, categoria_nome)
   const planilhaMap = new Map<string, OrcamentoPlanilhaRow>();
@@ -351,7 +370,9 @@ export async function getOrcamentacaoCompleta(
         //   demais  -> Conta Azul (gold) + ajustes da DRE Manual. dre_manual usa sinal de
         //              impacto no lucro: receita soma; despesa subtrai.
         let real: number;
-        if (s.orcOnly) {
+        if (s.consumacaoArtistas) {
+          real = consumacaoMesMap.get(`${ano}-${mes}`) || 0;
+        } else if (s.orcOnly) {
           real = num(prow?.valor_realizado_manual);
         } else {
           const goldVal = (s.gold || []).reduce((sum, g) => sum + goldCat(g), 0);

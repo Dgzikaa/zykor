@@ -1,0 +1,15 @@
+-- 2026-06-15 — Consumação Artistas + projeção pré-lançada de c_art/c_prod. Aplicado via MCP.
+--
+-- Consumação Artistas: comp de consumo dado a artistas = SUM(vd_vrdescontos) onde
+-- vd_motivodesconto='Artistas' no periodo do ContaHub (recém-padronizado).
+--   - silver.consumacao_artistas (view: bar_id, data, valor).
+--   - public.consumacao_artistas_mes(bar, ano, mes) -> soma mensal.
+--   - orçamentação: nova linha "Consumação Artistas" sob Produção Eventos (Despesas
+--     Comerciais => conta no Real Fixo, por decisão do sócio). Realizado = soma mensal.
+--
+-- Projeção pré-lançada (até vir o real do Conta Azul):
+--   - operations.eventos_base.c_art_projecao, c_prod_projecao (numeric).
+--   - public.projetar_custos_pre_lancado(bar, ini, fim): para cada dia, média do
+--     %(custo/real_r) das últimas 4 ocorrências do mesmo dia da semana × M1 do dia.
+--   - Teste rodado p/ semanas 25 e 26 (15-28/06), bares 3 e 4.
+--   - Frontend (planejamento): mostra real se existir; senão a projeção em amarelo + ⚠️.
