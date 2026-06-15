@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, ChevronRight, ChevronDown } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface DreRow {
   bar_id: number;
@@ -59,12 +60,15 @@ interface LinhaRender {
 }
 
 export function DreTab({ barId }: Props) {
+  const { toast } = useToast();
   const [linhas, setLinhas] = useState<DreRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sincronizando, setSincronizando] = useState(false);
   // Macros colapsados (mostra só a linha TOTAL). Default: tudo expandido.
   const [colapsados, setColapsados] = useState<Set<string>>(new Set());
 
-  const carregar = async () => {
+  // Só lê a DRE (view financial.dre_excel agrega o bronze direto).
+  const lerDre = async () => {
     setLoading(true);
     try {
       const r = await fetch(`/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}`);
@@ -77,7 +81,33 @@ export function DreTab({ barId }: Props) {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { carregar(); }, [barId]);
+  // Botão "Atualizar": sincroniza o que mudou no Conta Azul (modo incremental por
+  // data_alteracao — rápido, só o delta recente) e relê a DRE. A DRE lê o bronze
+  // direto, então assim que o sync grava, o número já reflete.
+  const sincronizarELer = async () => {
+    setSincronizando(true);
+    try {
+      const resp = await fetch('/api/contaazul/sync-manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: barId, sync_mode: 'alteracao_incremental' }),
+      });
+      const j = await resp.json().catch(() => ({}));
+      if (!resp.ok || !j?.success) {
+        toast({ title: 'Falha ao sincronizar Conta Azul', description: j?.error || 'Erro', variant: 'destructive' });
+      } else {
+        const n = j?.stats?.lancamentos ?? 0;
+        toast({ title: 'Conta Azul sincronizado', description: `${n} lançamento(s) atualizado(s) em ${j?.duration_seconds ?? '?'}s` });
+      }
+    } catch (e) {
+      toast({ title: 'Erro de rede', description: e instanceof Error ? e.message : 'Erro', variant: 'destructive' });
+    } finally {
+      setSincronizando(false);
+      await lerDre();
+    }
+  };
+
+  useEffect(() => { lerDre(); }, [barId]);
 
   const toggleMacro = (nome: string) => {
     setColapsados(prev => {
@@ -267,8 +297,9 @@ export function DreTab({ barId }: Props) {
               {todosColapsados ? 'Expandir tudo' : 'Recolher tudo'}
             </Button>
           )}
-          <Button onClick={carregar} variant="outline" size="sm" className="gap-1">
-            <RefreshCw className="w-3 h-3" /> Atualizar
+          <Button onClick={sincronizarELer} disabled={sincronizando || loading} variant="outline" size="sm" className="gap-1">
+            <RefreshCw className={`w-3 h-3 ${sincronizando ? 'animate-spin' : ''}`} />
+            {sincronizando ? 'Sincronizando…' : 'Atualizar'}
           </Button>
         </div>
       </div>
