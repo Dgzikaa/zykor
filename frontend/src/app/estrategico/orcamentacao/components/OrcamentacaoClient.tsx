@@ -65,7 +65,7 @@ const formatarMoeda = (valor: number | null | undefined): string => {
   const absVal = Math.abs(valor);
   if (absVal >= 1000000) {
     return new Intl.NumberFormat('pt-BR', {
-      style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 1,
+      style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2,
       notation: 'compact', compactDisplay: 'short'
     }).format(valor);
   }
@@ -123,6 +123,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const mesAtualRef = useRef<HTMLDivElement>(null);
+  const scrollInicialRef = useRef(false);
 
   // Carregar dados (refresh)
   const carregarDados = useCallback(async () => {
@@ -157,9 +158,12 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
   // Scroll inicial fica no começo (mostra Janeiro primeiro). User rola pra
   // direita conforme precisa ver meses futuros. Antes scrollava direto pro
   // mes atual escondendo o historico anterior.
+  // Só posiciona no início no PRIMEIRO carregamento. Após salvar (reload), mantém
+  // o scroll onde o usuário estava.
   useEffect(() => {
-    if (!loading && scrollContainerRef.current) {
+    if (!loading && scrollContainerRef.current && !scrollInicialRef.current) {
       scrollContainerRef.current.scrollLeft = 0;
+      scrollInicialRef.current = true;
     }
   }, [loading]);
 
