@@ -394,10 +394,11 @@ export async function getOrcamentacaoCompleta(
     const beProj = mcProj > 0 ? rfProj / mcProj : 0;
     const beReal = mcReal > 0 ? rfReal / mcReal : 0;
 
-    // Lucro Líquido = Faturamento + Não Op - Variáveis - CMV - Real Fixo
-    const llPlan = fatPlan + naoOpPlan - varPlanR - cmvPlanR - rfPlan;
-    const llProj = fatProj + naoOpProj - varProjR - cmvProjR - rfProj;
-    const llReal = fatReal + naoOpReal - varRealR - cmvRealR - rfReal;
+    // Lucro Líquido = (Faturamento − BreakEven) × %Contrib + Contratos (Não Op)
+    // Fórmula do Excel do sócio (BF47): =(BF2-BF4)*BF5+BF45
+    const llPlan = (fatPlan - bePlan) * mcPlan + naoOpPlan;
+    const llProj = (fatProj - beProj) * mcProj + naoOpProj;
+    const llReal = (fatReal - beReal) * mcReal + naoOpReal;
 
     const despPlan = varPlanR + cmvPlanR + rfPlan;
     const despProj = varProjR + cmvProjR + rfProj;
