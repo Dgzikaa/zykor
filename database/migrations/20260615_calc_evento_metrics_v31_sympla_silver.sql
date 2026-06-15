@@ -1,0 +1,10 @@
+-- 2026-06-15 — calculate_evento_metrics v31: Sympla por silver (gated em usa_sympla).
+--
+-- Mesma lógica aditiva do Yuzer (v30): mantém a leitura antiga de
+-- integrations.sympla_pedidos/participantes; se o evento está marcado usa_sympla E há
+-- dado em silver.sympla_bilheteria_diaria, sobrescreve (valor_liquido + checkins).
+-- Resolve a divergência "2 escritores": gold lê silver.sympla_bilheteria_diaria, mas o
+-- eventos_base lia integrations.sympla_pedidos (vazio) → real_r vinha sem Sympla.
+--
+-- Validado: 13/06/2026 bar 3 real_r 104.195 -> 128.189 (ContaHub 18,86 + Yuzer 105.808
+-- + Sympla 22.362). versao_calculo = 31. Aplicado em prod via MCP. Corpo completo no banco.
