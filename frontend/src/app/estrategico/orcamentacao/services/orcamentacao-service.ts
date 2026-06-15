@@ -307,7 +307,10 @@ export async function getOrcamentacaoCompleta(
     // + Pix Direto + Dinheiro + Receita de Eventos + Outras Receitas) + ajustes manuais
     // de receita (DRE Manual). É a base de receita que a DRE usa pros % de Var/CMV.
     const fatPlan = num(planilha('FATURAMENTO META')?.valor_planejado);
-    const fatProj = m1Map.get(`${ano}-${mes}`) || 0;
+    // Projetado: usa o valor digitado na planilha (revisão semanal); se não houver,
+    // cai no Empilhamento M1 (Σ eventos_base.m1_r).
+    const fatProjManual = num(planilha('FATURAMENTO META')?.valor_projetado);
+    const fatProj = fatProjManual > 0 ? fatProjManual : (m1Map.get(`${ano}-${mes}`) || 0);
     const fatReal = (goldBlocoMap.get(`${ano}-${mes}-Receita`) || 0) + manualMacro('Receita');
 
     const categorias: CategoriaOrcamento[] = ESTRUTURA.map(bloco => {

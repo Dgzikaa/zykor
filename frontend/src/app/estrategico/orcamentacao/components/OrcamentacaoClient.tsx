@@ -401,7 +401,21 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                         );
                       })()}
                       <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-green-600">{formatarMoeda(mes.totais.faturamento_meta_proj)}</span>
+                      {(() => {
+                        const isEditFMP = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === 'FATURAMENTO META' && editando?.campo === 'projetado';
+                        return isEditFMP ? (
+                          <div className="flex-1 flex items-center justify-center gap-0.5">
+                            <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-14 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                            <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
+                          </div>
+                        ) : (
+                          <span
+                            className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-green-600 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
+                            title="Projetado (default = Empilhamento M1; editável)"
+                            onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: 'FATURAMENTO META', campo: 'projetado' }); setValorEdit(mes.totais.faturamento_meta_proj.toString()); }}
+                          >{formatarMoeda(mes.totais.faturamento_meta_proj)}</span>
+                        );
+                      })()}
                       <div className="w-px h-3 bg-slate-300" />
                       <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(mes.totais.faturamento_meta_real)}</span>
                     </div>
