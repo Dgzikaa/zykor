@@ -286,17 +286,22 @@ export async function getOrcamentacaoCompleta(
     }
   });
 
-  // M1 (faturamento projetado) e faturamento real ContaHub (Σ real_r) por mês,
-  // a partir do planejamento comercial / eventos_base.
-  const m1Map = new Map<string, number>();
+  // Por mês, a partir do planejamento comercial / eventos_base:
+  //  - realRMap: Σ real_r (faturamento real ContaHub)
+  //  - projMap:  PROJEÇÃO = realizado dos dias já passados (< hoje) + M1 dos dias que faltam
+  //              (>= hoje). Mesma lógica da planilha do sócio. Para mês fechado => Σ real;
+  //              mês futuro => Σ M1; mês corrente => blend.
+  const hojeStr = new Date().toISOString().split('T')[0];
   const realRMap = new Map<string, number>();
+  const projMap = new Map<string, number>();
   mesesParaBuscar.forEach(({ mes, ano }) => {
     const mm = String(mes).padStart(2, '0');
     const ini = `${ano}-${mm}-01`;
     const fim = `${ano}-${mm}-${new Date(ano, mes, 0).getDate()}`;
     const doMes = eventosBase.filter(e => e.data_evento >= ini && e.data_evento <= fim);
-    m1Map.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + (e.m1_r || 0), 0));
     realRMap.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + (e.real_r || 0), 0));
+    projMap.set(`${ano}-${mes}`, doMes.reduce(
+      (s, e) => s + (e.data_evento < hojeStr ? (e.real_r || 0) : (e.m1_r || 0)), 0));
   });
 
   return mesesParaBuscar.map(({ mes, ano }) => {
@@ -313,7 +318,7 @@ export async function getOrcamentacaoCompleta(
     // Projetado: usa o valor digitado na planilha (revisão semanal); se não houver,
     // cai no Empilhamento M1 (Σ eventos_base.m1_r).
     const fatProjManual = num(planilha('FATURAMENTO META')?.valor_projetado);
-    const fatProj = fatProjManual > 0 ? fatProjManual : (m1Map.get(`${ano}-${mes}`) || 0);
+    const fatProj = fatProjManual > 0 ? fatProjManual : (projMap.get(`${ano}-${mes}`) || 0);
     // Realizado: meses fechados = Conta Azul (oficial). Mês corrente = ContaHub (Σ real_r),
     // porque no Conta Azul o cartão de crédito só entra na liquidação (atrasado) e o mês
     // corrente subreportava o faturamento. (decisão sócio jun/2026)
