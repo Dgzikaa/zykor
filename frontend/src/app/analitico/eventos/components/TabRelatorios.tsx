@@ -5,6 +5,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Legend,
   Line,
   ComposedChart,
@@ -23,6 +24,19 @@ function ddmm(iso: string) {
   const [, m, d] = iso.split('-');
   return `${d}/${m}`;
 }
+
+// rótulos de valor nas barras
+const lblCompact = (v: any) => {
+  const n = Number(v) || 0;
+  if (n === 0) return '';
+  return Math.abs(n) >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${Math.round(n)}`;
+};
+const lblPct = (v: any) => {
+  const n = Number(v) || 0;
+  return n >= 6 ? `${Math.round(n)}%` : ''; // esconde fatia muito pequena
+};
+const LBL_STYLE = { fontSize: 10, fill: '#6b7280', fontWeight: 600 } as const;
+const LBL_PCT_STYLE = { fontSize: 9, fill: '#ffffff', fontWeight: 700 } as const;
 
 interface Props {
   data: EventoResponse;
@@ -139,6 +153,7 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
                   {serie.map((e, i) => (
                     <Cell key={i} fill={e.atual ? '#2563eb' : '#93c5fd'} />
                   ))}
+                  <LabelList dataKey="faturamento" position="top" formatter={lblCompact} style={LBL_STYLE} />
                 </Bar>
                 <Line
                   yAxisId="r"
@@ -180,6 +195,7 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
                   {serie.map((e, i) => (
                     <Cell key={i} fill={e.atual ? '#d97706' : '#fcd34d'} />
                   ))}
+                  <LabelList dataKey="c_art" position="top" formatter={lblCompact} style={LBL_STYLE} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -197,9 +213,15 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
                 <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} />
                 <Tooltip formatter={(value: any) => `${Number(value).toFixed(1)}%`} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="comida" name="Comida" stackId="mix" fill="#f59e0b" />
-                <Bar dataKey="bebida" name="Bebida" stackId="mix" fill="#3b82f6" />
-                <Bar dataKey="drink" name="Drink" stackId="mix" fill="#8b5cf6" />
+                <Bar dataKey="comida" name="Comida" stackId="mix" fill="#f59e0b">
+                  <LabelList dataKey="comida" position="center" formatter={lblPct} style={LBL_PCT_STYLE} />
+                </Bar>
+                <Bar dataKey="bebida" name="Bebida" stackId="mix" fill="#3b82f6">
+                  <LabelList dataKey="bebida" position="center" formatter={lblPct} style={LBL_PCT_STYLE} />
+                </Bar>
+                <Bar dataKey="drink" name="Drink" stackId="mix" fill="#8b5cf6">
+                  <LabelList dataKey="drink" position="center" formatter={lblPct} style={LBL_PCT_STYLE} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -219,6 +241,7 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
                   {serie.map((e, i) => (
                     <Cell key={i} fill={e.atual ? '#16a34a' : '#86efac'} />
                   ))}
+                  <LabelList dataKey="ticket" position="top" formatter={lblCompact} style={LBL_STYLE} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
