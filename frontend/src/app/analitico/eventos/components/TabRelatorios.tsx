@@ -14,6 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { HorarioPicoChart } from '@/components/ferramentas/HorarioPicoChart';
+import { ConsumoPorHorarioChart } from '@/components/ferramentas/ConsumoPorHorarioChart';
 import ProdutosDoDiaDataTable from '@/components/ferramentas/ProdutosDoDiaDataTable';
 import { formatCurrency } from '@/lib/utils';
 import { EventoResponse, Gran } from './types';
@@ -100,6 +101,9 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
       {!isPeriodo && (
         <HorarioPicoChart dataSelecionada={dataSelecionada} onDataChange={onDataChange} />
       )}
+
+      {/* Consumo por horário (top produtos por hora) — visão de dia único */}
+      {!isPeriodo && <ConsumoPorHorarioChart dataSelecionada={dataSelecionada} />}
 
       {temBaseline ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

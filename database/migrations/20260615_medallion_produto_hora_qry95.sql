@@ -1,0 +1,31 @@
+-- 2026-06-15 — Medallion "produto × hora" (ContaHub qry=95) p/ relatório "consumo por horário".
+-- Ambos os bares (3 Ordinário e 4 Deboche). Aplicado em prod via MCP em 4 migrations:
+--
+-- 1) bronze_contahub_sinteticoporhorario:
+--    - tabela bronze.bronze_contahub_avendas_porproduto_sinteticoporhorario (raw qry=95:
+--      bar_id, vd_dtgerencial, grp/grp_desc, prd/prd_desc, loc/loc_desc, prefixo, tipovenda,
+--      hora "20:00".."26:00", qtd, valorpago, desconto) + índice (bar_id, vd_dtgerencial).
+--    - public.process_sinteticoporhorario_data(bar, jsonb, data) — espelha process_fatporhora
+--      (advisory lock + DELETE dia + insert). data_type no raw = 'sinteticoporhorario'.
+--
+-- 2) orquestradores_add_sinteticoporhorario: adiciona WHEN 'sinteticoporhorario' em
+--    processar_raw_data_pendente / _backfill / _intervalo.
+--
+-- 3) silver_contahub_produto_hora: VIEW silver.contahub_produto_hora (security_invoker) —
+--    hora normalizada 0-23 (24/25/26 -> 0/1/2), categoria_mix best-effort por local
+--    (map_categoria_mix; refinar com o de-para do sócio), valor_bruto = valorpago+desconto.
+--
+-- 4) gold_consumo_por_horario: public.consumo_por_horario(bar, ini, fim, top, categoria, metric)
+--    — top-N produtos por hora + total da hora (p/ "Outros"). Métrica qtd|valor; filtro de
+--    categoria. Consumido por /api/analitico/evento/consumo-hora (gráfico no evento) e futura
+--    aba /analitico/produtos.
+--
+-- Ingestão: edge function contahub-sync-automatico ganhou o fetcher qry=95
+-- (fetchSinteticoPorHorarioComDivisao, extraParams '&prod=&grupo=&turno=') + case +
+-- 'sinteticoporhorario' no array dataTypes. PRECISA DEPLOY:
+--   cd backend && supabase functions deploy contahub-sync-automatico
+-- Backfill desde 01/01/2026 (após deploy), por bar, modo range:
+--   POST contahub-sync-automatico { bar_id, data_inicio:'2026-01-01', data_fim:'<hoje>' }
+--   depois processar: SELECT public.processar_raw_data_intervalo('2026-01-01','<hoje>', <bar>);
+--
+-- Corpo completo das funções no banco (pg_get_functiondef).

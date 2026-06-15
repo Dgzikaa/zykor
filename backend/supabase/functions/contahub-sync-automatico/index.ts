@@ -323,6 +323,21 @@ async function fetchCancelamentosComDivisao(
   );
 }
 
+// Função para buscar SINTETICO POR HORARIO (qry=95) — produto x hora x grupo x local.
+// Base do relatório "consumo por horário" (top produtos por hora).
+async function fetchSinteticoPorHorarioComDivisao(
+  baseUrl: string,
+  dataDate: string,
+  empId: string,
+  sessionToken: string,
+  generateTimestamp: () => string
+): Promise<any> {
+  return fetchComDivisaoPorLocal(
+    baseUrl, dataDate, empId, sessionToken, generateTimestamp,
+    95, 'sinteticoporhorario', '&prod=&grupo=&turno='
+  );
+}
+
 // Função para salvar JSON bruto (SEM PROCESSAMENTO)
 async function saveRawDataOnly(supabase: any, dataType: string, rawData: any, dataDate: string, barId: number = 3) {
   console.log(`💾 Salvando JSON bruto para ${dataType}...`);
@@ -671,7 +686,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // 1. COLETA E ARMAZENAMENTO DE JSON BRUTO (modo normal)
     console.log('\n📊 FASE 1: Coletando e salvando JSONs brutos...');
     
-    const dataTypes = ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'vendas', 'cancelamentos'];
+    const dataTypes = ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'vendas', 'cancelamentos', 'sinteticoporhorario'];
     
     // Converter data para formato ContaHub (DD.MM.YYYY)
     const contahubDate = toContaHubDateFormat(data_date);
@@ -893,7 +908,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
               });
             }
             continue;
-            
+
+          case 'sinteticoporhorario':
+            // qry=95 — produto x hora x grupo x local (base do "consumo por horário")
+            try {
+              const sinteticoData = await fetchSinteticoPorHorarioComDivisao(
+                contahubBaseUrl, data_date, emp_id, sessionToken, generateDynamicTimestamp
+              );
+              const saveResultSint = await saveRawDataOnly(supabase, 'sinteticoporhorario', sinteticoData, data_date, bar_id);
+              results.collected.push(saveResultSint);
+              console.log(`✅ sinteticoporhorario: JSON bruto salvo (${saveResultSint.record_count} registros)`);
+            } catch (sintError) {
+              console.error(`❌ Erro ao buscar sinteticoporhorario:`, sintError);
+              results.errors.push({
+                phase: 'collection',
+                data_type: 'sinteticoporhorario',
+                error: sintError instanceof Error ? sintError.message : String(sintError)
+              });
+            }
+            continue;
+
           default:
             throw new Error(`Tipo de dados não suportado: ${dataType}`);
         }
