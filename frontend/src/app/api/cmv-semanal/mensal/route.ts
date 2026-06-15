@@ -143,6 +143,28 @@ export async function GET(request: NextRequest) {
     const dataFim = dataFimMarco || dataFimMesCheio;
     const ehMesCorrenteRecorte = dataFimMarco !== null;
 
+    // Breakdown das 9 categorias padronizadas (×fator) p/ a visao mensal — calculado
+    // LIVE pelo periodo do mes (mesma RPC do semanal). Total NAO muda; e' so detalhe.
+    // Passado (< corte 12/06) cai todo em "outros" dentro da propria RPC.
+    let consumacoes9Mensal: Record<string, number> | null = null;
+    try {
+      const fator9 = await getFatorCmv(supabase, barId);
+      const { data: cons9 } = await (supabase as any).rpc('get_consumos_9_semana', {
+        input_bar_id: barId,
+        input_data_inicio: dataInicio,
+        input_data_fim: dataFim,
+      });
+      if (Array.isArray(cons9) && cons9.length > 0) {
+        consumacoes9Mensal = {};
+        for (const item of cons9) {
+          consumacoes9Mensal[item.categoria as string] =
+            Math.round(((parseFloat(String(item.total)) || 0) * fator9) * 100) / 100;
+        }
+      }
+    } catch (e) {
+      console.warn('get_consumos_9_semana (mensal) falhou:', e);
+    }
+
     // Buscar dados diretamente da tabela cmv_mensal (alimentada por sync-cmv-mensal + agregar_cmv_mensal_auto)
     // Usado pra todos os meses, inclusive o corrente — fallback proporcional só roda se cmv_mensal não tem dados.
     const mesAtual = new Date().getMonth() + 1;
@@ -324,6 +346,7 @@ export async function GET(request: NextRequest) {
 
       const resultado = {
         ...dadosMensais,
+        consumacoes_9: consumacoes9Mensal,
         mes,
         ano,
         bar_id: barId,
@@ -472,6 +495,7 @@ export async function GET(request: NextRequest) {
     // Adicionar metadados
     const resultado = {
       ...dadosMensais,
+      consumacoes_9: consumacoes9Mensal,
       mes,
       ano,
       bar_id: barId,

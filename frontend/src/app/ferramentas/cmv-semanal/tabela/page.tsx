@@ -70,6 +70,9 @@ interface CMVSemanal {
   consumo_adm: number;
   consumo_rh: number;
   consumo_artista: number;
+  // Breakdown das 9 categorias padronizadas do ContaHub (×fator), gravado pela
+  // edge cmv-semanal-auto (semanal) / calculado live (mensal). Apenas exibicao.
+  consumacoes_9?: Record<string, number> | null;
   outros_ajustes: number;
   ajuste_bonificacoes: number;
   bonificacao_contrato_anual: number;
@@ -256,12 +259,20 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         label: `(-) Consumações × ${fatorCmv}`,
         metricas: [
           { key: 'total_consumos', label: `TOTAL (×${fatorCmv})`, status: 'calculado', fonte: 'Calculado', calculo: `Soma de todas as consumações × ${fatorCmv} (CMV)`, formato: 'moeda' },
-          // Usar colunas consumo_* que ja tem o fator CMV aplicado (= bruto × fator).
-          // Antes a UI mostrava mesa_* (bruto, sem fator), confundindo o usuario.
-          { key: 'consumo_socios', label: `Sócios (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %sócio% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'consumo_beneficios', label: `Clientes (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %benefício% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'consumo_artista', label: `Artistas (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo ILIKE %banda% ou %dj% × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'consumo_rh', label: `Funcionários/RH (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `(Operacao + Escritorio) × ${fatorCmv}`, formato: 'moeda', drilldown: true },
+          // 9 categorias padronizadas no ContaHub (motivo do desconto), a partir de
+          // 12/06. Valores ja ×fator (vem do JSONB consumacoes_9). Passado cai em
+          // "Outros" p/ nao zerar o historico. "Outros" e' residual (TOTAL − os 9 −
+          // Chegadeira), entao as linhas sempre fecham com o TOTAL.
+          { key: 'c9_funcionarios_operacao', label: `Funcionário Operação (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Funcionário Operação × ${fatorCmv}`, formato: 'moeda' },
+          { key: 'c9_funcionarios_escritorio', label: `Funcionário Escritório (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Funcionário Escritório × ${fatorCmv}`, formato: 'moeda' },
+          { key: 'c9_aniversario', label: `Aniversário (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Aniversário × ${fatorCmv}`, formato: 'moeda' },
+          { key: 'c9_programa_pontos', label: `Programa de Pontos (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Programa de Pontos × ${fatorCmv}`, formato: 'moeda' },
+          { key: 'c9_beneficio_cliente', label: `Benefício Cliente (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Benefício Cliente × ${fatorCmv}`, formato: 'moeda' },
+          { key: 'c9_influencer', label: `Influencer (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Influencer × ${fatorCmv}`, formato: 'moeda' },
+          { key: 'c9_artistas', label: `Artistas (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Artistas × ${fatorCmv}`, formato: 'moeda' },
+          { key: 'c9_socios', label: `Sócios (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Sócios × ${fatorCmv}`, formato: 'moeda' },
+          { key: 'c9_relacionamento', label: `Relacionamento (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Relacionamento × ${fatorCmv}`, formato: 'moeda' },
+          { key: 'c9_outros', label: `Outros (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `Residual: TOTAL − 9 categorias − Chegadeira (inclui o historico pre-12/06)`, formato: 'moeda' },
           { key: 'chegadeira', label: `Chegadeira (×${fatorCmv})`, status: 'auto', fonte: 'Planilha CMV', calculo: `Sincronizado da planilha × ${fatorCmv}`, formato: 'moeda', drilldown: true },
         ]
       },
@@ -917,6 +928,22 @@ export default function CMVSemanalTabelaPage() {
              ((semana.mesa_banda_dj || 0) * fatorCmv) +
              ((semana.mesa_rh || 0) * fatorCmv) +
              ((semana.chegadeira || 0) * fatorCmv);
+    }
+    // 9 categorias padronizadas (×fator) — vem do JSONB consumacoes_9.
+    // "Outros" e' residual (TOTAL − 9 − Chegadeira) p/ as linhas sempre fecharem
+    // com o TOTAL; passado (sem consumacoes_9) cai todo em Outros.
+    if (key.startsWith('c9_')) {
+      const cat = key.slice(3);
+      const c9 = (semana as unknown as { consumacoes_9?: Record<string, number> | null }).consumacoes_9;
+      const get9 = (k: string) => (c9 && typeof c9 === 'object' ? (c9[k] || 0) : 0);
+      if (cat === 'outros') {
+        const NOVE = ['funcionarios_operacao', 'funcionarios_escritorio', 'aniversario', 'programa_pontos', 'beneficio_cliente', 'influencer', 'artistas', 'socios', 'relacionamento'];
+        const soma9 = NOVE.reduce((s, k) => s + get9(k), 0);
+        const total = getValorMetrica(semana, 'total_consumos') || 0;
+        const cheg = (semana.chegadeira || 0) * fatorCmv;
+        return Math.max(0, total - cheg - soma9);
+      }
+      return get9(cat);
     }
     // Consumações individuais também × fatorCmv
     if (key === 'total_consumo_socios') return (semana.total_consumo_socios || 0) * fatorCmv;

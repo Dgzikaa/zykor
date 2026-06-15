@@ -439,6 +439,32 @@ serve(async (req) => {
         } catch (rpcErr) {
           console.error('  ⚠️ Erro ao chamar RPC get_consumos_classificados_semana:', rpcErr);
         }
+
+        // 4.2b. Breakdown das 9 categorias padronizadas do ContaHub (>= corte 12/06)
+        // + "outros" (passado e o que nao for um dos 9), gravado em consumacoes_9
+        // (JSONB, ja ×fator) SO p/ exibicao na tela. NAO altera o total do CMV — o
+        // total continua vindo dos 5 buckets acima (soma identica, validado).
+        let consumacoes9Json: Record<string, number> | null = null;
+        try {
+          const { data: cons9, error: cons9Err } = await supabase.rpc('get_consumos_9_semana', {
+            input_bar_id: barId,
+            input_data_inicio: dataInicio,
+            input_data_fim: dataFim,
+          });
+          if (cons9Err) {
+            console.error('  ⚠️ Erro RPC get_consumos_9_semana:', cons9Err);
+          } else if (cons9 && cons9.length > 0) {
+            const fator9 = await getFatorConsumo(barId);
+            consumacoes9Json = {};
+            for (const item of cons9) {
+              const cat = item.categoria as string;
+              const valor = (parseFloat(String(item.total)) || 0) * fator9;
+              consumacoes9Json[cat] = Math.round(valor * 100) / 100;
+            }
+          }
+        } catch (cons9Catch) {
+          console.error('  ⚠️ Erro ao montar consumacoes_9:', cons9Catch);
+        }
         console.log(`⏱️ [${Date.now() - semanaStartTime}ms] Consumos processados`);
 
         // 4.3. Cálculo de estoque final da contagem
@@ -685,6 +711,9 @@ serve(async (req) => {
           mesa_rh: consumacoes.mesa_rh,
           mesa_adm_casa: consumacoes.mesa_adm_casa,
           mesa_beneficios_cliente: consumacoes.mesa_beneficios_cliente,
+          // Breakdown das 9 categorias padronizadas (×fator) p/ a tela exibir.
+          // Total continua nos buckets acima — esse campo e so detalhamento.
+          consumacoes_9: consumacoes9Json,
           // Propagar estoque inicial da semana anterior (só se não veio da planilha)
           ...estoqueInicialUpdate,
           updated_at: new Date().toISOString()
