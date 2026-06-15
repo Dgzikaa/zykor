@@ -7,6 +7,7 @@ import {
   DollarSign,
   FileSignature,
   PackageX,
+  Mic,
   Palette,
   Receipt,
   Recycle,
@@ -261,6 +262,15 @@ export function TabVisaoGeral({ data }: Props) {
                 ? `${Number(evt.eco_copo_qtd).toLocaleString('pt-BR')} un`
                 : undefined
             }
+          />
+        )}
+        {Number(evt.consumacao_artistas) > 0 && (
+          <KpiCard
+            label="Consumação Artistas"
+            value={formatCurrency(Number(evt.consumacao_artistas) || 0)}
+            accent="violet"
+            icon={<Mic className="w-4 h-4" />}
+            sub="comp de consumo (ContaHub)"
           />
         )}
       </div>

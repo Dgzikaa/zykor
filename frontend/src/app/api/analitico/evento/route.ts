@@ -832,6 +832,18 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Consumação Artistas do dia (ContaHub: descontos motivo='Artistas')
+      {
+        const { data: consRows } = await (supabase as any)
+          .schema('silver')
+          .from('consumacao_artistas')
+          .select('valor')
+          .eq('bar_id', barId)
+          .eq('data', data);
+        evento.consumacao_artistas = (consRows || []).reduce(
+          (s: number, r: Row) => s + num(r.valor), 0);
+      }
+
       const deltas = deltasDe(m, baseMedia);
       const { veredito, insights } = diagnosticar(m, baseMedia, ctxDe(evento));
 
