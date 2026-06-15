@@ -1,0 +1,19 @@
+-- 2026-06-15 — ETL silver Yuzer (pagamentos e produtos) data por DATA DE OPERAÇÃO.
+--
+-- Antes datavam pela abertura do painel ((data_inicio AT TIME ZONE SP)::date), o que
+-- jogava o COPA inteiro (painel 12–15/06) no dia 12/06 → gold.planejamento atribuía os
+-- ~104k ao dia errado. Agora o ev_info usa a DATA DE OPERAÇÃO da 1ª venda do fatporhora
+-- (regra -6h: madrugada conta pro dia anterior), com fallback à abertura quando não há
+-- fatporhora. Alinha com o calculate_evento_metrics v30.
+--
+-- Mudança em ambas as funções, só no CTE ev_info:
+--   data_evento = COALESCE(
+--     (SELECT ((MIN(f.data_hora) AT TIME ZONE 'America/Sao_Paulo') - INTERVAL '6 hours')::date
+--        FROM bronze.bronze_yuzer_fatporhora f
+--       WHERE f.bar_id=e.bar_id AND f.evento_id=e.evento_id AND f.faturamento > 0),
+--     (e.data_inicio AT TIME ZONE 'America/Sao_Paulo')::date)
+--
+-- Já aplicado em produção via MCP em 2026-06-15:
+--   public.etl_silver_yuzer_pagamentos_full(integer)
+--   public.etl_silver_yuzer_produtos_full(integer)
+-- (corpo completo no banco / pg_get_functiondef.)

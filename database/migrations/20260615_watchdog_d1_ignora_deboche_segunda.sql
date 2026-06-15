@@ -1,0 +1,12 @@
+-- 2026-06-15 — Watchdog Saúde Pipeline D-1 ignora Deboche (bar 4) às segundas.
+--
+-- Deboche não opera segunda (dow=1). Os eventos placeholder dessas segundas ficam com
+-- precisa_recalculo=true pra sempre (o calculate_evento_metrics dá RETURN cedo p/ bar 4
+-- + segunda sem ContaHub e nunca limpa a flag) → gerava alerta falso de "recálculo
+-- TRAVADO (backlog)" todo dia.
+--
+-- Fix: os 3 checks (raw incompleto, recálculo pendente, backlog) passam a excluir
+-- (bar_id = 4 AND EXTRACT(dow FROM data_evento) = 1).
+--
+-- Já aplicado em produção via MCP em 2026-06-15. CREATE OR REPLACE de
+-- public.verificar_saude_pipeline_d1_alerta_discord(). Corpo completo no banco.
