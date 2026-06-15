@@ -317,7 +317,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
 
       <div ref={scrollContainerRef} className="flex-1 overflow-auto scrollbar-visible" style={{ scrollBehavior: 'smooth' }}>
         <div className="flex" style={{ minWidth: 'max-content' }}>
-          <div className="sticky left-0 z-20 flex-shrink-0 w-[200px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md">
+          <div className="sticky left-0 z-20 flex-shrink-0 w-[220px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md">
             <div className="h-[48px] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center sticky top-0 z-30">
               <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">CATEGORIA</span>
             </div>
@@ -384,7 +384,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
               {meses.map((mes, idx) => {
                 const isMesAtual = idx === mesAtualIdx;
                 return (
-                  <div key={`${mes.ano}-${mes.mes}`} ref={isMesAtual ? mesAtualRef : undefined} className={cn("flex-shrink-0 w-[220px] border-r border-gray-200 dark:border-gray-700", isMesAtual && "bg-emerald-50 dark:bg-emerald-900/20")}>
+                  <div key={`${mes.ano}-${mes.mes}`} ref={isMesAtual ? mesAtualRef : undefined} className={cn("flex-shrink-0 w-[330px] border-r border-gray-200 dark:border-gray-700", isMesAtual && "bg-emerald-50 dark:bg-emerald-900/20")}>
                     <div className={cn("h-[48px] border-b border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center px-1 sticky top-0 z-10", isMesAtual ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-gray-50 dark:bg-gray-700")}>
                       <span className={cn("text-xs font-bold", isMesAtual ? "text-emerald-700" : "text-gray-700 dark:text-gray-300")}>{mes.label}</span>
                       <div className="flex gap-1 text-[8px] text-gray-500">
