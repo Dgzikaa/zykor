@@ -194,6 +194,25 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
     setEditandoReservas(null);
     setValorReservaTemp('');
   };
+
+  // Marcar/desmarcar bilheteria externa (Yuzer/Sympla). Quando marcado, o
+  // calculate_evento_metrics puxa o faturamento dessa bilheteria pro evento.
+  const toggleBilheteria = async (eventoId: number, campo: 'usa_yuzer' | 'usa_sympla', atual: boolean) => {
+    const novo = !atual;
+    setDados(prev => prev.map(e => e.evento_id === eventoId ? { ...e, [campo]: novo } : e));
+    try {
+      const response = await apiCall(`/api/eventos/${eventoId}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar?.id || '') },
+        body: JSON.stringify({ [campo]: novo }),
+      });
+      if (!response.success) throw new Error(response.error || 'falha');
+    } catch (error) {
+      console.error('Erro ao marcar bilheteria:', error);
+      setDados(prev => prev.map(e => e.evento_id === eventoId ? { ...e, [campo]: atual } : e)); // rollback
+      alert('Erro ao salvar marcação. Tente novamente.');
+    }
+  };
   
   const [modalOpen, setModalOpen] = useState(false);
   const [modoEdicao, setModoEdicao] = useState(false); 
@@ -776,14 +795,27 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                               </Link>
                             </td>
                             <td className="sticky-col-2 px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
-                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))] truncate" style={{width: '140px', minWidth: '140px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}} title={evento.evento_nome || 'Sem atração'}>
+                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))]" style={{width: '140px', minWidth: '140px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}} title={evento.evento_nome || 'Sem atração'}>
                               <Link
                                 href={`/analitico/eventos?data=${evento.data_evento}`}
                                 onClick={(e) => e.stopPropagation()}
-                                className="text-blue-700 dark:text-blue-300 hover:underline"
+                                className="block truncate text-blue-700 dark:text-blue-300 hover:underline"
                               >
                                 {evento.evento_nome || '-'}
                               </Link>
+                              {/* Bilheteria externa: marcar p/ o calculate_evento_metrics puxar Yuzer/Sympla */}
+                              <div className="flex gap-1 mt-0.5">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); toggleBilheteria(evento.evento_id, 'usa_yuzer', !!evento.usa_yuzer); }}
+                                  title={evento.usa_yuzer ? 'Yuzer: marcado (clique p/ desmarcar)' : 'Yuzer: marcar bilheteria'}
+                                  className={`px-1 rounded text-[8px] font-bold leading-tight border ${evento.usa_yuzer ? 'bg-pink-500 text-white border-pink-500' : 'bg-transparent text-gray-400 border-gray-300 dark:border-gray-600'}`}
+                                >YZ</button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); toggleBilheteria(evento.evento_id, 'usa_sympla', !!evento.usa_sympla); }}
+                                  title={evento.usa_sympla ? 'Sympla: marcado (clique p/ desmarcar)' : 'Sympla: marcar bilheteria'}
+                                  className={`px-1 rounded text-[8px] font-bold leading-tight border ${evento.usa_sympla ? 'bg-amber-500 text-white border-amber-500' : 'bg-transparent text-gray-400 border-gray-300 dark:border-gray-600'}`}
+                                >SY</button>
+                              </div>
                             </td>
                             <td 
                               onClick={(e) => { 

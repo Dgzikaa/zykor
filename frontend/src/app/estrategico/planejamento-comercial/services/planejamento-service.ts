@@ -54,6 +54,8 @@ export interface PlanejamentoData {
   data_evento: string;
   dia_semana: string;
   evento_nome: string;
+  usa_yuzer?: boolean;
+  usa_sympla?: boolean;
   dia: number;
   mes: number;
   ano: number;
@@ -199,7 +201,7 @@ export async function getPlanejamentoComercial(
     supabase
       .schema('operations' as never)
       .from('eventos_base')
-      .select('id, nome, data_evento, observacoes, c_art, c_prod, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo')
+      .select('id, nome, data_evento, observacoes, c_art, c_prod, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo, usa_yuzer, usa_sympla')
       .eq('bar_id', barId)
       .gte('data_evento', dataInicio)
       .lt('data_evento', dataFinalConsulta),
@@ -318,6 +320,9 @@ export async function getPlanejamentoComercial(
         : String(evento.dia_semana || ''),
       // nome vem do eventos_base (onde o edit grava) — gold.planejamento.nome só atualiza no ETL
       evento_nome: manual?.nome ?? evento.nome ?? '',
+      // Marcadores de bilheteria externa (toggle) — vêm do eventos_base
+      usa_yuzer: manual?.usa_yuzer ?? false,
+      usa_sympla: manual?.usa_sympla ?? false,
       dia: dataEvento.getUTCDate(),
       mes: dataEvento.getUTCMonth() + 1,
       ano: dataEvento.getUTCFullYear(),
