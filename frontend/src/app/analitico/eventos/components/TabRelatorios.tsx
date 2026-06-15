@@ -40,6 +40,7 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
     label: ddmm(e.data_evento),
     faturamento: Math.round(e.faturamento),
     publico: Math.round(e.publico),
+    reservas: Math.round(e.res_tot || 0),
     c_art: Math.round(e.c_art),
     ticket: Math.round(e.ticket),
     comida: Number(e.percent_comida.toFixed(1)),
@@ -145,6 +146,15 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
                   name="Público"
                   stroke="#16a34a"
                   strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
+                <Line
+                  yAxisId="r"
+                  dataKey="reservas"
+                  name="Reservas"
+                  stroke="#d97706"
+                  strokeWidth={2}
+                  strokeDasharray="5 4"
                   dot={{ r: 3 }}
                 />
               </ComposedChart>
