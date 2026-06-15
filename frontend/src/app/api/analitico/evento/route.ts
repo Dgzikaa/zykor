@@ -796,8 +796,7 @@ export async function GET(request: NextRequest) {
         evento.sympla_liquido = consolidado.sympla_liquido;
         evento.sympla_checkins = consolidado.sympla_checkins;
 
-        // Mix de consumo: soma a cesta Yuzer (mapeada por subcategoria) ao ContaHub.
-        // Sem isso o mix vinha 0% em evento Yuzer (ContaHub é ínfimo nessas noites).
+        // Eco copo (indicador à parte) — vem da cesta Yuzer
         if (consolidado.usa_yuzer) {
           const { data: cestaRows } = await (supabase as any).rpc('yuzer_cesta_evento', {
             p_bar_id: barId,
@@ -805,25 +804,31 @@ export async function GET(request: NextRequest) {
           });
           const cesta = cestaRows && cestaRows.length ? (cestaRows[0] as Row) : null;
           if (cesta) {
-            const yzC = num(cesta.comida);
-            const yzB = num(cesta.bebida);
-            const yzD = num(cesta.drink);
-            if (yzC + yzB + yzD > 0) {
-              // ContaHub: divide o consumo (gold real_r) pelo mix do gold
-              const chBase = num(evento.real_r);
-              const chC = (chBase * num(evento.percent_c)) / 100;
-              const chB = (chBase * num(evento.percent_b)) / 100;
-              const chD = (chBase * num(evento.percent_d)) / 100;
-              const tot = yzC + chC + yzB + chB + yzD + chD;
-              if (tot > 0) {
-                m.percent_comida = ((yzC + chC) / tot) * 100;
-                m.percent_bebida = ((yzB + chB) / tot) * 100;
-                m.percent_drink = ((yzD + chD) / tot) * 100;
-              }
-            }
             evento.eco_copo_valor = num(cesta.eco_copo_valor);
             evento.eco_copo_qtd = num(cesta.eco_copo_qtd);
           }
+        }
+      }
+
+      // Mix de consumo: calcula da MESMA fonte do modal (evento_cesta_detalhe = ContaHub
+      // por grupo + Yuzer), pra a barrinha bater 100% com o detalhe em qualquer data.
+      {
+        const { data: cestaDet } = await (supabase as any).rpc('evento_cesta_detalhe', {
+          p_bar_id: barId,
+          p_data: data,
+        });
+        let cC = 0, cB = 0, cD = 0;
+        for (const r of (cestaDet || []) as Row[]) {
+          const v = num(r.valor);
+          if (r.categoria === 'comida') cC += v;
+          else if (r.categoria === 'bebida') cB += v;
+          else if (r.categoria === 'drink') cD += v;
+        }
+        const totCesta = cC + cB + cD;
+        if (totCesta > 0) {
+          m.percent_comida = (cC / totCesta) * 100;
+          m.percent_bebida = (cB / totCesta) * 100;
+          m.percent_drink = (cD / totCesta) * 100;
         }
       }
 
