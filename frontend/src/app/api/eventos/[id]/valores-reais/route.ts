@@ -28,7 +28,8 @@ async function getLocaisMapeamento(barId: number): Promise<LocalMapeamento | nul
     return cachedLocais[barId];
   }
   
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
+    .schema('operations')
     .from('bar_local_mapeamento')
     .select('categoria, locais, produtos_excluidos_stockout')
     .eq('bar_id', barId)
@@ -208,10 +209,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         // ONDA 2C: Buscar mapeamento de locais do banco - erro se não configurado
         const locaisMapeamento = await getLocaisMapeamento(user.bar_id!);
         if (!locaisMapeamento) {
-          return NextResponse.json(
-            { error: `Configuração ausente: mapeamento de locais para bar ${user.bar_id}. Configure bar_local_mapeamento.` },
-            { status: 500 }
-          );
+          // Config ausente NÃO pode travar a edição do evento (o update já foi salvo).
+          // Pula a recálculo de % por local — calculate_evento_metrics/cron recalcula depois.
+          throw new Error(`Mapeamento de locais ausente para bar ${user.bar_id} — recálculo de % pulado`);
         }
         const locaisBebidas = locaisMapeamento.bebidas;
         const locaisComidas = locaisMapeamento.comidas;
