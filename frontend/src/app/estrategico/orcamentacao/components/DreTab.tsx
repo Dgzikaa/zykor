@@ -183,12 +183,10 @@ export function DreTab({ barId }: Props) {
       const subMap = macroMap.get(macroNome);
       if (!subMap) return;
 
-      // Subcategorias ordenadas
-      const subs = Array.from(subMap.entries()).sort((a, b) => {
-        const oa = Array.from(a[1].values())[0]?.ordem_sub ?? 99;
-        const ob = Array.from(b[1].values())[0]?.ordem_sub ?? 99;
-        return oa - ob;
-      });
+      // Subcategorias em ordem alfabética (mais fácil de achar na DRE).
+      const subs = Array.from(subMap.entries()).sort((a, b) =>
+        a[0].localeCompare(b[0], 'pt-BR', { sensitivity: 'base' })
+      );
 
       // Linha TOTAL do macro
       const valoresMacro: number[] = Array(12).fill(0);

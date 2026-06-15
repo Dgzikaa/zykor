@@ -25,25 +25,10 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { MesOrcamento, CategoriaOrcamento, TotaisMes } from '../services/orcamentacao-service';
 import { OrigemTooltip } from './OrigemTooltip';
 import { HistoricoOrcamentoTab } from './HistoricoOrcamentoTab';
-import { DreTab } from './DreTab';
-import { DreManualTab } from './DreManualTab';
-import { BpClient } from '../../bp/BpClient';
-import type { BpLinha, BpIndicador, AnaliseSemanal } from '../../bp/types';
-
-interface BpData {
-  linhas: BpLinha[];
-  indicadores: BpIndicador[];
-  versoes: { ano: number; versao: string }[];
-  anoAtual: number;
-  versaoAtual: string;
-  mesAnalise: number;
-  analise: AnaliseSemanal;
-}
 
 interface OrcamentacaoClientProps {
   initialData: MesOrcamento[];
   barId: number;
-  bpData?: BpData;
 }
 
 // Subcategorias com Realizado MANUAL (bolinha azul, editavel na tela).
@@ -96,7 +81,7 @@ const corReal = (real: number, plan: number, melhorMenor: boolean): string => {
   return bom ? 'text-emerald-600' : 'text-red-600';
 };
 
-export default function OrcamentacaoClient({ initialData, barId, bpData }: OrcamentacaoClientProps) {
+export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoClientProps) {
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
   const { toast } = useToast();
@@ -264,10 +249,9 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
       <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 pt-2">
         <TabsList className="bg-transparent">
           <TabsTrigger value="orcamento">Orçamentação</TabsTrigger>
-          <TabsTrigger value="bp">Business Plan</TabsTrigger>
-          <TabsTrigger value="dre">DRE</TabsTrigger>
-          <TabsTrigger value="manual">DRE Manual</TabsTrigger>
           <TabsTrigger value="historico">Histórico</TabsTrigger>
+          {/* Business Plan e DRE viraram páginas em Financeiro (/financeiro/bp,
+              /financeiro/dre). DRE Manual escondida (histórico preservado no banco). */}
         </TabsList>
       </div>
 
@@ -640,33 +624,6 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
           </div>
         </div>
       </div>
-      </TabsContent>
-
-      <TabsContent value="bp" className="flex-1 overflow-auto mt-0">
-        {bpData ? (
-          <BpClient
-            linhas={bpData.linhas}
-            indicadores={bpData.indicadores}
-            versoes={bpData.versoes}
-            anoAtual={bpData.anoAtual}
-            versaoAtual={bpData.versaoAtual}
-            mesAnalise={bpData.mesAnalise}
-            analise={bpData.analise}
-            barId={barId}
-          />
-        ) : (
-          <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-            Dados do Business Plan indisponíveis.
-          </div>
-        )}
-      </TabsContent>
-
-      <TabsContent value="dre" className="flex-1 overflow-auto mt-0">
-        <DreTab barId={selectedBar.id} />
-      </TabsContent>
-
-      <TabsContent value="manual" className="flex-1 overflow-auto mt-0">
-        <DreManualTab barId={selectedBar.id} />
       </TabsContent>
 
       <TabsContent value="historico" className="flex-1 overflow-auto mt-0">

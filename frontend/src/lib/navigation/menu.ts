@@ -80,7 +80,9 @@ export const MENU_TREE: MenuSection[] = [
     subItems: [
       { icon: 'Calendar', label: 'Agendamentos', href: '/financeiro/agendamentos', permission: 'financeiro_agendamento' },
       { icon: 'Receipt', label: 'Pedidos de Pagamento', href: '/financeiro/pedidos-pagamento', permission: 'home' },
-      { icon: 'FileSearch', label: 'Consultas ContaAzul', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
+      { icon: 'BarChart3', label: 'Business Plan', href: '/financeiro/bp', permission: 'home' },
+      { icon: 'FileText', label: 'DRE', href: '/financeiro/dre', permission: 'home' },
+      { icon: 'FileSearch', label: 'Consultas CA', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
     ],
   },
   {
