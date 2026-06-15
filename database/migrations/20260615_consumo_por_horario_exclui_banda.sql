@@ -1,0 +1,3 @@
+-- 2026-06-15 — consumo_por_horario exclui itens de BANDA (cortesia, marcador "[Banda]").
+-- Tinham valor ~0 mas quantidade > 0 e poluíam o top-N na métrica de quantidade.
+-- Filtro: produto_desc NOT ILIKE '%[banda]%'. CREATE OR REPLACE aplicado via MCP.
