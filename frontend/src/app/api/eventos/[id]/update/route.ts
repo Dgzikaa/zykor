@@ -69,6 +69,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (body.res_p !== undefined) {
       updateData.res_p = parseInt(body.res_p) || 0;
     }
+    // Marcadores de bilheteria externa (toggle no planejamento). Quando true, o
+    // calculate_evento_metrics puxa Yuzer/Sympla pra esse evento (por data de operação).
+    if (body.usa_yuzer !== undefined) {
+      updateData.usa_yuzer = !!body.usa_yuzer;
+    }
+    if (body.usa_sympla !== undefined) {
+      updateData.usa_sympla = !!body.usa_sympla;
+    }
 
     const { data: eventoAtualizado, error: updateError } = await supabase
       .from('eventos_base')
