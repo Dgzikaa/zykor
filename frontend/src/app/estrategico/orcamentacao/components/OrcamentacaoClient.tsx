@@ -53,9 +53,11 @@ interface OrcamentacaoClientProps {
 //   Outras Receitas: socio faz ajustes nao registrados no CA.
 // Subcategorias com Realizado MANUAL (digitado na tela) — não vêm do Conta Azul.
 // Linhas de marketing/produção que não são lançadas no CA + Não Operacionais.
+// Linhas com Realizado MANUAL editável inline na orçamentação (não vão pra DRE).
+// São as que não existem no Conta Azul. Contratos NÃO entra aqui (vem da DRE Manual).
 const SUBCATEGORIAS_MANUAIS = new Set<string>([
   'Marketing Mídia', 'MKT Disparos', 'MKT Programa de Pontos', 'MKT Beneficios',
-  'Produção Mensal Fixo', 'Contratos',
+  'Produção Mensal Fixo',
 ]);
 
 // Formatadores
@@ -538,11 +540,13 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                                 )}
                               </div>
                               <div className="w-px h-3 bg-gray-200" />
-                              {/* REALIZADO - read-only. Vem do Conta Azul + ajustes da aba DRE Manual.
-                                  Ajuste manual é feito na aba "DRE Manual" (não mais inline aqui). */}
+                              {/* REALIZADO. Linhas manuais-only (MKT Mídia/Disparos/Pontos/Benefícios,
+                                  Produção Mensal Fixo) são editáveis inline (só na orçamentação).
+                                  Demais são read-only (Conta Azul + ajustes da aba DRE Manual). */}
                               {(() => {
                                 const isReceita = categoria.tipo === 'receita';
                                 const isManualReal = SUBCATEGORIAS_MANUAIS.has(sub.nome);
+                                const isEditReal = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'realizado';
                                 const tem = sub.planejado > 0 || sub.realizado !== 0;
                                 let corClasse = 'text-gray-400';
                                 if (tem) {
@@ -552,12 +556,33 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                                     corClasse = sub.realizado <= sub.planejado ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold';
                                   }
                                 }
+                                if (isEditReal) {
+                                  return (
+                                    <div className="flex-1 flex items-center justify-center">
+                                      <div className="flex items-center gap-0.5">
+                                        <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                                        <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
+                                        <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
+                                      </div>
+                                    </div>
+                                  );
+                                }
                                 return (
                                   <div className="flex-1 flex items-center justify-center relative group/real">
                                     <HistoricoTooltip historico={getHistorico(sub.nome, 'realizado', idx)} cor="gray" />
-                                    <span className={cn("text-[10px] whitespace-nowrap", corClasse)} title={isManualReal ? 'Ajuste manual — editar na aba DRE Manual' : 'Automático: Conta Azul + ajustes da DRE Manual'}>
-                                      {sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sinalDre(sub.realizado, categoria.tipo))}
-                                    </span>
+                                    {isManualReal ? (
+                                      <div
+                                        className="flex items-center gap-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-0.5"
+                                        onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'realizado' }); setValorEdit(sub.realizado.toString()); }}
+                                      >
+                                        <span className={cn("text-[10px] whitespace-nowrap", corClasse)}>{formatarMoeda(sinalDre(sub.realizado, categoria.tipo))}</span>
+                                        <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
+                                      </div>
+                                    ) : (
+                                      <span className={cn("text-[10px] whitespace-nowrap", corClasse)} title="Automático: Conta Azul + ajustes da DRE Manual">
+                                        {sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sinalDre(sub.realizado, categoria.tipo))}
+                                      </span>
+                                    )}
                                   </div>
                                 );
                               })()}

@@ -97,7 +97,10 @@ export interface MesOrcamento {
 type SubFixa = {
   nome: string;
   gold?: string[];   // categorias_zykor do gold que somam nessa linha
-  manual?: boolean;  // realizado digitado na tela
+  // Realizado SÓ da orçamentação (orcamento_planilha.valor_realizado_manual),
+  // editável inline. NÃO vai pra DRE. Pra linhas que não existem no Conta Azul
+  // (MKT Mídia/Disparos/Pontos/Benefícios, Produção Mensal Fixo).
+  orcOnly?: boolean;
 };
 
 type BlocoDef =
@@ -121,8 +124,9 @@ const ESTRUTURA: BlocoDef[] = [
   { nome: 'Custo insumos (CMV)', tipo: 'despesa', cor: COR.cmv, modo: 'percentual', blocoGold: 'Custo insumos (CMV)' },
   {
     nome: 'Mão-de-Obra', tipo: 'despesa', cor: COR.pessoal, modo: 'fixo', subs: [
-      { nome: 'CUSTO-EMPRESA FUNCIONÁRIOS', gold: ['SALARIO FUNCIONARIOS', 'ALIMENTAÇÃO', 'PROVISÃO TRABALHISTA', 'VALE TRANSPORTE'] },
+      { nome: 'CUSTO-EMPRESA FUNCIONÁRIOS', gold: ['SALARIO FUNCIONARIOS', 'PROVISÃO TRABALHISTA', 'VALE TRANSPORTE'] },
       { nome: 'ADICIONAIS', gold: ['ADICIONAIS'] },
+      { nome: 'ALIMENTAÇÃO', gold: ['ALIMENTAÇÃO'] },
       { nome: 'FREELA ATENDIMENTO', gold: ['FREELA ATENDIMENTO'] },
       { nome: 'FREELA BAR', gold: ['FREELA BAR'] },
       { nome: 'FREELA COZINHA', gold: ['FREELA COZINHA'] },
@@ -135,12 +139,12 @@ const ESTRUTURA: BlocoDef[] = [
   {
     nome: 'Despesas Comerciais', tipo: 'despesa', cor: COR.comercial, modo: 'fixo', subs: [
       { nome: 'Marketing', gold: ['Marketing'] },
-      { nome: 'Marketing Mídia', manual: true },
-      { nome: 'MKT Disparos', manual: true },
-      { nome: 'MKT Programa de Pontos', manual: true },
-      { nome: 'MKT Beneficios', manual: true },
+      { nome: 'Marketing Mídia', orcOnly: true },
+      { nome: 'MKT Disparos', orcOnly: true },
+      { nome: 'MKT Programa de Pontos', orcOnly: true },
+      { nome: 'MKT Beneficios', orcOnly: true },
       { nome: 'Atrações Programação', gold: ['Atrações Programação'] },
-      { nome: 'Produção Mensal Fixo', manual: true },
+      { nome: 'Produção Mensal Fixo', orcOnly: true },
       { nome: 'Produção Eventos', gold: ['Produção Eventos'] },
     ]
   },
@@ -176,8 +180,8 @@ const ESTRUTURA: BlocoDef[] = [
   },
   {
     nome: 'Não Operacionais', tipo: 'receita', cor: COR.naoOp, modo: 'fixo', subs: [
-      // Só Contratos. 'Contratos' (case) bate com a categoria do financial.dre_manual.
-      { nome: 'Contratos', manual: true },
+      // Só Contratos. Realizado vem do financial.dre_manual (categoria 'Contratos').
+      { nome: 'Contratos' },
     ]
   },
 ];
@@ -325,13 +329,19 @@ export async function getOrcamentacaoCompleta(
         const prow = planilha(s.nome);
         const plan = num(prow?.valor_planejado);
         const proj = num(prow?.valor_projetado);
-        // Realizado = Conta Azul (gold) + ajustes manuais (DRE Manual).
-        // dre_manual usa sinal de impacto no lucro: receita soma; despesa subtrai
-        // (positivo reduz custo, negativo aumenta).
-        const goldVal = (s.gold || []).reduce((sum, g) => sum + goldCat(g), 0);
-        const manualVal = manualCat(s.nome);
-        const real = bloco.tipo === 'receita' ? goldVal + manualVal : goldVal - manualVal;
-        return { nome: s.nome, planejado: plan, projecao: proj, realizado: real, isPercentage: false, manual: !!s.manual };
+        // Realizado:
+        //   orcOnly -> digitado na tela (valor_realizado_manual); só na orçamentação, não vai pra DRE.
+        //   demais  -> Conta Azul (gold) + ajustes da DRE Manual. dre_manual usa sinal de
+        //              impacto no lucro: receita soma; despesa subtrai.
+        let real: number;
+        if (s.orcOnly) {
+          real = num(prow?.valor_realizado_manual);
+        } else {
+          const goldVal = (s.gold || []).reduce((sum, g) => sum + goldCat(g), 0);
+          const manualVal = manualCat(s.nome);
+          real = bloco.tipo === 'receita' ? goldVal + manualVal : goldVal - manualVal;
+        }
+        return { nome: s.nome, planejado: plan, projecao: proj, realizado: real, isPercentage: false, manual: !!s.orcOnly };
       });
       return { nome: bloco.nome, cor: bloco.cor, tipo: bloco.tipo, subcategorias };
     });
