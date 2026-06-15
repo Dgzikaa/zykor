@@ -459,12 +459,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       data_inicio,  // Para backfill: data inicial do range
       data_fim,     // Para backfill: data final do range
       only_cancelamentos, // Se true, busca apenas cancelamentos (para backfill rápido)
+      only_sinteticoporhorario, // Se true, busca apenas qry=95 (backfill produto×hora)
       emp_id: empIdFromPayload, 
       contahub_emp_id: contahubEmpIdFromPayload 
     } = JSON.parse(requestBody || '{}');
     
     // MODO RANGE: Se tem data_inicio e data_fim, processar múltiplos dias
-    if (data_inicio && data_fim && !only_cancelamentos) {
+    if (data_inicio && data_fim && !only_cancelamentos && !only_sinteticoporhorario) {
       console.log(`🔄 Modo RANGE: Sincronizando de ${data_inicio} a ${data_fim} para bar_id=${bar_id}`);
       
       // Processar cada dia do range
@@ -525,6 +526,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Se tem data_inicio e data_fim, é um backfill de range (apenas cancelamentos)
     if (data_inicio && data_fim && only_cancelamentos) {
       console.log(`🔄 Modo BACKFILL: Buscando cancelamentos de ${data_inicio} a ${data_fim} para bar_id=${bar_id}`);
+      // Será tratado abaixo
+    } else if (data_inicio && data_fim && only_sinteticoporhorario) {
+      console.log(`🔄 Modo BACKFILL: Buscando sinteticoporhorario (qry=95) de ${data_inicio} a ${data_fim} para bar_id=${bar_id}`);
       // Será tratado abaixo
     } else if (!bar_id || !data_date) {
       throw new Error('bar_id e data_date são obrigatórios (ou data_inicio/data_fim para backfill)');
@@ -676,13 +680,62 @@ Deno.serve(async (req: Request): Promise<Response> => {
       };
       
       console.log('📊 Backfill concluído:', JSON.stringify(summary));
-      
+
       return new Response(JSON.stringify(summary), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200
       });
     }
-    
+
+    // MODO BACKFILL: Buscar apenas sinteticoporhorario (qry=95) para um range de datas
+    if (data_inicio && data_fim && only_sinteticoporhorario) {
+      console.log(`\n🔄 MODO BACKFILL SINTETICOPORHORARIO: ${data_inicio} a ${data_fim}`);
+
+      const startDate = new Date(data_inicio);
+      const endDate = new Date(data_fim);
+      let currentDate = startDate;
+      let totalDias = 0;
+      let totalRegistros = 0;
+
+      while (currentDate <= endDate) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        try {
+          console.log(`📅 Buscando sinteticoporhorario para ${dateStr}...`);
+          const sintData = await fetchSinteticoPorHorarioComDivisao(
+            contahubBaseUrl, dateStr, emp_id, sessionToken, generateDynamicTimestamp
+          );
+          const saveResult = await saveRawDataOnly(supabase, 'sinteticoporhorario', sintData, dateStr, bar_id);
+          totalRegistros += saveResult.record_count;
+          totalDias++;
+          console.log(`✅ ${dateStr}: ${saveResult.record_count} registros`);
+          await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (error) {
+          // dia sem movimento retorna 0 e dispara erro no saveRawDataOnly — apenas registrar
+          console.warn(`⚠️ ${dateStr}: ${String(error)}`);
+          results.errors.push({ date: dateStr, error: String(error) });
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      const summary = {
+        bar_id,
+        mode: 'backfill_sinteticoporhorario',
+        data_inicio,
+        data_fim,
+        total_dias: totalDias,
+        total_registros: totalRegistros,
+        errors: results.errors.length,
+        timestamp: new Date().toISOString()
+      };
+
+      console.log('📊 Backfill concluído:', JSON.stringify(summary));
+
+      return new Response(JSON.stringify(summary), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      });
+    }
+
     // 1. COLETA E ARMAZENAMENTO DE JSON BRUTO (modo normal)
     console.log('\n📊 FASE 1: Coletando e salvando JSONs brutos...');
     
