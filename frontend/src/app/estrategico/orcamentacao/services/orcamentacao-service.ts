@@ -97,9 +97,10 @@ export interface MesOrcamento {
 type SubFixa = {
   nome: string;
   gold?: string[];   // categorias_zykor do gold que somam nessa linha
+  manualKey?: string; // categoria do dre_manual a somar (quando difere do nome da linha)
   // Realizado SÓ da orçamentação (orcamento_planilha.valor_realizado_manual),
   // editável inline. NÃO vai pra DRE. Pra linhas que não existem no Conta Azul
-  // (MKT Mídia/Disparos/Pontos/Benefícios, Produção Mensal Fixo).
+  // (MKT Disparos/Pontos/Benefícios, Produção Mensal Fixo).
   orcOnly?: boolean;
 };
 
@@ -138,8 +139,9 @@ const ESTRUTURA: BlocoDef[] = [
   },
   {
     nome: 'Despesas Comerciais', tipo: 'despesa', cor: COR.comercial, modo: 'fixo', subs: [
-      { nome: 'Marketing', gold: ['Marketing'] },
-      { nome: 'Marketing Mídia', orcOnly: true },
+      // Sem "Marketing" solto (igual à planilha): o CA 'Marketing' + consumo cai em
+      // 'Marketing Mídia' (via gold + manualKey) p/ não perder realizado. Rever depois.
+      { nome: 'Marketing Mídia', gold: ['Marketing'], manualKey: 'Marketing' },
       { nome: 'MKT Disparos', orcOnly: true },
       { nome: 'MKT Programa de Pontos', orcOnly: true },
       { nome: 'MKT Beneficios', orcOnly: true },
@@ -173,9 +175,9 @@ const ESTRUTURA: BlocoDef[] = [
       { nome: 'ÁGUA', gold: ['ÁGUA'] },
       { nome: 'GÁS', gold: ['GÁS'] },
       { nome: 'INTERNET', gold: ['INTERNET'] },
-      { nome: 'Manutenção', gold: ['Manutenção'] },
+      // Sem "TENDA" solto (igual à planilha): CA 'TENDA' cai em Manutenção. Rever depois.
+      { nome: 'Manutenção', gold: ['Manutenção', 'TENDA'] },
       { nome: 'LUZ', gold: ['LUZ'] },
-      { nome: 'TENDA', gold: ['TENDA'] },
     ]
   },
   {
@@ -341,7 +343,7 @@ export async function getOrcamentacaoCompleta(
           real = num(prow?.valor_realizado_manual);
         } else {
           const goldVal = (s.gold || []).reduce((sum, g) => sum + goldCat(g), 0);
-          const manualVal = manualCat(s.nome);
+          const manualVal = manualCat(s.manualKey || s.nome);
           real = bloco.tipo === 'receita' ? goldVal + manualVal : goldVal - manualVal;
         }
         return { nome: s.nome, planejado: plan, projecao: proj, realizado: real, isPercentage: false, manual: !!s.orcOnly };

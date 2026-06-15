@@ -56,8 +56,7 @@ interface OrcamentacaoClientProps {
 // Linhas com Realizado MANUAL editável inline na orçamentação (não vão pra DRE).
 // São as que não existem no Conta Azul. Contratos NÃO entra aqui (vem da DRE Manual).
 const SUBCATEGORIAS_MANUAIS = new Set<string>([
-  'Marketing Mídia', 'MKT Disparos', 'MKT Programa de Pontos', 'MKT Beneficios',
-  'Produção Mensal Fixo',
+  'MKT Disparos', 'MKT Programa de Pontos', 'MKT Beneficios', 'Produção Mensal Fixo',
 ]);
 
 // Formatadores
