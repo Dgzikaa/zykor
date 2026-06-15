@@ -6,6 +6,7 @@ import { BarSyncCheck } from '@/components/BarSyncCheck';
 import { Card } from '@/components/ui/card';
 import { BarChart3 } from 'lucide-react';
 import { fetchBpData } from '../bp/lib/fetch-bp-data';
+import { versaoMaisRecente } from '../bp/lib/versao';
 
 export const revalidate = 120; // Cache por 2 minutos (alinhado com a API antiga)
 
@@ -41,15 +42,26 @@ export default async function Page() {
   const mesAtual = hoje.getMonth() + 1;
   const quantidade = 12;
 
-  // BP: carregar em paralelo, mes corrente e versao padrao
-  const bpVersao = 'Mai26';
+  // BP: versao padrao = a mais recente cadastrada (cai pra Mai26 se nao houver).
+  const { data: versoesRows } = await supabase
+    .from('bp_linha')
+    .select('versao, ano')
+    .eq('bar_id', barId)
+    .eq('ativo', true);
+  const versoesUnicas = Array.from(
+    new Set(((versoesRows || []) as { versao: string; ano: number }[]).map(v => `${v.ano}|${v.versao}`))
+  ).map(s => { const [a, v] = s.split('|'); return { ano: Number(a), versao: v }; });
+  const recente = versaoMaisRecente(versoesUnicas);
+  const bpVersao = recente?.versao ?? 'Mai26';
+  const bpAno = recente?.ano ?? anoInicio;
+
   const [initialData, bp] = await Promise.all([
     getOrcamentacaoCompleta(supabase, barId, anoInicio, mesInicio, quantidade),
-    fetchBpData(supabase, barId, anoInicio, bpVersao, mesAtual).catch(() => null),
+    fetchBpData(supabase, barId, bpAno, bpVersao, mesAtual).catch(() => null),
   ]);
 
   const bpData = bp
-    ? { ...bp, anoAtual: anoInicio, versaoAtual: bpVersao, mesAnalise: mesAtual }
+    ? { ...bp, anoAtual: bpAno, versaoAtual: bpVersao, mesAnalise: mesAtual }
     : undefined;
 
   return (

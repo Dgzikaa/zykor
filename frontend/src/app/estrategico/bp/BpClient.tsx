@@ -1,9 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Plus } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Select,
@@ -12,9 +15,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 import type { BpLinha, BpIndicador, AnaliseSemanal, DiaSemana } from './types';
 import { cn } from '@/lib/utils';
 import { HistoricoOrcamentoTab } from '../orcamentacao/components/HistoricoOrcamentoTab';
+import { proximaVersao } from './lib/versao';
 
 const DIAS: { key: DiaSemana; label: string; labelLong: string }[] = [
   { key: 'seg', label: 'Seg', labelLong: 'Segunda' },
@@ -70,6 +83,7 @@ export function BpClient({
 }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<'dre' | 'analise' | 'historico'>('dre');
+  const [novoBpOpen, setNovoBpOpen] = useState(false);
 
   const indMap = useMemo(() => {
     const m = new Map<string, BpIndicador>();
@@ -143,6 +157,9 @@ export function BpClient({
     <div className="p-3 md:p-4 space-y-3">
       {/* Seletor de versao no topo direito (sem titulo — ja esta dentro da aba BP) */}
       <div className="flex items-center justify-end gap-2">
+        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => setNovoBpOpen(true)}>
+          <Plus className="w-3.5 h-3.5" /> Novo BP
+        </Button>
         <span className="text-xs text-muted-foreground">Versão:</span>
         <Select value={`${anoAtual}|${versaoAtual}`} onValueChange={handleChangeVersao}>
           <SelectTrigger className="w-[180px] h-8">
@@ -161,6 +178,17 @@ export function BpClient({
           </SelectContent>
         </Select>
       </div>
+
+      <NovoBpModal
+        open={novoBpOpen}
+        onOpenChange={setNovoBpOpen}
+        barId={barId}
+        linhas={linhas}
+        indicadores={indicadores}
+        versaoAtual={versaoAtual}
+        anoAtual={anoAtual}
+        onCreated={() => router.refresh()}
+      />
 
       {/* Indicadores macro fixos */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -545,5 +573,190 @@ function LinhaPlanReal({
         </td>
       </tr>
     </>
+  );
+}
+
+// Modal: cria um novo BP copiando as linhas/indicadores da versao atual,
+// permitindo editar os valores (valor_mensal) antes de salvar.
+function NovoBpModal({
+  open,
+  onOpenChange,
+  barId,
+  linhas,
+  indicadores,
+  versaoAtual,
+  anoAtual,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  barId: number;
+  linhas: BpLinha[];
+  indicadores: BpIndicador[];
+  versaoAtual: string;
+  anoAtual: number;
+  onCreated: () => void;
+}) {
+  const { toast } = useToast();
+  const sugestao = useMemo(() => proximaVersao(versaoAtual, anoAtual), [versaoAtual, anoAtual]);
+
+  const [versao, setVersao] = useState(sugestao.versao);
+  const [ano, setAno] = useState(String(sugestao.ano));
+  const [salvando, setSalvando] = useState(false);
+  // valores editados, keyed por id da linha
+  const [valores, setValores] = useState<Record<number, string>>({});
+
+  // Re-inicializa ao abrir (e quando a versao de origem muda)
+  const initKey = `${open}|${versaoAtual}|${anoAtual}`;
+  const [lastInit, setLastInit] = useState('');
+  if (open && lastInit !== initKey) {
+    setLastInit(initKey);
+    setVersao(sugestao.versao);
+    setAno(String(sugestao.ano));
+    const init: Record<number, string> = {};
+    for (const l of linhas) {
+      if (l.valor_mensal !== null && l.valor_mensal !== undefined) {
+        init[l.id] = String(l.valor_mensal);
+      }
+    }
+    setValores(init);
+  }
+
+  // Linhas editaveis (financeiras) agrupadas por bloco, na ordem do BP.
+  const blocosEditaveis = useMemo(() => {
+    const editaveis = linhas
+      .filter(l => l.valor_mensal !== null && l.valor_mensal !== undefined && l.tipo !== 'percentual_calc')
+      .sort((a, b) => a.ordem - b.ordem);
+    const grupos = new Map<string, BpLinha[]>();
+    for (const l of editaveis) {
+      const arr = grupos.get(l.bloco) || [];
+      arr.push(l);
+      grupos.set(l.bloco, arr);
+    }
+    return Array.from(grupos.entries());
+  }, [linhas]);
+
+  const handleSalvar = async () => {
+    const versaoTrim = versao.trim();
+    const anoNum = Number(ano);
+    if (!versaoTrim) {
+      toast({ title: 'Informe o nome da versão', variant: 'destructive' });
+      return;
+    }
+    if (!anoNum || anoNum < 2020 || anoNum > 2100) {
+      toast({ title: 'Ano inválido', variant: 'destructive' });
+      return;
+    }
+
+    // Monta payload: TODAS as linhas (preservando metricas/por_dia_semana),
+    // com valor_mensal sobrescrito pelas edicoes.
+    const linhasPayload = linhas.map(l => ({
+      bloco: l.bloco,
+      linha: l.linha,
+      ordem: l.ordem,
+      tipo: l.tipo,
+      valor_mensal: valores[l.id] !== undefined
+        ? (parseFloat(valores[l.id].replace(',', '.')) || 0)
+        : l.valor_mensal,
+      por_dia_semana: l.por_dia_semana,
+      observacao: l.observacao,
+    }));
+
+    const indicadoresPayload = indicadores.map(i => ({
+      indicador: i.indicador,
+      valor: i.valor,
+      unidade: i.unidade,
+      observacao: i.observacao,
+    }));
+
+    setSalvando(true);
+    try {
+      const resp = await fetch('/api/estrategico/bp/criar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bar_id: barId,
+          ano: anoNum,
+          versao: versaoTrim,
+          linhas: linhasPayload,
+          indicadores: indicadoresPayload,
+        }),
+      });
+      const j = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        toast({ title: 'Não foi possível criar o BP', description: j?.error || 'Erro', variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'BP criado!', description: `${versaoTrim} (${anoNum}) — ${j?.linhas ?? ''} linhas` });
+      onOpenChange(false);
+      onCreated();
+    } catch (e) {
+      toast({ title: 'Erro de rede', description: e instanceof Error ? e.message : 'Erro', variant: 'destructive' });
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Novo Business Plan</DialogTitle>
+          <DialogDescription>
+            Copia o BP <strong>{versaoAtual} ({anoAtual})</strong>. Ajuste os valores e salve como uma nova versão.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Versão (mês)</label>
+            <Input value={versao} onChange={e => setVersao(e.target.value)} placeholder="Ex.: Jun26" className="h-8 w-[140px]" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Ano</label>
+            <Input value={ano} onChange={e => setAno(e.target.value)} className="h-8 w-[90px]" inputMode="numeric" />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto -mx-1 px-1 mt-1">
+          <table className="w-full text-sm">
+            <tbody>
+              {blocosEditaveis.map(([bloco, ls]) => (
+                <Fragment key={bloco}>
+                  <tr className="bg-muted/40">
+                    <td colSpan={2} className="py-1.5 px-2 text-[10px] uppercase font-semibold text-muted-foreground tracking-wide">
+                      {bloco}
+                    </td>
+                  </tr>
+                  {ls.map(l => (
+                    <tr key={l.id} className="border-b">
+                      <td className="py-1 px-2">{l.linha}</td>
+                      <td className="py-1 px-2 w-[160px]">
+                        <Input
+                          value={valores[l.id] ?? ''}
+                          onChange={e => setValores(prev => ({ ...prev, [l.id]: e.target.value }))}
+                          className="h-7 text-right font-mono text-xs"
+                          inputMode="decimal"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-[11px] text-muted-foreground mt-2 px-1">
+            Métricas operacionais (pessoas, tickets por dia) e indicadores são copiados automaticamente.
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={salvando}>Cancelar</Button>
+          <Button onClick={handleSalvar} disabled={salvando}>
+            {salvando ? 'Criando…' : 'Criar BP'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

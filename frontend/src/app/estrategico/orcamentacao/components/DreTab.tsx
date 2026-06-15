@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, ChevronRight, ChevronDown } from 'lucide-react';
 
 interface DreRow {
   bar_id: number;
@@ -40,11 +40,29 @@ const fmtBRL = (n: number) => {
   const str = v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return neg ? `-R$ ${str}` : `R$ ${str}`;
 };
-const fmtPct = (n: number | null) => n == null ? '' : `${n > 0 ? '' : ''}${n.toFixed(1)}%`;
+
+// Linha pronta pra render (header de macro OU subcategoria).
+interface LinhaRender {
+  tipo: 'macro' | 'sub';
+  grupo: string;            // chave de colapso (macro ao qual pertence)
+  colapsavel: boolean;      // header de macro com subs
+  label: string;
+  label2?: string;
+  valores: number[];        // 12 valores
+  percentuais: (number | null)[];
+  ytd: number;
+  ytdPct: number | null;
+  cor?: string;
+  destaque?: boolean;
+  secao?: 'resultado' | 'investimento';
+  parcial?: boolean;        // resultado parcial (Margem de Contribuição / Lucro Operacional)
+}
 
 export function DreTab({ barId }: Props) {
   const [linhas, setLinhas] = useState<DreRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Macros colapsados (mostra só a linha TOTAL). Default: tudo expandido.
+  const [colapsados, setColapsados] = useState<Set<string>>(new Set());
 
   const carregar = async () => {
     setLoading(true);
@@ -60,6 +78,14 @@ export function DreTab({ barId }: Props) {
   };
 
   useEffect(() => { carregar(); }, [barId]);
+
+  const toggleMacro = (nome: string) => {
+    setColapsados(prev => {
+      const next = new Set(prev);
+      if (next.has(nome)) next.delete(nome); else next.add(nome);
+      return next;
+    });
+  };
 
   const dados = useMemo(() => {
     // Agrupa por macro → sub → mes
@@ -84,45 +110,48 @@ export function DreTab({ barId }: Props) {
     }
     const receitaYTD = receitaTotalMes.reduce((s, v) => s + v, 0);
 
-    // Monta linhas finais com ordem
-    const out: Array<{
-      tipo: 'macro' | 'sub';
-      label: string;
-      label2?: string;
-      valores: number[];        // 12 valores
-      percentuais: (number | null)[];
-      ytd: number;
-      ytdPct: number | null;
-      cor?: string;
-      destaque?: boolean;
-    }> = [];
+    const out: LinhaRender[] = [];
 
-    for (const macroNome of MACRO_ORDEM) {
-      const subMap = macroMap.get(macroNome);
-      if (!subMap) continue;
-
-      // Linha TOTAL do macro
-      const valoresMacro: number[] = Array(12).fill(0);
-      for (const [, mesMap] of subMap) {
-        for (const [mes, row] of mesMap) valoresMacro[mes] += row.valor_com_sinal;
+    // Soma os valores (com sinal) de várias macros, por mês.
+    const somaMacros = (nomes: string[]): number[] => {
+      const acc = Array(12).fill(0);
+      for (const nome of nomes) {
+        const subMap = macroMap.get(nome);
+        if (!subMap) continue;
+        for (const [, mesMap] of subMap) {
+          for (const [mes, row] of mesMap) acc[mes] += row.valor_com_sinal;
+        }
       }
-      const ytdMacro = valoresMacro.reduce((s, v) => s + v, 0);
-      const pctMacro = valoresMacro.map(v => receitaTotalMes[valoresMacro.indexOf(v)] !== 0
-        ? null : null);
-      // Calcula % de cada mês do macro
-      const pctMacroPorMes = valoresMacro.map((v, i) => receitaTotalMes[i] > 0 ? (v / receitaTotalMes[i] * 100) : null);
+      return acc;
+    };
 
+    // Linha de resultado parcial (Margem de Contribuição, Lucro Operacional, Lucro Líquido).
+    const pushSubtotal = (label: string, macros: string[], opts: { parcial?: boolean; forte?: boolean }) => {
+      const valores = somaMacros(macros);
+      const ytd = valores.reduce((s, v) => s + v, 0);
+      const pct = valores.map((v, i) => receitaTotalMes[i] > 0 ? (v / receitaTotalMes[i] * 100) : null);
       out.push({
         tipo: 'macro',
-        label: macroNome,
-        label2: 'TOTAL',
-        valores: valoresMacro,
-        percentuais: pctMacroPorMes,
-        ytd: ytdMacro,
-        ytdPct: receitaYTD > 0 ? (ytdMacro / receitaYTD * 100) : null,
+        grupo: '__subtotal__',
+        colapsavel: false,
+        label,
+        label2: '',
+        valores,
+        percentuais: pct,
+        ytd,
+        ytdPct: receitaYTD > 0 ? (ytd / receitaYTD * 100) : null,
         destaque: true,
-        cor: macroNome === 'Receita' ? 'text-emerald-700' : 'text-gray-900 dark:text-gray-100',
+        secao: 'resultado',
+        parcial: opts.parcial,
+        cor: opts.forte
+          ? (ytd < 0 ? 'text-red-700 font-bold' : 'text-emerald-700 font-bold')
+          : (ytd < 0 ? 'text-red-700' : 'text-slate-800 dark:text-slate-200'),
       });
+    };
+
+    const pushMacroComSubs = (macroNome: string, secao: 'resultado' | 'investimento', corMacro?: string) => {
+      const subMap = macroMap.get(macroNome);
+      if (!subMap) return;
 
       // Subcategorias ordenadas
       const subs = Array.from(subMap.entries()).sort((a, b) => {
@@ -130,6 +159,30 @@ export function DreTab({ barId }: Props) {
         const ob = Array.from(b[1].values())[0]?.ordem_sub ?? 99;
         return oa - ob;
       });
+
+      // Linha TOTAL do macro
+      const valoresMacro: number[] = Array(12).fill(0);
+      for (const [, mesMap] of subMap) {
+        for (const [mes, row] of mesMap) valoresMacro[mes] += row.valor_com_sinal;
+      }
+      const ytdMacro = valoresMacro.reduce((s, v) => s + v, 0);
+      const pctMacroPorMes = valoresMacro.map((v, i) => receitaTotalMes[i] > 0 ? (v / receitaTotalMes[i] * 100) : null);
+
+      out.push({
+        tipo: 'macro',
+        grupo: macroNome,
+        colapsavel: subs.length > 0,
+        label: macroNome,
+        label2: 'TOTAL',
+        valores: valoresMacro,
+        percentuais: secao === 'investimento' ? valoresMacro.map(() => null) : pctMacroPorMes,
+        ytd: ytdMacro,
+        ytdPct: secao === 'investimento' ? null : (receitaYTD > 0 ? (ytdMacro / receitaYTD * 100) : null),
+        destaque: true,
+        secao,
+        cor: corMacro ?? (macroNome === 'Receita' ? 'text-emerald-700' : 'text-gray-900 dark:text-gray-100'),
+      });
+
       for (const [subNome, mesMap] of subs) {
         const valoresSub: number[] = Array(12).fill(0);
         for (const [mes, row] of mesMap) valoresSub[mes] = row.valor_com_sinal;
@@ -137,86 +190,66 @@ export function DreTab({ barId }: Props) {
         const pctSub = valoresSub.map((v, i) => receitaTotalMes[i] > 0 ? (v / receitaTotalMes[i] * 100) : null);
         out.push({
           tipo: 'sub',
+          grupo: macroNome,
+          colapsavel: false,
           label: '',
           label2: subNome,
           valores: valoresSub,
-          percentuais: pctSub,
+          percentuais: secao === 'investimento' ? valoresSub.map(() => null) : pctSub,
           ytd: ytdSub,
-          ytdPct: receitaYTD > 0 ? (ytdSub / receitaYTD * 100) : null,
+          ytdPct: secao === 'investimento' ? null : (receitaYTD > 0 ? (ytdSub / receitaYTD * 100) : null),
+          secao,
         });
       }
-    }
+    };
 
-    // Lucro Líquido = Receita + Não Operacionais - todas despesas
-    const receita = macroMap.get('Receita');
-    const naoOp = macroMap.get('Não Operacionais');
-    const lucroPorMes: number[] = Array(12).fill(0);
-    for (const m of MACRO_ORDEM) {
-      const subM = macroMap.get(m);
-      if (!subM) continue;
-      for (const [, mesMap] of subM) {
-        for (const [mes, row] of mesMap) lucroPorMes[mes] += row.valor_com_sinal;
-      }
-    }
-    const lucroYTD = lucroPorMes.reduce((s, v) => s + v, 0);
-    const pctLucro = lucroPorMes.map((v, i) => receitaTotalMes[i] > 0 ? (v / receitaTotalMes[i] * 100) : null);
+    // Estrutura em blocos com resultados parciais:
+    //   Receita − Variáveis − CMV                              = Margem de Contribuição
+    //   Margem − MãoObra − Comercial − Admin − Operac − Ocup   = Lucro Operacional
+    //   Lucro Operacional + Não Operacionais                   = Lucro Líquido
+    const MACROS_MARGEM = ['Receita', 'Custos Variáveis', 'Custo insumos (CMV)'];
+    const MACROS_OPERACIONAL = [
+      'Mão-de-Obra',
+      'Despesas Comerciais',
+      'Despesas Administrativas',
+      'Despesas Operacionais',
+      'Despesas de Ocupação (Contas)',
+    ];
 
-    out.push({
-      tipo: 'macro',
-      label: 'Lucro Líquido',
-      label2: '',
-      valores: lucroPorMes,
-      percentuais: pctLucro,
-      ytd: lucroYTD,
-      ytdPct: receitaYTD > 0 ? (lucroYTD / receitaYTD * 100) : null,
-      destaque: true,
-      cor: lucroYTD < 0 ? 'text-red-700 font-bold' : 'text-emerald-700 font-bold',
-    });
+    for (const m of MACROS_MARGEM) pushMacroComSubs(m, 'resultado');
+    pushSubtotal('Margem de Contribuição', MACROS_MARGEM, { parcial: true });
 
-    // Investimentos (linha de baixo)
-    const investMap = macroMap.get('Investimentos');
-    if (investMap) {
-      const valoresInv: number[] = Array(12).fill(0);
-      for (const [, mesMap] of investMap) {
-        for (const [mes, row] of mesMap) valoresInv[mes] += row.valor_com_sinal;
-      }
-      const ytdInv = valoresInv.reduce((s, v) => s + v, 0);
-      out.push({
-        tipo: 'macro',
-        label: 'Investimentos',
-        label2: 'TOTAL',
-        valores: valoresInv,
-        percentuais: valoresInv.map(() => null),
-        ytd: ytdInv,
-        ytdPct: null,
-        destaque: true,
-        cor: 'text-blue-700',
-      });
-      const subsInv = Array.from(investMap.entries()).sort((a, b) => {
-        const oa = Array.from(a[1].values())[0]?.ordem_sub ?? 99;
-        const ob = Array.from(b[1].values())[0]?.ordem_sub ?? 99;
-        return oa - ob;
-      });
-      for (const [subNome, mesMap] of subsInv) {
-        const valoresSub: number[] = Array(12).fill(0);
-        for (const [mes, row] of mesMap) valoresSub[mes] = row.valor_com_sinal;
-        const ytdSub = valoresSub.reduce((s, v) => s + v, 0);
-        out.push({
-          tipo: 'sub',
-          label: '',
-          label2: subNome,
-          valores: valoresSub,
-          percentuais: valoresSub.map(() => null),
-          ytd: ytdSub,
-          ytdPct: null,
-        });
-      }
-    }
+    for (const m of MACROS_OPERACIONAL) pushMacroComSubs(m, 'resultado');
+    pushSubtotal('Lucro Operacional', [...MACROS_MARGEM, ...MACROS_OPERACIONAL], { parcial: true });
+
+    pushMacroComSubs('Não Operacionais', 'resultado');
+    pushSubtotal('Lucro Líquido', [...MACROS_MARGEM, ...MACROS_OPERACIONAL, 'Não Operacionais'], { forte: true });
+
+    // Investimentos: bloco à parte, fora do resultado
+    pushMacroComSubs('Investimentos', 'investimento', 'text-blue-700');
 
     return { rows: out, receitaTotalMes, receitaYTD };
   }, [linhas]);
 
+  // Aplica colapso: esconde subs de macros colapsados (macros sempre visíveis).
+  const linhasVisiveis = useMemo(
+    () => dados.rows.filter(r => r.tipo === 'macro' || !colapsados.has(r.grupo)),
+    [dados.rows, colapsados]
+  );
+
+  const temMacrosColapsaveis = dados.rows.some(r => r.colapsavel);
+  const todosColapsados = dados.rows.filter(r => r.colapsavel).every(r => colapsados.has(r.grupo));
+  const toggleTodos = () => {
+    if (todosColapsados) {
+      setColapsados(new Set());
+    } else {
+      setColapsados(new Set(dados.rows.filter(r => r.colapsavel).map(r => r.grupo)));
+    }
+  };
+
   if (loading) return <div className="p-4"><Skeleton className="h-96 w-full" /></div>;
+
+  const COLSPAN_TOTAL = 2 + 12 * 2 + 2; // labels + (valor,%)×12 + YTD(valor,%)
 
   return (
     <div className="p-4 space-y-4">
@@ -227,9 +260,17 @@ export function DreTab({ barId }: Props) {
             Dados ContaAzul agregados por competência. Estrutura espelha planilha &ldquo;[Ordinário] DRE e DFC&rdquo;.
           </p>
         </div>
-        <Button onClick={carregar} variant="outline" size="sm" className="gap-1">
-          <RefreshCw className="w-3 h-3" /> Atualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          {temMacrosColapsaveis && (
+            <Button onClick={toggleTodos} variant="outline" size="sm" className="gap-1">
+              {todosColapsados ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              {todosColapsados ? 'Expandir tudo' : 'Recolher tudo'}
+            </Button>
+          )}
+          <Button onClick={carregar} variant="outline" size="sm" className="gap-1">
+            <RefreshCw className="w-3 h-3" /> Atualizar
+          </Button>
+        </div>
       </div>
 
       <Card className="overflow-x-auto">
@@ -239,38 +280,91 @@ export function DreTab({ barId }: Props) {
               <th className="text-left py-2 px-2 sticky left-0 bg-gray-100 dark:bg-gray-800 min-w-[180px] z-10">Categ MACRO</th>
               <th className="text-left py-2 px-2 sticky left-[180px] bg-gray-100 dark:bg-gray-800 min-w-[200px] z-10">Categoria</th>
               {MES_LABEL.map((m, i) => (
-                <th key={i} className="text-right py-2 px-2 min-w-[110px]" colSpan={2}>{m}/26</th>
+                // Label do mês fica alinhado à direita sobre a coluna de VALOR (não a de %),
+                // ficando exatamente sobre o total da coluna.
+                <Fragment key={i}>
+                  <th className="text-right py-2 px-2 min-w-[110px]">{m}/26</th>
+                  <th className="py-2 px-1 min-w-[44px]" aria-hidden />
+                </Fragment>
               ))}
-              <th className="text-right py-2 px-2 bg-gray-200 dark:bg-gray-700 min-w-[120px]" colSpan={2}>YTD 2026</th>
+              <th className="text-right py-2 px-2 bg-gray-200 dark:bg-gray-700 min-w-[120px]">YTD 2026</th>
+              <th className="py-2 px-1 bg-gray-200 dark:bg-gray-700 min-w-[44px]" aria-hidden />
             </tr>
           </thead>
           <tbody>
-            {dados.rows.map((row, idx) => (
-              <tr key={idx} className={`border-b ${row.destaque ? 'bg-gray-50 dark:bg-gray-900/40 font-semibold' : ''}`}>
-                <td className={`py-1.5 px-2 sticky left-0 z-10 ${row.destaque ? 'bg-gray-50 dark:bg-gray-900/40 font-bold' : 'bg-white dark:bg-gray-950'} ${row.cor ?? ''}`}>
-                  {row.label}
-                </td>
-                <td className={`py-1.5 px-2 sticky left-[180px] z-10 ${row.destaque ? 'bg-gray-50 dark:bg-gray-900/40' : 'bg-white dark:bg-gray-950'}`}>
-                  {row.label2}
-                </td>
-                {row.valores.map((v, i) => (
-                  <>
-                    <td key={`v${i}`} className={`py-1.5 px-2 text-right tabular-nums ${v < 0 ? 'text-red-600' : v > 0 && row.label === 'Receita' ? 'text-emerald-600' : ''}`}>
-                      {v !== 0 ? fmtBRL(v) : '—'}
+            {linhasVisiveis.map((row, idx) => {
+              const colapsado = colapsados.has(row.grupo);
+              // Espaço antes do primeiro bloco de Investimentos pra separá-lo do resultado.
+              const primeiraInvest = row.secao === 'investimento'
+                && (idx === 0 || linhasVisiveis[idx - 1].secao !== 'investimento');
+              return (
+                <Fragment key={`${row.grupo}-${row.label2 ?? ''}-${idx}`}>
+                  {primeiraInvest && (
+                    <tr aria-hidden>
+                      <td colSpan={COLSPAN_TOTAL} className="h-6 bg-white dark:bg-gray-950 border-0" />
+                    </tr>
+                  )}
+                  <tr
+                    className={`border-b ${
+                      row.label === 'Lucro Líquido'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-t-4 border-emerald-300 dark:border-emerald-700 text-sm font-bold'
+                        : row.parcial
+                          ? 'bg-slate-100 dark:bg-slate-800/60 border-t-2 border-slate-300 dark:border-slate-600 font-bold'
+                          : row.secao === 'investimento' && row.tipo === 'macro'
+                            ? 'bg-blue-50/60 dark:bg-blue-950/30 border-t border-blue-200 dark:border-blue-800 font-semibold'
+                            : row.destaque
+                              ? 'bg-gray-50 dark:bg-gray-900/40 font-semibold'
+                              : ''
+                    } ${row.colapsavel ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/60' : ''}`}
+                    onClick={row.colapsavel ? () => toggleMacro(row.grupo) : undefined}
+                  >
+                    <td className={`py-1.5 px-2 sticky left-0 z-10 ${
+                      row.label === 'Lucro Líquido'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 font-bold'
+                        : row.parcial
+                          ? 'bg-slate-100 dark:bg-slate-800/60 font-bold'
+                          : row.secao === 'investimento' && row.tipo === 'macro'
+                            ? 'bg-blue-50/60 dark:bg-blue-950/30 font-bold'
+                            : row.destaque ? 'bg-gray-50 dark:bg-gray-900/40 font-bold' : 'bg-white dark:bg-gray-950'
+                    } ${row.cor ?? ''}`}>
+                      <span className="inline-flex items-center gap-1">
+                        {row.colapsavel && (
+                          colapsado ? <ChevronRight className="w-3 h-3 shrink-0" /> : <ChevronDown className="w-3 h-3 shrink-0" />
+                        )}
+                        {row.label}
+                      </span>
                     </td>
-                    <td key={`p${i}`} className="py-1.5 px-1 text-right tabular-nums text-[10px] text-muted-foreground">
-                      {row.percentuais[i] != null && v !== 0 ? `${row.percentuais[i]!.toFixed(1)}%` : ''}
+                    <td className={`py-1.5 px-2 sticky left-[180px] z-10 ${
+                      row.label === 'Lucro Líquido'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40'
+                        : row.parcial
+                          ? 'bg-slate-100 dark:bg-slate-800/60'
+                          : row.secao === 'investimento' && row.tipo === 'macro'
+                            ? 'bg-blue-50/60 dark:bg-blue-950/30'
+                            : row.destaque ? 'bg-gray-50 dark:bg-gray-900/40' : 'bg-white dark:bg-gray-950'
+                    }`}>
+                      {row.label2}
                     </td>
-                  </>
-                ))}
-                <td className={`py-1.5 px-2 text-right tabular-nums bg-gray-100 dark:bg-gray-800 ${row.ytd < 0 ? 'text-red-600 font-bold' : 'font-bold'}`}>
-                  {fmtBRL(row.ytd)}
-                </td>
-                <td className="py-1.5 px-1 text-right text-[10px] bg-gray-100 dark:bg-gray-800 text-muted-foreground">
-                  {row.ytdPct != null ? `${row.ytdPct.toFixed(1)}%` : ''}
-                </td>
-              </tr>
-            ))}
+                    {row.valores.map((v, i) => (
+                      <Fragment key={i}>
+                        <td className={`py-1.5 px-2 text-right tabular-nums ${v < 0 ? 'text-red-600' : v > 0 && row.label === 'Receita' ? 'text-emerald-600' : ''}`}>
+                          {v !== 0 ? fmtBRL(v) : '—'}
+                        </td>
+                        <td className="py-1.5 px-1 text-right tabular-nums text-[10px] text-muted-foreground">
+                          {row.percentuais[i] != null && v !== 0 ? `${row.percentuais[i]!.toFixed(1)}%` : ''}
+                        </td>
+                      </Fragment>
+                    ))}
+                    <td className={`py-1.5 px-2 text-right tabular-nums bg-gray-100 dark:bg-gray-800 ${row.ytd < 0 ? 'text-red-600 font-bold' : 'font-bold'}`}>
+                      {fmtBRL(row.ytd)}
+                    </td>
+                    <td className="py-1.5 px-1 text-right text-[10px] bg-gray-100 dark:bg-gray-800 text-muted-foreground">
+                      {row.ytdPct != null ? `${row.ytdPct.toFixed(1)}%` : ''}
+                    </td>
+                  </tr>
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </Card>
