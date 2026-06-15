@@ -67,6 +67,9 @@ interface EventoEdicaoCompleta {
   res_p: number;
   c_art: number;
   c_prod: number;
+  c_art_is_projecao?: boolean;
+  c_prod_is_projecao?: boolean;
+  consumacao?: number;
   couvert_vr_contahub?: number | null;
   percent_b: number;
   percent_d: number;
@@ -593,7 +596,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         
                         {/* Grupo ARTÍSTICO */}
                         <th
-                          colSpan={gruposAbertos.artistico ? 3 : 1}
+                          colSpan={gruposAbertos.artistico ? 4 : 1}
                           className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('artistico')}
                         >
@@ -658,9 +661,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>
                               {selectedBar?.id === 4 ? '$ Couvert' : 'Custo Produção'}
                             </th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
                               {selectedBar?.id === 4 ? 'Couv/Art' : '% Art/Fat'}
                             </th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Consumação</th>
                           </>
                         ) : (
                           <th className="border-r-2 border-[hsl(var(--border))]"></th>
@@ -762,7 +766,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                           const totalColunas = 5
                             + (gruposAbertos.clientes ? 3 : 1)
                             + (gruposAbertos.ticket ? 3 : 1)
-                            + (gruposAbertos.artistico ? 3 : 1)
+                            + (gruposAbertos.artistico ? 4 : 1)
                             + (gruposAbertos.producao ? 7 : 1)
                             + 1; // Ações
 
@@ -1019,8 +1023,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                     setColunaHighlight(prev => prev === 'c_art' ? null : 'c_art');
                                   }}
                                   className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_art' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
-                                  style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_art > 0 ? formatarMoeda(evento.c_art) : '-'}</td>
-                                
+                                  style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_art > 0 ? (
+                                    <span className={evento.c_art_is_projecao ? 'text-amber-600 dark:text-amber-400' : ''} title={evento.c_art_is_projecao ? 'Projeção pré-lançada (média 4 semanas) — substitui pelo real do Conta Azul' : undefined}>{evento.c_art_is_projecao ? '⚠️ ' : ''}{formatarMoeda(evento.c_art)}</span>
+                                  ) : '-'}</td>
+
                                 {selectedBar?.id === 4 ? (
                                   <td 
                                     onClick={(e) => { 
@@ -1042,7 +1048,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                       setColunaHighlight(prev => prev === 'c_prod' ? null : 'c_prod');
                                     }}
                                     className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_prod' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
-                                    style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_prod > 0 ? formatarMoeda(evento.c_prod) : '-'}</td>
+                                    style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_prod > 0 ? (
+                                      <span className={evento.c_prod_is_projecao ? 'text-amber-600 dark:text-amber-400' : ''} title={evento.c_prod_is_projecao ? 'Projeção pré-lançada (média 4 semanas) — substitui pelo real do Conta Azul' : undefined}>{evento.c_prod_is_projecao ? '⚠️ ' : ''}{formatarMoeda(evento.c_prod)}</span>
+                                    ) : '-'}</td>
                                 )}
                                 
                                 <td 
@@ -1051,7 +1059,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'percent_art_fat' ? null : 'percent_art_fat');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_art_fat' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_art_fat' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
                                   style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
                                     {selectedBar?.id === 4 ? (
                                       // Etapa 6: couvert_c_art_green vem do service (threshold em operations.config_metas_planejamento)
@@ -1072,6 +1080,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                       </span>
                                     )}
                                   </td>
+                                <td
+                                  className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))]"
+                                  style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}
+                                  title="Consumação Artistas (ContaHub: descontos com motivo 'Artistas')">
+                                  {(evento.consumacao || 0) > 0 ? formatarMoeda(evento.consumacao || 0) : '-'}
+                                </td>
                               </>
                             ) : (
                               <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>

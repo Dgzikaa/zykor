@@ -92,6 +92,9 @@ export interface PlanejamentoData {
   // Custos
   c_art: number;
   c_prod: number;
+  c_art_is_projecao: boolean; // true = valor é projeção (pré-lançado), não real do Conta Azul
+  c_prod_is_projecao: boolean;
+  consumacao: number; // Consumação Artistas do dia (ContaHub vd_vrdescontos motivo='Artistas')
   percent_art_fat: number;
 
   // Percentuais
@@ -173,7 +176,7 @@ export async function getPlanejamentoComercial(
   // bug de double-counting (L268 subtraia quando real_r ja era consolidado)
   // REFACTOR 2026-04-23 (Etapa 6): lê também operations.config_metas_planejamento
   // para eliminar thresholds hardcoded. Ver docs/planning/06-auditoria-planejamento.md
-  const [{ data: eventosGold, error }, { data: eventosManuais }, { data: configMetas }] = await Promise.all([
+  const [{ data: eventosGold, error }, { data: eventosManuais }, { data: configMetas }, { data: consumacaoDias }] = await Promise.all([
     supabase
       .schema('gold' as never)
       .from('planejamento')
@@ -201,7 +204,7 @@ export async function getPlanejamentoComercial(
     supabase
       .schema('operations' as never)
       .from('eventos_base')
-      .select('id, nome, data_evento, observacoes, c_art, c_prod, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo, usa_yuzer, usa_sympla')
+      .select('id, nome, data_evento, observacoes, c_art, c_prod, c_art_projecao, c_prod_projecao, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo, usa_yuzer, usa_sympla')
       .eq('bar_id', barId)
       .gte('data_evento', dataInicio)
       .lt('data_evento', dataFinalConsulta),
@@ -213,8 +216,22 @@ export async function getPlanejamentoComercial(
       .select('t_medio_meta, percent_art_fat_meta, t_coz_meta, t_bar_meta, fat_19h_meta, couvert_c_art_ratio_meta, atrasao_cozinha_meta, atrasao_bar_meta, stockout_drinks_green, stockout_drinks_yellow, stockout_comidas_green, stockout_comidas_yellow')
       .eq('bar_id', barId)
       .eq('ano', ano)
-      .maybeSingle()
+      .maybeSingle(),
+
+    // Consumação Artistas por dia (silver) — coluna no Artístico
+    supabase
+      .schema('silver' as never)
+      .from('consumacao_artistas')
+      .select('data, valor')
+      .eq('bar_id', barId)
+      .gte('data', dataInicio)
+      .lt('data', dataFinalConsulta)
   ]);
+
+  const consumacaoMap = new Map<string, number>();
+  ((consumacaoDias as Array<{ data: string; valor: number | string }> | null) || []).forEach(c => {
+    if (c.data) consumacaoMap.set(c.data, (consumacaoMap.get(c.data) || 0) + (Number(c.valor) || 0));
+  });
 
   // Resolve metas — usa fallback SOMENTE quando config não existe ainda (migration pendente)
   const metas: MetasPlanejamento = (configMetas as MetasPlanejamento | null) ?? (() => {
@@ -353,8 +370,12 @@ export async function getPlanejamentoComercial(
       tb_real: evento.tb_real_calculado || 0,
       t_medio: evento.t_medio || 0,
 
-      c_art: Number(manual?.c_art) || 0,
-      c_prod: Number(manual?.c_prod) || 0,
+      // Pré-lançado: usa o real do Conta Azul se existir; senão a projeção (amarelo/⚠️).
+      c_art: (Number(manual?.c_art) || 0) > 0 ? Number(manual?.c_art) : (Number(manual?.c_art_projecao) || 0),
+      c_prod: (Number(manual?.c_prod) || 0) > 0 ? Number(manual?.c_prod) : (Number(manual?.c_prod_projecao) || 0),
+      c_art_is_projecao: !((Number(manual?.c_art) || 0) > 0) && (Number(manual?.c_art_projecao) || 0) > 0,
+      c_prod_is_projecao: !((Number(manual?.c_prod) || 0) > 0) && (Number(manual?.c_prod_projecao) || 0) > 0,
+      consumacao: consumacaoMap.get(evento.data_evento) || 0,
       percent_art_fat: Number(evento.percent_art_fat) || 0,
 
       percent_b: evento.percent_b || 0,
