@@ -166,7 +166,9 @@ export default function ContaAzulPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           bar_id: barId,
-          sync_mode: 'daily_incremental'
+          // Incremental por data_alteracao: puxa só o delta recente (rápido).
+          // O sync completo/pesado (com detecção de exclusão) fica no botão global.
+          sync_mode: 'alteracao_incremental'
         })
       });
 
