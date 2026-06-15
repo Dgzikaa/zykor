@@ -255,7 +255,7 @@ export async function getOrcamentacaoCompleta(
 
   const dadosPlanilha = (planilhaResult.data || []) as OrcamentoPlanilhaRow[];
   const dadosGold = (goldResult.data || []) as Array<{ ano: number; mes: number; categoria_zykor: string; bloco_dre: string | null; net: number | string }>;
-  const eventosBase = (eventosResult.data || []) as Array<{ m1_r: number | null; data_evento: string }>;
+  const eventosBase = (eventosResult.data || []) as Array<{ m1_r: number | null; real_r: number | null; data_evento: string }>;
   const dadosManuais = ((manuaisResult as { data?: unknown }).data || []) as Array<{ valor: number | string; categoria: string | null; categoria_macro: string | null; data_competencia: string }>;
 
   // Index planilha por (ano, mes, categoria_nome)
@@ -286,16 +286,17 @@ export async function getOrcamentacaoCompleta(
     }
   });
 
-  // M1 (faturamento projetado) por mês, a partir do planejamento comercial.
+  // M1 (faturamento projetado) e faturamento real ContaHub (Σ real_r) por mês,
+  // a partir do planejamento comercial / eventos_base.
   const m1Map = new Map<string, number>();
+  const realRMap = new Map<string, number>();
   mesesParaBuscar.forEach(({ mes, ano }) => {
     const mm = String(mes).padStart(2, '0');
     const ini = `${ano}-${mm}-01`;
     const fim = `${ano}-${mm}-${new Date(ano, mes, 0).getDate()}`;
-    const total = eventosBase
-      .filter(e => e.data_evento >= ini && e.data_evento <= fim)
-      .reduce((s, e) => s + (e.m1_r || 0), 0);
-    m1Map.set(`${ano}-${mes}`, total);
+    const doMes = eventosBase.filter(e => e.data_evento >= ini && e.data_evento <= fim);
+    m1Map.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + (e.m1_r || 0), 0));
+    realRMap.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + (e.real_r || 0), 0));
   });
 
   return mesesParaBuscar.map(({ mes, ano }) => {
@@ -313,7 +314,13 @@ export async function getOrcamentacaoCompleta(
     // cai no Empilhamento M1 (Σ eventos_base.m1_r).
     const fatProjManual = num(planilha('FATURAMENTO META')?.valor_projetado);
     const fatProj = fatProjManual > 0 ? fatProjManual : (m1Map.get(`${ano}-${mes}`) || 0);
-    const fatReal = (goldBlocoMap.get(`${ano}-${mes}-Receita`) || 0) + manualMacro('Receita');
+    // Realizado: meses fechados = Conta Azul (oficial). Mês corrente = ContaHub (Σ real_r),
+    // porque no Conta Azul o cartão de crédito só entra na liquidação (atrasado) e o mês
+    // corrente subreportava o faturamento. (decisão sócio jun/2026)
+    const fatRealCA = (goldBlocoMap.get(`${ano}-${mes}-Receita`) || 0) + manualMacro('Receita');
+    const ehMesAtual = new Date().getMonth() + 1 === mes && new Date().getFullYear() === ano;
+    const fatRealContahub = realRMap.get(`${ano}-${mes}`) || 0;
+    const fatReal = ehMesAtual && fatRealContahub > fatRealCA ? fatRealContahub : fatRealCA;
 
     const categorias: CategoriaOrcamento[] = ESTRUTURA.map(bloco => {
       if (bloco.modo === 'percentual') {
