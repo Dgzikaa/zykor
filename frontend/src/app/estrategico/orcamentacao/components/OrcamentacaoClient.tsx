@@ -71,7 +71,7 @@ const formatarMoeda = (valor: number | null | undefined): string => {
   }
   if (absVal >= 1000) {
     return new Intl.NumberFormat('pt-BR', {
-      style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0,
+      style: 'currency', currency: 'BRL', minimumFractionDigits: 1, maximumFractionDigits: 1,
       notation: 'compact', compactDisplay: 'short'
     }).format(valor);
   }
