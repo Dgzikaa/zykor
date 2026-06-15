@@ -176,7 +176,7 @@ export async function getPlanejamentoComercial(
   // bug de double-counting (L268 subtraia quando real_r ja era consolidado)
   // REFACTOR 2026-04-23 (Etapa 6): lê também operations.config_metas_planejamento
   // para eliminar thresholds hardcoded. Ver docs/planning/06-auditoria-planejamento.md
-  const [{ data: eventosGold, error }, { data: eventosManuais }, { data: configMetas }, { data: consumacaoDias }] = await Promise.all([
+  const [{ data: eventosGold, error }, { data: eventosManuais }, { data: configMetas }, { data: consumacaoDias }, { data: mixConsolidado }] = await Promise.all([
     supabase
       .schema('gold' as never)
       .from('planejamento')
@@ -225,8 +225,28 @@ export async function getPlanejamentoComercial(
       .select('data, valor')
       .eq('bar_id', barId)
       .gte('data', dataInicio)
-      .lt('data', dataFinalConsulta)
+      .lt('data', dataFinalConsulta),
+
+    // Mix consolidado (ContaHub + Yuzer), mesma logica do /analitico/eventos.
+    // Usado p/ overlay nos dias dominados por Yuzer, onde o gold traz mix 0.
+    (supabase as any).rpc('get_mix_consolidado_periodo', {
+      p_bar_id: barId,
+      p_ini: dataInicio,
+      p_fim: dataFinalConsulta,
+    })
   ]);
+
+  // data_evento -> mix consolidado (so aplicado quando o gold vem zerado)
+  const mixMap = new Map<string, { b: number; c: number; d: number }>();
+  ((mixConsolidado as Array<{ data_evento: string; percent_b: number | string; percent_c: number | string; percent_d: number | string }> | null) || []).forEach(m => {
+    if (m?.data_evento) {
+      mixMap.set(m.data_evento, {
+        b: Number(m.percent_b) || 0,
+        c: Number(m.percent_c) || 0,
+        d: Number(m.percent_d) || 0,
+      });
+    }
+  });
 
   const consumacaoMap = new Map<string, number>();
   ((consumacaoDias as Array<{ data: string; valor: number | string }> | null) || []).forEach(c => {
@@ -378,9 +398,12 @@ export async function getPlanejamentoComercial(
       consumacao: consumacaoMap.get(evento.data_evento) || 0,
       percent_art_fat: Number(evento.percent_art_fat) || 0,
 
-      percent_b: evento.percent_b || 0,
-      percent_d: evento.percent_d || 0,
-      percent_c: evento.percent_c || 0,
+      // Mix: o gold traz o mix so do ContaHub. Em dias dominados por Yuzer ele vem
+      // zerado (ContaHub ~0). Nesse caso usa o mix consolidado (ContaHub+Yuzer),
+      // mesma logica do /analitico/eventos. Dias normais ficam como estavam.
+      percent_b: ((Number(evento.percent_b) || 0) + (Number(evento.percent_c) || 0) + (Number(evento.percent_d) || 0)) === 0 && mixMap.has(evento.data_evento) ? mixMap.get(evento.data_evento)!.b : (evento.percent_b || 0),
+      percent_d: ((Number(evento.percent_b) || 0) + (Number(evento.percent_c) || 0) + (Number(evento.percent_d) || 0)) === 0 && mixMap.has(evento.data_evento) ? mixMap.get(evento.data_evento)!.d : (evento.percent_d || 0),
+      percent_c: ((Number(evento.percent_b) || 0) + (Number(evento.percent_c) || 0) + (Number(evento.percent_d) || 0)) === 0 && mixMap.has(evento.data_evento) ? mixMap.get(evento.data_evento)!.c : (evento.percent_c || 0),
       percent_happy_hour: evento.percent_happy_hour || 0,
 
       t_coz: evento.t_coz || 0,
