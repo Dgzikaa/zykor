@@ -1,0 +1,21 @@
+-- 2026-06-15 — Mix de consumo consolidado (ContaHub + Yuzer) na tela /analitico/eventos.
+--
+-- O "Mix de consumo" mostrava 0%/0%/0% em eventos Yuzer porque vinha só do ContaHub
+-- (ínfimo nessas noites). Agora a cesta soma os produtos Yuzer mapeados por subcategoria.
+--
+-- public.yuzer_cesta_evento(bar, data) — soma por categoria (comida/bebida/drink) +
+--   eco_copo (valor+qtd, indicador à parte) + ingressos (entrada, fora da cesta) + fora
+--   (Tabacaria/Outros). Mapeamento do sócio (15/06):
+--     bebida: CERVEJA, BEBIDAS, Não-alcóolicos
+--     drink : DRINKS, DRINKS AUTORAIS, DOSES, COMBO, COMBOS, Garrafas
+--     comida: COMIDAS
+--   Usado por /api/analitico/evento (override do mix quando usa_yuzer).
+--
+-- public.evento_cesta_detalhe(bar, data) — detalhe produto a produto (Yuzer + ContaHub,
+--   já classificados, com a origem/sistema), para o modal de AUDITORIA do mix. ContaHub
+--   classificado por silver.vendas_item.categoria_mix (COMIDA/BEBIDA/DRINK). Usado por
+--   /api/analitico/evento/cesta. Não há horário por item em nenhuma fonte (ContaHub
+--   porproduto/vendas_item nem Yuzer) → sem pico/primeira-última venda por produto.
+--
+-- Eco copo vira KpiCard ao lado de Descontos (valor + qtd). Já aplicado em prod via MCP.
+-- Ver [[project_yuzer_pipeline_detalhe_data_operacao]].

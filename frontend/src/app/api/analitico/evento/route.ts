@@ -795,6 +795,36 @@ export async function GET(request: NextRequest) {
         evento.yuzer_liquido = consolidado.yuzer_liquido;
         evento.sympla_liquido = consolidado.sympla_liquido;
         evento.sympla_checkins = consolidado.sympla_checkins;
+
+        // Mix de consumo: soma a cesta Yuzer (mapeada por subcategoria) ao ContaHub.
+        // Sem isso o mix vinha 0% em evento Yuzer (ContaHub é ínfimo nessas noites).
+        if (consolidado.usa_yuzer) {
+          const { data: cestaRows } = await (supabase as any).rpc('yuzer_cesta_evento', {
+            p_bar_id: barId,
+            p_data: data,
+          });
+          const cesta = cestaRows && cestaRows.length ? (cestaRows[0] as Row) : null;
+          if (cesta) {
+            const yzC = num(cesta.comida);
+            const yzB = num(cesta.bebida);
+            const yzD = num(cesta.drink);
+            if (yzC + yzB + yzD > 0) {
+              // ContaHub: divide o consumo (gold real_r) pelo mix do gold
+              const chBase = num(evento.real_r);
+              const chC = (chBase * num(evento.percent_c)) / 100;
+              const chB = (chBase * num(evento.percent_b)) / 100;
+              const chD = (chBase * num(evento.percent_d)) / 100;
+              const tot = yzC + chC + yzB + chB + yzD + chD;
+              if (tot > 0) {
+                m.percent_comida = ((yzC + chC) / tot) * 100;
+                m.percent_bebida = ((yzB + chB) / tot) * 100;
+                m.percent_drink = ((yzD + chD) / tot) * 100;
+              }
+            }
+            evento.eco_copo_valor = num(cesta.eco_copo_valor);
+            evento.eco_copo_qtd = num(cesta.eco_copo_qtd);
+          }
+        }
       }
 
       const deltas = deltasDe(m, baseMedia);

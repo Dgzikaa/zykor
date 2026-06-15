@@ -9,6 +9,7 @@ import {
   PackageX,
   Palette,
   Receipt,
+  Recycle,
   Tag,
   Timer,
   TrendingUp,
@@ -17,10 +18,12 @@ import {
   Wallet,
   XCircle,
 } from 'lucide-react';
+import { useState } from 'react';
 import { formatCurrency } from '@/lib/utils';
 import { EventoResponse } from './types';
 import { KpiCard } from './KpiCard';
 import { DiagnosticoCard } from './DiagnosticoCard';
+import { MixDetalheModal } from './MixDetalheModal';
 
 function moedaCompacta(v: number) {
   if (Math.abs(v) >= 1000) return `R$ ${(v / 1000).toFixed(1).replace('.', ',')}k`;
@@ -50,6 +53,11 @@ export function TabVisaoGeral({ data }: Props) {
     val !== undefined && val !== null && baseN > 0 ? `méd ${fmt(val)}` : undefined;
 
   const percArtFat = m.faturamento > 0 ? (m.c_art / m.faturamento) * 100 : 0;
+
+  // Modal de detalhamento do mix (auditoria) — só na visão de dia
+  const [mixOpen, setMixOpen] = useState(false);
+  const podeDetalhar =
+    data.gran === 'dia' && !!evt.bar_id && !!evt.data_evento;
 
   return (
     <div className="space-y-1">
@@ -171,9 +179,23 @@ export function TabVisaoGeral({ data }: Props) {
           icon={<UserRound className="w-4 h-4" />}
           delta={d.res_tot}
         />
-        <div className="rounded-lg border border-l-4 border-l-violet-500 bg-white dark:bg-gray-800 dark:border-gray-700 p-3">
-          <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+        <button
+          type="button"
+          onClick={() => podeDetalhar && setMixOpen(true)}
+          disabled={!podeDetalhar}
+          className={`text-left rounded-lg border border-l-4 border-l-violet-500 bg-white dark:bg-gray-800 dark:border-gray-700 p-3 ${
+            podeDetalhar
+              ? 'cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-colors'
+              : ''
+          }`}
+        >
+          <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center justify-between">
             Mix de consumo
+            {podeDetalhar && (
+              <span className="text-[10px] text-violet-500 normal-case font-normal">
+                ver detalhe →
+              </span>
+            )}
           </span>
           <div className="mt-2 space-y-1.5">
             <MixRow
@@ -195,7 +217,7 @@ export function TabVisaoGeral({ data }: Props) {
               color="bg-violet-500"
             />
           </div>
-        </div>
+        </button>
       </div>
 
       <SectionTitle>Cancelamentos & Conta Assinada</SectionTitle>
@@ -228,6 +250,19 @@ export function TabVisaoGeral({ data }: Props) {
           accent="amber"
           icon={<Tag className="w-4 h-4" />}
         />
+        {Number(evt.eco_copo_valor) > 0 && (
+          <KpiCard
+            label="Eco Copos"
+            value={formatCurrency(Number(evt.eco_copo_valor) || 0)}
+            accent="green"
+            icon={<Recycle className="w-4 h-4" />}
+            sub={
+              evt.eco_copo_qtd
+                ? `${Number(evt.eco_copo_qtd).toLocaleString('pt-BR')} un`
+                : undefined
+            }
+          />
+        )}
       </div>
 
       {evt.observacoes && (
@@ -235,6 +270,15 @@ export function TabVisaoGeral({ data }: Props) {
           <span className="text-[11px] font-semibold text-gray-500 uppercase">Observações</span>
           <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{evt.observacoes}</p>
         </div>
+      )}
+
+      {podeDetalhar && (
+        <MixDetalheModal
+          open={mixOpen}
+          onOpenChange={setMixOpen}
+          barId={Number(evt.bar_id)}
+          data={String(evt.data_evento)}
+        />
       )}
     </div>
   );
