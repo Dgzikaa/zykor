@@ -1,0 +1,17 @@
+-- 2026-06-15 — Yuzer discovery + orquestrador MULTI-BAR.
+--
+-- Antes `yuzer_cron_descobrir_eventos()` e `yuzer_cron_processar_proximo_evento()` eram
+-- hardcoded no bar 3 (`v_bar_id := 3`). Agora ambos iteram sobre todos os bares que têm
+-- credencial Yuzer ATIVA e COM TOKEN:
+--   api_credentials.sistema='yuzer' AND ativo=true AND api_token IS NOT NULL
+--
+-- - Discovery: roda yuzer_sync_eventos(bar, hoje-60d, hoje) para cada bar ativo.
+-- - Orquestrador: pega o próximo evento pendente entre TODOS os bares ativos (mais
+--   recente primeiro) e processa as 4 tarefas usando o bar_id do próprio evento.
+--
+-- Bar sem token / inativo é ignorado pelo JOIN → comportamento idêntico ao atual até o
+-- token do bar ser cadastrado e a credencial ativada. (Deboche/bar 4 entra assim que o
+-- api_token for preenchido e ativo=true.) As funções yuzer_sync_* já recebem p_bar_id.
+--
+-- Já aplicado em produção via MCP em 2026-06-15. Corpo completo no banco
+-- (pg_get_functiondef). Ver [[project_yuzer_pipeline_detalhe_data_operacao]].
