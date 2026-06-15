@@ -547,7 +547,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                           const isEditPlan = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'planejado';
                           const isEditProj = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'projetado';
                           return (
-                            <div key={sub.nome} className={cn("relative flex items-center justify-between px-1 border-b border-gray-100 dark:border-gray-700 group", isMesAtual ? "bg-emerald-50/50" : "bg-white dark:bg-gray-800", subSelecionada === sub.nome && "!bg-amber-100 dark:!bg-amber-900/30")} style={{ height: '38px' }}>
+                            <div key={sub.nome} onClick={() => setSubSelecionada(sub.nome)} className={cn("relative flex items-center justify-between px-1 border-b border-gray-100 dark:border-gray-700 group cursor-pointer", isMesAtual ? "bg-emerald-50/50" : "bg-white dark:bg-gray-800", subSelecionada === sub.nome && "!bg-amber-100 dark:!bg-amber-900/30")} style={{ height: '38px' }}>
                               {/* PLANEJADO - editável + tooltip histórico */}
                               <div className="flex-1 flex items-center justify-center relative group/plan">
                                 {isEditPlan ? (
