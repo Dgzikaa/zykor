@@ -474,7 +474,10 @@ async function syncCategorias(
     categoria_pai_id: item.id_pai || null,
     apenas_filhos: item.apenas_filhos || false,
     ativo: true,
-    updated_at: new Date().toISOString()
+    // BUG ate 2026-06: gravava 'updated_at' (coluna inexistente) -> upsert dava
+    // erro silencioso (console.error + return 0) e o cadastro nunca atualizava.
+    // A coluna correta e' synced_at.
+    synced_at: new Date().toISOString()
   }))
 
   const { error } = await supabase
@@ -912,6 +915,13 @@ serve(async (req: Request) => {
       stats.pessoas = await syncPessoas(supabase, credentials, accessToken, barId)
       stats.contas_financeiras = await syncContasFinanceiras(supabase, credentials, accessToken, barId)
       console.log('[contaazul-sync] Dados auxiliares sincronizados')
+    }
+
+    // O sync incremental (cron horario / botao global) tambem refresca o cadastro
+    // de CATEGORIAS — sao poucas e mudam quando o socio cria/edita no CA. Mantem o
+    // de-para da DRE e o cadastro espelhando o CA sem depender de full_sync manual.
+    if (body.sync_mode === 'alteracao_incremental') {
+      stats.categorias = await syncCategorias(supabase, credentials, accessToken, barId)
     }
 
     // Sync lancamentos
