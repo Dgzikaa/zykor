@@ -410,6 +410,56 @@ async function lerContaAssinadaPorDia(
 const somaMapa = (m: Record<string, number>) =>
   Object.values(m).reduce((s, v) => s + v, 0);
 
+// Breakdown consolidado (ContaHub + Yuzer + Sympla) por evento.
+// gold.planejamento guarda só o total consolidado (faturamento_total_consolidado);
+// a separação entrada/couvert/bar e o ticket corretos vivem em operations.eventos_base,
+// preenchidos pelo calculate_evento_metrics (gated em usa_yuzer/usa_sympla). Para eventos
+// marcados como Yuzer/Sympla, sobrepomos esse breakdown para os gráficos baterem 100%.
+interface ConsolidadoEB {
+  usa_yuzer: boolean;
+  usa_sympla: boolean;
+  real_r: number;
+  faturamento_entrada: number;
+  faturamento_couvert: number;
+  faturamento_bar: number;
+  yuzer_ingressos: number;
+  yuzer_liquido: number;
+  sympla_liquido: number;
+  sympla_checkins: number;
+  cl_real: number;
+  t_medio: number;
+}
+async function lerConsolidadoEventoBase(
+  barId: number,
+  data: string
+): Promise<ConsolidadoEB | null> {
+  const ops = (supabase as any).schema('operations');
+  const { data: rows } = await ops
+    .from('eventos_base')
+    .select(
+      'usa_yuzer, usa_sympla, real_r, faturamento_entrada, faturamento_couvert, faturamento_bar, yuzer_ingressos, yuzer_liquido, sympla_liquido, sympla_checkins, cl_real, t_medio'
+    )
+    .eq('bar_id', barId)
+    .eq('data_evento', data)
+    .limit(1);
+  if (!rows || !rows.length) return null;
+  const r = rows[0] as Row;
+  return {
+    usa_yuzer: !!r.usa_yuzer,
+    usa_sympla: !!r.usa_sympla,
+    real_r: num(r.real_r),
+    faturamento_entrada: num(r.faturamento_entrada),
+    faturamento_couvert: num(r.faturamento_couvert),
+    faturamento_bar: num(r.faturamento_bar),
+    yuzer_ingressos: num(r.yuzer_ingressos),
+    yuzer_liquido: num(r.yuzer_liquido),
+    sympla_liquido: num(r.sympla_liquido),
+    sympla_checkins: num(r.sympla_checkins),
+    cl_real: num(r.cl_real),
+    t_medio: num(r.t_medio),
+  };
+}
+
 function media(eventos: Row[]): Metricas | null {
   if (!eventos.length) return null;
   const ms = eventos.map(metricas);
@@ -721,6 +771,32 @@ export async function GET(request: NextRequest) {
       );
       const baseMedia = media(baseline);
       const m = metricas(evento);
+
+      // Eventos Yuzer/Sympla: sobrepõe o breakdown consolidado de eventos_base
+      // (gold.planejamento só tem o total; entrada/couvert/bar e ticket vêm 0/errados).
+      const consolidado = await lerConsolidadoEventoBase(barId, data);
+      if (consolidado && (consolidado.usa_yuzer || consolidado.usa_sympla)) {
+        m.faturamento = consolidado.real_r || m.faturamento;
+        m.couvert = consolidado.faturamento_couvert || consolidado.faturamento_entrada;
+        m.bar = consolidado.faturamento_bar || Math.max(0, m.faturamento - m.couvert);
+        if (consolidado.cl_real > 0) m.publico = consolidado.cl_real;
+        m.ticket =
+          consolidado.t_medio > 0
+            ? consolidado.t_medio
+            : m.publico > 0
+              ? m.faturamento / m.publico
+              : 0;
+        m.custo_total = m.c_art + m.c_prod;
+        m.resultado = m.faturamento - m.custo_total;
+        evento.faturamento_entrada = consolidado.faturamento_entrada;
+        evento.faturamento_couvert = consolidado.faturamento_couvert;
+        evento.faturamento_bar = consolidado.faturamento_bar;
+        evento.yuzer_ingressos = consolidado.yuzer_ingressos;
+        evento.yuzer_liquido = consolidado.yuzer_liquido;
+        evento.sympla_liquido = consolidado.sympla_liquido;
+        evento.sympla_checkins = consolidado.sympla_checkins;
+      }
+
       const deltas = deltasDe(m, baseMedia);
       const { veredito, insights } = diagnosticar(m, baseMedia, ctxDe(evento));
 

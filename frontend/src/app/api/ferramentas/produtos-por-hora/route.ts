@@ -92,6 +92,46 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // 🎟️ Produtos vendidos via Yuzer (bilheteria de eventos especiais — só dias com
+    // evento Yuzer, em geral bar 3). silver.yuzer_produtos_evento já é datado pela DATA
+    // DE OPERAÇÃO. Mescla no mesmo agregado para a tela mostrar 100% do que foi vendido.
+    const { data: dadosYuzer, error: errorYuzer } = await supabase
+      .schema('silver' as never)
+      .from('yuzer_produtos_evento')
+      .select('produto_nome, categoria, quantidade, valor_total, eh_ingresso')
+      .eq('data_evento', data_selecionada)
+      .eq('bar_id', bar_id);
+
+    if (errorYuzer) {
+      console.error('Erro ao buscar produtos Yuzer:', errorYuzer);
+    } else {
+      dadosYuzer?.forEach(item => {
+        const nome = (item.produto_nome || '').trim();
+        if (!nome) return;
+        // ingresso vira "Bilheteria"; demais mantêm a categoria Yuzer (Bebidas/Alimentos/...)
+        const grupo = item.eh_ingresso ? 'Bilheteria (Yuzer)' : `${item.categoria || 'Yuzer'}`;
+        const key = `${nome} (Yuzer)`;
+        const qtd = parseFloat(item.quantidade) || 0;
+        const val = parseFloat(item.valor_total) || 0;
+        const existing = produtosAgregados.get(key);
+        if (existing) {
+          existing.quantidade += qtd;
+          existing.valor_total += val;
+        } else {
+          produtosAgregados.set(key, {
+            hora: 0,
+            produto_id: key,
+            produto_descricao: nome,
+            grupo_descricao: grupo,
+            quantidade: qtd,
+            valor_unitario: qtd > 0 ? val / qtd : val,
+            valor_total: val,
+            is_banda: false,
+          });
+        }
+      });
+    }
+
     produtosPorHoraEnriquecidos = Array.from(produtosAgregados.values());
 
     // Calcular estatísticas

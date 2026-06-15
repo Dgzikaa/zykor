@@ -142,6 +142,56 @@ export async function POST(request: NextRequest) {
       console.error('Erro ao buscar faturamento por hora:', errorFaturamentoDia || errorFaturamentoMadrugada);
     }
 
+    // 🎟️ Yuzer por hora (bilheteria de eventos especiais — só dias com Yuzer, em geral
+    // bar 3). RPC atribui pela DATA DE OPERAÇÃO (-6h) e retorna hora 0-23 BRT.
+    const yuzerPorHora: Record<number, number> = {};
+    let yuzerTotalDia = 0;
+    {
+      const { data: yzHoras, error: errYz } = await supabase.rpc(
+        'yuzer_fat_por_hora_operacao',
+        { p_bar_id: bar_id, p_data_operacao: data_selecionada }
+      );
+      if (errYz) {
+        console.error('Erro ao buscar Yuzer por hora:', errYz);
+      } else {
+        (yzHoras || []).forEach((r: any) => {
+          const h = Number(r.hora);
+          const v = parseFloat(r.faturamento) || 0;
+          yuzerPorHora[h] = (yuzerPorHora[h] || 0) + v;
+          yuzerTotalDia += v;
+        });
+      }
+    }
+
+    // Breakdown consolidado (ContaHub + Yuzer + Sympla) do evento, quando marcado.
+    // Sobrepõe os totais do "Resumo do Dia" para refletir 100% do evento.
+    let consolidado: {
+      usa: boolean;
+      real_r: number;
+      faturamento_couvert: number;
+      faturamento_bar: number;
+      cl_real: number;
+    } | null = null;
+    {
+      const { data: ebRows } = await supabase
+        .schema('operations' as never)
+        .from('eventos_base')
+        .select('usa_yuzer, usa_sympla, real_r, faturamento_couvert, faturamento_bar, cl_real')
+        .eq('bar_id', bar_id)
+        .eq('data_evento', data_selecionada)
+        .limit(1);
+      const eb = ebRows && ebRows.length ? (ebRows[0] as any) : null;
+      if (eb && (eb.usa_yuzer || eb.usa_sympla)) {
+        consolidado = {
+          usa: true,
+          real_r: parseFloat(eb.real_r) || 0,
+          faturamento_couvert: parseFloat(eb.faturamento_couvert) || 0,
+          faturamento_bar: parseFloat(eb.faturamento_bar) || 0,
+          cl_real: parseInt(eb.cl_real) || 0,
+        };
+      }
+    }
+
     // 2. Buscar dados de visitas (pessoas + couvert + pagamentos + repique) - EVITAR DUPLICATAS
     const { data: dadosPeriodoRaw, error: errorPeriodo } = await supabase
       .schema('silver')
@@ -322,10 +372,12 @@ export async function POST(request: NextRequest) {
     horariosOperacao.forEach(hora => {
       const faturamentoHora = faturamentoPorHora?.find(f => f.hora === hora);
       const faturamentoSemPassada = faturamentoSemanaPassada?.find(f => f.hora === hora);
-      
+      const fatContahub = faturamentoHora ? parseFloat(faturamentoHora.valor as any) : 0;
+      const fatYuzerHora = yuzerPorHora[hora] || 0;
+
       dadosHorarioPico.push({
         hora,
-        faturamento: faturamentoHora ? parseFloat(faturamentoHora.valor as any) : 0,
+        faturamento: fatContahub + fatYuzerHora,
         transacoes: faturamentoHora ? parseFloat(faturamentoHora.quantidade as any) : 0,
         faturamento_semana_passada: faturamentoSemPassada ? parseFloat(faturamentoSemPassada.valor as any) : 0,
         media_ultimas_4: mediaUltimas4PorHora[hora] || 0,
@@ -396,6 +448,13 @@ export async function POST(request: NextRequest) {
     const nomesDias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     const nomeDiaSemana = nomesDias[diaSemana];
 
+    // Totais do "Resumo do Dia": para eventos Yuzer/Sympla usa o consolidado de
+    // eventos_base (ContaHub + Yuzer + Sympla); senão mantém o cálculo ContaHub.
+    const faturamentoTotalFinal = consolidado ? consolidado.real_r : faturamentoTotalDia;
+    const faturamentoBarFinal = consolidado ? consolidado.faturamento_bar : faturamentoBar;
+    const totalCouvertFinal = consolidado ? consolidado.faturamento_couvert : totalCouvert;
+    const totalPessoasFinal = consolidado && consolidado.cl_real > 0 ? consolidado.cl_real : totalPessoasDia;
+
     return NextResponse.json({
       success: true,
       data: {
@@ -409,12 +468,12 @@ export async function POST(request: NextRequest) {
           total_recorde: totalRecorde,
           hora_pico_faturamento: horaPicoFaturamento,
           max_faturamento: maxFaturamento,
-          total_pessoas_dia: totalPessoasDia,
-          total_couvert: totalCouvert,
+          total_pessoas_dia: totalPessoasFinal,
+          total_couvert: totalCouvertFinal,
           total_pagamentos: totalPagamentos,
           total_repique: totalRepique,
-          faturamento_total_calculado: faturamentoTotalDia,
-          faturamento_bar: faturamentoBar,
+          faturamento_total_calculado: faturamentoTotalFinal,
+          faturamento_bar: faturamentoBarFinal,
           total_produtos_vendidos: totalProdutosVendidos,
           produto_mais_vendido: produtoMaisVendido,
           produto_mais_vendido_qtd: produtoMaisVendido ? produtosPorQuantidade[produtoMaisVendido].quantidade : 0,
@@ -431,7 +490,7 @@ export async function POST(request: NextRequest) {
           total_recorde_real: totalRecordeReal, // Valor real do recorde para comparação
           comparacao_semana_passada: totalFaturamento - totalFaturamentoSemanaPassada,
           comparacao_media_ultimas_4: totalFaturamento - totalMediaUltimas4,
-          comparacao_recorde: faturamentoTotalDia - totalRecordeReal // Usar valores reais (vr_pagamentos) para comparação
+          comparacao_recorde: faturamentoTotalFinal - totalRecordeReal // Usar valores reais (vr_pagamentos) para comparação
         }
       }
     });
