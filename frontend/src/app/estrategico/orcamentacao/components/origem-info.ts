@@ -87,10 +87,10 @@ const ESPECIAIS: Record<string, OrigemLinha> = {
       obs: 'Apenas eventos ativos (ativo = true).',
     },
     realizado: {
-      fonte: 'Conta Azul (toda a receita do mês)',
-      tabela: 'gold.orcamento_realizado_mensal ← bronze.bronze_contaazul_lancamentos',
-      campo: 'Σ net do bloco Receita',
-      obs: 'Stone Créd/Déb/Pix + Pix Direto + Dinheiro + Receita de Eventos + Outras Receitas. Base dos % de Var/CMV.',
+      fonte: 'Mês fechado: Conta Azul · Mês corrente: ContaHub (tempo real)',
+      tabela: 'gold.orcamento_realizado_mensal (CA) · operations.eventos_base.real_r (mês corrente)',
+      campo: 'Σ net do bloco Receita (CA) ou Σ real_r (mês corrente)',
+      obs: 'No mês em andamento usa o ContaHub porque o cartão de crédito só entra no Conta Azul na liquidação (atrasado), subreportando a receita. Meses fechados seguem o Conta Azul (oficial).',
     },
   },
   '% CONTRIB': {
