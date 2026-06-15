@@ -318,32 +318,32 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
       <div ref={scrollContainerRef} className="flex-1 overflow-auto scrollbar-visible" style={{ scrollBehavior: 'smooth' }}>
         <div className="flex" style={{ minWidth: 'max-content' }}>
           <div className="sticky left-0 z-20 flex-shrink-0 w-[220px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md">
-            <div className="h-[48px] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center sticky top-0 z-30">
+            <div className="h-[58px] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center sticky top-0 z-30">
               <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">CATEGORIA</span>
             </div>
             {/* Indicadores agregados (header — antes da tabela) */}
-            <div className="flex items-center gap-2 px-2 bg-slate-100 dark:bg-slate-800 border-b border-gray-200" style={{ height: '28px' }}>
+            <div className="flex items-center gap-2 px-2 bg-slate-100 dark:bg-slate-800 border-b border-gray-200" style={{ height: '38px' }}>
               <OrigemTooltip nome="Faturamento Meta" className="text-xs font-bold text-slate-700 dark:text-slate-300">Faturamento Meta</OrigemTooltip>
             </div>
-            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
+            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '38px' }}>
               <OrigemTooltip nome="Real Fixo" className="text-xs font-bold text-slate-700 dark:text-slate-300">Real Fixo</OrigemTooltip>
             </div>
-            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
+            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '38px' }}>
               <OrigemTooltip nome="BreakEven" className="text-xs font-bold text-slate-700 dark:text-slate-300">BreakEven</OrigemTooltip>
             </div>
-            <div className="flex items-center gap-2 px-2 border-b-2 border-gray-400 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
+            <div className="flex items-center gap-2 px-2 border-b-2 border-gray-400 bg-slate-50 dark:bg-slate-900/40" style={{ height: '38px' }}>
               <OrigemTooltip nome="% CONTRIB" className="text-xs font-bold text-slate-700 dark:text-slate-300">% CONTRIB</OrigemTooltip>
             </div>
             {meses.length > 0 && meses[0].categorias.map(categoria => (
               <div key={categoria.nome}>
                 {categoria.modoPercentual ? (
                   // Blocos % (Variáveis / CMV): 1 linha só, sem expandir.
-                  <div className={cn("flex items-center gap-2 px-2 border-b border-gray-200", categoria.cor)} style={{ height: '32px' }}>
+                  <div className={cn("flex items-center gap-2 px-2 border-b border-gray-200", categoria.cor)} style={{ height: '44px' }}>
                     <OrigemTooltip nome={categoria.nome} className="text-xs font-semibold truncate">{categoria.nome} (%)</OrigemTooltip>
                   </div>
                 ) : (
                   <>
-                    <div className={cn("flex items-center gap-2 px-2 cursor-pointer", categoria.cor)} style={{ height: '32px' }} onClick={() => toggleSecao(categoria.nome)}>
+                    <div className={cn("flex items-center gap-2 px-2 cursor-pointer", categoria.cor)} style={{ height: '44px' }} onClick={() => toggleSecao(categoria.nome)}>
                       {secoesAbertas[categoria.nome] ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                       <OrigemTooltip nome={categoria.nome} className="text-xs font-semibold truncate">{categoria.nome}</OrigemTooltip>
                     </div>
@@ -353,7 +353,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                         <div
                           key={sub.nome}
                           className="flex items-center gap-1.5 px-2 pl-5 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 hover:dark:bg-gray-700/50"
-                          style={{ height: '28px' }}
+                          style={{ height: '38px' }}
                         >
                           <div
                             className={cn(
@@ -370,11 +370,11 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
               </div>
             ))}
             {/* Lucro Líquido + Margem (rodapé) */}
-            <div className="flex items-center gap-2 px-2 border-t-2 border-emerald-300 bg-emerald-100 dark:bg-emerald-900/30" style={{ height: '36px' }}>
+            <div className="flex items-center gap-2 px-2 border-t-2 border-emerald-300 bg-emerald-100 dark:bg-emerald-900/30" style={{ height: '50px' }}>
               <DollarSign className="w-3 h-3 text-emerald-700" />
               <OrigemTooltip nome="Lucro Líquido" className="text-xs font-bold text-emerald-800">Lucro Líquido</OrigemTooltip>
             </div>
-            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-emerald-50 dark:bg-emerald-900/20" style={{ height: '28px' }}>
+            <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-emerald-50 dark:bg-emerald-900/20" style={{ height: '38px' }}>
               <OrigemTooltip nome="Margem" className="text-xs font-bold text-emerald-700">Margem</OrigemTooltip>
             </div>
           </div>
@@ -385,14 +385,14 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                 const isMesAtual = idx === mesAtualIdx;
                 return (
                   <div key={`${mes.ano}-${mes.mes}`} ref={isMesAtual ? mesAtualRef : undefined} className={cn("flex-shrink-0 w-[330px] border-r border-gray-200 dark:border-gray-700", isMesAtual && "bg-emerald-50 dark:bg-emerald-900/20")}>
-                    <div className={cn("h-[48px] border-b border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center px-1 sticky top-0 z-10", isMesAtual ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-gray-50 dark:bg-gray-700")}>
+                    <div className={cn("h-[58px] border-b border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center px-1 sticky top-0 z-10", isMesAtual ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-gray-50 dark:bg-gray-700")}>
                       <span className={cn("text-xs font-bold", isMesAtual ? "text-emerald-700" : "text-gray-700 dark:text-gray-300")}>{mes.label}</span>
                       <div className="flex gap-1 text-[8px] text-gray-500">
                         <span className="text-blue-600">Plan.</span><span>|</span><span className="text-gray-900 dark:text-white">Proj.</span><span>|</span><span className="text-gray-600 dark:text-gray-300">Real.</span>
                       </div>
                     </div>
                     {/* Indicadores agregados (antes da tabela) — ordem: Faturamento Meta, Real Fixo, BreakEven, % CONTRIB */}
-                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-200" : "bg-slate-100 dark:bg-slate-800")} style={{ height: '28px' }}>
+                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-200" : "bg-slate-100 dark:bg-slate-800")} style={{ height: '38px' }}>
                       {(() => {
                         const isEditFM = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === 'FATURAMENTO META' && editando?.campo === 'planejado';
                         return isEditFM ? (
@@ -426,21 +426,21 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                       <div className="w-px h-3 bg-slate-300" />
                       <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(mes.totais.faturamento_meta_real, mes.totais.faturamento_meta_plan, false))}>{formatarMoeda(mes.totais.faturamento_meta_real)}</span>
                     </div>
-                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
+                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '38px' }}>
                       <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-600">{formatarMoeda(mes.totais.real_fixo_plan)}</span>
                       <div className="w-px h-3 bg-slate-300" />
                       <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(mes.totais.real_fixo_proj)}</span>
                       <div className="w-px h-3 bg-slate-300" />
                       <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(mes.totais.real_fixo_real, mes.totais.real_fixo_plan, true))}>{formatarMoeda(mes.totais.real_fixo_real)}</span>
                     </div>
-                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
+                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '38px' }}>
                       <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-600">{formatarMoeda(mes.totais.breakeven_plan)}</span>
                       <div className="w-px h-3 bg-slate-300" />
                       <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(mes.totais.breakeven_proj)}</span>
                       <div className="w-px h-3 bg-slate-300" />
                       <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(mes.totais.breakeven_real, mes.totais.breakeven_plan, true))}>{formatarMoeda(mes.totais.breakeven_real)}</span>
                     </div>
-                    <div className={cn("flex items-center justify-between px-1 border-b-2 border-gray-400", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
+                    <div className={cn("flex items-center justify-between px-1 border-b-2 border-gray-400", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '38px' }}>
                       <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-600">{formatarPorcentagem(mes.totais.perc_contrib_plan)}</span>
                       <div className="w-px h-3 bg-slate-300" />
                       <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarPorcentagem(mes.totais.perc_contrib_proj)}</span>
@@ -465,7 +465,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                         const isEditPlanPct = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === categoria.nome && editando?.campo === 'planejado';
                         const isEditProjPct = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === categoria.nome && editando?.campo === 'projetado';
                         return (
-                          <div key={categoria.nome} className={cn("flex items-center justify-between px-1 border-b border-gray-200", categoria.cor, "bg-opacity-60 dark:bg-opacity-30")} style={{ height: '32px' }}>
+                          <div key={categoria.nome} className={cn("flex items-center justify-between px-1 border-b border-gray-200", categoria.cor, "bg-opacity-60 dark:bg-opacity-30")} style={{ height: '44px' }}>
                             {/* PLAN % */}
                             <div className="flex-1 flex items-center justify-center">
                               {isEditPlanPct ? (
@@ -508,7 +508,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                       return (
                       <div key={categoria.nome}>
                         {!aberta ? (
-                          <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", categoria.cor, "bg-opacity-60 dark:bg-opacity-30")} style={{ height: '32px' }}>
+                          <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", categoria.cor, "bg-opacity-60 dark:bg-opacity-30")} style={{ height: '44px' }}>
                             <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-700 dark:text-blue-300">{formatarMoeda(sinalDre(totPlan, categoria.tipo))}</span>
                             <div className="w-px h-3 bg-white/40" />
                             <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(sinalDre(totProj, categoria.tipo))}</span>
@@ -516,13 +516,13 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                             <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corClasseReal)}>{formatarMoeda(sinalDre(totReal, categoria.tipo))}</span>
                           </div>
                         ) : (
-                          <div className={cn(categoria.cor, "opacity-20")} style={{ height: '32px' }} />
+                          <div className={cn(categoria.cor, "opacity-20")} style={{ height: '44px' }} />
                         )}
                         {aberta && categoria.subcategorias.map(sub => {
                           const isEditPlan = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'planejado';
                           const isEditProj = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'projetado';
                           return (
-                            <div key={sub.nome} className={cn("relative flex items-center justify-between px-1 border-b border-gray-100 dark:border-gray-700 group", isMesAtual ? "bg-emerald-50/50" : "bg-white dark:bg-gray-800")} style={{ height: '28px' }}>
+                            <div key={sub.nome} className={cn("relative flex items-center justify-between px-1 border-b border-gray-100 dark:border-gray-700 group", isMesAtual ? "bg-emerald-50/50" : "bg-white dark:bg-gray-800")} style={{ height: '38px' }}>
                               {/* PLANEJADO - editável + tooltip histórico */}
                               <div className="flex-1 flex items-center justify-center relative group/plan">
                                 {isEditPlan ? (
@@ -614,7 +614,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                       );
                     })}
                     {/* EBITDA */}
-                    <div className={cn("flex items-center justify-between px-1 border-t-2 border-emerald-300", isMesAtual ? "bg-emerald-100" : "bg-emerald-50 dark:bg-emerald-900/20")} style={{ height: '36px' }}>
+                    <div className={cn("flex items-center justify-between px-1 border-t-2 border-emerald-300", isMesAtual ? "bg-emerald-100" : "bg-emerald-50 dark:bg-emerald-900/20")} style={{ height: '50px' }}>
                       <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-700">{formatarMoeda(mes.totais.ebitda_plan)}</span>
                       <div className="w-px h-4 bg-emerald-300" />
                       <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(mes.totais.ebitda_proj)}</span>
@@ -622,7 +622,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                       <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(mes.totais.ebitda_real, mes.totais.ebitda_plan, false))}>{formatarMoeda(mes.totais.ebitda_real)}</span>
                     </div>
                     {/* Margem EBITDA */}
-                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-emerald-50" : "bg-emerald-50 dark:bg-emerald-900/20")} style={{ height: '28px' }}>
+                    <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-emerald-50" : "bg-emerald-50 dark:bg-emerald-900/20")} style={{ height: '38px' }}>
                       <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-600">{formatarPorcentagem(mes.totais.margem_ebitda_plan)}</span>
                       <div className="w-px h-3 bg-emerald-200" />
                       <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarPorcentagem(mes.totais.margem_ebitda_proj)}</span>
