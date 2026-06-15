@@ -378,7 +378,7 @@ export function DreTab({ barId }: Props) {
                     </td>
                     {row.valores.map((v, i) => (
                       <Fragment key={i}>
-                        <td className={`py-1.5 px-2 text-right tabular-nums ${v < 0 ? 'text-red-600' : v > 0 && row.label === 'Receita' ? 'text-emerald-600' : ''}`}>
+                        <td className={`py-1.5 px-2 text-right tabular-nums whitespace-nowrap ${v < 0 ? 'text-red-600' : v > 0 && row.label === 'Receita' ? 'text-emerald-600' : ''}`}>
                           {v !== 0 ? fmtBRL(v) : '—'}
                         </td>
                         <td className="py-1.5 px-1 text-right tabular-nums text-[10px] text-muted-foreground">
@@ -386,7 +386,7 @@ export function DreTab({ barId }: Props) {
                         </td>
                       </Fragment>
                     ))}
-                    <td className={`py-1.5 px-2 text-right tabular-nums bg-gray-100 dark:bg-gray-800 ${row.ytd < 0 ? 'text-red-600 font-bold' : 'font-bold'}`}>
+                    <td className={`py-1.5 px-2 text-right tabular-nums whitespace-nowrap bg-gray-100 dark:bg-gray-800 ${row.ytd < 0 ? 'text-red-600 font-bold' : 'font-bold'}`}>
                       {fmtBRL(row.ytd)}
                     </td>
                     <td className="py-1.5 px-1 text-right text-[10px] bg-gray-100 dark:bg-gray-800 text-muted-foreground">
