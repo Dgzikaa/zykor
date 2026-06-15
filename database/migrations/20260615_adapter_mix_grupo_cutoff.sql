@@ -1,0 +1,16 @@
+-- 2026-06-15 — Mix por grupo com DATA DE CORTE (passado local / futuro grupo).
+-- Decisão do sócio: não mexer no histórico (continua por local) e classificar por GRUPO
+-- daqui pra frente. Correções pontuais do passado = UPDATE direcionado em silver.vendas_item.
+--
+-- public.mix_grupo_cutoff(bar) -> date (default 2026-06-16; ajustar aqui p/ outro go-live).
+-- adapter_contahub_to_vendas_item: categoria_mix =
+--   trn_dtgerencial >= corte ? map_categoria_mix_grupo(bar,grupo) : map_categoria_mix(bar,local)
+--
+-- Sem recompute: passado já gravado fica como está (re-processar dia antigo continua local);
+-- dias >= corte entram por grupo (pendentes/sem cadastro = categoria_mix NULL = fora da cesta
+-- até classificar na tela /ferramentas/consumos-classificacao). Aplicado via MCP.
+-- Ver [[project_contahub_produto_hora_qry95]] e 20260615_mix_classificacao_por_grupo.sql.
+--
+-- Aside: gold.planejamento.percent_c/b/d (e stockout/atrasos) vêm de eventos_base; podem
+-- ficar defasados se o ETL do planejamento rodar antes do calculate_evento_metrics
+-- (caso Deboche jun/2026). Cura: re-rodar etl_gold_planejamento_full(bar, ini, fim).
