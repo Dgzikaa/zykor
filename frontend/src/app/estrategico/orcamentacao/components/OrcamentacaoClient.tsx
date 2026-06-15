@@ -161,6 +161,21 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     setSecoesAbertas(prev => ({ ...prev, [nome]: !prev[nome] }));
   }, []);
 
+  // Expandir/recolher TODAS as seções de uma vez (igual a DRE).
+  const categoriasColapsaveis = meses[0]?.categorias.filter(c => !c.modoPercentual) ?? [];
+  const todasAbertas = categoriasColapsaveis.length > 0 && categoriasColapsaveis.every(c => secoesAbertas[c.nome]);
+  const toggleTodasSecoes = useCallback(() => {
+    setSecoesAbertas(() => {
+      const next: Record<string, boolean> = {};
+      (meses[0]?.categorias ?? []).forEach(c => { next[c.nome] = !todasAbertas; });
+      return next;
+    });
+  }, [meses, todasAbertas]);
+
+  // Subcategoria destacada ao clicar no rótulo (coluna fixa da esquerda) —
+  // facilita acompanhar a linha pelos 12 meses. Clicar de novo desmarca.
+  const [subSelecionada, setSubSelecionada] = useState<string | null>(null);
+
   const salvarValor = async () => {
     if (!editando || !selectedBar) return;
     const numValue = parseFloat(valorEdit.replace(',', '.').replace(/[^\d.-]/g, ''));
@@ -190,7 +205,16 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
       if (!response.ok) throw new Error('Erro ao salvar');
       toast({ title: 'Salvo!', description: `Valor ${editando.campo} atualizado` });
       setEditando(null);
-      carregarDados();
+      // Preserva a posição do scroll (o reload trocava todo o conteúdo e voltava
+      // pro topo/início — ruim quando o usuário estava em dez, p.ex.).
+      const el = scrollContainerRef.current;
+      const x = el?.scrollLeft ?? 0;
+      const y = el?.scrollTop ?? 0;
+      await carregarDados();
+      requestAnimationFrame(() => {
+        const c = scrollContainerRef.current;
+        if (c) { c.scrollLeft = x; c.scrollTop = y; }
+      });
     } catch (error) {
       toast({ title: 'Erro', description: 'Falha ao salvar valor', variant: 'destructive' });
     }
@@ -212,15 +236,20 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
   }, [meses]);
 
   const totaisPeriodo = useMemo(() => {
-    if (meses.length === 0) return { receita_planejado: 0, receita_realizado: 0, lucro_planejado: 0, lucro_projecao: 0, lucro_realizado: 0 };
-    return meses.reduce((acc, mes) => ({
+    const base = { receita_planejado: 0, receita_realizado: 0, lucro_planejado: 0, lucro_projecao: 0, lucro_realizado: 0 };
+    if (meses.length === 0) return base;
+    // Realizado (Receita e Lucro) conta SÓ até o mês corrente. Meses futuros não
+    // têm realizado, mas entravam com custos/breakeven -> jogavam o Lucro Real pra
+    // muito negativo (ex: -246k somando o ano todo). Plan/Proj seguem o ano inteiro.
+    const limiteReal = mesAtualIdx >= 0 ? mesAtualIdx : meses.length - 1;
+    return meses.reduce((acc, mes, idx) => ({
       receita_planejado: acc.receita_planejado + mes.totais.receita_planejado,
-      receita_realizado: acc.receita_realizado + mes.totais.receita_realizado,
+      receita_realizado: acc.receita_realizado + (idx <= limiteReal ? mes.totais.receita_realizado : 0),
       lucro_planejado: acc.lucro_planejado + mes.totais.lucro_planejado,
       lucro_projecao: acc.lucro_projecao + mes.totais.lucro_projecao,
-      lucro_realizado: acc.lucro_realizado + mes.totais.lucro_realizado,
-    }), { receita_planejado: 0, receita_realizado: 0, lucro_planejado: 0, lucro_projecao: 0, lucro_realizado: 0 });
-  }, [meses]);
+      lucro_realizado: acc.lucro_realizado + (idx <= limiteReal ? mes.totais.lucro_realizado : 0),
+    }), base);
+  }, [meses, mesAtualIdx]);
 
   // Pré-calcula totais por categoria/mês uma única vez quando `meses` muda,
   // evitando rodar `reduce` 12 x N categorias dentro do render. Indexado por
@@ -271,6 +300,10 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                     : 'Carregando...'}
                 </span>
               </div>
+              <Button variant="outline" size="sm" onClick={toggleTodasSecoes} className="gap-2">
+                {todasAbertas ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                {todasAbertas ? 'Recolher tudo' : 'Expandir tudo'}
+              </Button>
               <Button variant="outline" size="sm" onClick={carregarDados} disabled={loading} className="gap-2 ml-4">
                 <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
                 Atualizar
@@ -340,7 +373,11 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                       return (
                         <div
                           key={sub.nome}
-                          className="flex items-center gap-1.5 px-2 pl-5 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 hover:dark:bg-gray-700/50"
+                          onClick={() => setSubSelecionada(prev => (prev === sub.nome ? null : sub.nome))}
+                          className={cn(
+                            "flex items-center gap-1.5 px-2 pl-5 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 hover:dark:bg-gray-700/50",
+                            subSelecionada === sub.nome && "!bg-amber-100 dark:!bg-amber-900/30"
+                          )}
                           style={{ height: '38px' }}
                         >
                           <div
@@ -510,7 +547,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                           const isEditPlan = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'planejado';
                           const isEditProj = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'projetado';
                           return (
-                            <div key={sub.nome} className={cn("relative flex items-center justify-between px-1 border-b border-gray-100 dark:border-gray-700 group", isMesAtual ? "bg-emerald-50/50" : "bg-white dark:bg-gray-800")} style={{ height: '38px' }}>
+                            <div key={sub.nome} className={cn("relative flex items-center justify-between px-1 border-b border-gray-100 dark:border-gray-700 group", isMesAtual ? "bg-emerald-50/50" : "bg-white dark:bg-gray-800", subSelecionada === sub.nome && "!bg-amber-100 dark:!bg-amber-900/30")} style={{ height: '38px' }}>
                               {/* PLANEJADO - editável + tooltip histórico */}
                               <div className="flex-1 flex items-center justify-center relative group/plan">
                                 {isEditPlan ? (

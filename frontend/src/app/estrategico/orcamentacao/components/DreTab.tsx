@@ -66,6 +66,8 @@ export function DreTab({ barId }: Props) {
   const [sincronizando, setSincronizando] = useState(false);
   // Macros colapsados (mostra só a linha TOTAL). Default: tudo expandido.
   const [colapsados, setColapsados] = useState<Set<string>>(new Set());
+  // Linha destacada ao clicar (facilita acompanhar a linha pelas 12 colunas).
+  const [linhaSelecionada, setLinhaSelecionada] = useState<number | null>(null);
 
   // Só lê a DRE (view financial.dre_excel agrega o bronze direto).
   const lerDre = async () => {
@@ -306,18 +308,18 @@ export function DreTab({ barId }: Props) {
         <table className="w-full text-xs">
           <thead className="bg-gray-100 dark:bg-gray-800 text-[10px] uppercase">
             <tr>
-              <th className="text-left py-2 px-2 sticky left-0 bg-gray-100 dark:bg-gray-800 min-w-[180px] z-10">Categ MACRO</th>
-              <th className="text-left py-2 px-2 sticky left-[180px] bg-gray-100 dark:bg-gray-800 min-w-[200px] z-10">Categoria</th>
+              <th className="text-left py-2 px-2 sticky left-0 top-0 bg-gray-100 dark:bg-gray-800 min-w-[180px] z-30">Categ MACRO</th>
+              <th className="text-left py-2 px-2 sticky left-[180px] top-0 bg-gray-100 dark:bg-gray-800 min-w-[200px] z-30">Categoria</th>
               {MES_LABEL.map((m, i) => (
                 // Label do mês fica alinhado à direita sobre a coluna de VALOR (não a de %),
                 // ficando exatamente sobre o total da coluna.
                 <Fragment key={i}>
-                  <th className="text-right py-2 px-2 min-w-[110px]">{m}/26</th>
-                  <th className="py-2 px-1 min-w-[44px]" aria-hidden />
+                  <th className="text-right py-2 px-2 min-w-[110px] sticky top-0 z-20 bg-gray-100 dark:bg-gray-800">{m}/26</th>
+                  <th className="py-2 px-1 min-w-[44px] sticky top-0 z-20 bg-gray-100 dark:bg-gray-800" aria-hidden />
                 </Fragment>
               ))}
-              <th className="text-right py-2 px-2 bg-gray-200 dark:bg-gray-700 min-w-[120px]">YTD 2026</th>
-              <th className="py-2 px-1 bg-gray-200 dark:bg-gray-700 min-w-[44px]" aria-hidden />
+              <th className="text-right py-2 px-2 bg-gray-200 dark:bg-gray-700 min-w-[120px] sticky top-0 z-20">YTD 2026</th>
+              <th className="py-2 px-1 bg-gray-200 dark:bg-gray-700 min-w-[44px] sticky top-0 z-20" aria-hidden />
             </tr>
           </thead>
           <tbody>
@@ -334,7 +336,7 @@ export function DreTab({ barId }: Props) {
                     </tr>
                   )}
                   <tr
-                    className={`border-b ${
+                    className={`border-b cursor-pointer ${
                       row.label === 'Lucro Líquido'
                         ? 'bg-emerald-50 dark:bg-emerald-950/40 border-t-4 border-emerald-300 dark:border-emerald-700 text-sm font-bold'
                         : row.parcial
@@ -344,8 +346,13 @@ export function DreTab({ barId }: Props) {
                             : row.destaque
                               ? 'bg-gray-50 dark:bg-gray-900/40 font-semibold'
                               : ''
-                    } ${row.colapsavel ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/60' : ''}`}
-                    onClick={row.colapsavel ? () => toggleMacro(row.grupo) : undefined}
+                    } ${row.colapsavel ? 'hover:bg-gray-100 dark:hover:bg-gray-800/60' : ''} ${
+                      linhaSelecionada === idx ? '[&>td]:!bg-amber-100 dark:[&>td]:!bg-amber-900/30' : ''
+                    }`}
+                    onClick={() => {
+                      setLinhaSelecionada(prev => (prev === idx ? null : idx));
+                      if (row.colapsavel) toggleMacro(row.grupo);
+                    }}
                   >
                     <td className={`py-1.5 px-2 sticky left-0 z-10 ${
                       row.label === 'Lucro Líquido'
