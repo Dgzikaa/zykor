@@ -88,6 +88,14 @@ const formatarPorcentagem = (valor: number | null | undefined): string => {
   return `${valor.toFixed(1)}%`;
 };
 
+// Cor do Realizado vs Planejado. melhorMenor=true p/ despesa/breakeven (gastar menos = bom);
+// false p/ receita/margem (mais = bom). Sem base => neutro (preto).
+const corReal = (real: number, plan: number, melhorMenor: boolean): string => {
+  if (!(plan > 0 || real > 0)) return 'text-gray-900 dark:text-white';
+  const bom = melhorMenor ? real <= plan : real >= plan;
+  return bom ? 'text-emerald-600' : 'text-red-600';
+};
+
 export default function OrcamentacaoClient({ initialData, barId, bpData }: OrcamentacaoClientProps) {
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
@@ -284,23 +292,23 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
 
           <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-2 border border-blue-200 dark:border-blue-700">
-              <div className="text-blue-700 dark:text-blue-300 text-[10px] font-medium mb-0.5">Receita Plan.</div>
+              <div className="text-blue-700 dark:text-blue-300 text-xs font-medium mb-0.5">Receita Plan.</div>
               <AnimatedCurrency value={totaisPeriodo.receita_planejado} className="text-sm font-bold text-blue-600 dark:text-blue-400" />
             </div>
             <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-lg p-2 border border-emerald-200 dark:border-emerald-700">
-              <div className="text-emerald-700 dark:text-emerald-300 text-[10px] font-medium mb-0.5">Receita Real.</div>
+              <div className="text-emerald-700 dark:text-emerald-300 text-xs font-medium mb-0.5">Receita Real.</div>
               <AnimatedCurrency value={totaisPeriodo.receita_realizado} className="text-sm font-bold text-emerald-600 dark:text-emerald-400" />
             </div>
             <div className={cn("rounded-lg p-2 border", totaisPeriodo.lucro_planejado >= 0 ? "bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200" : "bg-gradient-to-br from-red-50 to-red-100 border-red-200")}>
-              <div className={cn("text-[10px] font-medium mb-0.5", totaisPeriodo.lucro_planejado >= 0 ? "text-purple-700" : "text-red-700")}>Lucro Plan.</div>
+              <div className={cn("text-xs font-medium mb-0.5", totaisPeriodo.lucro_planejado >= 0 ? "text-purple-700" : "text-red-700")}>Lucro Plan.</div>
               <AnimatedCurrency value={totaisPeriodo.lucro_planejado} className={cn("text-sm font-bold", totaisPeriodo.lucro_planejado >= 0 ? "text-purple-600" : "text-red-600")} />
             </div>
             <div className={cn("rounded-lg p-2 border", totaisPeriodo.lucro_projecao >= 0 ? "bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200" : "bg-gradient-to-br from-red-50 to-red-100 border-red-200")}>
-              <div className={cn("text-[10px] font-medium mb-0.5", totaisPeriodo.lucro_projecao >= 0 ? "text-indigo-700" : "text-red-700")}>Lucro Proj.</div>
+              <div className={cn("text-xs font-medium mb-0.5", totaisPeriodo.lucro_projecao >= 0 ? "text-indigo-700" : "text-red-700")}>Lucro Proj.</div>
               <AnimatedCurrency value={totaisPeriodo.lucro_projecao} className={cn("text-sm font-bold", totaisPeriodo.lucro_projecao >= 0 ? "text-indigo-600" : "text-red-600")} />
             </div>
             <div className={cn("rounded-lg p-2 border", totaisPeriodo.lucro_realizado >= 0 ? "bg-gradient-to-br from-teal-50 to-teal-100 border-teal-200" : "bg-gradient-to-br from-red-50 to-red-100 border-red-200")}>
-              <div className={cn("text-[10px] font-medium mb-0.5", totaisPeriodo.lucro_realizado >= 0 ? "text-teal-700" : "text-red-700")}>Lucro Real.</div>
+              <div className={cn("text-xs font-medium mb-0.5", totaisPeriodo.lucro_realizado >= 0 ? "text-teal-700" : "text-red-700")}>Lucro Real.</div>
               <AnimatedCurrency value={totaisPeriodo.lucro_realizado} className={cn("text-sm font-bold", totaisPeriodo.lucro_realizado >= 0 ? "text-teal-600" : "text-red-600")} />
             </div>
           </div>
@@ -315,29 +323,29 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
             </div>
             {/* Indicadores agregados (header — antes da tabela) */}
             <div className="flex items-center gap-2 px-2 bg-slate-100 dark:bg-slate-800 border-b border-gray-200" style={{ height: '28px' }}>
-              <OrigemTooltip nome="Faturamento Meta" className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Faturamento Meta</OrigemTooltip>
+              <OrigemTooltip nome="Faturamento Meta" className="text-xs font-bold text-slate-700 dark:text-slate-300">Faturamento Meta</OrigemTooltip>
             </div>
             <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
-              <OrigemTooltip nome="Real Fixo" className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Real Fixo</OrigemTooltip>
+              <OrigemTooltip nome="Real Fixo" className="text-xs font-bold text-slate-700 dark:text-slate-300">Real Fixo</OrigemTooltip>
             </div>
             <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
-              <OrigemTooltip nome="BreakEven" className="text-[10px] font-bold text-slate-700 dark:text-slate-300">BreakEven</OrigemTooltip>
+              <OrigemTooltip nome="BreakEven" className="text-xs font-bold text-slate-700 dark:text-slate-300">BreakEven</OrigemTooltip>
             </div>
             <div className="flex items-center gap-2 px-2 border-b-2 border-gray-400 bg-slate-50 dark:bg-slate-900/40" style={{ height: '28px' }}>
-              <OrigemTooltip nome="% CONTRIB" className="text-[10px] font-bold text-slate-700 dark:text-slate-300">% CONTRIB</OrigemTooltip>
+              <OrigemTooltip nome="% CONTRIB" className="text-xs font-bold text-slate-700 dark:text-slate-300">% CONTRIB</OrigemTooltip>
             </div>
             {meses.length > 0 && meses[0].categorias.map(categoria => (
               <div key={categoria.nome}>
                 {categoria.modoPercentual ? (
                   // Blocos % (Variáveis / CMV): 1 linha só, sem expandir.
                   <div className={cn("flex items-center gap-2 px-2 border-b border-gray-200", categoria.cor)} style={{ height: '32px' }}>
-                    <OrigemTooltip nome={categoria.nome} className="text-[10px] font-semibold truncate">{categoria.nome} (%)</OrigemTooltip>
+                    <OrigemTooltip nome={categoria.nome} className="text-xs font-semibold truncate">{categoria.nome} (%)</OrigemTooltip>
                   </div>
                 ) : (
                   <>
                     <div className={cn("flex items-center gap-2 px-2 cursor-pointer", categoria.cor)} style={{ height: '32px' }} onClick={() => toggleSecao(categoria.nome)}>
                       {secoesAbertas[categoria.nome] ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                      <OrigemTooltip nome={categoria.nome} className="text-[10px] font-semibold truncate">{categoria.nome}</OrigemTooltip>
+                      <OrigemTooltip nome={categoria.nome} className="text-xs font-semibold truncate">{categoria.nome}</OrigemTooltip>
                     </div>
                     {secoesAbertas[categoria.nome] && categoria.subcategorias.map(sub => {
                       const isManual = SUBCATEGORIAS_MANUAIS.has(sub.nome);
@@ -353,7 +361,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                               isManual ? 'bg-blue-500' : 'bg-green-500'
                             )}
                           />
-                          <OrigemTooltip nome={sub.nome} className="text-[10px] text-gray-700 dark:text-gray-300 truncate">{sub.nome}</OrigemTooltip>
+                          <OrigemTooltip nome={sub.nome} className="text-xs text-gray-700 dark:text-gray-300 truncate">{sub.nome}</OrigemTooltip>
                         </div>
                       );
                     })}
@@ -364,10 +372,10 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
             {/* Lucro Líquido + Margem (rodapé) */}
             <div className="flex items-center gap-2 px-2 border-t-2 border-emerald-300 bg-emerald-100 dark:bg-emerald-900/30" style={{ height: '36px' }}>
               <DollarSign className="w-3 h-3 text-emerald-700" />
-              <OrigemTooltip nome="Lucro Líquido" className="text-[10px] font-bold text-emerald-800">Lucro Líquido</OrigemTooltip>
+              <OrigemTooltip nome="Lucro Líquido" className="text-xs font-bold text-emerald-800">Lucro Líquido</OrigemTooltip>
             </div>
             <div className="flex items-center gap-2 px-2 border-b border-gray-200 bg-emerald-50 dark:bg-emerald-900/20" style={{ height: '28px' }}>
-              <OrigemTooltip nome="Margem" className="text-[10px] font-bold text-emerald-700">Margem</OrigemTooltip>
+              <OrigemTooltip nome="Margem" className="text-xs font-bold text-emerald-700">Margem</OrigemTooltip>
             </div>
           </div>
 
@@ -380,7 +388,7 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                     <div className={cn("h-[48px] border-b border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center px-1 sticky top-0 z-10", isMesAtual ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-gray-50 dark:bg-gray-700")}>
                       <span className={cn("text-xs font-bold", isMesAtual ? "text-emerald-700" : "text-gray-700 dark:text-gray-300")}>{mes.label}</span>
                       <div className="flex gap-1 text-[8px] text-gray-500">
-                        <span className="text-blue-600">Plan.</span><span>|</span><span className="text-green-600">Proj.</span><span>|</span><span className="text-gray-600 dark:text-gray-300">Real.</span>
+                        <span className="text-blue-600">Plan.</span><span>|</span><span className="text-gray-900 dark:text-white">Proj.</span><span>|</span><span className="text-gray-600 dark:text-gray-300">Real.</span>
                       </div>
                     </div>
                     {/* Indicadores agregados (antes da tabela) — ordem: Faturamento Meta, Real Fixo, BreakEven, % CONTRIB */}
@@ -388,13 +396,13 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                       {(() => {
                         const isEditFM = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === 'FATURAMENTO META' && editando?.campo === 'planejado';
                         return isEditFM ? (
-                          <div className="flex-1 flex items-center justify-center gap-0.5">
-                            <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-14 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                          <div className="flex-1 flex items-center justify-center gap-1">
+                            <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-20 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
                             <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
                           </div>
                         ) : (
                           <span
-                            className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-blue-600 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
+                            className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-600 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
                             onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: 'FATURAMENTO META', campo: 'planejado' }); setValorEdit(mes.totais.faturamento_meta_plan.toString()); }}
                           >{formatarMoeda(mes.totais.faturamento_meta_plan)}</span>
                         );
@@ -403,41 +411,41 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                       {(() => {
                         const isEditFMP = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === 'FATURAMENTO META' && editando?.campo === 'projetado';
                         return isEditFMP ? (
-                          <div className="flex-1 flex items-center justify-center gap-0.5">
-                            <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-14 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                          <div className="flex-1 flex items-center justify-center gap-1">
+                            <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-20 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
                             <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
                           </div>
                         ) : (
                           <span
-                            className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-green-600 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
+                            className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
                             title="Projetado (default = Empilhamento M1; editável)"
                             onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: 'FATURAMENTO META', campo: 'projetado' }); setValorEdit(mes.totais.faturamento_meta_proj.toString()); }}
                           >{formatarMoeda(mes.totais.faturamento_meta_proj)}</span>
                         );
                       })()}
                       <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(mes.totais.faturamento_meta_real)}</span>
+                      <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(mes.totais.faturamento_meta_real, mes.totais.faturamento_meta_plan, false))}>{formatarMoeda(mes.totais.faturamento_meta_real)}</span>
                     </div>
                     <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
-                      <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-blue-600">{formatarMoeda(mes.totais.real_fixo_plan)}</span>
+                      <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-600">{formatarMoeda(mes.totais.real_fixo_plan)}</span>
                       <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-green-600">{formatarMoeda(mes.totais.real_fixo_proj)}</span>
+                      <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(mes.totais.real_fixo_proj)}</span>
                       <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(mes.totais.real_fixo_real)}</span>
+                      <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(mes.totais.real_fixo_real, mes.totais.real_fixo_plan, true))}>{formatarMoeda(mes.totais.real_fixo_real)}</span>
                     </div>
                     <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
-                      <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-blue-600">{formatarMoeda(mes.totais.breakeven_plan)}</span>
+                      <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-600">{formatarMoeda(mes.totais.breakeven_plan)}</span>
                       <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-green-600">{formatarMoeda(mes.totais.breakeven_proj)}</span>
+                      <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(mes.totais.breakeven_proj)}</span>
                       <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(mes.totais.breakeven_real)}</span>
+                      <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(mes.totais.breakeven_real, mes.totais.breakeven_plan, true))}>{formatarMoeda(mes.totais.breakeven_real)}</span>
                     </div>
                     <div className={cn("flex items-center justify-between px-1 border-b-2 border-gray-400", isMesAtual ? "bg-slate-100" : "bg-slate-50 dark:bg-slate-900/40")} style={{ height: '28px' }}>
-                      <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-blue-600">{formatarPorcentagem(mes.totais.perc_contrib_plan)}</span>
+                      <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-600">{formatarPorcentagem(mes.totais.perc_contrib_plan)}</span>
                       <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-green-600">{formatarPorcentagem(mes.totais.perc_contrib_proj)}</span>
+                      <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarPorcentagem(mes.totais.perc_contrib_proj)}</span>
                       <div className="w-px h-3 bg-slate-300" />
-                      <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarPorcentagem(mes.totais.perc_contrib_real)}</span>
+                      <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(mes.totais.perc_contrib_real, mes.totais.perc_contrib_plan, false))}>{formatarPorcentagem(mes.totais.perc_contrib_real)}</span>
                     </div>
                     {mes.categorias.map(categoria => {
                       // Quando categoria esta collapsed, mostra a soma das subs (Plan/Proj/Real)
@@ -461,14 +469,14 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                             {/* PLAN % */}
                             <div className="flex-1 flex items-center justify-center">
                               {isEditPlanPct ? (
-                                <div className="flex items-center gap-0.5">
-                                  <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                                <div className="flex items-center gap-1">
+                                  <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-16 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
                                   <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
                                   <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: categoria.nome, campo: 'planejado' }); setValorEdit(String(pct.plan)); }}>
-                                  <span className="text-[10px] font-bold whitespace-nowrap text-blue-700 dark:text-blue-300">{formatarPorcentagem(pct.plan)}</span>
+                                <div className="flex items-center gap-1 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-1" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: categoria.nome, campo: 'planejado' }); setValorEdit(String(pct.plan)); }}>
+                                  <span className="text-xs font-bold whitespace-nowrap text-blue-700 dark:text-blue-300">{formatarPorcentagem(pct.plan)}</span>
                                   <Pencil className="h-2 w-2 text-blue-500" />
                                 </div>
                               )}
@@ -477,21 +485,21 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                             {/* PROJ % */}
                             <div className="flex-1 flex items-center justify-center">
                               {isEditProjPct ? (
-                                <div className="flex items-center gap-0.5">
-                                  <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                                <div className="flex items-center gap-1">
+                                  <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-16 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
                                   <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
                                   <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-0.5 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: categoria.nome, campo: 'projetado' }); setValorEdit(String(pct.proj)); }}>
-                                  <span className="text-[10px] font-bold whitespace-nowrap text-green-700 dark:text-green-300">{formatarPorcentagem(pct.proj)}</span>
+                                <div className="flex items-center gap-1 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded px-1" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: categoria.nome, campo: 'projetado' }); setValorEdit(String(pct.proj)); }}>
+                                  <span className="text-xs font-bold whitespace-nowrap text-gray-900 dark:text-white">{formatarPorcentagem(pct.proj)}</span>
                                   <Pencil className="h-2 w-2 text-green-500" />
                                 </div>
                               )}
                             </div>
                             <div className="w-px h-3 bg-white/40" />
                             {/* REAL % (vem da DRE) */}
-                            <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-gray-900 dark:text-white" title="Realizado vem da DRE (Conta Azul ÷ faturamento realizado)">{formatarPorcentagem(pct.real)}</span>
+                            <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(pct.real, pct.plan, true))} title="Realizado vem da DRE (Conta Azul ÷ faturamento realizado)">{formatarPorcentagem(pct.real)}</span>
                           </div>
                         );
                       }
@@ -501,11 +509,11 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                       <div key={categoria.nome}>
                         {!aberta ? (
                           <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", categoria.cor, "bg-opacity-60 dark:bg-opacity-30")} style={{ height: '32px' }}>
-                            <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-blue-700 dark:text-blue-300">{formatarMoeda(sinalDre(totPlan, categoria.tipo))}</span>
+                            <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-700 dark:text-blue-300">{formatarMoeda(sinalDre(totPlan, categoria.tipo))}</span>
                             <div className="w-px h-3 bg-white/40" />
-                            <span className="flex-1 text-[10px] font-bold text-center whitespace-nowrap text-green-700 dark:text-green-300">{formatarMoeda(sinalDre(totProj, categoria.tipo))}</span>
+                            <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(sinalDre(totProj, categoria.tipo))}</span>
                             <div className="w-px h-3 bg-white/40" />
-                            <span className={cn("flex-1 text-[10px] font-bold text-center whitespace-nowrap", corClasseReal)}>{formatarMoeda(sinalDre(totReal, categoria.tipo))}</span>
+                            <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corClasseReal)}>{formatarMoeda(sinalDre(totReal, categoria.tipo))}</span>
                           </div>
                         ) : (
                           <div className={cn(categoria.cor, "opacity-20")} style={{ height: '32px' }} />
@@ -518,16 +526,16 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                               {/* PLANEJADO - editável + tooltip histórico */}
                               <div className="flex-1 flex items-center justify-center relative group/plan">
                                 {isEditPlan ? (
-                                  <div className="flex items-center gap-0.5">
-                                    <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                                  <div className="flex items-center gap-1">
+                                    <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-16 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
                                     <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
                                     <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
                                   </div>
                                 ) : (
                                   <>
                                     <HistoricoTooltip historico={getHistorico(sub.nome, 'planejado', idx)} cor="blue" />
-                                    <div className="flex items-center gap-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'planejado' }); setValorEdit(sub.planejado.toString()); }}>
-                                      <span className="text-[10px] font-medium whitespace-nowrap text-blue-600">{sub.isPercentage ? formatarPorcentagem(sub.planejado) : formatarMoeda(sinalDre(sub.planejado, categoria.tipo))}</span>
+                                    <div className="flex items-center gap-1 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-1" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'planejado' }); setValorEdit(sub.planejado.toString()); }}>
+                                      <span className="text-xs font-medium whitespace-nowrap text-blue-600">{sub.isPercentage ? formatarPorcentagem(sub.planejado) : formatarMoeda(sinalDre(sub.planejado, categoria.tipo))}</span>
                                       <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
                                     </div>
                                   </>
@@ -537,16 +545,16 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                               {/* PROJETADO - editável + tooltip histórico */}
                               <div className="flex-1 flex items-center justify-center relative group/proj">
                                 {isEditProj ? (
-                                  <div className="flex items-center gap-0.5">
-                                    <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                                  <div className="flex items-center gap-1">
+                                    <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-16 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
                                     <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
                                     <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
                                   </div>
                                 ) : (
                                   <>
                                     <HistoricoTooltip historico={getHistorico(sub.nome, 'projecao', idx)} cor="green" />
-                                    <div className="flex items-center gap-0.5 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded px-0.5" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'projetado' }); setValorEdit(sub.projecao.toString()); }}>
-                                      <span className={cn("text-[10px] font-medium whitespace-nowrap", sub.projecao > 0 ? "text-green-600" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.projecao) : formatarMoeda(sinalDre(sub.projecao, categoria.tipo))}</span>
+                                    <div className="flex items-center gap-1 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded px-1" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'projetado' }); setValorEdit(sub.projecao.toString()); }}>
+                                      <span className={cn("text-xs font-medium whitespace-nowrap", sub.projecao > 0 ? "text-gray-900 dark:text-white" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.projecao) : formatarMoeda(sinalDre(sub.projecao, categoria.tipo))}</span>
                                       <Pencil className="h-2 w-2 text-green-400 opacity-0 group-hover:opacity-100" />
                                     </div>
                                   </>
@@ -572,8 +580,8 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                                 if (isEditReal) {
                                   return (
                                     <div className="flex-1 flex items-center justify-center">
-                                      <div className="flex items-center gap-0.5">
-                                        <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-12 h-5 text-[9px] p-0.5 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                                      <div className="flex items-center gap-1">
+                                        <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-16 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
                                         <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
                                         <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
                                       </div>
@@ -585,14 +593,14 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                                     <HistoricoTooltip historico={getHistorico(sub.nome, 'realizado', idx)} cor="gray" />
                                     {isManualReal ? (
                                       <div
-                                        className="flex items-center gap-0.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-0.5"
+                                        className="flex items-center gap-1 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-1"
                                         onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'realizado' }); setValorEdit(sub.realizado.toString()); }}
                                       >
-                                        <span className={cn("text-[10px] whitespace-nowrap", corClasse)}>{formatarMoeda(sinalDre(sub.realizado, categoria.tipo))}</span>
+                                        <span className={cn("text-xs whitespace-nowrap", corClasse)}>{formatarMoeda(sinalDre(sub.realizado, categoria.tipo))}</span>
                                         <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
                                       </div>
                                     ) : (
-                                      <span className={cn("text-[10px] whitespace-nowrap", corClasse)} title="Automático: Conta Azul + ajustes da DRE Manual">
+                                      <span className={cn("text-xs whitespace-nowrap", corClasse)} title="Automático: Conta Azul + ajustes da DRE Manual">
                                         {sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sinalDre(sub.realizado, categoria.tipo))}
                                       </span>
                                     )}
@@ -607,19 +615,19 @@ export default function OrcamentacaoClient({ initialData, barId, bpData }: Orcam
                     })}
                     {/* EBITDA */}
                     <div className={cn("flex items-center justify-between px-1 border-t-2 border-emerald-300", isMesAtual ? "bg-emerald-100" : "bg-emerald-50 dark:bg-emerald-900/20")} style={{ height: '36px' }}>
-                      <span className={cn("flex-1 text-[10px] font-bold text-center whitespace-nowrap", mes.totais.ebitda_plan >= 0 ? "text-blue-700" : "text-red-600")}>{formatarMoeda(mes.totais.ebitda_plan)}</span>
+                      <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-700">{formatarMoeda(mes.totais.ebitda_plan)}</span>
                       <div className="w-px h-4 bg-emerald-300" />
-                      <span className={cn("flex-1 text-[10px] font-bold text-center whitespace-nowrap", mes.totais.ebitda_proj >= 0 ? "text-green-700" : "text-red-600")}>{formatarMoeda(mes.totais.ebitda_proj)}</span>
+                      <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(mes.totais.ebitda_proj)}</span>
                       <div className="w-px h-4 bg-emerald-300" />
-                      <span className={cn("flex-1 text-[10px] font-bold text-center whitespace-nowrap", mes.totais.ebitda_real >= 0 ? "text-emerald-800" : "text-red-600")}>{formatarMoeda(mes.totais.ebitda_real)}</span>
+                      <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(mes.totais.ebitda_real, mes.totais.ebitda_plan, false))}>{formatarMoeda(mes.totais.ebitda_real)}</span>
                     </div>
                     {/* Margem EBITDA */}
                     <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-emerald-50" : "bg-emerald-50 dark:bg-emerald-900/20")} style={{ height: '28px' }}>
-                      <span className={cn("flex-1 text-[10px] font-bold text-center whitespace-nowrap", mes.totais.margem_ebitda_plan >= 0 ? "text-blue-600" : "text-red-600")}>{formatarPorcentagem(mes.totais.margem_ebitda_plan)}</span>
+                      <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-600">{formatarPorcentagem(mes.totais.margem_ebitda_plan)}</span>
                       <div className="w-px h-3 bg-emerald-200" />
-                      <span className={cn("flex-1 text-[10px] font-bold text-center whitespace-nowrap", mes.totais.margem_ebitda_proj >= 0 ? "text-green-600" : "text-red-600")}>{formatarPorcentagem(mes.totais.margem_ebitda_proj)}</span>
+                      <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarPorcentagem(mes.totais.margem_ebitda_proj)}</span>
                       <div className="w-px h-3 bg-emerald-200" />
-                      <span className={cn("flex-1 text-[10px] font-bold text-center whitespace-nowrap", mes.totais.margem_ebitda_real >= 0 ? "text-emerald-700" : "text-red-600")}>{formatarPorcentagem(mes.totais.margem_ebitda_real)}</span>
+                      <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(mes.totais.margem_ebitda_real, mes.totais.margem_ebitda_plan, false))}>{formatarPorcentagem(mes.totais.margem_ebitda_real)}</span>
                     </div>
                   </div>
                 );
@@ -701,7 +709,7 @@ function HistoricoTooltip({
     >
       <div className="text-[8px] uppercase opacity-60 mb-0.5">Histórico {corLabel}</div>
       {historico.map((h, i) => (
-        <div key={i} className="text-[10px] font-mono leading-tight">
+        <div key={i} className="text-xs font-mono leading-tight">
           <span className="opacity-70 mr-1">{h.label}:</span>
           <span className="font-semibold">{fmt(h.valor, h.isPercentage)}</span>
         </div>
