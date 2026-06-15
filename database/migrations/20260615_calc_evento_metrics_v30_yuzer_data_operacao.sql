@@ -1,0 +1,27 @@
+-- 2026-06-15 — calculate_evento_metrics v30: Yuzer por DATA DE OPERAÇÃO (bronze).
+--
+-- Problema: o detalhe Yuzer na camada integrations.yuzer_* parou em 17/02 (o processo
+-- bronze→integrations quebrou; o ETL silver escreve em outro lugar). Além disso, a
+-- estatística de pagamento do painel é um total único datado pela abertura do painel
+-- (ex.: COPA ORDINARIO 12–15/06), então a atribuição por data exata errava o dia.
+--
+-- Correção ADITIVA (não regride histórico):
+--   1) Mantém a leitura antiga de integrations.yuzer_pagamento/produtos por data exata.
+--   2) Se o evento está marcado usa_yuzer E há detalhe novo no bronze (bronze_yuzer_fatporhora),
+--      SOBRESCREVE a receita Yuzer atribuindo por DATA DE OPERAÇÃO: transações até as 6h
+--      contam pro dia anterior ((data_hora - 6h)::date), somando os painéis ativos no dia.
+--      Ingressos vêm de bronze_yuzer_produtos_evento (produto_nome ILIKE '%ingresso%') dos
+--      painéis ativos nesse dia.
+--
+-- Eventos sem marca ou sem fatporhora no bronze ficam idênticos a antes (gated + fallback).
+-- Validado: 13/06/2026 bar 3 (Brasil x Marrocos) real_r 18,86 -> 104.195,17; 12/06 e 14/06
+-- inalterados (sem double-count; madrugada de 14/06 atribuída ao 13/06).
+--
+-- Já aplicado em produção via MCP em 2026-06-15 (apply_migration). Versionado aqui.
+-- Para o corpo completo da função, ver a aplicação (idêntica a esta migration).
+
+-- NOTE: o CREATE OR REPLACE completo foi aplicado via MCP. Mudanças vs v29:
+--   - DECLARE: + v_bronze_yuzer NUMERIC := 0;
+--   - bloco Yuzer: + IF usa_yuzer e fatporhora>0 sobrescreve por data de operação;
+--   - versao_calculo = 30.
+-- (Corpo completo no histórico de migrations do banco / pg_get_functiondef.)
