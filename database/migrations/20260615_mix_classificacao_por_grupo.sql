@@ -1,0 +1,24 @@
+-- 2026-06-15 — Mix/cesta classificado por GRUPO (substitui por LOCAL). Aplicado via MCP.
+--
+-- Decisão do sócio: classificar a cesta/mix por GRUPO do cardápio. Grupos mistos
+-- (Pegue e Pague, Happy Hour, Grupo Adicional) serão SEPARADOS pela operação no ContaHub
+-- (ex.: "Pegue e Pague Drinks", "HH Drinks/Comidas/Bebidas") — até lá ficam PENDENTES
+-- (não entram na cesta). Sem fallback por local.
+--
+-- 1) grupo_categoria_classificacao: tabela de-para (bar_id, grupo_desc) -> categoria
+--    (BEBIDA/DRINK/COMIDA/OUTROS) + UNIQUE(bar_id,grupo_desc). Gabarito pré-carregado
+--    (Ord + Deboche); ⚠️ mistos ficaram de fora (pendentes). OUTROS não entra na cesta.
+-- 2) map_categoria_mix_grupo(bar, grupo) -> categoria (NULL = pendente).
+-- 3) get_grupos_classificacao(bar) -> todos os grupos vendidos (180d) com categoria atual,
+--    volume e flag pendente (pendentes primeiro). set_grupo_categoria(bar,grupo,cat,por) upsert.
+-- 4) silver.contahub_produto_hora.categoria_mix agora vem de map_categoria_mix_grupo (era local).
+-- 5) evento_cesta_detalhe: ContaHub classificado por grupo; pendente -> 'sem_classificacao'.
+--
+-- Tela: /ferramentas/consumos-classificacao reaproveitada p/ classificar grupos
+-- (/api/grupos-classificacao GET/POST). A versão antiga (CMV consumos por keyword) está no git.
+--
+-- PENDENTE (flip canônico, NÃO feito p/ evitar regressão enquanto os grupos mistos estão
+-- pendentes): trocar adapter_contahub_to_vendas_item p/ map_categoria_mix_grupo + recalcular
+-- silver.vendas_item.categoria_mix + re-rodar ETL gold (desempenho/planejamento). Fazer só
+-- depois que a operação separar Pegue e Pague / Happy Hour (senão ~600k de volume vira
+-- "sem classificação" e o mix do desempenho desloca). Ver [[project_contahub_produto_hora_qry95]].

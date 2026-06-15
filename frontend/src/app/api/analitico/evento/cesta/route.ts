@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.valor - a.valor);
 
     // categorias da cesta (entram no mix) e as fora dela
-    const ORDEM = ['comida', 'bebida', 'drink', 'eco_copo', 'ingresso', 'fora'];
+    const ORDEM = ['comida', 'bebida', 'drink', 'sem_classificacao', 'eco_copo', 'ingresso', 'fora'];
     const grupos = ORDEM.map((cat) => {
       const lista = itens.filter((i) => i.categoria === cat);
       return {

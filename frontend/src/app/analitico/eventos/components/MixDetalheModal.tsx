@@ -35,6 +35,7 @@ const LABEL: Record<string, string> = {
   comida: 'Comida',
   bebida: 'Bebida',
   drink: 'Drink',
+  sem_classificacao: 'Sem classificação (grupo pendente)',
   eco_copo: 'Eco Copos',
   ingresso: 'Ingressos (entrada)',
   fora: 'Fora da cesta',
