@@ -176,9 +176,8 @@ const ESTRUTURA: BlocoDef[] = [
   },
   {
     nome: 'Não Operacionais', tipo: 'receita', cor: COR.naoOp, modo: 'fixo', subs: [
-      { nome: 'Receitas Financeiras', manual: true },
-      { nome: 'Despesas Financeiras', manual: true },
-      { nome: 'CONTRATOS', manual: true },
+      // Só Contratos. 'Contratos' (case) bate com a categoria do financial.dre_manual.
+      { nome: 'Contratos', manual: true },
     ]
   },
 ];

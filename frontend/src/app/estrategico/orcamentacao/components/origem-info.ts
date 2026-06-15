@@ -27,7 +27,7 @@ export interface OrigemLinha {
 // Subcategorias cujo REALIZADO é digitado na tela (bolinha azul), não vem do CA.
 export const SUBCATEGORIAS_MANUAIS = new Set<string>([
   'Marketing Mídia', 'MKT Disparos', 'MKT Programa de Pontos', 'MKT Beneficios',
-  'Produção Mensal Fixo', 'Receitas Financeiras', 'Despesas Financeiras', 'CONTRATOS',
+  'Produção Mensal Fixo', 'Contratos',
 ]);
 
 // --- Blocos genéricos reutilizados ---
@@ -175,22 +175,15 @@ const ESPECIAIS: Record<string, OrigemLinha> = {
   },
   'Não Operacionais': {
     titulo: 'Não Operacionais',
-    descricao: 'Receitas que não vêm da operação do bar (não entram no BreakEven).',
-    calculo: 'Soma de Receitas Financeiras + Contratos.',
+    descricao: 'Receita que não vem da operação do bar (não entra no BreakEven). Só Contratos.',
+    calculo: 'Contratos (cashback/bonificações Ambev).',
     planejado: PLANEJADO_PADRAO,
     projetado: PROJETADO_PADRAO,
     realizado: REALIZADO_MANUAL,
   },
-  CONTRATOS: {
+  Contratos: {
     titulo: 'Contratos',
-    descricao: 'Cashback/bonificações Ambev e contratos anuais. 100% manual.',
-    planejado: PLANEJADO_PADRAO,
-    projetado: PROJETADO_PADRAO,
-    realizado: REALIZADO_MANUAL,
-  },
-  'Receitas Financeiras': {
-    titulo: 'Receitas Financeiras',
-    descricao: 'Rendimentos e juros recebidos. 100% manual.',
+    descricao: 'Cashback/bonificações Ambev e contratos anuais. Vem da aba DRE Manual.',
     planejado: PLANEJADO_PADRAO,
     projetado: PROJETADO_PADRAO,
     realizado: REALIZADO_MANUAL,
