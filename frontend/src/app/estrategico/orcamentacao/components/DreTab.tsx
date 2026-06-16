@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -297,6 +297,16 @@ export function DreTab({ barId }: Props) {
     () => dados.rows.filter(r => r.tipo === 'macro' || !colapsados.has(r.grupo)),
     [dados.rows, colapsados]
   );
+
+  // Default: entra com TODOS os macros recolhidos (só no 1º load — depois respeita
+  // o que o usuário abrir/fechar, mesmo após "Atualizar").
+  const colapsoInicialRef = useRef(false);
+  useEffect(() => {
+    if (!colapsoInicialRef.current && dados.rows.some(r => r.colapsavel)) {
+      setColapsados(new Set(dados.rows.filter(r => r.colapsavel).map(r => r.grupo)));
+      colapsoInicialRef.current = true;
+    }
+  }, [dados.rows]);
 
   const temMacrosColapsaveis = dados.rows.some(r => r.colapsavel);
   const todosColapsados = dados.rows.filter(r => r.colapsavel).every(r => colapsados.has(r.grupo));
