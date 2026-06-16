@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Landmark } from 'lucide-react';
+import { Landmark, Check, X } from 'lucide-react';
 
 const n = (x: unknown) => Number(x) || 0;
 const fmtBRL = (v: number) => `${v < 0 ? '-' : ''}R$ ${Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`;
@@ -131,13 +131,17 @@ export default function BalancoPage() {
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editVal, setEditVal] = useState('');
 
+  const carregadoRef = useRef(false);
   const carregar = useCallback(async () => {
     if (!selectedBar?.id) return;
-    setLoading(true);
+    // Skeleton só no primeiro load — recargas após salvar atualizam em silêncio
+    // (sem o "flash" da tela inteira virar cinza).
+    if (!carregadoRef.current) setLoading(true);
     try {
       const r = await fetch(`/api/financeiro/balanco?bar_id=${selectedBar.id}&ano=${ano}&mes=${mes}&n=${qtdMeses}`, { cache: 'no-store' });
       const j = await r.json();
       setMeses(Array.isArray(j.meses) ? j.meses : []);
+      carregadoRef.current = true;
     } finally { setLoading(false); }
   }, [selectedBar?.id, ano, mes, qtdMeses]);
   useEffect(() => { carregar(); }, [carregar]);
@@ -254,9 +258,13 @@ export default function BalancoPage() {
                         return (
                           <td key={i} className="px-3 py-1 text-right tabular-nums">
                             {editKey === ek ? (
-                              <input ref={el => el?.focus()} defaultValue={String(v)} onChange={e => setEditVal(e.target.value)}
-                                onBlur={() => salvar(m, campo)} onKeyDown={e => { if (e.key === 'Enter') salvar(m, campo); if (e.key === 'Escape') setEditKey(null); }}
-                                className="w-24 h-6 text-xs text-right border rounded px-1" />
+                              <span className="inline-flex items-center gap-1">
+                                <input ref={el => el?.focus()} defaultValue={String(v)} onChange={e => setEditVal(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') salvar(m, campo); if (e.key === 'Escape') setEditKey(null); }}
+                                  className="w-20 h-6 text-xs text-right border rounded px-1" />
+                                <button onClick={() => salvar(m, campo)} title="Salvar" className="text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded p-0.5"><Check className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => setEditKey(null)} title="Cancelar" className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded p-0.5"><X className="w-3.5 h-3.5" /></button>
+                              </span>
                             ) : (
                               <button className="text-blue-600 hover:underline" onClick={() => { setEditKey(ek); setEditVal(String(v)); }}>{fmtCell(row.id, row.tipo, v)}</button>
                             )}
