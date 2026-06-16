@@ -122,7 +122,8 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
       const quantidade = 12;
 
       const response = await fetch(
-        `/api/estrategico/orcamentacao/todos-meses?bar_id=${selectedBar.id}&ano=${anoInicio}&mes_inicio=${mesInicio}&quantidade=${quantidade}`
+        `/api/estrategico/orcamentacao/todos-meses?bar_id=${selectedBar.id}&ano=${anoInicio}&mes_inicio=${mesInicio}&quantidade=${quantidade}`,
+        { cache: 'no-store' }
       );
       if (!response.ok) throw new Error('Erro ao carregar dados');
       const result = await response.json();
@@ -139,6 +140,31 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
       setLoading(false);
     }
   }, [selectedBar, toast]);
+
+  // Botão "Atualizar": sincroniza o Conta Azul (delta) E recalcula o gold da
+  // orçamentação (realizado), depois relê. Diferente da DRE (bronze ao vivo), a
+  // orçamentação lê o gold, então precisa forçar o refresh aqui.
+  const atualizarOrcamentacao = useCallback(async () => {
+    if (!selectedBar) { carregarDados(); return; }
+    setLoading(true);
+    try {
+      const r = await fetch('/api/estrategico/orcamentacao/atualizar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: selectedBar.id }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.success) {
+        toast({ title: 'Falha ao atualizar', description: j?.error || 'Erro', variant: 'destructive' });
+      } else {
+        toast({ title: 'Atualizado', description: 'Conta Azul sincronizado e realizado recalculado.' });
+      }
+    } catch (e) {
+      toast({ title: 'Erro de rede', description: e instanceof Error ? e.message : 'Erro', variant: 'destructive' });
+    } finally {
+      await carregarDados();
+    }
+  }, [selectedBar, carregarDados, toast]);
 
   // Scroll inicial fica no começo (mostra Janeiro primeiro). User rola pra
   // direita conforme precisa ver meses futuros. Antes scrollava direto pro
@@ -304,7 +330,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                 {todasAbertas ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 {todasAbertas ? 'Recolher tudo' : 'Expandir tudo'}
               </Button>
-              <Button variant="outline" size="sm" onClick={carregarDados} disabled={loading} className="gap-2 ml-4">
+              <Button variant="outline" size="sm" onClick={atualizarOrcamentacao} disabled={loading} className="gap-2 ml-4">
                 <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
                 Atualizar
               </Button>
