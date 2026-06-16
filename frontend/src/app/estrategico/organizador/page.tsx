@@ -26,12 +26,14 @@ export default async function OrganizadorPage() {
     );
   }
 
+  // organizador_visao vive no schema `meta` (não em public).
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { db: { schema: 'meta' } }
   );
 
-  const initialData = await getOrganizadores(supabase, barId);
+  const initialData = await getOrganizadores(supabase as any, barId);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

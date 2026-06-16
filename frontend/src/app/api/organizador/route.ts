@@ -3,9 +3,12 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+// As tabelas organizador_visao / organizador_okrs vivem no schema `meta` (não em
+// public). Sem isto o PostgREST procura em public e devolve 500 "does not exist".
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  { db: { schema: 'meta' } }
 );
 
 // GET - Listar organizadores ou buscar um específico
