@@ -70,7 +70,7 @@ export default async function VisaoGeralEstrategica({
   const mesIniTri = (trimestreAtual - 1) * 3 + 1;
   const mesFimTri = trimestreAtual * 3;
 
-  const [anualResult, trimestralResult, retencaoResult, retencaoRealResult, manualMensalResult, clientesAtivosResult, cmvMensalResult] = await Promise.all([
+  const [anualResult, trimestralResult, retencaoResult, retencaoRealResult, manualMensalResult, clientesAtivosResult, cmvMensalResult, cmoRealResult, artisticaResult] = await Promise.all([
     // 1. Dados Anuais
     supabase.rpc('calcular_visao_geral_anual', { p_bar_id: barId, p_ano: anoAtual }),
 
@@ -104,7 +104,26 @@ export default async function VisaoGeralEstrategica({
       .eq('bar_id', barId)
       .eq('ano', anoAtual)
       .gte('mes', mesIniTri)
-      .lte('mes', mesFimTri)
+      .lte('mes', mesFimTri),
+
+    // 8. CMO REAL = média do cmo_pct dos meses do trimestre (gold.cmo_produtividade_mensal)
+    supabase
+      .schema('gold' as never)
+      .from('cmo_produtividade_mensal')
+      .select('mes, cmo_pct')
+      .eq('bar_id', barId)
+      .gte('mes', `${anoAtual}-${String(mesIniTri).padStart(2, '0')}-01`)
+      .lte('mes', `${anoAtual}-${String(mesFimTri).padStart(2, '0')}-01`),
+
+    // 9. Artística REAL = (c_art + c_prod) dos eventos do trimestre / faturamento
+    supabase
+      .schema('operations' as never)
+      .from('eventos_base')
+      .select('c_art, c_prod')
+      .eq('bar_id', barId)
+      .eq('ativo', true)
+      .gte('data_evento', `${anoAtual}-${String(mesIniTri).padStart(2, '0')}-01`)
+      .lt('data_evento', mesFimTri === 12 ? `${anoAtual + 1}-01-01` : `${anoAtual}-${String(mesFimTri + 1).padStart(2, '0')}-01`)
   ]);
 
   // Calcula AVG anual de CMO e CMV teorico a partir dos meses preenchidos
@@ -122,6 +141,11 @@ export default async function VisaoGeralEstrategica({
   const cmvLimpoResult = { valor: cmvRealAvgTri || cmvTeoricoAvgAnual, meta: metasTrimestreAtual.cmvLimpo, variacao: 0 };
   // Clientes ativos = média do trimestre (>= 2 visitas em 90d)
   const cliAtivo = (clientesAtivosResult.data?.[0] || null) as { ativos: number; ativos_ant: number; variacao: number } | null;
+  // CMO REAL = média do cmo_pct do trimestre (gold.cmo_produtividade_mensal)
+  const cmoRealAvgTri = avgAnual(((cmoRealResult.data || []) as Array<{ cmo_pct: number | null }>).map(m => m.cmo_pct));
+  // Artística REAL = soma c_art+c_prod do trimestre (÷ faturamento, calculado abaixo)
+  const artisticaSomaTri = ((artisticaResult.data || []) as Array<{ c_art: number | null; c_prod: number | null }>)
+    .reduce((s, e) => s + (Number(e.c_art) || 0) + (Number(e.c_prod) || 0), 0);
 
   // Processar Resultados Anuais
   let indicadoresAnuais: {
@@ -197,12 +221,15 @@ export default async function VisaoGeralEstrategica({
       },
       cmvLimpo: cmvLimpoResult,
       cmo: {
-        valor: cmoAvgAnual,
+        valor: cmoRealAvgTri || cmoAvgAnual,   // real do gold; fallback manual
         meta: metas.cmo,
         variacao: 0
       },
       artistica: {
-        valor: Number(dados.artistica_percentual),
+        // real = (c_art+c_prod) do trimestre / faturamento do trimestre
+        valor: Number(dados.faturamento_trimestre) > 0
+          ? (artisticaSomaTri / Number(dados.faturamento_trimestre)) * 100
+          : Number(dados.artistica_percentual),
         meta: metas.artistica,
         variacao: Number(dados.variacao_artistica)
       }
