@@ -14,7 +14,7 @@ const MES_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set',
 
 type Mes = { ano: number; mes: number; ca: any; manual: any };
 type RowTipo = 'header' | 'ca' | 'manual' | 'calc' | 'ratio' | 'days';
-interface RowDef { id: string; label: string; tipo: RowTipo; campo?: string; bold?: boolean; indent?: boolean }
+interface RowDef { id: string; label: string; tipo: RowTipo; campo?: string; bold?: boolean; indent?: boolean; destaque?: boolean }
 
 const ROWS: RowDef[] = [
   { id: 'h_topo', label: 'Topo (DRE do mês)', tipo: 'header' },
@@ -48,23 +48,26 @@ const ROWS: RowDef[] = [
   { id: 'financiamentos_lp', label: 'Financiamentos LP', tipo: 'manual', campo: 'financiamentos_lp', indent: true },
   { id: 'provisoes_fiscais', label: 'Provisões Fiscais Eventos', tipo: 'ca', indent: true },
   { id: 'provisoes_trabalhistas', label: 'Provisões Trabalhistas', tipo: 'manual', campo: 'provisoes_trabalhistas', indent: true },
-  { id: 'patrimonio_liquido', label: 'Patrimônio Líquido', tipo: 'manual', campo: 'patrimonio_liquido', indent: true },
+  { id: 'patrimonio_liquido', label: 'Patrimônio Líquido', tipo: 'manual', campo: 'patrimonio_liquido', indent: true, destaque: true },
   { id: 'passivo_total', label: 'PASSIVO TOTAL', tipo: 'calc', bold: true },
-  { id: 'h_ind', label: 'Indicadores', tipo: 'header' },
+  { id: 'h_ncg', label: 'Necessidade de Capital de Giro (NCG)', tipo: 'header' },
   { id: 'ncg_forn', label: 'NCG Contábil / Fornecedores', tipo: 'calc' },
   { id: 'ncg_pc', label: 'NCG Contábil / Passivo Circulante', tipo: 'calc' },
+  { id: 'variacao_ncg', label: 'Variação de NCG', tipo: 'calc', destaque: true },
+  { id: 'h_liq', label: 'Liquidez & Tesouraria', tipo: 'header' },
   { id: 'saldo_tes', label: 'Saldo Tesouraria', tipo: 'calc' },
-  { id: 'caixa_liquido', label: 'Caixa "Líquido"', tipo: 'calc' },
-  { id: 'capital_giro', label: 'Capital de Giro', tipo: 'calc' },
-  { id: 'dividendos', label: 'Dividendos Pagos', tipo: 'ca' },
-  { id: 'variacao_ncg', label: 'Variação de NCG', tipo: 'calc' },
   { id: 'liq_corrente', label: 'Liquidez Corrente', tipo: 'ratio' },
   { id: 'liq_imediata', label: 'Liquidez Imediata', tipo: 'ratio' },
   { id: 'liq_seca', label: 'Liquidez Seca', tipo: 'ratio' },
-  { id: 'pme', label: 'PME contábil (d)', tipo: 'days' },
-  { id: 'pmr', label: 'PMR contábil (d)', tipo: 'days' },
-  { id: 'pmp', label: 'PMP contábil (d)', tipo: 'days' },
+  { id: 'caixa_liquido', label: 'Caixa "Líquido"', tipo: 'calc', destaque: true },
+  { id: 'h_prazos', label: 'Prazos Médios (Contábil)', tipo: 'header' },
+  { id: 'pme', label: 'PME — Estoques (d)', tipo: 'days' },
+  { id: 'pmr', label: 'PMR — Recebimento (d)', tipo: 'days' },
+  { id: 'pmp', label: 'PMP — Pagamento (d)', tipo: 'days' },
   { id: 'ciclo', label: 'Ciclo Financeiro (d)', tipo: 'days' },
+  { id: 'h_estrutura', label: 'Estrutura', tipo: 'header' },
+  { id: 'capital_giro', label: 'Capital de Giro', tipo: 'calc' },
+  { id: 'dividendos', label: 'Dividendos Pagos', tipo: 'ca' },
 ];
 
 const CAMPO_DE_ID: Record<string, string> = Object.fromEntries(ROWS.filter(r => r.campo).map(r => [r.id, r.campo!]));
@@ -198,15 +201,18 @@ export default function BalancoPage() {
               {ROWS.map(row => {
                 if (row.tipo === 'header') {
                   return (
-                    <tr key={row.id} className="bg-indigo-50 dark:bg-indigo-950/40">
-                      <td colSpan={meses.length + 1} className="px-3 py-1.5 font-bold text-[11px] uppercase tracking-wide text-indigo-700 dark:text-indigo-300 sticky left-0 bg-indigo-50 dark:bg-indigo-950/40">{row.label}</td>
+                    <tr key={row.id} className="bg-indigo-50 dark:bg-indigo-950/40 border-t-[3px] border-indigo-300 dark:border-indigo-800">
+                      <td colSpan={meses.length + 1} className="px-3 py-2 font-bold text-[11px] uppercase tracking-wide text-indigo-700 dark:text-indigo-300 sticky left-0 bg-indigo-50 dark:bg-indigo-950/40">{row.label}</td>
                     </tr>
                   );
                 }
                 const corLabel = row.tipo === 'ca' ? 'border-l-orange-400' : row.tipo === 'manual' ? 'border-l-blue-400' : 'border-l-gray-300';
+                const rowBg = row.destaque ? 'bg-amber-100/70 dark:bg-amber-900/30 font-bold' : row.bold ? 'font-bold bg-gray-50/70 dark:bg-gray-800/40' : '';
+                const labelBg = row.destaque ? 'bg-amber-100/70 dark:bg-amber-900/30' : row.bold ? 'bg-gray-50/70 dark:bg-gray-800/40' : 'bg-white dark:bg-gray-900';
+                const labelBorder = row.destaque ? 'border-l-4 border-l-amber-500' : `border-l-2 ${corLabel}`;
                 return (
-                  <tr key={row.id} className={`border-b border-gray-100 dark:border-gray-800 ${row.bold ? 'font-bold bg-gray-50/70 dark:bg-gray-800/40' : ''}`}>
-                    <td className={`px-3 py-1 border-l-2 ${corLabel} sticky left-0 bg-white dark:bg-gray-900 ${row.bold ? 'bg-gray-50/70 dark:bg-gray-800/40' : ''} ${row.indent ? 'pl-6' : ''}`}>{row.label}</td>
+                  <tr key={row.id} className={`border-b border-gray-100 dark:border-gray-800 ${rowBg} ${row.destaque ? 'ring-1 ring-amber-300/60 dark:ring-amber-700/40' : ''}`}>
+                    <td className={`px-3 py-1 ${labelBorder} sticky left-0 ${labelBg} ${row.indent ? 'pl-6' : ''} ${row.destaque ? 'text-amber-900 dark:text-amber-200' : ''}`}>{row.label}</td>
                     {meses.map((m, i) => {
                       const v = vals[i]?.[row.id] ?? 0;
                       const campo = row.tipo === 'manual' ? CAMPO_DE_ID[row.id] : undefined;
@@ -224,7 +230,7 @@ export default function BalancoPage() {
                           </td>
                         );
                       }
-                      const cor = row.tipo === 'ca' ? 'text-orange-700 dark:text-orange-400' : '';
+                      const cor = row.destaque ? 'text-amber-900 dark:text-amber-200' : row.tipo === 'ca' ? 'text-orange-700 dark:text-orange-400' : '';
                       return <td key={i} className={`px-3 py-1 text-right tabular-nums ${cor} ${v < 0 ? 'text-red-600 dark:text-red-400' : ''}`}>{fmtCell(row.id, row.tipo, v)}</td>;
                     })}
                   </tr>
