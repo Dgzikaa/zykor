@@ -12,7 +12,7 @@ const fmtBRL = (v: number) => `${v < 0 ? '-' : ''}R$ ${Math.abs(v).toLocaleStrin
 const fmtNum = (v: number, d = 1) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const MES_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-type Mes = { ano: number; mes: number; ca: any; manual: any; imob: any };
+type Mes = { ano: number; mes: number; ca: any; manual: any; imob: any; estoque: number };
 type RowTipo = 'header' | 'ca' | 'manual' | 'calc' | 'ratio' | 'days';
 interface RowDef { id: string; label: string; tipo: RowTipo; campo?: string; bold?: boolean; indent?: boolean; destaque?: boolean }
 
@@ -27,7 +27,7 @@ const ROWS: RowDef[] = [
   { id: 'caixa_investimentos', label: 'Caixa + Investimentos', tipo: 'manual', campo: 'caixa_investimentos', indent: true },
   { id: 'contas_receber', label: 'Contas a Receber', tipo: 'ca', indent: true },
   { id: 'emprestimos_cp_receber', label: 'Empréstimos CP a Receber', tipo: 'manual', campo: 'emprestimos_cp_receber', indent: true },
-  { id: 'estoques', label: 'Estoques', tipo: 'manual', campo: 'estoques', indent: true },
+  { id: 'estoques', label: 'Estoques (CMV)', tipo: 'calc', indent: true },
   { id: 'ativo_nao_circulante', label: 'Ativo Não Circulante', tipo: 'calc', bold: true },
   { id: 'imobilizado_inicial', label: 'Imobilizado Inicial', tipo: 'calc', indent: true },
   { id: 'imobilizado_liq', label: 'Imobilizado Líq', tipo: 'calc', indent: true },
@@ -47,7 +47,7 @@ const ROWS: RowDef[] = [
   { id: 'investimentos_aprovados_a_fazer', label: 'Investimentos Aprovados a Fazer', tipo: 'manual', campo: 'investimentos_aprovados_a_fazer', indent: true },
   { id: 'financiamentos_lp', label: 'Financiamentos LP', tipo: 'manual', campo: 'financiamentos_lp', indent: true },
   { id: 'provisoes_fiscais', label: 'Provisões Fiscais Eventos', tipo: 'ca', indent: true },
-  { id: 'provisoes_trabalhistas', label: 'Provisões Trabalhistas', tipo: 'manual', campo: 'provisoes_trabalhistas', indent: true },
+  { id: 'provisoes_trabalhistas', label: 'Provisões Trabalhistas', tipo: 'ca', indent: true },
   { id: 'patrimonio_liquido', label: 'Patrimônio Líquido', tipo: 'manual', campo: 'patrimonio_liquido', indent: true, destaque: true },
   { id: 'passivo_total', label: 'PASSIVO TOTAL', tipo: 'calc', bold: true },
   { id: 'h_ncg', label: 'Necessidade de Capital de Giro (NCG)', tipo: 'header' },
@@ -73,7 +73,7 @@ const ROWS: RowDef[] = [
 const CAMPO_DE_ID: Record<string, string> = Object.fromEntries(ROWS.filter(r => r.campo).map(r => [r.id, r.campo!]));
 
 /** Calcula todos os valores derivados de um mês. */
-function computeMes(ca: any, man: any, imob: any): Record<string, number> {
+function computeMes(ca: any, man: any, imob: any, estoque: number): Record<string, number> {
   ca = ca || {}; man = man || {}; imob = imob || {};
   const v: Record<string, number> = {};
   v.receita_liquida = n(ca.receita_liquida);
@@ -83,7 +83,7 @@ function computeMes(ca: any, man: any, imob: any): Record<string, number> {
   v.caixa_investimentos = n(man.caixa_investimentos);
   v.contas_receber = n(ca.contas_receber);
   v.emprestimos_cp_receber = n(man.emprestimos_cp_receber);
-  v.estoques = n(man.estoques);
+  v.estoques = n(estoque);
   v.ativo_circulante = v.caixa_investimentos + v.contas_receber + v.emprestimos_cp_receber + v.estoques;
   v.imobilizado_inicial = n(imob.imob_inicial);
   v.imobilizado_liq = n(imob.imob_liq);
@@ -97,7 +97,7 @@ function computeMes(ca: any, man: any, imob: any): Record<string, number> {
   v.investimentos_aprovados_a_fazer = n(man.investimentos_aprovados_a_fazer);
   v.financiamentos_lp = n(man.financiamentos_lp);
   v.provisoes_fiscais = n(ca.provisoes_fiscais);
-  v.provisoes_trabalhistas = n(man.provisoes_trabalhistas);
+  v.provisoes_trabalhistas = n(ca.provisoes_trabalhistas);
   v.patrimonio_liquido = n(man.patrimonio_liquido);
   v.passivo_nao_circulante = v.investimentos_aprovados_a_fazer + v.financiamentos_lp + v.provisoes_fiscais + v.provisoes_trabalhistas + v.patrimonio_liquido;
   v.passivo_total = v.passivo_circulante + v.passivo_nao_circulante;
@@ -189,7 +189,7 @@ export default function BalancoPage() {
 
   // valores calculados por mês + variação de NCG (vs mês anterior na série)
   const vals = useMemo(() => {
-    const arr = meses.map(m => computeMes(m.ca, m.manual, m.imob));
+    const arr = meses.map(m => computeMes(m.ca, m.manual, m.imob, m.estoque));
     arr.forEach((v, i) => { v.variacao_ncg = i === 0 ? 0 : v.ncg_forn - arr[i - 1].ncg_forn; });
     return arr;
   }, [meses]);
