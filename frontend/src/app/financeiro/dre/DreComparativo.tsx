@@ -10,7 +10,7 @@ import { Eye, EyeOff } from 'lucide-react';
  * Cada DreTab tem seu próprio seletor de ano.
  */
 export function DreComparativo({ barId, anoAtual }: { barId: number; anoAtual: number }) {
-  const [mostrarComparativo, setMostrarComparativo] = useState(true);
+  const [mostrarComparativo, setMostrarComparativo] = useState(false);
 
   return (
     <div className="space-y-2">

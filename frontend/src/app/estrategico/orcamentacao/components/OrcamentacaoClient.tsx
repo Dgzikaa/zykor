@@ -166,16 +166,24 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     }
   }, [selectedBar, carregarDados, toast]);
 
-  // Scroll inicial fica no começo (mostra Janeiro primeiro). User rola pra
-  // direita conforme precisa ver meses futuros. Antes scrollava direto pro
-  // mes atual escondendo o historico anterior.
-  // Só posiciona no início no PRIMEIRO carregamento. Após salvar (reload), mantém
-  // o scroll onde o usuário estava.
+  // No 1º carregamento, centraliza o MÊS ATUAL na tela (sem mexer no scroll da
+  // página). Depois respeita onde o usuário estiver (ex: após salvar).
   useEffect(() => {
-    if (!loading && scrollContainerRef.current && !scrollInicialRef.current) {
-      scrollContainerRef.current.scrollLeft = 0;
-      scrollInicialRef.current = true;
-    }
+    if (loading || scrollInicialRef.current) return;
+    scrollInicialRef.current = true;
+    requestAnimationFrame(() => {
+      const cont = scrollContainerRef.current;
+      const mesEl = mesAtualRef.current;
+      if (!cont) return;
+      if (mesEl) {
+        const c = cont.getBoundingClientRect();
+        const m = mesEl.getBoundingClientRect();
+        const delta = (m.left + m.width / 2) - (c.left + c.width / 2);
+        cont.scrollLeft += delta;
+      } else {
+        cont.scrollLeft = 0;
+      }
+    });
   }, [loading]);
 
   useEffect(() => {
