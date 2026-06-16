@@ -37,6 +37,7 @@ export const MENU_TREE: MenuSection[] = [
     href: '/estrategico',
     permission: 'gestao',
     subItems: [
+      { icon: 'Activity', label: 'Painel Executivo', href: '/estrategico/painel-executivo', permission: 'home' },
       { icon: 'TrendingUp', label: 'Visão Geral', href: '/estrategico/visao-geral', permission: 'home' },
       { icon: 'BarChart3', label: 'Desempenho', href: '/estrategico/desempenho', permission: 'gestao' },
       { icon: 'Calendar', label: 'Planejamento', href: '/estrategico/planejamento-comercial', permission: 'planejamento' },
