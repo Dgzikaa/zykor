@@ -67,7 +67,7 @@ export function IndicadorCard({
       case 'percentual':
         return `${val.toFixed(1)}%`;
       case 'decimal':
-        return val.toFixed(1);
+        return val.toFixed(2);
       case 'numero':
       default:
         return FMT_IND_NUM.format(Math.round(val));

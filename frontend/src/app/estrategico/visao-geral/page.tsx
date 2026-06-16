@@ -67,7 +67,10 @@ export default async function VisaoGeralEstrategica({
   // Executar buscas em paralelo
   const mesRetencao = getMesRetencao(trimestreAtual);
   
-  const [anualResult, trimestralResult, retencaoResult, retencaoRealResult, manualMensalResult] = await Promise.all([
+  const mesIniTri = (trimestreAtual - 1) * 3 + 1;
+  const mesFimTri = trimestreAtual * 3;
+
+  const [anualResult, trimestralResult, retencaoResult, retencaoRealResult, manualMensalResult, clientesAtivosResult, cmvMensalResult] = await Promise.all([
     // 1. Dados Anuais
     supabase.rpc('calcular_visao_geral_anual', { p_bar_id: barId, p_ano: anoAtual }),
 
@@ -81,7 +84,6 @@ export default async function VisaoGeralEstrategica({
     IndicadoresService.calcularRetencaoReal(supabase, barId, trimestreAtual),
 
     // 5. CMO + CMV teorico: AVG dos meses preenchidos manualmente em meta.desempenho_manual
-    // (sem fórmula automática — sócio preenche % por mês na tela de desempenho mensal)
     supabase
       .schema('meta' as never)
       .from('desempenho_manual')
@@ -89,7 +91,20 @@ export default async function VisaoGeralEstrategica({
       .eq('bar_id', barId)
       .eq('granularidade', 'mensal')
       .eq('ano', anoAtual)
-      .order('mes', { ascending: true })
+      .order('mes', { ascending: true }),
+
+    // 6. Clientes ativos = média dos meses do trimestre (>= 2 visitas em 90d)
+    supabase.rpc('get_clientes_ativos_media_trimestre', { p_bar_id: barId, p_trimestre: trimestreAtual, p_ano: anoAtual }),
+
+    // 7. CMV Limpo REAL = média do cmv_limpo_percentual dos meses do trimestre (financial.cmv_mensal)
+    supabase
+      .schema('financial' as never)
+      .from('cmv_mensal')
+      .select('mes, cmv_limpo_percentual')
+      .eq('bar_id', barId)
+      .eq('ano', anoAtual)
+      .gte('mes', mesIniTri)
+      .lte('mes', mesFimTri)
   ]);
 
   // Calcula AVG anual de CMO e CMV teorico a partir dos meses preenchidos
@@ -101,7 +116,12 @@ export default async function VisaoGeralEstrategica({
   const cmoAvgAnual = avgAnual(manualMensal.map(m => m.cmo));
   const cmvTeoricoAvgAnual = avgAnual(manualMensal.map(m => m.cmv_teorico));
   const metasTrimestreAtual = getMetasTrimestre(trimestreAtual);
-  const cmvLimpoResult = { valor: cmvTeoricoAvgAnual, meta: metasTrimestreAtual.cmvLimpo, variacao: 0 };
+  // CMV Limpo REAL = média dos meses do trimestre (financial.cmv_mensal); fallback teórico.
+  const cmvMensalRows = (cmvMensalResult.data || []) as Array<{ mes: number; cmv_limpo_percentual: number | null }>;
+  const cmvRealAvgTri = avgAnual(cmvMensalRows.map(m => m.cmv_limpo_percentual));
+  const cmvLimpoResult = { valor: cmvRealAvgTri || cmvTeoricoAvgAnual, meta: metasTrimestreAtual.cmvLimpo, variacao: 0 };
+  // Clientes ativos = média do trimestre (>= 2 visitas em 90d)
+  const cliAtivo = (clientesAtivosResult.data?.[0] || null) as { ativos: number; ativos_ant: number; variacao: number } | null;
 
   // Processar Resultados Anuais
   let indicadoresAnuais: {
@@ -158,9 +178,9 @@ export default async function VisaoGeralEstrategica({
     
     indicadoresTrimestrais = {
       clientesAtivos: {
-        valor: dados.clientes_ativos,
+        valor: cliAtivo ? Number(cliAtivo.ativos) : dados.clientes_ativos,
         meta: metas.clientesAtivos,
-        variacao: Number(dados.variacao_clientes_ativos)
+        variacao: cliAtivo ? Number(cliAtivo.variacao) : Number(dados.variacao_clientes_ativos)
       },
       clientesTotais: {
         valor: dados.clientes_totais,
