@@ -19,7 +19,7 @@ interface DreRow {
   percentual_receita: number | null;
 }
 
-interface Props { barId: number; }
+interface Props { barId: number; anoInicial?: number; }
 
 const MACRO_ORDEM = [
   'Receita',
@@ -59,8 +59,10 @@ interface LinhaRender {
   parcial?: boolean;        // resultado parcial (Margem de Contribuição / Lucro Operacional)
 }
 
-export function DreTab({ barId }: Props) {
+export function DreTab({ barId, anoInicial }: Props) {
   const { toast } = useToast();
+  const anoAtualSistema = new Date().getFullYear();
+  const [ano, setAno] = useState<number>(anoInicial ?? anoAtualSistema);
   const [linhas, setLinhas] = useState<DreRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
@@ -73,7 +75,7 @@ export function DreTab({ barId }: Props) {
   const lerDre = async () => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}`, { cache: 'no-store' });
+      const r = await fetch(`/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}&ano=${ano}`, { cache: 'no-store' });
       const j = await r.json();
       setLinhas((j?.linhas || []).map((l: any) => ({
         ...l,
@@ -110,7 +112,7 @@ export function DreTab({ barId }: Props) {
     }
   };
 
-  useEffect(() => { lerDre(); }, [barId]);
+  useEffect(() => { lerDre(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [barId, ano]);
 
   const toggleMacro = (nome: string) => {
     setColapsados(prev => {
@@ -124,7 +126,7 @@ export function DreTab({ barId }: Props) {
     // YTD soma SÓ meses fechados: um mês i (0=Jan) fecha no dia 15 do mês seguinte.
     // Ex: hoje 15/06 -> fechados Jan..Mai; Jun fecha em 15/07. Atualiza sozinho.
     const hojeDre = new Date();
-    const anoDre = hojeDre.getFullYear();
+    const anoDre = ano; // ano selecionado (anos passados: todos os meses fechados)
     const mesFechado = (i: number) => hojeDre >= new Date(anoDre, i + 1, 15);
     const somaFechados = (vals: number[]) => vals.reduce((s, v, i) => s + (mesFechado(i) ? v : 0), 0);
 
@@ -291,7 +293,7 @@ export function DreTab({ barId }: Props) {
     }
 
     return { rows: out, receitaTotalMes, receitaYTD };
-  }, [linhas]);
+  }, [linhas, ano]);
 
   // Aplica colapso: esconde subs de macros colapsados (macros sempre visíveis).
   const linhasVisiveis = useMemo(
@@ -326,11 +328,23 @@ export function DreTab({ barId }: Props) {
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">DRE — Demonstrativo de Resultados</h2>
-          <p className="text-xs text-muted-foreground">
-            Dados ContaAzul agregados por competência. Estrutura espelha planilha &ldquo;[Ordinário] DRE e DFC&rdquo;.
-          </p>
+        <div className="flex items-center gap-3">
+          <select
+            value={ano}
+            onChange={(e) => setAno(Number(e.target.value))}
+            className="h-9 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-base font-bold px-2"
+            title="Ano da DRE"
+          >
+            {Array.from({ length: anoAtualSistema - 2023 }, (_, i) => anoAtualSistema - i).map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+          <div>
+            <h2 className="text-lg font-semibold">DRE {ano} — Demonstrativo de Resultados</h2>
+            <p className="text-xs text-muted-foreground">
+              Dados ContaAzul agregados por competência. Estrutura espelha planilha &ldquo;[Ordinário] DRE e DFC&rdquo;.
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {temMacrosColapsaveis && (
@@ -356,11 +370,11 @@ export function DreTab({ barId }: Props) {
                 // Label do mês fica alinhado à direita sobre a coluna de VALOR (não a de %),
                 // ficando exatamente sobre o total da coluna.
                 <Fragment key={i}>
-                  <th className="text-right py-2 px-2 min-w-[110px] sticky top-0 z-20 bg-gray-100 dark:bg-gray-800">{m}/26</th>
+                  <th className="text-right py-2 px-2 min-w-[110px] sticky top-0 z-20 bg-gray-100 dark:bg-gray-800">{m}/{String(ano).slice(2)}</th>
                   <th className="py-2 px-1 min-w-[44px] sticky top-0 z-20 bg-gray-100 dark:bg-gray-800" aria-hidden />
                 </Fragment>
               ))}
-              <th className="text-right py-2 px-2 bg-gray-200 dark:bg-gray-700 min-w-[120px] sticky top-0 z-20" title="Soma só dos meses fechados (cada mês fecha no dia 15 do mês seguinte)">YTD (fech.)</th>
+              <th className="text-right py-2 px-2 bg-gray-200 dark:bg-gray-700 min-w-[120px] sticky top-0 z-20" title="Soma só dos meses fechados (cada mês fecha no dia 15 do mês seguinte)">YTD {ano}</th>
               <th className="py-2 px-1 bg-gray-200 dark:bg-gray-700 min-w-[44px] sticky top-0 z-20" aria-hidden />
             </tr>
           </thead>

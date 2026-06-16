@@ -27,11 +27,22 @@ export default async function Page() {
     );
   }
 
+  const anoAtual = new Date().getFullYear();
+
   return (
     <div className="flex flex-col min-h-screen">
       <BarSyncCheck />
-      <div className="flex-1 overflow-auto p-4">
-        <DreTab barId={barId} />
+      <div className="flex-1 overflow-auto p-4 space-y-2">
+        {/* DRE do ano corrente (default) */}
+        <DreTab barId={barId} anoInicial={anoAtual} />
+
+        {/* Comparativo: ano anterior (seletor próprio — dá pra trocar pra qualquer ano) */}
+        <div className="mt-6 mb-1 border-t-4 border-dashed border-gray-300 dark:border-gray-700 pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 px-1">
+            Comparativo — outro ano
+          </p>
+        </div>
+        <DreTab barId={barId} anoInicial={anoAtual - 1} />
       </div>
     </div>
   );

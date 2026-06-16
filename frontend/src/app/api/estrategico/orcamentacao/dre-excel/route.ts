@@ -16,13 +16,13 @@ export async function GET(req: NextRequest) {
     const sp = req.nextUrl.searchParams;
     const barId = Number(sp.get('bar_id'));
     if (!barId) return NextResponse.json({ error: 'bar_id obrigatorio' }, { status: 400 });
+    const ano = Number(sp.get('ano')) || new Date().getFullYear();
 
     const supabase = await getAdminClient();
-    const { data, error } = await (supabase as any).schema('financial').from('dre_excel')
-      .select('*').eq('bar_id', barId);
+    const { data, error } = await (supabase as any).rpc('get_dre_por_ano', { p_bar_id: barId, p_ano: ano });
     if (error) throw error;
 
-    return NextResponse.json({ linhas: data ?? [] });
+    return NextResponse.json({ linhas: data ?? [], ano });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message }, { status: 500 });
   }
