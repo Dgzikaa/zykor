@@ -73,7 +73,7 @@ export function DreTab({ barId }: Props) {
   const lerDre = async () => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}`);
+      const r = await fetch(`/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}`, { cache: 'no-store' });
       const j = await r.json();
       setLinhas((j?.linhas || []).map((l: any) => ({
         ...l,
