@@ -460,15 +460,6 @@ export function DreTab({ barId, anoInicial }: Props) {
           </tbody>
         </table>
       </Card>
-
-      <Card className="p-3 border-l-4 border-l-amber-500 bg-amber-50/30 dark:bg-amber-900/10">
-        <p className="text-xs text-muted-foreground">
-          ⚠️ Valores vêm de <code className="bg-white dark:bg-gray-800 px-1 rounded">bronze.bronze_contaazul_lancamentos</code>
-          {' '}usando <strong>valor_bruto</strong> agregado por <strong>data_competencia</strong> (regime de competência, igual ao Excel).
-          {' '}Mapeamento categoria → MACRO em <code className="bg-white dark:bg-gray-800 px-1 rounded">financial.dre_categoria_macro</code>.
-          {' '}Se uma categoria do ContaAzul não estiver mapeada, aparece como &ldquo;Não Mapeado&rdquo;.
-        </p>
-      </Card>
     </div>
   );
 }

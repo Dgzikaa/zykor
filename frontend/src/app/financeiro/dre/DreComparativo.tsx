@@ -16,10 +16,7 @@ export function DreComparativo({ barId, anoAtual }: { barId: number; anoAtual: n
     <div className="space-y-2">
       <DreTab barId={barId} anoInicial={anoAtual} />
 
-      <div className="mt-6 mb-1 border-t-4 border-dashed border-gray-300 dark:border-gray-700 pt-4 flex items-center justify-between gap-2 px-1">
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-          Comparativo — outro ano
-        </p>
+      <div className="mt-3 mb-1 flex items-center justify-end px-1">
         <Button variant="outline" size="sm" className="gap-1" onClick={() => setMostrarComparativo(v => !v)}>
           {mostrarComparativo ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           {mostrarComparativo ? 'Ocultar comparativo' : 'Mostrar comparativo'}
