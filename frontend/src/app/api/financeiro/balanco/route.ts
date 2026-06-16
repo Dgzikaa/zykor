@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 const supabase = createServiceRoleClient();
 
 const fin = () => (supabase as any).schema('financial');
@@ -15,22 +16,41 @@ async function manualDe(barId: number, ano: number, mes: number) {
   return data || null;
 }
 
-/** GET /api/financeiro/balanco?bar_id=3&ano=2026&mes=5 */
+/** Lista de N meses (ano,mes) terminando em (ano,mes), do mais antigo p/ o mais novo. */
+function janelaMeses(ano: number, mes: number, n: number) {
+  const out: { ano: number; mes: number }[] = [];
+  let a = ano, m = mes;
+  for (let i = 0; i < n; i++) {
+    out.unshift({ ano: a, mes: m });
+    m -= 1; if (m === 0) { m = 12; a -= 1; }
+  }
+  return out;
+}
+
+/**
+ * GET /api/financeiro/balanco?bar_id=3&ano=2026&mes=5&n=6
+ * Retorna { meses: [{ ano, mes, ca, manual }] } — N meses fechados terminando em ano/mes,
+ * do mais antigo (esquerda) ao mais novo (direita), pra visão comparativa lado a lado.
+ */
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
     const barId = Number(sp.get('bar_id'));
     const ano = Number(sp.get('ano'));
     const mes = Number(sp.get('mes'));
+    const n = Math.min(Math.max(Number(sp.get('n')) || 6, 1), 12);
     if (!barId || !ano || !mes) return NextResponse.json({ error: 'bar_id, ano, mes obrigatórios' }, { status: 400 });
 
-    const mesAnt = mes === 1 ? 12 : mes - 1;
-    const anoAnt = mes === 1 ? ano - 1 : ano;
-    const [ca, manual, caAnt, manualAnt] = await Promise.all([
-      caDe(barId, ano, mes), manualDe(barId, ano, mes), caDe(barId, anoAnt, mesAnt), manualDe(barId, anoAnt, mesAnt),
-    ]);
+    const janela = janelaMeses(ano, mes, n);
+    const meses = await Promise.all(
+      janela.map(async ({ ano, mes }) => ({
+        ano, mes,
+        ca: await caDe(barId, ano, mes),
+        manual: await manualDe(barId, ano, mes),
+      })),
+    );
 
-    return NextResponse.json({ ca, manual, caAnt, manualAnt });
+    return NextResponse.json({ meses });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Erro interno' }, { status: 500 });
   }
