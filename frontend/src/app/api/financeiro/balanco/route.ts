@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     const b = await req.json();
     const { bar_id, ano, mes, campo, valor } = b;
     if (!bar_id || !ano || !mes || !campo) return NextResponse.json({ error: 'dados inválidos' }, { status: 400 });
-    const permitidos = new Set(['caixa_investimentos','emprestimos_cp_receber','estoques','imobilizado_inicial','imobilizado_liq','investimentos_aprovados_a_fazer','financiamentos_lp','provisoes_fiscais_eventos','provisoes_trabalhistas','patrimonio_liquido','investimentos_aprovados']);
+    const permitidos = new Set(['caixa_investimentos','emprestimos_cp_receber','estoques','imobilizado_inicial','imobilizado_liq','investimentos_aprovados_a_fazer','financiamentos_lp','provisoes_trabalhistas','patrimonio_liquido','investimentos_aprovados']);
     if (!permitidos.has(campo)) return NextResponse.json({ error: 'campo não permitido' }, { status: 400 });
 
     const row: any = { bar_id, ano, mes, [campo]: Number(valor) || 0, atualizado_em: new Date().toISOString() };

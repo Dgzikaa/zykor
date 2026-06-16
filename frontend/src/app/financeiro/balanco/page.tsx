@@ -14,7 +14,7 @@ const fmtNum = (v: number, d = 1) => v.toLocaleString('pt-BR', { minimumFraction
 const MES_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const CAMPOS_MANUAIS = new Set([
   'caixa_investimentos', 'emprestimos_cp_receber', 'estoques', 'imobilizado_inicial', 'imobilizado_liq',
-  'investimentos_aprovados_a_fazer', 'financiamentos_lp', 'provisoes_fiscais_eventos', 'provisoes_trabalhistas',
+  'investimentos_aprovados_a_fazer', 'financiamentos_lp', 'provisoes_trabalhistas',
   'patrimonio_liquido', 'investimentos_aprovados',
 ]);
 
@@ -71,7 +71,8 @@ export default function BalancoPage() {
     const ativoTotal = ativoCirc + ativoNaoCirc;
 
     const { outras, pc: passivoCirc } = bloco(ca);
-    const passivoNaoCirc = n(man.investimentos_aprovados_a_fazer) + n(man.financiamentos_lp) + n(man.provisoes_fiscais_eventos) + n(man.provisoes_trabalhistas) + n(man.patrimonio_liquido);
+    const provFiscais = n(ca.provisoes_fiscais); // PROVISÃO FISCAL em aberto (CA), antes manual
+    const passivoNaoCirc = n(man.investimentos_aprovados_a_fazer) + n(man.financiamentos_lp) + provFiscais + n(man.provisoes_trabalhistas) + n(man.patrimonio_liquido);
     const passivoTotal = passivoCirc + passivoNaoCirc;
     const fornCmv = n(ca.pc_fornecedores_cmv);
 
@@ -80,7 +81,7 @@ export default function BalancoPage() {
     return {
       receitaLiq, lucroLiq: n(ca.lucro_liquido), cmv, cmc: Math.abs(n(ca.cmc)),
       caixaInv, contasReceber, emprestimosCP, estoques, ativoCirc, ativoNaoCirc, ativoTotal,
-      outras, fornCmv, passivoCirc, passivoNaoCirc, passivoTotal,
+      outras, fornCmv, passivoCirc, passivoNaoCirc, passivoTotal, provFiscais,
       ncgForn, ncgPC: ativoCircSemCaixa(contasReceber, emprestimosCP, estoques) - passivoCirc,
       saldoTes: caixaInv,
       liqCorrente: liq(ativoCirc), liqImediata: liq(caixaInv), liqSeca: liq(caixaInv + contasReceber),
@@ -174,7 +175,7 @@ export default function BalancoPage() {
         <Lin label="Passivo Não Circulante" val={c.passivoNaoCirc} bold />
         <Lin label="Investimentos Aprovados a Fazer" val={n(c.man.investimentos_aprovados_a_fazer)} tipo="manual" campo="investimentos_aprovados_a_fazer" indent />
         <Lin label="Financiamentos LP" val={n(c.man.financiamentos_lp)} tipo="manual" campo="financiamentos_lp" indent />
-        <Lin label="Provisões Fiscais Eventos" val={n(c.man.provisoes_fiscais_eventos)} tipo="manual" campo="provisoes_fiscais_eventos" indent />
+        <Lin label="Provisões Fiscais Eventos" val={c.provFiscais} tipo="ca" indent />
         <Lin label="Provisões Trabalhistas" val={n(c.man.provisoes_trabalhistas)} tipo="manual" campo="provisoes_trabalhistas" indent />
         <Lin label="Patrimônio Líquido" val={n(c.man.patrimonio_liquido)} tipo="manual" campo="patrimonio_liquido" indent />
         <Lin label="PASSIVO TOTAL" val={c.passivoTotal} bold />
