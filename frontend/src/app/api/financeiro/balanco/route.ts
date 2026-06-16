@@ -15,6 +15,10 @@ async function manualDe(barId: number, ano: number, mes: number) {
   const { data } = await fin().from('balanco_manual').select('*').eq('bar_id', barId).eq('ano', ano).eq('mes', mes).maybeSingle();
   return data || null;
 }
+async function imobDe(barId: number, ano: number, mes: number) {
+  const { data } = await (supabase as any).rpc('get_imobilizado', { p_bar_id: barId, p_ano: ano, p_mes: mes });
+  return (Array.isArray(data) ? data[0] : data) || null;
+}
 
 /** Lista de N meses (ano,mes) terminando em (ano,mes), do mais antigo p/ o mais novo. */
 function janelaMeses(ano: number, mes: number, n: number) {
@@ -47,6 +51,7 @@ export async function GET(req: NextRequest) {
         ano, mes,
         ca: await caDe(barId, ano, mes),
         manual: await manualDe(barId, ano, mes),
+        imob: await imobDe(barId, ano, mes),
       })),
     );
 
