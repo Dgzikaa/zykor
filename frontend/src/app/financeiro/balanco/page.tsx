@@ -105,7 +105,7 @@ export default function BalancoPage() {
         <span className="text-xs">{label}</span>
         {tipo === 'manual' && campo ? (
           editando ? (
-            <input autoFocus defaultValue={String(val)} onChange={e => setEditVal(e.target.value)}
+            <input ref={(el) => el?.focus()} defaultValue={String(val)} onChange={e => setEditVal(e.target.value)}
               onBlur={() => salvar(campo)} onKeyDown={e => { if (e.key === 'Enter') salvar(campo); if (e.key === 'Escape') setEditKey(null); }}
               className="w-28 h-6 text-xs text-right border rounded px-1" />
           ) : (
