@@ -844,6 +844,28 @@ export async function GET(request: NextRequest) {
           (s: number, r: Row) => s + num(r.valor), 0);
       }
 
+      // Perfil de clientes do dia: novos x recorrentes + taxa de retorno (silver.cliente_visitas)
+      let clientesPerfil: {
+        total: number; novos: number; recorrentes: number;
+        retorno_30d: number; retorno_60d: number; ticket_medio: number;
+      } | null = null;
+      {
+        const { data: cpRows } = await (supabase as any).rpc('evento_clientes_perfil', {
+          p_bar_id: barId, p_data: data,
+        });
+        const cp = Array.isArray(cpRows) ? cpRows[0] : cpRows;
+        if (cp && Number(cp.total_identificados) > 0) {
+          clientesPerfil = {
+            total: Number(cp.total_identificados) || 0,
+            novos: Number(cp.novos) || 0,
+            recorrentes: Number(cp.recorrentes) || 0,
+            retorno_30d: Number(cp.retornaram_30d) || 0,
+            retorno_60d: Number(cp.retornaram_60d) || 0,
+            ticket_medio: Number(cp.ticket_medio) || 0,
+          };
+        }
+      }
+
       const deltas = deltasDe(m, baseMedia);
       const { veredito, insights } = diagnosticar(m, baseMedia, ctxDe(evento));
 
@@ -886,6 +908,7 @@ export async function GET(request: NextRequest) {
         },
         deltas,
         diagnostico: { veredito, insights },
+        clientes_perfil: clientesPerfil,
       });
     }
 

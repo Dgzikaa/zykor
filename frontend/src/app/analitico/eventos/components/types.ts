@@ -94,4 +94,13 @@ export interface EventoResponse {
   nps_diario?: NpsDia[];
   /** fonte dos dados agregados (gold.desempenho ou planejamento) */
   fonte?: string;
+  /** Perfil de clientes do dia: novos x recorrentes + retorno (só na visão de dia) */
+  clientes_perfil?: {
+    total: number;
+    novos: number;
+    recorrentes: number;
+    retorno_30d: number;
+    retorno_60d: number;
+    ticket_medio: number;
+  } | null;
 }

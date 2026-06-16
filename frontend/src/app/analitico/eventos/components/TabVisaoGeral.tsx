@@ -11,9 +11,12 @@ import {
   Palette,
   Receipt,
   Recycle,
+  Repeat,
   Tag,
+  Target,
   Timer,
   TrendingUp,
+  UserPlus,
   UserRound,
   Utensils,
   Wallet,
@@ -54,6 +57,11 @@ export function TabVisaoGeral({ data }: Props) {
     val !== undefined && val !== null && baseN > 0 ? `méd ${fmt(val)}` : undefined;
 
   const percArtFat = m.faturamento > 0 ? (m.c_art / m.faturamento) * 100 : 0;
+  const margem = m.faturamento > 0 ? (m.resultado / m.faturamento) * 100 : 0;
+  // ROI da atração: faturamento incremental (vs média do mesmo dia) por R$ de cachê.
+  const roiAtracao = m.c_art > 0 && base && baseN > 0 ? (m.faturamento - base.faturamento) / m.c_art : null;
+  // Perfil de clientes do dia (novos x recorrentes + retorno)
+  const cp = data.clientes_perfil;
 
   // Modal de detalhamento do mix (auditoria) — só na visão de dia
   const [mixOpen, setMixOpen] = useState(false);
@@ -109,7 +117,7 @@ export function TabVisaoGeral({ data }: Props) {
           icon={<Wallet className="w-4 h-4" />}
           delta={d.resultado}
           destaque
-          sub="faturamento − custos"
+          sub={`${margem.toFixed(1)}% de margem`}
         />
       </div>
 
@@ -220,6 +228,48 @@ export function TabVisaoGeral({ data }: Props) {
           </div>
         </button>
       </div>
+
+      {(cp || roiAtracao !== null) && (
+        <>
+          <SectionTitle>Clientes & Atração</SectionTitle>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {cp && (
+              <>
+                <KpiCard
+                  label="Clientes novos"
+                  value={Math.round(cp.novos).toLocaleString('pt-BR')}
+                  accent="green"
+                  icon={<UserPlus className="w-4 h-4" />}
+                  sub={cp.total > 0 ? `${((cp.novos / cp.total) * 100).toFixed(0)}% dos identificados` : undefined}
+                />
+                <KpiCard
+                  label="Recorrentes"
+                  value={Math.round(cp.recorrentes).toLocaleString('pt-BR')}
+                  accent="blue"
+                  icon={<Repeat className="w-4 h-4" />}
+                  sub={cp.total > 0 ? `${((cp.recorrentes / cp.total) * 100).toFixed(0)}% dos identificados` : undefined}
+                />
+                <KpiCard
+                  label="Taxa de retorno"
+                  value={cp.total > 0 ? `${((cp.retorno_30d / cp.total) * 100).toFixed(0)}%` : '—'}
+                  accent="violet"
+                  icon={<UserRound className="w-4 h-4" />}
+                  sub={`voltaram em 30d · ${cp.total > 0 ? ((cp.retorno_60d / cp.total) * 100).toFixed(0) : 0}% em 60d`}
+                />
+              </>
+            )}
+            {roiAtracao !== null && (
+              <KpiCard
+                label="ROI da atração"
+                value={`${roiAtracao.toFixed(1)}x`}
+                accent={roiAtracao >= 0 ? 'green' : 'red'}
+                icon={<Target className="w-4 h-4" />}
+                sub="fat. incremental ÷ cachê"
+              />
+            )}
+          </div>
+        </>
+      )}
 
       <SectionTitle>Cancelamentos & Conta Assinada</SectionTitle>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
