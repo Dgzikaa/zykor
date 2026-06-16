@@ -29,8 +29,7 @@ const ROWS: RowDef[] = [
   { id: 'emprestimos_cp_receber', label: 'Empréstimos CP a Receber', tipo: 'manual', campo: 'emprestimos_cp_receber', indent: true },
   { id: 'estoques', label: 'Estoques (CMV)', tipo: 'calc', indent: true },
   { id: 'ativo_nao_circulante', label: 'Ativo Não Circulante', tipo: 'calc', bold: true },
-  { id: 'imobilizado_inicial', label: 'Imobilizado Inicial', tipo: 'calc', indent: true },
-  { id: 'imobilizado_liq', label: 'Imobilizado Líq', tipo: 'calc', indent: true },
+  { id: 'imobilizado', label: 'Imobilizado Líquido', tipo: 'calc', indent: true },
   { id: 'ativo_total', label: 'ATIVO TOTAL', tipo: 'calc', bold: true },
   { id: 'h_passivo', label: 'PASSIVO', tipo: 'header' },
   { id: 'passivo_circulante', label: 'Passivo Circulante', tipo: 'calc', bold: true },
@@ -85,9 +84,8 @@ function computeMes(ca: any, man: any, imob: any, estoque: number): Record<strin
   v.emprestimos_cp_receber = n(man.emprestimos_cp_receber);
   v.estoques = n(estoque);
   v.ativo_circulante = v.caixa_investimentos + v.contas_receber + v.emprestimos_cp_receber + v.estoques;
-  v.imobilizado_inicial = n(imob.imob_inicial);
-  v.imobilizado_liq = n(imob.imob_liq);
-  v.ativo_nao_circulante = v.imobilizado_inicial + v.imobilizado_liq;
+  v.imobilizado = n(imob.imob_inicial) + n(imob.imob_liq);
+  v.ativo_nao_circulante = v.imobilizado;
   v.ativo_total = v.ativo_circulante + v.ativo_nao_circulante;
   const blocks = ['pc_artistas_producao', 'pc_fornecedores_cmv', 'pc_adm_mkt', 'pc_operacionais', 'pc_ocupacao', 'pc_cmo_comissao', 'pc_investimentos', 'pc_impostos'];
   let soma8 = 0;
