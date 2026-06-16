@@ -1,0 +1,12 @@
+-- 2026-06-16 — Fase 3: Central de Alertas de negócio (1 resumo/dia no Discord).
+-- Função public.verificar_alertas_negocio() checa 5 alertas (bares 3 e 4) e manda
+-- um resumo consolidado via enviar_alerta_discord_sistema_dedup (dedup por dia):
+--   1) CMV acima da meta (cmv_semanal)
+--   2) Despesa fora da curva (mês passado vs média 3m, bronze CA)
+--   3) Evento faturou mas c_art/c_prod = 0 (eventos_base, últ. 21d)
+--   4) Queda de faturamento: última semana fechada vs média 4 sem (gold.desempenho)
+--   5) Clientes valiosos em risco (crm.cliente_rfm)
+-- Ver corpo aplicado em apply_migration verificar_alertas_negocio.
+-- Cron diário 09:00 BRT:
+--   SELECT cron.schedule('alertas-negocio-diario','0 12 * * *', $$ SELECT public.verificar_alertas_negocio(); $$);
+SELECT 'ver apply_migration verificar_alertas_negocio' AS nota;
