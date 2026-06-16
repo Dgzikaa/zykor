@@ -113,6 +113,15 @@ export async function getSemanas(
     return { semanas: [], semanaAtual: getWeekNumber(hoje), anoAtual: hoje.getFullYear() };
   }
 
+  // Só até a semana EM ANDAMENTO — esconde semanas futuras (zeradas) do gold.
+  // Conforme o tempo passa, elas vão aparecendo sozinhas.
+  const _hojeCorte = new Date();
+  const _anoCorte = _hojeCorte.getFullYear();
+  const _semCorte = getWeekNumber(_hojeCorte);
+  const semanasGoldFilt = (semanasGold as any[]).filter(
+    (s) => s.ano < _anoCorte || (s.ano === _anoCorte && s.numero_semana <= _semCorte)
+  );
+
   // Buscar modo de integracao do Getin para este bar
   const { data: integConfig } = await supabase
     .schema('operations' as never)
@@ -127,7 +136,7 @@ export async function getSemanas(
   // Mix de Vendas — QUANTIDADES por semana (categoria_mix BEBIDA/DRINK/COMIDA).
   // Exibido em 3 linhas proprias (grupo "Qtde Vendida (Mix)"), nao mais em parenteses
   // ao lado do %. Vem de silver.vendas_item.
-  const anosUnicos = Array.from(new Set(semanasGold.map((s: any) => s.ano)));
+  const anosUnicos = Array.from(new Set(semanasGoldFilt.map((s: any) => s.ano)));
   const mixQtdPorSemana = new Map<string, { qtd_bebidas: number; qtd_drinks: number; qtd_comida: number }>();
   // RPC por ano em paralelo (antes era for...await sequencial).
   const rpcResultados = await Promise.all(
@@ -198,7 +207,7 @@ export async function getSemanas(
     metaMap.set(`${m.ano}-${m.numero_semana}`, m)
   );
 
-  const semanas = semanasGold.map(g => {
+  const semanas = semanasGoldFilt.map(g => {
     const meta = metaMap.get(`${g.ano}-${g.numero_semana}`);
     const cmvSem = cmvSemanaisMap.get(`${g.ano}-${g.numero_semana}`);
     // Cascata cmv_teorico: cmv_semanal.manual -> meta.desempenho_manual (legado) -> cmv_semanal.auto -> gold
