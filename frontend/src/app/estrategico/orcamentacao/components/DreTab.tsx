@@ -120,6 +120,13 @@ export function DreTab({ barId }: Props) {
   };
 
   const dados = useMemo(() => {
+    // YTD soma SÓ meses fechados: um mês i (0=Jan) fecha no dia 15 do mês seguinte.
+    // Ex: hoje 15/06 -> fechados Jan..Mai; Jun fecha em 15/07. Atualiza sozinho.
+    const hojeDre = new Date();
+    const anoDre = hojeDre.getFullYear();
+    const mesFechado = (i: number) => hojeDre >= new Date(anoDre, i + 1, 15);
+    const somaFechados = (vals: number[]) => vals.reduce((s, v, i) => s + (mesFechado(i) ? v : 0), 0);
+
     // Agrupa por macro → sub → mes
     const macroMap = new Map<string, Map<string, Map<number, DreRow>>>();
     for (const l of linhas) {
@@ -140,7 +147,7 @@ export function DreTab({ barId }: Props) {
         }
       }
     }
-    const receitaYTD = receitaTotalMes.reduce((s, v) => s + v, 0);
+    const receitaYTD = somaFechados(receitaTotalMes);
 
     const out: LinhaRender[] = [];
 
@@ -160,7 +167,7 @@ export function DreTab({ barId }: Props) {
     // Linha de resultado parcial (Margem de Contribuição, Lucro Operacional, Lucro Líquido).
     const pushSubtotal = (label: string, macros: string[], opts: { parcial?: boolean; forte?: boolean }) => {
       const valores = somaMacros(macros);
-      const ytd = valores.reduce((s, v) => s + v, 0);
+      const ytd = somaFechados(valores);
       const pct = valores.map((v, i) => receitaTotalMes[i] > 0 ? (v / receitaTotalMes[i] * 100) : null);
       out.push({
         tipo: 'macro',
@@ -185,17 +192,19 @@ export function DreTab({ barId }: Props) {
       const subMap = macroMap.get(macroNome);
       if (!subMap) return;
 
-      // Subcategorias em ordem alfabética (mais fácil de achar na DRE).
-      const subs = Array.from(subMap.entries()).sort((a, b) =>
-        a[0].localeCompare(b[0], 'pt-BR', { sensitivity: 'base' })
-      );
+      // Subcategorias na ordem manual da planilha (ordem_sub do de-para).
+      const subs = Array.from(subMap.entries()).sort((a, b) => {
+        const oa = Array.from(a[1].values())[0]?.ordem_sub ?? 99;
+        const ob = Array.from(b[1].values())[0]?.ordem_sub ?? 99;
+        return oa - ob;
+      });
 
       // Linha TOTAL do macro
       const valoresMacro: number[] = Array(12).fill(0);
       for (const [, mesMap] of subMap) {
         for (const [mes, row] of mesMap) valoresMacro[mes] += row.valor_com_sinal;
       }
-      const ytdMacro = valoresMacro.reduce((s, v) => s + v, 0);
+      const ytdMacro = somaFechados(valoresMacro);
       const pctMacroPorMes = valoresMacro.map((v, i) => receitaTotalMes[i] > 0 ? (v / receitaTotalMes[i] * 100) : null);
 
       out.push({
@@ -216,7 +225,7 @@ export function DreTab({ barId }: Props) {
       for (const [subNome, mesMap] of subs) {
         const valoresSub: number[] = Array(12).fill(0);
         for (const [mes, row] of mesMap) valoresSub[mes] = row.valor_com_sinal;
-        const ytdSub = valoresSub.reduce((s, v) => s + v, 0);
+        const ytdSub = somaFechados(valoresSub);
         const pctSub = valoresSub.map((v, i) => receitaTotalMes[i] > 0 ? (v / receitaTotalMes[i] * 100) : null);
         out.push({
           tipo: 'sub',
@@ -273,7 +282,7 @@ export function DreTab({ barId }: Props) {
         label2: '',
         valores: valoresDiv,
         percentuais: valoresDiv.map(() => null),
-        ytd: valoresDiv.reduce((s, v) => s + v, 0),
+        ytd: somaFechados(valoresDiv),
         ytdPct: null,
         secao: 'investimento',
         cor: 'text-purple-700',
@@ -340,7 +349,7 @@ export function DreTab({ barId }: Props) {
                   <th className="py-2 px-1 min-w-[44px] sticky top-0 z-20 bg-gray-100 dark:bg-gray-800" aria-hidden />
                 </Fragment>
               ))}
-              <th className="text-right py-2 px-2 bg-gray-200 dark:bg-gray-700 min-w-[120px] sticky top-0 z-20">YTD 2026</th>
+              <th className="text-right py-2 px-2 bg-gray-200 dark:bg-gray-700 min-w-[120px] sticky top-0 z-20" title="Soma só dos meses fechados (cada mês fecha no dia 15 do mês seguinte)">YTD (fech.)</th>
               <th className="py-2 px-1 bg-gray-200 dark:bg-gray-700 min-w-[44px] sticky top-0 z-20" aria-hidden />
             </tr>
           </thead>
