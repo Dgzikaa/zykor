@@ -345,7 +345,10 @@ async function syncLancamentos(
             valor_nao_pago: valorNaoPago,
             data_vencimento: item.data_vencimento || null,
             data_competencia: item.data_competencia || null,
-            data_pagamento: item.data_pagamento || null,
+            // NAO setar data_pagamento aqui: o endpoint de lista do CA nao retorna a
+            // data de pagamento (vem sempre null) e sobrescreveria o valor preenchido
+            // pela funcao contaazul-baixas (GET .../parcelas/{id}/baixa). Ver
+            // memory project_contaazul_data_pagamento_baixa.
             data_pagamento_previsto: item.data_pagamento_previsto || null,
             data_criacao_ca: item.data_criacao || null,
             data_alteracao_ca: item.data_alteracao || null,
