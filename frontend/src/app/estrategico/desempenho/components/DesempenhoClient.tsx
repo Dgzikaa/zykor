@@ -2310,8 +2310,10 @@ export function DesempenhoClient({
                                                 <button
                                                   type="button"
                                                   onClick={() => abrirDetalhesNps(
-                                                    semana, 
-                                                    metrica.key === 'nps_digital' ? 'NPS Digital' : 'Salão',
+                                                    semana,
+                                                    // search_name real no bronze é 'NPS' (não 'NPS Digital') —
+                                                    // mesmo filtro do ETL (ver fix-nps-digital-search-name).
+                                                    metrica.key === 'nps_digital' ? 'NPS' : 'Salão',
                                                     metrica.label
                                                   )}
                                                   className={cn(

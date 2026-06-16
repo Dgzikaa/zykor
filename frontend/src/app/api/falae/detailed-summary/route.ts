@@ -56,15 +56,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'data_inicio e data_fim são obrigatórios' }, { status: 400 });
     }
 
-    // Usar created_at como filtro principal. Paginado pra evitar truncamento em 1000 rows.
+    // Janela ter-seg, igual ao ETL (etl_gold_desempenho_semanal): a respostas
+    // chegam ~1 dia após a visita, então a janela é (data_inicio+1)..(data_fim+1)
+    // pela DATA em fuso de São Paulo. Sem isto o modal contava menos respostas que
+    // a tabela (gold). SP = UTC-3 → data SP D = [D 03:00Z, (D+1) 03:00Z).
+    const addDays = (iso: string, days: number) => {
+      const d = new Date(iso + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + days);
+      return d.toISOString().slice(0, 10);
+    };
+    const iniSp = addDays(dataInicio, 1);       // 1º dia SP da janela
+    const fimExclusivoSp = addDays(dataFim, 2); // dia seguinte ao último dia SP
+
     const filtradas = await paginate<any>(
       () => {
         let query = (supabase as any)
           .schema('bronze' as any).from('bronze_falae_respostas')
           .select('falae_id, nps, created_at, data_visita, discursive_question, client_name, client_email, search_name, criterios')
           .eq('bar_id', barId)
-          .gte('created_at', `${dataInicio}T00:00:00`)
-          .lte('created_at', `${dataFim}T23:59:59`)
+          .gte('created_at', `${iniSp}T03:00:00Z`)
+          .lt('created_at', `${fimExclusivoSp}T03:00:00Z`)
           .order('created_at', { ascending: false });
         if (searchName) query = query.eq('search_name', searchName);
         return query;
