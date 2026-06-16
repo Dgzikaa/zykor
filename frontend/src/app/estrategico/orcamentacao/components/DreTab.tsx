@@ -83,16 +83,17 @@ export function DreTab({ barId }: Props) {
     } finally { setLoading(false); }
   };
 
-  // Botão "Atualizar": sincroniza o que mudou no Conta Azul (modo incremental por
-  // data_alteracao — rápido, só o delta recente) e relê a DRE. A DRE lê o bronze
-  // direto, então assim que o sync grava, o número já reflete.
+  // Botão "Atualizar": re-puxa o ANO inteiro do Conta Azul (alteracao_full_ano) e
+  // relê a DRE. Usa o ano todo (não o incremental) porque mudança SÓ de categoria
+  // no CA muitas vezes não bumpa o data_alteracao -> o incremental não pegaria a
+  // re-categorização. Mais lento (~1-2 min), porém correto. A DRE lê o bronze direto.
   const sincronizarELer = async () => {
     setSincronizando(true);
     try {
       const resp = await fetch('/api/contaazul/sync-manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bar_id: barId, sync_mode: 'alteracao_incremental' }),
+        body: JSON.stringify({ bar_id: barId, sync_mode: 'alteracao_full_ano' }),
       });
       const j = await resp.json().catch(() => ({}));
       if (!resp.ok || !j?.success) {

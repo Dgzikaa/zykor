@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       const resp = await fetch(`${supabaseUrl}/functions/v1/contaazul-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${supabaseKey}` },
-        body: JSON.stringify({ bar_id: barId, sync_mode: 'alteracao_incremental' }),
+        body: JSON.stringify({ bar_id: barId, sync_mode: 'alteracao_full_ano' }),
       });
       const r = await resp.json().catch(() => ({}));
       syncStats = r?.stats ?? null;
