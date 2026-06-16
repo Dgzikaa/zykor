@@ -258,6 +258,28 @@ export function DreTab({ barId }: Props) {
     // Investimentos: bloco à parte, fora do resultado
     pushMacroComSubs('Investimentos', 'investimento', 'text-blue-700');
 
+    // Dividendos: linha ÚNICA (solitária) após Investimentos.
+    const subMapDiv = macroMap.get('Dividendos');
+    if (subMapDiv) {
+      const valoresDiv: number[] = Array(12).fill(0);
+      for (const [, mesMap] of subMapDiv) {
+        for (const [mes, row] of mesMap) valoresDiv[mes] += row.valor_com_sinal;
+      }
+      out.push({
+        tipo: 'macro',
+        grupo: 'Dividendos',
+        colapsavel: false,
+        label: 'Dividendos',
+        label2: '',
+        valores: valoresDiv,
+        percentuais: valoresDiv.map(() => null),
+        ytd: valoresDiv.reduce((s, v) => s + v, 0),
+        ytdPct: null,
+        secao: 'investimento',
+        cor: 'text-purple-700',
+      });
+    }
+
     return { rows: out, receitaTotalMes, receitaYTD };
   }, [linhas]);
 
