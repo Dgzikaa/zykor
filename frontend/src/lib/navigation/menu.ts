@@ -84,6 +84,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Wallet', label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa', permission: 'home' },
       { icon: 'BarChart3', label: 'Business Plan', href: '/financeiro/bp', permission: 'home' },
       { icon: 'FileText', label: 'DRE', href: '/financeiro/dre', permission: 'home' },
+      { icon: 'Layers', label: 'Balanço', href: '/financeiro/balanco', permission: 'home' },
       { icon: 'FileSearch', label: 'Consultas CA', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
     ],
   },
