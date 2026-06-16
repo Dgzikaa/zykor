@@ -37,7 +37,6 @@ export const MENU_TREE: MenuSection[] = [
     href: '/estrategico',
     permission: 'gestao',
     subItems: [
-      { icon: 'Activity', label: 'Painel Executivo', href: '/estrategico/painel-executivo', permission: 'home' },
       { icon: 'TrendingUp', label: 'Visão Geral', href: '/estrategico/visao-geral', permission: 'home' },
       { icon: 'BarChart3', label: 'Desempenho', href: '/estrategico/desempenho', permission: 'gestao' },
       { icon: 'Calendar', label: 'Planejamento', href: '/estrategico/planejamento-comercial', permission: 'planejamento' },
@@ -114,6 +113,7 @@ export const MENU_TREE: MenuSection[] = [
     href: '/ferramentas',
     permission: 'ferramentas',
     subItems: [
+      { icon: 'Activity', label: 'Painel Executivo', href: '/ferramentas/painel-executivo', permission: 'home' },
       { icon: 'BarChart3', label: 'Análises Avançadas', href: '/ferramentas/analises', permission: 'gestao' },
       { icon: 'Users', label: 'CMO - Mão de Obra', href: '/ferramentas/cmo', permission: 'gestao' },
       { icon: 'Tag', label: 'Classificação de Grupos (Mix)', href: '/ferramentas/consumos-classificacao', permission: 'gestao' },
