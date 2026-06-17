@@ -134,16 +134,11 @@ const ESTRUTURA: BlocoDef[] = [
   { nome: 'Custo insumos (CMV)', tipo: 'despesa', cor: COR.cmv, modo: 'percentual', blocoGold: 'Custo insumos (CMV)' },
   {
     nome: 'Mão-de-Obra', tipo: 'despesa', cor: COR.pessoal, modo: 'fixo', subs: [
-      { nome: 'CUSTO-EMPRESA FUNCIONÁRIOS', gold: ['SALARIO FUNCIONARIOS', 'PROVISÃO TRABALHISTA', 'VALE TRANSPORTE'] },
-      { nome: 'ADICIONAIS', gold: ['ADICIONAIS'] },
-      { nome: 'ALIMENTAÇÃO', gold: ['ALIMENTAÇÃO'] },
-      { nome: 'FREELA ATENDIMENTO', gold: ['FREELA ATENDIMENTO'] },
-      { nome: 'FREELA BAR', gold: ['FREELA BAR'] },
-      { nome: 'FREELA COZINHA', gold: ['FREELA COZINHA'] },
-      { nome: 'FREELA LIMPEZA', gold: ['FREELA LIMPEZA'] },
-      { nome: 'FREELA BRIGADISTA', gold: ['FREELA BRIGADISTA'] },
-      { nome: 'FREELA SEGURANÇA', gold: ['FREELA SEGURANÇA'] },
-      { nome: 'PRO LABORE', gold: ['PRO LABORE'] },
+      // Consolidado em 2 linhas (decisão do sócio jun/2026). Realizado = Σ das
+      // categorias do Conta Azul; Plan/Proj foram migrados (soma das antigas) para
+      // 'CMO Fixo' / 'CMO Freela' em meta.orcamento_planilha.
+      { nome: 'CMO Fixo', gold: ['SALARIO FUNCIONARIOS', 'PROVISÃO TRABALHISTA', 'VALE TRANSPORTE', 'ADICIONAIS', 'ALIMENTAÇÃO', 'PRO LABORE'] },
+      { nome: 'CMO Freela', gold: ['FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA', 'FREELA LIMPEZA', 'FREELA BRIGADISTA', 'FREELA SEGURANÇA'] },
     ]
   },
   {
