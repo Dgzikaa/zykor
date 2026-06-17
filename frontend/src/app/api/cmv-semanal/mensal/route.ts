@@ -69,30 +69,46 @@ function getWeekAndYear(date: Date): { semana: number; ano: number } {
 }
 
 /**
- * Marcos de fechamento (dias 03, 10, 17, 24, ultimo dia do mes).
- * Estoque/compras sao contados nos marcos, entao o "casamento" da visao mensal
- * exige cortar faturamento ate o ULTIMO MARCO JA PASSADO (estritamente menor
- * que hoje). Exemplo: hoje=15/05 -> ultimo marco passado=10 -> exibe 01-10.
+ * Faturamento do CMV mensal no MÊS CORRENTE vai do dia 01 até o ÚLTIMO DOMINGO
+ * fechado (semanas completas Seg–Dom), espelhando o fechamento semanal do CMV.
+ * O estoque/contagem da planilha também fecha por semana (domingo), então o
+ * "casamento" da visão mensal é com o domingo, não com marcos fixos.
+ * Ex.: hoje=qua 17/06 -> último domingo=14/06 -> exibe 01–14 (sem 15/16/17).
  *
- * Retorna null quando o mes consultado nao e' o corrente (mes fechado, exibe
- * mes inteiro normalmente). Retorna null tambem quando o dia atual ainda nao
- * passou do primeiro marco (3) — sem dados consolidados pra mostrar.
+ * Quando o mês deixa de ser corrente, esta função retorna null e a visão usa o
+ * mês inteiro (01..último dia) — o faturamento "trava".
+ *
+ * Retorna null também quando ainda não fechou nenhuma semana dentro do mês
+ * (o último domingo caiu antes do dia 01) — sem dados consolidados pra mostrar.
+ *
+ * Datas calculadas no fuso America/Sao_Paulo pra o "hoje"/dia-da-semana baterem
+ * com a operação (servidor roda em UTC).
  */
-function getDataFimMarcoCorrente(mes: number, ano: number): string | null {
-  const hoje = new Date();
-  const mesAtual = hoje.getMonth() + 1;
-  const anoAtual = hoje.getFullYear();
-  if (ano !== anoAtual || mes !== mesAtual) return null;
+function getDataFimUltimoDomingoCorrente(mes: number, ano: number): string | null {
+  // "Hoje" no fuso de São Paulo (YYYY-MM-DD), pra não escorregar de dia perto da meia-noite.
+  const spStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+  const [anoSP, mesSP, diaSP] = spStr.split('-').map(Number);
+  if (ano !== anoSP || mes !== mesSP) return null;
 
-  const dia = hoje.getDate();
-  const ultimoDiaMes = new Date(ano, mes, 0).getDate();
-  const marcos = [3, 10, 17, 24, ultimoDiaMes];
-  let ultimo = 0;
-  for (const m of marcos) {
-    if (m < dia) ultimo = m;
+  // Último domingo ESTRITAMENTE antes de hoje (semana Seg–Dom completa).
+  // getDay(): 0=Dom..6=Sáb. Se hoje é domingo, volta pro domingo anterior.
+  const hoje = new Date(anoSP, mesSP - 1, diaSP, 12, 0, 0);
+  const diaSemana = hoje.getDay();
+  const ultimoDomingo = new Date(hoje);
+  ultimoDomingo.setDate(hoje.getDate() - (diaSemana === 0 ? 7 : diaSemana));
+
+  // Se o último domingo caiu fora do mês corrente, ainda não há semana fechada.
+  if (ultimoDomingo.getMonth() + 1 !== mes || ultimoDomingo.getFullYear() !== ano) {
+    return null;
   }
-  if (ultimo === 0) return null;
-  return `${ano}-${String(mes).padStart(2, '0')}-${String(ultimo).padStart(2, '0')}`;
+
+  const y = ultimoDomingo.getFullYear();
+  const m = String(ultimoDomingo.getMonth() + 1).padStart(2, '0');
+  const d = String(ultimoDomingo.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 // Calcular semanas com proporção de dias no mês
@@ -137,11 +153,11 @@ export async function GET(request: NextRequest) {
     const dataInicio = `${ano}-${String(mes).padStart(2, '0')}-01`;
     const ultimoDia = new Date(ano, mes, 0).getDate();
     const dataFimMesCheio = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
-    // Quando mes corrente, recorta no ultimo marco fechado (03/10/17/24/fim).
-    // Casamento: faturamento e compras vao ate o mesmo dia que o estoque foi medido.
-    const dataFimMarco = getDataFimMarcoCorrente(mes, ano);
-    const dataFim = dataFimMarco || dataFimMesCheio;
-    const ehMesCorrenteRecorte = dataFimMarco !== null;
+    // Mês corrente: faturamento/compras/consumos vão do dia 01 até o ÚLTIMO
+    // DOMINGO fechado (semanas completas). Mês fechado: usa o mês inteiro.
+    const dataFimDomingo = getDataFimUltimoDomingoCorrente(mes, ano);
+    const dataFim = dataFimDomingo || dataFimMesCheio;
+    const ehMesCorrenteRecorte = dataFimDomingo !== null;
 
     // Breakdown das 9 categorias padronizadas (×fator) p/ a visao mensal — calculado
     // LIVE pelo periodo do mes (mesma RPC do semanal). Total NAO muda; e' so detalhe.
@@ -245,9 +261,9 @@ export async function GET(request: NextRequest) {
         cma_total: parseFloat(String(cmvMensal.cma_total || 0)),
       };
 
-      // Recorte por marco (apenas mes corrente): refazer faturamento e compras
-      // dinamicamente cortando ate `dataFim` (ultimo marco fechado). Estoque ja
-      // vem do snapshot do marco via cmv_mensal (planilha sincroniza nos marcos).
+      // Recorte por semana fechada (apenas mes corrente): refazer faturamento e
+      // compras dinamicamente cortando ate `dataFim` (ultimo domingo fechado).
+      // Estoque vem do snapshot semanal via cmv_mensal (planilha fecha no domingo).
       //
       // Fonte de verdade espelha gold.cmv (ETL semanal):
       //   - bruto/liquido vem de gold.planejamento (faturamento_total_consolidado, faturamento_couvert)
