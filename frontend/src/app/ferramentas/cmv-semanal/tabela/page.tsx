@@ -272,8 +272,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
           { key: 'c9_artistas', label: `Artistas (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Artistas × ${fatorCmv}`, formato: 'moeda' },
           { key: 'c9_socios', label: `Sócios (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Sócios × ${fatorCmv}`, formato: 'moeda' },
           { key: 'c9_relacionamento', label: `Relacionamento (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Relacionamento × ${fatorCmv}`, formato: 'moeda' },
-          { key: 'c9_outros', label: `Outros (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `Residual: TOTAL − 9 categorias − Chegadeira (inclui o historico pre-12/06)`, formato: 'moeda' },
-          { key: 'chegadeira', label: `Chegadeira (×${fatorCmv})`, status: 'auto', fonte: 'Planilha CMV', calculo: `Sincronizado da planilha × ${fatorCmv}`, formato: 'moeda', drilldown: true },
+          { key: 'c9_outros', label: `Outros (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `Residual: TOTAL − as 9 categorias (inclui o histórico pré-12/06 e a semana em andamento ainda não detalhada)`, formato: 'moeda' },
         ]
       },
       {
@@ -921,8 +920,9 @@ export default function CMVSemanalTabelaPage() {
         const NOVE = ['funcionarios_operacao', 'funcionarios_escritorio', 'aniversario', 'programa_pontos', 'beneficio_cliente', 'influencer', 'artistas', 'socios', 'relacionamento'];
         const soma9 = NOVE.reduce((s, k) => s + get9(k), 0);
         const total = getValorMetrica(semana, 'total_consumos') || 0;
-        const cheg = (semana.chegadeira || 0) * fatorCmv;
-        return Math.max(0, total - cheg - soma9);
+        // Outros = residual (TOTAL − as 9 categorias). A Chegadeira foi removida da
+        // exibição e, quando houver, fica embutida aqui pra as linhas fecharem com o TOTAL.
+        return Math.max(0, total - soma9);
       }
       return get9(cat);
     }
