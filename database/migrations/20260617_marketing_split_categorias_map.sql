@@ -43,3 +43,12 @@ ON CONFLICT (categoria_nome) DO UPDATE SET
 -- 3) Recalcular silver+gold do período afetado (orçamentação):
 --   SELECT gold.fn_refresh_orcamento_periodo(3, '2026-01-01', '2026-12-31');
 -- (A DRE lê o bronze ao vivo e não precisa de refresh.)
+
+-- 4) get_dre_por_ano: tirar a família 'Marketing*' do "esqueleto" (as linhas
+-- zeradas que a DRE força p/ toda categoria mapeada). Como o bar 3 usa as 3
+-- novas e o bar 4 ainda usa a legada 'Marketing', forçar todas geraria linha
+-- zerada no bar errado. Com a exclusão do esqueleto, cada bar mostra só as de
+-- marketing que têm dado real. Mudança aplicada no corpo da função:
+--   ...FROM financial.dre_categoria_macro WHERE categoria_nome NOT LIKE 'Marketing%' GROUP BY ...
+-- (CREATE OR REPLACE FUNCTION public.get_dre_por_ano aplicado direto no banco;
+--  demais categorias seguem aparecendo zeradas pelo esqueleto, como antes.)
