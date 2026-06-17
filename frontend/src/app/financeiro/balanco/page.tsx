@@ -12,7 +12,7 @@ const fmtBRL = (v: number) => `${v < 0 ? '-' : ''}R$ ${Math.abs(v).toLocaleStrin
 const fmtNum = (v: number, d = 1) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const MES_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-type Mes = { ano: number; mes: number; ca: any; manual: any; imob: any; estoque: number; realizados: number };
+type Mes = { ano: number; mes: number; ca: any; manual: any; imob: any; estoque: number; realizados: number; afazer: number };
 type RowTipo = 'header' | 'ca' | 'manual' | 'calc' | 'ratio' | 'days';
 interface RowDef { id: string; label: string; tipo: RowTipo; campo?: string; bold?: boolean; indent?: boolean; destaque?: boolean; formula?: string }
 
@@ -43,7 +43,7 @@ const ROWS: RowDef[] = [
   { id: 'pc_investimentos', label: 'Investimentos', tipo: 'ca', indent: true, formula: 'Categorias [Investimento] (exceto Investimento Inicial Abertura) — em aberto' },
   { id: 'pc_impostos', label: 'Impostos', tipo: 'ca', indent: true, formula: 'Categoria Imposto (em aberto)' },
   { id: 'passivo_nao_circulante', label: 'Passivo Não Circulante', tipo: 'calc', bold: true, formula: 'Inv Aprovados a Fazer + Financiamentos LP + Provisões Fiscais + Provisões Trabalhistas + Patrimônio Líquido' },
-  { id: 'investimentos_aprovados_a_fazer', label: 'Investimentos Aprovados a Fazer', tipo: 'manual', campo: 'investimentos_aprovados_a_fazer', indent: true },
+  { id: 'investimentos_aprovados_a_fazer', label: 'Investimentos Aprovados a Fazer', tipo: 'calc', indent: true, formula: 'Saldo rolante desde Out/2025: soma de (Investimentos Aprovados − Investimentos Realizados) de cada mês' },
   { id: 'financiamentos_lp', label: 'Financiamentos LP', tipo: 'manual', campo: 'financiamentos_lp', indent: true },
   { id: 'provisoes_fiscais', label: 'Provisões Fiscais Eventos', tipo: 'ca', indent: true, formula: 'PROVISÃO FISCAL em aberto no CA' },
   { id: 'provisoes_trabalhistas', label: 'Provisões Trabalhistas', tipo: 'ca', indent: true, formula: 'PROVISÃO TRABALHISTA em aberto no CA' },
@@ -74,7 +74,7 @@ const ROWS: RowDef[] = [
 const CAMPO_DE_ID: Record<string, string> = Object.fromEntries(ROWS.filter(r => r.campo).map(r => [r.id, r.campo!]));
 
 /** Calcula todos os valores derivados de um mês. */
-function computeMes(ca: any, man: any, imob: any, estoque: number, realizados: number): Record<string, number> {
+function computeMes(ca: any, man: any, imob: any, estoque: number, realizados: number, afazer: number): Record<string, number> {
   ca = ca || {}; man = man || {}; imob = imob || {};
   const v: Record<string, number> = {};
   v.receita_liquida = n(ca.receita_liquida);
@@ -94,7 +94,7 @@ function computeMes(ca: any, man: any, imob: any, estoque: number, realizados: n
   blocks.forEach(k => { v[k] = n(ca[k]); soma8 += v[k]; });
   v.outras = n(ca.pc_total_despesas) - soma8;
   v.passivo_circulante = v.outras + soma8;
-  v.investimentos_aprovados_a_fazer = n(man.investimentos_aprovados_a_fazer);
+  v.investimentos_aprovados_a_fazer = n(afazer);
   v.financiamentos_lp = n(man.financiamentos_lp);
   v.provisoes_fiscais = n(ca.provisoes_fiscais);
   v.provisoes_trabalhistas = n(ca.provisoes_trabalhistas);
@@ -199,7 +199,7 @@ export default function BalancoPage() {
 
   // valores calculados por mês + variação de NCG (vs mês anterior na série)
   const vals = useMemo(() => {
-    const arr = meses.map(m => computeMes(m.ca, m.manual, m.imob, m.estoque, m.realizados));
+    const arr = meses.map(m => computeMes(m.ca, m.manual, m.imob, m.estoque, m.realizados, m.afazer));
     arr.forEach((v, i) => { v.variacao_ncg = i === 0 ? 0 : v.ncg_forn - arr[i - 1].ncg_forn; });
     return arr;
   }, [meses]);
