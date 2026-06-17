@@ -153,20 +153,31 @@ export async function getMeses(
     marketingMensalMap.set(key, agg);
   });
 
-  // Mix de Vendas — QUANTIDADES por mes (categoria_mix BEBIDA/DRINK/COMIDA).
-  // Exibido em parenteses na UI ao lado do %. Vem de silver.vendas_item.
+  // Mix de Vendas — % (por VALOR) e QUANTIDADES por mes (BEBIDA/DRINK/COMIDA).
+  // get_mix_por_mes combina ContaHub (dias sem Yuzer) + Yuzer (dias de evento) —
+  // meses sem Yuzer ficam idênticos ao gold. Sobrescreve o perc_* do gold.
   const anosUnicos = Array.from(new Set(mesesGold.map((m: any) => parseInt(m.periodo.split('-')[0]))));
-  const mixQtdPorMes = new Map<string, { qtd_bebidas: number; qtd_drinks: number; qtd_comida: number }>();
+  const mixPorMes = new Map<string, {
+    qtd_bebidas: number; qtd_drinks: number; qtd_comida: number;
+    perc_bebidas: number; perc_drinks: number; perc_comida: number;
+  }>();
   for (const a of anosUnicos) {
-    const { data: rpcRows } = await (supabase as any).rpc('get_mix_qtd_por_mes', {
+    const { data: rpcRows } = await (supabase as any).rpc('get_mix_por_mes', {
       p_bar_id: barId,
       p_ano: a,
     });
     for (const r of (rpcRows || []) as any[]) {
-      mixQtdPorMes.set(`${r.ano}-${String(r.mes).padStart(2, '0')}`, {
-        qtd_bebidas: parseFloat(String(r.qtd_bebidas || 0)),
-        qtd_drinks: parseFloat(String(r.qtd_drinks || 0)),
+      const vb = parseFloat(String(r.val_bebida || 0));
+      const vd = parseFloat(String(r.val_drink || 0));
+      const vc = parseFloat(String(r.val_comida || 0));
+      const tot = vb + vd + vc;
+      mixPorMes.set(`${r.ano}-${String(r.mes).padStart(2, '0')}`, {
+        qtd_bebidas: parseFloat(String(r.qtd_bebida || 0)),
+        qtd_drinks: parseFloat(String(r.qtd_drink || 0)),
         qtd_comida: parseFloat(String(r.qtd_comida || 0)),
+        perc_bebidas: tot > 0 ? (vb / tot) * 100 : 0,
+        perc_drinks: tot > 0 ? (vd / tot) * 100 : 0,
+        perc_comida: tot > 0 ? (vc / tot) * 100 : 0,
       });
     }
   }
@@ -187,16 +198,19 @@ export async function getMeses(
     const mkt = marketingMensalMap.get(g.periodo);
     const manual = manuaisMap.get(g.periodo) || {};
 
-    const mixQtd = mixQtdPorMes.get(g.periodo);
+    const mixQtd = mixPorMes.get(g.periodo);
     return {
       ...g,
       numero_semana: parseInt(g.periodo.split('-')[1]),
       atualizado_em: manual.atualizado_em ?? g.calculado_em,
       atualizado_por_nome: manual.id ? 'Manual' : 'Sistema ETL',
-      // Mix de Vendas: qtds vendidas por categoria (exibido em parenteses na UI)
+      // Mix de Vendas (ContaHub + Yuzer): qtds e % (por valor). Sobrescreve perc_* do gold.
       qtd_bebidas: mixQtd?.qtd_bebidas,
       qtd_drinks:  mixQtd?.qtd_drinks,
       qtd_comida:  mixQtd?.qtd_comida,
+      perc_bebidas: mixQtd?.perc_bebidas ?? toNum((g as any).perc_bebidas) ?? (g as any).perc_bebidas,
+      perc_drinks:  mixQtd?.perc_drinks  ?? toNum((g as any).perc_drinks)  ?? (g as any).perc_drinks,
+      perc_comida:  mixQtd?.perc_comida  ?? toNum((g as any).perc_comida)  ?? (g as any).perc_comida,
       // Fat. Bar: real_r (ContaHub) inclui couvert. UI espera "produtos vendidos no bar"
       // = real_r - couvert. Calculado on-the-fly aqui pra evitar mexer em gold.planejamento.
       faturamento_bar: Math.max(0, (toNum(g.faturamento_bar) ?? 0) - (toNum(g.couvert_atracoes) ?? 0)),

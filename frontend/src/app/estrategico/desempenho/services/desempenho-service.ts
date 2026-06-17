@@ -133,23 +133,34 @@ export async function getSemanas(
 
   const getinManual = integConfig?.modo === 'manual';
 
-  // Mix de Vendas — QUANTIDADES por semana (categoria_mix BEBIDA/DRINK/COMIDA).
-  // Exibido em 3 linhas proprias (grupo "Qtde Vendida (Mix)"), nao mais em parenteses
-  // ao lado do %. Vem de silver.vendas_item.
+  // Mix de Vendas — % (por VALOR) e QUANTIDADES por semana (BEBIDA/DRINK/COMIDA).
+  // get_mix_por_semana combina ContaHub (dias sem Yuzer) + Yuzer (dias de evento),
+  // pra eventos no Yuzer (ex.: jogo da Copa) entrarem no mix. Em semanas SEM Yuzer
+  // o resultado é idêntico ao gold (mesma fórmula por valor). Substitui o
+  // perc_bebidas/drinks/comida do gold (que era só ContaHub).
   const anosUnicos = Array.from(new Set(semanasGoldFilt.map((s: any) => s.ano)));
-  const mixQtdPorSemana = new Map<string, { qtd_bebidas: number; qtd_drinks: number; qtd_comida: number }>();
-  // RPC por ano em paralelo (antes era for...await sequencial).
+  const mixPorSemana = new Map<string, {
+    qtd_bebidas: number; qtd_drinks: number; qtd_comida: number;
+    perc_bebidas: number; perc_drinks: number; perc_comida: number;
+  }>();
   const rpcResultados = await Promise.all(
     anosUnicos.map((a) =>
-      (supabase as any).rpc('get_mix_qtd_por_semana', { p_bar_id: barId, p_ano: a })
+      (supabase as any).rpc('get_mix_por_semana', { p_bar_id: barId, p_ano: a })
     )
   );
   for (const { data: rpcRows } of rpcResultados) {
     for (const r of (rpcRows || []) as any[]) {
-      mixQtdPorSemana.set(`${r.ano}-${r.numero_semana}`, {
-        qtd_bebidas: parseFloat(String(r.qtd_bebidas || 0)),
-        qtd_drinks: parseFloat(String(r.qtd_drinks || 0)),
+      const vb = parseFloat(String(r.val_bebida || 0));
+      const vd = parseFloat(String(r.val_drink || 0));
+      const vc = parseFloat(String(r.val_comida || 0));
+      const tot = vb + vd + vc;
+      mixPorSemana.set(`${r.ano}-${r.numero_semana}`, {
+        qtd_bebidas: parseFloat(String(r.qtd_bebida || 0)),
+        qtd_drinks: parseFloat(String(r.qtd_drink || 0)),
         qtd_comida: parseFloat(String(r.qtd_comida || 0)),
+        perc_bebidas: tot > 0 ? (vb / tot) * 100 : 0,
+        perc_drinks: tot > 0 ? (vd / tot) * 100 : 0,
+        perc_comida: tot > 0 ? (vc / tot) * 100 : 0,
       });
     }
   }
@@ -625,10 +636,14 @@ export async function getSemanas(
       atrasos_bar_perc: toNum((s as any).atrasos_drinks_perc) ?? toNum(s.atrasos_bar_perc) ?? s.atrasos_bar_perc,
       atrasos_drinks_perc: toNum((s as any).atrasos_drinks_perc) ?? (s as any).atrasos_drinks_perc,
       qtd_drinks_total: toNum((s as any).qtd_drinks_total) ?? (s as any).qtd_drinks_total,
-      // Mix de Vendas: quantidades vendidas por categoria (exibido em parenteses ao lado do %)
-      qtd_bebidas: mixQtdPorSemana.get(`${s.ano}-${s.numero_semana}`)?.qtd_bebidas,
-      qtd_drinks:  mixQtdPorSemana.get(`${s.ano}-${s.numero_semana}`)?.qtd_drinks,
-      qtd_comida:  mixQtdPorSemana.get(`${s.ano}-${s.numero_semana}`)?.qtd_comida,
+      // Mix de Vendas (ContaHub + Yuzer): quantidades e % (por valor) por categoria.
+      // Sobrescreve o perc_* do gold (que era só ContaHub) — em semanas sem Yuzer é idêntico.
+      qtd_bebidas: mixPorSemana.get(`${s.ano}-${s.numero_semana}`)?.qtd_bebidas,
+      qtd_drinks:  mixPorSemana.get(`${s.ano}-${s.numero_semana}`)?.qtd_drinks,
+      qtd_comida:  mixPorSemana.get(`${s.ano}-${s.numero_semana}`)?.qtd_comida,
+      perc_bebidas: mixPorSemana.get(`${s.ano}-${s.numero_semana}`)?.perc_bebidas ?? toNum((s as any).perc_bebidas) ?? (s as any).perc_bebidas,
+      perc_drinks:  mixPorSemana.get(`${s.ano}-${s.numero_semana}`)?.perc_drinks  ?? toNum((s as any).perc_drinks)  ?? (s as any).perc_drinks,
+      perc_comida:  mixPorSemana.get(`${s.ano}-${s.numero_semana}`)?.perc_comida  ?? toNum((s as any).perc_comida)  ?? (s as any).perc_comida,
       atrasinhos_bar_perc: toNum(s.atrasinhos_bar_perc) ?? s.atrasinhos_bar_perc,
       // Mapear atrasinhos/atrasões cozinha (gold ETL v2)
       atrasinhos_cozinha: toNum((s as any).atrasinho_cozinha) ?? toNum(s.atrasinhos_cozinha) ?? s.atrasinhos_cozinha,

@@ -221,9 +221,9 @@ return [
         label: 'Mix de Vendas',
         agregacao: { tipo: 'fixa', valorFixo: 100, formato: 'percentual' },
         metricas: [
-          { key: 'perc_bebidas', label: '% Bebidas', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Calculado por categoria_mix canônica (BEBIDA).', formato: 'percentual' },
-          { key: 'perc_drinks', label: '% Drinks', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Calculado por categoria_mix canônica (DRINK).', formato: 'percentual' },
-          { key: 'perc_comida', label: '% Comida', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Calculado por categoria_mix canônica (COMIDA).', formato: 'percentual' },
+          { key: 'perc_bebidas', label: '% Bebidas', status: 'auto', fonte: 'ContaHub + Yuzer', calculo: '% por valor (BEBIDA). Inclui o Yuzer nos dias de evento (substitui o ContaHub naquele dia).', formato: 'percentual' },
+          { key: 'perc_drinks', label: '% Drinks', status: 'auto', fonte: 'ContaHub + Yuzer', calculo: '% por valor (DRINK). Inclui o Yuzer nos dias de evento.', formato: 'percentual' },
+          { key: 'perc_comida', label: '% Comida', status: 'auto', fonte: 'ContaHub + Yuzer', calculo: '% por valor (COMIDA). Inclui o Yuzer nos dias de evento.', formato: 'percentual' },
         ]
       },
       {
@@ -231,9 +231,9 @@ return [
         label: 'Qtde Vendida (Mix)',
         agregacao: { tipo: 'soma', formato: 'numero' },
         metricas: [
-          { key: 'qtd_bebidas', label: 'Qtd Bebidas', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Soma de itens vendidos na semana (categoria_mix = BEBIDA).', formato: 'numero' },
-          { key: 'qtd_drinks', label: 'Qtd Drinks', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Soma de itens vendidos na semana (categoria_mix = DRINK).', formato: 'numero' },
-          { key: 'qtd_comida', label: 'Qtd Comida', status: 'auto', fonte: 'silver.vendas_item', calculo: 'Soma de itens vendidos na semana (categoria_mix = COMIDA).', formato: 'numero' },
+          { key: 'qtd_bebidas', label: 'Qtd Bebidas', status: 'auto', fonte: 'ContaHub + Yuzer', calculo: 'Itens vendidos (BEBIDA), ContaHub + Yuzer nos dias de evento.', formato: 'numero' },
+          { key: 'qtd_drinks', label: 'Qtd Drinks', status: 'auto', fonte: 'ContaHub + Yuzer', calculo: 'Itens vendidos (DRINK), ContaHub + Yuzer nos dias de evento.', formato: 'numero' },
+          { key: 'qtd_comida', label: 'Qtd Comida', status: 'auto', fonte: 'ContaHub + Yuzer', calculo: 'Itens vendidos (COMIDA), ContaHub + Yuzer nos dias de evento.', formato: 'numero' },
         ]
       },
       {
