@@ -1,0 +1,17 @@
+-- 2026-06-17 — Balanço: reclassificação de categorias nos blocos do Passivo
+-- Circulante (decisão do sócio). Categorias que caíam em "Outras Contas a Pagar"
+-- passam pros blocos certos em public.get_balanco_ca (CREATE OR REPLACE aplicado
+-- via MCP; aqui o registro das mudanças nos FILTERs do CTE pc):
+--
+--   Despesas Operacionais  += LOCACOES OPERACAO, EQUIPAMENTOS OPERACAO, ACESSORIOS SALAO
+--   Ocupação               += TENDA, GÁS
+--   CMO + Comissão         += FREELA BRIGADISTA, ALIMENTAÇÃO
+--   Adm & Mkt              += RECURSOS HUMANOS
+--
+-- Não muda pc_total_despesas (Passivo Circulante) — só redistribui de "Outras"
+-- pros blocos. Maio/Ordi após: Operacionais 29.123,46 · Ocupação 31.040,53 ·
+-- CMO 306.523,10 · Adm&Mkt 69.534,64. Os tooltips da tela (page.tsx) listam as
+-- categorias de cada bloco. Ver memory project_balanco_patrimonial_spec.
+--
+-- (FREELA BRIGADISTA havia sido removido do CMO na calibração de maio pra bater
+--  com a planilha; o sócio decidiu mantê-lo no CMO — completude > match da planilha.)
