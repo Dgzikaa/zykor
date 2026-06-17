@@ -19,9 +19,16 @@ import {
   ChevronDown,
   Pencil,
   BarChart3,
+  Receipt,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { MesOrcamento, CategoriaOrcamento, TotaisMes } from '../services/orcamentacao-service';
 import { OrigemTooltip } from './OrigemTooltip';
 import { HistoricoOrcamentoTab } from './HistoricoOrcamentoTab';
@@ -105,6 +112,43 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
 
   const [editando, setEditando] = useState<{ mes: number; ano: number; subcategoria: string; campo: 'planejado' | 'projetado' | 'realizado' } | null>(null);
   const [valorEdit, setValorEdit] = useState('');
+
+  // Drill-down do realizado: popup com os lançamentos do Conta Azul que compõem o valor.
+  type LancamentoDrill = {
+    data_competencia: string; data_pagamento: string | null; descricao: string | null;
+    pessoa_nome: string | null; valor_bruto: number | string; status: string | null;
+    tipo_ca: string | null; categoria_ca: string | null; categoria_zykor: string | null;
+  };
+  const [drill, setDrill] = useState<{
+    open: boolean; loading: boolean; titulo: string; periodo: string;
+    lancamentos: LancamentoDrill[]; total: number; erro: string | null;
+  }>({ open: false, loading: false, titulo: '', periodo: '', lancamentos: [], total: 0, erro: null });
+
+  const abrirLancamentos = useCallback(async (
+    mesItem: { mes: number; ano: number; label: string },
+    titulo: string,
+    params: { categorias?: string[]; bloco?: string }
+  ) => {
+    if (!selectedBar) return;
+    setDrill({ open: true, loading: true, titulo, periodo: mesItem.label, lancamentos: [], total: 0, erro: null });
+    try {
+      const qs = new URLSearchParams({
+        bar_id: String(selectedBar.id), ano: String(mesItem.ano), mes: String(mesItem.mes),
+      });
+      if (params.categorias?.length) qs.set('categorias', params.categorias.join(','));
+      if (params.bloco) qs.set('bloco', params.bloco);
+      const res = await fetch(`/api/estrategico/orcamentacao/lancamentos?${qs.toString()}`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Falha ao carregar lançamentos');
+      setDrill(d => ({
+        ...d, loading: false,
+        lancamentos: json.lancamentos || [],
+        total: (json.total_despesa || 0) + (json.total_receita || 0),
+      }));
+    } catch (e: any) {
+      setDrill(d => ({ ...d, loading: false, erro: e?.message || 'Erro ao carregar lançamentos' }));
+    }
+  }, [selectedBar]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const mesAtualRef = useRef<HTMLDivElement>(null);
@@ -558,7 +602,19 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                             </div>
                             <div className="w-px h-3 bg-white/40" />
                             {/* REAL % (vem da DRE) */}
-                            <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(pct.real, pct.plan, true))} title="Realizado vem da DRE (Conta Azul ÷ faturamento realizado)">{formatarPorcentagem(pct.real)}</span>
+                            {categoria.blocoGold ? (
+                              <button
+                                type="button"
+                                onClick={() => abrirLancamentos(mes, categoria.nome, { bloco: categoria.blocoGold })}
+                                className={cn("flex-1 flex items-center justify-center gap-1 text-xs font-bold text-center whitespace-nowrap rounded px-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer", corReal(pct.real, pct.plan, true))}
+                                title="Ver lançamentos do Conta Azul deste bloco"
+                              >
+                                <span>{formatarPorcentagem(pct.real)}</span>
+                                <Receipt className="h-2.5 w-2.5 text-blue-400" />
+                              </button>
+                            ) : (
+                              <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(pct.real, pct.plan, true))} title="Realizado vem da DRE (Conta Azul ÷ faturamento realizado)">{formatarPorcentagem(pct.real)}</span>
+                            )}
                           </div>
                         );
                       }
@@ -658,11 +714,28 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                                         <span className={cn("text-xs whitespace-nowrap", corClasse)}>{formatarMoeda(sinalDre(sub.realizado, categoria.tipo))}</span>
                                         <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
                                       </div>
-                                    ) : (
-                                      <span className={cn("text-xs whitespace-nowrap", corClasse)} title="Automático: Conta Azul + ajustes da DRE Manual">
-                                        {sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sinalDre(sub.realizado, categoria.tipo))}
-                                      </span>
-                                    )}
+                                    ) : (() => {
+                                      const podeDrill = sub.realizadoFonte === 'ca' && !!sub.goldCategorias?.length && sub.realizado !== 0;
+                                      const conteudo = sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sinalDre(sub.realizado, categoria.tipo));
+                                      if (!podeDrill) {
+                                        return (
+                                          <span className={cn("text-xs whitespace-nowrap", corClasse)} title="Automático: Conta Azul + ajustes da DRE Manual">
+                                            {conteudo}
+                                          </span>
+                                        );
+                                      }
+                                      return (
+                                        <button
+                                          type="button"
+                                          onClick={() => abrirLancamentos(mes, sub.nome, { categorias: sub.goldCategorias })}
+                                          className={cn("flex items-center gap-1 text-xs whitespace-nowrap rounded px-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer", corClasse)}
+                                          title="Ver lançamentos do Conta Azul que compõem este valor"
+                                        >
+                                          <span>{conteudo}</span>
+                                          <Receipt className="h-2.5 w-2.5 text-blue-400 opacity-0 group-hover:opacity-100" />
+                                        </button>
+                                      );
+                                    })()}
                                   </div>
                                 );
                               })()}
@@ -701,6 +774,73 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
         <HistoricoOrcamentoTab barId={selectedBar.id} />
       </TabsContent>
     </Tabs>
+
+    {/* Drill-down: lançamentos do Conta Azul que compõem o realizado */}
+    <Dialog open={drill.open} onOpenChange={(o) => setDrill(d => ({ ...d, open: o }))}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Receipt className="h-4 w-4 text-blue-500" />
+            {drill.titulo}
+            <span className="text-xs font-normal text-gray-500">· {drill.periodo}</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        {drill.loading ? (
+          <div className="space-y-2 py-4">
+            {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-8 w-full" />)}
+          </div>
+        ) : drill.erro ? (
+          <div className="py-8 text-center text-sm text-red-600">{drill.erro}</div>
+        ) : drill.lancamentos.length === 0 ? (
+          <div className="py-8 text-center text-sm text-gray-500">
+            Nenhum lançamento do Conta Azul encontrado para este período.
+          </div>
+        ) : (
+          <div className="overflow-auto flex-1">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
+                <tr className="text-left text-gray-500">
+                  <th className="py-1.5 px-2 font-medium">Data</th>
+                  <th className="py-1.5 px-2 font-medium">Descrição</th>
+                  <th className="py-1.5 px-2 font-medium">Categoria (CA)</th>
+                  <th className="py-1.5 px-2 font-medium text-right">Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {drill.lancamentos.map((l, i) => {
+                  const v = parseFloat(String(l.valor_bruto)) || 0;
+                  const isReceita = String(l.tipo_ca).toUpperCase() === 'RECEITA';
+                  const [, mm, dd] = String(l.data_competencia).split('-');
+                  return (
+                    <tr key={i} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      <td className="py-1.5 px-2 whitespace-nowrap text-gray-600 dark:text-gray-400">{dd}/{mm}</td>
+                      <td className="py-1.5 px-2">
+                        <div className="text-gray-800 dark:text-gray-200 truncate max-w-[260px]">{l.descricao || l.pessoa_nome || '—'}</div>
+                        {l.pessoa_nome && l.descricao && (
+                          <div className="text-[10px] text-gray-400 truncate max-w-[260px]">{l.pessoa_nome}</div>
+                        )}
+                      </td>
+                      <td className="py-1.5 px-2 text-gray-500 dark:text-gray-400 truncate max-w-[140px]">{l.categoria_ca || '—'}</td>
+                      <td className={cn("py-1.5 px-2 text-right whitespace-nowrap font-medium", isReceita ? "text-emerald-600" : "text-gray-800 dark:text-gray-200")}>
+                        {formatarMoeda(isReceita ? v : -v)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {!drill.loading && !drill.erro && drill.lancamentos.length > 0 && (
+          <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-2 text-xs">
+            <span className="text-gray-500">{drill.lancamentos.length} lançamento(s)</span>
+            <span className="font-bold text-gray-900 dark:text-white">Total: {formatarMoeda(drill.total)}</span>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
     </TooltipProvider>
   );
 }

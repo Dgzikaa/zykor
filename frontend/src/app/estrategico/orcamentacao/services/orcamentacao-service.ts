@@ -28,6 +28,12 @@ export interface SubcategoriaOrcamento {
   realizado: number;
   isPercentage?: boolean;
   manual?: boolean;        // realizado digitado na tela (não vem do CA)
+  // Proveniência do realizado p/ o drill-down (popup de lançamentos):
+  //   'ca'         -> lançamentos do Conta Azul (silver.lancamento_classificado) das goldCategorias
+  //   'manual'     -> digitado na tela (orcamento_planilha) — sem lançamentos
+  //   'consumacao' -> silver.consumacao_artistas — sem detalhe por lançamento (por ora)
+  realizadoFonte?: 'ca' | 'manual' | 'consumacao';
+  goldCategorias?: string[];  // categoria_zykor que compõem o realizado (fonte 'ca')
 }
 
 export interface CategoriaOrcamento {
@@ -38,6 +44,7 @@ export interface CategoriaOrcamento {
   // Blocos % (Custos Variáveis / CMV): renderizados como 1 linha de %.
   modoPercentual?: boolean;
   percentual?: { plan: number; proj: number; real: number };
+  blocoGold?: string;      // bloco_dre que compõe o realizado do bloco % (drill-down)
 }
 
 export interface TotaisMes {
@@ -359,6 +366,7 @@ export async function getOrcamentacaoCompleta(
           subcategorias: [],
           modoPercentual: true,
           percentual: { plan: planPct, proj: projPct, real: realPct },
+          blocoGold: bloco.blocoGold,
         };
       }
       const subcategorias = bloco.subs.map(s => {
@@ -370,16 +378,22 @@ export async function getOrcamentacaoCompleta(
         //   demais  -> Conta Azul (gold) + ajustes da DRE Manual. dre_manual usa sinal de
         //              impacto no lucro: receita soma; despesa subtrai.
         let real: number;
+        let realizadoFonte: SubcategoriaOrcamento['realizadoFonte'];
+        let goldCategorias: string[] | undefined;
         if (s.consumacaoArtistas) {
           real = consumacaoMesMap.get(`${ano}-${mes}`) || 0;
+          realizadoFonte = 'consumacao';
         } else if (s.orcOnly) {
           real = num(prow?.valor_realizado_manual);
+          realizadoFonte = 'manual';
         } else {
           const goldVal = (s.gold || []).reduce((sum, g) => sum + goldCat(g), 0);
           const manualVal = manualCat(s.manualKey || s.nome);
           real = bloco.tipo === 'receita' ? goldVal + manualVal : goldVal - manualVal;
+          realizadoFonte = 'ca';
+          goldCategorias = s.gold;
         }
-        return { nome: s.nome, planejado: plan, projecao: proj, realizado: real, isPercentage: false, manual: !!s.orcOnly };
+        return { nome: s.nome, planejado: plan, projecao: proj, realizado: real, isPercentage: false, manual: !!s.orcOnly, realizadoFonte, goldCategorias };
       });
       return { nome: bloco.nome, cor: bloco.cor, tipo: bloco.tipo, subcategorias };
     });
