@@ -148,10 +148,12 @@ const ESTRUTURA: BlocoDef[] = [
   },
   {
     nome: 'Despesas Comerciais', tipo: 'despesa', cor: COR.comercial, modo: 'fixo', subs: [
-      // Sem "Marketing" solto (igual à planilha): o CA 'Marketing' + consumo cai em
-      // 'Marketing Mídia' (via gold + manualKey) p/ não perder realizado. Rever depois.
-      { nome: 'Marketing Mídia', gold: ['Marketing'], manualKey: 'Marketing' },
-      { nome: 'MKT Disparos', orcOnly: true },
+      // Marketing separado em 3 (re-categorizado no Conta Azul jun/2026): Mídia /
+      // Disparos / Produção. 'Marketing Mídia' também puxa o legado 'Marketing'
+      // (bar 4 ainda não foi re-categorizado no CA), pra não perder realizado.
+      { nome: 'Marketing Mídia', gold: ['Marketing Mídia', 'Marketing'] },
+      { nome: 'Marketing Disparos', gold: ['Marketing Disparos'] },
+      { nome: 'Marketing Produção', gold: ['Marketing Produção'] },
       { nome: 'MKT Programa de Pontos', orcOnly: true },
       { nome: 'MKT Beneficios', orcOnly: true },
       { nome: 'Atrações Programação', gold: ['Atrações Programação'] },
