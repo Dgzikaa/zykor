@@ -5,7 +5,7 @@ import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Landmark, Check, X } from 'lucide-react';
+import { Landmark, Check, X, ChevronDown, ChevronRight } from 'lucide-react';
 
 const n = (x: unknown) => Number(x) || 0;
 const fmtBRL = (v: number) => `${v < 0 ? '-' : ''}R$ ${Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`;
@@ -73,6 +73,19 @@ const ROWS: RowDef[] = [
 
 const CAMPO_DE_ID: Record<string, string> = Object.fromEntries(ROWS.filter(r => r.campo).map(r => [r.id, r.campo!]));
 
+// Mapeia cada linha indentada ao seu bloco "bold" pai (pra expandir/recolher).
+// Um bloco bold é pai das linhas indentadas que o seguem, até o próximo bold/header.
+const PARENT_OF: Record<string, string> = {};
+const TEM_FILHOS = new Set<string>();
+{
+  let lastBold: string | null = null;
+  for (const r of ROWS) {
+    if (r.tipo === 'header') { lastBold = null; continue; }
+    if (r.bold) { lastBold = r.id; continue; }
+    if (r.indent && lastBold) { PARENT_OF[r.id] = lastBold; TEM_FILHOS.add(lastBold); }
+  }
+}
+
 /** Calcula todos os valores derivados de um mês. */
 function computeMes(ca: any, man: any, imob: any, estoque: number, realizados: number, afazer: number): Record<string, number> {
   ca = ca || {}; man = man || {}; imob = imob || {};
@@ -136,6 +149,8 @@ export default function BalancoPage() {
   const [loading, setLoading] = useState(true);
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editVal, setEditVal] = useState('');
+  // Blocos recolhidos (id do bloco bold -> true = escondido). Default: todos abertos.
+  const [colapsados, setColapsados] = useState<Record<string, boolean>>({});
 
   const carregadoRef = useRef(false);
   const carregar = useCallback(async () => {
@@ -249,6 +264,8 @@ export default function BalancoPage() {
                     </tr>
                   );
                 }
+                // Esconde os filhos de um bloco recolhido.
+                if (row.indent && PARENT_OF[row.id] && colapsados[PARENT_OF[row.id]]) return null;
                 const corLabel = row.tipo === 'ca' ? 'border-l-orange-400' : row.tipo === 'manual' ? 'border-l-blue-400' : 'border-l-gray-300';
                 const rowBg = row.destaque ? 'bg-amber-100/70 dark:bg-amber-900/30 font-bold' : row.bold ? 'font-bold bg-gray-50/70 dark:bg-gray-800/40' : '';
                 const labelBg = row.destaque ? 'bg-amber-100/70 dark:bg-amber-900/30' : row.bold ? 'bg-gray-50/70 dark:bg-gray-800/40' : 'bg-white dark:bg-gray-900';
@@ -256,7 +273,16 @@ export default function BalancoPage() {
                 return (
                   <tr key={row.id} className={`border-b border-gray-100 dark:border-gray-800 ${rowBg} ${row.destaque ? 'ring-1 ring-amber-300/60 dark:ring-amber-700/40' : ''}`}>
                     <td className={`px-3 py-1 ${labelBorder} sticky left-0 ${labelBg} ${row.indent ? 'pl-6' : ''} ${row.destaque ? 'text-amber-900 dark:text-amber-200' : ''}`}>
-                      {row.formula ? (
+                      {TEM_FILHOS.has(row.id) ? (
+                        <button
+                          onClick={() => setColapsados(p => ({ ...p, [row.id]: !p[row.id] }))}
+                          className="inline-flex items-center gap-1 hover:opacity-80"
+                          title={row.formula || (colapsados[row.id] ? 'Expandir' : 'Recolher')}
+                        >
+                          {colapsados[row.id] ? <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />}
+                          <span className={row.formula ? 'cursor-help underline decoration-dotted decoration-gray-400 underline-offset-2' : ''}>{row.label}</span>
+                        </button>
+                      ) : row.formula ? (
                         <span title={row.formula} className="cursor-help underline decoration-dotted decoration-gray-400 underline-offset-2">{row.label}</span>
                       ) : row.label}
                     </td>
@@ -333,7 +359,7 @@ export default function BalancoPage() {
             <thead>
               <tr className="text-left text-gray-500 border-b">
                 <th className="py-1">Descrição</th><th>Tipo</th><th className="text-right">Valor</th>
-                <th className="text-right">Mês compra</th><th className="text-right">Depreciação/mês</th><th className="text-right">Fim</th><th></th>
+                <th className="text-right">Mês compra</th><th className="text-right">Depreciação/mês</th><th className="text-right">Fim</th><th className="text-right">Taxa/ano</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -350,6 +376,7 @@ export default function BalancoPage() {
                     <td className="text-right tabular-nums">{MES_ABBR[d.getMonth()]}/{String(d.getFullYear()).slice(2)}</td>
                     <td className="text-right tabular-nums">{fmtBRL(dep)}</td>
                     <td className="text-right tabular-nums text-gray-500">{MES_ABBR[fim.getMonth()]}/{String(fim.getFullYear()).slice(2)}</td>
+                    <td className="text-right tabular-nums">{n(a.taxa_anual)}%</td>
                     <td className="text-right"><button onClick={() => delAtivo(a.id)} className="text-red-600 hover:underline">remover</button></td>
                   </tr>
                 );
