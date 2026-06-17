@@ -511,21 +511,11 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                         );
                       })()}
                       <div className="w-px h-3 bg-slate-300" />
-                      {(() => {
-                        const isEditFMP = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === 'FATURAMENTO META' && editando?.campo === 'projetado';
-                        return isEditFMP ? (
-                          <div className="flex-1 flex items-center justify-center gap-1">
-                            <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-20 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
-                            <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
-                          </div>
-                        ) : (
-                          <span
-                            className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
-                            title="Projetado (default = Empilhamento M1; editável)"
-                            onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: 'FATURAMENTO META', campo: 'projetado' }); setValorEdit(mes.totais.faturamento_meta_proj.toString()); }}
-                          >{formatarMoeda(mes.totais.faturamento_meta_proj)}</span>
-                        );
-                      })()}
+                      {/* Projetado = Empilhamento M1, automático (não editável). */}
+                      <span
+                        className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white"
+                        title="Projetado automático = Empilhamento M1 (realizado dos dias passados + M1 dos dias futuros)"
+                      >{formatarMoeda(mes.totais.faturamento_meta_proj)}</span>
                       <div className="w-px h-3 bg-slate-300" />
                       <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(mes.totais.faturamento_meta_real, mes.totais.faturamento_meta_plan, false))}>{formatarMoeda(mes.totais.faturamento_meta_real)}</span>
                     </div>

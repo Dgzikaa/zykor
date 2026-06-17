@@ -341,10 +341,10 @@ export async function getOrcamentacaoCompleta(
     // + Pix Direto + Dinheiro + Receita de Eventos + Outras Receitas) + ajustes manuais
     // de receita (DRE Manual). É a base de receita que a DRE usa pros % de Var/CMV.
     const fatPlan = num(planilha('FATURAMENTO META')?.valor_planejado);
-    // Projetado: usa o valor digitado na planilha (revisão semanal); se não houver,
-    // cai no Empilhamento M1 (Σ eventos_base.m1_r).
-    const fatProjManual = num(planilha('FATURAMENTO META')?.valor_projetado);
-    const fatProj = fatProjManual > 0 ? fatProjManual : (projMap.get(`${ano}-${mes}`) || 0);
+    // Projetado: SEMPRE automático = Empilhamento M1 (realizado dos dias passados +
+    // M1 dos dias futuros). Decisão do sócio jun/2026: não usar mais o valor manual
+    // da planilha, pra não ficar desatualizado.
+    const fatProj = projMap.get(`${ano}-${mes}`) || 0;
     // Realizado: meses fechados = Conta Azul (oficial). Mês corrente = ContaHub (Σ real_r),
     // porque no Conta Azul o cartão de crédito só entra na liquidação (atrasado) e o mês
     // corrente subreportava o faturamento. (decisão sócio jun/2026)

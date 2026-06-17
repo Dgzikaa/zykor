@@ -104,7 +104,6 @@ export const MENU_TREE: MenuSection[] = [
     permission: 'gestao',
     subItems: [
       { icon: 'TrendingUp', label: 'Gestão CMV', href: '/ferramentas/cmv-semanal/tabela', permission: 'gestao' },
-      { icon: 'ChefHat', label: 'CMA - Alimentação', href: '/ferramentas/cma-semanal', permission: 'gestao' },
       { icon: 'AlertTriangle', label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
     ],
   },

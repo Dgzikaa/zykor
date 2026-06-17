@@ -76,7 +76,7 @@ const ESPECIAIS: Record<string, OrigemLinha> = {
     titulo: 'Faturamento Meta',
     descricao: 'A única linha de receita da Orçamentação (o detalhe por meio de recebimento fica na DRE).',
     calculo:
-      'Realizado: mês fechado = Σ receita do Conta Azul · mês corrente = Σ real_r (ContaHub, tempo real). Projetado = Empilhamento M1 (Σ m1_r dos eventos ativos do mês).',
+      'Realizado: no mês fechado vem do Conta Azul; no mês em andamento vem da venda do dia (tempo real), porque o cartão de crédito só cai no Conta Azul depois. Projetado: empilhamento das metas semanais (M1) dos eventos do mês.',
     planejado: {
       fonte: 'Planilha',
       tabela: 'meta.orcamento_planilha',
@@ -194,9 +194,9 @@ const ESPECIAIS: Record<string, OrigemLinha> = {
 
 // Cálculo padrão por tipo de linha, pra TODA linha ter tooltip de Cálculo (consistência).
 const CALCULO_PADRAO_CA =
-  'Realizado = Σ dos lançamentos do Conta Azul da categoria mapeada (por data de competência) + ajustes da DRE Manual. Planejado/Projetado: planilha.';
+  'Realizado: soma dos lançamentos do Conta Azul desta categoria no mês (por competência), mais os ajustes da aba DRE Manual. Planejado e Projetado vêm da planilha.';
 const CALCULO_PADRAO_MANUAL =
-  'Realizado: Manual — digitado na tela (fora do Conta Azul). Planejado/Projetado: planilha.';
+  'Realizado: digitado na tela (não existe no Conta Azul). Planejado e Projetado vêm da planilha.';
 
 // Retorna a proveniência de uma linha. `nome` = nome da subcategoria, header de
 // categoria ou indicador. Cai num padrão genérico (planilha + Conta Azul) quando
