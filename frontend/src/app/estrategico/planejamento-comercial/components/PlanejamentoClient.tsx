@@ -444,9 +444,13 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
       return sum + (evento.real_receita || 0);
     }, 0);
     
-    // Empilhamento = Realizado + Planejado dos eventos que ainda não aconteceram
+    // Empilhamento = Realizado (eventos JÁ ocorridos) + Planejado M1 (de hoje em
+    // diante). Usar o real só de dias anteriores a hoje: eventos futuros já têm
+    // real_receita parcial (pré-venda Sympla) e usá-la subestimaria o M1.
+    const hojeStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     const empilhamento = dados.reduce((sum, evento) => {
-      if (evento.real_receita && evento.real_receita > 0) return sum + evento.real_receita;
+      const jaAconteceu = (evento.data_evento || '') < hojeStr;
+      if (jaAconteceu && evento.real_receita && evento.real_receita > 0) return sum + evento.real_receita;
       return sum + (evento.m1_receita || 0);
     }, 0);
     
