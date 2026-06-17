@@ -23,6 +23,10 @@ async function estoqueDe(barId: number, ano: number, mes: number) {
   const { data } = await (supabase as any).rpc('get_estoque_cmv', { p_bar_id: barId, p_ano: ano, p_mes: mes });
   return Number(data) || 0;
 }
+async function realizadosDe(barId: number, ano: number, mes: number) {
+  const { data } = await (supabase as any).rpc('get_investimentos_realizados', { p_bar_id: barId, p_ano: ano, p_mes: mes });
+  return Number(data) || 0;
+}
 
 /** Lista de N meses (ano,mes) terminando em (ano,mes), do mais antigo p/ o mais novo. */
 function janelaMeses(ano: number, mes: number, n: number) {
@@ -57,6 +61,7 @@ export async function GET(req: NextRequest) {
         manual: await manualDe(barId, ano, mes),
         imob: await imobDe(barId, ano, mes),
         estoque: await estoqueDe(barId, ano, mes),
+        realizados: await realizadosDe(barId, ano, mes),
       })),
     );
 
