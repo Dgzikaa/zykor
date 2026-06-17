@@ -469,30 +469,6 @@ const formatarDataCurta = (dataStr: string): string => {
   return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 };
 
-const getSemanasNoAno = (ano: number): number => {
-  const dec28 = new Date(ano, 11, 28);
-  const dayOfYear = Math.floor((dec28.getTime() - new Date(ano, 0, 1).getTime()) / 86400000) + 1;
-  return Math.ceil((dayOfYear + new Date(ano, 0, 1).getDay()) / 7);
-};
-
-const getDataInicioSemana = (ano: number, semana: number): string => {
-  const simple = new Date(ano, 0, 1 + (semana - 1) * 7);
-  const dow = simple.getDay();
-  const ISOweekStart = new Date(simple);
-  if (dow <= 4) {
-    ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
-  } else {
-    ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
-  }
-  return ISOweekStart.toISOString().split('T')[0];
-};
-
-const getDataFimSemana = (dataInicio: string): string => {
-  const data = new Date(dataInicio + 'T12:00:00');
-  data.setDate(data.getDate() + 6);
-  return data.toISOString().split('T')[0];
-};
-
 // ============================================================================
 // COMPONENTE PRINCIPAL (CLIENT)
 // ============================================================================
@@ -862,48 +838,11 @@ export function DesempenhoClient({
     [metasPorSecao]
   );
 
-  // Processar Initial Data (Adicionar semanas futuras)
-  const semanasProcessadas = useMemo(() => {
-    if (visao === 'mensal') return initialData;
-    
-    // Semanal: adicionar 5 semanas futuras vazias para scroll
-    const semanas = [...initialData];
-    let semanaFutura = semanaAtual;
-    let anoFuturo = anoAtual;
-    
-    // Encontrar último registro real para continuar dele se existir, ou usar semana atual
-    const ultimoReal = semanas.length > 0 ? semanas[semanas.length - 1] : null;
-    if (ultimoReal) {
-      semanaFutura = ultimoReal.numero_semana;
-      anoFuturo = ultimoReal.ano;
-    }
-
-    for (let i = 0; i < 5; i++) {
-        semanaFutura++;
-        const semanasNoAno = getSemanasNoAno(anoFuturo);
-        if (semanaFutura > semanasNoAno) {
-          semanaFutura = 1;
-          anoFuturo++;
-        }
-        
-        // Verificar se já existe
-        const jaExiste = semanas.some(s => s.numero_semana === semanaFutura && s.ano === anoFuturo);
-        
-        if (!jaExiste) {
-          const dataInicio = getDataInicioSemana(anoFuturo, semanaFutura);
-          const dataFim = getDataFimSemana(dataInicio);
-          
-          semanas.push({
-            id: undefined,
-            numero_semana: semanaFutura,
-            ano: anoFuturo,
-            data_inicio: dataInicio,
-            data_fim: dataFim,
-          } as DadosSemana);
-        }
-    }
-    return semanas;
-  }, [initialData, visao, semanaAtual, anoAtual]);
+  // Exibir apenas até a semana em andamento (sem semanas futuras vazias).
+  // O serviço já filtra futuras no servidor; aqui NÃO reintroduzimos semanas
+  // futuras (antes adicionava 5 vazias "para scroll", o que fazia aparecer
+  // semanas tipo 26-30 sem dado nenhum).
+  const semanasProcessadas = useMemo(() => initialData, [initialData]);
 
   // Encontrar índice da semana atual
   useEffect(() => {

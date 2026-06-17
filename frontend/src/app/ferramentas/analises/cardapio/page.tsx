@@ -6,6 +6,9 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChefHat } from 'lucide-react';
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import CustoManualEditor from './CustoManualEditor';
+import HistoricoPrecos from './HistoricoPrecos';
 
 const fmt = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(n));
 const fmtMoeda = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n));
@@ -34,8 +37,6 @@ export default function CardapioPage() {
     fetch(`/api/cardapio/engenharia?bar_id=${selectedBar.id}&dias=${dias}`)
       .then(r => r.json()).then(setData).finally(() => setLoading(false));
   }, [selectedBar?.id, dias]);
-
-  if (loading) return <main className="max-w-7xl mx-auto px-6 py-8"><Skeleton className="h-96" /></main>;
 
   const resumo = data?.resumo || {};
   const porClasse = data?.por_classe || {};
@@ -71,6 +72,18 @@ export default function CardapioPage() {
         </select>
       </div>
 
+      <Tabs defaultValue="engenharia" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="engenharia">Engenharia</TabsTrigger>
+          <TabsTrigger value="custos">Custos</TabsTrigger>
+          <TabsTrigger value="historico">Histórico de preços</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="engenharia" className="space-y-6 mt-0">
+          {loading ? (
+            <Skeleton className="h-96" />
+          ) : (
+          <>
       {/* 4 cards de resumo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {(['star','plowhorse','puzzle','dog'] as const).map(c => {
@@ -180,6 +193,19 @@ export default function CardapioPage() {
           </div>
         )}
       </Card>
+
+          </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="custos" className="mt-0">
+          <CustoManualEditor dias={dias} />
+        </TabsContent>
+
+        <TabsContent value="historico" className="mt-0">
+          <HistoricoPrecos dias={dias} />
+        </TabsContent>
+      </Tabs>
     </main>
   );
 }

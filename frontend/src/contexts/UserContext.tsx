@@ -47,25 +47,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     // Debounce para evitar múltiplas chamadas simultâneas
     let debounceTimer: NodeJS.Timeout | null = null;
 
-    const handleStorageChange = (e: StorageEvent) => {
-      // TODO(rodrigo/2026-05): sgb_user é mantido apenas como cache, fonte de verdade é JWT via /api/auth/me
-      if (e.key === 'sgb_user') {
-        // Verificar se houve um reload de bar muito recente
-        const lastReload = sessionStorage.getItem('last_bar_reload');
-        if (lastReload) {
-          const timeSinceReload = Date.now() - parseInt(lastReload);
-          if (timeSinceReload < 1000) {
-            // Reload muito recente, aguardar para evitar conflitos
-            return;
-          }
-        }
-        
-        // Debounce para evitar múltiplas chamadas
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          loadUserData();
-        }, 300);
-      }
+    // NÃO reagir ao evento `storage` de `sgb_user`. Cada aba escreve `sgb_user`
+    // dentro de loadUserData() (cache), e reagir a essa mesma chave fazia as abas
+    // se re-dispararem em loop ("tela atualizando de poucos em poucos segundos"
+    // com várias abas abertas). sgb_user é só cache — a fonte de verdade é o JWT
+    // via /api/auth/me, recarregado por evento local (userDataUpdated) ou refresh.
+    const handleStorageChange = (_e: StorageEvent) => {
+      /* intencionalmente sem efeito — ver comentário acima */
     };
 
     const handleUserDataUpdated = () => {

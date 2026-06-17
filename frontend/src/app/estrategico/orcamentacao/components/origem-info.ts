@@ -75,6 +75,8 @@ const ESPECIAIS: Record<string, OrigemLinha> = {
   'Faturamento Meta': {
     titulo: 'Faturamento Meta',
     descricao: 'A única linha de receita da Orçamentação (o detalhe por meio de recebimento fica na DRE).',
+    calculo:
+      'Realizado: mês fechado = Σ receita do Conta Azul · mês corrente = Σ real_r (ContaHub, tempo real). Projetado = Empilhamento M1 (Σ m1_r dos eventos ativos do mês).',
     planejado: {
       fonte: 'Planilha',
       tabela: 'meta.orcamento_planilha',
@@ -183,11 +185,18 @@ const ESPECIAIS: Record<string, OrigemLinha> = {
   Contratos: {
     titulo: 'Contratos',
     descricao: 'Cashback/bonificações Ambev e contratos anuais. Vem da aba DRE Manual.',
+    calculo: 'Realizado: Manual (DRE Manual) — cashback/bonificações Ambev e contratos anuais.',
     planejado: PLANEJADO_PADRAO,
     projetado: PROJETADO_PADRAO,
     realizado: REALIZADO_MANUAL,
   },
 };
+
+// Cálculo padrão por tipo de linha, pra TODA linha ter tooltip de Cálculo (consistência).
+const CALCULO_PADRAO_CA =
+  'Realizado = Σ dos lançamentos do Conta Azul da categoria mapeada (por data de competência) + ajustes da DRE Manual. Planejado/Projetado: planilha.';
+const CALCULO_PADRAO_MANUAL =
+  'Realizado: Manual — digitado na tela (fora do Conta Azul). Planejado/Projetado: planilha.';
 
 // Retorna a proveniência de uma linha. `nome` = nome da subcategoria, header de
 // categoria ou indicador. Cai num padrão genérico (planilha + Conta Azul) quando
@@ -199,6 +208,7 @@ export function getOrigem(nome: string): OrigemLinha {
   const isManual = SUBCATEGORIAS_MANUAIS.has(nome);
   return {
     titulo: nome,
+    calculo: isManual ? CALCULO_PADRAO_MANUAL : CALCULO_PADRAO_CA,
     planejado: PLANEJADO_PADRAO,
     projetado: PROJETADO_PADRAO,
     realizado: isManual ? REALIZADO_MANUAL : REALIZADO_CA,

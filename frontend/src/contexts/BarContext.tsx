@@ -8,9 +8,30 @@ import {
   useRef,
   ReactNode,
 } from 'react';
+import { useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabase';
 import { useUser } from '@/contexts/UserContext';
 import { setBarCookie } from '@/lib/cookies';
+
+// Bar selecionado é POR ABA (sessionStorage), não compartilhado entre abas.
+// localStorage é mantido apenas como "último bar usado" para seedar abas novas.
+const SELECTED_BAR_KEY = 'sgb_selected_bar_id';
+
+// Lê o bar da aba: sessionStorage (verdade da aba) -> localStorage (último usado).
+export const getTabSelectedBarId = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return (
+    sessionStorage.getItem(SELECTED_BAR_KEY) ||
+    localStorage.getItem(SELECTED_BAR_KEY)
+  );
+};
+
+// Persiste a seleção da aba (sessionStorage) + hint global (localStorage).
+const persistSelectedBarId = (barId: number) => {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(SELECTED_BAR_KEY, String(barId));
+  localStorage.setItem(SELECTED_BAR_KEY, String(barId));
+};
 
 interface Bar {
   id: number;
@@ -30,6 +51,7 @@ interface BarContextType {
 const BarContext = createContext<BarContextType | undefined>(undefined);
 
 export function BarProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const { user, isInitialized: userInitialized } = useUser();
   const [selectedBar, setSelectedBar] = useState<Bar | null>(null);
   const [availableBars, setAvailableBars] = useState<Bar[]>([]);
@@ -166,27 +188,28 @@ export function BarProvider({ children }: { children: ReactNode }) {
               if (mounted) {
                 setAvailableBars(bars);
 
-                // Verificar se há um bar selecionado no localStorage
-                const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
+                // Bar da aba: sessionStorage (verdade da aba) -> localStorage (último usado)
+                const selectedBarId = getTabSelectedBarId();
                 let barToSelect: Bar;
-                
+
                 if (selectedBarId) {
                   const foundBar = bars.find(
                     (bar: Bar) => bar.id === parseInt(selectedBarId)
                   );
                   // Se o bar selecionado não existe mais nos bares disponíveis, usar o primeiro
                   barToSelect = foundBar || bars[0];
-                  
+
                   // Se bar não encontrado, usar primeiro disponível
                 } else {
                   barToSelect = bars[0];
                 }
-                
+
                 setSelectedBar(barToSelect);
                 updateFavicon(barToSelect.nome);
                 // Sincronizar permissões do bar selecionado
                 syncBarPermissions(barToSelect);
-                // Garantir que cookie está atualizado
+                // Fixar a seleção desta aba + garantir cookie p/ Server Components
+                persistSelectedBarId(barToSelect.id);
                 setBarCookie(barToSelect.id);
                 
                 // Marcar que os bares foram carregados
@@ -315,47 +338,33 @@ export function BarProvider({ children }: { children: ReactNode }) {
     appleIcon.href = appleTouchPath;
   };
 
-  // Função para alterar o bar selecionado
+  // Função para alterar o bar selecionado.
+  // IMPORTANTE: a seleção é POR ABA (sessionStorage) e a atualização é "soft"
+  // (router.refresh), nunca window.location.reload(). Abas diferentes podem ficar
+  // em bares diferentes sem brigar pelo cookie/localStorage compartilhado.
   const handleSetSelectedBar = (bar: Bar) => {
     const previousBarId = selectedBar?.id;
     setSelectedBar(bar);
-    // Salvar no localStorage apenas se estamos no cliente
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('sgb_selected_bar_id', bar.id.toString());
-      // Salvar no cookie para acesso server-side
-      setBarCookie(bar.id);
-      
-      // Atualizar favicon baseado no bar selecionado
-      updateFavicon(bar.nome);
-      
-      // Sincronizar permissões do bar selecionado
-      syncBarPermissions(bar);
-      
-      // Se o bar mudou, recarregar a página para atualizar os dados
-      if (previousBarId !== undefined && previousBarId !== bar.id) {
-        // Verificar se já não houve um reload muito recente (previne loops)
-        const lastReload = sessionStorage.getItem('last_bar_reload');
-        const now = Date.now();
-        
-        if (lastReload) {
-          const timeSinceLastReload = now - parseInt(lastReload);
-          if (timeSinceLastReload < 1000) {
-            // Reload muito recente (menos de 1 segundo), ignorar para prevenir loop
-            return;
-          }
-        }
-        
-        // Marcar timestamp do reload
-        sessionStorage.setItem('last_bar_reload', now.toString());
-        
-        // Disparar evento customizado para notificar componentes
-        window.dispatchEvent(new CustomEvent('barChanged', { 
-          detail: { previousBarId, newBarId: bar.id, barName: bar.nome } 
-        }));
-        
-        // Recarregar a página para garantir que todos os dados sejam atualizados
-        window.location.reload();
-      }
+
+    if (typeof window === 'undefined') return;
+
+    // Verdade da aba (sessionStorage) + hint global (localStorage)
+    persistSelectedBarId(bar.id);
+    // Cookie p/ Server Components — escrito ANTES do refresh para o servidor
+    // já renderizar com o bar novo.
+    setBarCookie(bar.id);
+    updateFavicon(bar.nome);
+    syncBarPermissions(bar);
+
+    if (previousBarId !== undefined && previousBarId !== bar.id) {
+      // Notificar componentes que escutam troca de bar
+      window.dispatchEvent(
+        new CustomEvent('barChanged', {
+          detail: { previousBarId, newBarId: bar.id, barName: bar.nome },
+        })
+      );
+      // Atualização soft dos Server Components (sem reload de página inteira)
+      router.refresh();
     }
   };
 
