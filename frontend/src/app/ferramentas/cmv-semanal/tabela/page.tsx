@@ -304,6 +304,25 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         ]
       }
     ]
+  },
+  {
+    id: 'cma',
+    titulo: 'CMA - ALIMENTAÇÃO FUNCIONÁRIOS',
+    icone: <Users className="w-4 h-4" />,
+    cor: 'bg-amber-600',
+    grupos: [
+      {
+        id: 'cma_resultado',
+        label: 'Resultado CMA',
+        semCollapse: true,
+        metricas: [
+          { key: 'estoque_inicial_funcionarios', label: 'Estoque Inicial (F)', status: 'calculado', fonte: 'Calculado', calculo: 'Estoque final (F) do período anterior (propagado)', formato: 'moeda' },
+          { key: 'compras_alimentacao', label: '(+) Compras', status: 'auto', fonte: 'Conta Azul', calculo: 'categoria_nome = Alimentação', formato: 'moeda', drilldown: true },
+          { key: 'estoque_final_funcionarios', label: '(-) Estoque Final (F)', status: 'manual', fonte: 'Manual', calculo: 'Contagem de estoque (preenchimento manual)', formato: 'moeda', editavel: true },
+          { key: 'cma_total', label: 'CMA Total', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial (F) + Compras Alimentação - Est.Final (F)', formato: 'moeda' },
+        ]
+      }
+    ]
   }
 ];
 
