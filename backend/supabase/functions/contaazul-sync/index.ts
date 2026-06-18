@@ -364,7 +364,9 @@ async function syncLancamentos(
             conta_financeira_nome: item.conta_financeira?.nome || null,
             conta_financeira: item.conta_financeira || null,
             metodo_pagamento: item.metodo_pagamento || null,
-            conciliado: item.conciliado || false,
+            // NAO gravar conciliado aqui: o endpoint de lista nao traz conciliacao real
+            // (vem sempre false) e sobrescreveria o que a fn contaazul-conciliacao preenche.
+            // Protegido tambem pela trigger bronze.fn_preserva_conciliado.
             renegociacao: item.renegociacao || null,
             raw_data: item,
             // Bronze tem synced_at em vez de updated_at
