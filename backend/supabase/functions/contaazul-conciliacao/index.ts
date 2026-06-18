@@ -3,15 +3,17 @@
  * @jobName contaazul-conciliacao
  * @descricao Preenche bronze_contaazul_lancamentos.conciliado a partir do CA.
  *
- * Os endpoints de lista que usamos (eventos-financeiros/.../buscar) NAO retornam
- * conciliacao, e /v1/financeiro/contas-a-pagar|receber deu 404 pra nossa app. O que
- * funciona e o detalhe por parcela: GET /v1/financeiro/eventos-financeiros/parcelas/{id}
- * — retorna `conciliado` (boolean) + conta_financeira (banco). 1 chamada por parcela
- * (mesmo padrao da baixa), time-boxed e resumivel. Roda por cron.
+ * Os endpoints de lista (eventos-financeiros/.../buscar) NAO retornam conciliacao, e
+ * /v1/financeiro/contas-a-pagar deu 404 pra nossa app. O que funciona e o detalhe por
+ * parcela: GET /v1/financeiro/eventos-financeiros/parcelas/{id} — retorna `conciliado`
+ * (boolean) + conta_financeira (banco). 1 chamada por parcela (mesmo padrao da baixa).
  *
- * Body: { bar_id, limit?, data_pgto_de?, so_pendentes?, probe?, parcela_id? }
- *  - probe + parcela_id: valida o endpoint e devolve o conciliado daquela parcela.
- *  - so_pendentes: so reprocessa as que ainda estao conciliado=false.
+ * Auto-corrige: so grava (conciliado + conciliado_checado_em) em status 200; em erro/429
+ * pula e re-tenta na proxima (checado fica NULL). Processa nunca-checados primeiro
+ * (conciliado_checado_em NULLS FIRST), depois os mais antigos (refresh). Time-boxed.
+ * Pace 130ms (~7,6/seg, dentro do teto por conta do CA). Chamada pelo contaazul-orquestrador.
+ *
+ * Body: { bar_id, limit?, data_pgto_de?, probe?, parcela_id? }
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -85,10 +87,9 @@ serve(async (req) => {
       return jsonResponse({ success: true, probe: 'por_id', status, conciliado: data?.conciliado, parcela_status: data?.status, id_conta: data?.id_conta_financeira, banco: data?.conta_financeira?.banco, data_alteracao: data?.data_alteracao }, req)
     }
 
-    let q = supabase.schema('bronze').from('bronze_contaazul_lancamentos').select('contaazul_id').eq('bar_id', barId).is('excluido_em', null)
+    let q = supabase.schema('bronze').from('bronze_contaazul_lancamentos').select('contaazul_id').eq('bar_id', barId).is('excluido_em', null).not('data_pagamento', 'is', null)
     if (body.data_pgto_de) q = q.gte('data_pagamento', body.data_pgto_de)
-    if (body.so_pendentes) q = q.is('conciliado', false)
-    const { data: rows, error: selErr } = await q.order('data_pagamento', { ascending: false, nullsFirst: false }).limit(limit)
+    const { data: rows, error: selErr } = await q.order('conciliado_checado_em', { ascending: true, nullsFirst: true }).order('data_pagamento', { ascending: false, nullsFirst: false }).limit(limit)
     if (selErr) return errorResponse('erro ao selecionar: ' + selErr.message, req, undefined, 500)
 
     let conc = 0, naoConc = 0, erros = 0, proc = 0
@@ -99,7 +100,7 @@ serve(async (req) => {
       token = nt
       if (status !== 200 || !data) { erros++; await sleep(DELAY_MS); continue }
       const c = data.conciliado === true
-      const { error: upErr } = await supabase.schema('bronze').from('bronze_contaazul_lancamentos').update({ conciliado: c }).eq('bar_id', barId).eq('contaazul_id', row.contaazul_id)
+      const { error: upErr } = await supabase.schema('bronze').from('bronze_contaazul_lancamentos').update({ conciliado: c, conciliado_checado_em: new Date().toISOString() }).eq('bar_id', barId).eq('contaazul_id', row.contaazul_id)
       if (upErr) erros++; else if (c) conc++; else naoConc++
       await sleep(DELAY_MS)
     }
