@@ -274,12 +274,17 @@ export async function GET(request: NextRequest) {
         const { data: planej } = await (supabase
           .schema('gold' as any) as any)
           .from('planejamento')
-          .select('faturamento_total_consolidado')
+          .select('faturamento_total_consolidado, sympla_liquido, faturamento_entrada_yuzer')
           .eq('bar_id', barId)
           .gte('data_evento', dataInicio)
           .lte('data_evento', dataFim);
         const fatBruto = (planej || []).reduce(
           (s: number, r: any) => s + (parseFloat(r.faturamento_total_consolidado) || 0), 0
+        );
+        // Ingressos (bilheteria) NÃO são faturamento de produto: tira Sympla + ingresso Yuzer
+        // do faturamento limpo (igual o couvert), pra o CMV bater só com a venda de produto.
+        const ingressosTotal = (planej || []).reduce(
+          (s: number, r: any) => s + (parseFloat(r.sympla_liquido) || 0) + (parseFloat(r.faturamento_entrada_yuzer) || 0), 0
         );
 
         // Couvert + gorjeta (repique) vem do bronze ContaHub via RPC.
@@ -297,7 +302,7 @@ export async function GET(request: NextRequest) {
         const gorjetaTotal = parseFloat(String(rpcRow?.comissao || 0));
         const couvertTotal = parseFloat(String(rpcRow?.couvert || 0));
 
-        const fatLiquido = fatBruto - couvertTotal - gorjetaTotal;
+        const fatLiquido = fatBruto - couvertTotal - gorjetaTotal - ingressosTotal;
         dadosMensais.vendas_brutas = fatBruto;
         dadosMensais.vendas_liquidas = fatLiquido;
         dadosMensais.faturamento_cmvivel = fatLiquido;
