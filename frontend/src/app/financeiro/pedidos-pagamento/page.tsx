@@ -18,6 +18,7 @@ import { NovoPedidoDialog } from './components/NovoPedidoDialog';
 import { PedidoDetailDialog } from './components/PedidoDetailDialog';
 import { FreelaTab } from './components/FreelaTab';
 import { BoletoTab } from './components/BoletoTab';
+import { CartaoTab } from './components/CartaoTab';
 
 type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'cartao';
 
@@ -111,11 +112,7 @@ export default function PedidosPagamentoPage() {
 
           {barId && modo === 'boleto' && <BoletoTab onCriado={carregar} />}
 
-          {barId && modo === 'cartao' && (
-            <Card><CardContent className="py-12 text-center text-muted-foreground">
-              Cartão de crédito (fatura) — em breve.
-            </CardContent></Card>
-          )}
+          {barId && modo === 'cartao' && <CartaoTab />}
 
           {barId && modo === 'pagamentos' && (
             <>
