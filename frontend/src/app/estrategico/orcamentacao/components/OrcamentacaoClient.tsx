@@ -214,21 +214,18 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
   // página). Depois respeita onde o usuário estiver (ex: após salvar).
   useEffect(() => {
     if (loading || scrollInicialRef.current) return;
-    scrollInicialRef.current = true;
     requestAnimationFrame(() => {
       const cont = scrollContainerRef.current;
       const mesEl = mesAtualRef.current;
-      if (!cont) return;
-      if (mesEl) {
-        const c = cont.getBoundingClientRect();
-        const m = mesEl.getBoundingClientRect();
-        const delta = (m.left + m.width / 2) - (c.left + c.width / 2);
-        cont.scrollLeft += delta;
-      } else {
-        cont.scrollLeft = 0;
-      }
+      // Se o container/coluna do mês ainda não pintaram, NÃO latcha — tenta de
+      // novo quando os dados/índice mudarem (evita o race que zerava o scroll).
+      if (!cont || !mesEl) return;
+      const c = cont.getBoundingClientRect();
+      const m = mesEl.getBoundingClientRect();
+      cont.scrollLeft += (m.left + m.width / 2) - (c.left + c.width / 2);
+      scrollInicialRef.current = true; // só marca como feito quando de fato centralizou
     });
-  }, [loading]);
+  }, [loading, meses, mesAtualIdx]);
 
   useEffect(() => {
     setPageTitle('💰 Orçamentação');
