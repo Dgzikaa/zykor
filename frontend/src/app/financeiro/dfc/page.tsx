@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
-type Linha = { mes: string; grupo_dfc: string; categoria: string; entradas: number; saidas: number; net: number };
+type Linha = { mes: string; grupo_dfc: string; categoria: string; categoria_macro?: string; ordem_macro?: number; ordem_sub?: number; entradas: number; saidas: number; net: number };
 
 const MES_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const GRUPOS = ['OPERACIONAL', 'INVESTIMENTO', 'FINANCIAMENTO'] as const;
@@ -37,6 +37,7 @@ export default function DfcPage() {
   const dados = useMemo(() => {
     const grupoMes: Record<string, number[]> = {};        // grupo -> [12] net
     const catMes: Record<string, Record<string, number[]>> = {}; // grupo -> categoria -> [12] net
+    const catOrder: Record<string, [number, number]> = {};       // categoria -> [ordem_macro, ordem_sub] (ordem da DRE)
     for (const g of GRUPOS) { grupoMes[g] = Array(12).fill(0); catMes[g] = {}; }
     for (const l of linhas) {
       const m = new Date(l.mes + 'T00:00:00').getMonth(); // 0-11
@@ -44,9 +45,10 @@ export default function DfcPage() {
       if (!grupoMes[g]) continue;
       grupoMes[g][m] += n(l.net);
       (catMes[g][l.categoria] ||= Array(12).fill(0))[m] += n(l.net);
+      catOrder[l.categoria] = [l.ordem_macro ?? 999, l.ordem_sub ?? 999];
     }
     const variacao = Array(12).fill(0).map((_, m) => GRUPOS.reduce((s, g) => s + grupoMes[g][m], 0));
-    return { grupoMes, catMes, variacao };
+    return { grupoMes, catMes, catOrder, variacao };
   }, [linhas]);
 
   const cor = (v: number) => v > 0 ? 'text-emerald-600 dark:text-emerald-400' : v < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400';
@@ -74,21 +76,23 @@ export default function DfcPage() {
             </thead>
               {GRUPOS.map(g => {
                 const aberto = !!abertos[g];
-                const cats = Object.entries(dados.catMes[g]).sort((a, b) =>
-                  b[1].reduce((s, x) => s + Math.abs(x), 0) - a[1].reduce((s, x) => s + Math.abs(x), 0));
+                const cats = Object.entries(dados.catMes[g]).sort((a, b) => {
+                  const oa = dados.catOrder[a[0]] ?? [999, 999], ob = dados.catOrder[b[0]] ?? [999, 999];
+                  return oa[0] - ob[0] || oa[1] - ob[1] || a[0].localeCompare(b[0]); // ordem da DRE
+                });
                 return (
                   <tbody key={g}>
                     <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-800/40 font-bold cursor-pointer" onClick={() => setAbertos(p => ({ ...p, [g]: !p[g] }))}>
-                      <td className="px-3 py-1.5 sticky left-0 bg-gray-50/70 dark:bg-gray-800/40 flex items-center gap-1">
-                        {aberto ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                      <td className="px-3 py-1.5 sticky left-0 bg-gray-50/70 dark:bg-gray-800/40 flex items-center gap-1 whitespace-nowrap">
+                        {aberto ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
                         {GRUPO_LABEL[g]}
                       </td>
-                      {dados.grupoMes[g].map((v, m) => <td key={m} className={`px-3 py-1.5 text-right tabular-nums ${cor(v)}`}>{fmt(v)}</td>)}
+                      {dados.grupoMes[g].map((v, m) => <td key={m} className={`px-3 py-1.5 text-right tabular-nums whitespace-nowrap ${cor(v)}`}>{fmt(v)}</td>)}
                     </tr>
                     {aberto && cats.map(([cat, arr]) => (
                       <tr key={cat} className="border-b border-gray-100 dark:border-gray-800">
-                        <td className="px-3 py-1 pl-8 sticky left-0 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 truncate">{cat}</td>
-                        {arr.map((v, m) => <td key={m} className={`px-3 py-1 text-right tabular-nums ${cor(v)}`}>{fmt(v)}</td>)}
+                        <td className="px-3 py-1 pl-8 sticky left-0 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 whitespace-nowrap">{cat}</td>
+                        {arr.map((v, m) => <td key={m} className={`px-3 py-1 text-right tabular-nums whitespace-nowrap ${cor(v)}`}>{fmt(v)}</td>)}
                       </tr>
                     ))}
                   </tbody>
@@ -96,8 +100,8 @@ export default function DfcPage() {
               })}
               <tbody>
                 <tr className="border-t-2 border-amber-300 bg-amber-50 dark:bg-amber-900/20 font-bold">
-                  <td className="px-3 py-2 sticky left-0 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200">Variação de Caixa</td>
-                  {dados.variacao.map((v, m) => <td key={m} className={`px-3 py-2 text-right tabular-nums ${cor(v)}`}>{fmt(v)}</td>)}
+                  <td className="px-3 py-2 sticky left-0 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200 whitespace-nowrap">Variação de Caixa</td>
+                  {dados.variacao.map((v, m) => <td key={m} className={`px-3 py-2 text-right tabular-nums whitespace-nowrap ${cor(v)}`}>{fmt(v)}</td>)}
                 </tr>
               </tbody>
           </table>
