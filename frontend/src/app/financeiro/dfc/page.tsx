@@ -19,6 +19,7 @@ const fmt = (v: number) => v === 0 ? '–' : `${v < 0 ? '-' : ''}R$ ${Math.abs(v
 export default function DfcPage() {
   const { selectedBar } = useBar();
   const [ano, setAno] = useState(new Date().getFullYear());
+  const [soConciliado, setSoConciliado] = useState(false);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [loading, setLoading] = useState(true);
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
@@ -26,12 +27,12 @@ export default function DfcPage() {
   useEffect(() => {
     if (!selectedBar) return;
     setLoading(true);
-    fetch(`/api/financeiro/dfc?bar_id=${selectedBar.id}&ano=${ano}`, { cache: 'no-store' })
+    fetch(`/api/financeiro/dfc?bar_id=${selectedBar.id}&ano=${ano}&conciliado=${soConciliado ? '1' : '0'}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(d => setLinhas(Array.isArray(d.linhas) ? d.linhas : []))
       .catch(() => setLinhas([]))
       .finally(() => setLoading(false));
-  }, [selectedBar, ano]);
+  }, [selectedBar, ano, soConciliado]);
 
   // mesNum (1-12) -> net, por grupo e por categoria
   const dados = useMemo(() => {
@@ -58,11 +59,20 @@ export default function DfcPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold text-gray-900 dark:text-white">Demonstrativo de Fluxo de Caixa (DFC)</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Por caixa (data de pagamento) · {selectedBar?.nome || 'Bar'} · derivado do Conta Azul (exclui ajustes não-caixa).</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Por caixa (data de pagamento) · {selectedBar?.nome || 'Bar'} · derivado do Conta Azul (exclui ajustes não-caixa).
+            {soConciliado ? ' Mostrando só o que foi conciliado no banco.' : ' "Baixado no CA" (não reflete conciliação bancária).'}
+          </p>
         </div>
-        <select value={ano} onChange={e => setAno(Number(e.target.value))} className="h-8 text-sm border rounded px-2 bg-white dark:bg-gray-800">
-          {[2025, 2026, 2027].map(a => <option key={a} value={a}>{a}</option>)}
-        </select>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300 cursor-pointer select-none" title="Conta só o que foi conciliado no extrato do banco (exclui pago-mas-não-conciliado, ex.: dinheiro e ajustes).">
+            <input type="checkbox" checked={soConciliado} onChange={e => setSoConciliado(e.target.checked)} className="accent-emerald-600" />
+            Só conciliado
+          </label>
+          <select value={ano} onChange={e => setAno(Number(e.target.value))} className="h-8 text-sm border rounded px-2 bg-white dark:bg-gray-800">
+            {[2025, 2026, 2027].map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
       </div>
 
       {loading ? <Skeleton className="h-[500px]" /> : (

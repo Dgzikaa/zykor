@@ -16,9 +16,10 @@ export async function GET(req: NextRequest) {
     const barId = Number(sp.get('bar_id'));
     if (!barId) return NextResponse.json({ error: 'bar_id obrigatorio' }, { status: 400 });
     const ano = Number(sp.get('ano')) || new Date().getFullYear();
+    const soConciliado = sp.get('conciliado') === '1';
 
     const supabase = await getAdminClient();
-    const { data, error } = await (supabase as any).rpc('get_dfc_por_ano', { p_bar_id: barId, p_ano: ano });
+    const { data, error } = await (supabase as any).rpc('get_dfc_por_ano', { p_bar_id: barId, p_ano: ano, p_so_conciliado: soConciliado });
     if (error) throw error;
 
     return NextResponse.json({ linhas: data ?? [], ano });
