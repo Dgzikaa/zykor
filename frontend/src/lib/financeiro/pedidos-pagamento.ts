@@ -45,6 +45,7 @@ export interface PedidoPagamento {
   chave_pix?: string | null;
   tipo_chave?: string | null;
   cpf_cnpj?: string | null;
+  linha_digitavel?: string | null;
   observacao?: string | null;
   categoria_id?: string | null;
   categoria_nome?: string | null;

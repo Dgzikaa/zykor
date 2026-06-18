@@ -63,6 +63,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (c in body && body[c] != null && body[c] !== '') vinculo[c] = body[c];
   }
   const p = { ...pedido, ...vinculo } as PedidoPagamento;
+  const ehBoleto = !!p.linha_digitavel;
 
   // Validação do que o CA/Inter exigem.
   const faltando: string[] = [];
@@ -70,7 +71,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!p.conta_financeira_id) faltando.push('conta financeira pagadora');
   if (!p.contaazul_pessoa_id) faltando.push('contato/fornecedor no Conta Azul');
   if (!p.inter_credencial_id) faltando.push('credencial Inter');
-  if (!p.chave_pix) faltando.push('chave PIX');
+  if (ehBoleto) { if (!p.linha_digitavel) faltando.push('linha digitável'); }
+  else if (!p.chave_pix) faltando.push('chave PIX');
   if (faltando.length) {
     return NextResponse.json(
       { success: false, error: `Complete antes de aprovar: ${faltando.join(', ')}.` },
@@ -142,14 +144,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   let interCodigo = p.inter_codigo_solicitacao || null;
   if (!interCodigo) {
     try {
-      const r = await fetch(`${origin}/api/financeiro/inter/pix`, {
+      const r = await fetch(`${origin}/api/financeiro/inter/${ehBoleto ? 'boleto' : 'pix'}`, {
         method: 'POST',
         headers: internalHeaders,
         body: JSON.stringify({
           valor: p.valor,
           descricao: p.descricao,
           destinatario: p.beneficiario_nome || p.solicitante_nome || 'Beneficiário',
-          chave: p.chave_pix,
+          ...(ehBoleto ? { linha_digitavel: p.linha_digitavel } : { chave: p.chave_pix }),
           data_pagamento: p.data_vencimento,
           bar_id: pedido.bar_id,
           inter_credencial_id: Number(p.inter_credencial_id),
