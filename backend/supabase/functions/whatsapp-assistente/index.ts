@@ -135,6 +135,58 @@ const TOOLS = [
       required: ['bar_id'],
     },
   },
+  {
+    name: 'consultar_dre',
+    description: 'DRE (regime de competência) do bar por ano: receita, custos e despesas por categoria e mês. Use pra "de onde vem o lucro?", "DRE de maio", "quanto gastamos com marketing?", "qual o lucro do mês?". Retorna linhas mes/categoria_macro/categoria/valor (despesa negativa).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        bar_id: { type: 'integer' },
+        ano: { type: 'integer', description: 'ex 2026' },
+        mes: { type: 'integer', description: 'opcional 1-12 pra filtrar um mês' },
+      },
+      required: ['bar_id', 'ano'],
+    },
+  },
+  {
+    name: 'consultar_dfc',
+    description: 'DFC (fluxo de caixa, por DATA DE PAGAMENTO) do bar por ano: Operacional/Investimento/Financiamento e variação de caixa por mês. Use pra "como tá o caixa?", "quanto saiu de investimento?", "entrou ou saiu dinheiro no mês?".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        bar_id: { type: 'integer' },
+        ano: { type: 'integer' },
+        mes: { type: 'integer', description: 'opcional 1-12' },
+      },
+      required: ['bar_id', 'ano'],
+    },
+  },
+  {
+    name: 'mudancas_conta_azul',
+    description: 'Mudanças registradas nos lançamentos do Conta Azul (categoria/valor/competência/pagamento/exclusão), a partir de jun/2026. Use pra "o que mudou no CA?", "teve lançamento retroativo em maio?", "mexeram em mês já fechado?". Pode filtrar por mês de competência e/ou desde quando foi alterado.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        bar_id: { type: 'integer' },
+        mes_competencia: { type: 'string', description: 'opcional YYYY-MM (mês do lançamento)' },
+        desde: { type: 'string', description: 'opcional YYYY-MM-DD (alteradas a partir de)' },
+      },
+      required: ['bar_id'],
+    },
+  },
+  {
+    name: 'dre_evolucao',
+    description: 'Como uma linha da DRE (ou o total de um mês) evoluiu entre as fotos diárias guardadas. Use pra "o lucro de maio era 12k e agora tá 5k, o que houve?", "essa categoria mudou desde semana passada?". Retorna o valor por data de foto (pra ver o que mudou e quando).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        bar_id: { type: 'integer' },
+        mes: { type: 'integer', description: 'mês 1-12' },
+        categoria: { type: 'string', description: 'opcional, nome da linha (ex: Marketing Mídia). Sem isso, traz as linhas que mais mudaram.' },
+      },
+      required: ['bar_id', 'mes'],
+    },
+  },
 ] as const;
 
 // ------------- HANDLERS --------------
@@ -211,6 +263,58 @@ async function execTool(supabase: any, name: string, args: any): Promise<any> {
         .order('severidade', { ascending: false }).order('valor_envolvido', { ascending: false }).limit(30);
       return { alertas: data ?? [] };
     }
+    case 'consultar_dre': {
+      const { data } = await supabase.rpc('get_dre_por_ano', { p_bar_id: barId, p_ano: args.ano });
+      const rows = data ?? [];
+      if (args.mes) {
+        const mm = String(args.mes).padStart(2, '0');
+        const linhas = rows
+          .filter((r: any) => String(r.mes).slice(5, 7) === mm)
+          .map((r: any) => ({ macro: r.categoria_macro, categoria: r.categoria, valor: Math.round(Number(r.valor_com_sinal)) }))
+          .filter((r: any) => r.valor !== 0);
+        return { ano: args.ano, mes: args.mes, linhas };
+      }
+      const agg: Record<string, number> = {};
+      for (const r of rows) { const k = `${String(r.mes).slice(0, 7)}|${r.categoria_macro}`; agg[k] = (agg[k] || 0) + Number(r.valor_com_sinal); }
+      return { ano: args.ano, por_mes_macro: Object.entries(agg).map(([k, v]) => ({ mes: k.split('|')[0], macro: k.split('|')[1], valor: Math.round(v) })) };
+    }
+    case 'consultar_dfc': {
+      const { data } = await supabase.rpc('get_dfc_por_ano', { p_bar_id: barId, p_ano: args.ano });
+      const meses: Record<string, any> = {};
+      for (const r of (data ?? [])) {
+        if (args.mes && Number(String(r.mes).slice(5, 7)) !== args.mes) continue;
+        const mm = String(r.mes).slice(0, 7);
+        (meses[mm] ||= { mes: mm, OPERACIONAL: 0, INVESTIMENTO: 0, FINANCIAMENTO: 0 })[r.grupo_dfc] += Number(r.net);
+      }
+      const fluxo = Object.values(meses).map((m: any) => ({
+        mes: m.mes, operacional: Math.round(m.OPERACIONAL), investimento: Math.round(m.INVESTIMENTO),
+        financiamento: Math.round(m.FINANCIAMENTO), variacao_caixa: Math.round(m.OPERACIONAL + m.INVESTIMENTO + m.FINANCIAMENTO),
+      }));
+      return { ano: args.ano, fluxo };
+    }
+    case 'mudancas_conta_azul': {
+      let q = supabase.schema('bronze').from('contaazul_lancamentos_historico')
+        .select('contaazul_id, data_competencia, categoria_nome, evento, mudancas, alterado_em')
+        .eq('bar_id', barId).order('alterado_em', { ascending: false }).limit(50);
+      if (args.mes_competencia) {
+        const [y, m] = String(args.mes_competencia).split('-').map(Number);
+        const next = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+        q = q.gte('data_competencia', `${args.mes_competencia}-01`).lt('data_competencia', next);
+      }
+      if (args.desde) q = q.gte('alterado_em', args.desde);
+      const { data } = await q;
+      return { mudancas: data ?? [], obs: (data && data.length) ? null : 'O histórico de mudanças do CA começa a registrar em jun/2026 — pode estar vazio se ainda não houve sync com alteração.' };
+    }
+    case 'dre_evolucao': {
+      const ano = new Date().getFullYear();
+      const mesDate = `${ano}-${String(args.mes).padStart(2, '0')}-01`;
+      let q = supabase.schema('financial').from('dre_dfc_snapshot')
+        .select('snapshot_date, grupo, categoria, valor')
+        .eq('bar_id', barId).eq('tipo', 'DRE').eq('mes', mesDate).order('snapshot_date');
+      if (args.categoria) q = q.ilike('categoria', `%${args.categoria}%`);
+      const { data } = await q;
+      return { evolucao: data ?? [], obs: (data && data.length) ? null : 'Os snapshots diários começam em jun/2026 — precisa de pelo menos 2 dias de foto pra comparar.' };
+    }
   }
   return { erro: `tool ${name} desconhecida` };
 }
@@ -278,6 +382,12 @@ Hoje é ${new Date().toLocaleDateString('pt-BR', { weekday: 'long' })}.
 
 Você tem acesso a TOOLS pra consultar o banco. Use-as livremente pra responder com dados reais.
 Padrão: bar_id 3=Ordinário, 4=Deboche.
+Finanças (DRE/DFC/auditoria, hoje sólidos só no Ordinário/bar 3):
+  - consultar_dre: DRE por competência (de onde vem o lucro, gasto por categoria).
+  - consultar_dfc: fluxo de caixa por pagamento (Operacional/Investimento/Financiamento).
+  - mudancas_conta_azul: o que mudou nos lançamentos do CA (categoria/valor/exclusão), inclusive retroativo em mês fechado.
+  - dre_evolucao: como uma linha/mês da DRE mudou entre as fotos diárias ("era 12k, virou 5k" — explique o que mudou cruzando com mudancas_conta_azul).
+  Despesa na DRE vem com sinal negativo. Histórico/snapshots começaram em jun/2026 (podem estar rasos por enquanto).
 Se a pergunta envolver um período mas o sócio não falou as datas, use bom senso:
   - "essa semana" = segunda da semana atual até ontem
   - "ontem" = ontem
