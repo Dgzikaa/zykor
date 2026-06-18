@@ -253,6 +253,9 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
   // Subcategoria destacada ao clicar no rótulo (coluna fixa da esquerda) —
   // facilita acompanhar a linha pelos 12 meses. Clicar de novo desmarca.
   const [subSelecionada, setSubSelecionada] = useState<string | null>(null);
+  // Linhas-pai expandidas (ex.: CMO Fixo) -> mostra os filhos.
+  const [subsAbertas, setSubsAbertas] = useState<Record<string, boolean>>({});
+  const toggleSubAberta = (nome: string) => setSubsAbertas(p => ({ ...p, [nome]: !p[nome] }));
 
   const salvarValor = async () => {
     if (!editando || !selectedBar) return;
@@ -349,6 +352,102 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
   }, [meses]);
 
   if (!selectedBar) return null; // Or show selector logic if needed, but BarSyncCheck should handle this
+
+  // Linha de VALORES (Plan/Proj/Real) de uma subcategoria — reutilizada pro pai e
+  // pros filhos (CMO Fixo -> CUSTO-EMPRESA, etc.). isChild só muda um leve fundo.
+  const linhaSubValores = (sub: any, mes: any, idx: number, isMesAtual: boolean, tipo: string, isChild = false, readonly = false) => {
+    const isEditPlan = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'planejado';
+    const isEditProj = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'projetado';
+    return (
+      <div key={sub.nome} onClick={() => setSubSelecionada(sub.nome)} className={cn("relative flex items-center justify-between px-1 border-b border-gray-100 dark:border-gray-700 group cursor-pointer", isMesAtual ? "bg-emerald-50/50" : "bg-white dark:bg-gray-800", isChild && "bg-gray-50/60 dark:bg-gray-800/40", subSelecionada === sub.nome && "!bg-amber-100 dark:!bg-amber-900/30")} style={{ height: '38px' }}>
+        {/* PLANEJADO */}
+        <div className="flex-1 flex items-center justify-center relative group/plan">
+          {isEditPlan && !readonly ? (
+            <div className="flex items-center gap-1">
+              <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-16 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+              <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
+              <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
+            </div>
+          ) : (
+            <>
+              <HistoricoTooltip historico={getHistorico(sub.nome, 'planejado', idx)} cor="blue" />
+              <div className={cn("flex items-center gap-1 rounded px-1", !readonly && "cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30")} onClick={readonly ? undefined : () => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'planejado' }); setValorEdit(sub.planejado.toString()); }}>
+                <span className={cn("text-xs whitespace-nowrap text-blue-600", readonly ? "font-semibold" : "font-medium")}>{sub.isPercentage ? formatarPorcentagem(sub.planejado) : formatarMoeda(sinalDre(sub.planejado, tipo))}</span>
+                {!readonly && <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />}
+              </div>
+            </>
+          )}
+        </div>
+        <div className="w-px h-3 bg-gray-200" />
+        {/* PROJETADO */}
+        <div className="flex-1 flex items-center justify-center relative group/proj">
+          {isEditProj && !readonly ? (
+            <div className="flex items-center gap-1">
+              <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-16 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+              <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
+              <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
+            </div>
+          ) : (
+            <>
+              <HistoricoTooltip historico={getHistorico(sub.nome, 'projecao', idx)} cor="green" />
+              <div className={cn("flex items-center gap-1 rounded px-1", !readonly && "cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30")} onClick={readonly ? undefined : () => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'projetado' }); setValorEdit(sub.projecao.toString()); }}>
+                <span className={cn("text-xs whitespace-nowrap", readonly ? "font-semibold" : "font-medium", sub.projecao > 0 ? "text-gray-900 dark:text-white" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.projecao) : formatarMoeda(sinalDre(sub.projecao, tipo))}</span>
+                {!readonly && <Pencil className="h-2 w-2 text-green-400 opacity-0 group-hover:opacity-100" />}
+              </div>
+            </>
+          )}
+        </div>
+        <div className="w-px h-3 bg-gray-200" />
+        {/* REALIZADO */}
+        {(() => {
+          const isReceita = tipo === 'receita';
+          const isManualReal = SUBCATEGORIAS_MANUAIS.has(sub.nome);
+          const isEditReal = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'realizado';
+          const tem = sub.planejado > 0 || sub.realizado !== 0;
+          let corClasse = 'text-gray-400';
+          if (tem) {
+            corClasse = isReceita
+              ? (sub.realizado >= sub.planejado ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold')
+              : (sub.realizado <= sub.planejado ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold');
+          }
+          if (isEditReal) {
+            return (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="flex items-center gap-1">
+                  <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-16 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
+                  <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
+                  <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div className="flex-1 flex items-center justify-center relative group/real">
+              <HistoricoTooltip historico={getHistorico(sub.nome, 'realizado', idx)} cor="gray" />
+              {isManualReal ? (
+                <div className="flex items-center gap-1 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-1" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'realizado' }); setValorEdit(sub.realizado.toString()); }}>
+                  <span className={cn("text-xs whitespace-nowrap", corClasse)}>{formatarMoeda(sinalDre(sub.realizado, tipo))}</span>
+                  <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
+                </div>
+              ) : (() => {
+                const podeDrill = sub.realizadoFonte === 'ca' && !!sub.goldCategorias?.length && sub.realizado !== 0;
+                const conteudo = sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sinalDre(sub.realizado, tipo));
+                if (!podeDrill) {
+                  return <span className={cn("text-xs whitespace-nowrap", corClasse)} title="Automático: Conta Azul + ajustes da DRE Manual">{conteudo}</span>;
+                }
+                return (
+                  <button type="button" onClick={() => abrirLancamentos(mes, sub.nome, { categorias: sub.goldCategorias })} className={cn("flex items-center gap-1 text-xs whitespace-nowrap rounded px-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer", corClasse)} title="Ver lançamentos do Conta Azul que compõem este valor">
+                    <span>{conteudo}</span>
+                    <Receipt className="h-2.5 w-2.5 text-blue-400 opacity-0 group-hover:opacity-100" />
+                  </button>
+                );
+              })()}
+            </div>
+          );
+        })()}
+      </div>
+    );
+  };
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -448,24 +547,42 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                     </div>
                     {secoesAbertas[categoria.nome] && categoria.subcategorias.map(sub => {
                       const isManual = SUBCATEGORIAS_MANUAIS.has(sub.nome);
+                      const filhos = (sub as any).filhos as any[] | undefined;
+                      const temFilhos = !!filhos?.length;
                       return (
-                        <div
-                          key={sub.nome}
-                          onClick={() => setSubSelecionada(prev => (prev === sub.nome ? null : sub.nome))}
-                          className={cn(
-                            "flex items-center gap-1.5 px-2 pl-5 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 hover:dark:bg-gray-700/50",
-                            subSelecionada === sub.nome && "!bg-amber-100 dark:!bg-amber-900/30"
-                          )}
-                          style={{ height: '38px' }}
-                        >
+                        <React.Fragment key={sub.nome}>
                           <div
+                            onClick={() => temFilhos ? toggleSubAberta(sub.nome) : setSubSelecionada(prev => (prev === sub.nome ? null : sub.nome))}
                             className={cn(
-                              'w-2 h-2 rounded-full flex-shrink-0',
-                              isManual ? 'bg-blue-500' : 'bg-green-500'
+                              "flex items-center gap-1.5 px-2 pl-5 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 hover:dark:bg-gray-700/50",
+                              subSelecionada === sub.nome && "!bg-amber-100 dark:!bg-amber-900/30"
                             )}
-                          />
-                          <OrigemTooltip nome={sub.nome} className="text-xs text-gray-700 dark:text-gray-300 truncate">{sub.nome}</OrigemTooltip>
-                        </div>
+                            style={{ height: '38px' }}
+                          >
+                            {temFilhos ? (
+                              subsAbertas[sub.nome]
+                                ? <ChevronDown className="w-3 h-3 flex-shrink-0 text-gray-500" />
+                                : <ChevronRight className="w-3 h-3 flex-shrink-0 text-gray-500" />
+                            ) : (
+                              <div className={cn('w-2 h-2 rounded-full flex-shrink-0', isManual ? 'bg-blue-500' : 'bg-green-500')} />
+                            )}
+                            <OrigemTooltip nome={sub.nome} className={cn("text-xs truncate", temFilhos ? "font-semibold text-gray-800 dark:text-gray-200" : "text-gray-700 dark:text-gray-300")}>{sub.nome}</OrigemTooltip>
+                          </div>
+                          {temFilhos && subsAbertas[sub.nome] && filhos!.map((f: any) => (
+                            <div
+                              key={f.nome}
+                              onClick={() => setSubSelecionada(prev => (prev === f.nome ? null : f.nome))}
+                              className={cn(
+                                "flex items-center gap-1.5 px-2 pl-9 border-b border-gray-100 dark:border-gray-700 cursor-pointer bg-gray-50/60 dark:bg-gray-800/40 hover:bg-gray-100 dark:hover:bg-gray-700/50",
+                                subSelecionada === f.nome && "!bg-amber-100 dark:!bg-amber-900/30"
+                              )}
+                              style={{ height: '38px' }}
+                            >
+                              <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-green-400" />
+                              <OrigemTooltip nome={f.nome} className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{f.nome}</OrigemTooltip>
+                            </div>
+                          ))}
+                        </React.Fragment>
                       );
                     })}
                   </>
@@ -623,115 +740,12 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                         ) : (
                           <div className={cn(categoria.cor, "opacity-20")} style={{ height: '44px' }} />
                         )}
-                        {aberta && categoria.subcategorias.map(sub => {
-                          const isEditPlan = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'planejado';
-                          const isEditProj = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'projetado';
-                          return (
-                            <div key={sub.nome} onClick={() => setSubSelecionada(sub.nome)} className={cn("relative flex items-center justify-between px-1 border-b border-gray-100 dark:border-gray-700 group cursor-pointer", isMesAtual ? "bg-emerald-50/50" : "bg-white dark:bg-gray-800", subSelecionada === sub.nome && "!bg-amber-100 dark:!bg-amber-900/30")} style={{ height: '38px' }}>
-                              {/* PLANEJADO - editável + tooltip histórico */}
-                              <div className="flex-1 flex items-center justify-center relative group/plan">
-                                {isEditPlan ? (
-                                  <div className="flex items-center gap-1">
-                                    <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-16 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
-                                    <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
-                                    <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <HistoricoTooltip historico={getHistorico(sub.nome, 'planejado', idx)} cor="blue" />
-                                    <div className="flex items-center gap-1 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-1" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'planejado' }); setValorEdit(sub.planejado.toString()); }}>
-                                      <span className="text-xs font-medium whitespace-nowrap text-blue-600">{sub.isPercentage ? formatarPorcentagem(sub.planejado) : formatarMoeda(sinalDre(sub.planejado, categoria.tipo))}</span>
-                                      <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                              <div className="w-px h-3 bg-gray-200" />
-                              {/* PROJETADO - editável + tooltip histórico */}
-                              <div className="flex-1 flex items-center justify-center relative group/proj">
-                                {isEditProj ? (
-                                  <div className="flex items-center gap-1">
-                                    <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-16 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
-                                    <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
-                                    <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <HistoricoTooltip historico={getHistorico(sub.nome, 'projecao', idx)} cor="green" />
-                                    <div className="flex items-center gap-1 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 rounded px-1" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'projetado' }); setValorEdit(sub.projecao.toString()); }}>
-                                      <span className={cn("text-xs font-medium whitespace-nowrap", sub.projecao > 0 ? "text-gray-900 dark:text-white" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.projecao) : formatarMoeda(sinalDre(sub.projecao, categoria.tipo))}</span>
-                                      <Pencil className="h-2 w-2 text-green-400 opacity-0 group-hover:opacity-100" />
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                              <div className="w-px h-3 bg-gray-200" />
-                              {/* REALIZADO. Linhas manuais-only (MKT Mídia/Disparos/Pontos/Benefícios,
-                                  Produção Mensal Fixo) são editáveis inline (só na orçamentação).
-                                  Demais são read-only (Conta Azul + ajustes da aba DRE Manual). */}
-                              {(() => {
-                                const isReceita = categoria.tipo === 'receita';
-                                const isManualReal = SUBCATEGORIAS_MANUAIS.has(sub.nome);
-                                const isEditReal = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'realizado';
-                                const tem = sub.planejado > 0 || sub.realizado !== 0;
-                                let corClasse = 'text-gray-400';
-                                if (tem) {
-                                  if (isReceita) {
-                                    corClasse = sub.realizado >= sub.planejado ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold';
-                                  } else {
-                                    corClasse = sub.realizado <= sub.planejado ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold';
-                                  }
-                                }
-                                if (isEditReal) {
-                                  return (
-                                    <div className="flex-1 flex items-center justify-center">
-                                      <div className="flex items-center gap-1">
-                                        <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-16 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
-                                        <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
-                                        <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
-                                      </div>
-                                    </div>
-                                  );
-                                }
-                                return (
-                                  <div className="flex-1 flex items-center justify-center relative group/real">
-                                    <HistoricoTooltip historico={getHistorico(sub.nome, 'realizado', idx)} cor="gray" />
-                                    {isManualReal ? (
-                                      <div
-                                        className="flex items-center gap-1 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-1"
-                                        onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'realizado' }); setValorEdit(sub.realizado.toString()); }}
-                                      >
-                                        <span className={cn("text-xs whitespace-nowrap", corClasse)}>{formatarMoeda(sinalDre(sub.realizado, categoria.tipo))}</span>
-                                        <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />
-                                      </div>
-                                    ) : (() => {
-                                      const podeDrill = sub.realizadoFonte === 'ca' && !!sub.goldCategorias?.length && sub.realizado !== 0;
-                                      const conteudo = sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sinalDre(sub.realizado, categoria.tipo));
-                                      if (!podeDrill) {
-                                        return (
-                                          <span className={cn("text-xs whitespace-nowrap", corClasse)} title="Automático: Conta Azul + ajustes da DRE Manual">
-                                            {conteudo}
-                                          </span>
-                                        );
-                                      }
-                                      return (
-                                        <button
-                                          type="button"
-                                          onClick={() => abrirLancamentos(mes, sub.nome, { categorias: sub.goldCategorias })}
-                                          className={cn("flex items-center gap-1 text-xs whitespace-nowrap rounded px-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer", corClasse)}
-                                          title="Ver lançamentos do Conta Azul que compõem este valor"
-                                        >
-                                          <span>{conteudo}</span>
-                                          <Receipt className="h-2.5 w-2.5 text-blue-400 opacity-0 group-hover:opacity-100" />
-                                        </button>
-                                      );
-                                    })()}
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          );
-                        })}
+                        {aberta && categoria.subcategorias.map(sub => (
+                          <React.Fragment key={sub.nome}>
+                            {linhaSubValores(sub, mes, idx, isMesAtual, categoria.tipo, false, !!(sub as any).filhos?.length)}
+                            {(sub as any).filhos && subsAbertas[sub.nome] && (sub as any).filhos.map((f: any) => linhaSubValores(f, mes, idx, isMesAtual, categoria.tipo, true))}
+                          </React.Fragment>
+                        ))}
                       </div>
                       );
                     })}

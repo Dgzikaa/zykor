@@ -34,6 +34,9 @@ export interface SubcategoriaOrcamento {
   //   'consumacao' -> silver.consumacao_artistas — sem detalhe por lançamento (por ora)
   realizadoFonte?: 'ca' | 'manual' | 'consumacao';
   goldCategorias?: string[];  // categoria_zykor que compõem o realizado (fonte 'ca')
+  // Linhas-filhas (ex.: CMO Fixo -> CUSTO-EMPRESA, Adicionais, ...). Quando presente,
+  // o pai é a soma dos filhos e a UI permite expandir/recolher pra ver o detalhe.
+  filhos?: SubcategoriaOrcamento[];
 }
 
 export interface CategoriaOrcamento {
@@ -111,6 +114,8 @@ type SubFixa = {
   orcOnly?: boolean;
   // Realizado = soma mensal da Consumação Artistas (silver.consumacao_artistas).
   consumacaoArtistas?: boolean;
+  // Sublinhas: o pai vira a soma delas (ex.: CMO Fixo -> CUSTO-EMPRESA, Adicionais...).
+  filhos?: SubFixa[];
 };
 
 type BlocoDef =
@@ -134,11 +139,26 @@ const ESTRUTURA: BlocoDef[] = [
   { nome: 'Custo insumos (CMV)', tipo: 'despesa', cor: COR.cmv, modo: 'percentual', blocoGold: 'Custo insumos (CMV)' },
   {
     nome: 'Mão-de-Obra', tipo: 'despesa', cor: COR.pessoal, modo: 'fixo', subs: [
-      // Consolidado em 2 linhas (decisão do sócio jun/2026). Realizado = Σ das
-      // categorias do Conta Azul; Plan/Proj foram migrados (soma das antigas) para
-      // 'CMO Fixo' / 'CMO Freela' em meta.orcamento_planilha.
-      { nome: 'CMO Fixo', gold: ['SALARIO FUNCIONARIOS', 'PROVISÃO TRABALHISTA', 'VALE TRANSPORTE', 'ADICIONAIS', 'ALIMENTAÇÃO', 'PRO LABORE'] },
-      { nome: 'CMO Freela', gold: ['FREELA ATENDIMENTO', 'FREELA BAR', 'FREELA COZINHA', 'FREELA LIMPEZA', 'FREELA BRIGADISTA', 'FREELA SEGURANÇA'] },
+      // 2 linhas-pai (CMO Fixo / CMO Freela), cada uma com filhos expansíveis.
+      // O pai é a soma dos filhos (realizado do CA + plan/proj da planilha de cada filho).
+      {
+        nome: 'CMO Fixo', filhos: [
+          { nome: 'CUSTO-EMPRESA FUNCIONÁRIOS', gold: ['SALARIO FUNCIONARIOS', 'PROVISÃO TRABALHISTA', 'VALE TRANSPORTE'] },
+          { nome: 'ADICIONAIS', gold: ['ADICIONAIS'] },
+          { nome: 'ALIMENTAÇÃO', gold: ['ALIMENTAÇÃO'] },
+          { nome: 'PRO LABORE', gold: ['PRO LABORE'] },
+        ]
+      },
+      {
+        nome: 'CMO Freela', filhos: [
+          { nome: 'FREELA ATENDIMENTO', gold: ['FREELA ATENDIMENTO'] },
+          { nome: 'FREELA BAR', gold: ['FREELA BAR'] },
+          { nome: 'FREELA COZINHA', gold: ['FREELA COZINHA'] },
+          { nome: 'FREELA LIMPEZA', gold: ['FREELA LIMPEZA'] },
+          { nome: 'FREELA BRIGADISTA', gold: ['FREELA BRIGADISTA'] },
+          { nome: 'FREELA SEGURANÇA', gold: ['FREELA SEGURANÇA'] },
+        ]
+      },
     ]
   },
   {
@@ -366,14 +386,13 @@ export async function getOrcamentacaoCompleta(
           blocoGold: bloco.blocoGold,
         };
       }
-      const subcategorias = bloco.subs.map(s => {
+      // Monta uma subcategoria-folha (sem filhos) a partir da definição.
+      //   orcOnly -> digitado na tela (valor_realizado_manual); só na orçamentação, não vai pra DRE.
+      //   demais  -> Conta Azul (gold) + ajustes da DRE Manual (receita soma; despesa subtrai).
+      const montarSub = (s: SubFixa): SubcategoriaOrcamento => {
         const prow = planilha(s.nome);
         const plan = num(prow?.valor_planejado);
         const proj = num(prow?.valor_projetado);
-        // Realizado:
-        //   orcOnly -> digitado na tela (valor_realizado_manual); só na orçamentação, não vai pra DRE.
-        //   demais  -> Conta Azul (gold) + ajustes da DRE Manual. dre_manual usa sinal de
-        //              impacto no lucro: receita soma; despesa subtrai.
         let real: number;
         let realizadoFonte: SubcategoriaOrcamento['realizadoFonte'];
         let goldCategorias: string[] | undefined;
@@ -391,6 +410,23 @@ export async function getOrcamentacaoCompleta(
           goldCategorias = s.gold;
         }
         return { nome: s.nome, planejado: plan, projecao: proj, realizado: real, isPercentage: false, manual: !!s.orcOnly, realizadoFonte, goldCategorias };
+      };
+      const subcategorias = bloco.subs.map(s => {
+        // Linha-pai com filhos (ex.: CMO Fixo): soma dos filhos; UI expande pra ver o detalhe.
+        if (s.filhos && s.filhos.length) {
+          const filhos = s.filhos.map(montarSub);
+          return {
+            nome: s.nome,
+            planejado: filhos.reduce((a, f) => a + f.planejado, 0),
+            projecao: filhos.reduce((a, f) => a + f.projecao, 0),
+            realizado: filhos.reduce((a, f) => a + f.realizado, 0),
+            isPercentage: false,
+            realizadoFonte: 'ca' as const,
+            goldCategorias: filhos.flatMap(f => f.goldCategorias || []),
+            filhos,
+          };
+        }
+        return montarSub(s);
       });
       return { nome: bloco.nome, cor: bloco.cor, tipo: bloco.tipo, subcategorias };
     });
