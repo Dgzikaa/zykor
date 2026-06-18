@@ -81,7 +81,6 @@ export const MENU_TREE: MenuSection[] = [
     subItems: [
       { icon: 'Calendar', label: 'Agendamentos', href: '/financeiro/agendamentos', permission: 'financeiro_agendamento' },
       { icon: 'Receipt', label: 'Pedidos de Pagamento', href: '/financeiro/pedidos-pagamento', permission: 'home' },
-      { icon: 'Wallet', label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa', permission: 'home' },
       { icon: 'BarChart3', label: 'Business Plan', href: '/financeiro/bp', permission: 'home' },
       { icon: 'FileText', label: 'DRE', href: '/financeiro/dre', permission: 'home' },
       { icon: 'TrendingUp', label: 'DFC', href: '/financeiro/dfc', permission: 'home' },
