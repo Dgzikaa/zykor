@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * POST /api/assistente
  *   body { telefone, mensagem }
  *
- * Wrapper que chama a edge fn whatsapp-assistente e retorna a resposta.
+ * Wrapper que chama a edge fn assistente-zykor e retorna a resposta.
  * Sem envio Umbler — só retorna JSON pra UI mostrar.
  */
 export const dynamic = 'force-dynamic';
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'telefone+mensagem obrigatorios' }, { status: 400 });
     }
 
-    const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/whatsapp-assistente`, {
+    const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/assistente-zykor`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
