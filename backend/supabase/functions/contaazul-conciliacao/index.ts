@@ -2,13 +2,13 @@
  * @camada bronze
  * @jobName contaazul-conciliacao
  * @descricao Enriquecimento por parcela do Conta Azul: grava DATA DE PAGAMENTO + CONCILIADO
- * numa unica chamada GET /v1/financeiro/eventos-financeiros/parcelas/{id} (que traz baixas[]
- * + conciliado + conta_financeira). Unifica o que antes eram 2 funcoes (baixas + conciliacao).
+ * numa unica chamada GET /v1/financeiro/eventos-financeiros/parcelas/{id} (baixas[] +
+ * conciliado + conta_financeira). Unifica baixas + conciliacao numa passada.
  *
- * Auto-corrige: so grava em status 200 (em erro/429 pula e re-tenta; conciliado_checado_em
- * fica NULL). Processa nunca-checados primeiro, e entre eles os sem data_pagamento / mais
- * recentes antes. Time-boxed, pace 130ms (~7,6/seg, dentro do teto por conta). So sobrescreve
- * data_pagamento se achar baixa (nao zera o que existe). Chamada pelo contaazul-orquestrador.
+ * Auto-corrige (so grava em 200). Prioridade: NAO-conciliado primeiro, MAIS RECENTE
+ * primeiro (o que se ve na DFC + pega conciliacoes recentes), depois nunca-checados/antigos.
+ * O conciliado nao e' sobrescrito pelo sync (trigger bronze.fn_preserva_conciliado).
+ * Pace 130ms (~7,6/seg). Chamada pelo contaazul-orquestrador.
  *
  * Body: { bar_id, limit?, data_pgto_de?, probe?, parcela_id? }
  */
@@ -91,10 +91,11 @@ serve(async (req) => {
       return jsonResponse({ success: true, probe: 'por_id', status, conciliado: data?.conciliado, parcela_status: data?.status, data_pagamento: extrairDataPagamento(data), banco: data?.conta_financeira?.banco }, req)
     }
 
-    // Parcelas PAGAS (valor_pago>0): nunca-checadas primeiro; entre elas, sem data_pagamento e mais recentes antes.
+    // Parcelas PAGAS. Prioridade: NAO-conciliado primeiro, MAIS RECENTE primeiro (o que se ve
+    // na DFC restaura antes + pega conciliacoes recentes), depois nunca-checados / mais antigos.
     let q = supabase.schema('bronze').from('bronze_contaazul_lancamentos').select('contaazul_id, data_pagamento').eq('bar_id', barId).is('excluido_em', null).gt('valor_pago', 0)
     if (body.data_pgto_de) q = q.gte('data_pagamento', body.data_pgto_de)
-    const { data: rows, error: selErr } = await q.order('conciliado_checado_em', { ascending: true, nullsFirst: true }).order('data_pagamento', { ascending: false, nullsFirst: true }).limit(limit)
+    const { data: rows, error: selErr } = await q.order('conciliado', { ascending: true }).order('data_pagamento', { ascending: false, nullsFirst: false }).order('conciliado_checado_em', { ascending: true, nullsFirst: true }).limit(limit)
     if (selErr) return errorResponse('erro ao selecionar: ' + selErr.message, req, undefined, 500)
 
     let conc = 0, naoConc = 0, pag = 0, erros = 0, proc = 0
