@@ -6,10 +6,9 @@
  *
  * Ordem: (1) lancamentos incremental (contaazul-sync alteracao_incremental, que tambem
  * refresca categorias/de-para) -> (2) enriquecimento por parcela (contaazul-conciliacao:
- * conciliado). Lock via public.contaazul_orq_estado (pula se ja estiver rodando).
- *
- * Substitui os crons soltos (alteracao-1h, conciliacao-backfill). Silver/baixas seguem
- * nos seus crons por enquanto (escalonados em minutos diferentes). 1 cron -> esta funcao.
+ * data de pagamento + conciliado numa chamada). Lock via public.contaazul_orq_estado.
+ * Roda por cron pros bars 3 e 4 (contas distintas, em paralelo). Substitui os crons
+ * soltos alteracao-1h, baixas-10min e conciliacao-backfill.
  *
  * Body: { bar_id?: number }  (default 3)
  */
@@ -45,7 +44,6 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}))
     barId = Number(body?.bar_id) || 3
 
-    // Lock: pula se ja rodando ha menos de LOCK_STALE_MIN
     const { data: est } = await supabase.from('contaazul_orq_estado').select('*').eq('bar_id', barId).maybeSingle()
     if (est?.running && est.started_at && (Date.now() - new Date(est.started_at).getTime()) < LOCK_STALE_MIN * 60000) {
       return json({ skipped: 'orquestrador ja rodando', desde: est.started_at })
@@ -54,13 +52,11 @@ serve(async (req) => {
 
     const passos: Record<string, any> = {}
     try {
-      // 1) Lancamentos (incremental por data de alteracao) + categorias/de-para
       const s1 = await callFn('contaazul-sync', { bar_id: barId, sync_mode: 'alteracao_incremental' })
       passos.lancamentos = { status: s1.status, ok: s1.status === 200, resumo: s1.body?.stats || s1.body?.summary || null }
 
-      // 2) Enriquecimento por parcela: conciliado (auto-corrige; so grava em 200)
-      const s2 = await callFn('contaazul-conciliacao', { bar_id: barId, data_pgto_de: '2026-01-01', limit: 900 })
-      passos.conciliacao = { status: s2.status, ok: s2.status === 200, resumo: s2.body?.stats || null }
+      const s2 = await callFn('contaazul-conciliacao', { bar_id: barId, limit: 400 })
+      passos.enriquecimento = { status: s2.status, ok: s2.status === 200, resumo: s2.body?.stats || null }
     } finally {
       await supabase.from('contaazul_orq_estado').update({ running: false, finished_at: new Date().toISOString(), ultimo: { ms: Date.now() - t0, passos } }).eq('bar_id', barId)
     }

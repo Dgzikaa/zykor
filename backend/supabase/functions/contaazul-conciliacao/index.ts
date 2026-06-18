@@ -1,17 +1,14 @@
 /**
  * @camada bronze
  * @jobName contaazul-conciliacao
- * @descricao Preenche bronze_contaazul_lancamentos.conciliado a partir do CA.
+ * @descricao Enriquecimento por parcela do Conta Azul: grava DATA DE PAGAMENTO + CONCILIADO
+ * numa unica chamada GET /v1/financeiro/eventos-financeiros/parcelas/{id} (que traz baixas[]
+ * + conciliado + conta_financeira). Unifica o que antes eram 2 funcoes (baixas + conciliacao).
  *
- * Os endpoints de lista (eventos-financeiros/.../buscar) NAO retornam conciliacao, e
- * /v1/financeiro/contas-a-pagar deu 404 pra nossa app. O que funciona e o detalhe por
- * parcela: GET /v1/financeiro/eventos-financeiros/parcelas/{id} — retorna `conciliado`
- * (boolean) + conta_financeira (banco). 1 chamada por parcela (mesmo padrao da baixa).
- *
- * Auto-corrige: so grava (conciliado + conciliado_checado_em) em status 200; em erro/429
- * pula e re-tenta na proxima (checado fica NULL). Processa nunca-checados primeiro
- * (conciliado_checado_em NULLS FIRST), depois os mais antigos (refresh). Time-boxed.
- * Pace 130ms (~7,6/seg, dentro do teto por conta do CA). Chamada pelo contaazul-orquestrador.
+ * Auto-corrige: so grava em status 200 (em erro/429 pula e re-tenta; conciliado_checado_em
+ * fica NULL). Processa nunca-checados primeiro, e entre eles os sem data_pagamento / mais
+ * recentes antes. Time-boxed, pace 130ms (~7,6/seg, dentro do teto por conta). So sobrescreve
+ * data_pagamento se achar baixa (nao zera o que existe). Chamada pelo contaazul-orquestrador.
  *
  * Body: { bar_id, limit?, data_pgto_de?, probe?, parcela_id? }
  */
@@ -38,6 +35,13 @@ function getSupabaseClient(): SupabaseClient {
   return createClient(url, key)
 }
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+function extrairDataPagamento(data: any): string | null {
+  const bs = Array.isArray(data?.baixas) ? data.baixas : []
+  const ds = bs.map((b: any) => b?.data_baixa || b?.data_pagamento || b?.data || b?.data_liquidacao)
+    .filter((d: any) => typeof d === 'string' && d.length >= 10).map((d: string) => d.slice(0, 10))
+  return ds.length ? ds.sort().at(-1) : null
+}
 
 async function refreshToken(supabase: SupabaseClient, c: ApiCredentials): Promise<string | null> {
   if (!c.refresh_token) return null
@@ -84,15 +88,16 @@ serve(async (req) => {
 
     if (probe && body.parcela_id) {
       const { data, status } = await caGet('/v1/financeiro/eventos-financeiros/parcelas/' + body.parcela_id, token, supabase, credentials)
-      return jsonResponse({ success: true, probe: 'por_id', status, conciliado: data?.conciliado, parcela_status: data?.status, id_conta: data?.id_conta_financeira, banco: data?.conta_financeira?.banco, data_alteracao: data?.data_alteracao }, req)
+      return jsonResponse({ success: true, probe: 'por_id', status, conciliado: data?.conciliado, parcela_status: data?.status, data_pagamento: extrairDataPagamento(data), banco: data?.conta_financeira?.banco }, req)
     }
 
-    let q = supabase.schema('bronze').from('bronze_contaazul_lancamentos').select('contaazul_id').eq('bar_id', barId).is('excluido_em', null).not('data_pagamento', 'is', null)
+    // Parcelas PAGAS (valor_pago>0): nunca-checadas primeiro; entre elas, sem data_pagamento e mais recentes antes.
+    let q = supabase.schema('bronze').from('bronze_contaazul_lancamentos').select('contaazul_id, data_pagamento').eq('bar_id', barId).is('excluido_em', null).gt('valor_pago', 0)
     if (body.data_pgto_de) q = q.gte('data_pagamento', body.data_pgto_de)
-    const { data: rows, error: selErr } = await q.order('conciliado_checado_em', { ascending: true, nullsFirst: true }).order('data_pagamento', { ascending: false, nullsFirst: false }).limit(limit)
+    const { data: rows, error: selErr } = await q.order('conciliado_checado_em', { ascending: true, nullsFirst: true }).order('data_pagamento', { ascending: false, nullsFirst: true }).limit(limit)
     if (selErr) return errorResponse('erro ao selecionar: ' + selErr.message, req, undefined, 500)
 
-    let conc = 0, naoConc = 0, erros = 0, proc = 0
+    let conc = 0, naoConc = 0, pag = 0, erros = 0, proc = 0
     for (const row of rows || []) {
       if (Date.now() - t0 > SAFE_TIMEOUT_MS) break
       proc++
@@ -100,11 +105,14 @@ serve(async (req) => {
       token = nt
       if (status !== 200 || !data) { erros++; await sleep(DELAY_MS); continue }
       const c = data.conciliado === true
-      const { error: upErr } = await supabase.schema('bronze').from('bronze_contaazul_lancamentos').update({ conciliado: c, conciliado_checado_em: new Date().toISOString() }).eq('bar_id', barId).eq('contaazul_id', row.contaazul_id)
+      const upd: Record<string, unknown> = { conciliado: c, conciliado_checado_em: new Date().toISOString() }
+      const dPag = extrairDataPagamento(data)
+      if (dPag && dPag !== row.data_pagamento) { upd.data_pagamento = dPag; pag++ }
+      const { error: upErr } = await supabase.schema('bronze').from('bronze_contaazul_lancamentos').update(upd).eq('bar_id', barId).eq('contaazul_id', row.contaazul_id)
       if (upErr) erros++; else if (c) conc++; else naoConc++
       await sleep(DELAY_MS)
     }
-    const stats = { bar_id: barId, processados: proc, conciliados: conc, nao_conciliados: naoConc, erros, total_fila: rows?.length || 0, ms: Date.now() - t0 }
+    const stats = { bar_id: barId, processados: proc, conciliados: conc, nao_conciliados: naoConc, data_pagamento_set: pag, erros, total_fila: rows?.length || 0, ms: Date.now() - t0 }
     console.log('[concil] fim', JSON.stringify(stats))
     return jsonResponse({ success: true, stats }, req)
   } catch (e) {
