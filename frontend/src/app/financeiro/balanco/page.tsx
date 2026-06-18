@@ -77,10 +77,13 @@ const CAMPO_DE_ID: Record<string, string> = Object.fromEntries(ROWS.filter(r => 
 // Um bloco bold é pai das linhas indentadas que o seguem, até o próximo bold/header.
 const PARENT_OF: Record<string, string> = {};
 const TEM_FILHOS = new Set<string>();
+const HEADER_OF: Record<string, string> = {};   // cada linha -> seu header (seção macro azul)
 {
   let lastBold: string | null = null;
+  let lastHeader: string | null = null;
   for (const r of ROWS) {
-    if (r.tipo === 'header') { lastBold = null; continue; }
+    if (r.tipo === 'header') { lastBold = null; lastHeader = r.id; continue; }
+    if (lastHeader) HEADER_OF[r.id] = lastHeader;
     if (r.bold) { lastBold = r.id; continue; }
     if (r.indent && lastBold) { PARENT_OF[r.id] = lastBold; TEM_FILHOS.add(lastBold); }
   }
@@ -260,10 +263,21 @@ export default function BalancoPage() {
                 if (row.tipo === 'header') {
                   return (
                     <tr key={row.id} className="bg-indigo-50 dark:bg-indigo-950/40 border-t-[3px] border-indigo-300 dark:border-indigo-800">
-                      <td colSpan={meses.length + 1} className="px-3 py-2 font-bold text-[11px] uppercase tracking-wide text-indigo-700 dark:text-indigo-300 sticky left-0 bg-indigo-50 dark:bg-indigo-950/40">{row.label}</td>
+                      <td colSpan={meses.length + 1} className="px-3 py-2 font-bold text-[11px] uppercase tracking-wide text-indigo-700 dark:text-indigo-300 sticky left-0 bg-indigo-50 dark:bg-indigo-950/40">
+                        <button
+                          onClick={() => setColapsados(p => ({ ...p, [row.id]: !p[row.id] }))}
+                          className="inline-flex items-center gap-1.5 hover:opacity-80"
+                          title={colapsados[row.id] ? 'Expandir seção' : 'Recolher seção'}
+                        >
+                          {colapsados[row.id] ? <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />}
+                          {row.label}
+                        </button>
+                      </td>
                     </tr>
                   );
                 }
+                // Esconde tudo de uma seção macro (azul) recolhida.
+                if (HEADER_OF[row.id] && colapsados[HEADER_OF[row.id]]) return null;
                 // Esconde os filhos de um bloco recolhido.
                 if (row.indent && PARENT_OF[row.id] && colapsados[PARENT_OF[row.id]]) return null;
                 const corLabel = row.tipo === 'ca' ? 'border-l-orange-400' : row.tipo === 'manual' ? 'border-l-blue-400' : 'border-l-gray-300';
