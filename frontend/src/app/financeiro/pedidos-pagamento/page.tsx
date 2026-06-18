@@ -16,6 +16,9 @@ import {
 } from './types';
 import { NovoPedidoDialog } from './components/NovoPedidoDialog';
 import { PedidoDetailDialog } from './components/PedidoDetailDialog';
+import { FreelaTab } from './components/FreelaTab';
+
+type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'cartao';
 
 type TabKey = 'aguardando' | 'andamento' | 'concluidos' | 'recusados' | 'todos';
 
@@ -40,6 +43,7 @@ export default function PedidosPagamentoPage() {
   const [soMeus, setSoMeus] = useState(false);
   const [novoOpen, setNovoOpen] = useState(false);
   const [detalheId, setDetalheId] = useState<string | null>(null);
+  const [modo, setModo] = useState<ModoPagamento>('pagamentos');
 
   useEffect(() => {
     setPageTitle('💸 Pedidos de Pagamento');
@@ -79,8 +83,18 @@ export default function PedidosPagamentoPage() {
                   : 'Abra um pedido de pagamento. O financeiro analisa e aprova.'}
               </p>
             </div>
-            <Button onClick={() => setNovoOpen(true)}><Plus className="w-4 h-4 mr-2" />Novo pedido</Button>
+            {modo === 'pagamentos' && <Button onClick={() => setNovoOpen(true)}><Plus className="w-4 h-4 mr-2" />Novo pedido</Button>}
           </div>
+
+          {/* Abas por tipo de pagamento */}
+          <Tabs value={modo} onValueChange={(v) => setModo(v as ModoPagamento)} className="mb-4">
+            <TabsList>
+              <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
+              <TabsTrigger value="freela">Freela</TabsTrigger>
+              <TabsTrigger value="boleto">Boleto</TabsTrigger>
+              <TabsTrigger value="cartao">Cartão</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           {!barId && (
             <Card className="border-red-500/40">
@@ -92,7 +106,15 @@ export default function PedidosPagamentoPage() {
             </Card>
           )}
 
-          {barId && (
+          {barId && modo === 'freela' && <FreelaTab barId={barId} onLancado={carregar} />}
+
+          {barId && (modo === 'boleto' || modo === 'cartao') && (
+            <Card><CardContent className="py-12 text-center text-muted-foreground">
+              {modo === 'boleto' ? 'Boleto (foto/PDF → lançamento automático) — em breve.' : 'Cartão de crédito (fatura) — em breve.'}
+            </CardContent></Card>
+          )}
+
+          {barId && modo === 'pagamentos' && (
             <>
               <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
                 <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
