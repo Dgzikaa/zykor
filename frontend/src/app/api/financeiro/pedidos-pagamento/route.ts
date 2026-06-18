@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
     beneficiario_nome: body.beneficiario_nome || null,
     chave_pix,
     cpf_cnpj: body.cpf_cnpj || null,
+    linha_digitavel: body.linha_digitavel || null,
     observacao: body.observacao || null,
     // Pré-sugestões opcionais (financeiro confirma na aprovação)
     categoria_id: body.categoria_id || null,
