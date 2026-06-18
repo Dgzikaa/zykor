@@ -19,7 +19,7 @@ const fmt = (v: number) => v === 0 ? '–' : `${v < 0 ? '-' : ''}R$ ${Math.abs(v
 export default function DfcPage() {
   const { selectedBar } = useBar();
   const [ano, setAno] = useState(new Date().getFullYear());
-  const [soConciliado, setSoConciliado] = useState(false);
+  const [soConciliado, setSoConciliado] = useState(true); // padrão: só conciliado (decisão do sócio)
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [loading, setLoading] = useState(true);
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
