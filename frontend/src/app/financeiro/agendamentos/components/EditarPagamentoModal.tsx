@@ -86,7 +86,7 @@ export function EditarPagamentoModal({ pagamento, onClose, onSalvar }: EditarPag
               placeholder="CPF/CNPJ, e-mail, telefone ou chave aleatória"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-gray-700 dark:text-gray-300">Valor</Label>
               <Input

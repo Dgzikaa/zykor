@@ -390,7 +390,7 @@ function IntegracaoCard({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <Clock className="w-3 h-3 shrink-0" />
             <span className="truncate">

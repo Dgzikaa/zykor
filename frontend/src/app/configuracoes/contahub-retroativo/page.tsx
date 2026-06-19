@@ -173,7 +173,7 @@ export default function ContaHubRetroativoPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Período */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="start-date" className="text-gray-700 dark:text-gray-300">Data Início</Label>
                   <Input

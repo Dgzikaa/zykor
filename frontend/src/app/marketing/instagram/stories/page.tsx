@@ -75,7 +75,7 @@ export default function StoriesPage() {
                     <ExternalLink className="w-3 h-3" /> Ver
                   </div>
                 </div>
-                <div className="p-3 grid grid-cols-2 gap-2 text-xs">
+                <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   <span className="text-gray-500 col-span-2">{fmtData(s.timestamp_post)}</span>
                   <Metric label="Reach" valor={s.reach} />
                   <Metric label="Replies" valor={s.replies} />

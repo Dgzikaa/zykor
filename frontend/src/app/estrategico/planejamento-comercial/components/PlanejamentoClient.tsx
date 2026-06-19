@@ -554,7 +554,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                           </Link>
                           <Button size="sm" variant="outline" className="shrink-0" onClick={() => abrirModal(evento, true)}>Editar</Button>
                         </div>
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 mt-2 text-xs">
                           <div className="flex justify-between"><span className="text-gray-500">Receita</span><span className={`font-medium ${evento.real_vs_m1_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.real_receita > 0 ? formatarMoeda(evento.real_receita) : '-'}</span></div>
                           <div className="flex justify-between"><span className="text-gray-500">Meta M1</span><span className="font-medium">{formatarMoeda(evento.m1_receita)}</span></div>
                           <div className="flex justify-between"><span className="text-gray-500">Clientes</span><span className="font-medium">{(evento.clientes_real || 0).toLocaleString('pt-BR')}</span></div>
@@ -1209,7 +1209,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                     
                     <div>
                       <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-3">Período</label>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <Select value={filtroMes.toString()} onValueChange={(value) => alterarPeriodo(parseInt(value), filtroAno)}>
                           <SelectTrigger className="bg-[hsl(var(--background))]"><SelectValue /></SelectTrigger>
                           <SelectContent>{meses.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}</SelectContent>

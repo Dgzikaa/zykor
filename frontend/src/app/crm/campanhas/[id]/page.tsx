@@ -622,7 +622,7 @@ export default function CampanhaDetalhesPage() {
                   </div>
                   
                   {/* Status das reservas */}
-                  <div className="grid grid-cols-2 gap-2 mt-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
                     <div className="bg-white/80 rounded p-2 text-center">
                       <UserCheck className="h-4 w-4 text-emerald-500 mx-auto mb-1" />
                       <p className="text-lg font-bold text-gray-900">{metricas.reservas_seated || 0}</p>

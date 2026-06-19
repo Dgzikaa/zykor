@@ -408,7 +408,7 @@ export default function ConsultasPage() {
                   <Clock className="w-4 h-4 text-muted-foreground" />
                   Data de Criação (quando foi registrado)
                 </h4>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                       Criado após *
@@ -440,7 +440,7 @@ export default function ConsultasPage() {
                   <Calendar className="w-4 h-4 text-muted-foreground" />
                   Data de Competência (período do lançamento)
                 </h4>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                       Competência após (opcional)

@@ -261,7 +261,7 @@ export default function PadroesComportamentoPage() {
                         {getFrequenciaBadge(cliente.frequencia)}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
                           <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 mb-1">
                             <Calendar className="w-3 h-3" />

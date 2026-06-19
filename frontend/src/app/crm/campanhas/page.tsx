@@ -552,7 +552,7 @@ export default function CampanhasPage() {
                       </span>
                     )}
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {SEGMENTOS.map(seg => {
                       const count = segmentosStats[seg.value] || 0;
                       return (
@@ -624,7 +624,7 @@ export default function CampanhasPage() {
                 )}
 
                 {/* Cupom */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
                       Desconto (%)

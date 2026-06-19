@@ -770,7 +770,7 @@ function UsuariosPage() {
                 <div className="pb-1">
                   <h3 className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Dados Básicos</h3>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="nome" className="text-sm">
                       Nome Completo *
@@ -864,7 +864,7 @@ function UsuariosPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="data_nascimento" className="text-sm">
                       Data de Nascimento

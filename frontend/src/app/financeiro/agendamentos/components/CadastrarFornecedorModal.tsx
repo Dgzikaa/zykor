@@ -167,7 +167,7 @@ export function CadastrarFornecedorModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-gray-700 dark:text-gray-300">Tipo de pessoa</Label>
               <Select value={tipoPessoa} onValueChange={v => setTipoPessoa(v as any)}>
@@ -206,7 +206,7 @@ export function CadastrarFornecedorModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-gray-700 dark:text-gray-300">Email (opcional)</Label>
               <Input

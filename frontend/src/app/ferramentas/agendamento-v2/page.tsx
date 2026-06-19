@@ -508,7 +508,7 @@ export default function AgendamentoV2Page() {
             {/* Conteúdo principal */}
             <div className="flex-1">
               <Tabs value={tabAtivo} onValueChange={setTabAtivo}>
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                   <TabsTrigger value="manual">Adicionar Manual</TabsTrigger>
                   <TabsTrigger value="folha">Importar Folha</TabsTrigger>
                   <TabsTrigger value="lista">

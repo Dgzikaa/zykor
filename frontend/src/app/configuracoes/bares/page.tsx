@@ -194,7 +194,7 @@ function BarEditor({ bar, criando, bars, onClose, onSaved }: {
                 </p>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="col-span-2">
                 <Label className="text-xs">Nome *</Label>
                 <Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />
@@ -248,7 +248,7 @@ function BarEditor({ bar, criando, bars, onClose, onSaved }: {
               </div>
               <p className="text-[11px] text-muted-foreground mt-1">Dia fechado não conta como falha de pipeline.</p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label className="text-xs">Abertura</Label>
                 <Input type="time" value={(form.operacao?.horario_abertura || '').slice(0,5)} onChange={e => setOp('horario_abertura', e.target.value)} /></div>
               <div><Label className="text-xs">Fechamento</Label>

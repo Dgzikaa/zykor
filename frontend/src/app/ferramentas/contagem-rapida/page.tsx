@@ -370,7 +370,7 @@ export default function ContagemRapidaPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-2 text-sm bg-white dark:bg-gray-800 p-3 rounded-lg">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm bg-white dark:bg-gray-800 p-3 rounded-lg">
                     <div>
                       <span className="text-gray-600 dark:text-gray-400">Código:</span>
                       <span className="ml-2 font-semibold text-gray-900 dark:text-white">

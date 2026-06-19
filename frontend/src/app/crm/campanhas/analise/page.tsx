@@ -283,7 +283,7 @@ export default function AnaliseCampanhasPage() {
 
                   {/* Métricas de Envio - apenas enviados e lidos na listagem */}
                   {campanha.analise ? (
-                    <div className="grid grid-cols-2 gap-4 max-w-md">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
                       {/* Enviados */}
                       <div className="bg-gray-900/50 rounded-lg p-3 text-center">
                         <Send className="h-5 w-5 text-blue-400 mx-auto mb-1" />

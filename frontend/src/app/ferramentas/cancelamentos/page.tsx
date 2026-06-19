@@ -218,6 +218,7 @@ export default function CancelamentosPage() {
               ) : detalhe.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-6">Nenhum item cancelado neste dia.</p>
               ) : (
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-xs text-muted-foreground border-b text-left">
@@ -244,6 +245,7 @@ export default function CancelamentosPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           </div>

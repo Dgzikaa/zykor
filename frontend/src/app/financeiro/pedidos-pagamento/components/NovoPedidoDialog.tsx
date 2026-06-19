@@ -103,7 +103,7 @@ export function NovoPedidoDialog({
         <div className="px-6 overflow-y-auto space-y-4">
           <div>
             <Label className="mb-1.5 block">Tipo</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {TIPOS.map((t) => (
                 <button
                   key={t}
@@ -127,7 +127,7 @@ export function NovoPedidoDialog({
               placeholder="Ex: Reembolso compra de insumos / Pagamento fornecedor X" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label htmlFor="valor" className="mb-1.5 block">Valor (R$)</Label>
               <Input id="valor" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" inputMode="decimal" />
@@ -138,7 +138,7 @@ export function NovoPedidoDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label htmlFor="pix" className="mb-1.5 block">
                 Chave PIX {pixObrigatorio && <span className="text-red-500">*</span>}

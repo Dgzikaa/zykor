@@ -98,6 +98,7 @@ export default function MixCategoriaPage() {
                       return <div key={m.categoria} className={COR_CAT[m.categoria] || 'bg-gray-400'} style={{ width: `${pct}%` }} title={`${m.categoria} ${pct.toFixed(1)}%`} />;
                     })}
                   </div>
+                  <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-xs text-muted-foreground border-b">
@@ -124,6 +125,7 @@ export default function MixCategoriaPage() {
                       })}
                     </tbody>
                   </table>
+                  </div>
                   <p className="text-[11px] text-muted-foreground mt-2">
                     *Custo de produto só vem preenchido para BEBIDA na origem — margem de DRINK/COMIDA é otimista.
                   </p>
@@ -142,6 +144,7 @@ export default function MixCategoriaPage() {
                 <p className="text-sm text-muted-foreground py-6 text-center">Sem dados de CMV no período.</p>
               ) : (
                 <>
+                  <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-xs text-muted-foreground border-b">
@@ -164,6 +167,7 @@ export default function MixCategoriaPage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                   <p className="text-[11px] text-muted-foreground mt-2">
                     CMV = custo de insumos sobre faturamento. &ldquo;Comida %&rdquo; é a fatia de alimentação do CMV (≠ CMA de refeição de equipe). Deboche não separa custo de comida no CMV.
                   </p>

@@ -369,6 +369,7 @@ export default function BalancoPage() {
         </div>
 
         {ativos.length > 0 && (
+          <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-gray-500 border-b">
@@ -397,6 +398,7 @@ export default function BalancoPage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </Card>
     </main>

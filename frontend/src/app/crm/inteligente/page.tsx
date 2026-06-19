@@ -663,7 +663,7 @@ export default function CRMInteligentePage() {
                 </div>
 
                 {/* Informações Gerais */}
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <p className="text-gray-600 dark:text-gray-400 mb-1">Email</p>
                     <p className="font-semibold text-gray-900 dark:text-white">

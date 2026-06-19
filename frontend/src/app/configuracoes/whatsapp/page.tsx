@@ -302,7 +302,7 @@ export default function WhatsAppConfigPage() {
             </div>
 
             {/* Versão da API */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
                   Versão da API
@@ -444,7 +444,7 @@ export default function WhatsAppConfigPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
                   Prefixo dos Cupons
@@ -478,7 +478,7 @@ export default function WhatsAppConfigPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
                   Tentativas de Reenvio

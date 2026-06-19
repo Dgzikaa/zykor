@@ -72,7 +72,7 @@ export default function DemografiaPage() {
     return (
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
         <Skeleton className="h-16" />
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <Skeleton className="h-80" />
           <Skeleton className="h-80" />
         </div>

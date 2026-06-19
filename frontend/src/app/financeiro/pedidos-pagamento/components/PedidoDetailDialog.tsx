@@ -296,7 +296,7 @@ export function PedidoDetailDialog({
             )}
 
             {/* Campos do pedido (editáveis) */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="col-span-2">
                 <Label className="mb-1 block text-xs">Descrição</Label>
                 <Input value={fld('descricao')} disabled={!editavel} onChange={(e) => setFld('descricao', e.target.value)} />
@@ -358,7 +358,7 @@ export function PedidoDetailDialog({
             {podeAprovar && aprovavel && (
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
                 <p className="font-medium text-sm">Aprovar — completar dados do Conta Azul / Inter</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="mb-1 block text-xs">Categoria *</Label>
                     <SearchableSelect value={aprov.categoria_id} onValueChange={(v) => setAprov(a => ({ ...a, categoria_id: v || '' }))}

@@ -536,7 +536,7 @@ export default function TesteProducaoPage() {
 
             {/* Info da Receita */}
             <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-4 mb-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600 dark:text-gray-400">Código:</span>
                   <span className="ml-2 font-semibold text-gray-900 dark:text-white">
@@ -568,7 +568,7 @@ export default function TesteProducaoPage() {
 
             {/* Formulário de Dados */}
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-gray-700 dark:text-gray-300">
                     Peso Bruto Proteína (g)

@@ -585,7 +585,7 @@ export default function StockoutAuditoriaPage() {
                         )}
 
                         {produto.incluido && (
-                          <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                             <div>
                               <span className="text-[hsl(var(--muted-foreground))]">Categoria Mix:</span>
                               <Badge className="ml-2 badge-primary">{produto.categoria_mix}</Badge>

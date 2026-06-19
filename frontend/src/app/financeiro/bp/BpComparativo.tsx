@@ -65,7 +65,7 @@ function BpPainel({ barId, versoes, inicial }: { barId: number; versoes: Versao[
       {loading ? <Skeleton className="h-80" /> : (
         <Card className="overflow-hidden">
           {/* KPIs compactos */}
-          <div className="grid grid-cols-2 gap-px bg-gray-200 dark:bg-gray-700 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-gray-200 dark:bg-gray-700 text-center">
             <div className="bg-white dark:bg-gray-900 p-2">
               <p className="text-[10px] text-gray-500">Receita</p>
               <p className="text-sm font-bold text-blue-600">{fmtBRL(receita)}</p>

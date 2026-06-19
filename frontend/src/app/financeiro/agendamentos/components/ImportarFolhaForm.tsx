@@ -587,7 +587,7 @@ export function ImportarFolhaForm({
               Verificando cadastros no Conta Azul...
             </div>
           )}
-          <div className="max-h-[480px] overflow-y-auto">
+          <div className="max-h-[480px] overflow-y-auto overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
               <tr>

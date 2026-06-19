@@ -962,7 +962,7 @@ export default function AgendamentoPage() {
                 </Card>
               ) : (
                 <Tabs value={tabAtivo} onValueChange={setTabAtivo} className="space-y-6">
-                  <TabsList className="grid w-full grid-cols-3 bg-muted/70 border border-border p-1 rounded-lg">
+                  <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 bg-muted/70 border border-border p-1 rounded-lg">
                     <TabsTrigger
                       value="manual"
                       className="data-[state=active]:bg-muted data-[state=active]:text-foreground rounded-md"

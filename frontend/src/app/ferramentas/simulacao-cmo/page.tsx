@@ -821,7 +821,7 @@ export default function CMOUnificadoPage() {
 
         {/* Abas principais */}
         <Tabs value={abaAtiva} onValueChange={setAbaAtiva}>
-          <TabsList className="grid w-full grid-cols-5 mb-6">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-5 mb-6">
             <TabsTrigger value="dashboard">
               <BarChart3 className="h-4 w-4 mr-2" />
               Dashboard
@@ -1404,13 +1404,13 @@ export default function CMOUnificadoPage() {
           </DialogHeader>
 
           <Tabs defaultValue="dados" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2">
               <TabsTrigger value="dados">Dados Pessoais</TabsTrigger>
               <TabsTrigger value="contrato">Contrato</TabsTrigger>
             </TabsList>
 
             <TabsContent value="dados" className="space-y-4 mt-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <Label htmlFor="nome">Nome Completo *</Label>
                   <Input id="nome" value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} />
@@ -1431,7 +1431,7 @@ export default function CMOUnificadoPage() {
             </TabsContent>
 
             <TabsContent value="contrato" className="space-y-4 mt-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label>Data de Admissão</Label>
                   <Input type="date" value={formData.data_admissao} onChange={(e) => setFormData({ ...formData, data_admissao: e.target.value })} />

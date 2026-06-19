@@ -286,7 +286,7 @@ export default function AnaliseCouvertPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Ticket Médio</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -336,7 +336,7 @@ export default function AnaliseCouvertPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Ticket Médio</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
