@@ -72,6 +72,15 @@ export default function DfcPage() {
           <select value={ano} onChange={e => setAno(Number(e.target.value))} className="h-8 text-sm border rounded px-2 bg-white dark:bg-gray-800">
             {[2025, 2026, 2027].map(a => <option key={a} value={a}>{a}</option>)}
           </select>
+          {selectedBar && (
+            <a
+              href={`/api/financeiro/dfc/export?bar_id=${selectedBar.id}&ano=${ano}&conciliado=${soConciliado ? '1' : '0'}`}
+              className="h-8 inline-flex items-center gap-1.5 text-xs font-medium rounded px-2.5 border bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+              title="Baixar CSV (categoria × mês) pra conferir com o Conta Azul"
+            >
+              ⬇ Exportar CSV
+            </a>
+          )}
         </div>
       </div>
 

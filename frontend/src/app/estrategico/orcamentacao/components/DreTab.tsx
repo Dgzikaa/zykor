@@ -95,7 +95,7 @@ export function DreTab({ barId, anoInicial }: Props) {
       const resp = await fetch('/api/contaazul/sync-manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bar_id: barId, sync_mode: 'alteracao_full_ano' }),
+        body: JSON.stringify({ bar_id: barId, sync_mode: 'alteracao_full_ano', ano }),
       });
       const j = await resp.json().catch(() => ({}));
       if (!resp.ok || !j?.success) {
