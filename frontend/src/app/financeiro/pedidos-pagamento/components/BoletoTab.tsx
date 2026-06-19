@@ -105,7 +105,7 @@ export function BoletoTab({ onCriado }: { onCriado: () => void }) {
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-blue-500" /> Dados lidos pela IA — confira e ajuste se precisar.
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="mb-1.5 block">Valor</Label>
                 <Input value={d.valor != null ? String(d.valor).replace('.', ',') : ''} onChange={(e) => upd('valor', e.target.value)} placeholder="0,00" inputMode="decimal" />
@@ -119,7 +119,7 @@ export function BoletoTab({ onCriado }: { onCriado: () => void }) {
               <Label className="mb-1.5 block">Beneficiário</Label>
               <Input value={d.beneficiario || ''} onChange={(e) => upd('beneficiario', e.target.value)} placeholder="quem recebe" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="mb-1.5 block">CPF/CNPJ</Label>
                 <Input value={d.cpf_cnpj || ''} onChange={(e) => upd('cpf_cnpj', e.target.value)} placeholder="só números" inputMode="numeric" />

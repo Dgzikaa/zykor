@@ -118,7 +118,7 @@ export function NovoFreelaDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="mb-1.5 block">CPF/CNPJ</Label>
               <Input value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="só números" inputMode="numeric" />
@@ -131,7 +131,7 @@ export function NovoFreelaDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="mb-1.5 block">Chave PIX <span className="text-red-500">*</span></Label>
               <Input value={chavePix} onChange={(e) => setChavePix(e.target.value)} placeholder="chave PIX" />
