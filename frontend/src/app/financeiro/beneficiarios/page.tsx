@@ -33,6 +33,8 @@ export default function BeneficiariosPage() {
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState('');
   const [soDup, setSoDup] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const [pares, setPares] = useState<Par[]>([]);
   const [loadingDup, setLoadingDup] = useState(false);
@@ -42,11 +44,11 @@ export default function BeneficiariosPage() {
     if (!selectedBar) return;
     setLoading(true);
     try {
-      const res = await api.get(`/api/financeiro/beneficiarios/historico?q=${encodeURIComponent(q)}&so_duplicados=${soDup ? '1' : '0'}`);
-      setLinhas(res.beneficiarios || []); setResumo(res.resumo || null);
+      const res = await api.get(`/api/financeiro/beneficiarios/historico?q=${encodeURIComponent(q)}&so_duplicados=${soDup ? '1' : '0'}&page=${page}&limit=100`);
+      setLinhas(res.beneficiarios || []); setResumo(res.resumo || null); setTotal(res.total || 0);
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao carregar', message: e?.message }); }
     finally { setLoading(false); }
-  }, [selectedBar, q, soDup, showToast]);
+  }, [selectedBar, q, soDup, page, showToast]);
 
   const carregarDup = useCallback(async () => {
     if (!selectedBar) return;
@@ -58,6 +60,7 @@ export default function BeneficiariosPage() {
     finally { setLoadingDup(false); }
   }, [selectedBar, showToast]);
 
+  useEffect(() => { setPage(1); }, [q, soDup]);
   useEffect(() => { if (aba === 'lista') { const t = setTimeout(carregar, 300); return () => clearTimeout(t); } }, [aba, carregar]);
   useEffect(() => { if (aba === 'duplicados') carregarDup(); }, [aba, carregarDup]);
 
@@ -134,6 +137,13 @@ export default function BeneficiariosPage() {
                   </tbody>
                 </table>
               </Card>
+            )}
+            {total > 100 && (
+              <div className="flex items-center justify-between mt-3 text-sm gap-2">
+                <Button variant="outline" size="sm" disabled={page <= 1 || loading} onClick={() => setPage(p => Math.max(1, p - 1))}>Anterior</Button>
+                <span className="text-muted-foreground text-center">Página {page} de {Math.ceil(total / 100)} · {total} pessoas</span>
+                <Button variant="outline" size="sm" disabled={page >= Math.ceil(total / 100) || loading} onClick={() => setPage(p => p + 1)}>Próxima</Button>
+              </div>
             )}
           </>
         )}
