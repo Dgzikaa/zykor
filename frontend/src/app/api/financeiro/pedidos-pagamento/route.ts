@@ -139,7 +139,9 @@ export async function POST(request: NextRequest) {
     atualizado_por: user.auth_id,
   };
 
-  // Boleto/fornecedor: tenta já vincular a pessoa do CA pelo CPF/CNPJ (a aprovação exige).
+  // Boleto/fornecedor: tenta já vincular a pessoa do CA (a aprovação exige).
+  // 1) por documento (CNPJ/CPF); 2) fallback por NOME (a maioria dos fornecedores do
+  //    CA está sem documento, então o nome pega muito mais).
   if (!novo.contaazul_pessoa_id && novo.cpf_cnpj) {
     const doc = String(novo.cpf_cnpj).replace(/\D/g, '');
     if (doc.length === 11 || doc.length === 14) {
@@ -147,6 +149,16 @@ export async function POST(request: NextRequest) {
         .from('bronze_contaazul_pessoas')
         .select('contaazul_id')
         .eq('bar_id', user.bar_id).eq('documento', doc).limit(1).maybeSingle();
+      if (pessoa?.contaazul_id) novo.contaazul_pessoa_id = pessoa.contaazul_id;
+    }
+  }
+  if (!novo.contaazul_pessoa_id && novo.beneficiario_nome) {
+    const nome = String(novo.beneficiario_nome).trim();
+    if (nome.length >= 3) {
+      const { data: pessoa } = await (supabase.schema('bronze' as any) as any)
+        .from('bronze_contaazul_pessoas')
+        .select('contaazul_id')
+        .eq('bar_id', user.bar_id).ilike('nome', nome).limit(1).maybeSingle();
       if (pessoa?.contaazul_id) novo.contaazul_pessoa_id = pessoa.contaazul_id;
     }
   }
