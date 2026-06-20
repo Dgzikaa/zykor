@@ -127,6 +127,7 @@ export const MENU_TREE: MenuSection[] = [
     href: '/configuracoes',
     permission: 'configuracoes',
     subItems: [
+      { icon: 'Bell', label: 'Notificações', href: '/configuracoes/notifications', permission: 'configuracoes' },
       { icon: 'Store', label: 'Bares', href: '/configuracoes/bares', permission: 'configuracoes' },
       { icon: 'Users', label: 'Administração', href: '/configuracoes/administracao/usuarios', permission: 'configuracoes' },
       { icon: 'Activity', label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },

@@ -1,0 +1,22 @@
+-- 2026-06-20 — Alertas também disparam Web Push (além do Discord).
+-- O ponto central enviar_alerta_discord_sistema_dedup (já com dedup diário) passa a chamar
+-- /api/push/send (caminho SISTEMA, autenticado pela service role key) depois do Discord,
+-- push pros usuários do bar que ativaram notificações. Best-effort: qualquer erro é engolido
+-- (nunca quebra o alerta). Ver [[project_web_push_stack]] e [[project_alertas_discord_nao_whatsapp_reservas]].
+--
+-- (A função completa foi aplicada via CREATE OR REPLACE em prod; aqui fica o bloco novo
+--  pra registro — o resto do corpo é idêntico ao anterior.)
+--
+-- Bloco adicionado após o INSERT em system.alertas_enviados:
+--
+--   BEGIN
+--     PERFORM net.http_post(
+--       url := 'https://zykor.com.br/api/push/send',
+--       headers := jsonb_build_object('Content-Type','application/json',
+--                  'Authorization','Bearer '||public.get_service_role_key()),
+--       body := jsonb_build_object('bar_id', COALESCE(p_bar_id,3),
+--               'title', COALESCE(p_titulo,'Zykor'), 'body', left(COALESCE(p_mensagem,''),180), 'url','/'),
+--       timeout_milliseconds := 4000
+--     );
+--   EXCEPTION WHEN OTHERS THEN NULL;
+--   END;
