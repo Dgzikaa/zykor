@@ -276,7 +276,7 @@ export function NotificationCenter() {
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="card-dark w-96 p-0" align="end">
+      <PopoverContent className="card-dark w-[calc(100vw-1.5rem)] sm:w-96 max-w-[24rem] p-0" align="end">
         <Card className="border-0 shadow-none">
           <CardHeader className="border-b border-gray-200 dark:border-gray-700 pb-3">
             <div className="flex items-center justify-between">
