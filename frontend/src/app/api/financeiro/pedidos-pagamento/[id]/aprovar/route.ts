@@ -65,6 +65,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const p = { ...pedido, ...vinculo } as PedidoPagamento;
   const ehBoleto = !!p.linha_digitavel;
 
+  // Padrão do bar: preenche conta pagadora / credencial Inter que faltam (memorizados na
+  // 1ª aprovação) → aprovações seguintes viram 1 clique. O financeiro ainda pode sobrescrever.
+  if (!p.conta_financeira_id || !p.inter_credencial_id) {
+    const { data: cfg } = await fin(supabase).from('pagamento_config_bar')
+      .select('conta_financeira_id, inter_credencial_id').eq('bar_id', pedido.bar_id).maybeSingle();
+    if (cfg) {
+      if (!p.conta_financeira_id && cfg.conta_financeira_id) { p.conta_financeira_id = cfg.conta_financeira_id; vinculo.conta_financeira_id = cfg.conta_financeira_id; }
+      if (!p.inter_credencial_id && cfg.inter_credencial_id) { p.inter_credencial_id = cfg.inter_credencial_id; vinculo.inter_credencial_id = cfg.inter_credencial_id; }
+    }
+  }
+
   // Validação do que o CA/Inter exigem.
   const faltando: string[] = [];
   if (!p.categoria_id) faltando.push('categoria');
@@ -201,6 +212,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .eq('id', id)
     .select()
     .single();
+
+  // Memoriza conta pagadora + Inter usados como padrão do bar (próxima aprovação = 1 clique).
+  if (p.conta_financeira_id && p.inter_credencial_id) {
+    await fin(supabase).from('pagamento_config_bar').upsert({
+      bar_id: pedido.bar_id,
+      conta_financeira_id: p.conta_financeira_id,
+      inter_credencial_id: Number(p.inter_credencial_id),
+      atualizado_em: new Date().toISOString(),
+    }, { onConflict: 'bar_id' });
+  }
 
   await registrarHistorico(supabase, {
     pedido_id: id, bar_id: pedido.bar_id, autor: user, campo: 'status',
