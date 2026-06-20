@@ -50,7 +50,7 @@ export async function ativarPush(barId?: number): Promise<{ ok: boolean; error?:
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC) as BufferSource,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC).buffer as ArrayBuffer,
       });
     }
     const json: any = sub.toJSON();
