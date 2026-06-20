@@ -130,6 +130,7 @@ export async function POST(request: NextRequest) {
     linha_digitavel: body.linha_digitavel || null,
     observacao: body.observacao || null,
     // Pré-sugestões opcionais (financeiro confirma na aprovação)
+    contaazul_pessoa_id: body.contaazul_pessoa_id || null,
     categoria_id: body.categoria_id || null,
     categoria_nome: body.categoria_nome || null,
     centro_custo_id: body.centro_custo_id || null,
@@ -137,6 +138,18 @@ export async function POST(request: NextRequest) {
     criado_por: user.auth_id,
     atualizado_por: user.auth_id,
   };
+
+  // Boleto/fornecedor: tenta já vincular a pessoa do CA pelo CPF/CNPJ (a aprovação exige).
+  if (!novo.contaazul_pessoa_id && novo.cpf_cnpj) {
+    const doc = String(novo.cpf_cnpj).replace(/\D/g, '');
+    if (doc.length === 11 || doc.length === 14) {
+      const { data: pessoa } = await (supabase.schema('bronze' as any) as any)
+        .from('bronze_contaazul_pessoas')
+        .select('contaazul_id')
+        .eq('bar_id', user.bar_id).eq('documento', doc).limit(1).maybeSingle();
+      if (pessoa?.contaazul_id) novo.contaazul_pessoa_id = pessoa.contaazul_id;
+    }
+  }
 
   const { data, error } = await fin(supabase)
     .from('pedidos_pagamento')

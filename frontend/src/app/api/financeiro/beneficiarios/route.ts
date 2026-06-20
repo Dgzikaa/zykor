@@ -61,6 +61,17 @@ export async function POST(request: NextRequest) {
     ativo: body.ativo !== false,
   };
 
+  // Freela já nasce categorizado: função -> categoria "FREELA <FUNÇÃO>" do CA (por bar)
+  if (novo.tipo === 'freela' && novo.funcao && !novo.categoria_id) {
+    const { data: cat } = await (supabase.schema('bronze' as any) as any)
+      .from('bronze_contaazul_categorias')
+      .select('contaazul_id, nome')
+      .eq('bar_id', user.bar_id)
+      .ilike('nome', `FREELA ${novo.funcao}`)
+      .limit(1).maybeSingle();
+    if (cat) { novo.categoria_id = cat.contaazul_id; novo.categoria_nome = cat.nome; }
+  }
+
   const { data, error } = await fin(supabase).from('beneficiarios').insert(novo).select().single();
   if (error) {
     // 23505 = violação do unique por CPF/CNPJ no bar
