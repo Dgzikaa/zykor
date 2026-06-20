@@ -94,7 +94,7 @@ export function GoogleReviewsTooltip({
       <PopoverContent 
         side="bottom" 
         align="start" 
-        className="w-96 p-0 shadow-xl z-50"
+        className="w-[calc(100vw-1.5rem)] sm:w-96 max-w-[24rem] p-0 shadow-xl z-50"
       >
         {loading ? (
           <div className="flex items-center justify-center p-6">

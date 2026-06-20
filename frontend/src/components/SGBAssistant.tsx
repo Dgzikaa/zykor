@@ -162,7 +162,7 @@ export default function SGBAssistant({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed right-4 bottom-4 top-4 w-96 bg-white/95 backdrop-blur-sm border border-gray-200/50 rounded-2xl shadow-2xl z-50 flex flex-col">
+    <div className="fixed right-2 sm:right-4 bottom-4 top-4 w-[calc(100vw-1rem)] sm:w-96 max-w-[24rem] bg-white/95 backdrop-blur-sm border border-gray-200/50 rounded-2xl shadow-2xl z-50 flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-t-2xl">
         <div className="flex items-center justify-between">
