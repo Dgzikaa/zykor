@@ -1,71 +1,39 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Construction, ArrowLeft, Clock, CheckCircle2 } from 'lucide-react';
+import { Bell, Smartphone } from 'lucide-react';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { Card, CardContent } from '@/components/ui/card';
+import { useBar } from '@/contexts/BarContext';
+import { PushToggle } from '@/components/PushToggle';
 
 export default function NotificationsPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    // Verificar se está no cliente antes de usar router
-    if (typeof window !== 'undefined') {
-      // Lógica de verificação de permissões aqui se necessário
-    }
-  }, [router]);
+  const { selectedBar } = useBar();
 
   return (
-    <div className="min-h-[calc(100vh-200px)] flex items-center justify-center p-4">
-      <div className="max-w-md w-full card-dark rounded-lg shadow-lg p-8 text-center transition-colors duration-300">
-        {/* Ícone Principal */}
-        <div className="flex justify-center mb-6">
-          <div className="bg-orange-100 dark:bg-orange-900/30 p-4 rounded-full transition-colors duration-300">
-            <Construction className="h-12 w-12 text-orange-600 dark:text-orange-400" />
-          </div>
+    <ProtectedRoute>
+      <div className="container mx-auto px-3 py-6 max-w-2xl">
+        <div className="flex items-center gap-2 mb-1">
+          <Bell className="w-5 h-5" />
+          <h1 className="text-xl font-bold">Notificações</h1>
         </div>
+        <p className="text-sm text-muted-foreground mb-5">Receba alertas do Zykor direto no celular — sem custo, sem WhatsApp.</p>
 
-        {/* Título */}
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 transition-colors duration-300">
-          Configurações de Notificações
-        </h1>
-
-        {/* Descrição */}
-        <p className="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed transition-colors duration-300">
-          Configure notificações por email, WhatsApp, Discord e outros canais para manter sua equipe informada.
-        </p>
-
-        {/* Badge de Prioridade */}
-        <div className="flex justify-center mb-6">
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border transition-colors duration-300 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 border-yellow-200 dark:border-yellow-800">
-            <CheckCircle2 className="w-4 h-4 mr-2" />
-            Prioridade Média
-          </span>
-        </div>
-
-        {/* Previsão */}
-        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6 transition-colors duration-300">
-          <div className="flex items-center justify-center text-blue-800 dark:text-blue-200">
-            <Clock className="w-4 h-4 mr-2" />
-            <span className="text-sm font-medium">Previsão: 1-2 semanas</span>
-          </div>
-        </div>
-
-        {/* Botão Voltar */}
-        <button
-          onClick={() => router.push('/home')}
-          className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg transition-colors duration-200 font-medium"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Voltar ao Dashboard
-        </button>
-
-        {/* Rodapé */}
-        <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 transition-colors duration-300">
-          <p className="text-xs text-gray-500 dark:text-gray-400 transition-colors duration-300">
-            SGB V2 • Sistema em Desenvolvimento
-          </p>
-        </div>
+        <Card>
+          <CardContent className="py-5 space-y-3">
+            <div className="flex items-center gap-2 font-medium">
+              <Smartphone className="w-4 h-4 text-blue-500" /> Notificações push neste aparelho
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Ative pra receber avisos do Zykor (financeiro, eventos, pendências) mesmo com o app fechado.
+              É preciso ativar em <b>cada aparelho</b>.
+            </p>
+            <PushToggle barId={selectedBar?.id} />
+            <p className="text-xs text-muted-foreground border-t pt-3">
+              📱 <b>iPhone:</b> abra o Zykor no Safari → Compartilhar → <b>Adicionar à Tela de Início</b>, abra pelo ícone instalado e então ative aqui (o iOS só permite push pelo app instalado).
+            </p>
+          </CardContent>
+        </Card>
       </div>
-    </div>
+    </ProtectedRoute>
   );
-} 
+}
