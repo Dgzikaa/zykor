@@ -31,6 +31,12 @@ async function afazerDe(barId: number, ano: number, mes: number) {
   const { data } = await (supabase as any).rpc('get_inv_aprovados_a_fazer', { p_bar_id: barId, p_ano: ano, p_mes: mes });
   return Number(data) || 0;
 }
+async function snapDe(barId: number, ano: number, mes: number) {
+  // saldo de caixa+investimentos puxado automático do CA (snapshot mensal); null se não houver
+  const { data } = await fin().from('saldo_snapshot_mensal').select('caixa, investimentos, total, capturado_em')
+    .eq('bar_id', barId).eq('ano', ano).eq('mes', mes).maybeSingle();
+  return data || null;
+}
 
 /** Lista de N meses (ano,mes) terminando em (ano,mes), do mais antigo p/ o mais novo. */
 function janelaMeses(ano: number, mes: number, n: number) {
@@ -67,6 +73,7 @@ export async function GET(req: NextRequest) {
         estoque: await estoqueDe(barId, ano, mes),
         realizados: await realizadosDe(barId, ano, mes),
         afazer: await afazerDe(barId, ano, mes),
+        snap: await snapDe(barId, ano, mes),
       })),
     );
 

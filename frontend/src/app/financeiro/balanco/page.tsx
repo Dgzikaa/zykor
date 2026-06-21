@@ -12,7 +12,7 @@ const fmtBRL = (v: number) => `${v < 0 ? '-' : ''}R$ ${Math.abs(v).toLocaleStrin
 const fmtNum = (v: number, d = 1) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const MES_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-type Mes = { ano: number; mes: number; ca: any; manual: any; imob: any; estoque: number; realizados: number; afazer: number };
+type Mes = { ano: number; mes: number; ca: any; manual: any; imob: any; estoque: number; realizados: number; afazer: number; snap?: { caixa: number; investimentos: number; total: number; capturado_em: string } | null };
 type RowTipo = 'header' | 'ca' | 'manual' | 'calc' | 'ratio' | 'days';
 interface RowDef { id: string; label: string; tipo: RowTipo; campo?: string; bold?: boolean; indent?: boolean; destaque?: boolean; formula?: string }
 
@@ -164,7 +164,12 @@ export default function BalancoPage() {
     try {
       const r = await fetch(`/api/financeiro/balanco?bar_id=${selectedBar.id}&ano=${ano}&mes=${mes}&n=${qtdMeses}`, { cache: 'no-store' });
       const j = await r.json();
-      setMeses(Array.isArray(j.meses) ? j.meses : []);
+      // Caixa+Investimentos automático: se há snapshot do CA pro mês, usa ele (sobrepõe o manual).
+      const meses = (Array.isArray(j.meses) ? j.meses : []).map((m: any) =>
+        m.snap && m.snap.total != null
+          ? { ...m, manual: { ...(m.manual || {}), caixa_investimentos: Number(m.snap.total) } }
+          : m);
+      setMeses(meses);
       carregadoRef.current = true;
     } finally { setLoading(false); }
   }, [selectedBar?.id, ano, mes, qtdMeses]);
