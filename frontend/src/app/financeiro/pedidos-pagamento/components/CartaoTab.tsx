@@ -21,6 +21,7 @@ export function CartaoTab() {
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [categorias, setCategorias] = useState<Cat[]>([]);
   const [vencimento, setVencimento] = useState(new Date().toISOString().slice(0, 10));
+  const [linhaBoleto, setLinhaBoleto] = useState('');
   const [gerando, setGerando] = useState(false);
 
   const ler = async (file: File) => {
@@ -62,10 +63,11 @@ export function CartaoTab() {
     try {
       const res = await api.post('/api/financeiro/cartao/gerar', {
         data_vencimento: vencimento,
+        linha_digitavel: linhaBoleto.replace(/\D/g, '') || null,
         linhas: linhas.map((l) => ({ categoria_id: l.categoria_id, categoria_nome: l.categoria_nome, valor: l.valor })),
       });
       showToast({ type: 'success', title: 'Pedido da fatura criado', message: `${fmtBRL(res.total)} em ${res.categorias} categoria(s) — foi pra aprovação.` });
-      setLinhas([]); setNome('');
+      setLinhas([]); setNome(''); setLinhaBoleto('');
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao gerar', message: e?.message }); }
     finally { setGerando(false); }
   };
@@ -105,6 +107,9 @@ export function CartaoTab() {
                 </Button>
               </div>
             </div>
+            <Input value={linhaBoleto} onChange={(e) => setLinhaBoleto(e.target.value)} inputMode="numeric"
+              placeholder="Linha digitável do boleto da fatura (opcional — paga via boleto na aprovação)"
+              className="h-8 mb-2 text-xs" />
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground border-b">
