@@ -40,6 +40,7 @@ import {
   Briefcase,
   ClipboardList,
   Server,
+  ShoppingCart,
 } from 'lucide-react';
 
 export type MenuIcon = ComponentType<{ className?: string }>;
@@ -78,6 +79,7 @@ export const MENU_ICONS: Record<string, MenuIcon> = {
   Briefcase,
   ClipboardList,
   Server,
+  ShoppingCart,
 };
 
 /** Componente do ícone pelo nome; fallback em Activity se faltar. */

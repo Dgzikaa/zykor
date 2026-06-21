@@ -2,9 +2,11 @@
 -- estoque atual (última contagem) + consumo/dia (histórico de contagens) × dias de cobertura − estoque = comprar.
 -- Exclui categoria 'Produção' (preparos feitos na cozinha, não comprados).
 -- Depende: contagem fresca + custo/unidade/embalagem do insumo 1000% (em andamento — ver [[project_insumos_cadastro_planilha_mestre]]).
+DROP FUNCTION IF EXISTS operations.sugestao_compras(int, text, int);
 CREATE OR REPLACE FUNCTION operations.sugestao_compras(p_bar_id int, p_tipo_local text, p_cobertura_dias int DEFAULT 7)
-RETURNS TABLE(nome text, categoria text, unidade text, custo numeric, estoque_atual numeric, ultima_contagem date,
-              consumo_dia numeric, necessidade numeric, sugestao_comprar numeric, valor_estimado numeric)
+RETURNS TABLE(nome text, categoria text, fornecedor text, embalagem text, unidade text, custo numeric,
+              estoque_atual numeric, ultima_contagem date, consumo_dia numeric, necessidade numeric,
+              sugestao_comprar numeric, valor_estimado numeric)
 LANGUAGE sql STABLE SET search_path TO 'operations','pg_catalog' AS $$
   WITH seq AS (
     SELECT insumo_codigo, data_contagem, estoque_final,
@@ -19,7 +21,7 @@ LANGUAGE sql STABLE SET search_path TO 'operations','pg_catalog' AS $$
   rate AS (SELECT insumo_codigo, avg(consumo_dia) media_dia FROM consumo GROUP BY 1),
   atual AS (SELECT DISTINCT ON (insumo_codigo) insumo_codigo, estoque_final, data_contagem
             FROM operations.contagem_estoque_insumos WHERE bar_id=p_bar_id ORDER BY insumo_codigo, data_contagem DESC)
-  SELECT i.nome::text, i.categoria::text, i.unidade_medida::text, i.custo_unitario,
+  SELECT i.nome::text, i.categoria::text, i.fornecedor::text, i.embalagem::text, i.unidade_medida::text, i.custo_unitario,
     a.estoque_final, a.data_contagem, round(r.media_dia,2),
     round(r.media_dia*p_cobertura_dias,2),
     round(r.media_dia*p_cobertura_dias - COALESCE(a.estoque_final,0),2),
