@@ -44,33 +44,40 @@ export async function POST(request: NextRequest) {
     let result: any;
 
     if (syncMode === 'alteracao_full_ano') {
-      // Re-sincroniza o ano MÊS A MÊS (custom por data_vencimento), captura re-categorizações.
+      // Re-sincroniza o ano por mês (custom, captura re-categorizações). Em PARALELO pra
+      // caber no limite da Vercel (em série estourava → 504 → "falha"). Retry 1x nos que falham.
       const t0 = Date.now();
       const ano = Number(body.ano) || new Date().getFullYear();
       const anoAtual = new Date().getFullYear();
-      const mesAtual = new Date().getMonth() + 1;
-      const ultimoMes = ano === anoAtual ? mesAtual : 12; // não puxa meses futuros do ano corrente
-      let totalLanc = 0; const mesesOk: number[] = []; const mesesErro: number[] = [];
-      for (let m = 1; m <= ultimoMes; m++) {
-        if (Date.now() - t0 > 270_000) break; // margem de segurança do maxDuration
-        const r = await chamarSync({
-          sync_mode: 'custom',
-          date_from: `${ano}-${pad(m)}-01`,
-          date_to: `${ano}-${pad(m)}-${pad(lastDay(ano, m))}`,
-        });
-        if (r.ok && r.json?.success) { totalLanc += r.json?.stats?.lancamentos ?? 0; mesesOk.push(m); }
-        else mesesErro.push(m);
+      const ultimoMes = ano === anoAtual ? (new Date().getMonth() + 1) : 12;
+      const syncMes = (m: number) => chamarSync({
+        sync_mode: 'custom',
+        date_from: `${ano}-${pad(m)}-01`,
+        date_to: `${ano}-${pad(m)}-${pad(lastDay(ano, m))}`,
+      }).then(r => ({ m, ok: !!(r.ok && r.json?.success), lanc: Number(r.json?.stats?.lancamentos ?? 0) }))
+        .catch(() => ({ m, ok: false, lanc: 0 }));
+
+      const meses = Array.from({ length: ultimoMes }, (_, i) => i + 1);
+      const map = new Map<number, { m: number; ok: boolean; lanc: number }>();
+      (await Promise.all(meses.map(syncMes))).forEach(r => map.set(r.m, r));
+      // retry 1x nos que falharam (transiente: 429/rede)
+      const falhou = [...map.values()].filter(r => !r.ok).map(r => r.m);
+      if (falhou.length) {
+        await new Promise(res => setTimeout(res, 2500));
+        (await Promise.all(falhou.map(syncMes))).forEach(r => map.set(r.m, r));
       }
+      const vals = [...map.values()];
+      const mesesOk = vals.filter(r => r.ok).map(r => r.m);
+      const mesesErro = vals.filter(r => !r.ok).map(r => r.m);
+      const totalLanc = vals.reduce((s, r) => s + r.lanc, 0);
       result = {
-        success: mesesErro.length === 0,
-        bar_id: barId,
-        sync_mode: syncMode,
+        success: mesesOk.length > 0, // sucesso se a maioria foi; 1 mês transiente não derruba
+        bar_id: barId, sync_mode: syncMode,
         stats: { lancamentos: totalLanc },
-        meses_ok: mesesOk.length,
-        meses_erro: mesesErro,
+        meses_ok: mesesOk.length, meses_erro: mesesErro,
         duration_seconds: Math.round((Date.now() - t0) / 1000),
       };
-      if (mesesErro.length > 0 && mesesOk.length === 0) {
+      if (mesesOk.length === 0) {
         return NextResponse.json({ success: false, error: 'Falha ao sincronizar Conta Azul (todos os meses)' }, { status: 502 });
       }
     } else {
