@@ -134,14 +134,20 @@ export default function ContagemPage() {
                 <div className="space-y-1.5">
                   {lista.map(i => {
                     const v = valores[i.insumo_id] ?? '';
+                    const contado = v !== '';
                     return (
-                      <div key={i.insumo_id} className="flex items-center gap-2 rounded-lg border px-3 py-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate flex items-center gap-1">{v !== '' && <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}{i.nome}</div>
-                          <div className="text-[11px] text-muted-foreground">{i.unidade_medida || 'un'} · últ: {i.ultimo_final ?? '—'}</div>
+                      <div key={i.insumo_id} className={`rounded-lg border p-3 ${contado ? 'border-emerald-400 bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
+                        <div className="text-sm font-medium mb-1.5 break-words flex items-start gap-1.5">
+                          {contado && <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />}
+                          <span>{i.nome || `(item ${i.codigo})`}</span>
                         </div>
-                        <Input value={v} onChange={e => setValores(p => ({ ...p, [i.insumo_id]: e.target.value }))}
-                          inputMode="decimal" placeholder="0" className="w-20 text-center text-base h-11" />
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs text-muted-foreground">
+                            {i.unidade_medida || 'un'} · anterior: <b>{i.ultimo_final ?? '—'}</b>
+                          </span>
+                          <Input value={v} onChange={e => setValores(p => ({ ...p, [i.insumo_id]: e.target.value }))}
+                            inputMode="decimal" placeholder="0" className="w-24 text-center text-base h-11 shrink-0" />
+                        </div>
                       </div>
                     );
                   })}
