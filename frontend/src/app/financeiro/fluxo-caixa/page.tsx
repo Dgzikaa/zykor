@@ -46,16 +46,16 @@ export default function FluxoCaixaPage() {
 
   useEffect(() => { const t = setTimeout(carregar, 350); return () => clearTimeout(t); }, [carregar]);
 
-  const puxarInter = async () => {
+  const puxarSaldo = async () => {
     setPuxando(true);
     try {
-      const res = await api.get('/api/financeiro/inter/saldo');
-      const v = String(res.saldo ?? 0);
+      const res = await api.get('/api/financeiro/contaazul/saldos');
+      const v = String(res.caixa ?? 0);
       setSaldo(v);
       if (selectedBar?.id) localStorage.setItem(`fc_saldo_${selectedBar.id}`, v);
-      showToast({ type: 'success', title: 'Saldo atualizado do Inter', message: fmtBRL(Number(res.saldo)) });
+      showToast({ type: 'success', title: 'Saldo puxado do Conta Azul', message: `Caixa ${fmtBRL(Number(res.caixa))} · Investimentos ${fmtBRL(Number(res.investimentos))}` });
     } catch (e: any) {
-      showToast({ type: 'error', title: 'Não consegui puxar do Inter', message: e?.message });
+      showToast({ type: 'error', title: 'Não consegui puxar os saldos', message: e?.message });
     } finally { setPuxando(false); }
   };
 
@@ -76,9 +76,9 @@ export default function FluxoCaixaPage() {
             <Input value={saldo} onChange={(e) => { setSaldo(e.target.value); if (selectedBar?.id) localStorage.setItem(`fc_saldo_${selectedBar.id}`, e.target.value); }}
               placeholder="ex: 150.000" inputMode="decimal" className="w-44" />
           </div>
-          <Button variant="outline" size="sm" onClick={puxarInter} disabled={puxando} title="Puxar saldo da conta Inter">
+          <Button variant="outline" size="sm" onClick={puxarSaldo} disabled={puxando} title="Puxar o saldo atual de todas as contas do Conta Azul">
             {puxando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-            Puxar do Inter
+            Puxar saldo (CA)
           </Button>
           <div>
             <label className="text-xs text-muted-foreground block mb-1">Período</label>
