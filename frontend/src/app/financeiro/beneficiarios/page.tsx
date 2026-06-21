@@ -26,7 +26,7 @@ const fmtBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency'
 export default function BeneficiariosPage() {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
-  const [aba, setAba] = useState<'lista' | 'duplicados'>('lista');
+  const [aba, setAba] = useState<'lista' | 'categorias' | 'duplicados'>('lista');
 
   const [linhas, setLinhas] = useState<Benef[]>([]);
   const [resumo, setResumo] = useState<{ pessoas: number; total_pago: number; com_duplicados: number } | null>(null);
@@ -53,6 +53,30 @@ export default function BeneficiariosPage() {
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao abrir detalhe', message: e?.message }); }
     finally { setLoadingDet(false); }
   };
+
+  // Aba "Por categoria" (cruzamento: classe -> fornecedores)
+  const [cats, setCats] = useState<any[]>([]);
+  const [loadingCats, setLoadingCats] = useState(false);
+  const [catAberta, setCatAberta] = useState<string | null>(null);
+  const [forn, setForn] = useState<any[]>([]);
+  const [loadingForn, setLoadingForn] = useState(false);
+
+  const carregarCats = useCallback(async () => {
+    if (!selectedBar) return;
+    setLoadingCats(true);
+    try { const res = await api.get('/api/financeiro/beneficiarios/por-categoria'); setCats(res.categorias || []); }
+    catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
+    finally { setLoadingCats(false); }
+  }, [selectedBar, showToast]);
+
+  const abrirCat = async (categoria: string) => {
+    if (catAberta === categoria) { setCatAberta(null); return; }
+    setCatAberta(categoria); setForn([]); setLoadingForn(true);
+    try { const res = await api.get(`/api/financeiro/beneficiarios/por-categoria?categoria=${encodeURIComponent(categoria)}`); setForn(res.fornecedores || []); }
+    catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
+    finally { setLoadingForn(false); }
+  };
+  useEffect(() => { if (aba === 'categorias' && cats.length === 0) carregarCats(); }, [aba, carregarCats, cats.length]);
 
   const carregar = useCallback(async () => {
     if (!selectedBar) return;
@@ -96,9 +120,10 @@ export default function BeneficiariosPage() {
         </div>
         <p className="text-sm text-muted-foreground mb-4">Controle por pessoa — cadastros do Conta Azul unificados num só, com histórico de pagamentos.</p>
 
-        <Tabs value={aba} onValueChange={(v) => setAba(v as 'lista' | 'duplicados')} className="mb-4">
+        <Tabs value={aba} onValueChange={(v) => setAba(v as 'lista' | 'categorias' | 'duplicados')} className="mb-4">
           <TabsList>
             <TabsTrigger value="lista">Lista</TabsTrigger>
+            <TabsTrigger value="categorias">Por categoria</TabsTrigger>
             <TabsTrigger value="duplicados">Prováveis duplicados</TabsTrigger>
           </TabsList>
         </Tabs>
@@ -205,6 +230,62 @@ export default function BeneficiariosPage() {
                 <span className="text-muted-foreground text-center">Página {page} de {Math.ceil(total / 100)} · {total} pessoas</span>
                 <Button variant="outline" size="sm" disabled={page >= Math.ceil(total / 100) || loading} onClick={() => setPage(p => p + 1)}>Próxima</Button>
               </div>
+            )}
+          </>
+        )}
+
+        {aba === 'categorias' && (
+          <>
+            <p className="text-sm text-muted-foreground mb-3">Onde o dinheiro vai, por tipo. Clique numa categoria pra ver os fornecedores dela.</p>
+            {loadingCats ? (
+              <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
+            ) : (
+              <Card className="p-0 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-muted-foreground border-b"><tr>
+                    <th className="text-left px-3 py-2 min-w-[200px]">Categoria</th>
+                    <th className="text-right px-3 py-2 whitespace-nowrap">Fornecedores</th>
+                    <th className="text-right px-3 py-2 whitespace-nowrap">Pagamentos</th>
+                    <th className="text-right px-3 py-2 whitespace-nowrap">Média/mês</th>
+                    <th className="text-right px-3 py-2 whitespace-nowrap">Total</th>
+                  </tr></thead>
+                  <tbody>
+                    {cats.map((c) => (
+                      <Fragment key={c.categoria}>
+                        <tr className="border-b last:border-0 hover:bg-muted/30 cursor-pointer" onClick={() => abrirCat(c.categoria)}>
+                          <td className="px-3 py-1.5">
+                            <div className="flex items-center gap-1 font-medium">
+                              <ChevronRight className={`w-3.5 h-3.5 shrink-0 text-muted-foreground transition-transform ${catAberta === c.categoria ? 'rotate-90' : ''}`} />
+                              <span className="truncate max-w-[240px]">{c.categoria}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{c.qtd_fornecedores}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{c.qtd_pagamentos}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{fmtBRL(c.media_mes)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums font-medium">{fmtBRL(c.total)}</td>
+                        </tr>
+                        {catAberta === c.categoria && (
+                          <tr className="bg-muted/20"><td colSpan={5} className="px-3 py-2">
+                            {loadingForn ? (
+                              <div className="py-3 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" /></div>
+                            ) : (
+                              <div className="space-y-0.5 max-h-80 overflow-y-auto">
+                                {forn.map((f) => (
+                                  <div key={f.canonical_key} className="flex items-center justify-between text-xs px-2 py-1 rounded hover:bg-muted/40">
+                                    <span className="truncate max-w-[60%]">{f.nome}</span>
+                                    <span className="text-muted-foreground whitespace-nowrap">{f.qtd}× · <b className="text-foreground">{fmtBRL(f.total)}</b></span>
+                                  </div>
+                                ))}
+                                {forn.length === 0 && <div className="text-xs text-muted-foreground px-2">—</div>}
+                              </div>
+                            )}
+                          </td></tr>
+                        )}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
             )}
           </>
         )}
