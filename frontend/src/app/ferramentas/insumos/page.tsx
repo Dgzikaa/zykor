@@ -45,6 +45,7 @@ export default function InsumosPage() {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<EditingState>(null);
   const [saving, setSaving] = useState(false);
+  const [soSemCusto, setSoSemCusto] = useState(false);
 
   useEffect(() => {
     setPageTitle('Insumos');
@@ -71,15 +72,18 @@ export default function InsumosPage() {
   }, [fetchInsumos]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return insumos;
+    let arr = soSemCusto
+      ? insumos.filter((i) => i.custo_unitario == null || Number(i.custo_unitario) === 0)
+      : insumos;
+    if (!search.trim()) return arr;
     const q = search.toLowerCase();
-    return insumos.filter(
+    return arr.filter(
       (i) =>
         i.nome.toLowerCase().includes(q) ||
         (i.codigo || '').toLowerCase().includes(q) ||
         (i.categoria || '').toLowerCase().includes(q)
     );
-  }, [insumos, search]);
+  }, [insumos, search, soSemCusto]);
 
   const stats = useMemo(() => {
     const total = insumos.length;
@@ -200,9 +204,12 @@ export default function InsumosPage() {
             <CardTitle className="text-3xl">{stats.total}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
+        <Card
+          onClick={() => setSoSemCusto((v) => !v)}
+          className={`cursor-pointer transition ${soSemCusto ? 'ring-2 ring-amber-500' : 'hover:bg-muted/30'}`}
+        >
           <CardHeader className="pb-2">
-            <CardDescription>Sem custo</CardDescription>
+            <CardDescription>Sem custo {soSemCusto ? '· filtrando' : '· clique p/ filtrar'}</CardDescription>
             <CardTitle className="text-3xl text-amber-600">
               {stats.semCusto}
             </CardTitle>
