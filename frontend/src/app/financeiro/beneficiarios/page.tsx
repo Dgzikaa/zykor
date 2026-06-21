@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Users, Loader2, Search, Layers, Merge } from 'lucide-react';
+import { Users, Loader2, Search, Layers, Merge, ChevronRight } from 'lucide-react';
 
 type Benef = {
   canonical_key: string; nome: string; documento: string | null;
@@ -39,6 +39,20 @@ export default function BeneficiariosPage() {
   const [pares, setPares] = useState<Par[]>([]);
   const [loadingDup, setLoadingDup] = useState(false);
   const [unificando, setUnificando] = useState<string | null>(null);
+
+  const [aberto, setAberto] = useState<string | null>(null);
+  const [det, setDet] = useState<any>(null);
+  const [loadingDet, setLoadingDet] = useState(false);
+
+  const abrirDetalhe = async (key: string) => {
+    if (aberto === key) { setAberto(null); return; }
+    setAberto(key); setDet(null); setLoadingDet(true);
+    try {
+      const res = await api.get(`/api/financeiro/beneficiarios/detalhe?key=${encodeURIComponent(key)}`);
+      setDet(res);
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao abrir detalhe', message: e?.message }); }
+    finally { setLoadingDet(false); }
+  };
 
   const carregar = useCallback(async () => {
     if (!selectedBar) return;
@@ -123,16 +137,63 @@ export default function BeneficiariosPage() {
                   </tr></thead>
                   <tbody>
                     {linhas.map((b) => (
-                      <tr key={b.canonical_key} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="px-3 py-1.5 sticky left-0 bg-card">
-                          <div className="font-medium truncate max-w-[240px]">{b.nome}</div>
-                          {Number(b.qtd_cadastros_ca) > 1 && <span className="text-[10px] text-amber-600">⚠ {b.qtd_cadastros_ca} cadastros no CA unificados</span>}
-                        </td>
-                        <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground">{b.documento || '—'}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{b.qtd_pagamentos}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums font-medium">{fmtBRL(Number(b.total_pago))}</td>
-                        <td className="px-3 py-1.5 text-right whitespace-nowrap text-muted-foreground">{b.ultimo_pgto || '—'}</td>
-                      </tr>
+                      <Fragment key={b.canonical_key}>
+                        <tr className="border-b last:border-0 hover:bg-muted/30 cursor-pointer" onClick={() => abrirDetalhe(b.canonical_key)}>
+                          <td className="px-3 py-1.5 sticky left-0 bg-card">
+                            <div className="font-medium truncate max-w-[240px] flex items-center gap-1">
+                              <ChevronRight className={`w-3.5 h-3.5 shrink-0 text-muted-foreground transition-transform ${aberto === b.canonical_key ? 'rotate-90' : ''}`} />
+                              {b.nome}
+                            </div>
+                            {Number(b.qtd_cadastros_ca) > 1 && <span className="text-[10px] text-amber-600 ml-[18px]">⚠ {b.qtd_cadastros_ca} cadastros no CA unificados</span>}
+                          </td>
+                          <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground">{b.documento || '—'}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{b.qtd_pagamentos}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums font-medium">{fmtBRL(Number(b.total_pago))}</td>
+                          <td className="px-3 py-1.5 text-right whitespace-nowrap text-muted-foreground">{b.ultimo_pgto || '—'}</td>
+                        </tr>
+                        {aberto === b.canonical_key && (
+                          <tr className="bg-muted/20"><td colSpan={5} className="px-3 py-3">
+                            {loadingDet ? (
+                              <div className="py-4 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" /></div>
+                            ) : det ? (
+                              <div className="space-y-3">
+                                <div className="flex gap-4 text-xs flex-wrap">
+                                  <span>Saídas: <b className="text-red-600">{fmtBRL(det.resumo.saidas)}</b></span>
+                                  {det.resumo.entradas > 0 && <span>Entradas: <b className="text-emerald-600">{fmtBRL(det.resumo.entradas)}</b></span>}
+                                  <span className="text-muted-foreground">{det.resumo.qtd} lançamentos · principal: <b>{det.resumo.categoria_principal || '—'}</b></span>
+                                </div>
+                                {det.categorias?.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {det.categorias.slice(0, 10).map((c: any) => (
+                                      <span key={c.categoria} className="text-[11px] rounded bg-muted px-2 py-0.5">{c.categoria}: <b>{fmtBRL(c.valor)}</b></span>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="max-h-72 overflow-y-auto rounded border bg-card">
+                                  <table className="w-full text-xs">
+                                    <thead className="text-muted-foreground border-b sticky top-0 bg-card"><tr>
+                                      <th className="text-left px-2 py-1 whitespace-nowrap">Data</th>
+                                      <th className="text-left px-2">Categoria</th>
+                                      <th className="text-left px-2">Descrição</th>
+                                      <th className="text-right px-2 whitespace-nowrap">Valor</th>
+                                    </tr></thead>
+                                    <tbody>
+                                      {det.itens.slice(0, 300).map((i: any, idx: number) => (
+                                        <tr key={idx} className="border-b last:border-0">
+                                          <td className="px-2 py-1 whitespace-nowrap text-muted-foreground">{i.data || i.competencia || '—'}</td>
+                                          <td className="px-2 truncate max-w-[140px]">{i.categoria || '—'}</td>
+                                          <td className="px-2 truncate max-w-[220px] text-muted-foreground">{i.descricao || '—'}</td>
+                                          <td className={`px-2 text-right whitespace-nowrap tabular-nums ${i.tipo === 'RECEITA' ? 'text-emerald-600' : ''}`}>{fmtBRL(i.valor)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            ) : null}
+                          </td></tr>
+                        )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
