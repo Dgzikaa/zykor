@@ -8,7 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuthenticatedUser } from '@/middleware/auth';
 import { userHasModule } from '@/lib/permissions/resolver';
 
-export type PedidoTipo = 'reembolso' | 'fornecedor' | 'avulso' | 'adiantamento' | 'freela';
+export type PedidoTipo = 'reembolso' | 'fornecedor' | 'avulso' | 'adiantamento' | 'freela' | 'cartao';
 
 export type PedidoStatus =
   | 'rascunho'
@@ -21,7 +21,7 @@ export type PedidoStatus =
   | 'rejeitado'
   | 'cancelado';
 
-export const TIPOS_VALIDOS: PedidoTipo[] = ['reembolso', 'fornecedor', 'avulso', 'adiantamento', 'freela'];
+export const TIPOS_VALIDOS: PedidoTipo[] = ['reembolso', 'fornecedor', 'avulso', 'adiantamento', 'freela', 'cartao'];
 
 /** Status em que o solicitante ainda pode editar/cancelar o próprio pedido. */
 export const STATUS_EDITAVEL_SOLICITANTE: PedidoStatus[] = ['rascunho', 'aguardando_aprovacao'];
@@ -46,6 +46,7 @@ export interface PedidoPagamento {
   tipo_chave?: string | null;
   cpf_cnpj?: string | null;
   linha_digitavel?: string | null;
+  rateio?: Array<{ id_categoria: string; categoria_nome?: string; valor: number }> | null;
   observacao?: string | null;
   categoria_id?: string | null;
   categoria_nome?: string | null;

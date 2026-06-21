@@ -339,6 +339,19 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
+    // Rateio: usa o multi-categoria do body (ex.: fatura de cartão) se vier; senão 1 categoria.
+    const caRateio = Array.isArray(body.rateio) && body.rateio.length > 0
+      ? body.rateio.map((r: any) => ({ id_categoria: r.id_categoria, valor: Math.round(Number(r.valor) * 100) / 100 }))
+      : [
+          {
+            id_categoria: categoria_id,
+            valor: valorRound,
+            ...(centro_custo_id
+              ? { rateio_centro_custo: [{ id_centro_custo: centro_custo_id, valor: valorRound }] }
+              : {}),
+          },
+        ];
+
     const caBody = {
       data_competencia,
       valor: valorRound,
@@ -346,19 +359,7 @@ export async function POST(request: NextRequest) {
       descricao,
       contato: resolvedPessoaId,
       conta_financeira: resolvedContaFinId,
-      rateio: [
-        {
-          id_categoria: categoria_id,
-          valor: valorRound,
-          ...(centro_custo_id
-            ? {
-                rateio_centro_custo: [
-                  { id_centro_custo: centro_custo_id, valor: valorRound },
-                ],
-              }
-            : {}),
-        },
-      ],
+      rateio: caRateio,
       condicao_pagamento: {
         parcelas: [
           {

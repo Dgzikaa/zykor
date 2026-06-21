@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Loader2, CreditCard, Sparkles, Save } from 'lucide-react';
+import { Loader2, CreditCard, Sparkles, Save, Send } from 'lucide-react';
 
 type Cat = { categoria_id: string | null; categoria_nome: string };
 type Linha = { data: string | null; descricao: string; valor: number; categoria_id: string | null; categoria_nome: string | null; origem: string };
@@ -19,6 +20,8 @@ export function CartaoTab() {
   const [nome, setNome] = useState('');
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [categorias, setCategorias] = useState<Cat[]>([]);
+  const [vencimento, setVencimento] = useState(new Date().toISOString().slice(0, 10));
+  const [gerando, setGerando] = useState(false);
 
   const ler = async (file: File) => {
     setNome(file.name); setLendo(true); setLinhas([]);
@@ -53,6 +56,20 @@ export function CartaoTab() {
     } finally { setSalvando(false); }
   };
 
+  const gerar = async () => {
+    if (semCat > 0) return showToast({ type: 'error', title: `Categorize as ${semCat} linha(s) sem categoria antes de gerar` });
+    setGerando(true);
+    try {
+      const res = await api.post('/api/financeiro/cartao/gerar', {
+        data_vencimento: vencimento,
+        linhas: linhas.map((l) => ({ categoria_id: l.categoria_id, categoria_nome: l.categoria_nome, valor: l.valor })),
+      });
+      showToast({ type: 'success', title: 'Pedido da fatura criado', message: `${fmtBRL(res.total)} em ${res.categorias} categoria(s) — foi pra aprovação.` });
+      setLinhas([]); setNome('');
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao gerar', message: e?.message }); }
+    finally { setGerando(false); }
+  };
+
   const total = linhas.reduce((s, l) => s + l.valor, 0);
   const semCat = linhas.filter((l) => !l.categoria_nome).length;
 
@@ -75,11 +92,18 @@ export function CartaoTab() {
       {linhas.length > 0 && (
         <Card>
           <CardContent className="py-3">
-            <div className="flex items-center justify-between mb-2 text-sm">
+            <div className="flex items-center justify-between gap-2 mb-2 text-sm flex-wrap">
               <span className="text-muted-foreground">{linhas.length} linhas · total <b>{fmtBRL(total)}</b>{semCat > 0 && <span className="text-amber-600"> · {semCat} sem categoria</span>}</span>
-              <Button size="sm" onClick={salvar} disabled={salvando}>
-                {salvando ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando…</> : <><Save className="w-4 h-4 mr-2" />Salvar categorização</>}
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button size="sm" variant="outline" onClick={salvar} disabled={salvando} title="Salvar categorização (o sistema aprende)">
+                  {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                </Button>
+                <span className="text-xs text-muted-foreground">Vence</span>
+                <Input type="date" value={vencimento} onChange={(e) => setVencimento(e.target.value)} className="h-8 w-36" />
+                <Button size="sm" onClick={gerar} disabled={gerando || semCat > 0}>
+                  {gerando ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Gerando…</> : <><Send className="w-4 h-4 mr-2" />Gerar pedido</>}
+                </Button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -105,7 +129,7 @@ export function CartaoTab() {
               </table>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              💡 Verde = veio do histórico. Ao salvar, o sistema aprende cada estabelecimento. <b>Gerar os lançamentos/pagamento da fatura é o próximo passo.</b>
+              💡 Verde = veio do histórico. <b>Salvar</b> (ícone) ensina o sistema; <b>Gerar pedido</b> cria 1 conta a pagar rateada por categoria (paga 1x) → vai pra aprovação.
             </p>
           </CardContent>
         </Card>

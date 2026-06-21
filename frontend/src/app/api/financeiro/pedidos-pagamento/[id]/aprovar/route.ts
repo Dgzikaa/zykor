@@ -134,6 +134,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           pessoa_id: p.contaazul_pessoa_id,
           cpf_cnpj: p.cpf_cnpj || undefined,
           nome_beneficiario: p.beneficiario_nome || undefined,
+          rateio: p.rateio || undefined, // fatura de cartão: rateio multi-categoria
         }),
       });
       const d = await r.json();
