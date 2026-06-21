@@ -5,9 +5,11 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useBar } from '@/contexts/BarContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Wallet, AlertTriangle } from 'lucide-react';
+import { Wallet, AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine,
 } from 'recharts';
@@ -20,8 +22,10 @@ interface Resumo { saldo_final: number; total_entradas: number; total_saidas: nu
 
 export default function FluxoCaixaPage() {
   const { selectedBar } = useBar();
+  const { showToast } = useToast();
   const [saldo, setSaldo] = useState('');
   const [dias, setDias] = useState(60);
+  const [puxando, setPuxando] = useState(false);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [resumo, setResumo] = useState<Resumo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,6 +46,19 @@ export default function FluxoCaixaPage() {
 
   useEffect(() => { const t = setTimeout(carregar, 350); return () => clearTimeout(t); }, [carregar]);
 
+  const puxarInter = async () => {
+    setPuxando(true);
+    try {
+      const res = await api.get('/api/financeiro/inter/saldo');
+      const v = String(res.saldo ?? 0);
+      setSaldo(v);
+      if (selectedBar?.id) localStorage.setItem(`fc_saldo_${selectedBar.id}`, v);
+      showToast({ type: 'success', title: 'Saldo atualizado do Inter', message: fmtBRL(Number(res.saldo)) });
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Não consegui puxar do Inter', message: e?.message });
+    } finally { setPuxando(false); }
+  };
+
   const chart = useMemo(() => linhas.map(l => ({
     dia: new Date(l.dia + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
     saldo: Math.round(l.saldo),
@@ -59,6 +76,10 @@ export default function FluxoCaixaPage() {
             <Input value={saldo} onChange={(e) => { setSaldo(e.target.value); if (selectedBar?.id) localStorage.setItem(`fc_saldo_${selectedBar.id}`, e.target.value); }}
               placeholder="ex: 150.000" inputMode="decimal" className="w-44" />
           </div>
+          <Button variant="outline" size="sm" onClick={puxarInter} disabled={puxando} title="Puxar saldo da conta Inter">
+            {puxando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            Puxar do Inter
+          </Button>
           <div>
             <label className="text-xs text-muted-foreground block mb-1">Período</label>
             <select value={dias} onChange={(e) => setDias(Number(e.target.value))} className="h-9 text-sm border rounded px-2 bg-background">
