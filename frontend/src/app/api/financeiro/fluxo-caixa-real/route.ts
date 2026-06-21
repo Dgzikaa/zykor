@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const dias = Math.min(Math.max(parseInt(sp.get('dias') || '60'), 7), 120);
 
   const supabase = await getAdminClient();
-  const { data, error } = await (supabase as any).rpc('fluxo_caixa_real', {
+  const { data, error } = await (supabase as any).schema('financial').rpc('fluxo_caixa_real', {
     p_bar_id: user.bar_id, p_saldo_inicial: saldoInicial, p_dias: dias,
   });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });

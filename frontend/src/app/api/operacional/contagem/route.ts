@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   // modo=resultado → análise da contagem (consumo, esperado, perda/anomalia) do dia
   if (modo === 'resultado') {
-    const { data: rows, error } = await (supabase as any).rpc('contagem_resultado', { p_bar_id: user.bar_id, p_data: data });
+    const { data: rows, error } = await (supabase as any).schema('operations').rpc('contagem_resultado', { p_bar_id: user.bar_id, p_data: data });
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     const itens = (rows || []).filter((r: any) => Number(r.consumo) !== 0);
     const total_consumo = itens.reduce((s: number, r: any) => s + (Number(r.valor_consumo) || 0), 0);
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, areas });
   }
 
-  const { data: itens, error } = await (supabase as any).rpc('contagem_lista', { p_bar_id: user.bar_id, p_tipo_local: area, p_data: data });
+  const { data: itens, error } = await (supabase as any).schema('operations').rpc('contagem_lista', { p_bar_id: user.bar_id, p_tipo_local: area, p_data: data });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, area, data, itens: itens || [] });
 }
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
   if (!itens.length) return NextResponse.json({ success: false, error: 'nada pra salvar' }, { status: 400 });
 
   const supabase = sb();
-  const { data: n, error } = await (supabase as any).rpc('contagem_salvar', {
+  const { data: n, error } = await (supabase as any).schema('operations').rpc('contagem_salvar', {
     p_bar_id: user.bar_id, p_data: data, p_usuario: user.nome || user.email || 'app', p_itens: itens,
   });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
