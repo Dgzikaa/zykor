@@ -71,6 +71,7 @@ export const MENU_TREE: MenuSection[] = [
     permission: 'gestao',
     subItems: [
       { icon: 'Star', label: 'NPS Funcionários', href: '/operacional/nps', permission: 'gestao' },
+      { icon: 'ClipboardList', label: 'Contagem de Estoque', href: '/operacional/contagem', permission: 'gestao' },
     ],
   },
   {
