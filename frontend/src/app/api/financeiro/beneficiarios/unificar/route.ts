@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   if (keys.length < 2) return NextResponse.json({ success: false, error: 'informe ao menos 2 grupos' }, { status: 400 });
 
   const supabase = await getAdminClient();
-  const { data, error } = await (supabase as any).rpc('unificar_beneficiarios', {
+  const { data, error } = await (supabase as any).schema('financial').rpc('unificar_beneficiarios', {
     p_bar_id: user.bar_id, p_keys: keys, p_nome: body.nome || null,
   });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });

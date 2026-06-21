@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
 
   const supabase = await getAdminClient();
-  const { data, error } = await (supabase as any).rpc('beneficiarios_duplicados_sugeridos', { p_bar_id: user.bar_id });
+  const { data, error } = await (supabase as any).schema('financial').rpc('beneficiarios_duplicados_sugeridos', { p_bar_id: user.bar_id });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, pares: data || [] });
 }

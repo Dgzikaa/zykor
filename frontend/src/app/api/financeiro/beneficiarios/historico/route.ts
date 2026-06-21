@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   const supabase = await getAdminClient();
 
   // resumo sobre tudo (RPC agrega — não sofre do limite de 1k)
-  const { data: resumoRows } = await (supabase as any).rpc('beneficiarios_resumo', {
+  const { data: resumoRows } = await (supabase as any).schema('financial').rpc('beneficiarios_resumo', {
     p_bar_id: user.bar_id, p_q: termo || null, p_so_dup: soDup,
   });
   const r0 = (resumoRows && resumoRows[0]) || {};
