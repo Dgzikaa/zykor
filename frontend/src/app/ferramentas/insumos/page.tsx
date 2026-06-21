@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Search, Save, X, AlertCircle, Package } from 'lucide-react';
+import { Search, Save, X, AlertCircle, Package, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
@@ -46,6 +46,7 @@ export default function InsumosPage() {
   const [editing, setEditing] = useState<EditingState>(null);
   const [saving, setSaving] = useState(false);
   const [soSemCusto, setSoSemCusto] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     setPageTitle('Insumos');
@@ -70,6 +71,21 @@ export default function InsumosPage() {
   useEffect(() => {
     fetchInsumos();
   }, [fetchInsumos]);
+
+  const sincronizarMestre = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/ferramentas/insumos/sincronizar-mestre', { method: 'POST' });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Falha ao sincronizar');
+      toast.success(`Planilha sincronizada: ${json.atualizados} insumo(s) atualizado(s)${json.sem_match ? ` · ${json.sem_match} código(s) da planilha sem cadastro` : ''}`);
+      await fetchInsumos();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao sincronizar planilha');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     let arr = soSemCusto
@@ -232,14 +248,26 @@ export default function InsumosPage() {
               <Package className="h-5 w-5" />
               <CardTitle>Catálogo de insumos — {selectedBar.nome}</CardTitle>
             </div>
-            <div className="relative w-full md:w-80">
-              <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por nome, código ou categoria"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <div className="relative w-full md:w-80">
+                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por nome, código ou categoria"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={sincronizarMestre}
+                disabled={syncing}
+                title="Importa custo, fornecedor e embalagem das planilhas mestre (Google Sheets), casando por código"
+                className="gap-1.5 shrink-0"
+              >
+                <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Sincronizando…' : 'Sincronizar planilha'}
+              </Button>
             </div>
           </div>
           <CardDescription className="mt-2">
