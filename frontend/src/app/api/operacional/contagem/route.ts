@@ -18,7 +18,25 @@ export async function GET(request: NextRequest) {
   const sp = new URL(request.url).searchParams;
   const area = sp.get('area');
   const data = sp.get('data') || hoje();
+  const modo = sp.get('modo');
   const supabase = sb();
+
+  // modo=resultado → análise da contagem (consumo, esperado, perda/anomalia) do dia
+  if (modo === 'resultado') {
+    const { data: rows, error } = await (supabase as any).rpc('contagem_resultado', { p_bar_id: user.bar_id, p_data: data });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const itens = (rows || []).filter((r: any) => Number(r.consumo) !== 0);
+    const total_consumo = itens.reduce((s: number, r: any) => s + (Number(r.valor_consumo) || 0), 0);
+    const anomalos = itens.filter((r: any) => r.anomalo);
+    return NextResponse.json({
+      success: true, data, itens,
+      resumo: {
+        total_consumo: Math.round(total_consumo * 100) / 100,
+        qtd_itens: itens.length,
+        qtd_anomalos: anomalos.length,
+      },
+    });
+  }
 
   if (!area) {
     const { data: rows, error } = await (supabase.schema('operations' as any) as any)

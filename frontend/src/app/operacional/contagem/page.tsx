@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useBar } from '@/contexts/BarContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { ClipboardList, Search, Loader2, Check, ChevronLeft, Save } from 'lucide-react';
+import { ClipboardList, Search, Loader2, Check, ChevronLeft, Save, TrendingUp } from 'lucide-react';
 
 type Area = { nome: string; itens: number };
 type Item = { insumo_id: number; codigo: string; nome: string; categoria: string | null; unidade_medida: string | null; custo_unitario: number | null; ultimo_final: number | null; contado: number | null };
@@ -78,9 +79,14 @@ export default function ContagemPage() {
         <div className="container mx-auto px-3 py-5 max-w-2xl">
           <div className="flex items-center gap-2 mb-1"><ClipboardList className="w-5 h-5" /><h1 className="text-xl font-bold">Contagem de Estoque</h1></div>
           <p className="text-sm text-muted-foreground mb-4">Escolha a área e conte pelo celular. Sem planilha.</p>
-          <div className="mb-4">
-            <label className="text-xs text-muted-foreground block mb-1">Data da contagem</label>
-            <Input type="date" value={data} onChange={e => setData(e.target.value)} className="w-44" />
+          <div className="flex items-end justify-between gap-2 mb-4">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Data da contagem</label>
+              <Input type="date" value={data} onChange={e => setData(e.target.value)} className="w-44" />
+            </div>
+            <Link href="/operacional/contagem/resultado" className="text-sm text-blue-600 flex items-center gap-1 pb-2 hover:underline">
+              <TrendingUp className="w-4 h-4" /> Ver resultado
+            </Link>
           </div>
           {areas.length === 0 ? (
             <Card><CardContent className="py-10 text-center text-muted-foreground">Nenhuma área com itens cadastrados (defina o <b>local</b> dos insumos).</CardContent></Card>
