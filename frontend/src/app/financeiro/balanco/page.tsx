@@ -145,8 +145,8 @@ export default function BalancoPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const hoje = new Date();
-  const [ano, setAno] = useState(hoje.getMonth() === 0 ? hoje.getFullYear() - 1 : hoje.getFullYear());
-  const [mes, setMes] = useState(hoje.getMonth() === 0 ? 12 : hoje.getMonth());
+  const [ano, setAno] = useState(hoje.getFullYear());
+  const [mes, setMes] = useState(hoje.getMonth() + 1); // mês atual (1-indexed)
   const [qtdMeses, setQtdMeses] = useState(6);
   const [meses, setMeses] = useState<Mes[]>([]);
   const [loading, setLoading] = useState(true);
