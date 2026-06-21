@@ -1,127 +1,109 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useBar } from '@/contexts/BarContext';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useToast } from '@/hooks/use-toast';
-import { RefreshCw, Wallet, TrendingDown, TrendingUp } from 'lucide-react';
+import { api } from '@/lib/api-client';
+import { Wallet, AlertTriangle } from 'lucide-react';
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine,
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine,
 } from 'recharts';
 
 const fmtBRL = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n || 0);
-const fmtK = (n: number) => `${(n / 1000).toFixed(0)}k`;
+const parseV = (v: string) => Number(String(v).replace(/[R$.\s]/g, '').replace(',', '.')) || 0;
 
-interface Linha { bar_id: number; data_referencia: string; cenario: string; saldo_dia: number; receita_prevista: number; }
+interface Linha { dia: string; entradas: number; saidas: number; saldo: number; }
+interface Resumo { saldo_final: number; total_entradas: number; total_saidas: number; menor_saldo: number; menor_saldo_dia: string | null; negativo: boolean; }
 
 export default function FluxoCaixaPage() {
   const { selectedBar } = useBar();
-  const { toast } = useToast();
+  const [saldo, setSaldo] = useState('');
+  const [dias, setDias] = useState(60);
   const [linhas, setLinhas] = useState<Linha[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [gerando, setGerando] = useState(false);
+  const [resumo, setResumo] = useState<Resumo | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const carregar = async () => {
+  // lembra o saldo digitado por bar
+  useEffect(() => {
+    if (selectedBar?.id) setSaldo(localStorage.getItem(`fc_saldo_${selectedBar.id}`) || '');
+  }, [selectedBar?.id]);
+
+  const carregar = useCallback(async () => {
     if (!selectedBar?.id) return;
     setLoading(true);
     try {
-      const r = await fetch(`/api/fluxo-caixa?bar_id=${selectedBar.id}`, { cache: 'no-store' });
-      const j = await r.json();
-      setLinhas((j.fluxo || []).map((l: any) => ({ ...l, saldo_dia: Number(l.saldo_dia), receita_prevista: Number(l.receita_prevista) })));
+      const res = await api.get(`/api/financeiro/fluxo-caixa-real?saldo_inicial=${parseV(saldo)}&dias=${dias}`);
+      setLinhas(res.linhas || []); setResumo(res.resumo || null);
     } finally { setLoading(false); }
-  };
-  useEffect(() => { carregar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selectedBar?.id]);
+  }, [selectedBar?.id, saldo, dias]);
 
-  const gerar = async () => {
-    if (!selectedBar?.id) return;
-    setGerando(true);
-    try {
-      const r = await fetch('/api/fluxo-caixa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'gerar', bar_id: selectedBar.id }) });
-      if (!r.ok) throw new Error();
-      toast({ title: 'Projeção recalculada' });
-    } catch { toast({ title: 'Falha ao recalcular', variant: 'destructive' }); }
-    finally { setGerando(false); await carregar(); }
-  };
+  useEffect(() => { const t = setTimeout(carregar, 350); return () => clearTimeout(t); }, [carregar]);
 
-  // Pivota por data + saldo ACUMULADO por cenário
-  const { chart, resumo } = useMemo(() => {
-    const dias = Array.from(new Set(linhas.map(l => l.data_referencia))).sort();
-    const porCen = (cen: string) => new Map(linhas.filter(l => l.cenario === cen).map(l => [l.data_referencia, l.saldo_dia]));
-    const mB = porCen('base'), mO = porCen('otimista'), mP = porCen('pessimista');
-    let aB = 0, aO = 0, aP = 0;
-    const chart = dias.map(d => {
-      aB += mB.get(d) || 0; aO += mO.get(d) || 0; aP += mP.get(d) || 0;
-      const [, mm, dd] = d.split('-');
-      return { data: `${dd}/${mm}`, base: Math.round(aB), otimista: Math.round(aO), pessimista: Math.round(aP) };
-    });
-    const totalBase = chart.length ? chart[chart.length - 1].base : 0;
-    const totalPess = chart.length ? chart[chart.length - 1].pessimista : 0;
-    // primeiro dia em que o acumulado pessimista fica negativo (caixa aperta)
-    const aperta = chart.find(p => p.pessimista < 0)?.data ?? null;
-    const piorDiaPess = chart.reduce((min, p) => (p.pessimista < min.v ? { d: p.data, v: p.pessimista } : min), { d: '', v: Infinity });
-    return { chart, resumo: { totalBase, totalPess, aperta, piorDiaPess } };
-  }, [linhas]);
+  const chart = useMemo(() => linhas.map(l => ({
+    dia: new Date(l.dia + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+    saldo: Math.round(l.saldo),
+  })), [linhas]);
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Wallet className="w-6 h-6 text-emerald-600" /> Fluxo de Caixa Projetado (90 dias)</h1>
-          <p className="text-sm text-gray-500">Saldo acumulado projetado em 3 cenários. Use pra antecipar quando o caixa aperta.</p>
-        </div>
-        <Button variant="outline" size="sm" className="gap-1" onClick={gerar} disabled={gerando}>
-          <RefreshCw className={`w-4 h-4 ${gerando ? 'animate-spin' : ''}`} /> Recalcular
-        </Button>
-      </div>
+    <ProtectedRoute>
+      <div className="container mx-auto px-3 py-5 max-w-5xl">
+        <div className="flex items-center gap-2 mb-1"><Wallet className="w-5 h-5" /><h1 className="text-xl font-bold">Fluxo de Caixa</h1></div>
+        <p className="text-sm text-muted-foreground mb-4">Saldo atual + entradas projetadas − contas a pagar comprometidas no Conta Azul. Mostra quando o caixa aperta.</p>
 
-      {loading ? <Skeleton className="h-96" /> : (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card className="p-4 border-l-4 border-l-blue-500">
-              <p className="text-xs text-gray-500">Saldo 90d (base)</p>
-              <p className={`text-2xl font-bold ${resumo.totalBase >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{fmtBRL(resumo.totalBase)}</p>
-            </Card>
-            <Card className="p-4 border-l-4 border-l-red-500">
-              <p className="text-xs text-gray-500">Saldo 90d (pessimista)</p>
-              <p className={`text-2xl font-bold ${resumo.totalPess >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmtBRL(resumo.totalPess)}</p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Caixa aperta (pessimista)</p>
-              <p className={`text-2xl font-bold ${resumo.aperta ? 'text-amber-600' : 'text-emerald-600'}`}>{resumo.aperta ?? 'não no período'}</p>
-              <p className="text-[10px] text-gray-400">1º dia com acumulado negativo</p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Pior ponto (pessimista)</p>
-              <p className={`text-2xl font-bold ${resumo.piorDiaPess.v >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{Number.isFinite(resumo.piorDiaPess.v) ? fmtBRL(resumo.piorDiaPess.v) : '—'}</p>
-              <p className="text-[10px] text-gray-400">{resumo.piorDiaPess.d}</p>
-            </Card>
+        <div className="flex items-end gap-2 mb-4 flex-wrap">
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">Saldo atual em conta (R$)</label>
+            <Input value={saldo} onChange={(e) => { setSaldo(e.target.value); if (selectedBar?.id) localStorage.setItem(`fc_saldo_${selectedBar.id}`, e.target.value); }}
+              placeholder="ex: 150.000" inputMode="decimal" className="w-44" />
           </div>
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">Período</label>
+            <select value={dias} onChange={(e) => setDias(Number(e.target.value))} className="h-9 text-sm border rounded px-2 bg-background">
+              <option value={30}>30 dias</option><option value={60}>60 dias</option><option value={90}>90 dias</option>
+            </select>
+          </div>
+        </div>
 
-          <Card className="p-4">
-            <div className="h-96">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chart} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                  <XAxis dataKey="data" tick={{ fontSize: 10 }} interval={6} />
-                  <YAxis tickFormatter={fmtK} tick={{ fontSize: 10 }} width={44} />
-                  <Tooltip formatter={(v) => fmtBRL(Number(v) || 0)} labelClassName="text-xs" />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" />
-                  <Line type="monotone" dataKey="otimista" name="Otimista" stroke="#10b981" dot={false} strokeWidth={1.5} />
-                  <Line type="monotone" dataKey="base" name="Base" stroke="#3b82f6" dot={false} strokeWidth={2} />
-                  <Line type="monotone" dataKey="pessimista" name="Pessimista" stroke="#ef4444" dot={false} strokeWidth={1.5} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <p className="text-[11px] text-gray-400 mt-2">
-              Saldo <strong>acumulado</strong> (receita − CMV − CMO − fixos − outros), partindo de 0 hoje. A linha vermelha é o zero —
-              quando o cenário pessimista cruza pra baixo, é o sinal de atenção de caixa.
-            </p>
+        {resumo && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+            <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Saldo projetado no fim</div><div className="text-lg font-bold">{fmtBRL(resumo.saldo_final)}</div></CardContent></Card>
+            <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">A pagar no período (CA)</div><div className="text-lg font-bold text-red-600">{fmtBRL(resumo.total_saidas)}</div></CardContent></Card>
+            <Card className={resumo.negativo ? 'border-red-500/60' : ''}><CardContent className="py-3">
+              <div className="text-xs text-muted-foreground flex items-center gap-1">{resumo.negativo && <AlertTriangle className="w-3.5 h-3.5 text-red-600" />}Menor saldo projetado</div>
+              <div className={`text-lg font-bold ${resumo.negativo ? 'text-red-600' : ''}`}>{fmtBRL(resumo.menor_saldo)}</div>
+              {resumo.menor_saldo_dia && <div className="text-[11px] text-muted-foreground">em {new Date(resumo.menor_saldo_dia + 'T00:00:00').toLocaleDateString('pt-BR')}</div>}
+            </CardContent></Card>
+          </div>
+        )}
+
+        {resumo?.negativo && (
+          <div className="mb-4 rounded-lg border border-red-500/40 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-800 dark:text-red-200 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" /> O caixa fica <b>negativo</b> em {resumo.menor_saldo_dia ? new Date(resumo.menor_saldo_dia + 'T00:00:00').toLocaleDateString('pt-BR') : ''}. Antecipe recebíveis ou renegocie pagamentos.
+          </div>
+        )}
+
+        {loading ? <Skeleton className="h-[340px]" /> : chart.length > 0 ? (
+          <Card className="p-3">
+            <ResponsiveContainer width="100%" height={340}>
+              <AreaChart data={chart} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis dataKey="dia" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={24} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} width={44} />
+                <Tooltip formatter={(v: any) => fmtBRL(Number(v))} labelFormatter={(l) => `Dia ${l}`} />
+                <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" />
+                <Area type="monotone" dataKey="saldo" stroke="#2563eb" fill="#2563eb" fillOpacity={0.12} strokeWidth={2} name="Saldo" />
+              </AreaChart>
+            </ResponsiveContainer>
           </Card>
-        </>
-      )}
-    </main>
+        ) : (
+          <Card><CardContent className="py-12 text-center text-muted-foreground">Informe o saldo atual pra ver a projeção.</CardContent></Card>
+        )}
+
+        <p className="text-xs text-muted-foreground mt-3">Entradas = projeção de receita (modelo). Saídas = contas a pagar em aberto no Conta Azul (vencimento). Atualize o saldo atual pra a projeção bater com o banco.</p>
+      </div>
+    </ProtectedRoute>
   );
 }
