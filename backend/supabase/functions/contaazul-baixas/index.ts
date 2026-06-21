@@ -148,17 +148,24 @@ serve(async (req) => {
     let token = credentials.access_token || (await refreshToken(supabase, credentials)) || ''
     if (!token) return errorResponse('sem token Conta Azul', req, undefined, 401)
 
-    // Parcelas pagas ainda sem data de pagamento (mais recentes primeiro)
-    const { data: rows, error: selErr } = await supabase
+    // modo 'data_pagamento' (default): só parcelas SEM data_pagamento (backfill da data).
+    // modo 'baixas': TODAS as parcelas pagas (pra gravar as baixas c/ id_reconciliacao no DFC).
+    const modo = body.modo === 'baixas' ? 'baixas' : 'data_pagamento'
+    let sel = supabase
       .schema('bronze').from('bronze_contaazul_lancamentos')
       .select('contaazul_id, data_competencia')
-      .eq('bar_id', barId).is('data_pagamento', null).is('excluido_em', null).gt('valor_pago', 0)
+      .eq('bar_id', barId).is('excluido_em', null).gt('valor_pago', 0)
+    if (modo === 'data_pagamento') sel = sel.is('data_pagamento', null)
+    if (modo === 'baixas') sel = sel.is('baixas_synced_em', null)
+    if (body.data_de) sel = sel.gte('data_competencia', body.data_de)
+    if (body.data_ate) sel = sel.lte('data_competencia', body.data_ate)
+    const { data: rows, error: selErr } = await sel
       .order('data_competencia', { ascending: false, nullsFirst: false })
       .limit(limit)
     if (selErr) return errorResponse('erro ao selecionar parcelas: ' + selErr.message, req, undefined, 500)
 
     const total = rows?.length || 0
-    let atualizados = 0, semBaixa = 0, erros = 0, processados = 0
+    let atualizados = 0, semBaixa = 0, erros = 0, processados = 0, baixasGravadas = 0
 
     for (const row of rows || []) {
       if (Date.now() - t0 > SAFE_TIMEOUT_MS) { console.warn('[baixas] timeout, parando'); break }
@@ -168,6 +175,28 @@ serve(async (req) => {
       token = nt
       if (probe && processados <= 2) console.log('[baixas][probe] resp:', JSON.stringify(data)?.slice(0, 800))
       if (status === 0 || (status >= 500)) { erros++; continue }
+
+      // Grava cada baixa (com id_reconciliacao) — fonte da conciliação REAL do DFC.
+      const arr = Array.isArray(data) ? data : (Array.isArray(data?.itens) ? data.itens : [])
+      const recs = arr.filter((bx: any) => bx?.id).map((bx: any) => ({
+        baixa_id: bx.id, bar_id: barId, id_parcela: bx.id_parcela || row.contaazul_id,
+        data_pagamento: (bx.data_pagamento || '').slice(0, 10) || null,
+        valor_liquido: bx.valor_composicao?.valor_liquido ?? null,
+        conta_financeira: bx.conta_financeira?.id || null,
+        banco: bx.conta_financeira?.banco || null,
+        id_reconciliacao: bx.id_reconciliacao || null,
+        conciliada: !!bx.id_reconciliacao,
+        metodo_pagamento: bx.metodo_pagamento || null,
+        origem: bx.origem || null,
+        tipo_evento: bx.tipo_evento_financeiro || null,
+        synced_at: new Date().toISOString(),
+      }))
+      if (recs.length) {
+        const { error: bErr } = await supabase.schema('bronze').from('bronze_contaazul_baixas')
+          .upsert(recs, { onConflict: 'baixa_id' })
+        if (bErr) console.error('[baixas] upsert baixas', bErr.message); else baixasGravadas += recs.length
+      }
+
       const dataPag = extrairDataPagamento(data)
       if (dataPag) {
         const { error: upErr } = await supabase
@@ -178,11 +207,16 @@ serve(async (req) => {
       } else {
         semBaixa++
       }
+      if (modo === 'baixas') {
+        await supabase.schema('bronze').from('bronze_contaazul_lancamentos')
+          .update({ baixas_synced_em: new Date().toISOString() })
+          .eq('bar_id', barId).eq('contaazul_id', row.contaazul_id)
+      }
       await sleep(DELAY_MS)
     }
 
     const restantes = total - processados
-    const stats = { bar_id: barId, total_fila: total, processados, atualizados, sem_baixa: semBaixa, erros, restantes_neste_lote: restantes, ms: Date.now() - t0 }
+    const stats = { bar_id: barId, modo, total_fila: total, processados, atualizados, baixas_gravadas: baixasGravadas, sem_baixa: semBaixa, erros, restantes_neste_lote: restantes, ms: Date.now() - t0 }
     console.log('[baixas] fim', JSON.stringify(stats))
     return jsonResponse({ success: true, stats }, req)
   } catch (e) {
