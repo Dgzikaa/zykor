@@ -102,15 +102,23 @@ export function PedidoDetailDialog({
   // Carrega opções do CA/Inter só quando o financeiro vai aprovar
   const carregarOpcoes = useCallback(async () => {
     if (!podeAprovar || !aprovavel) return;
+    // IMPORTANTE: as opcoes (categorias/contas/Inter) sao do bar DO PEDIDO, nao do bar
+    // selecionado no topo. Se o financeiro abre um pedido do Ordinario com o Deboche
+    // selecionado, tem que ver Inter/categorias do Ordinario — senao paga da empresa errada.
+    const opBar = pedido?.bar_id ?? barId;
     try {
+      // Cada fetch isolado: 1 falha (ex.: token CA expirado) NAO pode zerar as outras opcoes.
+      const j = (p: Promise<Response>) => p.then(r => r.json()).catch(() => ({}));
       const [cat, cc, ct, fo, it] = await Promise.all([
-        fetch(`/api/financeiro/contaazul/categorias?bar_id=${barId}`).then(r => r.json()),
-        fetch(`/api/financeiro/contaazul/centros-custo?bar_id=${barId}`).then(r => r.json()),
-        fetch(`/api/financeiro/contaazul/contas-financeiras?bar_id=${barId}`).then(r => r.json()),
-        fetch(`/api/financeiro/contaazul/stakeholders?bar_id=${barId}&perfil=FORNECEDOR`).then(r => r.json()),
-        fetch(`/api/financeiro/inter/credenciais?bar_id=${barId}`).then(r => r.json()),
+        j(fetch(`/api/financeiro/contaazul/categorias?bar_id=${opBar}`)),
+        j(fetch(`/api/financeiro/contaazul/centros-custo?bar_id=${opBar}`)),
+        j(fetch(`/api/financeiro/contaazul/contas-financeiras?bar_id=${opBar}`)),
+        j(fetch(`/api/financeiro/contaazul/stakeholders?bar_id=${opBar}&perfil=FORNECEDOR`)),
+        j(fetch(`/api/financeiro/inter/credenciais?bar_id=${opBar}`)),
       ]);
-      setCategorias((cat.categorias || []).map((c: any) => ({ value: c.contaazul_id, label: c.categoria_nome })));
+      setCategorias((cat.categorias || [])
+        .filter((c: any) => c.ativo !== false)
+        .map((c: any) => ({ value: c.contaazul_id, label: c.nome || c.categoria_nome })));
       setCentros(((cc.centros_custo || cc.centrosCusto) || []).map((c: any) => ({ value: c.contaazul_id, label: c.nome })));
       setContas((ct.contas_financeiras || [])
         .filter((c: any) => c.ativo !== false)
@@ -124,7 +132,7 @@ export function PedidoDetailDialog({
     } catch {
       showToast({ type: 'error', title: 'Erro ao carregar opções do Conta Azul/Inter' });
     }
-  }, [podeAprovar, aprovavel, barId, showToast]);
+  }, [podeAprovar, aprovavel, barId, pedido?.bar_id, showToast]);
 
   useEffect(() => { carregarOpcoes(); }, [carregarOpcoes]);
 
