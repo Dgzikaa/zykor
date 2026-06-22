@@ -71,7 +71,6 @@ export const MENU_TREE: MenuSection[] = [
     permission: 'gestao',
     subItems: [
       { icon: 'Star', label: 'NPS Funcionários', href: '/operacional/nps', permission: 'gestao' },
-      { icon: 'Boxes', label: 'Estoque (contagem, compras, insumos)', href: '/operacional/contagem', permission: 'gestao' },
     ],
   },
   {
@@ -105,6 +104,7 @@ export const MENU_TREE: MenuSection[] = [
     permission: 'gestao',
     subItems: [
       { icon: 'TrendingUp', label: 'Gestão CMV', href: '/ferramentas/cmv-semanal/tabela', permission: 'gestao' },
+      { icon: 'Boxes', label: 'Estoque (contagem, compras, insumos)', href: '/operacional/contagem', permission: 'gestao' },
       { icon: 'AlertTriangle', label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
     ],
   },
