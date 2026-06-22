@@ -880,11 +880,12 @@ serve(async (req: Request) => {
           || new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString()
         const cursor = new Date(cursorISO)
         cursor.setHours(cursor.getHours() - 1) // overlap 1h
-        // Piso de 7 dias: sempre re-varre a última semana de alterações, mesmo que o cursor
-        // já tenha passado. Sem isso, edição que o CA back-data (ou que escapou de um sync)
-        // nunca mais era re-buscada pelo incremental — só pelo 'ano completo'. (bug do Gonza)
-        const seteDias = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-        dateFrom = formatDate(cursor < seteDias ? cursor : seteDias)
+        // Piso de 90 dias: sempre re-varre os últimos 3 meses de alterações, mesmo que o
+        // cursor já tenha passado. Pedido do sócio — é comum lançarem hoje uma edição
+        // referente a 1-2 meses atrás (back-date no CA); 7 dias deixava isso escapar e só
+        // o 'ano completo' pegava. Segue leve: incremental só traz o que foi de fato alterado.
+        const pisoAlteracao = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+        dateFrom = formatDate(cursor < pisoAlteracao ? cursor : pisoAlteracao)
         dateTo = formatDate(now)
         useAlteracaoFilter = true
         break
