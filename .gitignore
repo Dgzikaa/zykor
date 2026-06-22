@@ -121,6 +121,11 @@ frontend/.npm-cache/
 # --- Scripts / dados temporários ---
 scripts/progresso-importacao.json
 
+# --- Scratch em docs/ (rascunhos SQL, exports do CA, prints) ---
+# Convenção: arquivos com prefixo _ em docs/ são rascunhos descartáveis.
+docs/_*
+docs/extrato_financeiro*
+
 # --- Setup pessoal de agentes IA (não vai pro repo) ---
 .agent/
 .api/
