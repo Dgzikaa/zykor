@@ -880,7 +880,11 @@ serve(async (req: Request) => {
           || new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString()
         const cursor = new Date(cursorISO)
         cursor.setHours(cursor.getHours() - 1) // overlap 1h
-        dateFrom = formatDate(cursor)
+        // Piso de 7 dias: sempre re-varre a última semana de alterações, mesmo que o cursor
+        // já tenha passado. Sem isso, edição que o CA back-data (ou que escapou de um sync)
+        // nunca mais era re-buscada pelo incremental — só pelo 'ano completo'. (bug do Gonza)
+        const seteDias = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        dateFrom = formatDate(cursor < seteDias ? cursor : seteDias)
         dateTo = formatDate(now)
         useAlteracaoFilter = true
         break
