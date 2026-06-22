@@ -83,11 +83,9 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Calendar', label: 'Agendamentos', href: '/financeiro/agendamentos', permission: 'financeiro_agendamento' },
       { icon: 'Receipt', label: 'Pedidos de Pagamento', href: '/financeiro/pedidos-pagamento', permission: 'home' },
       { icon: 'Users', label: 'Beneficiários', href: '/financeiro/beneficiarios', permission: 'financeiro_agendamento' },
-      { icon: 'BarChart3', label: 'Business Plan', href: '/financeiro/bp', permission: 'home' },
       { icon: 'FileText', label: 'DRE', href: '/financeiro/dre', permission: 'home' },
       { icon: 'TrendingUp', label: 'DFC', href: '/financeiro/dfc', permission: 'home' },
-      { icon: 'Wallet', label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa', permission: 'home' },
-      { icon: 'Layers', label: 'Balanço', href: '/financeiro/balanco', permission: 'home' },
+      { icon: 'Layers', label: 'Balanço Patrimonial', href: '/financeiro/balanco', permission: 'home' },
       { icon: 'FileSearch', label: 'Consultas CA', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
     ],
   },
@@ -122,6 +120,9 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Tag', label: 'Classificação de Grupos (Mix)', href: '/ferramentas/consumos-classificacao', permission: 'gestao' },
       { icon: 'AlertTriangle', label: 'Cancelamentos', href: '/ferramentas/cancelamentos', permission: 'gestao' },
       { icon: 'PieChart', label: 'Mix & Margem', href: '/ferramentas/mix-categoria', permission: 'gestao' },
+      // Parqueados aqui pra outro momento (ainda nao divulgados/usados); rotas seguem em /financeiro
+      { icon: 'BarChart3', label: 'Business Plan', href: '/financeiro/bp', permission: 'home' },
+      { icon: 'Wallet', label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa', permission: 'home' },
     ],
   },
   {
