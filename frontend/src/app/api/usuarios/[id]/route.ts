@@ -34,10 +34,10 @@ export async function GET(
     const supabase = await getAdminClient();
 
     const { data: usuario, error } = await supabase
-      .from('usuarios_bar')
+      .schema('auth_custom')
+      .from('usuarios')
       .select('*')
       .eq('id', userId)
-      .eq('bar_id', user.bar_id)
       .single();
 
     if (error) {
@@ -117,14 +117,16 @@ export async function PUT(
       data.celular = celularNumbers; // Salvar apenas números
     }
 
+    // celular nao e coluna do schema atual -> mapeia pra telefone
+    const { celular, ...rest } = data;
+    const updatePayload: Record<string, any> = { ...rest, updated_at: new Date().toISOString() };
+    if (celular !== undefined) updatePayload.telefone = celular;
+
     const { data: usuario, error } = await supabase
-      .from('usuarios_bar')
-      .update({
-        ...data,
-        updated_at: new Date().toISOString(),
-      })
+      .schema('auth_custom')
+      .from('usuarios')
+      .update(updatePayload)
       .eq('id', userId)
-      .eq('bar_id', user.bar_id)
       .select()
       .single();
 
