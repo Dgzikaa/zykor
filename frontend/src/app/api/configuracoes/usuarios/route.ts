@@ -326,13 +326,16 @@ export const PUT = requireAdmin(async (request, user) => {
     if (error) throw error;
 
     // 4. Atualizar relacionamentos na tabela usuarios_bares
-    if (baresParaAssociar.length > 0) {
+    //    IMPORTANTE: usuarios_bares.usuario_id referencia o auth_id (auth.users.id),
+    //    NAO o public.usuarios.id. Usar o id errado aqui deixava o usuario sem vinculo
+    //    de bar ao editar -> login nao acha bar -> sem acesso (loop/bounce).
+    if (baresParaAssociar.length > 0 && currentUser.auth_id) {
       // Remover relacionamentos antigos
       const { error: deleteError } = await supabase
       .schema('auth_custom')
       .from('usuarios_bares')
         .delete()
-        .eq('usuario_id', id);
+        .eq('usuario_id', currentUser.auth_id);
 
       if (deleteError) {
         console.error('⚠️ Erro ao remover relacionamentos antigos:', deleteError);
@@ -340,7 +343,7 @@ export const PUT = requireAdmin(async (request, user) => {
 
       // Inserir novos relacionamentos
       const relacionamentos = baresParaAssociar.map(barId => ({
-        usuario_id: id,
+        usuario_id: currentUser.auth_id,
         bar_id: barId
       }));
 

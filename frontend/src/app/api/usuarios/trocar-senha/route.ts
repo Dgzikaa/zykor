@@ -47,25 +47,15 @@ export async function PUT(request: NextRequest) {
     // Usar cliente administrativo para operações com Auth
     const adminClient = await getAdminClient();
 
-    // Buscar dados completos do usuário
-    const { data: userData, error: userError } = await adminClient
-      .from('usuarios_bar')
-      .select('user_id, email, nome')
-      .eq('id', user.id)
-      .single();
-
-    if (userError || !userData) {
-      console.error('❌ Erro ao buscar dados do usuário:', userError);
-      return NextResponse.json(
-        { success: false, error: 'Usuário não encontrado' },
-        { status: 404 }
-      );
-    }
+    // Dados vêm do token (resolver seguro): email + auth_id. Sem depender da tabela
+    // legada usuarios_bar (onde usuários do schema atual nem existem -> dava 404).
+    const email = user.email;
+    const authUserId = user.user_id; // auth.users.id
 
     // Verificar senha atual fazendo login
     try {
       const { error: signInError } = await adminClient.auth.signInWithPassword({
-        email: userData.email,
+        email,
         password: senhaAtual,
       });
 
@@ -86,7 +76,7 @@ export async function PUT(request: NextRequest) {
     // Atualizar senha no Supabase Auth
     try {
       const { error: updateError } =
-        await adminClient.auth.admin.updateUserById(userData.user_id, {
+        await adminClient.auth.admin.updateUserById(authUserId, {
           password: novaSenha,
           user_metadata: {
             senha_alterada_em: new Date().toISOString(),
@@ -109,15 +99,16 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Atualizar flag na tabela usuarios_bar
+    // Marcar senha_redefinida + atividade no schema atual (auth_custom.usuarios = view de public.usuarios)
     const { error: dbUpdateError } = await adminClient
-      .from('usuarios_bar')
+      .schema('auth_custom')
+      .from('usuarios')
       .update({
         senha_redefinida: true,
         ultima_atividade: new Date().toISOString(),
-        atualizado_em: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
-      .eq('id', user.id);
+      .eq('auth_id', authUserId);
 
     if (dbUpdateError) {
       console.error(

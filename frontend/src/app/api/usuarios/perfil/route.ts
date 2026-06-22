@@ -20,19 +20,20 @@ export async function GET(request: NextRequest) {
     // Usar cliente administrativo
     const adminClient = await getAdminClient();
 
-    // Buscar dados completos do perfil
+    // Buscar dados do perfil no schema atual (auth_custom.usuarios = view de public.usuarios)
     const { data: perfil, error } = await adminClient
-      .from('usuarios_bar')
+      .schema('auth_custom')
+      .from('usuarios')
       .select(
         `
-        id, bar_id, user_id, email, nome, role, modulos_permitidos, ativo,
-        foto_perfil, celular, telefone, cpf, data_nascimento, endereco, 
+        id, auth_id, email, nome, role, modulos_permitidos, ativo,
+        foto_perfil, telefone, cpf, data_nascimento, endereco,
         cep, cidade, estado, bio,
         preferencias, ultima_atividade, conta_verificada,
-        criado_em, atualizado_em
+        created_at, updated_at
       `
       )
-      .eq('id', user.id)
+      .eq('auth_id', user.user_id)
       .single();
 
     if (error) {
@@ -50,17 +51,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Buscar dados do bar
+    // Nome do bar atual (vem do token; bar vive em operations.bares)
     const { data: barData } = await adminClient
-      .from('bars')
+      .schema('operations')
+      .from('bares')
       .select('id, nome')
-      .eq('id', perfil.bar_id)
+      .eq('id', user.bar_id)
       .single();
 
     return NextResponse.json({
       success: true,
       perfil: {
         ...perfil,
+        bar_id: user.bar_id,
+        user_id: perfil.auth_id,
+        celular: perfil.telefone,      // alias p/ compat com a tela (campo antigo)
+        criado_em: perfil.created_at,  // idem
+        atualizado_em: perfil.updated_at,
         bar: barData || null,
       },
     });
@@ -106,13 +113,13 @@ export async function PUT(request: NextRequest) {
 
     // Preparar dados para atualização (apenas campos não vazios)
     const updateData: Record<string, any> = {
-      atualizado_em: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
       ultima_atividade: new Date().toISOString(),
     };
 
-    // Adicionar apenas campos que foram enviados
+    // Adicionar apenas campos que foram enviados (celular e telefone -> coluna telefone)
     if (nome !== undefined) updateData.nome = nome;
-    if (celular !== undefined) updateData.celular = celular;
+    if (celular !== undefined) updateData.telefone = celular;
     if (telefone !== undefined) updateData.telefone = telefone;
     if (cpf !== undefined) updateData.cpf = cpf;
     if (data_nascimento !== undefined)
@@ -140,11 +147,12 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Atualizar perfil
+    // Atualizar perfil no schema atual
     const { data: perfilAtualizado, error } = await adminClient
-      .from('usuarios_bar')
+      .schema('auth_custom')
+      .from('usuarios')
       .update(updateData)
-      .eq('id', user.id)
+      .eq('auth_id', user.user_id)
       .select()
       .single();
 
