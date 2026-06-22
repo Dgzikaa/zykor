@@ -19,7 +19,12 @@ interface DreRow {
   percentual_receita: number | null;
 }
 
-interface Props { barId: number; anoInicial?: number; }
+interface Props {
+  barId: number;
+  anoInicial?: number;
+  // Quando fornecido, as células de mês das sub-linhas viram clicáveis (drill-down).
+  onDrill?: (p: { categoria_macro: string; canon: string; mes: number; ano: number; label: string }) => void;
+}
 
 const MACRO_ORDEM = [
   'Receita',
@@ -59,7 +64,7 @@ interface LinhaRender {
   parcial?: boolean;        // resultado parcial (Margem de Contribuição / Lucro Operacional)
 }
 
-export function DreTab({ barId, anoInicial }: Props) {
+export function DreTab({ barId, anoInicial, onDrill }: Props) {
   const { toast } = useToast();
   const anoAtualSistema = new Date().getFullYear();
   const [ano, setAno] = useState<number>(anoInicial ?? anoAtualSistema);
@@ -444,16 +449,26 @@ export function DreTab({ barId, anoInicial }: Props) {
                     }`}>
                       {row.label2}
                     </td>
-                    {row.valores.map((v, i) => (
+                    {row.valores.map((v, i) => {
+                      const drillable = !!onDrill && row.tipo === 'sub' && !!row.label2 && v !== 0;
+                      return (
                       <Fragment key={i}>
-                        <td className={`py-1.5 px-2 text-right tabular-nums whitespace-nowrap ${v < 0 ? 'text-red-600' : v > 0 && row.label === 'Receita' ? 'text-emerald-600' : ''}`}>
+                        <td
+                          className={`py-1.5 px-2 text-right tabular-nums whitespace-nowrap ${v < 0 ? 'text-red-600' : v > 0 && row.label === 'Receita' ? 'text-emerald-600' : ''} ${drillable ? 'cursor-pointer hover:underline hover:bg-amber-50 dark:hover:bg-amber-900/20' : ''}`}
+                          onClick={drillable ? (e) => {
+                            e.stopPropagation();
+                            onDrill!({ categoria_macro: row.grupo, canon: row.label2 as string, mes: i + 1, ano, label: `${row.label2} — ${MES_LABEL[i]}/${ano}` });
+                          } : undefined}
+                          title={drillable ? 'Ver lançamentos' : undefined}
+                        >
                           {v !== 0 ? fmtBRL(v) : '—'}
                         </td>
                         <td className="py-1.5 px-1 text-right tabular-nums text-[10px] text-muted-foreground">
                           {row.percentuais[i] != null && v !== 0 ? `${row.percentuais[i]!.toFixed(1)}%` : ''}
                         </td>
                       </Fragment>
-                    ))}
+                      );
+                    })}
                     <td className={`py-1.5 px-2 text-right tabular-nums whitespace-nowrap bg-gray-100 dark:bg-gray-800 ${row.ytd < 0 ? 'text-red-600 font-bold' : 'font-bold'}`}>
                       {fmtBRL(row.ytd)}
                     </td>
