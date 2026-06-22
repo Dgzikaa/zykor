@@ -37,10 +37,9 @@ const MAX_RECORDS_PER_SYNC = 10000 // Limitar registros por execução (aumentad
 interface SyncRequest {
   bar_id: number
   sync_mode: 'daily_incremental' | 'full_month' | 'full_sync' | 'custom'
-    | 'alteracao_incremental' | 'alteracao_full_ano' | 'alteracao_range'
+    | 'alteracao_incremental' | 'alteracao_full_ano'
   date_from?: string
   date_to?: string
-  sync_categorias?: boolean
 }
 
 interface ApiCredentials {
@@ -902,19 +901,6 @@ serve(async (req: Request) => {
         break
       }
 
-      // Janela de ALTERACAO explicita (chunk do botao 'rapido', disparado em paralelo
-      // pela route). NAO mexe no cursor — quem mantem o cursor e o cron horario
-      // (alteracao_incremental). Permite quebrar os 90 dias em pedacos rapidos.
-      case 'alteracao_range': {
-        if (!body.date_from || !body.date_to) {
-          return errorResponse('alteracao_range exige date_from e date_to', req, undefined, 400)
-        }
-        dateFrom = formatDate(new Date(body.date_from))
-        dateTo = formatDate(new Date(body.date_to))
-        useAlteracaoFilter = true
-        break
-      }
-
       default:
         return errorResponse('sync_mode invalido: ' + body.sync_mode, req, undefined, 400)
     }
@@ -944,8 +930,7 @@ serve(async (req: Request) => {
     // O sync incremental (cron horario / botao global) tambem refresca o cadastro
     // de CATEGORIAS — sao poucas e mudam quando o socio cria/edita no CA. Mantem o
     // de-para da DRE e o cadastro espelhando o CA sem depender de full_sync manual.
-    if (body.sync_mode === 'alteracao_incremental'
-        || (body.sync_mode === 'alteracao_range' && body.sync_categorias)) {
+    if (body.sync_mode === 'alteracao_incremental') {
       stats.categorias = await syncCategorias(supabase, credentials, accessToken, barId)
     }
 

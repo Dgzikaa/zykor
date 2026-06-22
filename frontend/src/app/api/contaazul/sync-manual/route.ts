@@ -80,43 +80,6 @@ export async function POST(request: NextRequest) {
       if (mesesOk.length === 0) {
         return NextResponse.json({ success: false, error: 'Falha ao sincronizar Conta Azul (todos os meses)' }, { status: 502 });
       }
-    } else if (syncMode === 'alteracao_incremental') {
-      // 'rapido' = re-varre os ultimos 90 dias de ALTERACOES, quebrado em 3 chunks
-      // mensais disparados em PARALELO (cada um leve). Reduz o wall-clock vs 1 chamada
-      // unica de 90 dias (~2min -> ~1min) e tira risco de timeout. Nao mexe no cursor
-      // (o cron horario cuida disso via alteracao_incremental no edge).
-      const t0 = Date.now();
-      const dia = 24 * 60 * 60 * 1000;
-      const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-      const agora = Date.now();
-      const chunks = [0, 1, 2].map(i => ({
-        from: iso(agora - (i + 1) * 30 * dia),
-        to: iso(agora - i * 30 * dia),
-        cats: i === 0, // so o chunk mais recente refresca o cadastro de categorias
-      }));
-      const syncChunk = (c: { from: string; to: string; cats: boolean }) =>
-        chamarSync({ sync_mode: 'alteracao_range', date_from: c.from, date_to: c.to, sync_categorias: c.cats })
-          .then(r => ({ ok: !!(r.ok && r.json?.success), lanc: Number(r.json?.stats?.lancamentos ?? 0), c }))
-          .catch(() => ({ ok: false, lanc: 0, c }));
-
-      let resultados = await Promise.all(chunks.map(syncChunk));
-      const refazer = resultados.filter(r => !r.ok).map(r => r.c);
-      if (refazer.length) {
-        await new Promise(res => setTimeout(res, 2000));
-        const retry = await Promise.all(refazer.map(syncChunk));
-        resultados = resultados.map(r => (r.ok ? r : (retry.find(x => x.c === r.c) ?? r)));
-      }
-      const okCount = resultados.filter(r => r.ok).length;
-      if (okCount === 0) {
-        return NextResponse.json({ success: false, error: 'Falha ao sincronizar Conta Azul (incremental)' }, { status: 502 });
-      }
-      result = {
-        success: true, bar_id: barId, sync_mode: syncMode,
-        period: { from: chunks[2].from, to: chunks[0].to },
-        stats: { lancamentos: resultados.reduce((s, r) => s + r.lanc, 0) },
-        chunks_ok: okCount, chunks_total: chunks.length,
-        duration_seconds: Math.round((Date.now() - t0) / 1000),
-      };
     } else {
       const r = await chamarSync({ sync_mode: syncMode });
       if (!r.ok || !r.json?.success) {
