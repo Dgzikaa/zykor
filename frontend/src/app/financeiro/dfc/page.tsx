@@ -14,7 +14,7 @@ const GRUPO_LABEL: Record<string, string> = {
   OPERACIONAL: 'Fluxo Operacional', INVESTIMENTO: 'Fluxo de Investimento', FINANCIAMENTO: 'Fluxo de Financiamento',
 };
 const n = (x: unknown) => Number(x) || 0;
-const fmt = (v: number) => v === 0 ? '–' : `${v < 0 ? '-' : ''}R$ ${Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`;
+const fmt = (v: number) => v === 0 ? '–' : `${v < 0 ? '-' : ''}R$ ${Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function DfcPage() {
   const { selectedBar } = useBar();
@@ -95,7 +95,7 @@ export default function DfcPage() {
             <thead>
               <tr className="border-b bg-gray-50 dark:bg-gray-800/60">
                 <th className="text-left font-semibold px-3 py-2 sticky left-0 bg-gray-50 dark:bg-gray-800/60 z-10 min-w-[220px]">Grupo / Categoria</th>
-                {MES_ABBR.map((m, i) => <th key={i} className="text-right font-semibold px-3 py-2 whitespace-nowrap min-w-[100px]">{m}</th>)}
+                {MES_ABBR.map((m, i) => <th key={i} className="text-right font-semibold px-3 py-2 whitespace-nowrap min-w-[120px]">{m}</th>)}
               </tr>
             </thead>
               {GRUPOS.map(g => {
