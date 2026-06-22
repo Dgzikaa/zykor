@@ -62,7 +62,7 @@ const ROWS: RowDef[] = [
   { id: 'pme', label: 'PME — Estoques (d)', tipo: 'days', formula: 'Estoques ÷ CMV × 30' },
   { id: 'pmr', label: 'PMR — Recebimento (d)', tipo: 'days', formula: 'Contas a Receber ÷ Receita Líquida × 30' },
   { id: 'pmp', label: 'PMP — Pagamento (d)', tipo: 'days', formula: 'Fornecedores CMV ÷ CMV × 30' },
-  { id: 'ciclo', label: 'Ciclo Financeiro (d)', tipo: 'days', formula: 'PME + PMR − PMP' },
+  { id: 'ciclo', label: 'Ciclo Financeiro (d)', tipo: 'days', destaque: true, formula: 'PME + PMR − PMP' },
   { id: 'h_estrutura', label: 'Estrutura', tipo: 'header' },
   { id: 'capital_giro', label: 'Capital de Giro', tipo: 'calc', formula: 'Passivo Não Circulante − Ativo Não Circulante' },
   { id: 'dividendos', label: 'Dividendos Pagos', tipo: 'ca', formula: 'Categoria Dividendos no mês (CA)' },
