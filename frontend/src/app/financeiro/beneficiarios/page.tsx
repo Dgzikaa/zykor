@@ -10,6 +10,7 @@ import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Users, Loader2, Search, Layers, Merge, ChevronRight } from 'lucide-react';
+import AtracoesTab from './_components/AtracoesTab';
 
 type Benef = {
   canonical_key: string; nome: string; documento: string | null;
@@ -26,7 +27,7 @@ const fmtBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency'
 export default function BeneficiariosPage() {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
-  const [aba, setAba] = useState<'lista' | 'categorias' | 'duplicados'>('lista');
+  const [aba, setAba] = useState<'lista' | 'atracoes' | 'categorias' | 'duplicados'>('lista');
 
   const [linhas, setLinhas] = useState<Benef[]>([]);
   const [resumo, setResumo] = useState<{ pessoas: number; total_pago: number; com_duplicados: number } | null>(null);
@@ -120,13 +121,16 @@ export default function BeneficiariosPage() {
         </div>
         <p className="text-sm text-muted-foreground mb-4">Controle por pessoa — cadastros do Conta Azul unificados num só, com histórico de pagamentos.</p>
 
-        <Tabs value={aba} onValueChange={(v) => setAba(v as 'lista' | 'categorias' | 'duplicados')} className="mb-4">
+        <Tabs value={aba} onValueChange={(v) => setAba(v as 'lista' | 'atracoes' | 'categorias' | 'duplicados')} className="mb-4">
           <TabsList>
             <TabsTrigger value="lista">Lista</TabsTrigger>
+            <TabsTrigger value="atracoes">Atrações</TabsTrigger>
             <TabsTrigger value="categorias">Por categoria</TabsTrigger>
             <TabsTrigger value="duplicados">Prováveis duplicados</TabsTrigger>
           </TabsList>
         </Tabs>
+
+        {aba === 'atracoes' && <AtracoesTab />}
 
         {aba === 'lista' && (
           <>
