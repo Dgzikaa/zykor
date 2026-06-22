@@ -17,7 +17,11 @@ export async function GET(request: NextRequest) {
   if (!key) return NextResponse.json({ success: false, error: 'key obrigatório' }, { status: 400 });
 
   const supabase = await getAdminClient();
-  const { data, error } = await (supabase as any).schema('gold').rpc('artista_detalhe', { p_bar_id: user.bar_id, p_key: key });
+  const [detRes, partRes] = await Promise.all([
+    (supabase as any).schema('gold').rpc('artista_detalhe', { p_bar_id: user.bar_id, p_key: key }),
+    (supabase as any).schema('gold').rpc('artista_participacoes', { p_bar_id: user.bar_id, p_key: key }),
+  ]);
+  const { data, error } = detRes;
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
   const shows = (data || []).map((r: any) => ({
@@ -68,5 +72,17 @@ export async function GET(request: NextRequest) {
     proximo: previstos.length ? previstos[0].data : null,
   };
 
-  return NextResponse.json({ success: true, header, shows });
+  const participacoes = (partRes.data || []).map((r: any) => ({
+    evento_id: Number(r.evento_id),
+    data: r.data_evento,
+    dia_semana: r.dia_semana,
+    line_up: r.artista_label,
+    fat: Number(r.fat) || 0,
+    custo_total: Number(r.custo_total) || 0,
+    publico: Number(r.cl_real) || 0,
+    ticket: Number(r.ticket) || 0,
+    futuro: !!r.futuro,
+  }));
+
+  return NextResponse.json({ success: true, header, shows, participacoes });
 }

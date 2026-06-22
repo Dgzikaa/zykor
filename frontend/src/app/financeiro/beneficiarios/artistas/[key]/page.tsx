@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { ArrowLeft, Loader2, Music, TrendingUp, CalendarClock } from 'lucide-react';
+import { ArrowLeft, Loader2, Music, TrendingUp, CalendarClock, Users2 } from 'lucide-react';
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
@@ -38,6 +38,7 @@ export default function ArtistaPerfilPage() {
   const [loading, setLoading] = useState(true);
   const [header, setHeader] = useState<any>(null);
   const [shows, setShows] = useState<any[]>([]);
+  const [participacoes, setParticipacoes] = useState<any[]>([]);
   const [produtos, setProdutos] = useState<any[]>([]);
   const [grupos, setGrupos] = useState<any[]>([]);
   const [semAtracao, setSemAtracao] = useState<number | null>(null);
@@ -51,7 +52,7 @@ export default function ArtistaPerfilPage() {
         api.get(`/api/financeiro/beneficiarios/artistas/produtos?key=${encodeURIComponent(key)}`),
         api.get('/api/financeiro/beneficiarios/artistas/dia-com-sem'),
       ]);
-      setHeader(det.header); setShows(det.shows || []);
+      setHeader(det.header); setShows(det.shows || []); setParticipacoes(det.participacoes || []);
       setProdutos(prod.produtos || []); setGrupos(prod.grupos || []);
       const geralSem = (comSem.linhas || []).find((l: any) => l.segmento === 'sem' && l.dia_semana === null);
       setSemAtracao(geralSem ? geralSem.fat_medio : null);
@@ -131,6 +132,28 @@ export default function ArtistaPerfilPage() {
                         {fmtData(s.data)} <span className="text-muted-foreground">({s.dia_semana})</span>
                         {s.custo_total > 0 && <> · {fmtBRL(s.custo_total)}</>}
                       </span>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Participações em line-ups (combos) — custo compartilhado, fora do headline */}
+            {participacoes.length > 0 && (
+              <Card className="mb-4">
+                <CardContent className="py-3">
+                  <div className="flex items-center gap-1.5 text-sm font-medium mb-1"><Users2 className="w-4 h-4" />Também tocou em {participacoes.length} line-up{participacoes.length > 1 ? 's' : ''}</div>
+                  <p className="text-[11px] text-muted-foreground mb-2">Noites com mais de uma atração. Não entram no custo acima (é dividido com o line-up), mas contam pra presença dele na casa.</p>
+                  <div className="space-y-1">
+                    {participacoes.map((p) => (
+                      <div key={p.evento_id} className="flex items-center justify-between text-xs gap-2 flex-wrap">
+                        <span className="truncate flex-1 min-w-[160px]">
+                          <span className="text-muted-foreground">{fmtData(p.data)}</span> · {p.line_up}
+                        </span>
+                        <span className="text-muted-foreground whitespace-nowrap tabular-nums">
+                          {fmtNum(p.publico)} pessoas · <b className="text-foreground">{fmtBRL(p.fat)}</b>
+                        </span>
+                      </div>
                     ))}
                   </div>
                 </CardContent>
