@@ -1,11 +1,11 @@
--- 2026-06-21 — DRE: despesa em competência usa valor_bruto, não pagamento parcial.
--- Bug: get_dre_por_ano usava COALESCE(NULLIF(valor_pago,0), valor_bruto) p/ DESPESA também.
--- Quando uma parcela é PARTIAL (ex.: Simples Nacional maio: bruto 12.771,60, pago 5.066,01),
--- o DRE pegava o pago parcial → subreportava (IMPOSTO maio 75.504 vs CA 83.210). Numa DRE
--- (regime de competência) despesa = valor cheio do mês, independente do pagamento.
--- Fix: ELSE -COALESCE(NULLIF(valor_bruto,0), valor_pago) — prefere bruto, cai pro pago só se bruto=0.
--- RECEITA mantida em COALESCE(pago, bruto) (não foi alterada — decisão a revisar com o sócio).
--- Bronze estava correto/fresco; o bug era 100% na função (não era sync nem botão).
+-- 2026-06-21 — DRE 100% em regime de COMPETÊNCIA (valor bruto), receita e despesa.
+-- Bug original: get_dre_por_ano usava COALESCE(NULLIF(valor_pago,0), valor_bruto) (paga-primeiro).
+-- Quando uma parcela está PARTIAL (pago < bruto), pegava o pago parcial → subreportava.
+-- Caso real: IMPOSTO maio 75.504 vs CA 83.209,70 (parcela Simples Nacional bruto 12.771,60 / pago 5.066,01).
+-- Decisão do sócio (2026-06-21): "deixar sempre o total bruto da competência" — receita E despesa.
+-- Receita: faturado vs recebido era ~R$0 de diferença (já lançada cheia), então sem impacto material.
+-- Fix: valor = sinal × COALESCE(NULLIF(valor_bruto,0), valor_pago) — bruto sempre; cai pro pago só se bruto=0.
+-- Bronze estava correto/fresco; o bug era 100% na função (não era sync nem botão). Live (função de banco).
 CREATE OR REPLACE FUNCTION public.get_dre_por_ano(p_bar_id integer, p_ano integer)
  RETURNS TABLE(bar_id integer, mes date, categoria_macro text, ordem_macro integer, ordem_sub integer, categoria text, sinal smallint, valor_com_sinal numeric, percentual_receita numeric)
  LANGUAGE sql STABLE SET search_path TO 'public', 'financial', 'bronze', 'pg_catalog'
@@ -19,8 +19,7 @@ AS $function$
       date_trunc('month', l.data_competencia::timestamptz)::date AS mes,
       m.categoria_macro, m.ordem_macro, m.ordem_sub,
       COALESCE(c.categoria_canon, NULLIF(TRIM(l.categoria_nome), ''), 'Sem categoria') AS categoria,
-      sum(CASE WHEN l.tipo = 'RECEITA' THEN COALESCE(NULLIF(l.valor_pago,0), l.valor_bruto)
-               ELSE -COALESCE(NULLIF(l.valor_bruto,0), l.valor_pago) END) AS valor_com_sinal
+      sum((CASE WHEN l.tipo = 'RECEITA' THEN 1 ELSE -1 END) * COALESCE(NULLIF(l.valor_bruto,0), l.valor_pago)) AS valor_com_sinal
     FROM bronze.bronze_contaazul_lancamentos l
     LEFT JOIN financial.dre_categoria_macro m ON upper(TRIM(m.categoria_nome)) = upper(TRIM(l.categoria_nome))
     LEFT JOIN canon c ON c.categoria_macro = m.categoria_macro AND c.ordem_sub = m.ordem_sub

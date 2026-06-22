@@ -85,24 +85,26 @@ export function DreTab({ barId, anoInicial }: Props) {
     } finally { setLoading(false); }
   };
 
-  // Botão "Atualizar": re-puxa o ANO inteiro do Conta Azul (alteracao_full_ano) e
-  // relê a DRE. Usa o ano todo (não o incremental) porque mudança SÓ de categoria
-  // no CA muitas vezes não bumpa o data_alteracao -> o incremental não pegaria a
-  // re-categorização. Mais lento (~1-2 min), porém correto. A DRE lê o bronze direto.
-  const sincronizarELer = async () => {
+  // Sincronizar com o Conta Azul + reler a DRE.
+  // - 'rapido' (padrão, ~5-15s): incremental por data_alteracao. Pega edições de valor
+  //   (ex.: ajustar imposto), que é o dia a dia. O cron diário cobre o resto.
+  // - 'completo' (~1-2min): re-puxa o ano inteiro mês a mês. Só necessário quando mexeram
+  //   SÓ na categoria no CA (re-categorização não bumpa data_alteracao). A DRE lê o bronze direto.
+  const sincronizar = async (modo: 'rapido' | 'completo') => {
     setSincronizando(true);
     try {
+      const body = modo === 'completo'
+        ? { bar_id: barId, sync_mode: 'alteracao_full_ano', ano }
+        : { bar_id: barId, sync_mode: 'alteracao_incremental' };
       const resp = await fetch('/api/contaazul/sync-manual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bar_id: barId, sync_mode: 'alteracao_full_ano', ano }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       const j = await resp.json().catch(() => ({}));
       if (!resp.ok || !j?.success) {
         toast({ title: 'Falha ao sincronizar Conta Azul', description: j?.error || 'Erro', variant: 'destructive' });
       } else {
         const n = j?.stats?.lancamentos ?? 0;
-        toast({ title: 'Conta Azul sincronizado', description: `${n} lançamento(s) atualizado(s) em ${j?.duration_seconds ?? '?'}s` });
+        toast({ title: 'Conta Azul sincronizado', description: `${n} lançamento(s) atualizado(s)${j?.duration_seconds ? ` em ${j.duration_seconds}s` : ''}` });
       }
     } catch (e) {
       toast({ title: 'Erro de rede', description: e instanceof Error ? e.message : 'Erro', variant: 'destructive' });
@@ -353,10 +355,15 @@ export function DreTab({ barId, anoInicial }: Props) {
               {todosColapsados ? 'Expandir tudo' : 'Recolher tudo'}
             </Button>
           )}
-          <Button onClick={sincronizarELer} disabled={sincronizando || loading} variant="outline" size="sm" className="gap-1">
+          <Button onClick={() => sincronizar('rapido')} disabled={sincronizando || loading} variant="outline" size="sm" className="gap-1" title="Sincroniza as alterações recentes do Conta Azul (rápido)">
             <RefreshCw className={`w-3 h-3 ${sincronizando ? 'animate-spin' : ''}`} />
             {sincronizando ? 'Sincronizando…' : 'Atualizar'}
           </Button>
+          <button onClick={() => sincronizar('completo')} disabled={sincronizando || loading}
+            className="text-[11px] text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50 whitespace-nowrap"
+            title="Re-puxa o ano inteiro. Use só se mexeram na CATEGORIA de um lançamento no Conta Azul (mais lento ~1-2min).">
+            sincronizar ano completo
+          </button>
         </div>
       </div>
 
