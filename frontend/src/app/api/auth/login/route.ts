@@ -116,16 +116,14 @@ async function handleLogin(request: NextRequest) {
 
       // (Removido fallback para tabela legada 'usuarios_bar' que nao existe.)
 
-      const protocol = request.headers.get('x-forwarded-proto') || 'https';
-      const host = request.headers.get('host') || request.headers.get('x-forwarded-host');
-      const baseUrl = host?.includes('localhost') 
-        ? `http://${host}` 
-        : `${protocol}://${host}`;
-
+      // URL RELATIVA: a navegacao acontece no mesmo origin que o usuario ja esta.
+      // (Antes era absoluta, montada do header host -> na Vercel podia apontar pro
+      //  dominio do deployment *.vercel.app e jogar o usuario num origin/ambiente
+      //  diferente, causando o loop de "volta pro login" no primeiro acesso.)
       return NextResponse.json({
         success: false,
         requirePasswordReset: true,
-        redirectUrl: `${baseUrl}/usuarios/redefinir-senha?email=${encodeURIComponent(usuarioPrincipal.email)}&token=${token}`,
+        redirectUrl: `/usuarios/redefinir-senha?email=${encodeURIComponent(usuarioPrincipal.email)}&token=${token}`,
         user: {
           nome: usuarioPrincipal.nome,
           email: usuarioPrincipal.email,

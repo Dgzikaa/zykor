@@ -61,7 +61,7 @@ export default function RedefinirSenhaPage() {
       if (data.success) {
         setSucesso(true);
         setTimeout(() => {
-          router.push('/');
+          router.push('/login');
         }, 3000);
       } else {
         setErro(data.error || 'Erro ao redefinir senha');
