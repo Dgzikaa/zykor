@@ -88,6 +88,12 @@ const corReal = (real: number, plan: number, melhorMenor: boolean): string => {
   return bom ? 'text-emerald-600' : 'text-red-600';
 };
 
+// Cor por sinal: lucro positivo = verde, negativo = vermelho, zero = neutro.
+const corSinal = (valor: number | null | undefined): string => {
+  if (!valor) return 'text-gray-900 dark:text-white';
+  return valor < 0 ? 'text-red-600' : 'text-emerald-600';
+};
+
 export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoClientProps) {
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
@@ -389,6 +395,10 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
               <HistoricoTooltip historico={getHistorico(sub.nome, 'projecao', idx)} cor="green" />
               <div className={cn("flex items-center gap-1 rounded px-1", !readonly && "cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30")} onClick={readonly ? undefined : () => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'projetado' }); setValorEdit(sub.projecao.toString()); }}>
                 <span className={cn("text-xs whitespace-nowrap", readonly ? "font-semibold" : "font-medium", sub.projecao > 0 ? "text-gray-900 dark:text-white" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.projecao) : formatarMoeda(sinalDre(sub.projecao, tipo))}</span>
+                {/* item 6: % do faturamento ao lado da Projeção (igual à DRE) */}
+                {!sub.isPercentage && tipo === 'despesa' && (mes.totais?.faturamento_meta_proj || 0) > 0 && sub.projecao !== 0 && (
+                  <span className="text-[9px] text-gray-400 dark:text-gray-500 whitespace-nowrap">{((Math.abs(sub.projecao) / mes.totais.faturamento_meta_proj) * 100).toFixed(1)}%</span>
+                )}
                 {!readonly && <Pencil className="h-2 w-2 text-green-400 opacity-0 group-hover:opacity-100" />}
               </div>
             </>
@@ -746,13 +756,13 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                       </div>
                       );
                     })}
-                    {/* EBITDA */}
+                    {/* Lucro Líquido (verde se positivo, vermelho se negativo) */}
                     <div className={cn("flex items-center justify-between px-1 border-t-2 border-emerald-300", isMesAtual ? "bg-emerald-100" : "bg-emerald-50 dark:bg-emerald-900/20")} style={{ height: '50px' }}>
-                      <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-700">{formatarMoeda(mes.totais.ebitda_plan)}</span>
+                      <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corSinal(mes.totais.ebitda_plan))}>{formatarMoeda(mes.totais.ebitda_plan)}</span>
                       <div className="w-px h-4 bg-emerald-300" />
-                      <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(mes.totais.ebitda_proj)}</span>
+                      <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corSinal(mes.totais.ebitda_proj))}>{formatarMoeda(mes.totais.ebitda_proj)}</span>
                       <div className="w-px h-4 bg-emerald-300" />
-                      <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corReal(mes.totais.ebitda_real, mes.totais.ebitda_plan, false))}>{formatarMoeda(mes.totais.ebitda_real)}</span>
+                      <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corSinal(mes.totais.ebitda_real))}>{formatarMoeda(mes.totais.ebitda_real)}</span>
                     </div>
                     {/* Margem EBITDA */}
                     <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-emerald-50" : "bg-emerald-50 dark:bg-emerald-900/20")} style={{ height: '38px' }}>
