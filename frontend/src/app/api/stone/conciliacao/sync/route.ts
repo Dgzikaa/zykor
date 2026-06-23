@@ -3,6 +3,7 @@ import { gunzipSync } from 'zlib';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { resolveStoneCredential, stoneBasicAuthHeader } from '@/lib/stone/resolveCredential';
+import { timingSafeEqual } from 'crypto';
 
 /**
  * POST /api/stone/conciliacao/sync  — PoC ingestão Stone (Cliente Stone).
@@ -23,13 +24,26 @@ function podeUsar(role?: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await authenticateUser(req);
-  if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!user.ativo) return authErrorResponse('Usuário inativo', 403);
-  if (!podeUsar(user.role))
-    return permissionErrorResponse('Apenas admin ou financeiro podem sincronizar a Stone');
-
   const body = await req.json().catch(() => ({} as any));
+
+  // Auth: sessão admin/financeiro (navegador) OU service-role bearer (cron/tooling).
+  const bearer = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  const sr = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const viaServiceRole = !!bearer && !!sr && bearer.length === sr.length &&
+    timingSafeEqual(Buffer.from(bearer), Buffer.from(sr));
+
+  let barId: number | null = null;
+  if (viaServiceRole) {
+    barId = body?.bar_id != null ? Number(body.bar_id) : null;
+  } else {
+    const user = await authenticateUser(req);
+    if (!user) return authErrorResponse('Usuário não autenticado');
+    if (!user.ativo) return authErrorResponse('Usuário inativo', 403);
+    if (!podeUsar(user.role))
+      return permissionErrorResponse('Apenas admin ou financeiro podem sincronizar a Stone');
+    barId = user.bar_id ?? null;
+  }
+  if (!barId) return NextResponse.json({ error: 'bar_id ausente (corpo no service-role / usuário sem bar)' }, { status: 400 });
 
   // Normaliza a data: aceita AAAAMMDD ou YYYY-MM-DD.
   const digits = String(body?.reference_date ?? '').replace(/\D/g, '');
@@ -51,7 +65,7 @@ export async function POST(req: NextRequest) {
   const { data: creds, error: credErr } = await (supabase as any)
     .from('api_credentials')
     .select('*')
-    .eq('bar_id', user.bar_id)
+    .eq('bar_id', barId)
     .eq('sistema', 'stone')
     .eq('ativo', true);
 
@@ -109,7 +123,8 @@ export async function POST(req: NextRequest) {
           .from('bronze_stone_conciliacao')
           .upsert(
             {
-              bar_id: user.bar_id,
+              bar_id: barId,
+              parsed_em: null,
               stone_code: code,
               reference_date: refIso,
               layout,
@@ -140,7 +155,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     success: resultados.some((r) => r.ok),
-    bar_id: user.bar_id,
+    bar_id: barId,
     reference_date: refIso,
     layout,
     resultados,
