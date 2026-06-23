@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { encryptSecret } from '@/lib/crypto/secretBox';
+import { timingSafeEqual } from 'crypto';
 
 /**
  * POST /api/stone/conciliacao/cadastrar — cadastra credenciais Stone CIFRADAS,
@@ -20,9 +21,17 @@ function podeUsar(role?: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await authenticateUser(req);
-  if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeUsar(user.role)) return permissionErrorResponse('Apenas admin ou financeiro podem cadastrar credenciais Stone');
+  // Auth: sessão admin/financeiro (navegador) OU service-role bearer (setup tooling).
+  // Quem tem a service-role já tem god-mode no banco; aqui ela só permite cifrar+gravar.
+  const bearer = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  const sr = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const viaServiceRole = !!bearer && !!sr && bearer.length === sr.length &&
+    timingSafeEqual(Buffer.from(bearer), Buffer.from(sr));
+  if (!viaServiceRole) {
+    const user = await authenticateUser(req);
+    if (!user) return authErrorResponse('Usuário não autenticado');
+    if (!podeUsar(user.role)) return permissionErrorResponse('Apenas admin ou financeiro podem cadastrar credenciais Stone');
+  }
 
   const body = await req.json().catch(() => null);
   const lista = Array.isArray(body) ? body : null;
