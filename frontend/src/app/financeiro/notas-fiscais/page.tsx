@@ -1,0 +1,199 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { Card, CardContent } from '@/components/ui/card';
+import { useBar } from '@/contexts/BarContext';
+import { useToast } from '@/components/ui/toast';
+import { api } from '@/lib/api-client';
+import { ReceiptText, Loader2, FileText, Ban } from 'lucide-react';
+
+type Cnpj = { indice: number; label: string; documento: string | null };
+type DiaCnpj = { total_autorizado: number; total_cancelado: number; qtd_notas: number; qtd_canceladas: number };
+type Dia = { data: string; por_cnpj: Record<string, DiaCnpj>; total_autorizado: number; total_cancelado: number; qtd_notas: number };
+
+const fmtBRL = (v: any) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v || 0));
+const fmtNum = (v: any) => new Intl.NumberFormat('pt-BR').format(Number(v || 0));
+const DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const fmtData = (d: string) => { try { const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y.slice(2)}`; } catch { return d; } };
+const dow = (d: string) => { try { const [y, m, dd] = d.split('-').map(Number); return DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()]; } catch { return ''; } };
+
+const MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const labelMes = (ym: string) => { const [y, m] = ym.split('-'); return `${MESES_PT[Number(m) - 1]}/${y}`; };
+
+// cores por índice de CNPJ (até 4)
+const CNPJ_COR = ['text-sky-600 dark:text-sky-400', 'text-violet-600 dark:text-violet-400', 'text-amber-600 dark:text-amber-400', 'text-emerald-600 dark:text-emerald-400'];
+const corCnpj = (i: number) => CNPJ_COR[i % CNPJ_COR.length];
+
+function NotasFiscaisInner() {
+  const { selectedBar } = useBar();
+  const { showToast } = useToast();
+
+  const [meses, setMeses] = useState<string[]>([]);
+  const [mesSel, setMesSel] = useState<string>('');
+  const [cnpjs, setCnpjs] = useState<Cnpj[]>([]);
+  const [dias, setDias] = useState<Dia[]>([]);
+  const [resumo, setResumo] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const periodo = useMemo(() => {
+    if (!mesSel) return null;
+    const [y, m] = mesSel.split('-').map(Number);
+    const ultimo = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    return { de: `${mesSel}-01`, ate: `${mesSel}-${String(ultimo).padStart(2, '0')}` };
+  }, [mesSel]);
+
+  const carregar = useCallback(async () => {
+    if (!selectedBar?.id) return;
+    setLoading(true);
+    try {
+      const qs = new URLSearchParams();
+      if (periodo) { qs.set('de', periodo.de); qs.set('ate', periodo.ate); }
+      const r = await api.get(`/api/financeiro/notas-fiscais?${qs.toString()}`);
+      if (!r?.success) throw new Error(r?.error || 'Falha ao carregar');
+      setCnpjs(r.cnpjs || []);
+      setDias(r.dias || []);
+      setResumo(r.resumo || null);
+      if ((r.meses_disponiveis || []).length) {
+        setMeses(r.meses_disponiveis);
+        if (!mesSel) setMesSel(r.meses_disponiveis[0]);
+      }
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Erro ao carregar notas fiscais', message: e?.message });
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedBar?.id, periodo, mesSel, showToast]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const maxDia = useMemo(() => Math.max(1, ...dias.map((d) => d.total_autorizado)), [dias]);
+
+  return (
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5">
+      {/* Cabeçalho */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-primary/10 p-2.5"><ReceiptText className="h-6 w-6 text-primary" /></div>
+          <div>
+            <h1 className="text-xl font-semibold">Notas Fiscais</h1>
+            <p className="text-sm text-muted-foreground">Total emitido em NF por dia, consolidado por CNPJ (ContaHub).</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={mesSel}
+            onChange={(e) => setMesSel(e.target.value)}
+            className="h-9 rounded-md border bg-background px-3 text-sm"
+          >
+            {meses.length === 0 && <option value="">—</option>}
+            {meses.map((m) => <option key={m} value={m}>{labelMes(m)}</option>)}
+          </select>
+          {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        </div>
+      </div>
+
+      {/* Cards resumo: total geral + por CNPJ */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> Total emitido</div>
+            <div className="text-2xl font-semibold mt-1">{fmtBRL(resumo?.total_autorizado)}</div>
+            <div className="text-xs text-muted-foreground mt-1">{fmtNum(resumo?.qtd_notas)} notas · {fmtNum(resumo?.dias)} dias</div>
+          </CardContent>
+        </Card>
+        {cnpjs.map((c) => (
+          <Card key={c.indice}>
+            <CardContent className="p-4">
+              <div className={`text-xs font-medium flex items-center gap-1.5 ${corCnpj(c.indice)}`}>
+                <ReceiptText className="h-3.5 w-3.5" /> {c.label}
+              </div>
+              <div className="text-2xl font-semibold mt-1">{fmtBRL(resumo?.por_cnpj?.[c.indice]?.total_autorizado)}</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {fmtNum(resumo?.por_cnpj?.[c.indice]?.qtd_notas)} notas
+                {c.documento ? ` · ${c.documento}` : ''}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Tabela diária pivotada por CNPJ */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-muted-foreground">
+                  <th className="text-left font-medium px-4 py-2.5">Dia</th>
+                  {cnpjs.map((c) => (
+                    <th key={c.indice} className={`text-right font-medium px-4 py-2.5 ${corCnpj(c.indice)}`}>{c.label}</th>
+                  ))}
+                  <th className="text-right font-medium px-4 py-2.5">Total do dia</th>
+                  <th className="text-right font-medium px-4 py-2.5">Notas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dias.map((d) => (
+                  <tr key={d.data} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      <span className="font-medium">{fmtData(d.data)}</span>
+                      <span className="text-xs text-muted-foreground ml-1.5">{dow(d.data)}</span>
+                    </td>
+                    {cnpjs.map((c) => {
+                      const v = d.por_cnpj[c.indice];
+                      return (
+                        <td key={c.indice} className="px-4 py-2 text-right tabular-nums">
+                          {v ? fmtBRL(v.total_autorizado) : <span className="text-muted-foreground/40">—</span>}
+                          {v && v.total_cancelado > 0 && (
+                            <span className="block text-[10px] text-red-500 flex items-center justify-end gap-0.5">
+                              <Ban className="h-2.5 w-2.5" /> {fmtBRL(v.total_cancelado)}
+                            </span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="px-4 py-2 text-right tabular-nums font-semibold">
+                      <div>{fmtBRL(d.total_autorizado)}</div>
+                      <div className="mt-1 h-1.5 rounded bg-muted/40">
+                        <div className="h-1.5 rounded bg-primary" style={{ width: `${Math.max(2, (d.total_autorizado / maxDia) * 100)}%` }} />
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{fmtNum(d.qtd_notas)}</td>
+                  </tr>
+                ))}
+                {!loading && dias.length === 0 && (
+                  <tr><td colSpan={cnpjs.length + 3} className="px-4 py-10 text-center text-muted-foreground">Nenhuma nota fiscal no período.</td></tr>
+                )}
+              </tbody>
+              {dias.length > 0 && (
+                <tfoot>
+                  <tr className="border-t bg-muted/20 font-semibold">
+                    <td className="px-4 py-2.5">Total</td>
+                    {cnpjs.map((c) => (
+                      <td key={c.indice} className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(resumo?.por_cnpj?.[c.indice]?.total_autorizado)}</td>
+                    ))}
+                    <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(resumo?.total_autorizado)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{fmtNum(resumo?.qtd_notas)}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <p className="text-xs text-muted-foreground">
+        Consolidado pela data contábil de emissão da nota. Os rótulos dos CNPJs podem ser ajustados em <code>financial.nf_cnpj_labels</code>.
+      </p>
+    </div>
+  );
+}
+
+export default function NotasFiscaisPage() {
+  return (
+    <ProtectedRoute>
+      <NotasFiscaisInner />
+    </ProtectedRoute>
+  );
+}

@@ -338,6 +338,24 @@ async function fetchSinteticoPorHorarioComDivisao(
   );
 }
 
+// Função para buscar NOTAS FISCAIS (qry=73) — relatório de NF (NFCe/NFe).
+// Filtra por nf_dtcontabil no range; não usa divisão por local (não se aplica).
+// Resultado pequeno (1 linha por cnpj#/tipo/série no dia), fetch direto.
+async function fetchNotasFiscais(
+  baseUrl: string,
+  dataDate: string,
+  empId: string,
+  sessionToken: string,
+  generateTimestamp: () => string
+): Promise<any> {
+  const timestamp = generateTimestamp();
+  const url = `${baseUrl}/rest/contahub.cmds.QueryCmd/execQuery/${timestamp}?qry=73&d0=${dataDate}&d1=${dataDate}&emp=${empId}&nfe=1`;
+  console.log(`🔄 Buscando notasfiscais (qry=73) para ${dataDate}...`);
+  const data = await fetchContaHubData(url, sessionToken);
+  console.log(`✅ notasfiscais: ${data?.list?.length || 0} registros`);
+  return data;
+}
+
 // Função para salvar JSON bruto (SEM PROCESSAMENTO)
 async function saveRawDataOnly(supabase: any, dataType: string, rawData: any, dataDate: string, barId: number = 3) {
   console.log(`💾 Salvando JSON bruto para ${dataType}...`);
@@ -460,12 +478,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       data_fim,     // Para backfill: data final do range
       only_cancelamentos, // Se true, busca apenas cancelamentos (para backfill rápido)
       only_sinteticoporhorario, // Se true, busca apenas qry=95 (backfill produto×hora)
-      emp_id: empIdFromPayload, 
+      only_notasfiscais, // Se true, busca apenas qry=73 (backfill notas fiscais)
+      emp_id: empIdFromPayload,
       contahub_emp_id: contahubEmpIdFromPayload 
     } = JSON.parse(requestBody || '{}');
     
     // MODO RANGE: Se tem data_inicio e data_fim, processar múltiplos dias
-    if (data_inicio && data_fim && !only_cancelamentos && !only_sinteticoporhorario) {
+    if (data_inicio && data_fim && !only_cancelamentos && !only_sinteticoporhorario && !only_notasfiscais) {
       console.log(`🔄 Modo RANGE: Sincronizando de ${data_inicio} a ${data_fim} para bar_id=${bar_id}`);
       
       // Processar cada dia do range
@@ -529,6 +548,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // Será tratado abaixo
     } else if (data_inicio && data_fim && only_sinteticoporhorario) {
       console.log(`🔄 Modo BACKFILL: Buscando sinteticoporhorario (qry=95) de ${data_inicio} a ${data_fim} para bar_id=${bar_id}`);
+      // Será tratado abaixo
+    } else if (data_inicio && data_fim && only_notasfiscais) {
+      console.log(`🔄 Modo BACKFILL: Buscando notasfiscais (qry=73) de ${data_inicio} a ${data_fim} para bar_id=${bar_id}`);
       // Será tratado abaixo
     } else if (!bar_id || !data_date) {
       throw new Error('bar_id e data_date são obrigatórios (ou data_inicio/data_fim para backfill)');
@@ -736,10 +758,59 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     }
 
+    // MODO BACKFILL: Buscar apenas notasfiscais (qry=73) para um range de datas
+    if (data_inicio && data_fim && only_notasfiscais) {
+      console.log(`\n🔄 MODO BACKFILL NOTASFISCAIS: ${data_inicio} a ${data_fim}`);
+
+      const startDate = new Date(data_inicio);
+      const endDate = new Date(data_fim);
+      let currentDate = startDate;
+      let totalDias = 0;
+      let totalRegistros = 0;
+
+      while (currentDate <= endDate) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        try {
+          console.log(`📅 Buscando notasfiscais para ${dateStr}...`);
+          const nfData = await fetchNotasFiscais(
+            contahubBaseUrl, dateStr, emp_id, sessionToken, generateDynamicTimestamp
+          );
+          const saveResult = await saveRawDataOnly(supabase, 'notasfiscais', nfData, dateStr, bar_id);
+          totalRegistros += saveResult.record_count;
+          totalDias++;
+          console.log(`✅ ${dateStr}: ${saveResult.record_count} registros`);
+          await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (error) {
+          // dia sem NF retorna 0 e dispara erro no saveRawDataOnly — apenas registrar
+          console.warn(`⚠️ ${dateStr}: ${String(error)}`);
+          results.errors.push({ date: dateStr, error: String(error) });
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      const summary = {
+        bar_id,
+        mode: 'backfill_notasfiscais',
+        data_inicio,
+        data_fim,
+        total_dias: totalDias,
+        total_registros: totalRegistros,
+        errors: results.errors.length,
+        timestamp: new Date().toISOString()
+      };
+
+      console.log('📊 Backfill concluído:', JSON.stringify(summary));
+
+      return new Response(JSON.stringify(summary), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      });
+    }
+
     // 1. COLETA E ARMAZENAMENTO DE JSON BRUTO (modo normal)
     console.log('\n📊 FASE 1: Coletando e salvando JSONs brutos...');
     
-    const dataTypes = ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'vendas', 'cancelamentos', 'sinteticoporhorario'];
+    const dataTypes = ['analitico', 'fatporhora', 'pagamentos', 'periodo', 'tempo', 'vendas', 'cancelamentos', 'sinteticoporhorario', 'notasfiscais'];
     
     // Converter data para formato ContaHub (DD.MM.YYYY)
     const contahubDate = toContaHubDateFormat(data_date);
@@ -977,6 +1048,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 phase: 'collection',
                 data_type: 'sinteticoporhorario',
                 error: sintError instanceof Error ? sintError.message : String(sintError)
+              });
+            }
+            continue;
+
+          case 'notasfiscais':
+            // qry=73 — relatório de Notas Fiscais (NFCe/NFe) por cnpj#/dia contábil
+            try {
+              const nfData = await fetchNotasFiscais(
+                contahubBaseUrl, data_date, emp_id, sessionToken, generateDynamicTimestamp
+              );
+              const saveResultNf = await saveRawDataOnly(supabase, 'notasfiscais', nfData, data_date, bar_id);
+              results.collected.push(saveResultNf);
+              console.log(`✅ notasfiscais: JSON bruto salvo (${saveResultNf.record_count} registros)`);
+            } catch (nfError) {
+              console.error(`❌ Erro ao buscar notasfiscais:`, nfError);
+              results.errors.push({
+                phase: 'collection',
+                data_type: 'notasfiscais',
+                error: nfError instanceof Error ? nfError.message : String(nfError)
               });
             }
             continue;

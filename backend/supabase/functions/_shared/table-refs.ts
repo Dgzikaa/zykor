@@ -23,9 +23,11 @@ export const BRONZE_TABLES = {
   avendas_cancelamentos: 'bronze_contahub_avendas_cancelamentos',
   avendas_vendasperiodo: 'bronze_contahub_avendas_vendasperiodo',
   avendas_vendasdiahoraanalitico: 'bronze_contahub_avendas_vendasdiahoraanalitico',
-  
+  avendas_porproduto_sinteticoporhorario: 'bronze_contahub_avendas_porproduto_sinteticoporhorario',
+
   // Financeiro
   financeiro_pagamentosrecebidos: 'bronze_contahub_financeiro_pagamentosrecebidos',
+  notas_fiscais: 'bronze_contahub_notas_fiscais',
   
   // Produtos
   produtos_temposproducao: 'bronze_contahub_produtos_temposproducao',
@@ -121,6 +123,8 @@ export const CONTAHUB_DATA_TYPE_MAP: Record<string, {
   'fatporhora': { table: 'avendas_vendasdiahoraanalitico', dateColumn: 'vd_dtgerencial' },
   'tempo': { table: 'produtos_temposproducao', dateColumn: 'data' },
   'cancelamentos': { table: 'avendas_cancelamentos', dateColumn: 'data' },
+  'sinteticoporhorario': { table: 'avendas_porproduto_sinteticoporhorario', dateColumn: 'vd_dtgerencial' },
+  'notasfiscais': { table: 'notas_fiscais', dateColumn: 'nf_dtcontabil' },
 };
 
 // ============================================
