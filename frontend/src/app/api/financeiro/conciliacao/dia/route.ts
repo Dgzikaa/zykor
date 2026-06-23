@@ -7,7 +7,8 @@ export const dynamic = 'force-dynamic';
 
 // De-para Stone (bandeira confirmada por BIN; tipo de conta = enum padrão Stone).
 const BRAND: Record<number, string> = { 1: 'Visa', 2: 'Mastercard', 3: 'Amex', 4: 'Hipercard', 171: 'Elo' };
-const ACCOUNT: Record<number, string> = { 1: 'Crédito', 2: 'Débito', 3: 'Voucher', 4: 'Private Label', 5: 'Outro' };
+// Confirmado por cruzamento com ContaHub (créd = acct 2+4; déb = acct 1+3).
+const ACCOUNT: Record<number, string> = { 1: 'Débito', 2: 'Crédito', 3: 'Voucher', 4: 'Private Label', 5: 'Outro' };
 const brandName = (id: any) => BRAND[Number(id)] || (id == null ? '—' : `Bandeira ${id}`);
 const accountName = (id: any) => ACCOUNT[Number(id)] || (id == null ? '—' : `Tipo ${id}`);
 
