@@ -1,27 +1,46 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Loader2, Pencil, Upload, FileText, Trash2, ExternalLink } from 'lucide-react';
+import {
+  Loader2, Pencil, Upload, FileText, Trash2, ExternalLink, X,
+  Briefcase, Building2, CalendarDays, Cake, Phone, Mail, CreditCard,
+  Banknote, Clock, Fingerprint, CalendarX,
+} from 'lucide-react';
 import type { Funcionario } from '../page';
 
 const TIPO_DOC: Record<string, string> = {
   carteira_trabalho: 'Carteira de Trabalho', exame_admissional: 'Exame Admissional',
   contrato: 'Contrato', rg_cpf: 'RG / CPF', outro: 'Outro',
 };
-const fmtBRL = (v: number | null) => v == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-const fmtData = (d: string | null) => { if (!d) return '—'; try { const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; } catch { return d; } };
+const AVATAR_CORES = [
+  'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+  'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+];
+
+const fmtBRL = (v: number | null) => v == null ? null : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+const fmtData = (d: string | null) => { if (!d) return null; try { const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; } catch { return d; } };
+const iniciais = (nome: string) => nome.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+const corAvatar = (nome: string) => { let h = 0; for (const c of nome) h = (h + c.charCodeAt(0)) % AVATAR_CORES.length; return AVATAR_CORES[h]; };
 const tempoDeCasa = (a: string | null) => {
-  if (!a) return '—'; const d = new Date(a); const now = new Date();
+  if (!a) return null; const d = new Date(a); const now = new Date();
   let m = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
-  if (now.getDate() < d.getDate()) m--; if (m < 0) return '—';
+  if (now.getDate() < d.getDate()) m--; if (m < 0) return null;
   const anos = Math.floor(m / 12); const meses = m % 12;
-  return anos > 0 ? `${anos} ano(s) ${meses} mês(es)` : `${meses} mês(es)`;
+  return anos > 0 ? `${anos}a ${meses}m` : `${meses} meses`;
+};
+const tipoTag = (t: string | null) => {
+  if (t === 'Freela') return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+  if (t === 'PJ') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+  return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
 };
 
 type Doc = { id: string; tipo: string; descricao: string | null; nome_arquivo: string | null; validade: string | null; criado_em: string; url: string | null };
@@ -43,8 +62,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
     setLoading(true);
     try {
       const res = await api.get(`/api/rh/funcionarios/${funcionarioId}`);
-      setFunc(res.funcionario); setDocs(res.documentos || []);
-      // assina as URLs dos documentos
+      setFunc(res.funcionario);
       const dres = await api.get(`/api/rh/funcionarios/${funcionarioId}/documentos`);
       setDocs(dres.documentos || []);
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao abrir dossiê', message: e?.message }); }
@@ -78,68 +96,120 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
   };
 
+  const freela = func?.tipo_contratacao === 'Freela';
+  const venceu = (d: string | null) => { if (!d) return false; try { return new Date(d) < new Date(); } catch { return false; } };
+
   return (
     <Dialog open={funcionarioId != null} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0">
         {loading || !func ? (
-          <div className="py-16 text-center"><Loader2 className="w-7 h-7 animate-spin mx-auto text-muted-foreground" /></div>
+          <div className="py-24 text-center"><Loader2 className="w-7 h-7 animate-spin mx-auto text-muted-foreground" /></div>
         ) : (
           <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center justify-between gap-2 pr-6">
-                <span>{func.nome}{!func.ativo && <span className="text-xs text-muted-foreground ml-2">(inativo)</span>}</span>
-                <Button variant="outline" size="sm" onClick={() => onEditar(func)}><Pencil className="w-3.5 h-3.5 mr-1.5" />Editar</Button>
-              </DialogTitle>
-            </DialogHeader>
+            {/* ── Cabeçalho ── */}
+            <div className="relative bg-gradient-to-br from-muted/60 to-muted/20 px-6 pt-6 pb-5 border-b">
+              <button onClick={onClose} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+              <div className="flex items-start gap-4">
+                {func.foto_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={func.foto_url} alt={func.nome} className="w-16 h-16 rounded-full object-cover shrink-0" />
+                ) : (
+                  <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold shrink-0 ${corAvatar(func.nome)}`}>
+                    {iniciais(func.nome)}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1 pr-8">
+                  <h2 className="text-xl font-bold leading-tight truncate">{func.nome}</h2>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {[func.cargo_nome, func.area_nome].filter(Boolean).join(' · ') || 'Sem cargo/área'}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${func.ativo ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+                      {func.ativo ? '● Ativo' : '○ Inativo'}
+                    </span>
+                    <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${tipoTag(func.tipo_contratacao)}`}>{func.tipo_contratacao || '—'}</span>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" className="shrink-0" onClick={() => onEditar(func)}>
+                  <Pencil className="w-3.5 h-3.5 mr-1.5" />Editar
+                </Button>
+              </div>
 
-            {/* Dados */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-sm">
-              <Campo l="Cargo" v={func.cargo_nome} /><Campo l="Área" v={func.area_nome} />
-              <Campo l="Tipo" v={func.tipo_contratacao} />
-              <Campo l="Tempo de casa" v={tempoDeCasa(func.data_admissao)} />
-              <Campo l="Admissão" v={fmtData(func.data_admissao)} />
-              {func.data_demissao && <Campo l="Demissão" v={fmtData(func.data_demissao)} />}
-              <Campo l={func.tipo_contratacao === 'Freela' ? 'Diária' : 'Salário'} v={fmtBRL(func.tipo_contratacao === 'Freela' ? func.valor_diaria : func.salario_base)} />
-              <Campo l="Nascimento" v={fmtData(func.data_nascimento)} />
-              <Campo l="CPF" v={func.cpf} /><Campo l="Telefone" v={func.telefone} />
-              <Campo l="Email" v={func.email} />
-              <Campo l="PIX" v={func.chave_pix ? `${func.chave_pix}${func.tipo_chave_pix ? ` (${func.tipo_chave_pix})` : ''}` : null} />
+              {/* faixa de destaques */}
+              <div className="grid grid-cols-3 gap-2 mt-4">
+                <Destaque icon={Clock} label="Tempo de casa" value={tempoDeCasa(func.data_admissao) || '—'} />
+                <Destaque icon={CalendarDays} label="Admissão" value={fmtData(func.data_admissao) || '—'} />
+                <Destaque icon={Banknote} label={freela ? 'Diária' : 'Salário'} value={fmtBRL(freela ? func.valor_diaria : func.salario_base) || '—'} accent="text-emerald-600 dark:text-emerald-400" />
+              </div>
             </div>
-            {func.observacoes && <p className="text-xs text-muted-foreground mt-2 border-l-2 pl-2">{func.observacoes}</p>}
 
-            {/* Documentos */}
-            <div className="mt-4 border-t pt-3">
-              <div className="text-sm font-medium mb-2 flex items-center gap-1.5"><FileText className="w-4 h-4" />Documentos ({docs.length})</div>
-              {docs.length > 0 && (
-                <div className="space-y-1 mb-3">
+            {/* ── Informações ── */}
+            <div className="px-6 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+              <Secao titulo="Dados pessoais">
+                <Info icon={Cake} label="Nascimento" value={fmtData(func.data_nascimento)} />
+                <Info icon={Fingerprint} label="CPF" value={func.cpf} />
+                <Info icon={Phone} label="Telefone" value={func.telefone} />
+                <Info icon={Mail} label="Email" value={func.email} />
+              </Secao>
+              <Secao titulo="Contratação & pagamento">
+                <Info icon={Briefcase} label="Cargo" value={func.cargo_nome} />
+                <Info icon={Building2} label="Área" value={func.area_nome} />
+                {func.dias_trabalho_semana != null && <Info icon={CalendarDays} label="Dias/semana" value={String(func.dias_trabalho_semana)} />}
+                {func.data_demissao && <Info icon={CalendarX} label="Demissão" value={fmtData(func.data_demissao)} alerta />}
+                <Info icon={CreditCard} label="PIX" value={func.chave_pix ? `${func.chave_pix}${func.tipo_chave_pix ? ` (${func.tipo_chave_pix})` : ''}` : null} />
+              </Secao>
+            </div>
+            {func.observacoes && (
+              <div className="px-6 pb-2">
+                <p className="text-xs text-muted-foreground bg-muted/40 rounded-md border-l-2 border-muted-foreground/30 px-3 py-2">{func.observacoes}</p>
+              </div>
+            )}
+
+            {/* ── Documentos ── */}
+            <div className="px-6 py-4 border-t bg-muted/20">
+              <div className="text-sm font-semibold mb-3 flex items-center gap-1.5"><FileText className="w-4 h-4" />Documentos <span className="text-muted-foreground font-normal">({docs.length})</span></div>
+
+              {docs.length > 0 ? (
+                <div className="space-y-1.5 mb-3">
                   {docs.map((d) => (
-                    <div key={d.id} className="flex items-center justify-between gap-2 text-xs rounded border px-2 py-1.5">
-                      <div className="min-w-0">
-                        <span className="font-medium">{TIPO_DOC[d.tipo] || d.tipo}</span>
-                        <span className="text-muted-foreground truncate"> · {d.nome_arquivo}</span>
-                        {d.validade && <span className="text-amber-600 ml-1">· vence {fmtData(d.validade)}</span>}
+                    <div key={d.id} className="flex items-center justify-between gap-2 rounded-lg border bg-background px-3 py-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center shrink-0"><FileText className="w-4 h-4 text-muted-foreground" /></div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium leading-tight">{TIPO_DOC[d.tipo] || d.tipo}</div>
+                          <div className="text-[11px] text-muted-foreground truncate">{d.nome_arquivo}{d.validade && (
+                            <span className={venceu(d.validade) ? 'text-red-500' : 'text-amber-600'}> · {venceu(d.validade) ? 'venceu' : 'vence'} {fmtData(d.validade)}</span>
+                          )}</div>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        {d.url && <a href={d.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center"><ExternalLink className="w-3.5 h-3.5" /></a>}
-                        <button onClick={() => excluirDoc(d.id)} className="text-red-500 hover:text-red-700"><Trash2 className="w-3.5 h-3.5" /></button>
+                        {d.url && <a href={d.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-md hover:bg-muted text-blue-600" title="Abrir"><ExternalLink className="w-4 h-4" /></a>}
+                        <button onClick={() => excluirDoc(d.id)} className="p-1.5 rounded-md hover:bg-muted text-red-500" title="Excluir"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </div>
                   ))}
                 </div>
+              ) : (
+                <div className="text-xs text-muted-foreground text-center py-4 mb-3 border border-dashed rounded-lg">Nenhum documento anexado ainda.</div>
               )}
-              <div className="flex items-end gap-2 flex-wrap bg-muted/30 rounded p-2">
-                <div>
-                  <Label className="text-[10px] mb-1 block">Tipo</Label>
-                  <select value={tipoUp} onChange={(e) => setTipoUp(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
+
+              {/* upload */}
+              <div className="flex items-end gap-2 flex-wrap rounded-lg border bg-background p-3">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</span>
+                  <select value={tipoUp} onChange={(e) => setTipoUp(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
                     {Object.entries(TIPO_DOC).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
-                </div>
-                <div>
-                  <Label className="text-[10px] mb-1 block">Validade (opcional)</Label>
-                  <Input type="date" value={validadeUp} onChange={(e) => setValidadeUp(e.target.value)} className="h-8 text-xs w-[140px]" />
-                </div>
-                <input ref={fileRef} type="file" accept="application/pdf,image/*" className="text-xs max-w-[160px]" />
-                <Button size="sm" onClick={enviarDoc} disabled={enviando}>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Validade (opcional)</span>
+                  <Input type="date" value={validadeUp} onChange={(e) => setValidadeUp(e.target.value)} className="h-9 text-sm w-[150px]" />
+                </label>
+                <label className="flex flex-col gap-1 flex-1 min-w-[160px]">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Arquivo</span>
+                  <input ref={fileRef} type="file" accept="application/pdf,image/*" className="text-xs file:mr-2 file:rounded file:border-0 file:bg-muted file:px-2 file:py-1.5 file:text-xs h-9 leading-9" />
+                </label>
+                <Button size="sm" onClick={enviarDoc} disabled={enviando} className="h-9">
                   {enviando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Upload className="w-4 h-4 mr-1.5" />}Anexar
                 </Button>
               </div>
@@ -151,11 +221,32 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   );
 }
 
-function Campo({ l, v }: { l: string; v: string | null | undefined }) {
+function Destaque({ icon: Icon, label, value, accent }: { icon: any; label: string; value: string; accent?: string }) {
   return (
-    <div>
-      <div className="text-[10px] text-muted-foreground uppercase">{l}</div>
-      <div className="truncate">{v || '—'}</div>
+    <div className="rounded-lg border bg-background/70 px-3 py-2">
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground"><Icon className="w-3 h-3" />{label}</div>
+      <div className={`text-sm font-bold mt-0.5 truncate ${accent || ''}`}>{value}</div>
+    </div>
+  );
+}
+
+function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
+  return (
+    <div className="py-1">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{titulo}</div>
+      {children}
+    </div>
+  );
+}
+
+function Info({ icon: Icon, label, value, alerta }: { icon: any; label: string; value: string | null | undefined; alerta?: boolean }) {
+  return (
+    <div className="flex items-start gap-2.5 py-1.5">
+      <Icon className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+      <div className="min-w-0">
+        <div className="text-[11px] text-muted-foreground leading-tight">{label}</div>
+        <div className={`text-sm truncate ${value ? (alerta ? 'text-red-600 dark:text-red-400 font-medium' : '') : 'text-muted-foreground/40'}`}>{value || '—'}</div>
+      </div>
     </div>
   );
 }
