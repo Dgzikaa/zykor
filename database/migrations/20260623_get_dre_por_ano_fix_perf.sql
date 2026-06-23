@@ -1,0 +1,9 @@
+-- FIX perf da DRE (página em branco / 500 / timeout no endpoint dre-excel):
+-- mesma causa do DFC — normcat dentro do LATERAL re-normalizava o de-para por
+-- lançamento (bar 3, ano inteiro por competência) → estourava o statement_timeout.
+-- Resolve o de-para 1x num CTE (DISTINCT ON com override por bar) + hash join.
+-- Mesma semântica (accent-insensitive + override por bar), ordens de magnitude
+-- mais rápido. Aplicado em produção 2026-06-23 via MCP (vale na hora, sem deploy).
+-- Corpo completo no histórico de migrations do Supabase (get_dre_por_ano_fix_perf).
+-- Ver também: 20260623_get_dfc_por_ano_fix_perf.sql (mesmo padrão) e
+-- feedback_unaccent_lateral_timeout (memória).
