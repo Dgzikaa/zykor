@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { computarAlertas } from '@/lib/rh/alertas';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +54,23 @@ export async function GET(request: NextRequest) {
     area_nome: f.area_id ? areaMap.get(f.area_id) || null : null,
   }));
 
+  // Alertas por funcionário (documento faltando/vencido, férias vencendo).
+  const ids = funcionarios.map((f: any) => f.id);
+  if (ids.length) {
+    const [docsRes, feriasRes] = await Promise.all([
+      (supabase as any).schema('hr').from('documentos_funcionario').select('funcionario_id, tipo, validade').in('funcionario_id', ids),
+      (supabase as any).schema('hr').from('funcionario_ocorrencias').select('funcionario_id, tipo, data_inicio').in('funcionario_id', ids).eq('tipo', 'ferias'),
+    ]);
+    const porFunc = (rows: any[]) => {
+      const m = new Map<number, any[]>();
+      for (const r of rows || []) { const a = m.get(r.funcionario_id) || []; a.push(r); m.set(r.funcionario_id, a); }
+      return m;
+    };
+    const docsByFunc = porFunc(docsRes.data);
+    const feriasByFunc = porFunc(feriasRes.data);
+    for (const f of funcionarios) f.alertas = computarAlertas(f, docsByFunc.get(f.id) || [], feriasByFunc.get(f.id) || []);
+  }
+
   return NextResponse.json({
     success: true,
     funcionarios,
@@ -61,6 +79,7 @@ export async function GET(request: NextRequest) {
       total: funcionarios.length,
       ativos: funcionarios.filter((f: any) => f.ativo).length,
       freelas: funcionarios.filter((f: any) => f.tipo_contratacao === 'Freela').length,
+      com_alertas: funcionarios.filter((f: any) => (f.alertas?.length || 0) > 0).length,
     },
   });
 }

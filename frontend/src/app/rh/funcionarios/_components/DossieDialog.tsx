@@ -9,7 +9,7 @@ import { api } from '@/lib/api-client';
 import {
   Loader2, Pencil, Upload, FileText, Trash2, ExternalLink, X,
   Briefcase, Building2, CalendarDays, Cake, Phone, Mail, CreditCard,
-  Banknote, Clock, Fingerprint, CalendarX,
+  Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText,
 } from 'lucide-react';
 import type { Funcionario } from '../page';
 
@@ -44,6 +44,18 @@ const tipoTag = (t: string | null) => {
 };
 
 type Doc = { id: string; tipo: string; descricao: string | null; nome_arquivo: string | null; validade: string | null; criado_em: string; url: string | null };
+type Ocorr = { id: string; tipo: string; data_inicio: string; data_fim: string | null; descricao: string | null };
+type Alerta = { tipo: string; label: string; nivel: string };
+
+const TIPO_OCORR: Record<string, string> = {
+  advertencia: 'Advertência', falta: 'Falta', atestado: 'Atestado', ferias: 'Férias', observacao: 'Observação',
+};
+const corOcorr = (t: string) =>
+  t === 'advertencia' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+  : t === 'atestado' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+  : t === 'ferias' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
+  : t === 'falta' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
+  : 'bg-muted text-muted-foreground';
 
 export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   funcionarioId: number | null; onClose: () => void; onEditar: (f: Funcionario) => void;
@@ -56,6 +68,10 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const [validadeUp, setValidadeUp] = useState('');
   const [enviando, setEnviando] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [ocorrencias, setOcorrencias] = useState<Ocorr[]>([]);
+  const [alertas, setAlertas] = useState<Alerta[]>([]);
+  const [novoOc, setNovoOc] = useState({ tipo: 'advertencia', data_inicio: '', data_fim: '', descricao: '' });
+  const [salvandoOc, setSalvandoOc] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!funcionarioId) return;
@@ -63,6 +79,8 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
     try {
       const res = await api.get(`/api/rh/funcionarios/${funcionarioId}`);
       setFunc(res.funcionario);
+      setOcorrencias(res.ocorrencias || []);
+      setAlertas(res.alertas || []);
       const dres = await api.get(`/api/rh/funcionarios/${funcionarioId}/documentos`);
       setDocs(dres.documentos || []);
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao abrir dossiê', message: e?.message }); }
@@ -93,6 +111,28 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
     try {
       await fetch(`/api/rh/funcionarios/${funcionarioId}/documentos?doc_id=${docId}`, { method: 'DELETE', credentials: 'include' });
       setDocs((p) => p.filter((d) => d.id !== docId));
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
+  };
+
+  const addOcorrencia = async () => {
+    if (!novoOc.data_inicio) { showToast({ type: 'error', title: 'Informe a data' }); return; }
+    setSalvandoOc(true);
+    try {
+      const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/ocorrencias`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify(novoOc),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || 'Falha ao salvar');
+      setNovoOc({ tipo: 'advertencia', data_inicio: '', data_fim: '', descricao: '' });
+      carregar();
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
+    finally { setSalvandoOc(false); }
+  };
+  const excluirOcorrencia = async (ocId: string) => {
+    try {
+      await fetch(`/api/rh/funcionarios/${funcionarioId}/ocorrencias?ocorrencia_id=${ocId}`, { method: 'DELETE', credentials: 'include' });
+      setOcorrencias((p) => p.filter((o) => o.id !== ocId));
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
   };
 
@@ -142,6 +182,17 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                 <Destaque icon={Banknote} label={freela ? 'Diária' : 'Salário'} value={fmtBRL(freela ? func.valor_diaria : func.salario_base) || '—'} accent="text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
+
+            {/* ── Alertas ── */}
+            {alertas.length > 0 && (
+              <div className="px-6 pt-3 flex flex-wrap gap-1.5">
+                {alertas.map((a, i) => (
+                  <span key={i} className={`text-[11px] rounded-full px-2 py-0.5 inline-flex items-center gap-1 ${a.nivel === 'alerta' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
+                    <AlertTriangle className="w-3 h-3" />{a.label}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* ── Informações ── */}
             <div className="px-6 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
@@ -211,6 +262,52 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                 </label>
                 <Button size="sm" onClick={enviarDoc} disabled={enviando} className="h-9">
                   {enviando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Upload className="w-4 h-4 mr-1.5" />}Anexar
+                </Button>
+              </div>
+            </div>
+
+            {/* ── Ocorrências ── */}
+            <div className="px-6 py-4 border-t">
+              <div className="text-sm font-semibold mb-3 flex items-center gap-1.5"><ScrollText className="w-4 h-4" />Ocorrências <span className="text-muted-foreground font-normal">({ocorrencias.length})</span></div>
+              {ocorrencias.length > 0 ? (
+                <div className="space-y-1.5 mb-3">
+                  {ocorrencias.map((o) => (
+                    <div key={o.id} className="flex items-start justify-between gap-2 rounded-lg border bg-background px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] rounded px-1.5 py-0.5 ${corOcorr(o.tipo)}`}>{TIPO_OCORR[o.tipo] || o.tipo}</span>
+                          <span className="text-xs text-muted-foreground">{fmtData(o.data_inicio)}{o.data_fim ? ` → ${fmtData(o.data_fim)}` : ''}</span>
+                        </div>
+                        {o.descricao && <div className="text-sm mt-0.5">{o.descricao}</div>}
+                      </div>
+                      <button onClick={() => excluirOcorrencia(o.id)} className="p-1.5 rounded-md hover:bg-muted text-red-500 shrink-0" title="Excluir"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground text-center py-4 mb-3 border border-dashed rounded-lg">Sem advertências, atestados, férias ou faltas registradas.</div>
+              )}
+              <div className="flex items-end gap-2 flex-wrap rounded-lg border bg-background p-3">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</span>
+                  <select value={novoOc.tipo} onChange={(e) => setNovoOc({ ...novoOc, tipo: e.target.value })} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
+                    {Object.entries(TIPO_OCORR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Data</span>
+                  <Input type="date" value={novoOc.data_inicio} onChange={(e) => setNovoOc({ ...novoOc, data_inicio: e.target.value })} className="h-9 text-sm w-[140px]" />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Até (opcional)</span>
+                  <Input type="date" value={novoOc.data_fim} onChange={(e) => setNovoOc({ ...novoOc, data_fim: e.target.value })} className="h-9 text-sm w-[140px]" />
+                </label>
+                <label className="flex flex-col gap-1 flex-1 min-w-[160px]">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Descrição</span>
+                  <Input value={novoOc.descricao} onChange={(e) => setNovoOc({ ...novoOc, descricao: e.target.value })} placeholder="ex: atraso recorrente" className="h-9 text-sm" />
+                </label>
+                <Button size="sm" onClick={addOcorrencia} disabled={salvandoOc} className="h-9">
+                  {salvandoOc ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Plus className="w-4 h-4 mr-1.5" />}Adicionar
                 </Button>
               </div>
             </div>

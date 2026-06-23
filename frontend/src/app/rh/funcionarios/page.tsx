@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Users, Loader2, Search, Plus, ChevronRight } from 'lucide-react';
+import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle } from 'lucide-react';
 import { FuncionarioDialog } from './_components/FuncionarioDialog';
 import { DossieDialog } from './_components/DossieDialog';
 
@@ -20,6 +20,7 @@ export type Funcionario = {
   vale_transporte_diaria: number | null; dias_trabalho_semana: number | null;
   chave_pix: string | null; tipo_chave_pix: string | null; observacoes: string | null;
   foto_url: string | null; ativo: boolean;
+  alertas?: { tipo: string; label: string; nivel: string }[];
 };
 export type Opcao = { id: number; nome: string };
 
@@ -37,7 +38,7 @@ export default function FuncionariosPage() {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
   const [lista, setLista] = useState<Funcionario[]>([]);
-  const [resumo, setResumo] = useState<{ total: number; ativos: number; freelas: number } | null>(null);
+  const [resumo, setResumo] = useState<{ total: number; ativos: number; freelas: number; com_alertas: number } | null>(null);
   const [cargos, setCargos] = useState<Opcao[]>([]);
   const [areas, setAreas] = useState<Opcao[]>([]);
   const [loading, setLoading] = useState(false);
@@ -96,10 +97,11 @@ export default function FuncionariosPage() {
         <p className="text-sm text-muted-foreground mb-4">Central de pessoas — cadastro, dossiê e documentos.</p>
 
         {resumo && (
-          <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
             <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Total</div><div className="text-lg font-bold">{resumo.total}</div></CardContent></Card>
             <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Ativos</div><div className="text-lg font-bold text-emerald-600">{resumo.ativos}</div></CardContent></Card>
             <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Freelas</div><div className="text-lg font-bold text-amber-600">{resumo.freelas}</div></CardContent></Card>
+            <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-red-500" />Com alertas</div><div className="text-lg font-bold text-red-600">{resumo.com_alertas ?? 0}</div></CardContent></Card>
           </div>
         )}
 
@@ -142,6 +144,11 @@ export default function FuncionariosPage() {
                       <div className="font-medium flex items-center gap-1">
                         <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
                         {f.nome}{!f.ativo && <span className="text-[10px] text-muted-foreground ml-1">(inativo)</span>}
+                        {!!f.alertas?.length && (
+                          <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 inline-flex items-center gap-0.5 ml-1" title={f.alertas.map((a) => a.label).join(', ')}>
+                            <AlertTriangle className="w-2.5 h-2.5" />{f.alertas.length}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground">{f.cargo_nome || '—'}</td>

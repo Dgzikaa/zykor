@@ -81,6 +81,7 @@ export const TABLE_SCHEMAS = {
   contratos_funcionario: 'hr',
   documentos_funcionario: 'hr',
   folha_pagamento: 'hr',
+  funcionario_ocorrencias: 'hr',
   funcionarios: 'hr',
   pesquisa_felicidade: 'hr',
   provisoes_trabalhistas: 'hr',

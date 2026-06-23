@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { computarAlertas } from '@/lib/rh/alertas';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,14 +32,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   if (!f) return NextResponse.json({ success: false, error: 'Funcionário não encontrado' }, { status: 404 });
 
-  const [cargoRes, areaRes, docsRes] = await Promise.all([
+  const [cargoRes, areaRes, docsRes, ocorrRes] = await Promise.all([
     f.cargo_id ? (supabase as any).schema('hr').from('cargos').select('nome').eq('id', f.cargo_id).maybeSingle() : Promise.resolve({ data: null }),
     f.area_id ? (supabase as any).schema('hr').from('areas').select('nome').eq('id', f.area_id).maybeSingle() : Promise.resolve({ data: null }),
     (supabase as any).schema('hr').from('documentos_funcionario').select('id, tipo, descricao, nome_arquivo, mime, tamanho_bytes, validade, criado_em').eq('funcionario_id', Number(id)).order('criado_em', { ascending: false }),
+    (supabase as any).schema('hr').from('funcionario_ocorrencias').select('*').eq('funcionario_id', Number(id)).order('data_inicio', { ascending: false }),
   ]);
 
+  const documentos = docsRes.data || [];
+  const ocorrencias = ocorrRes.data || [];
+  const alertas = computarAlertas(f, documentos, ocorrencias);
   const funcionario = { ...f, cargo_nome: cargoRes.data?.nome || null, area_nome: areaRes.data?.nome || null };
-  return NextResponse.json({ success: true, funcionario, data: funcionario, documentos: docsRes.data || [] });
+  return NextResponse.json({ success: true, funcionario, data: funcionario, documentos, ocorrencias, alertas });
 }
 
 /** PUT /api/rh/funcionarios/[id] -> atualiza (+ histórico de contrato se mudou salário/cargo). */
