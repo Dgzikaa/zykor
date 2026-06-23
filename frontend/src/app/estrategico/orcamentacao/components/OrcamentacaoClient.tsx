@@ -191,6 +191,17 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     }
   }, [selectedBar, toast]);
 
+  // Re-busca os dados ao TROCAR DE BAR. O initialData é só do bar inicial do SSR;
+  // a troca de bar é client-side (contexto) e não re-renderiza o servidor — sem isto
+  // a tela ficava mostrando o bar anterior. Guard evita re-fetch à toa no mount.
+  const barCarregadoRef = useRef<number | undefined>(barId);
+  useEffect(() => {
+    if (!selectedBar) return;
+    if (barCarregadoRef.current === selectedBar.id) return;
+    barCarregadoRef.current = selectedBar.id;
+    carregarDados();
+  }, [selectedBar, carregarDados]);
+
   // Botão "Atualizar": sincroniza o Conta Azul (delta) E recalcula o gold da
   // orçamentação (realizado), depois relê. Diferente da DRE (bronze ao vivo), a
   // orçamentação lê o gold, então precisa forçar o refresh aqui.
