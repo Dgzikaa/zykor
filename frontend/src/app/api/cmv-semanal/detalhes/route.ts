@@ -45,8 +45,14 @@ export async function GET(request: NextRequest) {
     const fatorCmv = await getFatorCmv(supabase, barId);
 
     let detalhes: any[] = [];
-    let subtotais: any = {};
+    const subtotais: any = {};
 
+    // Consumações — breakdown das 9 categorias padronizadas (c9_*). Mesma fonte/
+    // classificação da célula (get_consumos_9_semana). c9_outros = residual
+    // (motivos não mapeados + lançamentos pré-corte 12/06).
+    if (campo.startsWith('c9_')) {
+      detalhes = await buscarDetalhesConsumo9(barId, dataInicio, dataFim, campo.slice(3), fatorCmv);
+    } else
     switch (campo) {
       // ========== COMPRAS ==========
       case 'compras_periodo':
@@ -509,6 +515,45 @@ async function buscarDetalhesChegadeira(barId: number, dataInicio: string, dataF
 async function buscarDetalhesConsumoRH(barId: number, dataInicio: string, dataFim: string, fatorCmv: number) {
   // RH = funcionarios_operacao na classificacao canonica
   return buscarDetalhesConsumoClassificado(barId, dataInicio, dataFim, 'funcionarios_operacao', fatorCmv);
+}
+
+/**
+ * Detalhe das 9 categorias padronizadas de consumação (c9_*) + 'outros'.
+ * Espelha get_consumos_9_semana (mesma classificação por mesa+motivo+data via
+ * classificar_consumo_padrao, com corte 12/06). valor = desconto bruto × fator
+ * pra o total do popup bater com a célula (consumacoes_9 é gravada ×fator).
+ * 'outros' = motivos não mapeados nas 9 + lançamentos pré-corte.
+ */
+async function buscarDetalhesConsumo9(
+  barId: number, dataInicio: string, dataFim: string, categoria: string, fatorCmv: number,
+) {
+  const { data, error } = await (supabase as any).rpc('get_consumos_9_detalhes_semana', {
+    input_bar_id: barId,
+    input_data_inicio: dataInicio,
+    input_data_fim: dataFim,
+    input_categoria: categoria,
+  });
+  if (error) {
+    console.error('[cmv-semanal/detalhes] erro RPC get_consumos_9_detalhes_semana:', error);
+    return [];
+  }
+  if (!data) return [];
+
+  return (data as any[]).map((r) => {
+    const bruto = parseFloat(String(r.valor_desconto || 0)) || 0;
+    const valor = Math.round(bruto * fatorCmv * 100) / 100;
+    return {
+      tipo: `consumo9_${categoria}`,
+      descricao: r.prd_desc || r.motivo || categoria,
+      data: r.data,
+      mesa: r.mesa || '-',
+      motivo: r.motivo || '-',
+      quantidade: parseFloat(String(r.qtd || 0)) || 0,
+      valor,                 // ×fator (bate com a célula)
+      valor_bruto: bruto,    // desconto bruto (debug)
+      detalhes: `${r.motivo || '-'} — Mesa ${r.mesa ?? '-'}${r.prd_desc ? ' — ' + r.prd_desc : ''} — Bruto R$ ${bruto.toFixed(2)} (×${fatorCmv.toFixed(2)} = R$ ${valor.toFixed(2)})`,
+    };
+  });
 }
 
 /**
