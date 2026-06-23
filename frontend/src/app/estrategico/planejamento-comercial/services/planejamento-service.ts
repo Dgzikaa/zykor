@@ -204,7 +204,7 @@ export async function getPlanejamentoComercial(
     supabase
       .schema('operations' as never)
       .from('eventos_base')
-      .select('id, nome, data_evento, observacoes, c_art, c_prod, c_art_projecao, c_prod_projecao, c_artistico_plan, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo, usa_yuzer, usa_sympla')
+      .select('id, nome, data_evento, observacoes, c_art, c_prod, c_art_projecao, c_prod_projecao, c_artistico_plan, c_prod_plan, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo, usa_yuzer, usa_sympla')
       .eq('bar_id', barId)
       .gte('data_evento', dataInicio)
       .lt('data_evento', dataFinalConsulta),
@@ -396,9 +396,11 @@ export async function getPlanejamentoComercial(
       c_art: (Number(manual?.c_art) || 0) > 0 ? Number(manual?.c_art)
         : (Number(manual?.c_artistico_plan) || 0) > 0 ? Number(manual?.c_artistico_plan)
         : (Number(manual?.c_art_projecao) || 0),
-      c_prod: (Number(manual?.c_prod) || 0) > 0 ? Number(manual?.c_prod) : (Number(manual?.c_prod_projecao) || 0),
+      c_prod: (Number(manual?.c_prod) || 0) > 0 ? Number(manual?.c_prod)
+        : (Number(manual?.c_prod_plan) || 0) > 0 ? Number(manual?.c_prod_plan)
+        : (Number(manual?.c_prod_projecao) || 0),
       c_art_is_projecao: !((Number(manual?.c_art) || 0) > 0) && ((Number(manual?.c_artistico_plan) || 0) > 0 || (Number(manual?.c_art_projecao) || 0) > 0),
-      c_prod_is_projecao: !((Number(manual?.c_prod) || 0) > 0) && (Number(manual?.c_prod_projecao) || 0) > 0,
+      c_prod_is_projecao: !((Number(manual?.c_prod) || 0) > 0) && ((Number(manual?.c_prod_plan) || 0) > 0 || (Number(manual?.c_prod_projecao) || 0) > 0),
       consumacao: consumacaoMap.get(evento.data_evento) || 0,
       percent_art_fat: Number(evento.percent_art_fat) || 0,
 

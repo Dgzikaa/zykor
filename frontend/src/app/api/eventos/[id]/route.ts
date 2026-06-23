@@ -47,6 +47,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const te_plan = body.te_plan;
     const tb_plan = body.tb_plan;
     const c_artistico_plan = body.c_artistico_plan;
+    const c_prod_plan = body.c_prod_plan;
     const observacoes = body.observacoes;
 
     // Verificar se o evento existe e pertence ao bar do usuário
@@ -79,6 +80,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       te_plan: te_plan !== undefined && te_plan !== null && !isNaN(te_plan) ? te_plan : null,
       tb_plan: tb_plan !== undefined && tb_plan !== null && !isNaN(tb_plan) ? tb_plan : null,
       c_artistico_plan: c_artistico_plan !== undefined && c_artistico_plan !== null && !isNaN(c_artistico_plan) ? c_artistico_plan : null,
+      c_prod_plan: c_prod_plan !== undefined && c_prod_plan !== null && !isNaN(c_prod_plan) ? c_prod_plan : null,
       observacoes: observacoes || null,
       atualizado_em: new Date().toISOString()
     };

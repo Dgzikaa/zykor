@@ -50,9 +50,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao inserir eventos', details: error.message }, { status: 500 });
     }
 
+    // Projeta custo artístico/produção (média 4 ocorrências do mesmo dia da semana ×
+    // M1) já no cadastro, pros eventos novos nascerem em amarelo/⚠️ sem esperar o
+    // cron. Best-effort: se falhar, o cron projetar_custos_pre_lancado é o backup.
+    let projetados: number | null = null;
+    try {
+      const datas = eventos.map(e => e.data_evento).filter(Boolean).sort();
+      if (datas.length > 0) {
+        const { data: proj, error: projError } = await supabase.rpc('projetar_custos_pre_lancado', {
+          p_bar_id: user.bar_id,
+          p_data_inicio: datas[0],
+          p_data_fim: datas[datas.length - 1]
+        });
+        if (projError) console.error('⚠️ Projeção de custos falhou (cron cobre):', projError.message);
+        else projetados = proj as number;
+      }
+    } catch (projErr) {
+      console.error('⚠️ Projeção de custos falhou (cron cobre):', projErr);
+    }
+
     return NextResponse.json({
       success: true,
       message: `${eventos.length} eventos inseridos/atualizados com sucesso`,
+      projetados,
       data
     });
 

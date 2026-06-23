@@ -58,6 +58,7 @@ interface EventoEdicaoCompleta {
   te_plan: number;
   tb_plan: number;
   c_artistico_plan: number;
+  c_prod_plan: number;
   real_r: number;
   cl_real: number;
   te_real: number;
@@ -180,6 +181,66 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
   const [eventoSelecionado, setEventoSelecionado] = useState<PlanejamentoData | null>(null);
   const [eventoEdicao, setEventoEdicao] = useState<EventoEdicaoCompleta | null>(null);
   const [salvando, setSalvando] = useState(false);
+
+  // === Cadastro de eventos (quando o mês está vazio) ===
+  const [cadastroOpen, setCadastroOpen] = useState(false);
+  const [salvandoCadastro, setSalvandoCadastro] = useState(false);
+  const [linhasCadastro, setLinhasCadastro] = useState<Array<{ data_evento: string; nome: string; m1_r: string }>>([]);
+
+  const DIAS_SEMANA_PT = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const diaSemanaDeData = (iso: string): string => {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-').map(Number);
+    return DIAS_SEMANA_PT[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] || '';
+  };
+
+  const abrirCadastro = () => {
+    setLinhasCadastro([{ data_evento: '', nome: '', m1_r: '' }]);
+    setCadastroOpen(true);
+  };
+  const addLinhaCadastro = () => setLinhasCadastro(p => [...p, { data_evento: '', nome: '', m1_r: '' }]);
+  const removerLinhaCadastro = (i: number) => setLinhasCadastro(p => p.filter((_, idx) => idx !== i));
+  const editarLinhaCadastro = (i: number, campo: 'data_evento' | 'nome' | 'm1_r', val: string) =>
+    setLinhasCadastro(p => p.map((l, idx) => idx === i ? { ...l, [campo]: val } : l));
+  const gerarDiasDoMes = () => {
+    const diasNoMes = new Date(filtroAno, filtroMes, 0).getDate(); // dia 0 do mês seguinte = último dia
+    const linhas = Array.from({ length: diasNoMes }, (_, i) => ({
+      data_evento: `${filtroAno}-${String(filtroMes).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`,
+      nome: '',
+      m1_r: ''
+    }));
+    setLinhasCadastro(linhas);
+  };
+  const salvarCadastro = async () => {
+    const eventos = linhasCadastro
+      .filter(l => l.data_evento && (l.nome.trim() !== '' || Number(l.m1_r) > 0))
+      .map(l => ({
+        data_evento: l.data_evento,
+        nome: l.nome.trim() || 'A definir',
+        dia_semana: diaSemanaDeData(l.data_evento),
+        m1_r: Number(l.m1_r) || 0
+      }));
+    if (eventos.length === 0) {
+      alert('Preencha pelo menos uma linha com data e (artista ou M1).');
+      return;
+    }
+    try {
+      setSalvandoCadastro(true);
+      const resp = await apiCall('/api/eventos/bulk-insert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar?.id || '') },
+        body: JSON.stringify({ eventos })
+      });
+      if (!resp.success) throw new Error(resp.error || 'falha ao cadastrar');
+      setCadastroOpen(false);
+      router.refresh();
+    } catch (e) {
+      console.error('Erro ao cadastrar eventos:', e);
+      alert('Erro ao cadastrar eventos. Tente novamente.');
+    } finally {
+      setSalvandoCadastro(false);
+    }
+  };
   
   // Estados para controlar grupos colapsáveis
   const [gruposAbertos, setGruposAbertos] = useState({
@@ -224,35 +285,37 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
     }
     
     const isDomingo = evento.dia_semana === 'DOMINGO' || evento.dia_semana === 'Domingo';
-    
-    const promises = [
+
+    // Sempre buscar o evento bruto: precisamos das colunas separadas
+    // (c_artistico_plan/c_prod_plan = previsão manual; c_art/c_prod = real do Conta
+    // Azul; *_projecao = projeção automática) pra saber em qual campo gravar o edit.
+    const [atrasosResponse, eventoRawResponse] = await Promise.all([
       apiCall(`/api/estrategico/atrasos-evento?data=${evento.data_evento}`, {
         headers: { 'x-selected-bar-id': String(selectedBar?.id || '') }
-      }).catch(() => ({ success: false, data: { atrasos_cozinha: 0, atrasos_bar: 0 } }))
-    ];
-    
-    if (isDomingo) {
-      promises.push(
-        apiCall(`/api/eventos/${evento.evento_id}`, {
-          headers: { 'x-selected-bar-id': String(selectedBar?.id || '') }
-        }).catch(() => ({ data: null }))
-      );
-    }
-    
-    const [atrasosResponse, symplaYuzerResponse] = await Promise.all(promises);
-    
+      }).catch(() => ({ success: false, data: { atrasos_cozinha: 0, atrasos_bar: 0 } })),
+      apiCall(`/api/eventos/${evento.evento_id}`, {
+        headers: { 'x-selected-bar-id': String(selectedBar?.id || '') }
+      }).catch(() => ({ data: null }))
+    ]);
+
     const atrasosData = atrasosResponse?.data || { atrasos_cozinha: 0, atrasos_bar: 0 };
-    
+    const raw: any = eventoRawResponse?.data || {};
+
     let dadosSymplaYuzer = {};
-    if (isDomingo && symplaYuzerResponse?.data) {
-      const evt = symplaYuzerResponse.data;
+    if (isDomingo && eventoRawResponse?.data) {
       dadosSymplaYuzer = {
-        sympla_liquido: evt.sympla_liquido || 0,
-        sympla_checkins: evt.sympla_checkins || 0,
-        yuzer_liquido: evt.yuzer_liquido || 0,
-        yuzer_ingressos: evt.yuzer_ingressos || 0
+        sympla_liquido: raw.sympla_liquido || 0,
+        sympla_checkins: raw.sympla_checkins || 0,
+        yuzer_liquido: raw.yuzer_liquido || 0,
+        yuzer_ingressos: raw.yuzer_ingressos || 0
       };
     }
+
+    // Custo é projeção enquanto não há real do Conta Azul (c_art/c_prod = 0).
+    const cArtReal = Number(raw.c_art) || 0;
+    const cProdReal = Number(raw.c_prod) || 0;
+    const cArtIsProjecao = !(cArtReal > 0);
+    const cProdIsProjecao = !(cProdReal > 0);
 
     const dadosIniciais: EventoEdicaoCompleta = {
       id: evento.evento_id,
@@ -263,7 +326,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
       cl_plan: evento.clientes_plan || 0,
       te_plan: evento.te_plan || 0,
       tb_plan: evento.tb_plan || 0,
-      c_artistico_plan: evento.c_art || 0,
+      // Previsão = override manual, com fallback pra projeção automática (o valor
+      // efetivo que o usuário vê em amarelo). Editar aqui grava em c_artistico_plan.
+      c_artistico_plan: (Number(raw.c_artistico_plan) || 0) || (Number(raw.c_art_projecao) || 0),
+      c_prod_plan: (Number(raw.c_prod_plan) || 0) || (Number(raw.c_prod_projecao) || 0),
+      c_art_is_projecao: cArtIsProjecao,
+      c_prod_is_projecao: cProdIsProjecao,
       real_r: evento.real_receita || 0,
       cl_real: evento.clientes_real || 0,
       te_real: evento.te_real || 0,
@@ -271,8 +339,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
       t_medio: evento.t_medio || 0,
       res_tot: evento.res_tot || 0,
       res_p: evento.res_p || 0,
-      c_art: evento.c_art || 0,
-      c_prod: evento.c_prod || 0,
+      // Realizado = só o que veio do Conta Azul (0 enquanto não lança).
+      c_art: cArtReal,
+      c_prod: cProdReal,
       percent_b: evento.percent_b || 0,
       percent_d: evento.percent_d || 0,
       percent_c: evento.percent_c || 0,
@@ -307,6 +376,13 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
     if (!eventoEdicao) return;
     try {
       setSalvando(true);
+      // Custo é previsão enquanto o Conta Azul não lança (c_art/c_prod real = 0).
+      // Nesse caso o edit grava nas colunas de previsão (c_artistico_plan/c_prod_plan):
+      // fica amarelo/⚠️ e o real do CA substitui automaticamente quando chega.
+      // Depois de lançado (já tem real), o edit é correção do realizado (c_art/c_prod).
+      const artEhPrevisao = !!eventoEdicao.c_art_is_projecao;
+      const prodEhPrevisao = !!eventoEdicao.c_prod_is_projecao;
+
       await apiCall(`/api/eventos/${eventoEdicao.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar?.id || '') },
@@ -317,6 +393,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
           te_plan: eventoEdicao.te_plan,
           tb_plan: eventoEdicao.tb_plan,
           c_artistico_plan: eventoEdicao.c_artistico_plan,
+          c_prod_plan: eventoEdicao.c_prod_plan,
           observacoes: eventoEdicao.observacoes
         })
       });
@@ -332,8 +409,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
           t_medio: eventoEdicao.t_medio || 0,
           res_tot: eventoEdicao.res_tot || 0,
           res_p: eventoEdicao.res_p || 0,
-          c_art: eventoEdicao.c_art || 0,
-          c_prod: eventoEdicao.c_prod || 0,
+          // Em previsão NÃO grava no real (mandaria 0, que é no-op e mantém amarelo).
+          // Já lançado, grava a correção do realizado por cima do CA.
+          c_art: artEhPrevisao ? 0 : (eventoEdicao.c_art || 0),
+          c_prod: prodEhPrevisao ? 0 : (eventoEdicao.c_prod || 0),
           t_coz: eventoEdicao.t_coz || 0,
           t_bar: eventoEdicao.t_bar || 0,
           atrasinho_cozinha: eventoEdicao.atrasinho_cozinha || 0,
@@ -535,9 +614,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
               <div className="text-center">
                 <Calendar className="h-12 w-12 mx-auto mb-4 text-[hsl(var(--muted-foreground))]" />
                 <h3 className="card-title-dark mb-2">Nenhum evento encontrado</h3>
-                <p className="card-description-dark">
+                <p className="card-description-dark mb-4">
                   Não há eventos cadastrados para {meses.find(m => m.value === filtroMes)?.label} de {filtroAno}
                 </p>
+                <Button onClick={abrirCadastro} leftIcon={<Calendar className="h-4 w-4" />}>
+                  Cadastrar Eventos de {meses.find(m => m.value === filtroMes)?.label}
+                </Button>
               </div>
             </Card>
           </div>
@@ -1374,20 +1456,78 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                       <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Clientes</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.cl_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, cl_plan: parseInt(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{(eventoEdicao?.cl_plan || 0).toLocaleString()}</div>}</div>
                       <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Ticket Entrada</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.te_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, te_plan: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.te_plan)}</div>}</div>
                       <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Ticket Bar</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.tb_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, tb_plan: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.tb_plan)}</div>}</div>
-                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Custo Artístico</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.c_artistico_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_artistico_plan: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.c_artistico_plan)}</div>}</div>
+                      <div className="p-3 bg-[hsl(var(--muted))] rounded border">
+                        <Label className="flex items-center gap-1.5">Custo Artístico / Prod (Previsão){(eventoEdicao?.c_art_is_projecao || eventoEdicao?.c_prod_is_projecao) && <span className="text-amber-600 dark:text-amber-400">⚠️</span>}</Label>
+                        {modoEdicao
+                          ? <div className="flex gap-2">
+                              <Input type="number" value={eventoEdicao?.c_artistico_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_artistico_plan: parseFloat(e.target.value) || 0} : null)} />
+                              <Input type="number" value={eventoEdicao?.c_prod_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_prod_plan: parseFloat(e.target.value) || 0} : null)} />
+                            </div>
+                          : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.c_artistico_plan)} / {formatarMoeda(eventoEdicao?.c_prod_plan)}</div>}
+                        <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">Previsão (artístico / produção). Fica em amarelo até o Conta Azul lançar o valor real, que substitui automaticamente.</p>
+                      </div>
                    </div>
                    <div className="space-y-3">
                       <div className="flex items-center gap-3 mb-2 pb-2 border-b"><div className="w-3 h-3 bg-green-500 rounded-full"></div><h2 className="font-semibold">REALIZADO</h2></div>
                       <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Receita Real</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.real_r || 0} onChange={e => setEventoEdicao(p => p ? {...p, real_r: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.real_r)}</div>}</div>
                       <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Clientes Real</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.cl_real || 0} onChange={e => setEventoEdicao(p => p ? {...p, cl_real: parseInt(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{(eventoEdicao?.cl_real || 0).toLocaleString()}</div>}</div>
                       <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Reservas (Total / Pagas)</Label>{modoEdicao ? <div className="flex gap-2"><Input type="number" value={eventoEdicao?.res_tot || 0} onChange={e => setEventoEdicao(p => p ? {...p, res_tot: parseInt(e.target.value)} : null)} /><Input type="number" value={eventoEdicao?.res_p || 0} onChange={e => setEventoEdicao(p => p ? {...p, res_p: parseInt(e.target.value)} : null)} /></div> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{eventoEdicao?.res_tot} / {eventoEdicao?.res_p}</div>}</div>
-                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Custo Artístico / Prod</Label>{modoEdicao ? <div className="flex gap-2"><Input type="number" value={eventoEdicao?.c_art || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_art: parseFloat(e.target.value)} : null)} /><Input type="number" value={eventoEdicao?.c_prod || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_prod: parseFloat(e.target.value)} : null)} /></div> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.c_art)} / {formatarMoeda(eventoEdicao?.c_prod)}</div>}</div>
+                      <div className="p-3 bg-[hsl(var(--muted))] rounded border">
+                        <Label>Custo Artístico / Prod (Conta Azul)</Label>
+                        {modoEdicao && !eventoEdicao?.c_art_is_projecao && !eventoEdicao?.c_prod_is_projecao
+                          ? <div className="flex gap-2"><Input type="number" value={eventoEdicao?.c_art || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_art: parseFloat(e.target.value) || 0} : null)} /><Input type="number" value={eventoEdicao?.c_prod || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_prod: parseFloat(e.target.value) || 0} : null)} /></div>
+                          : <>
+                              <div className="p-2 bg-[hsl(var(--background))] rounded border">{(eventoEdicao?.c_art || 0) > 0 ? formatarMoeda(eventoEdicao?.c_art) : '—'} / {(eventoEdicao?.c_prod || 0) > 0 ? formatarMoeda(eventoEdicao?.c_prod) : '—'}</div>
+                              {modoEdicao && <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">Preenchido automaticamente pelo Conta Azul quando o evento for lançado. Até lá, edite a previsão ao lado.</p>}
+                            </>}
+                      </div>
                       <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800"><h3 className="text-base font-medium mb-2 text-[hsl(var(--foreground))] flex items-center gap-2"><AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" /> Atrasos de Entrega</h3><div className="grid grid-cols-2 gap-4"><div><Label>Cozinha</Label><div className="mt-1 font-medium">{eventoEdicao?.atrasos_cozinha ?? 0}</div></div><div><Label>Bar</Label><div className="mt-1 font-medium">{eventoEdicao?.atrasos_bar ?? 0}</div></div></div></div>
                    </div>
                 </div>
               </div>
               <DialogFooter className="bg-[hsl(var(--muted))] p-4 border-t"><Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>{modoEdicao && <Button onClick={salvarEdicao} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar Alterações'}</Button>}</DialogFooter>
             </DialogContent>
+      </Dialog>
+
+      {/* Modal de Cadastro de Eventos (mês vazio) */}
+      <Dialog open={cadastroOpen} onOpenChange={setCadastroOpen}>
+        <DialogContent className="max-w-[96vw] sm:max-w-[640px] max-h-[92vh] p-0 overflow-hidden rounded-lg bg-[hsl(var(--background))] border border-[hsl(var(--border))]">
+          <DialogHeader className="bg-[hsl(var(--muted))] p-4 border-b border-[hsl(var(--border))]">
+            <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
+              <Calendar className="h-5 w-5" /> Cadastrar Eventos — {meses.find(m => m.value === filtroMes)?.label} {filtroAno}
+            </DialogTitle>
+            <DialogDescription>Informe a data, o artista/atração e a meta M1 de cada dia. Os custos e demais campos são preenchidos depois (projeção/Conta Azul).</DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            <div className="flex flex-wrap gap-2 mb-2">
+              <Button size="sm" variant="outline" onClick={gerarDiasDoMes} leftIcon={<Calendar className="h-3.5 w-3.5" />}>Gerar todos os dias do mês</Button>
+              <Button size="sm" variant="outline" onClick={addLinhaCadastro} leftIcon={<Check className="h-3.5 w-3.5" />}>+ Adicionar linha</Button>
+            </div>
+
+            <div className="grid grid-cols-[120px_1fr_110px_32px] gap-2 px-1 text-[11px] font-medium text-[hsl(var(--muted-foreground))]">
+              <span>Data</span><span>Artista / Atração</span><span>Meta M1</span><span></span>
+            </div>
+
+            {linhasCadastro.length === 0 && (
+              <p className="text-sm text-[hsl(var(--muted-foreground))] py-4 text-center">Nenhuma linha. Use os botões acima para começar.</p>
+            )}
+
+            {linhasCadastro.map((linha, i) => (
+              <div key={i} className="grid grid-cols-[120px_1fr_110px_32px] gap-2 items-center">
+                <Input type="date" value={linha.data_evento} onChange={e => editarLinhaCadastro(i, 'data_evento', e.target.value)} className="h-9 text-xs" />
+                <Input value={linha.nome} onChange={e => editarLinhaCadastro(i, 'nome', e.target.value)} placeholder={linha.data_evento ? diaSemanaDeData(linha.data_evento) : 'Ex: Pagode Vira Lata'} className="h-9 text-xs" />
+                <Input type="number" value={linha.m1_r} onChange={e => editarLinhaCadastro(i, 'm1_r', e.target.value)} placeholder="0" className="h-9 text-xs" />
+                <Button size="sm" variant="ghost" className="h-9 w-8 p-0" onClick={() => removerLinhaCadastro(i)}><X className="h-4 w-4" /></Button>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="bg-[hsl(var(--muted))] p-4 border-t">
+            <Button variant="outline" onClick={() => setCadastroOpen(false)}>Cancelar</Button>
+            <Button onClick={salvarCadastro} disabled={salvandoCadastro}>{salvandoCadastro ? 'Salvando...' : 'Salvar Eventos'}</Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </TooltipProvider>
   );
