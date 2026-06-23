@@ -1028,7 +1028,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                   }}
                                   className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_art' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_art > 0 ? (
-                                    <span className={evento.c_art_is_projecao ? 'text-amber-600 dark:text-amber-400' : ''} title={evento.c_art_is_projecao ? 'Projeção pré-lançada (média 4 semanas) — substitui pelo real do Conta Azul' : undefined}>{evento.c_art_is_projecao ? '⚠️ ' : ''}{formatarMoeda(evento.c_art)}</span>
+                                    <span className={evento.c_art_is_projecao ? 'text-amber-600 dark:text-amber-400' : ''} title={evento.c_art_is_projecao ? 'Projeção (manual via modal ou média 4 semanas) — o real do Conta Azul substitui quando chega' : undefined}>{evento.c_art_is_projecao ? '⚠️ ' : ''}{formatarMoeda(evento.c_art)}</span>
                                   ) : '-'}</td>
 
                                 {selectedBar?.id === 4 ? (
