@@ -319,11 +319,16 @@ export async function getOrcamentacaoCompleta(
   });
 
   // Index gold por (ano, mes, categoria_zykor) -> net e soma por bloco_dre.
+  // Match case/acento-insensitive: a ESTRUTURA referencia em MAIÚSCULO mas o de-para
+  // às vezes grava em Título (ex: 'LOCACOES OPERACAO' vs 'Locações Operação') → não
+  // casava e mostrava 0. Normaliza dos 2 lados (vale pros 2 bares).
+  const normKey = (s: string) => (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim();
   const goldCatMap = new Map<string, number>();
   const goldBlocoMap = new Map<string, number>();
   dadosGold.forEach(g => {
     const net = num(g.net);
-    goldCatMap.set(`${g.ano}-${g.mes}-${g.categoria_zykor}`, (goldCatMap.get(`${g.ano}-${g.mes}-${g.categoria_zykor}`) || 0) + net);
+    const ck = `${g.ano}-${g.mes}-${normKey(g.categoria_zykor)}`;
+    goldCatMap.set(ck, (goldCatMap.get(ck) || 0) + net);
     if (g.bloco_dre) {
       const bk = `${g.ano}-${g.mes}-${g.bloco_dre}`;
       goldBlocoMap.set(bk, (goldBlocoMap.get(bk) || 0) + net);
@@ -355,7 +360,7 @@ export async function getOrcamentacaoCompleta(
 
   return mesesParaBuscar.map(({ mes, ano }) => {
     const planilha = (cat: string) => planilhaMap.get(`${ano}-${mes}-${cat}`);
-    const goldCat = (cat: string) => goldCatMap.get(`${ano}-${mes}-${cat}`) || 0;
+    const goldCat = (cat: string) => goldCatMap.get(`${ano}-${mes}-${normKey(cat)}`) || 0;
     const manualCat = (cat: string) => manualCatMap.get(`${ano}-${mes}-${cat}`) || 0;
     const manualMacro = (macro: string) => manualMacroMap.get(`${ano}-${mes}-${macro}`) || 0;
 
