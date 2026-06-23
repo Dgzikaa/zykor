@@ -1,36 +1,49 @@
-/* Forçar colunas fixas com transform - sobrescrever qualquer CSS */
+/* Colunas congeladas via position: sticky (sem JS).
+   Offsets = soma acumulada das larguras das 5 colunas fixas:
+   Data 48 · Dia 38 · Artista 140 · Receita Real 110 · Meta M1 110  (total 446px) */
 .sticky-col-1,
 .sticky-col-2,
 .sticky-col-3,
 .sticky-col-4,
 .sticky-col-5 {
-  position: relative !important;
-  z-index: 10 !important;
-  background-color: white !important;
-  transition: none !important;
-  will-change: transform !important;
+  position: -webkit-sticky;
+  position: sticky;
+  z-index: 10;
+  /* background vem do inline style da célula (branco ou highlight) — não forçar aqui */
 }
+.sticky-col-1 { left: 0; }
+.sticky-col-2 { left: 48px; }
+.sticky-col-3 { left: 86px; }
+.sticky-col-4 { left: 226px; }
+.sticky-col-5 { left: 336px; }
 
-/* Headers */
+/* Cabeçalhos das colunas fixas: congelam nos DOIS eixos —
+   vertical (top: 32px, logo abaixo da linha de grupos) e horizontal (left). */
 .sticky-header-1,
 .sticky-header-2,
 .sticky-header-3,
 .sticky-header-4,
 .sticky-header-5 {
-  position: relative !important;
-  z-index: 50 !important;
-  background-color: hsl(var(--muted)) !important;
-  transition: none !important;
-  will-change: transform !important;
+  position: -webkit-sticky;
+  position: sticky;
+  top: 32px;
+  z-index: 60;
+  background-color: hsl(var(--muted));
+}
+.sticky-header-1 { left: 0; }
+.sticky-header-2 { left: 48px; }
+.sticky-header-3 { left: 86px; }
+.sticky-header-4 { left: 226px; }
+.sticky-header-5 { left: 336px; }
+
+/* Canto superior-esquerdo (célula vazia da linha de grupos) fica pinado */
+.sticky-corner {
+  position: -webkit-sticky;
+  position: sticky;
+  left: 0;
+  z-index: 70;
+  background-color: hsl(var(--muted));
 }
 
-/* Garantir que a tabela não tenha position relative */
-.planejamento-table {
-  position: static !important;
-}
-
-/* Garantir que o container tenha overflow correto */
-.planejamento-container {
-  overflow: auto !important;
-  position: relative !important;
-}
+.planejamento-table { position: static; }
+.planejamento-container { overflow: auto; position: relative; }

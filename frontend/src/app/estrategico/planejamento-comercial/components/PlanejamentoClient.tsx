@@ -122,53 +122,11 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
     setFiltroAno(serverAno);
   }, [initialData, serverMes, serverAno]);
   
-  // Solução com JavaScript para colunas fixas
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) {
-      console.log('❌ Container não encontrado');
-      return;
-    }
-    
-    console.log('✅ Container encontrado, adicionando listener de scroll');
-    console.log('📦 Container info:', {
-      scrollWidth: container.scrollWidth,
-      clientWidth: container.clientWidth,
-      hasHorizontalScroll: container.scrollWidth > container.clientWidth
-    });
-    
-    const handleScroll = (e: Event) => {
-      const target = e.target as HTMLElement;
-      const scrollLeft = target.scrollLeft;
-      
-      // Só processar se tiver scroll horizontal (scrollLeft > 0)
-      if (scrollLeft === 0 || !scrollLeft) return;
-      
-      console.log('📊 Scroll HORIZONTAL detectado:', scrollLeft, 'no elemento:', target.className);
-      
-      // Selecionar todas as células fixas
-      const fixedCells = document.querySelectorAll('.sticky-col-1, .sticky-col-2, .sticky-col-3, .sticky-col-4, .sticky-col-5, .sticky-header-1, .sticky-header-2, .sticky-header-3, .sticky-header-4, .sticky-header-5');
-      console.log('🔍 Células fixas encontradas:', fixedCells.length);
-      
-      fixedCells.forEach((cell) => {
-        const htmlCell = cell as HTMLElement;
-        htmlCell.style.transform = `translateX(${scrollLeft}px)`;
-        htmlCell.style.position = 'relative';
-      });
-    };
-    
-    // Adicionar listener no container e em todos os filhos com scroll
-    container.addEventListener('scroll', handleScroll, true);
-    
-    // Também adicionar no document para capturar qualquer scroll
-    document.addEventListener('scroll', handleScroll, true);
-    
-    return () => {
-      container.removeEventListener('scroll', handleScroll, true);
-      document.removeEventListener('scroll', handleScroll, true);
-    };
-  }, [dados]);
-  
+  // Colunas congeladas: 100% CSS (position: sticky + left acumulado) em
+  // sticky-columns.css. O hack anterior (listener de scroll + translateX em
+  // position:relative) fazia as colunas fixas "comerem" as que passavam e
+  // travava após expandir/recolher (translateX nunca resetava em scrollLeft=0).
+
   // Salvar reserva inline (Deboche)
   const salvarReservaInline = async (eventoId: number, campo: 'res_tot' | 'res_p', valor: number) => {
     try {
@@ -497,8 +455,51 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
     const mediaPercentB = eventosRealizados.length > 0 ? eventosRealizados.reduce((sum, e) => sum + (e.percent_b || 0), 0) / eventosRealizados.length : 0;
     const mediaPercentD = eventosRealizados.length > 0 ? eventosRealizados.reduce((sum, e) => sum + (e.percent_d || 0), 0) / eventosRealizados.length : 0;
     const mediaPercentC = eventosRealizados.length > 0 ? eventosRealizados.reduce((sum, e) => sum + (e.percent_c || 0), 0) / eventosRealizados.length : 0;
-    
-    return { 
+
+    // === Totais por coluna (rodapé) ===
+    // SUM  → faturamento, clientes, reservas, custos, $couvert, consumação, atrasão
+    // AVG  → tickets, %s e stockout (média só dos eventos com resultado > 0,
+    //        para não diluir com dias sem dado).
+    const somar = (fn: (e: PlanejamentoData) => number | null | undefined) =>
+      dados.reduce((s, e) => s + (Number(fn(e)) || 0), 0);
+    const mediar = (fn: (e: PlanejamentoData) => number | null | undefined) => {
+      const vals = dados.map(e => Number(fn(e)) || 0).filter(v => v > 0);
+      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    };
+
+    // CLIENTES (soma)
+    const colClientesReais = somar(e => e.clientes_real);
+    const colResTot = somar(e => e.res_tot);
+    const colResP = somar(e => e.res_p);
+    // TICKET (média)
+    const colTeReal = mediar(e => e.te_real);
+    const colTbReal = mediar(e => e.tb_real);
+    const colTMedio = mediar(e => e.t_medio);
+    // ARTÍSTICO
+    const colCArt = somar(e => e.c_art);
+    const colCProd = somar(e => e.c_prod);
+    const colCouvert = somar(e => e.couvert_vr_contahub);
+    const colPercentArtFat = mediar(e => e.percent_art_fat);
+    const colCouvArt = mediar(e =>
+      e.c_art > 0 && e.couvert_vr_contahub && e.couvert_vr_contahub > 0
+        ? (e.couvert_vr_contahub / e.c_art) * 100
+        : 0);
+    const colConsumacao = somar(e => e.consumacao);
+    // PRODUÇÃO
+    const colPercentB = mediar(e => e.percent_b);
+    const colPercentD = mediar(e => e.percent_d);
+    const colPercentC = mediar(e => e.percent_c);
+    const colAtrasaoCoz = somar(e => e.atrasao_cozinha);
+    const colAtrasaoBar = somar(e => e.atrasao_bar);
+    const colStockoutDrinks = mediar(e => e.stockout_drinks_perc);
+    const colStockoutComidas = mediar(e => e.stockout_comidas_perc);
+
+    return {
+      colClientesReais, colResTot, colResP,
+      colTeReal, colTbReal, colTMedio,
+      colCArt, colCProd, colCouvert, colPercentArtFat, colCouvArt, colConsumacao,
+      colPercentB, colPercentD, colPercentC, colAtrasaoCoz, colAtrasaoBar,
+      colStockoutDrinks, colStockoutComidas,
       realizado,
       empilhamento, 
       metaM1, 
@@ -521,6 +522,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
       mediaPercentC
     };
   }, [dados]);
+
+  // Classe base das células do rodapé de totais (sticky no fundo).
+  const tfCls = 'sticky bottom-0 z-20 px-2 py-2 bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600 whitespace-nowrap';
 
   return (
     <TooltipProvider>
@@ -570,7 +574,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                     <thead className="bg-[hsl(var(--muted))]">
                       {/* Primeira linha - Grupos colapsáveis */}
                       <tr className="sticky top-0 z-30 bg-[hsl(var(--muted))] border-b-2 border-[hsl(var(--border))]">
-                        <th colSpan={5} className="border-r-2 border-[hsl(var(--border))] bg-[hsl(var(--muted))]"></th>
+                        <th colSpan={5} className="sticky-corner border-r-2 border-[hsl(var(--border))] bg-[hsl(var(--muted))]"></th>
 
                         {/* Grupo CLIENTES */}
                         <th
@@ -1178,14 +1182,64 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                     </tbody>
                     <tfoot>
                       <tr className="font-bold text-[11px] text-gray-800 dark:text-gray-100">
-                        <td colSpan={3} className="sticky bottom-0 left-0 z-30 px-3 py-2 bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600 whitespace-nowrap">TOTAIS · {totaisAgregados.totalEventos} ev</td>
-                        <td className="sticky bottom-0 z-20 px-2 py-2 text-right bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600 text-green-700 dark:text-green-400 whitespace-nowrap">{formatarMoeda(totaisAgregados.realizado)}</td>
-                        <td className="sticky bottom-0 z-20 px-2 py-2 text-right bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600 whitespace-nowrap">{formatarMoeda(totaisAgregados.metaM1)}</td>
-                        <td colSpan={gruposAbertos.clientes ? 3 : 1} className="sticky bottom-0 z-20 px-2 py-2 text-center bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600 whitespace-nowrap" title="Total de clientes">{totaisAgregados.totalClientes.toLocaleString('pt-BR')}</td>
-                        <td colSpan={gruposAbertos.ticket ? 3 : 1} className="sticky bottom-0 z-20 px-2 py-2 text-center bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600 whitespace-nowrap" title="Ticket médio">{formatarMoeda(totaisAgregados.ticketMedioGeral)}</td>
-                        <td colSpan={gruposAbertos.artistico ? 6 : 1} className="sticky bottom-0 z-20 px-2 py-2 text-center bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600 whitespace-nowrap" title="Custo artístico + produção e % do faturamento">Custo {formatarMoeda(totaisAgregados.custoTotal)} · {totaisAgregados.percentCustoFat.toFixed(1)}%</td>
-                        <td colSpan={gruposAbertos.producao ? 7 : 1} className="sticky bottom-0 z-20 px-2 py-2 bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600"></td>
-                        <td className="sticky bottom-0 z-20 px-2 py-2 bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600"></td>
+                        {/* Fixos: sempre visíveis (item 1). Colspan=3 cobre Data+Dia+Artista. */}
+                        <td colSpan={3} className={`${tfCls} text-left border-r`} style={{ position: 'sticky', left: 0, zIndex: 30 }}>TOTAIS · {totaisAgregados.totalEventos} ev</td>
+                        <td className={`${tfCls} text-right text-green-700 dark:text-green-400 border-r`} style={{ position: 'sticky', left: 226, zIndex: 30 }} title="Soma da receita real">{formatarMoeda(totaisAgregados.realizado)}</td>
+                        <td className={`${tfCls} text-right border-r-2`} style={{ position: 'sticky', left: 336, zIndex: 30 }} title="Soma da meta M1">{formatarMoeda(totaisAgregados.metaM1)}</td>
+
+                        {/* CLIENTES (soma) */}
+                        {gruposAbertos.clientes ? (
+                          <>
+                            <td className={`${tfCls} text-center border-r`} title="Total de clientes reais">{totaisAgregados.colClientesReais.toLocaleString('pt-BR')}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Total de reservas">{totaisAgregados.colResTot.toLocaleString('pt-BR')}</td>
+                            <td className={`${tfCls} text-center border-r-2`} title="Total de reservas presentes">{totaisAgregados.colResP.toLocaleString('pt-BR')}</td>
+                          </>
+                        ) : (
+                          <td className={`${tfCls} border-r-2`}></td>
+                        )}
+
+                        {/* TICKET (média) */}
+                        {gruposAbertos.ticket ? (
+                          <>
+                            <td className={`${tfCls} text-right border-r`} title="Média da entrada real">{formatarMoeda(totaisAgregados.colTeReal)}</td>
+                            <td className={`${tfCls} text-right border-r`} title="Média do bar real">{formatarMoeda(totaisAgregados.colTbReal)}</td>
+                            <td className={`${tfCls} text-right border-r-2`} title="Ticket médio">{formatarMoeda(totaisAgregados.colTMedio)}</td>
+                          </>
+                        ) : (
+                          <td className={`${tfCls} border-r-2`}></td>
+                        )}
+
+                        {/* ARTÍSTICO (somas + médias dos %) */}
+                        {gruposAbertos.artistico ? (
+                          <>
+                            <td className={`${tfCls} text-right border-r`} title="Total custo artístico">{formatarMoeda(totaisAgregados.colCArt)}</td>
+                            <td className={`${tfCls} text-right border-r`} title="Total custo produção">{formatarMoeda(totaisAgregados.colCProd)}</td>
+                            <td className={`${tfCls} text-right border-r`} title="Total $ couvert">{formatarMoeda(totaisAgregados.colCouvert)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Média % art/fat">{formatarPercentual(totaisAgregados.colPercentArtFat)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Média couv/art">{formatarPercentual(totaisAgregados.colCouvArt)}</td>
+                            <td className={`${tfCls} text-right border-r-2`} title="Total consumação">{formatarMoeda(totaisAgregados.colConsumacao)}</td>
+                          </>
+                        ) : (
+                          <td className={`${tfCls} border-r-2`}></td>
+                        )}
+
+                        {/* PRODUÇÃO (médias dos %, somas dos atrasões) */}
+                        {gruposAbertos.producao ? (
+                          <>
+                            <td className={`${tfCls} text-center border-r`} title="Média % bebidas">{formatarPercentual(totaisAgregados.colPercentB)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Média % drinks">{formatarPercentual(totaisAgregados.colPercentD)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Média % cozinha">{formatarPercentual(totaisAgregados.colPercentC)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Total atrasão cozinha">{formatarContagem(totaisAgregados.colAtrasaoCoz)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Total atrasão drinks">{formatarContagem(totaisAgregados.colAtrasaoBar)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Média stockout drinks">{formatarPercentual(totaisAgregados.colStockoutDrinks)}</td>
+                            <td className={`${tfCls} text-center border-r-2`} title="Média stockout comidas">{formatarPercentual(totaisAgregados.colStockoutComidas)}</td>
+                          </>
+                        ) : (
+                          <td className={`${tfCls} border-r-2`}></td>
+                        )}
+
+                        {/* Ações */}
+                        <td className={tfCls}></td>
                       </tr>
                     </tfoot>
                   </table>
