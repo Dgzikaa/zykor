@@ -69,7 +69,8 @@ export interface TotaisMes {
   real_fixo_plan: number;
   real_fixo_proj: number;
   real_fixo_real: number;
-  // Faturamento Meta: plan = planilha; proj = M1 (eventos_base.m1_r);
+  // Faturamento Meta: plan = Σ M1 dos eventos do mês (empilhamento da meta; fallback
+  // planilha 'FATURAMENTO META'); proj = empilhamento do realizado (dias fechados);
   // real = entradas do Conta Azul (Stone + Pix + Dinheiro).
   faturamento_meta_plan: number;
   faturamento_meta_proj: number;
@@ -344,6 +345,7 @@ export async function getOrcamentacaoCompleta(
   const hojeStr = new Date().toISOString().split('T')[0];
   const realRMap = new Map<string, number>();
   const projMap = new Map<string, number>();
+  const m1Map = new Map<string, number>();        // Σ M1 dos eventos por mês (empilhamento da meta)
   const cArtMesMap = new Map<string, number>();   // Σ artístico do planejamento (real do dia fechado / projeção do futuro)
   const cProdMesMap = new Map<string, number>();  // Σ produção idem
   mesesParaBuscar.forEach(({ mes, ano }) => {
@@ -352,6 +354,7 @@ export async function getOrcamentacaoCompleta(
     const fim = `${ano}-${mm}-${new Date(ano, mes, 0).getDate()}`;
     const doMes = eventosBase.filter(e => e.data_evento >= ini && e.data_evento <= fim);
     realRMap.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + (e.real_r || 0), 0));
+    m1Map.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + (e.m1_r || 0), 0));
     projMap.set(`${ano}-${mes}`, doMes.reduce(
       (s, e) => s + (e.data_evento < hojeStr ? (e.real_r || 0) : 0), 0));
     cArtMesMap.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + ((e.c_art || 0) > 0 ? (e.c_art || 0) : (e.c_art_projecao || 0)), 0));
@@ -368,18 +371,12 @@ export async function getOrcamentacaoCompleta(
     // Real = TODA a receita do Conta Azul no mês (bloco 'Receita': Stone Créd/Déb/Pix
     // + Pix Direto + Dinheiro + Receita de Eventos + Outras Receitas) + ajustes manuais
     // de receita (DRE Manual). É a base de receita que a DRE usa pros % de Var/CMV.
+    // Planejado = MANUAL (planilha 'FATURAMENTO META' — o sócio preenche).
     const fatPlan = num(planilha('FATURAMENTO META')?.valor_planejado);
-    // Projetado: SEMPRE automático = Empilhamento dos dias já fechados (< hoje, até
-    // ontem). Hoje e futuro não entram (esperam o real do ContaHub). Decisão do sócio
-    // jun/2026: não usar mais o valor manual da planilha, pra não ficar desatualizado.
-    const fatProj = projMap.get(`${ano}-${mes}`) || 0;
-    // Realizado: meses fechados = Conta Azul (oficial). Mês corrente = ContaHub (Σ real_r),
-    // porque no Conta Azul o cartão de crédito só entra na liquidação (atrasado) e o mês
-    // corrente subreportava o faturamento. (decisão sócio jun/2026)
-    const fatRealCA = (goldBlocoMap.get(`${ano}-${mes}-Receita`) || 0) + manualMacro('Receita');
-    const ehMesAtual = new Date().getMonth() + 1 === mes && new Date().getFullYear() === ano;
-    const fatRealContahub = realRMap.get(`${ano}-${mes}`) || 0;
-    const fatReal = ehMesAtual && fatRealContahub > fatRealCA ? fatRealContahub : fatRealCA;
+    // Projetado = empilhamento de M1 do mês (Σ m1_r dos eventos). Decisão do sócio jun/2026.
+    const fatProj = m1Map.get(`${ano}-${mes}`) || 0;
+    // Realizado = realizado do planejamento comercial (Σ real_r dos eventos do mês). Decisão sócio jun/2026.
+    const fatReal = realRMap.get(`${ano}-${mes}`) || 0;
 
     const categorias: CategoriaOrcamento[] = ESTRUTURA.map(bloco => {
       if (bloco.modo === 'percentual') {
