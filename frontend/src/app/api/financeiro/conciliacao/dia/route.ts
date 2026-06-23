@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
 
   let tx: any[];
   let pagamentos: any[];
+  let chPays: any[];
   try {
     tx = await paginate<any>(
       () => (supabase as any)
@@ -57,6 +58,16 @@ export async function GET(request: NextRequest) {
         .order('total_amount', { ascending: false }),
       { label: 'conciliacao/dia/pag' },
     );
+    chPays = await paginate<any>(
+      () => (supabase as any)
+        .schema('silver').from('faturamento_pagamentos')
+        .select('tipo, valor_bruto, cliente_nome, mesa_desc, meio, created_at')
+        .eq('bar_id', user.bar_id)
+        .eq('data_pagamento', data)
+        .in('tipo', ['Cred', 'Deb'])
+        .order('created_at', { ascending: true }),
+      { label: 'conciliacao/dia/ch' },
+    );
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Erro ao buscar dia' }, { status: 500 });
   }
@@ -71,21 +82,37 @@ export async function GET(request: NextRequest) {
   }
   const por_bandeira = Array.from(mapa.values()).sort((a, b) => b.bruto - a.bruto);
 
-  const transacoes = tx.map((t) => ({
-    hora: t.capture_local_dt,
-    bandeira: brandName(t.brand_id),
-    tipo: accountName(t.account_type),
-    parcelas: t.number_of_installments,
-    cartao: t.card_number_masked,
-    bruto: num(t.gross_amount),
-    taxa: num(t.fee_amount),
-    liquido: num(t.net_amount),
-    previsao: t.prevision_payment_date,
-    maquininha: t.poi_serial_number,
-    autorizacao: t.issuer_authorization_code,
-    chargeback: num(t.ev_chargebacks) > 0,
-    cancelada: num(t.ev_cancellations) > 0,
-  }));
+  // Casamento Stone × ContaHub por (tipo, valor): marca cada transação Stone como
+  // suspeita quando não tem par no ContaHub (ContaHub não fornece NSU/autorização).
+  const side = (at: any) => [2, 4].includes(Number(at)) ? 'Cred' : [1, 3].includes(Number(at)) ? 'Deb' : 'Outro';
+  const chBuckets = new Map<string, any[]>();
+  for (const p of chPays) {
+    const k = `${p.tipo}|${num(p.valor_bruto).toFixed(2)}`;
+    if (!chBuckets.has(k)) chBuckets.set(k, []);
+    chBuckets.get(k)!.push(p);
+  }
+  const transacoes = tx.map((t) => {
+    const k = `${side(t.account_type)}|${num(t.gross_amount).toFixed(2)}`;
+    const bucket = chBuckets.get(k);
+    const matched = !!bucket && bucket.length > 0;
+    if (matched) bucket!.shift(); // consome o par do ContaHub
+    return {
+      hora: t.capture_local_dt,
+      bandeira: brandName(t.brand_id),
+      tipo: accountName(t.account_type),
+      parcelas: t.number_of_installments,
+      cartao: t.card_number_masked,
+      bruto: num(t.gross_amount),
+      taxa: num(t.fee_amount),
+      liquido: num(t.net_amount),
+      previsao: t.prevision_payment_date,
+      maquininha: t.poi_serial_number,
+      autorizacao: t.issuer_authorization_code,
+      chargeback: num(t.ev_chargebacks) > 0,
+      cancelada: num(t.ev_cancellations) > 0,
+      suspeita: !matched,
+    };
+  });
 
   const repasses = pagamentos.map((p) => ({
     payment_id: p.payment_id,
@@ -117,10 +144,24 @@ export async function GET(request: NextRequest) {
     ],
   };
 
-  // Transações candidatas que explicam a diferença (match por tipo+valor).
-  let divergencias: any = null;
-  const { data: dv } = await (supabase as any).rpc('stone_dia_divergencias', { p_bar_id: user.bar_id, p_data: data });
-  divergencias = dv || null;
+  // Divergências: Stone suspeita (sem par) + ContaHub que sobrou.
+  const so_stone = tx
+    .map((t, i) => ({ t, susp: transacoes[i].suspeita }))
+    .filter((x) => x.susp)
+    .map(({ t }) => ({
+      tipo: side(t.account_type), valor: num(t.gross_amount), hora: t.capture_local_dt,
+      brand_id: t.brand_id, cartao: t.card_number_masked, autorizacao: t.issuer_authorization_code,
+    }));
+  const so_ch: any[] = [];
+  for (const [, arr] of chBuckets) for (const p of arr) so_ch.push({ tipo: p.tipo, valor: num(p.valor_bruto), cliente: p.cliente_nome, mesa: p.mesa_desc, meio: p.meio });
+  so_ch.sort((a, b) => Math.abs(b.valor) - Math.abs(a.valor));
+  const divergencias = {
+    so_stone, so_ch,
+    resumo: {
+      so_stone_qtd: so_stone.length, so_stone_valor: so_stone.reduce((s, t) => s + t.valor, 0),
+      so_ch_qtd: so_ch.length, so_ch_valor: so_ch.reduce((s, t) => s + t.valor, 0),
+    },
+  };
 
   return NextResponse.json({
     success: true,

@@ -330,17 +330,17 @@ export default function ConciliacaoPage() {
                                     </div>
                                   )}
                                   <div>
-                                    <div className="text-xs font-semibold text-muted-foreground mb-1">Transações ({dia.resumo.transacoes}){dia.resumo.chargebacks > 0 && <span className="ml-2 text-red-600">· {dia.resumo.chargebacks} chargeback(s)</span>}</div>
+                                    <div className="text-xs font-semibold text-muted-foreground mb-1">Transações ({dia.resumo.transacoes}){dia.resumo.chargebacks > 0 && <span className="ml-2 text-red-600">· {dia.resumo.chargebacks} chargeback(s)</span>}{dia.divergencias?.resumo?.so_stone_qtd > 0 && <span className="ml-2 text-red-600">· {dia.divergencias.resumo.so_stone_qtd} sem par no ContaHub (em vermelho)</span>}</div>
                                     <div className="overflow-x-auto"><table className="text-xs w-full">
                                       <thead className="text-muted-foreground"><tr><th className="text-left py-1 pr-3">Hora</th><th className="text-left py-1 pr-3">Bandeira</th><th className="text-left py-1 pr-3">Tipo</th><th className="text-left py-1 pr-3">Cartão</th><th className="text-right py-1 pr-3">Bruto</th><th className="text-right py-1 pr-3">Taxa</th><th className="text-right py-1 pr-3">Líquido</th><th className="text-left py-1 pr-3">Prev.</th><th className="text-left py-1">Maquininha</th></tr></thead>
                                       <tbody>{dia.transacoes.slice(0, lim).map((t: any, i: number) => (
-                                        <tr key={i} className={`border-t border-border/50 ${t.chargeback ? 'bg-red-50 dark:bg-red-900/10' : ''}`}>
-                                          <td className="py-1 pr-3 text-muted-foreground">{fmtHora(t.hora)}</td><td className="py-1 pr-3 font-medium">{t.bandeira}</td>
+                                        <tr key={i} className={`border-t border-border/50 ${t.suspeita ? 'bg-red-50 dark:bg-red-900/15 border-l-2 border-l-red-500' : t.chargeback ? 'bg-red-50/60 dark:bg-red-900/10' : ''}`}>
+                                          <td className="py-1 pr-3 text-muted-foreground">{t.suspeita && <span className="text-red-600 mr-1" title="Sem par no ContaHub">⚠</span>}{fmtHora(t.hora)}</td><td className="py-1 pr-3 font-medium">{t.bandeira}</td>
                                           <td className="py-1 pr-3 text-muted-foreground">{t.tipo}{t.parcelas > 1 ? ` ${t.parcelas}x` : ''}</td>
                                           <td className="py-1 pr-3 text-muted-foreground font-mono text-[10px]">{t.cartao}</td>
-                                          <td className="py-1 pr-3 text-right">{fmtBRL(t.bruto)}</td><td className="py-1 pr-3 text-right text-muted-foreground">{fmtBRL(t.taxa)}</td><td className="py-1 pr-3 text-right">{fmtBRL(t.liquido)}</td>
+                                          <td className={`py-1 pr-3 text-right ${t.suspeita ? 'text-red-600 font-semibold' : ''}`}>{fmtBRL(t.bruto)}</td><td className="py-1 pr-3 text-right text-muted-foreground">{fmtBRL(t.taxa)}</td><td className="py-1 pr-3 text-right">{fmtBRL(t.liquido)}</td>
                                           <td className="py-1 pr-3 text-muted-foreground">{t.previsao ? fmtData(t.previsao) : '—'}</td>
-                                          <td className="py-1 text-muted-foreground font-mono text-[10px]">{t.maquininha || '—'}{t.chargeback && <span className="ml-1 text-red-600">CB</span>}</td>
+                                          <td className="py-1 text-muted-foreground font-mono text-[10px]">{t.maquininha || '—'}{t.chargeback && <span className="ml-1 text-red-600">CB</span>}{t.suspeita && <span className="ml-1 text-red-600">sem par</span>}</td>
                                         </tr>))}</tbody>
                                     </table></div>
                                     {dia.transacoes.length > lim && <button onClick={() => setVerTxAte((p) => ({ ...p, [r.data]: lim + 100 }))} className="mt-2 text-xs text-primary hover:underline">Ver mais ({dia.transacoes.length - lim} restantes)</button>}
