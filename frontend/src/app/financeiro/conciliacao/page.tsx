@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Scale, Loader2, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Banknote, CreditCard, Percent, CalendarClock, PieChart, ShieldAlert } from 'lucide-react';
+import { Scale, Loader2, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Banknote, CreditCard, Percent, CalendarClock, PieChart, ShieldAlert, ListChecks } from 'lucide-react';
 
 type Row = {
   data: string; status: string; stone_cnpjs: string | null;
@@ -42,6 +42,7 @@ const labelMes = (ym: string) => { const [y, m] = ym.split('-'); return `${MESES
 
 const ABAS = [
   { id: 'conciliacao', label: 'Conciliação', icon: Scale },
+  { id: 'pendencias', label: 'Pendências', icon: ListChecks },
   { id: 'taxas', label: 'Taxas (MDR)', icon: Percent },
   { id: 'recebiveis', label: 'Recebíveis', icon: CalendarClock },
   { id: 'mix', label: 'Mix & Maquininhas', icon: PieChart },
@@ -74,8 +75,10 @@ export default function ConciliacaoPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [resumo, setResumo] = useState<any>(null);
   const [analise, setAnalise] = useState<any>(null);
+  const [pendencias, setPendencias] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingAn, setLoadingAn] = useState(false);
+  const [loadingPend, setLoadingPend] = useState(false);
 
   const [aberto, setAberto] = useState<string | null>(null);
   const [diaCache, setDiaCache] = useState<Record<string, any>>({});
@@ -124,8 +127,20 @@ export default function ConciliacaoPage() {
     } finally { setLoadingAn(false); }
   }, [selectedBar, periodo, showToast]);
 
+  const carregarPendencias = useCallback(async () => {
+    if (!selectedBar || !periodo.de) return;
+    setLoadingPend(true);
+    try {
+      const r = await api.get(`/api/financeiro/conciliacao/pendencias?de=${periodo.de}&ate=${periodo.ate}`);
+      setPendencias(r.pendencias || []);
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Erro ao carregar pendências', message: e?.message });
+    } finally { setLoadingPend(false); }
+  }, [selectedBar, periodo, showToast]);
+
   useEffect(() => { carregar(); }, [carregar]);
   useEffect(() => { carregarAnalise(); }, [carregarAnalise]);
+  useEffect(() => { if (aba === 'pendencias') carregarPendencias(); }, [aba, carregarPendencias]);
 
   const abrirDia = useCallback(async (data: string) => {
     if (aberto === data) { setAberto(null); return; }
@@ -359,8 +374,54 @@ export default function ConciliacaoPage() {
           </>
         )}
 
+        {/* ===================== ABA PENDÊNCIAS ===================== */}
+        {aba === 'pendencias' && (
+          loadingPend ? <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
+          : (() => {
+            const reais = pendencias.filter((p) => p.classificacao === 'real');
+            const gaps = pendencias.filter((p) => p.classificacao !== 'real');
+            const CLS: Record<string, { txt: string; cls: string }> = {
+              real: { txt: 'divergência', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
+              gap_stone: { txt: 'falta Stone', cls: 'bg-slate-200 text-slate-700 dark:bg-slate-700/40 dark:text-slate-300' },
+              gap_contahub: { txt: 'falta ContaHub', cls: 'bg-slate-200 text-slate-700 dark:bg-slate-700/40 dark:text-slate-300' },
+            };
+            const linha = (p: any) => (
+              <tr key={p.data} onClick={() => { setAba('conciliacao'); abrirDia(p.data); }} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer">
+                <td className="px-3 py-1.5 font-medium whitespace-nowrap">{fmtData(p.data)}</td>
+                <td className="px-3 py-1.5"><span className={`text-[10px] rounded px-1.5 py-0.5 ${CLS[p.classificacao]?.cls}`}>{CLS[p.classificacao]?.txt}</span></td>
+                <td className={`px-3 py-1.5 text-right font-medium ${p.status === 'verificar' ? 'text-red-600' : 'text-amber-600'}`}>{fmtBRL(p.diferenca)}</td>
+                <td className="px-3 py-1.5 text-right text-muted-foreground whitespace-nowrap">{p.so_stone_qtd ? `${p.so_stone_qtd} · ${fmtBRL(p.so_stone_valor)}` : '—'}</td>
+                <td className="px-3 py-1.5 text-right text-muted-foreground whitespace-nowrap">{p.so_ch_qtd ? `${p.so_ch_qtd} · ${fmtBRL(p.so_ch_valor)}` : '—'}</td>
+              </tr>
+            );
+            return pendencias.length === 0 ? (
+              <Card><CardContent className="py-12 text-center text-muted-foreground"><CheckCircle2 className="w-9 h-9 mx-auto mb-2 text-emerald-600 opacity-60" />Tudo conciliado no período. 🎉</CardContent></Card>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-xs text-muted-foreground">Fila de trabalho do período. Clique num dia para abrir o detalhe na aba Conciliação. &quot;Falta Stone/ContaHub&quot; = gap de cobertura (um lado sem dado), não furo real.</p>
+                <div>
+                  <div className="text-sm font-semibold mb-1 flex items-center gap-1"><AlertTriangle className="w-4 h-4 text-red-600" />Divergências reais ({reais.length})</div>
+                  <Card className="p-0 overflow-x-auto"><table className="w-full text-sm">
+                    <thead className="text-xs text-muted-foreground border-b"><tr><th className="text-left px-3 py-2">Dia</th><th className="text-left px-3 py-2">Tipo</th><th className="text-right px-3 py-2">Diferença</th><th className="text-right px-3 py-2">Só Stone</th><th className="text-right px-3 py-2">Só ContaHub</th></tr></thead>
+                    <tbody>{reais.length === 0 ? <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">Nenhuma divergência real. 🎉</td></tr> : reais.map(linha)}</tbody>
+                  </table></Card>
+                </div>
+                {gaps.length > 0 && (
+                  <div>
+                    <div className="text-sm font-semibold mb-1 text-muted-foreground">Gaps de cobertura ({gaps.length}) — um lado sem dado</div>
+                    <Card className="p-0 overflow-x-auto"><table className="w-full text-sm">
+                      <thead className="text-xs text-muted-foreground border-b"><tr><th className="text-left px-3 py-2">Dia</th><th className="text-left px-3 py-2">Tipo</th><th className="text-right px-3 py-2">Diferença</th><th className="text-right px-3 py-2">Só Stone</th><th className="text-right px-3 py-2">Só ContaHub</th></tr></thead>
+                      <tbody>{gaps.map(linha)}</tbody>
+                    </table></Card>
+                  </div>
+                )}
+              </div>
+            );
+          })()
+        )}
+
         {/* ===================== ABAS DE ANÁLISE ===================== */}
-        {aba !== 'conciliacao' && (
+        {aba !== 'conciliacao' && aba !== 'pendencias' && (
           loadingAn ? <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
           : !an ? <Card><CardContent className="py-12 text-center text-muted-foreground">Sem dados no período.</CardContent></Card>
           : (
