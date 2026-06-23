@@ -172,7 +172,7 @@ const ESTRUTURA: BlocoDef[] = [
       { nome: 'MKT Programa de Pontos', orcOnly: true },
       { nome: 'MKT Beneficios', orcOnly: true },
       { nome: 'Atrações Programação', gold: ['Atrações Programação'] },
-      { nome: 'Produção Mensal Fixo', orcOnly: true },
+      { nome: 'Produção Mensal Fixo', gold: ['Produção Mensal Fixo'] },
       { nome: 'Produção Eventos', gold: ['Produção Eventos'] },
       { nome: 'Consumação Artistas', consumacaoArtistas: true },
     ]
