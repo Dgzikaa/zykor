@@ -94,6 +94,29 @@ export async function GET(request: NextRequest) {
     conta: [p.bank_code, p.bank_branch, p.bank_account_number].filter(Boolean).join(' / ') || '—',
   }));
 
+  // Conciliação por tipo: onde está a divergência (ContaHub × Stone).
+  // Stone: crédito = account_type 2+4; débito = 1+3 (confirmado vs ContaHub).
+  const stoneCred = tx.filter((t) => [2, 4].includes(Number(t.account_type))).reduce((s, t) => s + num(t.gross_amount), 0);
+  const stoneDeb = tx.filter((t) => [1, 3].includes(Number(t.account_type))).reduce((s, t) => s + num(t.gross_amount), 0);
+  const stoneBruto = tx.reduce((s, t) => s + num(t.gross_amount), 0);
+
+  let gold: any = null;
+  const { data: gd } = await (supabase as any)
+    .schema('gold').from('stone_conciliacao_diaria')
+    .select('contahub_cartao, ch_credito, ch_debito, stone_bruto, diferenca, status')
+    .eq('bar_id', user.bar_id).eq('data', data).maybeSingle();
+  gold = gd || null;
+
+  const chCred = num(gold?.ch_credito), chDeb = num(gold?.ch_debito), chCartao = num(gold?.contahub_cartao);
+  const conciliacao = {
+    status: gold?.status || null,
+    linhas: [
+      { tipo: 'Crédito', contahub: chCred, stone: stoneCred, dif: Number((chCred - stoneCred).toFixed(2)) },
+      { tipo: 'Débito', contahub: chDeb, stone: stoneDeb, dif: Number((chDeb - stoneDeb).toFixed(2)) },
+      { tipo: 'Total', contahub: chCartao, stone: stoneBruto, dif: Number((chCartao - stoneBruto).toFixed(2)) },
+    ],
+  };
+
   return NextResponse.json({
     success: true,
     data,
@@ -106,6 +129,7 @@ export async function GET(request: NextRequest) {
       repasses_qtd: repasses.length,
       repasses_total: repasses.reduce((s, r) => s + r.valor, 0),
     },
+    conciliacao,
     por_bandeira,
     transacoes,
     repasses,

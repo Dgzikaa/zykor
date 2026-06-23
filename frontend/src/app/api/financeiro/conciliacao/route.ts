@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
   const resumo = {
     dias: rows.length,
     ok: rows.filter((r) => r.status === 'ok').length,
+    leve: rows.filter((r) => r.status === 'leve').length,
     verificar: rows.filter((r) => r.status === 'verificar').length,
     contahub_total: rows.reduce((s, r) => s + num(r.contahub_cartao), 0),
     stone_bruto_total: rows.reduce((s, r) => s + num(r.stone_bruto), 0),
