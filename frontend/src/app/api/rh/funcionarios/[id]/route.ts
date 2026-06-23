@@ -42,8 +42,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const documentos = docsRes.data || [];
   const ocorrencias = ocorrRes.data || [];
   const alertas = computarAlertas(f, documentos, ocorrencias);
+
+  // Felicidade da pessoa (match por nome na pesquisa) — pré-construído pro perfil.
+  const { data: pesq } = await (supabase as any).schema('hr').from('pesquisa_felicidade')
+    .select('data_pesquisa, media_geral, resultado_percentual, setor, eu_comigo_engajamento, eu_com_empresa_pertencimento, eu_com_colega_relacionamento, eu_com_gestor_lideranca, justica_reconhecimento')
+    .eq('bar_id', user.bar_id).ilike('funcionario_nome', f.nome).order('data_pesquisa', { ascending: false }).limit(1);
+
   const funcionario = { ...f, cargo_nome: cargoRes.data?.nome || null, area_nome: areaRes.data?.nome || null };
-  return NextResponse.json({ success: true, funcionario, data: funcionario, documentos, ocorrencias, alertas });
+  return NextResponse.json({ success: true, funcionario, data: funcionario, documentos, ocorrencias, alertas, felicidade: pesq?.[0] || null });
 }
 
 /** PUT /api/rh/funcionarios/[id] -> atualiza (+ histórico de contrato se mudou salário/cargo). */
