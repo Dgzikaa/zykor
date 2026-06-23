@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 type Linha = { mes: string; grupo_dfc: string; categoria: string; categoria_macro?: string; ordem_macro?: number; ordem_sub?: number; entradas: number; saidas: number; net: number };
 
-type ForaItem = { categoria: string; qtd: number; total: number | string; na_orcamentacao: boolean; primeiro: string; ultimo: string };
+type ForaItem = { categoria: string; qtd: number; total: number | string; na_dre: boolean; na_orcamentacao: boolean; primeiro: string; ultimo: string };
 
 const MES_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const GRUPOS = ['OPERACIONAL', 'INVESTIMENTO', 'FINANCIAMENTO'] as const;
@@ -28,7 +28,7 @@ export default function DfcPage() {
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
   const [foraDepara, setForaDepara] = useState<ForaItem[]>([]);
 
-  useEffect(() => {
+  const carregarDfc = useCallback(() => {
     if (!selectedBar) return;
     setLoading(true);
     fetch(`/api/financeiro/dfc?bar_id=${selectedBar.id}&ano=${ano}&conciliado=${soConciliado ? '1' : '0'}`, { cache: 'no-store' })
@@ -37,15 +37,31 @@ export default function DfcPage() {
       .catch(() => setLinhas([]))
       .finally(() => setLoading(false));
   }, [selectedBar, ano, soConciliado]);
+  useEffect(() => { carregarDfc(); }, [carregarDfc]);
 
-  // Categorias fora do de-para da DRE (aba "Fora do de-para").
-  useEffect(() => {
+  // Categorias fora do de-para do DFC (aba classificador self-service).
+  const carregarFora = useCallback(() => {
     if (!selectedBar) return;
     fetch(`/api/financeiro/dfc/fora-depara?bar_id=${selectedBar.id}&ano=${ano}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(d => setForaDepara(Array.isArray(d.categorias) ? d.categorias : []))
       .catch(() => setForaDepara([]));
   }, [selectedBar, ano]);
+  useEffect(() => { carregarFora(); }, [carregarFora]);
+
+  // Classifica a categoria num grupo do DFC (exceção do bar) e recarrega.
+  const [salvandoCat, setSalvandoCat] = useState<string | null>(null);
+  const classificar = async (categoria: string, grupo: string) => {
+    if (!selectedBar || !grupo) return;
+    setSalvandoCat(categoria);
+    try {
+      const r = await fetch('/api/financeiro/dfc/fora-depara', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: selectedBar.id, categoria, grupo_dfc: grupo }),
+      });
+      if (r.ok) { carregarFora(); carregarDfc(); }
+    } finally { setSalvandoCat(null); }
+  };
 
   // Hierarquia: grupo -> macro-categoria (igual DRE) -> categoria, cada um com [12] meses
   type MacroNode = { mes: number[]; ordem: number; cats: Record<string, { mes: number[]; ordem: number }> };
@@ -170,8 +186,9 @@ export default function DfcPage() {
         <TabsContent value="fora">
           <Card className="p-4">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              Categorias do Conta Azul com movimento em {ano} que <b>não estão no de-para da DRE</b> —
-              por isso somem dos relatórios. Mapeie em <code>financial.dre_categoria_macro</code> pra aparecerem.
+              Categorias do Conta Azul com movimento em {ano} que <b>não estão classificadas no DFC</b> deste bar —
+              por isso ficam de fora do fluxo de caixa. <b>Classifique no dropdown</b> e a categoria entra na hora
+              (regra salva como exceção do bar, sem dev). A coluna DRE/Orç avisa se também falta nesses relatórios.
             </p>
             {foraDepara.length === 0 ? (
               <div className="flex items-center justify-center gap-2 text-sm text-emerald-600 py-8">
@@ -184,7 +201,8 @@ export default function DfcPage() {
                   <th className="px-2 py-2 text-right">Lançamentos</th>
                   <th className="px-2 py-2 text-right">Total</th>
                   <th className="px-2 py-2 whitespace-nowrap">Período</th>
-                  <th className="px-2 py-2 text-center" title="Se também falta no de-para da Orçamentação">Orçam.</th>
+                  <th className="px-2 py-2 text-center" title="Se também falta no de-para da DRE / Orçamentação">DRE/Orç</th>
+                  <th className="px-2 py-2 text-center">Classificar no DFC</th>
                 </tr></thead>
                 <tbody>
                   {foraDepara.map(c => (
@@ -193,7 +211,25 @@ export default function DfcPage() {
                       <td className="px-2 py-1.5 text-right text-gray-500">{c.qtd}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmt(n(c.total))}</td>
                       <td className="px-2 py-1.5 text-gray-500 whitespace-nowrap">{c.primeiro?.slice(5)} → {c.ultimo?.slice(5)}</td>
-                      <td className="px-2 py-1.5 text-center">{c.na_orcamentacao ? <span className="text-emerald-600">ok</span> : <span className="text-red-500" title="também falta na Orçamentação">falta</span>}</td>
+                      <td className="px-2 py-1.5 text-center text-[10px] whitespace-nowrap">
+                        <span className={c.na_dre ? 'text-emerald-600' : 'text-red-500'} title={c.na_dre ? 'na DRE' : 'falta na DRE'}>DRE</span>
+                        {' · '}
+                        <span className={c.na_orcamentacao ? 'text-emerald-600' : 'text-red-500'} title={c.na_orcamentacao ? 'na Orçamentação' : 'falta na Orçamentação'}>Orç</span>
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        <select
+                          className="h-7 text-xs border rounded px-1 bg-white dark:bg-gray-800 disabled:opacity-50"
+                          defaultValue=""
+                          disabled={salvandoCat === c.categoria}
+                          onChange={e => classificar(c.categoria, e.target.value)}
+                        >
+                          <option value="" disabled>{salvandoCat === c.categoria ? 'salvando…' : 'classificar…'}</option>
+                          <option value="OPERACIONAL">Operacional</option>
+                          <option value="INVESTIMENTO">Investimento</option>
+                          <option value="FINANCIAMENTO">Financiamento</option>
+                          <option value="AJUSTE">Ajuste (fora do caixa)</option>
+                        </select>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

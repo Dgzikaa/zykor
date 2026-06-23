@@ -26,3 +26,30 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: e?.message }, { status: 500 });
   }
 }
+
+const GRUPOS_DFC = ['OPERACIONAL', 'INVESTIMENTO', 'FINANCIAMENTO', 'AJUSTE'];
+
+/**
+ * POST /api/financeiro/dfc/fora-depara
+ * Classifica uma categoria do CA num grupo do DFC, COMO EXCEÇÃO DAQUELE BAR
+ * (override por bar). Body: { bar_id, categoria, grupo_dfc }.
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const barId = Number(body.bar_id);
+    const categoria = String(body.categoria || '').trim();
+    const grupo = String(body.grupo_dfc || '').trim().toUpperCase();
+    if (!barId || !categoria) return NextResponse.json({ error: 'bar_id e categoria obrigatorios' }, { status: 400 });
+    if (!GRUPOS_DFC.includes(grupo)) return NextResponse.json({ error: 'grupo_dfc invalido' }, { status: 400 });
+
+    const supabase = await getAdminClient();
+    const { error } = await (supabase as any).schema('meta')
+      .rpc('set_categoria_dfc', { p_bar_id: barId, p_categoria: categoria, p_grupo: grupo });
+    if (error) throw error;
+
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message }, { status: 500 });
+  }
+}
