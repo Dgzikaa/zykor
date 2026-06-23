@@ -400,12 +400,15 @@ export async function getOrcamentacaoCompleta(
       const montarSub = (s: SubFixa): SubcategoriaOrcamento => {
         const nomeBar = s.nomePorBar?.[barId] ?? s.nome; // caso isolado por bar (ex: Deboche -> Administrativo Local)
         const prow = planilha(nomeBar);
-        const plan = num(prow?.valor_planejado);
+        let plan = num(prow?.valor_planejado);
         let proj = num(prow?.valor_projetado);
         // Item 4: Atrações Programação / Produção Eventos -> projeção = somatório do
         // planejamento comercial (Σ c_art / c_prod; real do dia fechado + projeção do futuro).
         if (s.nome === 'Atrações Programação') proj = cArtMesMap.get(`${ano}-${mes}`) ?? proj;
         else if (s.nome === 'Produção Eventos') proj = cProdMesMap.get(`${ano}-${mes}`) ?? proj;
+        // Item 3: Escritório Central = % do faturamento (4%). Plan/Proj escalam com o
+        // faturamento (% editável em meta.config; hoje fixo 4%). Realizado segue do CA.
+        if (s.nome === 'Escritório Central') { plan = 0.04 * fatPlan; proj = 0.04 * fatProj; }
         let real: number;
         let realizadoFonte: SubcategoriaOrcamento['realizadoFonte'];
         let goldCategorias: string[] | undefined;
