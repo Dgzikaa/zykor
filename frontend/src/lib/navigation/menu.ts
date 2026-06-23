@@ -74,6 +74,15 @@ export const MENU_TREE: MenuSection[] = [
     ],
   },
   {
+    icon: 'Users',
+    label: 'RH',
+    href: '/rh/funcionarios',
+    permission: 'gestao',
+    subItems: [
+      { icon: 'Users', label: 'Funcionários', href: '/rh/funcionarios', permission: 'gestao' },
+    ],
+  },
+  {
     icon: 'Wallet',
     label: 'Financeiro',
     href: '/financeiro/agendamentos',

@@ -1,337 +1,98 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * GET /api/rh/funcionarios
- * Lista todos os funcionários de um bar com filtros
- */
+// hr.funcionarios é schema de domínio (operacional), NÃO medallion. Sempre .schema('hr').
+const CAMPOS_EDITAVEIS = [
+  'nome', 'cpf', 'telefone', 'email', 'data_admissao', 'data_demissao', 'data_nascimento',
+  'cargo_id', 'area_id', 'tipo_contratacao', 'salario_base', 'valor_diaria',
+  'vale_transporte_diaria', 'dias_trabalho_semana', 'chave_pix', 'tipo_chave_pix',
+  'observacoes', 'foto_url', 'ativo',
+] as const;
+
+function limparPayload(body: any) {
+  const out: Record<string, any> = {};
+  for (const k of CAMPOS_EDITAVEIS) if (body[k] !== undefined) out[k] = body[k] === '' ? null : body[k];
+  return out;
+}
+
+/** GET /api/rh/funcionarios?q=&busca=&area_id=&cargo_id=&ativo=&tipo= */
 export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const barId = searchParams.get('bar_id');
-    const ativo = searchParams.get('ativo');
-    const areaId = searchParams.get('area_id');
-    const cargoId = searchParams.get('cargo_id');
-    const tipoContratacao = searchParams.get('tipo_contratacao');
-    const busca = searchParams.get('busca');
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
 
-    if (!barId) {
-      return NextResponse.json(
-        { error: 'bar_id é obrigatório' },
-        { status: 400 }
-      );
-    }
+  const sp = new URL(request.url).searchParams;
+  const supabase = await getAdminClient();
 
-    const supabase = await getAdminClient();
-    
-    let query = supabase
-      .from('funcionarios')
-      .select(`
-        *,
-        area:areas(id, nome, cor, adicional_noturno),
-        cargo:cargos(id, nome, nivel)
-      `)
-      .eq('bar_id', parseInt(barId))
-      .order('nome');
+  let query = (supabase as any).schema('hr').from('funcionarios').select('*').eq('bar_id', user.bar_id);
+  const ativo = sp.get('ativo');
+  if (ativo === '1' || ativo === 'true') query = query.eq('ativo', true);
+  if (ativo === '0' || ativo === 'false') query = query.eq('ativo', false);
+  if (sp.get('area_id')) query = query.eq('area_id', Number(sp.get('area_id')));
+  if (sp.get('cargo_id')) query = query.eq('cargo_id', Number(sp.get('cargo_id')));
+  const tipo = sp.get('tipo') || sp.get('tipo_contratacao');
+  if (tipo) query = query.eq('tipo_contratacao', tipo);
+  const q = (sp.get('q') || sp.get('busca') || '').trim();
+  if (q) query = query.or(`nome.ilike.%${q}%,cpf.ilike.%${q}%,email.ilike.%${q}%`);
 
-    // Filtros opcionais
-    if (ativo !== null && ativo !== undefined) {
-      query = query.eq('ativo', ativo === 'true');
-    }
+  const [{ data: funcs, error }, cargosRes, areasRes] = await Promise.all([
+    query.order('nome'),
+    (supabase as any).schema('hr').from('cargos').select('id, nome').eq('bar_id', user.bar_id),
+    (supabase as any).schema('hr').from('areas').select('id, nome').eq('bar_id', user.bar_id),
+  ]);
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-    if (areaId) {
-      query = query.eq('area_id', parseInt(areaId));
-    }
+  const cargoMap = new Map((cargosRes.data || []).map((c: any) => [c.id, c.nome]));
+  const areaMap = new Map((areasRes.data || []).map((a: any) => [a.id, a.nome]));
+  const funcionarios = (funcs || []).map((f: any) => ({
+    ...f,
+    cargo_nome: f.cargo_id ? cargoMap.get(f.cargo_id) || null : null,
+    area_nome: f.area_id ? areaMap.get(f.area_id) || null : null,
+  }));
 
-    if (cargoId) {
-      query = query.eq('cargo_id', parseInt(cargoId));
-    }
-
-    if (tipoContratacao) {
-      query = query.eq('tipo_contratacao', tipoContratacao);
-    }
-
-    if (busca) {
-      query = query.ilike('nome', `%${busca}%`);
-    }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
-
-    return NextResponse.json({
-      success: true,
-      data: data || []
-    });
-
-  } catch (error) {
-    console.error('Erro ao listar funcionários:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({
+    success: true,
+    funcionarios,
+    data: funcionarios, // alias de compat (simulacao-cmo lê .data)
+    resumo: {
+      total: funcionarios.length,
+      ativos: funcionarios.filter((f: any) => f.ativo).length,
+      freelas: funcionarios.filter((f: any) => f.tipo_contratacao === 'Freela').length,
+    },
+  });
 }
 
-/**
- * POST /api/rh/funcionarios
- * Cria um novo funcionário
- */
+/** POST /api/rh/funcionarios -> cria funcionário (+ contrato inicial). */
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const {
-      bar_id,
-      nome,
-      cpf,
-      telefone,
-      email,
-      data_admissao,
-      cargo_id,
-      area_id,
-      tipo_contratacao,
-      salario_base,
-      vale_transporte_diaria,
-      dias_trabalho_semana,
-      observacoes
-    } = body;
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
 
-    if (!bar_id || !nome) {
-      return NextResponse.json(
-        { error: 'bar_id e nome são obrigatórios' },
-        { status: 400 }
-      );
-    }
-
-    const supabase = await getAdminClient();
-
-    // Criar funcionário
-    const { data: funcionario, error: funcError } = await supabase
-      .from('funcionarios')
-      .insert({
-        bar_id,
-        nome: nome.trim(),
-        cpf: cpf || null,
-        telefone: telefone || null,
-        email: email || null,
-        data_admissao: data_admissao || null,
-        cargo_id: cargo_id || null,
-        area_id: area_id || null,
-        tipo_contratacao: tipo_contratacao || 'CLT',
-        salario_base: salario_base || 0,
-        vale_transporte_diaria: vale_transporte_diaria || 0,
-        dias_trabalho_semana: dias_trabalho_semana || 6,
-        observacoes: observacoes || null,
-        ativo: true
-      })
-      .select(`
-        *,
-        area:areas(id, nome, cor, adicional_noturno),
-        cargo:cargos(id, nome, nivel)
-      `)
-      .single();
-
-    if (funcError) throw funcError;
-
-    // Criar registro inicial de contrato
-    if (funcionario && (salario_base || vale_transporte_diaria)) {
-      await supabase
-        .from('contratos_funcionario')
-        .insert({
-          funcionario_id: funcionario.id,
-          salario_base: salario_base || 0,
-          vale_transporte_diaria: vale_transporte_diaria || 0,
-          tipo_contratacao: tipo_contratacao || 'CLT',
-          cargo_id: cargo_id || null,
-          area_id: area_id || null,
-          vigencia_inicio: data_admissao || new Date().toISOString().split('T')[0],
-          motivo_alteracao: 'Admissão'
-        });
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Funcionário cadastrado com sucesso',
-      data: funcionario
-    });
-
-  } catch (error) {
-    console.error('Erro ao criar funcionário:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+  const body = await request.json().catch(() => ({}));
+  if (!body.nome || !String(body.nome).trim()) {
+    return NextResponse.json({ success: false, error: 'Nome é obrigatório' }, { status: 400 });
   }
-}
+  const payload: Record<string, any> = { ...limparPayload(body), bar_id: user.bar_id };
+  if (payload.ativo === undefined) payload.ativo = true;
 
-/**
- * PUT /api/rh/funcionarios
- * Atualiza um funcionário existente
- */
-export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const {
-      id,
-      nome,
-      cpf,
-      telefone,
-      email,
-      data_admissao,
-      data_demissao,
-      cargo_id,
-      area_id,
-      tipo_contratacao,
-      salario_base,
-      vale_transporte_diaria,
-      dias_trabalho_semana,
-      observacoes,
-      ativo,
-      registrar_alteracao_contrato
-    } = body;
+  const supabase = await getAdminClient();
+  const { data: f, error } = await (supabase as any).schema('hr').from('funcionarios').insert(payload).select().single();
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-    if (!id) {
-      return NextResponse.json(
-        { error: 'id é obrigatório' },
-        { status: 400 }
-      );
-    }
-
-    const supabase = await getAdminClient();
-
-    // Buscar dados atuais para comparar
-    const { data: funcionarioAtual } = await supabase
-      .from('funcionarios')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    const updateData: Record<string, unknown> = {
-      atualizado_em: new Date().toISOString()
-    };
-
-    if (nome !== undefined) updateData.nome = nome.trim();
-    if (cpf !== undefined) updateData.cpf = cpf;
-    if (telefone !== undefined) updateData.telefone = telefone;
-    if (email !== undefined) updateData.email = email;
-    if (data_admissao !== undefined) updateData.data_admissao = data_admissao;
-    if (data_demissao !== undefined) updateData.data_demissao = data_demissao;
-    if (cargo_id !== undefined) updateData.cargo_id = cargo_id;
-    if (area_id !== undefined) updateData.area_id = area_id;
-    if (tipo_contratacao !== undefined) updateData.tipo_contratacao = tipo_contratacao;
-    if (salario_base !== undefined) updateData.salario_base = salario_base;
-    if (vale_transporte_diaria !== undefined) updateData.vale_transporte_diaria = vale_transporte_diaria;
-    if (dias_trabalho_semana !== undefined) updateData.dias_trabalho_semana = dias_trabalho_semana;
-    if (observacoes !== undefined) updateData.observacoes = observacoes;
-    if (ativo !== undefined) updateData.ativo = ativo;
-
-    // Se demitido, marcar como inativo
-    if (data_demissao) {
-      updateData.ativo = false;
-    }
-
-    const { data, error } = await supabase
-      .from('funcionarios')
-      .update(updateData)
-      .eq('id', id)
-      .select(`
-        *,
-        area:areas(id, nome, cor, adicional_noturno),
-        cargo:cargos(id, nome, nivel)
-      `)
-      .single();
-
-    if (error) throw error;
-
-    // Registrar alteração de contrato se houve mudança salarial ou de cargo
-    if (registrar_alteracao_contrato && funcionarioAtual) {
-      const houveMudancaContrato = 
-        (salario_base !== undefined && salario_base !== funcionarioAtual.salario_base) ||
-        (cargo_id !== undefined && cargo_id !== funcionarioAtual.cargo_id) ||
-        (area_id !== undefined && area_id !== funcionarioAtual.area_id) ||
-        (tipo_contratacao !== undefined && tipo_contratacao !== funcionarioAtual.tipo_contratacao);
-
-      if (houveMudancaContrato) {
-        // Fechar contrato anterior
-        await supabase
-          .from('contratos_funcionario')
-          .update({ vigencia_fim: new Date().toISOString().split('T')[0] })
-          .eq('funcionario_id', id)
-          .is('vigencia_fim', null);
-
-        // Criar novo contrato
-        await supabase
-          .from('contratos_funcionario')
-          .insert({
-            funcionario_id: id,
-            salario_base: salario_base ?? funcionarioAtual.salario_base,
-            vale_transporte_diaria: vale_transporte_diaria ?? funcionarioAtual.vale_transporte_diaria,
-            tipo_contratacao: tipo_contratacao ?? funcionarioAtual.tipo_contratacao,
-            cargo_id: cargo_id ?? funcionarioAtual.cargo_id,
-            area_id: area_id ?? funcionarioAtual.area_id,
-            vigencia_inicio: new Date().toISOString().split('T')[0],
-            motivo_alteracao: body.motivo_alteracao || 'Alteração contratual'
-          });
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Funcionário atualizado com sucesso',
-      data
+  // Histórico: registra o contrato de admissão.
+  if (f && (payload.salario_base || payload.vale_transporte_diaria || payload.valor_diaria)) {
+    await (supabase as any).schema('hr').from('contratos_funcionario').insert({
+      funcionario_id: f.id, salario_base: payload.salario_base || 0,
+      vale_transporte_diaria: payload.vale_transporte_diaria || 0,
+      tipo_contratacao: payload.tipo_contratacao || 'CLT',
+      cargo_id: payload.cargo_id || null, area_id: payload.area_id || null,
+      vigencia_inicio: payload.data_admissao || new Date().toISOString().slice(0, 10),
+      motivo_alteracao: 'Admissão',
     });
-
-  } catch (error) {
-    console.error('Erro ao atualizar funcionário:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
   }
-}
 
-/**
- * DELETE /api/rh/funcionarios
- * Remove um funcionário (soft delete - marca como inativo)
- */
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'id é obrigatório' },
-        { status: 400 }
-      );
-    }
-
-    const supabase = await getAdminClient();
-
-    // Soft delete
-    const { error } = await supabase
-      .from('funcionarios')
-      .update({ 
-        ativo: false, 
-        data_demissao: new Date().toISOString().split('T')[0],
-        atualizado_em: new Date().toISOString() 
-      })
-      .eq('id', parseInt(id));
-
-    if (error) throw error;
-
-    return NextResponse.json({
-      success: true,
-      message: 'Funcionário desativado com sucesso'
-    });
-
-  } catch (error) {
-    console.error('Erro ao remover funcionário:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({ success: true, funcionario: f, data: f }, { status: 201 });
 }
