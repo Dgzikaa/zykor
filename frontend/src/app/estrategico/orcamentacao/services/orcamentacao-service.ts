@@ -185,7 +185,7 @@ const ESTRUTURA: BlocoDef[] = [
   {
     nome: 'Despesas Administrativas', tipo: 'despesa', cor: COR.adm, modo: 'fixo', subs: [
       { nome: 'Escritório Central', gold: ['Escritório Central'] },
-      { nome: 'Administrativo Ordinário', gold: ['Administrativo Ordinário', 'Administrativo Local'], nomePorBar: { 4: 'Administrativo Local' } },
+      { nome: 'Administrativo Ordinário', gold: ['Administrativo Ordinário', 'Administrativo Local'], nomePorBar: { 4: 'Administrativo Deboche' } },
       { nome: 'RECURSOS HUMANOS', gold: ['RECURSOS HUMANOS'] },
     ]
   },
@@ -409,9 +409,13 @@ export async function getOrcamentacaoCompleta(
         // planejamento comercial (Σ c_art / c_prod; real do dia fechado + projeção do futuro).
         if (s.nome === 'Atrações Programação') proj = cArtMesMap.get(`${ano}-${mes}`) ?? proj;
         else if (s.nome === 'Produção Eventos') proj = cProdMesMap.get(`${ano}-${mes}`) ?? proj;
-        // Item 3: Escritório Central = % do faturamento (4%). Plan/Proj escalam com o
-        // faturamento (% editável em meta.config; hoje fixo 4%). Realizado segue do CA.
-        if (s.nome === 'Escritório Central') { plan = 0.04 * fatPlan; proj = 0.04 * fatProj; }
+        // Item 3: Escritório Central = 4% do faturamento como DEFAULT. O valor
+        // digitado na planilha (>0) tem precedência — assim o sócio pode sobrescrever
+        // mês a mês (plan/proj editáveis na tela); mês em branco cai no 4% automático.
+        if (s.nome === 'Escritório Central') {
+          if (!(num(prow?.valor_planejado) > 0)) plan = 0.04 * fatPlan;
+          if (!(num(prow?.valor_projetado) > 0)) proj = 0.04 * fatProj;
+        }
         let real: number;
         let realizadoFonte: SubcategoriaOrcamento['realizadoFonte'];
         let goldCategorias: string[] | undefined;
