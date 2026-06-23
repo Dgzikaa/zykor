@@ -1,0 +1,16 @@
+-- Bar 4 (Deboche): custo_producao estava CRAVADO em 0 no calculate_evento_metrics
+-- (na época a produção de evento ficava junto do artístico). Categoria 'Produção de
+-- Eventos' foi separada no CA jun/2026 → agora computa igual o bar 3 (cobre os 2 nomes).
+-- Fica 0 enquanto não houver lançamento e popula sozinho quando começar a ter custo.
+-- Aplicado em produção 2026-06-23 via MCP usando replace SQL-side do literal único
+-- '0::NUMERIC AS custo_producao' (que aparecia só no bloco do bar 4):
+--
+--   do $do$ declare def text; begin
+--     def := pg_get_functiondef('public.calculate_evento_metrics'::regproc);
+--     def := replace(def, '0::NUMERIC AS custo_producao',
+--       'COALESCE(SUM(CASE WHEN categoria_nome IN (''Produção Eventos'',''Produção de Eventos'')
+--          THEN COALESCE(NULLIF(valor_pago,0), valor_bruto) ELSE 0 END), 0)::NUMERIC AS custo_producao');
+--     execute def;
+--   end $do$;
+--
+-- (corpo completo da função no histórico de migrations do Supabase.)

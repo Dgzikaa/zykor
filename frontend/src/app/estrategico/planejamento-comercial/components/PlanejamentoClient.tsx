@@ -600,7 +600,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         
                         {/* Grupo ARTÍSTICO */}
                         <th
-                          colSpan={gruposAbertos.artistico ? 4 : 1}
+                          colSpan={gruposAbertos.artistico ? 6 : 1}
                           className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('artistico')}
                         >
@@ -662,12 +662,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         {gruposAbertos.artistico ? (
                           <>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Custo Artístico</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>
-                              {selectedBar?.id === 4 ? '$ Couvert' : 'Custo Produção'}
-                            </th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
-                              {selectedBar?.id === 4 ? 'Couv/Art' : '% Art/Fat'}
-                            </th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Custo Produção</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>$ Couvert</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Art/Fat</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>Couv/Art</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Consumação</th>
                           </>
                         ) : (
@@ -770,7 +768,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                           const totalColunas = 5
                             + (gruposAbertos.clientes ? 3 : 1)
                             + (gruposAbertos.ticket ? 3 : 1)
-                            + (gruposAbertos.artistico ? 4 : 1)
+                            + (gruposAbertos.artistico ? 6 : 1)
                             + (gruposAbertos.producao ? 7 : 1)
                             + 1; // Ações
 
@@ -1031,58 +1029,66 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                                     <span className={evento.c_art_is_projecao ? 'text-amber-600 dark:text-amber-400' : ''} title={evento.c_art_is_projecao ? 'Projeção (manual via modal ou média 4 semanas) — o real do Conta Azul substitui quando chega' : undefined}>{evento.c_art_is_projecao ? '⚠️ ' : ''}{formatarMoeda(evento.c_art)}</span>
                                   ) : '-'}</td>
 
-                                {selectedBar?.id === 4 ? (
-                                  <td 
-                                    onClick={(e) => { 
-                                      e.stopPropagation(); 
-                                      setLinhaHighlight(idx); 
-                                      setColunaHighlight(prev => prev === 'couvert_vr' ? null : 'couvert_vr');
-                                    }}
-                                    className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'couvert_vr' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
-                                    style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>
-                                      {evento.couvert_vr_contahub !== null && evento.couvert_vr_contahub !== undefined && evento.couvert_vr_contahub > 0 
-                                        ? formatarMoeda(evento.couvert_vr_contahub) 
-                                        : '-'}
-                                  </td>
-                                ) : (
-                                  <td 
-                                    onClick={(e) => { 
-                                      e.stopPropagation(); 
-                                      setLinhaHighlight(idx); 
-                                      setColunaHighlight(prev => prev === 'c_prod' ? null : 'c_prod');
-                                    }}
-                                    className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_prod' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
-                                    style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_prod > 0 ? (
-                                      <span className={evento.c_prod_is_projecao ? 'text-amber-600 dark:text-amber-400' : ''} title={evento.c_prod_is_projecao ? 'Projeção pré-lançada (média 4 semanas) — substitui pelo real do Conta Azul' : undefined}>{evento.c_prod_is_projecao ? '⚠️ ' : ''}{formatarMoeda(evento.c_prod)}</span>
-                                    ) : '-'}</td>
-                                )}
-                                
-                                <td 
-                                  onClick={(e) => { 
-                                    e.stopPropagation(); 
-                                    setLinhaHighlight(idx); 
+                                {/* Custo Produção (computa pros 2 bares; Deboche fica 0 até ter lançamento) */}
+                                <td
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLinhaHighlight(idx);
+                                    setColunaHighlight(prev => prev === 'c_prod' ? null : 'c_prod');
+                                  }}
+                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_prod' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
+                                  style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_prod > 0 ? (
+                                    <span className={evento.c_prod_is_projecao ? 'text-amber-600 dark:text-amber-400' : ''} title={evento.c_prod_is_projecao ? 'Projeção pré-lançada (média 4 semanas) — substitui pelo real do Conta Azul' : undefined}>{evento.c_prod_is_projecao ? '⚠️ ' : ''}{formatarMoeda(evento.c_prod)}</span>
+                                  ) : '-'}</td>
+
+                                {/* $ Couvert */}
+                                <td
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLinhaHighlight(idx);
+                                    setColunaHighlight(prev => prev === 'couvert_vr' ? null : 'couvert_vr');
+                                  }}
+                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'couvert_vr' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
+                                  style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>
+                                    {evento.couvert_vr_contahub !== null && evento.couvert_vr_contahub !== undefined && evento.couvert_vr_contahub > 0
+                                      ? formatarMoeda(evento.couvert_vr_contahub)
+                                      : '-'}
+                                </td>
+
+                                {/* % Art/Fat */}
+                                <td
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLinhaHighlight(idx);
                                     setColunaHighlight(prev => prev === 'percent_art_fat' ? null : 'percent_art_fat');
                                   }}
                                   className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_art_fat' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
                                   style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
-                                    {selectedBar?.id === 4 ? (
-                                      // Etapa 6: couvert_c_art_green vem do service (threshold em operations.config_metas_planejamento)
-                                      <span className={`font-semibold ${
-                                        evento.couvert_c_art_green
-                                          ? 'text-green-600 dark:text-green-400'
-                                          : evento.c_art > 0
-                                            ? 'text-red-600 dark:text-red-400'
-                                            : 'text-[hsl(var(--muted-foreground))]'
-                                      }`}>
-                                        {evento.c_art > 0 && evento.couvert_vr_contahub && evento.couvert_vr_contahub > 0
-                                          ? formatarPercentual((evento.couvert_vr_contahub / evento.c_art) * 100)
-                                          : evento.c_art > 0 ? '0,0%' : '-'}
-                                      </span>
-                                    ) : (
-                                      <span className={`font-semibold ${evento.percent_art_fat_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                        {evento.percent_art_fat > 0 ? formatarPercentual(evento.percent_art_fat) : '-'}
-                                      </span>
-                                    )}
+                                    <span className={`font-semibold ${evento.percent_art_fat_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                      {evento.percent_art_fat > 0 ? formatarPercentual(evento.percent_art_fat) : '-'}
+                                    </span>
+                                  </td>
+
+                                {/* Couv/Art */}
+                                <td
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLinhaHighlight(idx);
+                                    setColunaHighlight(prev => prev === 'couv_art' ? null : 'couv_art');
+                                  }}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'couv_art' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
+                                  style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
+                                    <span className={`font-semibold ${
+                                      evento.couvert_c_art_green
+                                        ? 'text-green-600 dark:text-green-400'
+                                        : evento.c_art > 0
+                                          ? 'text-red-600 dark:text-red-400'
+                                          : 'text-[hsl(var(--muted-foreground))]'
+                                    }`}>
+                                      {evento.c_art > 0 && evento.couvert_vr_contahub && evento.couvert_vr_contahub > 0
+                                        ? formatarPercentual((evento.couvert_vr_contahub / evento.c_art) * 100)
+                                        : evento.c_art > 0 ? '0,0%' : '-'}
+                                    </span>
                                   </td>
                                 <td
                                   className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))]"
@@ -1172,7 +1178,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                     </tbody>
                     <tfoot>
                       <tr className="font-bold">
-                        <td colSpan={5 + (gruposAbertos.clientes ? 3 : 1) + (gruposAbertos.ticket ? 3 : 1) + (gruposAbertos.artistico ? 4 : 1) + (gruposAbertos.producao ? 7 : 1) + 1} className="sticky bottom-0 z-20 px-3 py-2.5 text-[11px] bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600">
+                        <td colSpan={5 + (gruposAbertos.clientes ? 3 : 1) + (gruposAbertos.ticket ? 3 : 1) + (gruposAbertos.artistico ? 6 : 1) + (gruposAbertos.producao ? 7 : 1) + 1} className="sticky bottom-0 z-20 px-3 py-2.5 text-[11px] bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600">
                           <div className="flex flex-wrap gap-x-5 gap-y-1 text-gray-800 dark:text-gray-100">
                             <span>Σ Eventos: <b>{totaisAgregados.totalEventos}</b></span>
                             <span>Σ Receita real: <b className="text-green-700 dark:text-green-400">{formatarMoeda(totaisAgregados.realizado)}</b></span>
