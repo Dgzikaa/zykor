@@ -331,9 +331,10 @@ export async function getOrcamentacaoCompleta(
 
   // Por mês, a partir do planejamento comercial / eventos_base:
   //  - realRMap: Σ real_r (faturamento real ContaHub)
-  //  - projMap:  PROJEÇÃO = realizado dos dias já passados (< hoje) + M1 dos dias que faltam
-  //              (>= hoje). Mesma lógica da planilha do sócio. Para mês fechado => Σ real;
-  //              mês futuro => Σ M1; mês corrente => blend.
+  //  - projMap (Empilhamento): SÓ realizado dos dias já FECHADOS (< hoje = até ontem).
+  //              Hoje e futuro NÃO entram (esperam o real do ContaHub cair). Assim o
+  //              dia em andamento / evento futuro não distorce com M1 baixo
+  //              (ex: jogo do Brasil — real >> M1). Decisão do sócio jun/2026.
   const hojeStr = new Date().toISOString().split('T')[0];
   const realRMap = new Map<string, number>();
   const projMap = new Map<string, number>();
@@ -344,7 +345,7 @@ export async function getOrcamentacaoCompleta(
     const doMes = eventosBase.filter(e => e.data_evento >= ini && e.data_evento <= fim);
     realRMap.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + (e.real_r || 0), 0));
     projMap.set(`${ano}-${mes}`, doMes.reduce(
-      (s, e) => s + (e.data_evento < hojeStr ? (e.real_r || 0) : (e.m1_r || 0)), 0));
+      (s, e) => s + (e.data_evento < hojeStr ? (e.real_r || 0) : 0), 0));
   });
 
   return mesesParaBuscar.map(({ mes, ano }) => {
@@ -358,9 +359,9 @@ export async function getOrcamentacaoCompleta(
     // + Pix Direto + Dinheiro + Receita de Eventos + Outras Receitas) + ajustes manuais
     // de receita (DRE Manual). É a base de receita que a DRE usa pros % de Var/CMV.
     const fatPlan = num(planilha('FATURAMENTO META')?.valor_planejado);
-    // Projetado: SEMPRE automático = Empilhamento M1 (realizado dos dias passados +
-    // M1 dos dias futuros). Decisão do sócio jun/2026: não usar mais o valor manual
-    // da planilha, pra não ficar desatualizado.
+    // Projetado: SEMPRE automático = Empilhamento dos dias já fechados (< hoje, até
+    // ontem). Hoje e futuro não entram (esperam o real do ContaHub). Decisão do sócio
+    // jun/2026: não usar mais o valor manual da planilha, pra não ficar desatualizado.
     const fatProj = projMap.get(`${ano}-${mes}`) || 0;
     // Realizado: meses fechados = Conta Azul (oficial). Mês corrente = ContaHub (Σ real_r),
     // porque no Conta Azul o cartão de crédito só entra na liquidação (atrasado) e o mês
