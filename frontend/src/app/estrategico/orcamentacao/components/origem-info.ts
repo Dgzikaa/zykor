@@ -182,13 +182,13 @@ const ESPECIAIS: Record<string, OrigemLinha> = {
     projetado: PROJETADO_PADRAO,
     realizado: REALIZADO_MANUAL,
   },
-  Contratos: {
-    titulo: 'Contratos',
-    descricao: 'Cashback/bonificações Ambev e contratos anuais. Vem da aba DRE Manual.',
-    calculo: 'Realizado: Manual (DRE Manual) — cashback/bonificações Ambev e contratos anuais.',
+  'Contratos Cashback Mensal': {
+    titulo: 'Contratos Cashback Mensal',
+    descricao: 'Cashback mensal e contratos anuais (Ambev). Realizado puxa automático do Conta Azul.',
+    calculo: 'Realizado: Conta Azul (categorias "Contrato(s) Cashback Mensal" + "Contratos Anuais" → CONTRATOS) + ajustes manuais.',
     planejado: PLANEJADO_PADRAO,
     projetado: PROJETADO_PADRAO,
-    realizado: REALIZADO_MANUAL,
+    realizado: REALIZADO_CA,
   },
 };
 

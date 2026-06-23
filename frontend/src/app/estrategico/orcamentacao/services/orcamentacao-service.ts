@@ -214,8 +214,11 @@ const ESTRUTURA: BlocoDef[] = [
   },
   {
     nome: 'Não Operacionais', tipo: 'receita', cor: COR.naoOp, modo: 'fixo', subs: [
-      // Só Contratos. Realizado vem do financial.dre_manual (categoria 'Contratos').
-      { nome: 'Contratos' },
+      // Contratos Cashback Mensal: realizado vem do Conta Azul (gold, categoria_zykor
+      // 'CONTRATOS' = cashback mensal Ambev + contratos anuais) + ajustes manuais.
+      // O nome antigo "Contratos" (singular) virou cashback mensal — de-para em
+      // meta.categoria_zykor_map mapeia 'Contrato(s) Cashback Mensal' do CA -> CONTRATOS.
+      { nome: 'Contratos Cashback Mensal', gold: ['CONTRATOS'], manualKey: 'Contratos' },
     ]
   },
 ];
