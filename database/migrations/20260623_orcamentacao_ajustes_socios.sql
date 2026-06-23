@@ -43,3 +43,18 @@ begin
   return v_n;
 end;
 $function$;
+
+-- ── Item 2: consumação da Orçamentação = mesmas categorias [Consumação] do CA (= DRE) ──
+-- O '[CONSUMAÇÃO] AJUSTE CMV' (R$152k) estava na DRE mas fora da Orçamentação
+-- (subreportava o CMV). + Artistas / Benefício Clientes / Programa de Pontos passam
+-- a puxar do CA (eram ContaHub silver / manual). As 3 sem linha na orc (Sócios,
+-- Func Operação/Escritório) ficam no gold p/ revisar se viram linha. Refrescar gold.
+insert into meta.categoria_zykor_map (categoria_ca, categoria_zykor, bloco_dre, tipo_zykor, ignorar, observacao) values
+  ('[CONSUMAÇÃO] AJUSTE CMV',          'Consumação Ajuste CMV', 'Custo insumos (CMV)', 'despesa', false, 'item2'),
+  ('[Consumação] Artistas',            'Consumação Artistas',   'Despesas Comerciais', 'despesa', false, 'item2'),
+  ('[Consumação] Benefício Clientes',  'MKT Beneficios',        'Despesas Comerciais', 'despesa', false, 'item2'),
+  ('[Consumação] Programa de Pontos',  'MKT Programa de Pontos','Despesas Comerciais', 'despesa', false, 'item2'),
+  ('[Consumação] Sócios',              'Consumação Sócios',     'Não Operacionais',    'despesa', false, 'item2 revisar'),
+  ('[Consumação] Funcionários Operação','Consumação Func Operação','Despesas Administrativas','despesa', false, 'item2 revisar'),
+  ('[Consumação] Funcionários Escritório','Consumação Func Escritorio','Despesas Administrativas','despesa', false, 'item2 revisar')
+on conflict do nothing;

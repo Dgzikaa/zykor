@@ -169,12 +169,12 @@ const ESTRUTURA: BlocoDef[] = [
       { nome: 'Marketing Mídia', gold: ['Marketing Mídia', 'Marketing'] },
       { nome: 'Marketing Disparos', gold: ['Marketing Disparos'] },
       { nome: 'Marketing Produção', gold: ['Marketing Produção'] },
-      { nome: 'MKT Programa de Pontos', orcOnly: true },
-      { nome: 'MKT Beneficios', orcOnly: true },
+      { nome: 'MKT Programa de Pontos', gold: ['MKT Programa de Pontos'] },
+      { nome: 'MKT Beneficios', gold: ['MKT Beneficios'] },
       { nome: 'Atrações Programação', gold: ['Atrações Programação'] },
       { nome: 'Produção Mensal Fixo', gold: ['Produção Mensal Fixo'] },
       { nome: 'Produção Eventos', gold: ['Produção Eventos'] },
-      { nome: 'Consumação Artistas', consumacaoArtistas: true },
+      { nome: 'Consumação Artistas', gold: ['Consumação Artistas'] },
     ]
   },
   {
@@ -269,7 +269,7 @@ export async function getOrcamentacaoCompleta(
       .eq('bar_id', barId)
       .in('ano', anosUnicos),
     tbl(supabase, 'eventos_base')
-      .select('real_r, m1_r, data_evento')
+      .select('real_r, m1_r, data_evento, c_art, c_prod, c_art_projecao, c_prod_projecao')
       .eq('bar_id', barId).gte('data_evento', dataInicio).lte('data_evento', dataFim).eq('ativo', true),
     // Ajustes manuais da aba "DRE Manual" (consumo de estoque, bonificações, etc.)
     // que somam ao realizado do Conta Azul por categoria/macro.
@@ -288,7 +288,7 @@ export async function getOrcamentacaoCompleta(
 
   const dadosPlanilha = (planilhaResult.data || []) as OrcamentoPlanilhaRow[];
   const dadosGold = (goldResult.data || []) as Array<{ ano: number; mes: number; categoria_zykor: string; bloco_dre: string | null; net: number | string }>;
-  const eventosBase = (eventosResult.data || []) as Array<{ m1_r: number | null; real_r: number | null; data_evento: string }>;
+  const eventosBase = (eventosResult.data || []) as Array<{ m1_r: number | null; real_r: number | null; data_evento: string; c_art: number | null; c_prod: number | null; c_art_projecao: number | null; c_prod_projecao: number | null }>;
   const dadosManuais = ((manuaisResult as { data?: unknown }).data || []) as Array<{ valor: number | string; categoria: string | null; categoria_macro: string | null; data_competencia: string }>;
   const dadosConsumacao = ((consumacaoResult as { data?: unknown }).data || []) as Array<{ data: string; valor: number | string }>;
 
@@ -338,6 +338,8 @@ export async function getOrcamentacaoCompleta(
   const hojeStr = new Date().toISOString().split('T')[0];
   const realRMap = new Map<string, number>();
   const projMap = new Map<string, number>();
+  const cArtMesMap = new Map<string, number>();   // Σ artístico do planejamento (real do dia fechado / projeção do futuro)
+  const cProdMesMap = new Map<string, number>();  // Σ produção idem
   mesesParaBuscar.forEach(({ mes, ano }) => {
     const mm = String(mes).padStart(2, '0');
     const ini = `${ano}-${mm}-01`;
@@ -346,6 +348,8 @@ export async function getOrcamentacaoCompleta(
     realRMap.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + (e.real_r || 0), 0));
     projMap.set(`${ano}-${mes}`, doMes.reduce(
       (s, e) => s + (e.data_evento < hojeStr ? (e.real_r || 0) : 0), 0));
+    cArtMesMap.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + ((e.c_art || 0) > 0 ? (e.c_art || 0) : (e.c_art_projecao || 0)), 0));
+    cProdMesMap.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + ((e.c_prod || 0) > 0 ? (e.c_prod || 0) : (e.c_prod_projecao || 0)), 0));
   });
 
   return mesesParaBuscar.map(({ mes, ano }) => {
@@ -393,7 +397,11 @@ export async function getOrcamentacaoCompleta(
       const montarSub = (s: SubFixa): SubcategoriaOrcamento => {
         const prow = planilha(s.nome);
         const plan = num(prow?.valor_planejado);
-        const proj = num(prow?.valor_projetado);
+        let proj = num(prow?.valor_projetado);
+        // Item 4: Atrações Programação / Produção Eventos -> projeção = somatório do
+        // planejamento comercial (Σ c_art / c_prod; real do dia fechado + projeção do futuro).
+        if (s.nome === 'Atrações Programação') proj = cArtMesMap.get(`${ano}-${mes}`) ?? proj;
+        else if (s.nome === 'Produção Eventos') proj = cProdMesMap.get(`${ano}-${mes}`) ?? proj;
         let real: number;
         let realizadoFonte: SubcategoriaOrcamento['realizadoFonte'];
         let goldCategorias: string[] | undefined;
