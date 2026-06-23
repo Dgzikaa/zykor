@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { isPublicRoute } from '@/lib/auth/public-routes';
 
 export interface SessionData {
   user: any;
@@ -127,7 +128,7 @@ export function setupSessionSync() {
   // Listener para mudanças no localStorage (sincronização entre abas)
   const storageListener = (event: StorageEvent) => {
     if (event.key === 'sgb_user') {
-      if (!event.newValue && window.location.pathname !== '/login') {
+      if (!event.newValue && !isPublicRoute(window.location.pathname)) {
         // Usuário deslogou em outra aba (não redirecionar se já estamos no login)
         console.log('🔄 Logout detectado em outra aba');
         clearSession();
@@ -140,8 +141,8 @@ export function setupSessionSync() {
 
   // Verificar sessão periodicamente (a cada 5 minutos)
   const intervalId = setInterval(async () => {
-    // Não verificar se estamos na página de login
-    if (window.location.pathname === '/login') return;
+    // Não verificar em rotas públicas (login, auth, redefinir-senha)
+    if (isPublicRoute(window.location.pathname)) return;
     
     const isValid = await hasValidSession();
     if (!isValid) {

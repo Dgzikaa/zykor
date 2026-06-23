@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { setupSessionSync, validateAndSyncSession } from '@/lib/auth/session-manager';
+import { isPublicRoute } from '@/lib/auth/public-routes';
 
 /**
  * Componente para gerenciar sessão globalmente
@@ -18,9 +19,11 @@ export function SessionManager() {
     return setupSessionSync();
   }, []);
 
-  // Validacao da sessao por rota (pula /login).
+  // Validacao da sessao por rota (pula rotas publicas: /login, /auth, redefinir-senha).
+  // CRÍTICO: a redefinição de senha (1º acesso) roda SEM sessão — se não for pública,
+  // o usuário é jogado de volta pro /login em loop ao tentar criar a senha.
   useEffect(() => {
-    if (pathname === '/login') return;
+    if (isPublicRoute(pathname)) return;
 
     let cancelled = false;
     validateAndSyncSession().then((isValid) => {

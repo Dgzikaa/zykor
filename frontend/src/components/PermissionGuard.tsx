@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Shield, Home, ArrowLeft, AlertCircle } from 'lucide-react';
 import { getRoutePermission, hasRoutePermission } from '@/lib/route-permissions';
+import { isPublicRoute } from '@/lib/auth/public-routes';
 
 interface PermissionGuardProps {
   children: React.ReactNode;
@@ -23,9 +24,9 @@ export function PermissionGuard({ children }: PermissionGuardProps) {
   const [routeConfig, setRouteConfig] = useState<ReturnType<typeof getRoutePermission>>(null);
 
   useEffect(() => {
-    // Rotas públicas que não precisam de verificação
-    const publicRoutes = ['/login', '/auth'];
-    if (publicRoutes.some(route => pathname.startsWith(route))) {
+    // Rotas públicas que não precisam de verificação (fonte única: public-routes.ts).
+    // Inclui /usuarios/redefinir-senha — 1º acesso roda sem sessão.
+    if (isPublicRoute(pathname)) {
       setHasAccess(true);
       return;
     }
