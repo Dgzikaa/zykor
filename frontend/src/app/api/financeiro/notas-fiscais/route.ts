@@ -63,10 +63,13 @@ export async function GET(request: NextRequest) {
     const d = diasMap.get(r.data);
     d.por_cnpj[r.cnpj_indice] = {
       total_autorizado: num(r.total_autorizado),
+      total_nfce: num(r.total_nfce),
+      total_nfe: num(r.total_nfe),
       total_cancelado: num(r.total_cancelado),
       total_a_apurar: num(r.total_a_apurar),
       total_st_autorizado: num(r.total_st_autorizado),
       qtd_notas: num(r.qtd_notas),
+      qtd_nfe: num(r.qtd_nfe),
       qtd_canceladas: num(r.qtd_canceladas),
     };
     d.total_autorizado += num(r.total_autorizado);
@@ -86,8 +89,11 @@ export async function GET(request: NextRequest) {
   const resumo = {
     dias: dias.length,
     total_autorizado: rows.reduce((s, r) => s + num(r.total_autorizado), 0),
+    total_nfce: rows.reduce((s, r) => s + num(r.total_nfce), 0),
+    total_nfe: rows.reduce((s, r) => s + num(r.total_nfe), 0),
     total_cancelado: rows.reduce((s, r) => s + num(r.total_cancelado), 0),
     qtd_notas: rows.reduce((s, r) => s + num(r.qtd_notas), 0),
+    qtd_nfe: rows.reduce((s, r) => s + num(r.qtd_nfe), 0),
     por_cnpj,
   };
 
