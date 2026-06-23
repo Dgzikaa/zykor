@@ -171,12 +171,15 @@ const ESTRUTURA: BlocoDef[] = [
       { nome: 'Marketing Mídia', gold: ['Marketing Mídia', 'Marketing'] },
       { nome: 'Marketing Disparos', gold: ['Marketing Disparos'] },
       { nome: 'Marketing Produção', gold: ['Marketing Produção'] },
-      { nome: 'MKT Programa de Pontos', gold: ['MKT Programa de Pontos'] },
-      { nome: 'MKT Beneficios', gold: ['MKT Beneficios'] },
+      // Consumações com os MESMOS nomes/itens/ordem da DRE (Despesas Comerciais).
+      { nome: '[Consumação] Aniversários', gold: ['[Consumação] Aniversários'] },
+      { nome: '[Consumação] Benefício Clientes', gold: ['[Consumação] Benefício Clientes'] },
+      { nome: '[Consumação] Programa de Pontos', gold: ['[Consumação] Programa de Pontos'] },
+      { nome: '[Consumação] Influencers', gold: ['[Consumação] Influencers'] },
       { nome: 'Atrações Programação', gold: ['Atrações Programação'] },
-      { nome: 'Produção Mensal Fixo', gold: ['Produção Mensal Fixo'] },
+      { nome: '[Consumação] Artistas', gold: ['[Consumação] Artistas'] },
       { nome: 'Produção Eventos', gold: ['Produção Eventos'] },
-      { nome: 'Consumação Artistas', gold: ['Consumação Artistas'] },
+      { nome: 'Produção Mensal Fixo', gold: ['Produção Mensal Fixo'] },
     ]
   },
   {
