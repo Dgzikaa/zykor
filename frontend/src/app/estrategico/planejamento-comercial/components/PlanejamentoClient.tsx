@@ -544,7 +544,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
         ) : (
           <div className="container mx-auto px-2 py-4 max-w-[98vw]">
             <div className="flex gap-4">
-              <div className="flex-1 hidden md:block">
+              {/* min-w-0: sem isto o flex item cresce até a largura da tabela e o
+                  scroll horizontal vaza pro <main>, fazendo o position:sticky das
+                  colunas fixas (que gruda em .planejamento-container) nunca engatar. */}
+              <div className="flex-1 min-w-0 hidden md:block">
                 {/* Tabela Completa */}
                 <div className="bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-xl shadow-sm">
                   {/* MOBILE: lista de cards (a tabela densa só aparece no desktop) */}
