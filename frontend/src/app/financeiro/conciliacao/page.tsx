@@ -285,6 +285,32 @@ export default function ConciliacaoPage() {
                                       <p className="text-[11px] text-muted-foreground mt-1">A linha com ◀ em vermelho é onde está o furo (crédito ou débito). ContaHub crédito = vendas Cred; Stone crédito = bandeira créd/private label.</p>
                                     </div>
                                   )}
+
+                                  {dia.divergencias && (dia.divergencias.so_stone.length > 0 || dia.divergencias.so_ch.length > 0) && (
+                                    <div className="rounded border border-red-200 dark:border-red-900/40 bg-red-50/40 dark:bg-red-900/10 p-2">
+                                      <div className="text-xs font-semibold text-red-700 dark:text-red-400 mb-2 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" />Transações que explicam a diferença (casadas por tipo + valor)</div>
+                                      <div className="grid md:grid-cols-2 gap-3">
+                                        <div>
+                                          <div className="text-[11px] font-medium text-muted-foreground mb-1">Só na Stone — cobrado, faltando no ContaHub ({dia.divergencias.resumo.so_stone_qtd} · {fmtBRL(dia.divergencias.resumo.so_stone_valor)})</div>
+                                          {dia.divergencias.so_stone.length === 0 ? <div className="text-[11px] text-muted-foreground">—</div> : (
+                                            <table className="text-[11px] w-full"><thead className="text-muted-foreground"><tr><th className="text-left py-0.5 pr-2">Hora</th><th className="text-left py-0.5 pr-2">Tipo</th><th className="text-left py-0.5 pr-2">Bandeira</th><th className="text-left py-0.5 pr-2">Cartão</th><th className="text-right py-0.5">Valor</th></tr></thead>
+                                              <tbody>{dia.divergencias.so_stone.map((t: any, i: number) => (<tr key={i} className="border-t border-border/40"><td className="py-0.5 pr-2 text-muted-foreground">{fmtHora(t.hora)}</td><td className="py-0.5 pr-2">{t.tipo}</td><td className="py-0.5 pr-2">{brandName(t.brand_id)}</td><td className="py-0.5 pr-2 font-mono">{t.cartao}</td><td className="py-0.5 text-right font-medium">{fmtBRL(t.valor)}</td></tr>))}</tbody>
+                                            </table>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <div className="text-[11px] font-medium text-muted-foreground mb-1">Só no ContaHub — lançado, faltando na Stone ({dia.divergencias.resumo.so_ch_qtd} · {fmtBRL(dia.divergencias.resumo.so_ch_valor)})</div>
+                                          {dia.divergencias.so_ch.length === 0 ? <div className="text-[11px] text-muted-foreground">—</div> : (
+                                            <table className="text-[11px] w-full"><thead className="text-muted-foreground"><tr><th className="text-left py-0.5 pr-2">Tipo</th><th className="text-left py-0.5 pr-2">Cliente</th><th className="text-left py-0.5 pr-2">Mesa</th><th className="text-left py-0.5 pr-2">Meio</th><th className="text-right py-0.5">Valor</th></tr></thead>
+                                              <tbody>{dia.divergencias.so_ch.map((t: any, i: number) => (<tr key={i} className="border-t border-border/40"><td className="py-0.5 pr-2">{t.tipo}</td><td className="py-0.5 pr-2">{t.cliente || '—'}</td><td className="py-0.5 pr-2 text-muted-foreground">{t.mesa || '—'}</td><td className="py-0.5 pr-2 text-muted-foreground">{t.meio || '—'}</td><td className="py-0.5 text-right font-medium">{fmtBRL(t.valor)}</td></tr>))}</tbody>
+                                            </table>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <p className="text-[11px] text-muted-foreground mt-2">Match por tipo + valor (ContaHub não fornece NSU/autorização). Valores negativos = estornos/ajustes lançados no ContaHub.</p>
+                                    </div>
+                                  )}
+
                                   <div>
                                     <div className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1"><CreditCard className="w-3.5 h-3.5" />Por bandeira</div>
                                     <div className="overflow-x-auto"><table className="text-xs w-full">

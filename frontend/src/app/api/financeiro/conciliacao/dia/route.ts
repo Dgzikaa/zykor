@@ -117,6 +117,11 @@ export async function GET(request: NextRequest) {
     ],
   };
 
+  // Transações candidatas que explicam a diferença (match por tipo+valor).
+  let divergencias: any = null;
+  const { data: dv } = await (supabase as any).rpc('stone_dia_divergencias', { p_bar_id: user.bar_id, p_data: data });
+  divergencias = dv || null;
+
   return NextResponse.json({
     success: true,
     data,
@@ -130,6 +135,7 @@ export async function GET(request: NextRequest) {
       repasses_total: repasses.reduce((s, r) => s + r.valor, 0),
     },
     conciliacao,
+    divergencias,
     por_bandeira,
     transacoes,
     repasses,
