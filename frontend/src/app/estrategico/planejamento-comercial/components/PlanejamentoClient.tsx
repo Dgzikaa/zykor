@@ -1177,18 +1177,15 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         })}
                     </tbody>
                     <tfoot>
-                      <tr className="font-bold">
-                        <td colSpan={5 + (gruposAbertos.clientes ? 3 : 1) + (gruposAbertos.ticket ? 3 : 1) + (gruposAbertos.artistico ? 6 : 1) + (gruposAbertos.producao ? 7 : 1) + 1} className="sticky bottom-0 z-20 px-3 py-2.5 text-[11px] bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600">
-                          <div className="flex flex-wrap gap-x-5 gap-y-1 text-gray-800 dark:text-gray-100">
-                            <span>Σ Eventos: <b>{totaisAgregados.totalEventos}</b></span>
-                            <span>Σ Receita real: <b className="text-green-700 dark:text-green-400">{formatarMoeda(totaisAgregados.realizado)}</b></span>
-                            <span>Σ Meta M1: <b>{formatarMoeda(totaisAgregados.metaM1)}</b></span>
-                            <span>Σ Clientes: <b>{totaisAgregados.totalClientes.toLocaleString('pt-BR')}</b></span>
-                            <span>Ticket médio: <b>{formatarMoeda(totaisAgregados.ticketMedioGeral)}</b></span>
-                            <span>Σ Custo art+prod: <b>{formatarMoeda(totaisAgregados.custoTotal)}</b></span>
-                            <span>% Custo/Fat: <b>{totaisAgregados.percentCustoFat.toFixed(1)}%</b></span>
-                          </div>
-                        </td>
+                      <tr className="font-bold text-[11px] text-gray-800 dark:text-gray-100">
+                        <td colSpan={3} className="sticky bottom-0 left-0 z-30 px-3 py-2 bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600 whitespace-nowrap">TOTAIS · {totaisAgregados.totalEventos} ev</td>
+                        <td className="sticky bottom-0 z-20 px-2 py-2 text-right bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600 text-green-700 dark:text-green-400 whitespace-nowrap">{formatarMoeda(totaisAgregados.realizado)}</td>
+                        <td className="sticky bottom-0 z-20 px-2 py-2 text-right bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600 whitespace-nowrap">{formatarMoeda(totaisAgregados.metaM1)}</td>
+                        <td colSpan={gruposAbertos.clientes ? 3 : 1} className="sticky bottom-0 z-20 px-2 py-2 text-center bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600 whitespace-nowrap" title="Total de clientes">{totaisAgregados.totalClientes.toLocaleString('pt-BR')}</td>
+                        <td colSpan={gruposAbertos.ticket ? 3 : 1} className="sticky bottom-0 z-20 px-2 py-2 text-center bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600 whitespace-nowrap" title="Ticket médio">{formatarMoeda(totaisAgregados.ticketMedioGeral)}</td>
+                        <td colSpan={gruposAbertos.artistico ? 6 : 1} className="sticky bottom-0 z-20 px-2 py-2 text-center bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600 whitespace-nowrap" title="Custo artístico + produção e % do faturamento">Custo {formatarMoeda(totaisAgregados.custoTotal)} · {totaisAgregados.percentCustoFat.toFixed(1)}%</td>
+                        <td colSpan={gruposAbertos.producao ? 7 : 1} className="sticky bottom-0 z-20 px-2 py-2 bg-slate-100 dark:bg-slate-800 border-t-2 border-r border-slate-300 dark:border-slate-600"></td>
+                        <td className="sticky bottom-0 z-20 px-2 py-2 bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600"></td>
                       </tr>
                     </tfoot>
                   </table>
