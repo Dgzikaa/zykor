@@ -177,7 +177,16 @@ serve(async (req) => {
       if (status === 0 || (status >= 500)) { erros++; continue }
 
       // Grava cada baixa (com id_reconciliacao) — fonte da conciliação REAL do DFC.
-      const arr = Array.isArray(data) ? data : (Array.isArray(data?.itens) ? data.itens : [])
+      // IMPORTANTE: tratar os MESMOS formatos que extrairDataPagamento (array, .itens,
+      // .baixas, .data e objeto único). Antes só tratava array/.itens → quando o CA
+      // devolvia a baixa como objeto único ou {baixas:[...]}, pegava a data mas NÃO
+      // gravava a baixa (parcela paga ficava fora do DFC). Bug do furo da DFC.
+      const arr: any[] = Array.isArray(data) ? data
+        : Array.isArray(data?.itens) ? data.itens
+        : Array.isArray(data?.baixas) ? data.baixas
+        : Array.isArray(data?.data) ? data.data
+        : (data && typeof data === 'object' && data.id) ? [data]
+        : []
       const recs = arr.filter((bx: any) => bx?.id).map((bx: any) => ({
         baixa_id: bx.id, bar_id: barId, id_parcela: bx.id_parcela || row.contaazul_id,
         data_pagamento: (bx.data_pagamento || '').slice(0, 10) || null,
