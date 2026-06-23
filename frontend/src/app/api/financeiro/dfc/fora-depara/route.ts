@@ -6,8 +6,8 @@ export const revalidate = 300;
 
 /**
  * GET /api/financeiro/dfc/fora-depara?bar_id=3&ano=2026
- * Categorias do Conta Azul FORA do de-para da DRE (somem dos relatórios).
- * Fonte: financial.get_dfc_fora_depara.
+ * TODAS as categorias do CA com movimento + grupo_dfc atual (null = não classificada).
+ * Fonte: financial.get_dfc_categorias.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
     const supabase = await getAdminClient();
     const { data, error } = await (supabase as any).schema('financial')
-      .rpc('get_dfc_fora_depara', { p_bar_id: barId, p_ano: ano });
+      .rpc('get_dfc_categorias', { p_bar_id: barId, p_ano: ano });
     if (error) throw error;
 
     return NextResponse.json({ categorias: data ?? [] });

@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 type Linha = { mes: string; grupo_dfc: string; categoria: string; categoria_macro?: string; ordem_macro?: number; ordem_sub?: number; entradas: number; saidas: number; net: number };
 
-type ForaItem = { categoria: string; qtd: number; total: number | string; na_dre: boolean; na_orcamentacao: boolean; primeiro: string; ultimo: string };
+type ForaItem = { categoria: string; qtd: number; total: number | string; grupo_dfc: string | null; na_dre: boolean; na_orcamentacao: boolean; primeiro: string; ultimo: string };
 
 const MES_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const GRUPOS = ['OPERACIONAL', 'INVESTIMENTO', 'FINANCIAMENTO'] as const;
@@ -27,6 +27,7 @@ export default function DfcPage() {
   const [loading, setLoading] = useState(true);
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
   const [foraDepara, setForaDepara] = useState<ForaItem[]>([]);
+  const [soPendentes, setSoPendentes] = useState(false);
 
   const carregarDfc = useCallback(() => {
     if (!selectedBar) return;
@@ -121,7 +122,7 @@ export default function DfcPage() {
       <Tabs defaultValue="fluxo">
         <TabsList className="mb-3">
           <TabsTrigger value="fluxo">Fluxo de Caixa</TabsTrigger>
-          <TabsTrigger value="fora">Fora do de-para{foraDepara.length > 0 && <span className="ml-1.5 text-[10px] rounded-full px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">{foraDepara.length}</span>}</TabsTrigger>
+          <TabsTrigger value="fora">Categorias{foraDepara.filter(c => !c.grupo_dfc).length > 0 && <span className="ml-1.5 text-[10px] rounded-full px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" title="não classificadas">{foraDepara.filter(c => !c.grupo_dfc).length}</span>}</TabsTrigger>
         </TabsList>
         <TabsContent value="fluxo">
       {loading ? <Skeleton className="h-[500px]" /> : (
@@ -185,14 +186,21 @@ export default function DfcPage() {
         </TabsContent>
         <TabsContent value="fora">
           <Card className="p-4">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              Categorias do Conta Azul com movimento em {ano} que <b>não estão classificadas no DFC</b> deste bar —
-              por isso ficam de fora do fluxo de caixa. <b>Classifique no dropdown</b> e a categoria entra na hora
-              (regra salva como exceção do bar, sem dev). A coluna DRE/Orç avisa se também falta nesses relatórios.
-            </p>
+            <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+              <p className="text-xs text-gray-500 dark:text-gray-400 max-w-2xl">
+                Todas as categorias do Conta Azul com movimento em {ano} no <b>{selectedBar?.nome || 'bar'}</b>.
+                <b> Classifique no dropdown</b> — a regra é salva como exceção deste bar e entra no DFC na hora, sem dev.
+                As <span className="text-amber-600 font-medium">não classificadas</span> ficam de fora do fluxo de caixa.
+                A coluna DRE/Orç avisa se também falta nesses relatórios.
+              </p>
+              <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none whitespace-nowrap text-gray-700 dark:text-gray-300">
+                <input type="checkbox" checked={soPendentes} onChange={e => setSoPendentes(e.target.checked)} className="accent-amber-600" />
+                Só não classificadas
+              </label>
+            </div>
             {foraDepara.length === 0 ? (
-              <div className="flex items-center justify-center gap-2 text-sm text-emerald-600 py-8">
-                <CheckCircle2 className="w-5 h-5" />Tudo mapeado — nenhuma categoria fora do de-para.
+              <div className="flex items-center justify-center gap-2 text-sm text-gray-400 py-8">
+                <CheckCircle2 className="w-5 h-5" />Nenhuma categoria com movimento em {ano}.
               </div>
             ) : (
               <table className="w-full text-xs">
@@ -205,9 +213,9 @@ export default function DfcPage() {
                   <th className="px-2 py-2 text-center">Classificar no DFC</th>
                 </tr></thead>
                 <tbody>
-                  {foraDepara.map(c => (
-                    <tr key={c.categoria} className="border-b last:border-0 hover:bg-amber-50/50 dark:hover:bg-amber-900/10">
-                      <td className="px-2 py-1.5 font-medium"><span className="flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />{c.categoria}</span></td>
+                  {(soPendentes ? foraDepara.filter(c => !c.grupo_dfc) : foraDepara).map(c => (
+                    <tr key={c.categoria} className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                      <td className="px-2 py-1.5 font-medium"><span className="flex items-center gap-1.5">{!c.grupo_dfc && <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />}{c.categoria}</span></td>
                       <td className="px-2 py-1.5 text-right text-gray-500">{c.qtd}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmt(n(c.total))}</td>
                       <td className="px-2 py-1.5 text-gray-500 whitespace-nowrap">{c.primeiro?.slice(5)} → {c.ultimo?.slice(5)}</td>
@@ -218,12 +226,12 @@ export default function DfcPage() {
                       </td>
                       <td className="px-2 py-1.5 text-center">
                         <select
-                          className="h-7 text-xs border rounded px-1 bg-white dark:bg-gray-800 disabled:opacity-50"
-                          defaultValue=""
+                          className={`h-7 text-xs border rounded px-1 bg-white dark:bg-gray-800 disabled:opacity-50 ${!c.grupo_dfc ? 'border-amber-400 text-amber-700 dark:text-amber-300' : ''}`}
+                          value={c.grupo_dfc || ''}
                           disabled={salvandoCat === c.categoria}
                           onChange={e => classificar(c.categoria, e.target.value)}
                         >
-                          <option value="" disabled>{salvandoCat === c.categoria ? 'salvando…' : 'classificar…'}</option>
+                          <option value="" disabled>{salvandoCat === c.categoria ? 'salvando…' : '— classificar —'}</option>
                           <option value="OPERACIONAL">Operacional</option>
                           <option value="INVESTIMENTO">Investimento</option>
                           <option value="FINANCIAMENTO">Financiamento</option>
