@@ -184,8 +184,8 @@ const ESPECIAIS: Record<string, OrigemLinha> = {
   },
   'Contratos Cashback Mensal': {
     titulo: 'Contratos Cashback Mensal',
-    descricao: 'Cashback mensal e contratos anuais (Ambev). Realizado puxa automático do Conta Azul.',
-    calculo: 'Realizado: Conta Azul (categorias "Contrato(s) Cashback Mensal" + "Contratos Anuais" → CONTRATOS) + ajustes manuais.',
+    descricao: 'Cashback mensal Ambev. Realizado puxa automático do Conta Azul. Contratos anuais NÃO entram (ficam só na DRE).',
+    calculo: 'Realizado: Conta Azul (categoria "Contrato(s) Cashback Mensal" → CONTRATOS) + ajustes manuais.',
     planejado: PLANEJADO_PADRAO,
     projetado: PROJETADO_PADRAO,
     realizado: REALIZADO_CA,

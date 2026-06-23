@@ -22,6 +22,14 @@ update orcamento_planilha
    set categoria_nome = 'Contratos Cashback Mensal'
  where categoria_nome = 'Contratos' and bar_id in (3,4);
 
--- 3) refresh (rodar após o de-para):
+-- 3) Contratos Anuais NÃO entra na orçamentação (é projeção da DRE; na DRE o anual
+--    vai pra Investimentos). Re-mapeia p/ categoria_zykor próprio que nenhuma linha
+--    da orçamentação referencia → some da orçamentação, sem afetar a DRE (de-para
+--    separado em financial.dre_categoria_macro).
+update meta.categoria_zykor_map
+   set categoria_zykor = 'CONTRATOS ANUAIS', bloco_dre = 'Investimentos'
+ where categoria_ca in ('Contratos Anuais','Ambev Bonificações Contrato Anual');
+
+-- 4) refresh (rodar após o de-para):
 --   select public.refresh_orcamento_gold(3, '2024-12-01', '2026-12-31');
 --   select public.refresh_orcamento_gold(4, '2024-12-01', '2026-12-31');
