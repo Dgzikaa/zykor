@@ -100,21 +100,29 @@ async function handleLogin(request: NextRequest) {
 
     // Verificar se precisa redefinir senha
     if (!usuarioPrincipal.senha_redefinida) {
-      const token = crypto.randomUUID();
-      const tokenExpiry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-
-      // Persistir token no schema atual
-      await adminClient
-      .schema('auth_custom')
-      .from('usuarios')
-        .update({
-          reset_token: token,
-          reset_token_expiry: tokenExpiry,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', usuarioPrincipal.id);
-
-      // (Removido fallback para tabela legada 'usuarios_bar' que nao existe.)
+      // REUSAR token ainda válido em vez de regenerar a cada login. Antes, cada
+      // tentativa gerava um token novo -> se o usuário tivesse a aba de redefinição
+      // aberta de uma tentativa anterior, ela ficava com token velho e dava
+      // "Token inválido". Só gera novo se não existir ou já tiver expirado. TTL 24h
+      // (era 60min) pra cobrir 1º acesso sem pressa.
+      const agora = Date.now();
+      const expiraExistente = usuarioPrincipal.reset_token_expiry
+        ? new Date(usuarioPrincipal.reset_token_expiry).getTime()
+        : 0;
+      let token: string = usuarioPrincipal.reset_token || '';
+      if (!token || expiraExistente <= agora) {
+        token = crypto.randomUUID();
+        const tokenExpiry = new Date(agora + 24 * 60 * 60 * 1000).toISOString();
+        await adminClient
+          .schema('auth_custom')
+          .from('usuarios')
+          .update({
+            reset_token: token,
+            reset_token_expiry: tokenExpiry,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', usuarioPrincipal.id);
+      }
 
       // URL RELATIVA: a navegacao acontece no mesmo origin que o usuario ja esta.
       // (Antes era absoluta, montada do header host -> na Vercel podia apontar pro
