@@ -1170,6 +1170,21 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                           );
                         })}
                     </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-600">
+                        <td colSpan={5 + (gruposAbertos.clientes ? 3 : 1) + (gruposAbertos.ticket ? 3 : 1) + (gruposAbertos.artistico ? 4 : 1) + (gruposAbertos.producao ? 7 : 1) + 1} className="px-3 py-2.5 text-[11px]">
+                          <div className="flex flex-wrap gap-x-5 gap-y-1 text-gray-800 dark:text-gray-100">
+                            <span>Σ Eventos: <b>{totaisAgregados.totalEventos}</b></span>
+                            <span>Σ Receita real: <b className="text-green-700 dark:text-green-400">{formatarMoeda(totaisAgregados.realizado)}</b></span>
+                            <span>Σ Meta M1: <b>{formatarMoeda(totaisAgregados.metaM1)}</b></span>
+                            <span>Σ Clientes: <b>{totaisAgregados.totalClientes.toLocaleString('pt-BR')}</b></span>
+                            <span>Ticket médio: <b>{formatarMoeda(totaisAgregados.ticketMedioGeral)}</b></span>
+                            <span>Σ Custo art+prod: <b>{formatarMoeda(totaisAgregados.custoTotal)}</b></span>
+                            <span>% Custo/Fat: <b>{totaisAgregados.percentCustoFat.toFixed(1)}%</b></span>
+                          </div>
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
                   </div>
                 </div>
