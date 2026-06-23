@@ -108,6 +108,7 @@ type SubFixa = {
   nome: string;
   gold?: string[];   // categorias_zykor do gold que somam nessa linha
   manualKey?: string; // categoria do dre_manual a somar (quando difere do nome da linha)
+  nomePorBar?: Record<number, string>; // nome/identidade da linha por bar (caso isolado: Deboche usa 'Administrativo Local')
   // Realizado SÓ da orçamentação (orcamento_planilha.valor_realizado_manual),
   // editável inline. NÃO vai pra DRE. Pra linhas que não existem no Conta Azul
   // (MKT Disparos/Pontos/Benefícios, Produção Mensal Fixo).
@@ -180,7 +181,7 @@ const ESTRUTURA: BlocoDef[] = [
   {
     nome: 'Despesas Administrativas', tipo: 'despesa', cor: COR.adm, modo: 'fixo', subs: [
       { nome: 'Escritório Central', gold: ['Escritório Central'] },
-      { nome: 'Administrativo Ordinário', gold: ['Administrativo Ordinário'] },
+      { nome: 'Administrativo Ordinário', gold: ['Administrativo Ordinário', 'Administrativo Local'], nomePorBar: { 4: 'Administrativo Local' } },
       { nome: 'RECURSOS HUMANOS', gold: ['RECURSOS HUMANOS'] },
     ]
   },
@@ -395,7 +396,8 @@ export async function getOrcamentacaoCompleta(
       //   orcOnly -> digitado na tela (valor_realizado_manual); só na orçamentação, não vai pra DRE.
       //   demais  -> Conta Azul (gold) + ajustes da DRE Manual (receita soma; despesa subtrai).
       const montarSub = (s: SubFixa): SubcategoriaOrcamento => {
-        const prow = planilha(s.nome);
+        const nomeBar = s.nomePorBar?.[barId] ?? s.nome; // caso isolado por bar (ex: Deboche -> Administrativo Local)
+        const prow = planilha(nomeBar);
         const plan = num(prow?.valor_planejado);
         let proj = num(prow?.valor_projetado);
         // Item 4: Atrações Programação / Produção Eventos -> projeção = somatório do
@@ -413,12 +415,12 @@ export async function getOrcamentacaoCompleta(
           realizadoFonte = 'manual';
         } else {
           const goldVal = (s.gold || []).reduce((sum, g) => sum + goldCat(g), 0);
-          const manualVal = manualCat(s.manualKey || s.nome);
+          const manualVal = manualCat(s.manualKey || nomeBar);
           real = bloco.tipo === 'receita' ? goldVal + manualVal : goldVal - manualVal;
           realizadoFonte = 'ca';
           goldCategorias = s.gold;
         }
-        return { nome: s.nome, planejado: plan, projecao: proj, realizado: real, isPercentage: false, manual: !!s.orcOnly, realizadoFonte, goldCategorias };
+        return { nome: nomeBar, planejado: plan, projecao: proj, realizado: real, isPercentage: false, manual: !!s.orcOnly, realizadoFonte, goldCategorias };
       };
       const subcategorias = bloco.subs.map(s => {
         // Linha-pai com filhos (ex.: CMO Fixo): soma dos filhos; UI expande pra ver o detalhe.

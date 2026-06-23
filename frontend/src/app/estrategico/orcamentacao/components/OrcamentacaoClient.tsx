@@ -740,7 +740,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                           <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", categoria.cor, "bg-opacity-60 dark:bg-opacity-30")} style={{ height: '44px' }}>
                             <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-700 dark:text-blue-300">{formatarMoeda(sinalDre(totPlan, categoria.tipo))}</span>
                             <div className="w-px h-3 bg-white/40" />
-                            <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(sinalDre(totProj, categoria.tipo))}</span>
+                            <span className="flex-1 text-xs font-bold text-center whitespace-nowrap text-gray-900 dark:text-white">{formatarMoeda(sinalDre(totProj, categoria.tipo))}{/* item 6: % do faturamento tbm no grupo macro */}{categoria.tipo === 'despesa' && (mes.totais?.faturamento_meta_proj || 0) > 0 && totProj !== 0 && <span className="ml-1 text-[9px] font-medium text-gray-500 dark:text-gray-400">{((Math.abs(totProj) / mes.totais.faturamento_meta_proj) * 100).toFixed(1)}%</span>}</span>
                             <div className="w-px h-3 bg-white/40" />
                             <span className={cn("flex-1 text-xs font-bold text-center whitespace-nowrap", corClasseReal)}>{formatarMoeda(sinalDre(totReal, categoria.tipo))}</span>
                           </div>
