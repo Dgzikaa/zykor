@@ -4,9 +4,12 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 type Linha = { mes: string; grupo_dfc: string; categoria: string; categoria_macro?: string; ordem_macro?: number; ordem_sub?: number; entradas: number; saidas: number; net: number };
+
+type ForaItem = { categoria: string; qtd: number; total: number | string; na_orcamentacao: boolean; primeiro: string; ultimo: string };
 
 const MES_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const GRUPOS = ['OPERACIONAL', 'INVESTIMENTO', 'FINANCIAMENTO'] as const;
@@ -23,6 +26,7 @@ export default function DfcPage() {
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [loading, setLoading] = useState(true);
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
+  const [foraDepara, setForaDepara] = useState<ForaItem[]>([]);
 
   useEffect(() => {
     if (!selectedBar) return;
@@ -33,6 +37,15 @@ export default function DfcPage() {
       .catch(() => setLinhas([]))
       .finally(() => setLoading(false));
   }, [selectedBar, ano, soConciliado]);
+
+  // Categorias fora do de-para da DRE (aba "Fora do de-para").
+  useEffect(() => {
+    if (!selectedBar) return;
+    fetch(`/api/financeiro/dfc/fora-depara?bar_id=${selectedBar.id}&ano=${ano}`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => setForaDepara(Array.isArray(d.categorias) ? d.categorias : []))
+      .catch(() => setForaDepara([]));
+  }, [selectedBar, ano]);
 
   // Hierarquia: grupo -> macro-categoria (igual DRE) -> categoria, cada um com [12] meses
   type MacroNode = { mes: number[]; ordem: number; cats: Record<string, { mes: number[]; ordem: number }> };
@@ -89,6 +102,12 @@ export default function DfcPage() {
         </div>
       </div>
 
+      <Tabs defaultValue="fluxo">
+        <TabsList className="mb-3">
+          <TabsTrigger value="fluxo">Fluxo de Caixa</TabsTrigger>
+          <TabsTrigger value="fora">Fora do de-para{foraDepara.length > 0 && <span className="ml-1.5 text-[10px] rounded-full px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">{foraDepara.length}</span>}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="fluxo">
       {loading ? <Skeleton className="h-[500px]" /> : (
         <Card className="p-0 overflow-x-auto">
           <table className="w-full text-xs border-collapse">
@@ -147,6 +166,42 @@ export default function DfcPage() {
           </table>
         </Card>
       )}
+        </TabsContent>
+        <TabsContent value="fora">
+          <Card className="p-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Categorias do Conta Azul com movimento em {ano} que <b>não estão no de-para da DRE</b> —
+              por isso somem dos relatórios. Mapeie em <code>financial.dre_categoria_macro</code> pra aparecerem.
+            </p>
+            {foraDepara.length === 0 ? (
+              <div className="flex items-center justify-center gap-2 text-sm text-emerald-600 py-8">
+                <CheckCircle2 className="w-5 h-5" />Tudo mapeado — nenhuma categoria fora do de-para.
+              </div>
+            ) : (
+              <table className="w-full text-xs">
+                <thead><tr className="border-b text-left text-gray-500 dark:text-gray-400">
+                  <th className="px-2 py-2">Categoria</th>
+                  <th className="px-2 py-2 text-right">Lançamentos</th>
+                  <th className="px-2 py-2 text-right">Total</th>
+                  <th className="px-2 py-2 whitespace-nowrap">Período</th>
+                  <th className="px-2 py-2 text-center" title="Se também falta no de-para da Orçamentação">Orçam.</th>
+                </tr></thead>
+                <tbody>
+                  {foraDepara.map(c => (
+                    <tr key={c.categoria} className="border-b last:border-0 hover:bg-amber-50/50 dark:hover:bg-amber-900/10">
+                      <td className="px-2 py-1.5 font-medium"><span className="flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />{c.categoria}</span></td>
+                      <td className="px-2 py-1.5 text-right text-gray-500">{c.qtd}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmt(n(c.total))}</td>
+                      <td className="px-2 py-1.5 text-gray-500 whitespace-nowrap">{c.primeiro?.slice(5)} → {c.ultimo?.slice(5)}</td>
+                      <td className="px-2 py-1.5 text-center">{c.na_orcamentacao ? <span className="text-emerald-600">ok</span> : <span className="text-red-500" title="também falta na Orçamentação">falta</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
