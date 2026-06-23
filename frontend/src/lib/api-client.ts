@@ -8,6 +8,8 @@
  * O servidor valida o JWT e aplica o bar_id do header se fornecido.
  */
 
+import { isPublicRoute } from '@/lib/auth/public-routes';
+
 export interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   body?: unknown;
@@ -54,10 +56,10 @@ export async function apiCall(endpoint: string, options: ApiOptions = {}) {
 
     // Verificar se a resposta é OK
     if (!response.ok) {
-      // Se 401, token expirado - redirecionar para login (mas não se já está no login)
+      // Se 401, token expirado - redirecionar para login (mas não em rotas públicas:
+      // login/auth/redefinir-senha — senão derruba o 1º acesso sem sessão)
       if (response.status === 401 && typeof window !== 'undefined') {
-        const isOnLoginPage = window.location.pathname === '/login';
-        if (!isOnLoginPage && !endpoint.includes('/api/auth/me')) {
+        if (!isPublicRoute(window.location.pathname) && !endpoint.includes('/api/auth/me')) {
           const { clearAuthCookie } = await import('@/lib/cookies');
           clearAuthCookie();
           window.location.href = '/login';

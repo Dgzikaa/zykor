@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { isPublicRoute } from '@/lib/auth/public-routes';
 
 interface Usuario {
   id: number;
@@ -154,7 +155,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         // TODO(rodrigo/2026-05): Limpar cache sgb_user
         localStorage.removeItem('sgb_user');
 
-        if (!window.location.pathname.startsWith('/login')) {
+        // Rotas públicas (login, auth, redefinir-senha) NÃO redirecionam: o usuário
+        // de 1º acesso ainda não tem sessão e precisa ficar na tela de criar senha.
+        if (!isPublicRoute(window.location.pathname)) {
           window.location.href = '/login';
         }
       }

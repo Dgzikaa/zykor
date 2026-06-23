@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { toast } from 'sonner'
+import { isPublicRoute } from '@/lib/auth/public-routes'
 
 // Helper para fazer requests autenticadas nas APIs do FP
 export async function fetchFP(url: string, options: RequestInit = {}) {
@@ -69,10 +70,10 @@ export async function fetchFP(url: string, options: RequestInit = {}) {
       description: 'Por favor, faça login novamente.'
     })
     
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && !isPublicRoute(window.location.pathname)) {
       window.location.href = '/login'
     }
-    
+
     throw new Error('Usuário não autenticado. Faça login novamente.')
   }
   
@@ -137,7 +138,7 @@ export async function fetchFP(url: string, options: RequestInit = {}) {
             description: 'Faça login novamente para continuar.'
           })
           
-          if (typeof window !== 'undefined') {
+          if (typeof window !== 'undefined' && !isPublicRoute(window.location.pathname)) {
             window.location.href = '/login'
           }
           

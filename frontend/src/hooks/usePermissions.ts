@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { safeLocalStorage, isClient } from '@/lib/client-utils';
 import { userHasModule, userHasAnyModule } from '@/lib/permissions/resolver';
+import { isPublicRoute } from '@/lib/auth/public-routes';
 
 interface Usuario {
   id: number;
@@ -76,8 +77,8 @@ export function usePermissions(): PermissionsHook {
         setLoading(false);
         setIsInitialized(true);
         
-        // Só redirecionar se estiver inicializado e não for página de login
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        // Só redirecionar se não for rota pública (login/auth/redefinir-senha).
+        if (typeof window !== 'undefined' && !isPublicRoute(window.location.pathname)) {
           window.location.href = '/login';
         }
       } catch (error) {
@@ -105,8 +106,8 @@ export function usePermissions(): PermissionsHook {
         setLoading(false);
         setIsInitialized(true);
         
-        // Só redirecionar se estiver inicializado e não for página de login
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        // Só redirecionar se não for rota pública (login/auth/redefinir-senha).
+        if (typeof window !== 'undefined' && !isPublicRoute(window.location.pathname)) {
           window.location.href = '/login';
         }
       }
