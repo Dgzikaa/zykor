@@ -94,6 +94,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'FileText', label: 'DRE', href: '/financeiro/dre', permission: 'home' },
       { icon: 'TrendingUp', label: 'DFC', href: '/financeiro/dfc', permission: 'home' },
       { icon: 'Layers', label: 'Balanço Patrimonial', href: '/financeiro/balanco', permission: 'home' },
+      { icon: 'Scale', label: 'Conciliação', href: '/financeiro/conciliacao', permission: 'home' },
       { icon: 'FileSearch', label: 'Consultas CA', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
     ],
   },
