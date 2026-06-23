@@ -262,7 +262,7 @@ export async function getOrcamentacaoCompleta(
   const dataInicio = `${primeiro.ano}-${String(primeiro.mes).padStart(2, '0')}-01`;
   const dataFim = `${ultimo.ano}-${String(ultimo.mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
 
-  const [planilhaResult, goldResult, eventosResult, manuaisResult, consumacaoResult] = await Promise.all([
+  const [planilhaResult, goldResult, eventosResult, manuaisResult, consumacaoResult, planComResult] = await Promise.all([
     supabase
       .from('orcamento_planilha')
       .select('ano, mes, categoria_nome, valor_planejado, valor_projetado, valor_realizado_manual')
@@ -289,6 +289,14 @@ export async function getOrcamentacaoCompleta(
       .select('data, valor')
       .eq('bar_id', barId)
       .gte('data', dataInicio).lte('data', dataFim),
+    // Faturamento Meta: MESMA fonte do /planejamento-comercial (gold.planejamento),
+    // pra Planejado/Projetado/Realizado baterem com a tela. eventos_base.real_r não
+    // inclui Yuzer/Sympla (bar 4 ficava ~60k menor); o consolidado do gold inclui.
+    (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema('gold')
+      .from('planejamento')
+      .select('data_evento, m1_r, faturamento_total_consolidado')
+      .eq('bar_id', barId)
+      .gte('data_evento', dataInicio).lte('data_evento', dataFim).eq('ativo', true),
   ]);
 
   const dadosPlanilha = (planilhaResult.data || []) as OrcamentoPlanilhaRow[];
@@ -296,6 +304,7 @@ export async function getOrcamentacaoCompleta(
   const eventosBase = (eventosResult.data || []) as Array<{ m1_r: number | null; real_r: number | null; data_evento: string; c_art: number | null; c_prod: number | null; c_art_projecao: number | null; c_prod_projecao: number | null }>;
   const dadosManuais = ((manuaisResult as { data?: unknown }).data || []) as Array<{ valor: number | string; categoria: string | null; categoria_macro: string | null; data_competencia: string }>;
   const dadosConsumacao = ((consumacaoResult as { data?: unknown }).data || []) as Array<{ data: string; valor: number | string }>;
+  const planComercial = ((planComResult as { data?: unknown }).data || []) as Array<{ data_evento: string; m1_r: number | null; faturamento_total_consolidado: number | null }>;
 
   // Consumação Artistas: soma mensal por (ano-mes).
   const consumacaoMesMap = new Map<string, number>();
@@ -345,23 +354,29 @@ export async function getOrcamentacaoCompleta(
   //              Hoje e futuro NÃO entram (esperam o real do ContaHub cair). Assim o
   //              dia em andamento / evento futuro não distorce com M1 baixo
   //              (ex: jogo do Brasil — real >> M1). Decisão do sócio jun/2026.
-  const hojeStr = new Date().toISOString().split('T')[0];
-  const realRMap = new Map<string, number>();
-  const projMap = new Map<string, number>();
-  const m1Map = new Map<string, number>();        // Σ M1 dos eventos por mês (empilhamento da meta)
+  // hoje em America/Sao_Paulo — igual ao /planejamento-comercial (evita off-by-3h do UTC).
+  const hojeStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const realRMap = new Map<string, number>();    // Σ faturamento consolidado = Realizado da tela de planejamento
+  const projMap = new Map<string, number>();      // Empilhamento M1: dia fechado usa o realizado; hoje/futuro usa M1
+  const m1Map = new Map<string, number>();        // Σ M1 dos eventos por mês = Meta M1 (Planejado)
   const cArtMesMap = new Map<string, number>();   // Σ artístico do planejamento (real do dia fechado / projeção do futuro)
   const cProdMesMap = new Map<string, number>();  // Σ produção idem
   mesesParaBuscar.forEach(({ mes, ano }) => {
     const mm = String(mes).padStart(2, '0');
     const ini = `${ano}-${mm}-01`;
     const fim = `${ano}-${mm}-${new Date(ano, mes, 0).getDate()}`;
+    const k = `${ano}-${mes}`;
+    // Faturamento Meta: mesma fonte/fórmula do /planejamento-comercial (gold.planejamento).
+    const planDoMes = planComercial.filter(e => e.data_evento >= ini && e.data_evento <= fim);
+    m1Map.set(k, planDoMes.reduce((s, e) => s + (e.m1_r || 0), 0));
+    realRMap.set(k, planDoMes.reduce((s, e) => s + (e.faturamento_total_consolidado || 0), 0));
+    projMap.set(k, planDoMes.reduce(
+      (s, e) => s + (e.data_evento < hojeStr && (e.faturamento_total_consolidado || 0) > 0
+        ? (e.faturamento_total_consolidado || 0) : (e.m1_r || 0)), 0));
+    // Custo artístico/produção (projeção de Atrações/Produção) seguem do eventos_base.
     const doMes = eventosBase.filter(e => e.data_evento >= ini && e.data_evento <= fim);
-    realRMap.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + (e.real_r || 0), 0));
-    m1Map.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + (e.m1_r || 0), 0));
-    projMap.set(`${ano}-${mes}`, doMes.reduce(
-      (s, e) => s + (e.data_evento < hojeStr ? (e.real_r || 0) : 0), 0));
-    cArtMesMap.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + ((e.c_art || 0) > 0 ? (e.c_art || 0) : (e.c_art_projecao || 0)), 0));
-    cProdMesMap.set(`${ano}-${mes}`, doMes.reduce((s, e) => s + ((e.c_prod || 0) > 0 ? (e.c_prod || 0) : (e.c_prod_projecao || 0)), 0));
+    cArtMesMap.set(k, doMes.reduce((s, e) => s + ((e.c_art || 0) > 0 ? (e.c_art || 0) : (e.c_art_projecao || 0)), 0));
+    cProdMesMap.set(k, doMes.reduce((s, e) => s + ((e.c_prod || 0) > 0 ? (e.c_prod || 0) : (e.c_prod_projecao || 0)), 0));
   });
 
   return mesesParaBuscar.map(({ mes, ano }) => {
@@ -375,10 +390,10 @@ export async function getOrcamentacaoCompleta(
     // + Pix Direto + Dinheiro + Receita de Eventos + Outras Receitas) + ajustes manuais
     // de receita (DRE Manual). É a base de receita que a DRE usa pros % de Var/CMV.
     // Planejado = MANUAL (planilha 'FATURAMENTO META' — o sócio preenche).
-    const fatPlan = num(planilha('FATURAMENTO META')?.valor_planejado);
-    // Projetado = empilhamento de M1 do mês (Σ m1_r dos eventos). Decisão do sócio jun/2026.
-    const fatProj = m1Map.get(`${ano}-${mes}`) || 0;
-    // Realizado = realizado do planejamento comercial (Σ real_r dos eventos do mês). Decisão sócio jun/2026.
+    // Espelha o /planejamento-comercial (decisão do sócio jun/2026):
+    //   Planejado = Meta M1 (Σ M1)  ·  Projetado = Empilhamento  ·  Realizado = Σ consolidado.
+    const fatPlan = m1Map.get(`${ano}-${mes}`) || 0;
+    const fatProj = projMap.get(`${ano}-${mes}`) || 0;
     const fatReal = realRMap.get(`${ano}-${mes}`) || 0;
 
     const categorias: CategoriaOrcamento[] = ESTRUTURA.map(bloco => {

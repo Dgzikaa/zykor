@@ -633,20 +633,11 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                     </div>
                     {/* Indicadores agregados (antes da tabela) — ordem: Faturamento Meta, Real Fixo, BreakEven, % CONTRIB */}
                     <div className={cn("flex items-center justify-between px-1 border-b border-gray-200", isMesAtual ? "bg-slate-200" : "bg-slate-100 dark:bg-slate-800")} style={{ height: '38px' }}>
-                      {(() => {
-                        const isEditFM = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === 'FATURAMENTO META' && editando?.campo === 'planejado';
-                        return isEditFM ? (
-                          <div className="flex-1 flex items-center justify-center gap-1">
-                            <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-20 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
-                            <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
-                          </div>
-                        ) : (
-                          <span
-                            className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-600 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
-                            onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: 'FATURAMENTO META', campo: 'planejado' }); setValorEdit(mes.totais.faturamento_meta_plan.toString()); }}
-                          >{formatarMoeda(mes.totais.faturamento_meta_plan)}</span>
-                        );
-                      })()}
+                      {/* Planejado = Meta M1 (Σ M1 do planejamento comercial), automático (não editável). */}
+                      <span
+                        className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-600"
+                        title="Planejado automático = Meta M1 (Σ M1 dos eventos no /planejamento-comercial)"
+                      >{formatarMoeda(mes.totais.faturamento_meta_plan)}</span>
                       <div className="w-px h-3 bg-slate-300" />
                       {/* Projetado = Empilhamento M1, automático (não editável). */}
                       <span
