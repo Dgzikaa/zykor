@@ -44,13 +44,19 @@ const ABAS = [
   { id: 'conciliacao', label: 'Conciliação', icon: Scale },
   { id: 'nf_stone', label: 'NF × Stone (CNPJ)', icon: Building2 },
   { id: 'contahub_nf', label: 'ContaHub × NF', icon: Receipt },
+  { id: 'analises', label: 'Análises', icon: PieChart },
+] as const;
+type AbaId = typeof ABAS[number]['id'];
+
+// Sub-abas dentro de "Análises" (Pendências, Taxas, Recebíveis, Mix, Chargebacks juntas).
+const SUB_ANALISES = [
   { id: 'pendencias', label: 'Pendências', icon: ListChecks },
   { id: 'taxas', label: 'Taxas (MDR)', icon: Percent },
   { id: 'recebiveis', label: 'Recebíveis', icon: CalendarClock },
   { id: 'mix', label: 'Mix & Maquininhas', icon: PieChart },
   { id: 'chargebacks', label: 'Chargebacks', icon: ShieldAlert },
 ] as const;
-type AbaId = typeof ABAS[number]['id'];
+type SubAnaliseId = typeof SUB_ANALISES[number]['id'];
 
 // Detalhe expandível por dia: mantém só "Onde diverge" + "Transações que explicam a
 // diferença". Por bandeira / Repasses / lista de Transações ficam ocultos por ora
@@ -68,6 +74,7 @@ export default function ConciliacaoPage() {
   const { showToast } = useToast();
 
   const [aba, setAba] = useState<AbaId>('conciliacao');
+  const [analiseSub, setAnaliseSub] = useState<SubAnaliseId>('pendencias');
   const [meses, setMeses] = useState<string[]>([]);
   const [mesSel, setMesSel] = useState<string>('');
   const [cnpjs, setCnpjs] = useState<string[]>([]);
@@ -172,8 +179,8 @@ export default function ConciliacaoPage() {
   }, [selectedBar, periodo, showToast]);
 
   useEffect(() => { carregar(); }, [carregar]);
-  useEffect(() => { carregarAnalise(); }, [carregarAnalise]);
-  useEffect(() => { if (aba === 'pendencias') carregarPendencias(); }, [aba, carregarPendencias]);
+  useEffect(() => { if (aba === 'analises' && analiseSub !== 'pendencias') carregarAnalise(); }, [aba, analiseSub, carregarAnalise]);
+  useEffect(() => { if (aba === 'analises' && analiseSub === 'pendencias') carregarPendencias(); }, [aba, analiseSub, carregarPendencias]);
   useEffect(() => { if (aba === 'nf_stone') carregarNfStone(); }, [aba, carregarNfStone]);
   useEffect(() => { if (aba === 'contahub_nf') carregarContahubNf(); }, [aba, carregarContahubNf]);
 
@@ -500,8 +507,22 @@ export default function ConciliacaoPage() {
             })()
         )}
 
-        {/* ===================== ABA PENDÊNCIAS ===================== */}
-        {aba === 'pendencias' && (
+        {/* ===================== ABA ANÁLISES (sub-abas) ===================== */}
+        {aba === 'analises' && (
+          <div className="flex flex-wrap gap-1.5 mb-4 border-b pb-3">
+            {SUB_ANALISES.map((s) => {
+              const Icon = s.icon; const ativo = analiseSub === s.id;
+              return (
+                <button key={s.id} onClick={() => setAnaliseSub(s.id)}
+                  className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition-colors ${ativo ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}>
+                  <Icon className="w-3.5 h-3.5" />{s.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {aba === 'analises' && analiseSub === 'pendencias' && (
           loadingPend ? <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
           : (() => {
             const reais = pendencias.filter((p) => p.classificacao === 'real');
@@ -546,14 +567,14 @@ export default function ConciliacaoPage() {
           })()
         )}
 
-        {/* ===================== ABAS DE ANÁLISE ===================== */}
-        {aba !== 'conciliacao' && aba !== 'pendencias' && (
+        {/* ===================== SUB-ABAS DE ANÁLISE (Taxas/Recebíveis/Mix/Chargebacks) ===================== */}
+        {aba === 'analises' && analiseSub !== 'pendencias' && (
           loadingAn ? <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
           : !an ? <Card><CardContent className="py-12 text-center text-muted-foreground">Sem dados no período.</CardContent></Card>
           : (
             <>
               {/* ---- TAXAS (MDR) ---- */}
-              {aba === 'taxas' && (
+              {analiseSub === 'taxas' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Bruto</div><div className="text-base font-bold">{fmtBRL(totais.bruto)}</div></CardContent></Card>
@@ -579,7 +600,7 @@ export default function ConciliacaoPage() {
               )}
 
               {/* ---- RECEBÍVEIS ---- */}
-              {aba === 'recebiveis' && (
+              {analiseSub === 'recebiveis' && (
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm font-semibold mb-2 flex items-center gap-1"><CalendarClock className="w-4 h-4" />A receber (líquido futuro) · {fmtBRL(totais.a_receber_total)}</div>
@@ -601,7 +622,7 @@ export default function ConciliacaoPage() {
               )}
 
               {/* ---- MIX & MAQUININHAS ---- */}
-              {aba === 'mix' && (
+              {analiseSub === 'mix' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Transações</div><div className="text-lg font-bold">{fmtNum(totais.qtd)}</div></CardContent></Card>
@@ -639,7 +660,7 @@ export default function ConciliacaoPage() {
               )}
 
               {/* ---- CHARGEBACKS ---- */}
-              {aba === 'chargebacks' && (
+              {analiseSub === 'chargebacks' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><ShieldAlert className="w-3 h-3 text-red-600" />Chargebacks</div><div className="text-lg font-bold text-red-600">{totais.chargebacks_qtd}</div></CardContent></Card>
