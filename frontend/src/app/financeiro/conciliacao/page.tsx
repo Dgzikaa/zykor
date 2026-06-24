@@ -449,7 +449,12 @@ export default function ConciliacaoPage() {
           : contahubNf.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground"><Building2 className="w-9 h-9 mx-auto mb-2 opacity-40" />Sem dados no período.</CardContent></Card>
           : (() => {
               const cnpjPorDia: Record<string, any[]> = {};
-              nfStone.forEach((r: any) => { (cnpjPorDia[r.data] ??= []).push(r); });
+              const cnpjMap = new Map<number, { cnpj_indice: number; cnpj_label: string; cnpj_documento: string }>();
+              nfStone.forEach((r: any) => {
+                (cnpjPorDia[r.data] ??= []).push(r);
+                if (!cnpjMap.has(r.cnpj_indice)) cnpjMap.set(r.cnpj_indice, { cnpj_indice: r.cnpj_indice, cnpj_label: r.cnpj_label, cnpj_documento: r.cnpj_documento });
+              });
+              const cnpjsDoBar = Array.from(cnpjMap.values()).sort((a, b) => a.cnpj_indice - b.cnpj_indice);
               const frac = (a: number, b: number) => { const m = Math.max(Math.abs(a), Math.abs(b), 1); return Math.abs(a - b) / m; };
               const corOk = (f: number) => f > 0.05 ? 'text-red-600 dark:text-red-400 font-semibold' : f > 0.005 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
               const t = contahubNf.reduce((a: any, r: any) => ({ stone: a.stone + Number(r.stone_bruto || 0), cartao: a.cartao + Number(r.contahub_cartao || 0), nf: a.nf + Number(r.nf_autorizado || 0), total: a.total + Number(r.contahub_total || 0) }), { stone: 0, cartao: 0, nf: 0, total: 0 });
@@ -473,7 +478,6 @@ export default function ConciliacaoPage() {
                         {contahubNf.map((r: any) => {
                           const stone = Number(r.stone_bruto || 0), nf = Number(r.nf_autorizado || 0), total = Number(r.contahub_total || 0);
                           const fNT = frac(nf, total);
-                          const cnpjs = cnpjPorDia[r.data] || [];
                           let diag = '🟢 OK', diagCls = 'text-emerald-600 dark:text-emerald-400';
                           if (fNT > 0.05 && nf < total) { diag = '🟡 NF a emitir'; diagCls = 'text-amber-600 dark:text-amber-400 font-medium'; }
                           else if (fNT > 0.05 && nf > total) { diag = '🔴 NF acima do ContaHub'; diagCls = 'text-red-600 dark:text-red-400 font-medium'; }
@@ -481,26 +485,30 @@ export default function ConciliacaoPage() {
                           return (
                             <Fragment key={r.data}>
                               <tr onClick={() => setConfDia(aberto ? null : r.data)} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer">
-                                <td className="px-3 py-1.5">{cnpjs.length > 0 && <ChevronDown className={`w-4 h-4 transition-transform ${aberto ? 'rotate-180' : ''}`} />}</td>
+                                <td className="px-3 py-1.5">{cnpjsDoBar.length > 0 && <ChevronDown className={`w-4 h-4 transition-transform ${aberto ? 'rotate-180' : ''}`} />}</td>
                                 <td className="px-3 py-1.5 whitespace-nowrap font-medium">{fmtData(r.data)}</td>
                                 <td className="px-3 py-1.5 text-right whitespace-nowrap border-l">{fmtBRL(stone)}</td>
                                 <td className="px-3 py-1.5 text-right whitespace-nowrap border-l">{fmtBRL(nf)}</td>
                                 <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corOk(fNT)}`}>{fmtBRL(total)}</td>
                                 <td className={`px-3 py-1.5 text-xs whitespace-nowrap ${diagCls}`}>{diag}</td>
                               </tr>
-                              {aberto && cnpjs.length > 0 && (
+                              {aberto && cnpjsDoBar.length > 0 && (
                                 <tr className="border-b bg-muted/20"><td colSpan={6} className="px-3 py-2">
-                                  <div className="text-[11px] font-medium text-muted-foreground mb-1">NF × Stone por CNPJ — Stone e NF têm CNPJ; o ContaHub não separa por CNPJ.</div>
+                                  <div className="text-[11px] font-medium text-muted-foreground mb-1">NF × Stone por CNPJ (sempre os 2 CNPJs) — Stone e NF têm CNPJ; o ContaHub não separa por CNPJ.</div>
                                   <table className="text-xs w-full max-w-xl">
                                     <thead className="text-muted-foreground"><tr><th className="text-left py-1 pr-3">CNPJ</th><th className="text-right py-1 pr-3">NF emitida</th><th className="text-right py-1 pr-3">Venda Stone</th><th className="text-right py-1">Diferença</th></tr></thead>
-                                    <tbody>{cnpjs.map((c: any, i: number) => (
-                                      <tr key={i} className="border-t border-border/40">
-                                        <td className="py-1 pr-3">{c.cnpj_label}<span className="text-muted-foreground ml-1">({c.cnpj_documento})</span></td>
-                                        <td className="py-1 pr-3 text-right">{fmtBRL(c.nf_autorizado)}</td>
-                                        <td className="py-1 pr-3 text-right">{fmtBRL(c.stone_bruto)}</td>
-                                        <td className="py-1 text-right">{fmtBRL(Number(c.nf_autorizado || 0) - Number(c.stone_bruto || 0))}</td>
-                                      </tr>
-                                    ))}</tbody>
+                                    <tbody>{cnpjsDoBar.map((cj, i) => {
+                                      const c = (cnpjPorDia[r.data] || []).find((x: any) => x.cnpj_indice === cj.cnpj_indice);
+                                      const nfv = Number(c?.nf_autorizado || 0), stv = Number(c?.stone_bruto || 0);
+                                      return (
+                                        <tr key={i} className="border-t border-border/40">
+                                          <td className="py-1 pr-3">{cj.cnpj_label}<span className="text-muted-foreground ml-1">({cj.cnpj_documento})</span></td>
+                                          <td className="py-1 pr-3 text-right">{fmtBRL(nfv)}</td>
+                                          <td className="py-1 pr-3 text-right">{fmtBRL(stv)}</td>
+                                          <td className="py-1 text-right">{fmtBRL(nfv - stv)}</td>
+                                        </tr>
+                                      );
+                                    })}</tbody>
                                   </table>
                                 </td></tr>
                               )}
