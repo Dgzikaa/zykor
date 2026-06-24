@@ -14,7 +14,7 @@ import {
 
 const CORES = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#0ea5e9', '#8b5cf6', '#ec4899', '#14b8a6'];
 const TIPO_ALERTA: Record<string, string> = {
-  sem_exame: 'Sem exame admissional', sem_contrato: 'Sem contrato', doc_vencido: 'Documento vencido', ferias_vencendo: 'Férias vencendo',
+  sem_exame: 'Sem exame admissional', sem_contrato: 'Sem contrato', doc_vencido: 'Documento vencido', ferias_vencendo: 'Férias vencendo', treino_vencido: 'Treinamento vencido',
 };
 const fmtData = (d: string) => { try { const [y, m, dd] = d.split('-'); return `${dd}/${m}`; } catch { return d; } };
 

@@ -57,9 +57,10 @@ export async function GET(request: NextRequest) {
   // Alertas por funcionário (documento faltando/vencido, férias vencendo).
   const ids = funcionarios.map((f: any) => f.id);
   if (ids.length) {
-    const [docsRes, feriasRes] = await Promise.all([
+    const [docsRes, feriasRes, treinosRes] = await Promise.all([
       (supabase as any).schema('hr').from('documentos_funcionario').select('funcionario_id, tipo, validade').in('funcionario_id', ids),
       (supabase as any).schema('hr').from('funcionario_ocorrencias').select('funcionario_id, tipo, data_inicio').in('funcionario_id', ids).eq('tipo', 'ferias'),
+      (supabase as any).schema('hr').from('treinamentos').select('funcionario_id, nome, validade').in('funcionario_id', ids).not('validade', 'is', null),
     ]);
     const porFunc = (rows: any[]) => {
       const m = new Map<number, any[]>();
@@ -68,7 +69,8 @@ export async function GET(request: NextRequest) {
     };
     const docsByFunc = porFunc(docsRes.data);
     const feriasByFunc = porFunc(feriasRes.data);
-    for (const f of funcionarios) f.alertas = computarAlertas(f, docsByFunc.get(f.id) || [], feriasByFunc.get(f.id) || []);
+    const treinosByFunc = porFunc(treinosRes.data);
+    for (const f of funcionarios) f.alertas = computarAlertas(f, docsByFunc.get(f.id) || [], feriasByFunc.get(f.id) || [], treinosByFunc.get(f.id) || []);
   }
 
   return NextResponse.json({

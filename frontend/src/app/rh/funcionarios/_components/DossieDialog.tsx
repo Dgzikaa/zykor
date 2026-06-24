@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import {
   Loader2, Pencil, Upload, FileText, Trash2, ExternalLink, X,
   Briefcase, Building2, CalendarDays, Cake, Phone, Mail, CreditCard,
-  Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Smile, ClipboardCheck,
+  Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Smile, ClipboardCheck, GraduationCap,
 } from 'lucide-react';
 import type { Funcionario } from '../page';
 
@@ -62,6 +62,7 @@ type Doc = { id: string; tipo: string; descricao: string | null; nome_arquivo: s
 type Ocorr = { id: string; tipo: string; data_inicio: string; data_fim: string | null; descricao: string | null };
 type Alerta = { tipo: string; label: string; nivel: string };
 type Avaliacao = { id: string; periodo: string; avaliador: string | null; criterios: { criterio: string; nota: number }[]; nota_geral: number | null; pontos_fortes: string | null; pontos_desenvolver: string | null; criado_em: string };
+type Treino = { id: string; nome: string; instituicao: string | null; data_conclusao: string | null; validade: string | null; observacao: string | null };
 
 const CRITERIOS_PADRAO = ['Pontualidade', 'Postura e atitude', 'Trabalho em equipe', 'Qualidade do trabalho', 'Proatividade', 'Atendimento ao cliente'];
 const notaCls = (n: number) => n >= 4 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : n >= 3 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
@@ -86,6 +87,9 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const [novaAval, setNovaAval] = useState<{ periodo: string; avaliador: string; notas: Record<string, number>; pontos_fortes: string; pontos_desenvolver: string }>({ periodo: '', avaliador: '', notas: {}, pontos_fortes: '', pontos_desenvolver: '' });
   const [salvandoAval, setSalvandoAval] = useState(false);
   const [formAvalAberto, setFormAvalAberto] = useState(false);
+  const [treinos, setTreinos] = useState<Treino[]>([]);
+  const [novoTreino, setNovoTreino] = useState({ nome: '', instituicao: '', data_conclusao: '', validade: '' });
+  const [salvandoTreino, setSalvandoTreino] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!funcionarioId) return;
@@ -97,6 +101,8 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
       setDocs(dres.documentos || []);
       const ares = await api.get(`/api/rh/funcionarios/${funcionarioId}/avaliacoes`);
       setAvaliacoes(ares.avaliacoes || []);
+      const tres = await api.get(`/api/rh/funcionarios/${funcionarioId}/treinamentos`);
+      setTreinos(tres.treinamentos || []);
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao abrir dossiê', message: e?.message }); }
     finally { setLoading(false); }
   }, [funcionarioId, showToast]);
@@ -168,6 +174,26 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
       setAvaliacoes((p) => p.filter((a) => a.id !== avId));
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
   };
+  const salvarTreino = async () => {
+    if (!novoTreino.nome.trim()) { showToast({ type: 'error', title: 'Informe o treinamento' }); return; }
+    setSalvandoTreino(true);
+    try {
+      const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/treinamentos`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(novoTreino),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || 'Falha ao salvar');
+      setNovoTreino({ nome: '', instituicao: '', data_conclusao: '', validade: '' });
+      carregar();
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
+    finally { setSalvandoTreino(false); }
+  };
+  const excluirTreino = async (tId: string) => {
+    try {
+      await fetch(`/api/rh/funcionarios/${funcionarioId}/treinamentos?treinamento_id=${tId}`, { method: 'DELETE', credentials: 'include' });
+      setTreinos((p) => p.filter((t) => t.id !== tId));
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
+  };
 
   const freela = func?.tipo_contratacao === 'Freela';
   const venceu = (d: string | null) => { if (!d) return false; try { return new Date(d) < new Date(); } catch { return false; } };
@@ -220,6 +246,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                 <TabsTrigger value="docs">Documentos ({docs.length})</TabsTrigger>
                 <TabsTrigger value="ocorr">Ocorrências ({ocorrencias.length})</TabsTrigger>
                 <TabsTrigger value="avaliacoes">Avaliações ({avaliacoes.length})</TabsTrigger>
+                <TabsTrigger value="treinos">Treinamentos ({treinos.length})</TabsTrigger>
                 <TabsTrigger value="felicidade">Felicidade</TabsTrigger>
               </TabsList>
 
@@ -362,6 +389,36 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                     </div>
                   </div>
                 )}
+              </TabsContent>
+
+              {/* Treinamentos */}
+              <TabsContent value="treinos" className="px-6 py-4">
+                {treinos.length > 0 ? (
+                  <div className="space-y-1.5 mb-3">
+                    {treinos.map((t) => (
+                      <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg border bg-background px-3 py-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-md bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center shrink-0"><GraduationCap className="w-4 h-4 text-violet-600 dark:text-violet-300" /></div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium leading-tight truncate">{t.nome}{t.instituicao && <span className="text-muted-foreground font-normal"> · {t.instituicao}</span>}</div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {t.data_conclusao && <>concluído {fmtData(t.data_conclusao)}</>}
+                              {t.validade && <span className={venceu(t.validade) ? 'text-red-500' : 'text-amber-600'}>{t.data_conclusao ? ' · ' : ''}{venceu(t.validade) ? 'venceu' : 'vence'} {fmtData(t.validade)}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <button onClick={() => excluirTreino(t.id)} className="p-1.5 rounded-md hover:bg-muted text-red-500 shrink-0"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="text-xs text-muted-foreground text-center py-6 mb-3 border border-dashed rounded-lg flex flex-col items-center"><GraduationCap className="w-8 h-8 mb-1.5 opacity-40" />Nenhum treinamento/certificação registrado.</div>}
+                <div className="flex items-end gap-2 flex-wrap rounded-lg border bg-muted/20 p-3">
+                  <label className="flex flex-col gap-1 flex-1 min-w-[160px]"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Treinamento</span><Input value={novoTreino.nome} onChange={(e) => setNovoTreino({ ...novoTreino, nome: e.target.value })} placeholder="ex: Manipulação de Alimentos" className="h-9 text-sm" /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Instituição</span><Input value={novoTreino.instituicao} onChange={(e) => setNovoTreino({ ...novoTreino, instituicao: e.target.value })} className="h-9 text-sm w-[140px]" /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Conclusão</span><Input type="date" value={novoTreino.data_conclusao} onChange={(e) => setNovoTreino({ ...novoTreino, data_conclusao: e.target.value })} className="h-9 text-sm w-[140px]" /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Validade</span><Input type="date" value={novoTreino.validade} onChange={(e) => setNovoTreino({ ...novoTreino, validade: e.target.value })} className="h-9 text-sm w-[140px]" /></label>
+                  <Button size="sm" onClick={salvarTreino} disabled={salvandoTreino} className="h-9">{salvandoTreino ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Plus className="w-4 h-4 mr-1.5" />}Adicionar</Button>
+                </div>
               </TabsContent>
 
               {/* Felicidade */}
