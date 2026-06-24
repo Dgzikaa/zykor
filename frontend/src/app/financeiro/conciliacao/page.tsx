@@ -525,8 +525,9 @@ export default function ConciliacaoPage() {
         {aba === 'analises' && analiseSub === 'pendencias' && (
           loadingPend ? <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
           : (() => {
-            const reais = pendencias.filter((p) => p.classificacao === 'real');
-            const gaps = pendencias.filter((p) => p.classificacao !== 'real');
+            const porData = (a: any, b: any) => String(b.data).localeCompare(String(a.data)); // mais recente primeiro
+            const reais = pendencias.filter((p) => p.classificacao === 'real').sort(porData);
+            const gaps = pendencias.filter((p) => p.classificacao !== 'real').sort(porData);
             const CLS: Record<string, { txt: string; cls: string }> = {
               real: { txt: 'divergência', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
               gap_stone: { txt: 'falta Stone', cls: 'bg-slate-200 text-slate-700 dark:bg-slate-700/40 dark:text-slate-300' },
