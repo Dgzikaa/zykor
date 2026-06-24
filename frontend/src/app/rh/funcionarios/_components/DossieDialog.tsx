@@ -247,7 +247,10 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                     <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${tipoTag(func.tipo_contratacao)}`}>{func.tipo_contratacao || '—'}</span>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" className="shrink-0" onClick={() => onEditar(func)}><Pencil className="w-3.5 h-3.5 mr-1.5" />Editar</Button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => { const d = new Date(); window.open(`/recibo?id=${func.id}&mes=${d.getMonth() + 1}&ano=${d.getFullYear()}`, '_blank'); }}><ScrollText className="w-3.5 h-3.5 mr-1.5" />Recibo</Button>
+                  <Button variant="outline" size="sm" onClick={() => onEditar(func)}><Pencil className="w-3.5 h-3.5 mr-1.5" />Editar</Button>
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-2 mt-4">
                 <Destaque icon={Clock} label="Tempo de casa" value={tempoDeCasa(func.data_admissao) || '—'} />
