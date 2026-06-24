@@ -58,15 +58,29 @@ function gerarIdModulo(categoria: string, nome: string): string {
 }
 
 /**
- * MÓDULOS GERADOS AUTOMATICAMENTE DO MENU LATERAL
+ * Seções com PERMISSÃO ÚNICA por grupo (1 toggle libera o grupo inteiro), em vez de
+ * um módulo por item. Usado p/ segmentar acesso (ex: investidor só vê Relatórios).
  */
-export const MODULOS_MENU: ModuloPermissao[] = MENU_LATERAL_STRUCTURE.flatMap(secao =>
-  secao.subItems.map(item => ({
+const GRUPO_MODULO_UNICO: Record<string, string> = {
+  'Relatórios Financeiros': 'financeiro_relatorios',
+  'Ferramentas Financeiro': 'financeiro_ferramentas',
+};
+
+/**
+ * MÓDULOS GERADOS AUTOMATICAMENTE DO MENU LATERAL.
+ * Seções em GRUPO_MODULO_UNICO viram UM módulo (o grupo); as demais, um por item.
+ */
+export const MODULOS_MENU: ModuloPermissao[] = MENU_LATERAL_STRUCTURE.flatMap(secao => {
+  const grupo = GRUPO_MODULO_UNICO[secao.label];
+  if (grupo) {
+    return [{ id: grupo, nome: secao.label, categoria: secao.label }];
+  }
+  return secao.subItems.map(item => ({
     id: gerarIdModulo(secao.label, item.label),
     nome: item.label,
     categoria: secao.label,
-  }))
-);
+  }));
+});
 
 /**
  * Retorna todos os módulos disponíveis para configuração de permissões
@@ -111,6 +125,9 @@ function buildSectionFallbackModules(categoria: string): string[] {
     marketing: ['gestao', 'home'],
     operacional: ['gestao', 'operacoes', 'home'],
     financeiro: ['financeiro_agendamento', 'home'],
+    'relatórios financeiros': ['financeiro_relatorios'],
+    'relatorios financeiros': ['financeiro_relatorios'],
+    'ferramentas financeiro': ['financeiro_ferramentas'],
     comercial: ['gestao', 'home'],
     configurações: ['configuracoes'],
     configuracoes: ['configuracoes'],
@@ -128,7 +145,7 @@ function buildSectionFallbackModules(categoria: string): string[] {
 export function getMenuRoutePermissions(): MenuRoutePermissionEntry[] {
   const entries = MENU_LATERAL_STRUCTURE.flatMap(section =>
     section.subItems.map(item => {
-      const moduleId = gerarIdModulo(section.label, item.label);
+      const moduleId = GRUPO_MODULO_UNICO[section.label] ?? gerarIdModulo(section.label, item.label);
       const fallback = buildSectionFallbackModules(section.label);
       return {
         path: item.href,
@@ -150,6 +167,8 @@ function gerarPermissoesAutomaticas(categoria: string): string[] {
     'Marketing': ['gestao'],
     'Operacional': ['gestao', 'operacoes'],
     'Financeiro': ['financeiro_agendamento', 'home'],
+    'Relatórios Financeiros': ['financeiro_relatorios', 'financeiro', 'home'],
+    'Ferramentas Financeiro': ['financeiro_ferramentas', 'financeiro', 'ferramentas', 'ferramentas_agendamento', 'home'],
     'Comercial': ['gestao'],
     'Ferramentas': ['ferramentas', 'operacoes'],
     'Configurações': ['configuracoes'],

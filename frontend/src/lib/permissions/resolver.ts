@@ -35,6 +35,11 @@ const CATEGORY_GENERICS: Record<string, string[]> = {
   'Estratégico': ['estrategico', 'gestao', 'dashboard', 'home'],
   'Analítico': ['analitico', 'relatorios', 'dashboard', 'home'],
   'Ferramentas': ['ferramentas', 'operacoes', 'dashboard', 'home'],
+  // Financeiro em 2 grupos. 'home'/'financeiro' mantêm quem já tinha acesso (aditivo);
+  // o token único do grupo ('financeiro_relatorios'/'financeiro_ferramentas') permite
+  // segmentar (ex: investidor recebe só 'financeiro_relatorios' e NÃO vê as ferramentas).
+  'Relatórios Financeiros': ['financeiro_relatorios', 'financeiro', 'home'],
+  'Ferramentas Financeiro': ['financeiro_ferramentas', 'financeiro', 'ferramentas', 'ferramentas_agendamento', 'home'],
   'Configurações': ['configuracoes'],
   'Extras': ['home', 'relatorios'],
 };
