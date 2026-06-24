@@ -22,6 +22,7 @@ import {
   Receipt,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { CategoriasTab } from './CategoriasTab';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import {
   Dialog,
@@ -478,6 +479,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
       <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 pt-2">
         <TabsList className="bg-transparent">
           <TabsTrigger value="orcamento">Orçamentação</TabsTrigger>
+          <TabsTrigger value="categorias">Categorias</TabsTrigger>
           <TabsTrigger value="historico">Histórico</TabsTrigger>
           {/* Business Plan e DRE viraram páginas em Financeiro (/financeiro/bp,
               /financeiro/dre). DRE Manual escondida (histórico preservado no banco). */}
@@ -786,6 +788,10 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
           </div>
         </div>
       </div>
+      </TabsContent>
+
+      <TabsContent value="categorias" className="flex-1 overflow-auto mt-0">
+        <CategoriasTab barId={selectedBar.id} />
       </TabsContent>
 
       <TabsContent value="historico" className="flex-1 overflow-auto mt-0">
