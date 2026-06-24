@@ -50,6 +50,11 @@ const ABAS = [
 ] as const;
 type AbaId = typeof ABAS[number]['id'];
 
+// Detalhe expandível por dia: mantém só "Onde diverge" + "Transações que explicam a
+// diferença". Por bandeira / Repasses / lista de Transações ficam ocultos por ora
+// (msg do sócio jun/2026 — "vamos usar pra outra coisa"). Flag p/ reativar fácil.
+const MOSTRAR_DETALHE_COMPLETO = false;
+
 // barra horizontal simples (proporção do maior valor)
 function Barra({ v, max, cor = 'bg-primary' }: { v: number; max: number; cor?: string }) {
   const w = max > 0 ? Math.max(2, (v / max) * 100) : 0;
@@ -326,6 +331,7 @@ export default function ConciliacaoPage() {
                                     </div>
                                   )}
 
+                                  {MOSTRAR_DETALHE_COMPLETO && (<>
                                   <div>
                                     <div className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1"><CreditCard className="w-3.5 h-3.5" />Por bandeira</div>
                                     <div className="overflow-x-auto"><table className="text-xs w-full">
@@ -360,6 +366,7 @@ export default function ConciliacaoPage() {
                                     </table></div>
                                     {dia.transacoes.length > lim && <button onClick={() => setVerTxAte((p) => ({ ...p, [r.data]: lim + 100 }))} className="mt-2 text-xs text-primary hover:underline">Ver mais ({dia.transacoes.length - lim} restantes)</button>}
                                   </div>
+                                  </>)}
                                 </div>
                               ) : null}
                             </td></tr>
