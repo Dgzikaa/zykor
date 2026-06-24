@@ -232,9 +232,9 @@ const ESTRUTURA: BlocoDef[] = [
       { nome: 'ÁGUA', gold: ['ÁGUA'] },
       { nome: 'GÁS', gold: ['GÁS'] },
       { nome: 'INTERNET', gold: ['INTERNET'] },
-      // Sem "TENDA" solto (igual à planilha): CA 'TENDA' cai em Manutenção. Rever depois.
-      { nome: 'Manutenção', gold: ['Manutenção', 'TENDA'] },
+      { nome: 'Manutenção', gold: ['Manutenção'] },
       { nome: 'LUZ', gold: ['LUZ'] },
+      { nome: 'TENDA', gold: ['TENDA'] },
     ]
   },
   {
@@ -366,6 +366,10 @@ export async function getOrcamentacaoCompleta(
   const normKey = (s: string) => (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim();
   const goldCatMap = new Map<string, number>();
   const goldBlocoMap = new Map<string, number>();
+  // categoria_zykor distintas por (ano-mes-bloco_dre) — usado p/ "surfacing" automático:
+  // categoria mapeada (na aba Categorias) a um bloco vira linha na Orçamentação mesmo sem
+  // estar na ESTRUTURA hardcoded. Map: 'ano-mes-bloco_dre' -> (normKey -> nome original).
+  const goldZykorPorBloco = new Map<string, Map<string, string>>();
   dadosGold.forEach(g => {
     const net = num(g.net);
     const ck = `${g.ano}-${g.mes}-${normKey(g.categoria_zykor)}`;
@@ -373,6 +377,10 @@ export async function getOrcamentacaoCompleta(
     if (g.bloco_dre) {
       const bk = `${g.ano}-${g.mes}-${g.bloco_dre}`;
       goldBlocoMap.set(bk, (goldBlocoMap.get(bk) || 0) + net);
+      let inner = goldZykorPorBloco.get(bk);
+      if (!inner) { inner = new Map(); goldZykorPorBloco.set(bk, inner); }
+      const nk = normKey(g.categoria_zykor);
+      if (g.categoria_zykor && !inner.has(nk)) inner.set(nk, g.categoria_zykor);
     }
   });
 
@@ -519,6 +527,22 @@ export async function getOrcamentacaoCompleta(
         }
         return montarSub(s);
       });
+      // Surfacing automático: toda categoria_zykor mapeada a ESTE bloco (de-para) que não
+      // está em nenhuma sub hardcoded vira uma linha aqui. Faz a aba Categorias refletir
+      // na Orçamentação sem editar a ESTRUTURA. Só blocos de despesa fixa.
+      if (bloco.tipo === 'despesa') {
+        const cobertas = new Set<string>();
+        bloco.subs.forEach(s => {
+          const arr = s.filhos?.length ? s.filhos.flatMap(f => f.gold || []) : (s.gold || []);
+          arr.forEach(g => cobertas.add(normKey(g)));
+        });
+        const inner = goldZykorPorBloco.get(`${ano}-${mes}-${bloco.nome}`);
+        inner?.forEach((nomeOrig, nk) => {
+          if (cobertas.has(nk)) return;
+          const extra = montarSub({ nome: nomeOrig, gold: [nomeOrig] });
+          if (extra.realizado !== 0 || extra.planejado !== 0 || extra.projecao !== 0) subcategorias.push(extra);
+        });
+      }
       return { nome: bloco.nome, cor: bloco.cor, tipo: bloco.tipo, subcategorias };
     });
 
