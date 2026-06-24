@@ -34,6 +34,11 @@ export interface SubcategoriaOrcamento {
   //   'consumacao' -> silver.consumacao_artistas — sem detalhe por lançamento (por ora)
   realizadoFonte?: 'ca' | 'manual' | 'consumacao';
   goldCategorias?: string[];  // categoria_zykor que compõem o realizado (fonte 'ca')
+  // Linha % do faturamento (ex.: Escritório Central): célula mostra/edita o %;
+  // planejado/projecao já vêm em R$ (=%×fat) pros totais. Quando presente, a UI
+  // renderiza a célula como % editável.
+  pctFatPlan?: number;
+  pctFatProj?: number;
   // Linhas-filhas (ex.: CMO Fixo -> CUSTO-EMPRESA, Adicionais, ...). Quando presente,
   // o pai é a soma dos filhos e a UI permite expandir/recolher pra ver o detalhe.
   filhos?: SubcategoriaOrcamento[];
@@ -426,16 +431,27 @@ export async function getOrcamentacaoCompleta(
         const prow = planilha(nomeBar);
         let plan = num(prow?.valor_planejado);
         let proj = num(prow?.valor_projetado);
+        // Linhas que são % do faturamento (ex.: Escritório Central): a célula mostra/edita
+        // o %, mas planejado/projecao seguem em R$ (=%×fat) pros totais/Real Fixo.
+        let pctFatPlan: number | undefined;
+        let pctFatProj: number | undefined;
         // Item 4: Atrações Programação / Produção Eventos -> projeção = somatório do
         // planejamento comercial (Σ c_art / c_prod; real do dia fechado + projeção do futuro).
         if (s.nome === 'Atrações Programação') proj = cArtMesMap.get(`${ano}-${mes}`) ?? proj;
         else if (s.nome === 'Produção Eventos') proj = cProdMesMap.get(`${ano}-${mes}`) ?? proj;
-        // Item 3: Escritório Central. PROJEÇÃO = SEMPRE 4% do Faturamento projetado
-        // (fixo, NÃO editável — decisão do sócio). Planejado segue 4% como default,
-        // mas o valor digitado na planilha (>0) ainda sobrescreve o planejado.
+        // Item 3: Escritório Central = % do Faturamento (igual CMV), nos 2 bares. A
+        // planilha guarda o % (default 4%); a célula mostra/edita o %, mas o R$
+        // (=%×faturamento) é o que entra no Real Fixo e nos totais. Guard: valor>100
+        // = R$ legado da época do override -> cai no 4% até o sócio digitar o % novo.
         if (s.nome === 'Escritório Central') {
-          if (!(num(prow?.valor_planejado) > 0)) plan = 0.04 * fatPlan;
-          proj = 0.04 * fatProj;
+          const ppPlan = num(prow?.valor_planejado);
+          const ppProj = num(prow?.valor_projetado);
+          const pctPlan = (ppPlan > 0 && ppPlan <= 100) ? ppPlan : 4;
+          const pctProj = (ppProj > 0 && ppProj <= 100) ? ppProj : 4;
+          plan = (pctPlan / 100) * fatPlan;
+          proj = (pctProj / 100) * fatProj;
+          pctFatPlan = pctPlan;
+          pctFatProj = pctProj;
         }
         let real: number;
         let realizadoFonte: SubcategoriaOrcamento['realizadoFonte'];
@@ -453,7 +469,7 @@ export async function getOrcamentacaoCompleta(
           realizadoFonte = 'ca';
           goldCategorias = s.gold;
         }
-        return { nome: nomeBar, planejado: plan, projecao: proj, realizado: real, isPercentage: false, manual: !!s.orcOnly, realizadoFonte, goldCategorias };
+        return { nome: nomeBar, planejado: plan, projecao: proj, realizado: real, isPercentage: false, manual: !!s.orcOnly, realizadoFonte, goldCategorias, pctFatPlan, pctFatProj };
       };
       const subcategorias = bloco.subs.map(s => {
         // Linha-pai com filhos (ex.: CMO Fixo): soma dos filhos; UI expande pra ver o detalhe.
