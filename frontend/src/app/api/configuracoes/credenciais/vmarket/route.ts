@@ -5,8 +5,9 @@ import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 export const dynamic = 'force-dynamic';
 
 const BASE_PADRAO = 'https://integracao-compras.vmarketcompras.com.br';
-// Endpoint de login (e-mail+senha -> token Bearer). Ajustável via configuracoes.login_path.
-const LOGIN_PATHS = ['/api/login', '/api/auth/login', '/api/autenticar', '/api/token'];
+// Endpoint de login (e-mail+senha -> token Bearer). Doc VMarket: POST /api/autenticar
+// { email, password } -> { token }. Demais ficam como fallback defensivo.
+const LOGIN_PATHS = ['/api/autenticar', '/api/login', '/api/auth/login', '/api/token'];
 
 async function credsDoBar(supabase: any, barId: number) {
   const { data } = await supabase.from('api_credentials')
