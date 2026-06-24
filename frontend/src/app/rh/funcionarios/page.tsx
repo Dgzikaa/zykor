@@ -22,7 +22,7 @@ export type Funcionario = {
   tipo_contratacao: string | null; salario_base: number | null; valor_diaria: number | null;
   vale_transporte_diaria: number | null; dias_trabalho_semana: number | null;
   chave_pix: string | null; tipo_chave_pix: string | null; observacoes: string | null;
-  foto_url: string | null; ativo: boolean;
+  foto_url: string | null; ativo: boolean; portal_token?: string | null;
   alertas?: { tipo: string; label: string; nivel: string }[];
 };
 export type Opcao = { id: number; nome: string };

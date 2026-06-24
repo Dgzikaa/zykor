@@ -9,8 +9,9 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, AreaChart, Area, CartesianGrid,
 } from 'recharts';
 import {
-  Users, Loader2, Palmtree, CalendarX, AlertTriangle, Smile, Clock, TrendingUp, TrendingDown, FileWarning, ClipboardCheck, Cake, Gift,
+  Users, Loader2, Palmtree, CalendarX, AlertTriangle, Smile, Clock, TrendingUp, TrendingDown, FileWarning, ClipboardCheck, Cake, Gift, Inbox, Check, X,
 } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
 
 const CORES = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#0ea5e9', '#8b5cf6', '#ec4899', '#14b8a6'];
 const TIPO_ALERTA: Record<string, string> = {
@@ -20,19 +21,31 @@ const fmtData = (d: string) => { try { const [y, m, dd] = d.split('-'); return `
 
 export function DashboardRH() {
   const { selectedBar } = useBar();
+  const { showToast } = useToast();
   const [d, setD] = useState<any>(null);
   const [aniv, setAniv] = useState<any>(null);
+  const [solics, setSolics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const carregar = useCallback(async () => {
     if (!selectedBar) return;
     setLoading(true);
     try {
-      const [r, a] = await Promise.all([api.get('/api/rh/funcionarios/dashboard'), api.get('/api/rh/aniversariantes').catch(() => null)]);
-      setD(r); setAniv(a);
+      const [r, a, s] = await Promise.all([
+        api.get('/api/rh/funcionarios/dashboard'),
+        api.get('/api/rh/aniversariantes').catch(() => null),
+        api.get('/api/rh/solicitacoes').catch(() => null),
+      ]);
+      setD(r); setAniv(a); setSolics(s?.solicitacoes || []);
     }
     catch { setD(null); } finally { setLoading(false); }
   }, [selectedBar]);
+
+  const resolver = async (id: string, status: 'aprovado' | 'recusado') => {
+    setSolics((p) => p.map((x) => x.id === id ? { ...x, status } : x));
+    try { await api.post('/api/rh/solicitacoes', { id, status }); }
+    catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); carregar(); }
+  };
   useEffect(() => { carregar(); }, [carregar]);
 
   if (loading) return <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>;
@@ -53,6 +66,29 @@ export function DashboardRH() {
         <Kpi icon={Smile} label="Felicidade" value={fel ? `${fel.pct}%` : '—'} cor="text-emerald-600 dark:text-emerald-400" sub={fel ? `${fel.respostas} resp.` : 'sem pesquisa'} tint="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" />
         <Kpi icon={Clock} label="Tempo de casa" value={tempoTxt} sub="média" tint="bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" />
       </div>
+
+      {solics.filter((s) => s.status === 'pendente').length > 0 && (
+        <Card className="rounded-2xl border-0 ring-1 ring-amber-200 dark:ring-amber-900/40 shadow-sm">
+          <CardContent className="py-4">
+            <div className="text-sm font-semibold mb-2 flex items-center gap-1.5"><Inbox className="w-4 h-4 text-amber-500" />Solicitações pendentes (portal)</div>
+            <div className="space-y-1.5">
+              {solics.filter((s) => s.status === 'pendente').map((s) => (
+                <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
+                  <div className="text-sm min-w-0">
+                    <span className="font-medium">{s.funcionario_nome}</span> <span className="text-muted-foreground capitalize">· {s.tipo}</span>{' '}
+                    <span className="text-xs text-muted-foreground">{s.data_inicio.split('-').reverse().slice(0, 2).join('/')}{s.data_fim ? ` → ${s.data_fim.split('-').reverse().slice(0, 2).join('/')}` : ''}</span>
+                    {s.motivo && <div className="text-[11px] text-muted-foreground truncate">{s.motivo}</div>}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => resolver(s.id, 'aprovado')} title="Aprovar" className="h-7 w-7 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 flex items-center justify-center"><Check className="w-4 h-4" /></button>
+                    <button onClick={() => resolver(s.id, 'recusado')} title="Recusar" className="h-7 w-7 rounded bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300 flex items-center justify-center"><X className="w-4 h-4" /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {/* ── Quadro por área ── */}

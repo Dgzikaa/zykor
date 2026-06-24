@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import {
   Loader2, Pencil, Upload, FileText, Trash2, ExternalLink, X,
   Briefcase, Building2, CalendarDays, Cake, Phone, Mail, CreditCard,
-  Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Smile, ClipboardCheck, GraduationCap, Check,
+  Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Smile, ClipboardCheck, GraduationCap, Check, Link as LinkIcon,
 } from 'lucide-react';
 import type { Funcionario } from '../page';
 
@@ -248,6 +248,9 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {(func as any).portal_token && (
+                    <Button variant="outline" size="sm" title="Copiar link do portal do funcionário" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/portal/${(func as any).portal_token}`); showToast({ type: 'success', title: 'Link do portal copiado', message: 'Envie pro funcionário (WhatsApp/QR).' }); }}><LinkIcon className="w-3.5 h-3.5 mr-1.5" />Portal</Button>
+                  )}
                   <Button variant="outline" size="sm" onClick={() => { const d = new Date(); window.open(`/recibo?id=${func.id}&mes=${d.getMonth() + 1}&ano=${d.getFullYear()}`, '_blank'); }}><ScrollText className="w-3.5 h-3.5 mr-1.5" />Recibo</Button>
                   <Button variant="outline" size="sm" onClick={() => onEditar(func)}><Pencil className="w-3.5 h-3.5 mr-1.5" />Editar</Button>
                 </div>
