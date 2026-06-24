@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useBar } from '@/contexts/BarContext';
 import ContaAzulIntegrationCard from '@/components/configuracoes/ContaAzulIntegrationCard';
 import ContaHubResyncSemanalCard from '@/components/configuracoes/ContaHubResyncSemanalCard';
+import VMarketIntegrationCard from '@/components/configuracoes/VMarketIntegrationCard';
 
 interface Integration {
   id: string;
@@ -241,6 +242,7 @@ export default function IntegracoesPage() {
           </h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ContaAzulIntegrationCard selectedBar={selectedBar} />
+            <VMarketIntegrationCard selectedBar={selectedBar} />
           </div>
         </div>
         {/* Lista de IntegraÃ§Ãµes */}
