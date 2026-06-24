@@ -2163,6 +2163,11 @@ export function DesempenhoClient({
                                      {(!mostrarHeaderGrupo || secoesNaoColapsaveis.includes(secao.id) || gruposAbertos[`${secao.id}-${grupo.id}`]) && metricasParaMostrar.map((metrica) => {
                                         const valor = getValorComOverride(semana, metrica.key);
                                         const valorPessoas = metrica.keyPessoas ? getValorComOverride(semana, metrica.keyPessoas) : null;
+                                        // Reservas: a meta (ex.: 850) é por PESSOAS (2º nº), não mesas (1º nº).
+                                        // Este grupo NÃO é hierárquico (label 'Reservas' != 'Reservas Realizadas'),
+                                        // então a cor sai por aqui (sub-linha) e precisa comparar pessoas, senão
+                                        // fica sempre vermelho (mesas << meta). Mesma regra do header hierárquico.
+                                        const valorMeta = (metrica.formato === 'reservas' && metrica.keyPessoas) ? valorPessoas : valor;
                                         const valorPercentual = metrica.keyPercentual ? getValorComOverride(semana, metrica.keyPercentual) : null;
                                         const valorPercentualKey = metrica.percentualKey ? getValorComOverride(semana, metrica.percentualKey) : null;
                                         const isEditandoCell = editando?.semanaId === semana.id && editando?.campo === metrica.key;
@@ -2220,7 +2225,7 @@ export function DesempenhoClient({
                                                   onClick={() => abrirDetalhesGoogleReviews(semana)}
                                                   className={cn(
                                                     "text-xs text-center underline decoration-dotted hover:opacity-80 transition-opacity",
-                                                    getCorMeta(verificarMeta(valor, metrica.key, metas))
+                                                    getCorMeta(verificarMeta(valorMeta, metrica.key, metas))
                                                   )}
                                                   title="Clique para ver todas as avaliações Google"
                                                 >
@@ -2232,7 +2237,7 @@ export function DesempenhoClient({
                                                   onClick={() => abrirDetalhesAtracao(semana)}
                                                   className={cn(
                                                     "text-xs text-center underline decoration-dotted hover:opacity-80 transition-opacity",
-                                                    getCorMeta(verificarMeta(valor, metrica.key, metas))
+                                                    getCorMeta(verificarMeta(valorMeta, metrica.key, metas))
                                                   )}
                                                   title="Clique para ver custos de atração por dia"
                                                 >
@@ -2244,7 +2249,7 @@ export function DesempenhoClient({
                                                   onClick={() => abrirDetalhesGoogleReviews(semana)}
                                                   className={cn(
                                                     "text-xs text-center underline decoration-dotted hover:opacity-80 transition-opacity",
-                                                    getCorMeta(verificarMeta(valor, metrica.key, metas))
+                                                    getCorMeta(verificarMeta(valorMeta, metrica.key, metas))
                                                   )}
                                                   title="Clique para ver detalhes das avaliações"
                                                 >
@@ -2262,7 +2267,7 @@ export function DesempenhoClient({
                                                   )}
                                                   className={cn(
                                                     "text-xs text-center underline decoration-dotted hover:opacity-80 transition-opacity",
-                                                    getCorMeta(verificarMeta(valor, metrica.key, metas))
+                                                    getCorMeta(verificarMeta(valorMeta, metrica.key, metas))
                                                   )}
                                                   title="Clique para ver detalhes das respostas NPS"
                                                 >
@@ -2272,7 +2277,7 @@ export function DesempenhoClient({
                                                 <TooltipProvider>
                                                   <Tooltip>
                                                     <TooltipTrigger asChild>
-                                                      <span className={cn("text-xs text-center cursor-help", getCorMeta(verificarMeta(valor, metrica.key, metas)))}>
+                                                      <span className={cn("text-xs text-center cursor-help", getCorMeta(verificarMeta(valorMeta, metrica.key, metas)))}>
                                                         {valorFormatado}
                                                       </span>
                                                     </TooltipTrigger>
@@ -2320,7 +2325,7 @@ export function DesempenhoClient({
                                                   onClick={() => abrirDetalhesFalae(semana)}
                                                   className={cn(
                                                     "text-xs text-center underline decoration-dotted hover:opacity-80 transition-opacity",
-                                                    getCorMeta(verificarMeta(valor, metrica.key, metas))
+                                                    getCorMeta(verificarMeta(valorMeta, metrica.key, metas))
                                                   )}
                                                   title="Clique para ver médias por avaliação e comentários"
                                                 >
@@ -2330,7 +2335,7 @@ export function DesempenhoClient({
                                                 <TooltipProvider>
                                                   <Tooltip>
                                                     <TooltipTrigger asChild>
-                                                      <span className={cn("text-xs text-center cursor-help underline decoration-dotted", getCorMeta(verificarMeta(valor, metrica.key, metas)))}>
+                                                      <span className={cn("text-xs text-center cursor-help underline decoration-dotted", getCorMeta(verificarMeta(valorMeta, metrica.key, metas)))}>
                                                         {valorFormatado}
                                                       </span>
                                                     </TooltipTrigger>
@@ -2407,7 +2412,7 @@ export function DesempenhoClient({
                                                <TooltipProvider>
                                                  <Tooltip>
                                                    <TooltipTrigger asChild>
-                                                     <span className={cn("text-xs text-center cursor-help", getCorMeta(verificarMeta(valor, metrica.key, metas)))}>
+                                                     <span className={cn("text-xs text-center cursor-help", getCorMeta(verificarMeta(valorMeta, metrica.key, metas)))}>
                                                        {valorFormatado}
                                                      </span>
                                                    </TooltipTrigger>
