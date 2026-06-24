@@ -384,6 +384,14 @@ export async function getOrcamentacaoCompleta(
   //              (ex: jogo do Brasil — real >> M1). Decisão do sócio jun/2026.
   // hoje em America/Sao_Paulo — igual ao /planejamento-comercial (evita off-by-3h do UTC).
   const hojeStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  // M1 AO VIVO: o gold.planejamento só é reconstruído 1x/dia (cron etl_gold_planejamento,
+  // 08:50 BRT). A edição de M1/empilhamento no /planejamento-comercial grava em
+  // eventos_base na hora. Por isso fazemos o MESMO overlay da tela de planejamento
+  // (manual?.m1_r ?? gold.m1_r) — senão a meta de receita só atualizava no dia seguinte.
+  const liveM1ByDate = new Map<string, number | null>();
+  eventosBase.forEach(e => { if (e.data_evento) liveM1ByDate.set(e.data_evento, e.m1_r); });
+  const m1Vivo = (e: { data_evento: string; m1_r: number | null }) =>
+    (liveM1ByDate.get(e.data_evento) ?? e.m1_r) || 0;
   const realRMap = new Map<string, number>();    // Σ faturamento consolidado = Realizado da tela de planejamento
   const projMap = new Map<string, number>();      // Empilhamento M1: dia fechado usa o realizado; hoje/futuro usa M1
   const m1Map = new Map<string, number>();        // Σ M1 dos eventos por mês = Meta M1 (Planejado)
@@ -396,11 +404,11 @@ export async function getOrcamentacaoCompleta(
     const k = `${ano}-${mes}`;
     // Faturamento Meta: mesma fonte/fórmula do /planejamento-comercial (gold.planejamento).
     const planDoMes = planComercial.filter(e => e.data_evento >= ini && e.data_evento <= fim);
-    m1Map.set(k, planDoMes.reduce((s, e) => s + (e.m1_r || 0), 0));
+    m1Map.set(k, planDoMes.reduce((s, e) => s + m1Vivo(e), 0));
     realRMap.set(k, planDoMes.reduce((s, e) => s + (e.faturamento_total_consolidado || 0), 0));
     projMap.set(k, planDoMes.reduce(
       (s, e) => s + (e.data_evento < hojeStr && (e.faturamento_total_consolidado || 0) > 0
-        ? (e.faturamento_total_consolidado || 0) : (e.m1_r || 0)), 0));
+        ? (e.faturamento_total_consolidado || 0) : m1Vivo(e)), 0));
     // Custo artístico/produção (projeção de Atrações/Produção) seguem do eventos_base.
     const doMes = eventosBase.filter(e => e.data_evento >= ini && e.data_evento <= fim);
     // Prioridade igual ao planejamento-comercial: real c_art > override manual
