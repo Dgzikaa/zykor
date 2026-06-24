@@ -80,6 +80,7 @@ export const MENU_TREE: MenuSection[] = [
     permission: 'gestao',
     subItems: [
       { icon: 'Users', label: 'Funcionários', href: '/rh/funcionarios', permission: 'gestao' },
+      { icon: 'CalendarRange', label: 'Escala', href: '/rh/escala', permission: 'gestao' },
     ],
   },
   {
