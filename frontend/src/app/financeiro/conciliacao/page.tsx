@@ -455,10 +455,9 @@ export default function ConciliacaoPage() {
               const t = contahubNf.reduce((a: any, r: any) => ({ stone: a.stone + Number(r.stone_bruto || 0), cartao: a.cartao + Number(r.contahub_cartao || 0), nf: a.nf + Number(r.nf_autorizado || 0), total: a.total + Number(r.contahub_total || 0) }), { stone: 0, cartao: 0, nf: 0, total: 0 });
               return (
                 <>
-                  <p className="text-xs text-muted-foreground mb-3">Conferência por dia (base gerencial): <strong>Stone × ContaHub-cartão</strong> (o dinheiro do cartão entrou?) e <strong>NF × ContaHub-total</strong> (emitiu nota de tudo?). Se a Stone bate com o cartão mas a NF está abaixo, foi <span className="text-amber-600 dark:text-amber-400 font-medium">falta de emissão de NF</span> — não furo de caixa. Clique no dia p/ ver NF × Stone por CNPJ.</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+                  <p className="text-xs text-muted-foreground mb-3">Conferência por dia (base gerencial): <strong>NF emitida × ContaHub-total</strong> — emitiu nota de tudo? Se a NF está abaixo do ContaHub, foi <span className="text-amber-600 dark:text-amber-400 font-medium">falta de emissão de NF</span>, não furo de caixa. (A conferência do cartão Stone × ContaHub fica na aba <strong>Conciliação</strong>.) Clique no dia p/ ver NF × Stone por CNPJ.</p>
+                  <div className="grid grid-cols-3 gap-2 mb-4">
                     <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Venda Stone</div><div className="text-base font-bold">{fmtBRL(t.stone)}</div></CardContent></Card>
-                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">ContaHub cartão</div><div className="text-base font-bold">{fmtBRL(t.cartao)}</div></CardContent></Card>
                     <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">NF emitida</div><div className="text-base font-bold">{fmtBRL(t.nf)}</div></CardContent></Card>
                     <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">ContaHub total</div><div className="text-base font-bold">{fmtBRL(t.total)}</div></CardContent></Card>
                   </div>
@@ -466,32 +465,31 @@ export default function ConciliacaoPage() {
                     <table className="w-full text-sm">
                       <thead className="text-xs text-muted-foreground border-b"><tr>
                         <th className="px-3 py-2 w-8"></th><th className="text-left px-3 py-2">Dia</th>
-                        <th className="text-right px-3 py-2 whitespace-nowrap">Venda Stone</th><th className="text-right px-3 py-2 whitespace-nowrap">CH cartão</th>
+                        <th className="text-right px-3 py-2 whitespace-nowrap border-l">Venda Stone</th>
                         <th className="text-right px-3 py-2 whitespace-nowrap border-l">NF emitida</th><th className="text-right px-3 py-2 whitespace-nowrap">CH total</th>
                         <th className="text-left px-3 py-2">Diagnóstico</th>
                       </tr></thead>
                       <tbody>
                         {contahubNf.map((r: any) => {
-                          const stone = Number(r.stone_bruto || 0), cartao = Number(r.contahub_cartao || 0), nf = Number(r.nf_autorizado || 0), total = Number(r.contahub_total || 0);
-                          const fSC = frac(stone, cartao), fNT = frac(nf, total);
+                          const stone = Number(r.stone_bruto || 0), nf = Number(r.nf_autorizado || 0), total = Number(r.contahub_total || 0);
+                          const fNT = frac(nf, total);
                           const cnpjs = cnpjPorDia[r.data] || [];
                           let diag = '🟢 OK', diagCls = 'text-emerald-600 dark:text-emerald-400';
                           if (fNT > 0.05 && nf < total) { diag = '🟡 NF a emitir'; diagCls = 'text-amber-600 dark:text-amber-400 font-medium'; }
-                          if (fSC > 0.05) { diag = '🔴 Verificar cartão/Stone'; diagCls = 'text-red-600 dark:text-red-400 font-medium'; }
+                          else if (fNT > 0.05 && nf > total) { diag = '🔴 NF acima do ContaHub'; diagCls = 'text-red-600 dark:text-red-400 font-medium'; }
                           const aberto = confDia === r.data;
                           return (
                             <Fragment key={r.data}>
                               <tr onClick={() => setConfDia(aberto ? null : r.data)} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer">
                                 <td className="px-3 py-1.5">{cnpjs.length > 0 && <ChevronDown className={`w-4 h-4 transition-transform ${aberto ? 'rotate-180' : ''}`} />}</td>
                                 <td className="px-3 py-1.5 whitespace-nowrap font-medium">{fmtData(r.data)}</td>
-                                <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(stone)}</td>
-                                <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corOk(fSC)}`}>{fmtBRL(cartao)}</td>
+                                <td className="px-3 py-1.5 text-right whitespace-nowrap border-l">{fmtBRL(stone)}</td>
                                 <td className="px-3 py-1.5 text-right whitespace-nowrap border-l">{fmtBRL(nf)}</td>
                                 <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corOk(fNT)}`}>{fmtBRL(total)}</td>
                                 <td className={`px-3 py-1.5 text-xs whitespace-nowrap ${diagCls}`}>{diag}</td>
                               </tr>
                               {aberto && cnpjs.length > 0 && (
-                                <tr className="border-b bg-muted/20"><td colSpan={7} className="px-3 py-2">
+                                <tr className="border-b bg-muted/20"><td colSpan={6} className="px-3 py-2">
                                   <div className="text-[11px] font-medium text-muted-foreground mb-1">NF × Stone por CNPJ — Stone e NF têm CNPJ; o ContaHub não separa por CNPJ.</div>
                                   <table className="text-xs w-full max-w-xl">
                                     <thead className="text-muted-foreground"><tr><th className="text-left py-1 pr-3">CNPJ</th><th className="text-right py-1 pr-3">NF emitida</th><th className="text-right py-1 pr-3">Venda Stone</th><th className="text-right py-1">Diferença</th></tr></thead>
