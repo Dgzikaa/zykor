@@ -204,7 +204,7 @@ export async function getPlanejamentoComercial(
     supabase
       .schema('operations' as never)
       .from('eventos_base')
-      .select('id, nome, data_evento, observacoes, c_art, c_prod, c_art_projecao, c_prod_projecao, c_artistico_plan, c_prod_plan, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo, usa_yuzer, usa_sympla')
+      .select('id, nome, data_evento, observacoes, m1_r, cl_plan, te_plan, tb_plan, c_art, c_prod, c_art_projecao, c_prod_projecao, c_artistico_plan, c_prod_plan, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo, usa_yuzer, usa_sympla')
       .eq('bar_id', barId)
       .gte('data_evento', dataInicio)
       .lt('data_evento', dataFinalConsulta),
@@ -367,7 +367,10 @@ export async function getPlanejamentoComercial(
       data_curta: `${dataEvento.getUTCDate().toString().padStart(2, '0')}/${(dataEvento.getUTCMonth() + 1).toString().padStart(2, '0')}`,
 
       real_receita: evento.faturamento_total_consolidado || 0,
-      m1_receita: evento.m1_r || 0,
+      // M1 e demais planos: o eventos_base é a fonte editável (o edit grava lá); o
+      // gold.planejamento.m1_r só atualiza no ETL. Preferir o manual senão o edit de
+      // evento futuro "não fazia nada" (tela mostrava o M1 velho do gold).
+      m1_receita: manual?.m1_r ?? evento.m1_r ?? 0,
       contahub_bruto: valorContahubBruto,
       conta_assinada: Number(evento.conta_assinada || 0),
       contahub_liquido: valorContahubLiquido,
@@ -378,15 +381,15 @@ export async function getPlanejamentoComercial(
       sympla_liquido: Number(evento.sympla_liquido || 0),
       faturamento_total_detalhado: evento.faturamento_total_consolidado || 0,
 
-      clientes_plan: evento.cl_plan || 0,
+      clientes_plan: manual?.cl_plan ?? evento.cl_plan ?? 0,
       clientes_real: evento.publico_real_consolidado || 0,
       res_tot: evento.res_tot || 0,
       res_p: evento.res_p || 0,
       lot_max: evento.lot_max || 0,
 
-      te_plan: evento.te_plan || 0,
+      te_plan: manual?.te_plan ?? evento.te_plan ?? 0,
       te_real: evento.te_real_calculado || 0,
-      tb_plan: evento.tb_plan || 0,
+      tb_plan: manual?.tb_plan ?? evento.tb_plan ?? 0,
       tb_real: evento.tb_real_calculado || 0,
       t_medio: evento.t_medio || 0,
 
