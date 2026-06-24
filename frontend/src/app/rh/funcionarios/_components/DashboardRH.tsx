@@ -9,7 +9,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, AreaChart, Area, CartesianGrid,
 } from 'recharts';
 import {
-  Users, Loader2, Palmtree, CalendarX, AlertTriangle, Smile, Clock, TrendingUp, TrendingDown, FileWarning, ClipboardCheck,
+  Users, Loader2, Palmtree, CalendarX, AlertTriangle, Smile, Clock, TrendingUp, TrendingDown, FileWarning, ClipboardCheck, Cake, Gift,
 } from 'lucide-react';
 
 const CORES = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#0ea5e9', '#8b5cf6', '#ec4899', '#14b8a6'];
@@ -21,12 +21,16 @@ const fmtData = (d: string) => { try { const [y, m, dd] = d.split('-'); return `
 export function DashboardRH() {
   const { selectedBar } = useBar();
   const [d, setD] = useState<any>(null);
+  const [aniv, setAniv] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const carregar = useCallback(async () => {
     if (!selectedBar) return;
     setLoading(true);
-    try { const r = await api.get('/api/rh/funcionarios/dashboard'); setD(r); }
+    try {
+      const [r, a] = await Promise.all([api.get('/api/rh/funcionarios/dashboard'), api.get('/api/rh/aniversariantes').catch(() => null)]);
+      setD(r); setAniv(a);
+    }
     catch { setD(null); } finally { setLoading(false); }
   }, [selectedBar]);
   useEffect(() => { carregar(); }, [carregar]);
@@ -135,6 +139,34 @@ export function DashboardRH() {
                 ))}
               </div>
             ) : <div className="text-sm text-muted-foreground">Ninguém de férias no momento.</div>}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Aniversariantes & tempo de casa ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Card className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
+          <CardContent className="py-4">
+            <div className="text-sm font-semibold mb-2 flex items-center gap-1.5"><Cake className="w-4 h-4 text-pink-500" />Aniversariantes do mês</div>
+            {aniv?.aniversariantes?.length ? (
+              <div className="space-y-1">
+                {aniv.aniversariantes.map((a: any) => (
+                  <div key={a.id} className="text-sm flex items-center justify-between"><span>{a.nome}</span><span className="text-xs text-muted-foreground">dia {a.dia}{a.idade ? ` · ${a.idade} anos` : ''}</span></div>
+                ))}
+              </div>
+            ) : <div className="text-sm text-muted-foreground">Ninguém faz aniversário este mês.</div>}
+          </CardContent>
+        </Card>
+        <Card className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
+          <CardContent className="py-4">
+            <div className="text-sm font-semibold mb-2 flex items-center gap-1.5"><Gift className="w-4 h-4 text-violet-500" />Aniversários de empresa</div>
+            {aniv?.aniversarios_empresa?.length ? (
+              <div className="space-y-1">
+                {aniv.aniversarios_empresa.map((a: any) => (
+                  <div key={a.id} className="text-sm flex items-center justify-between"><span>{a.nome}</span><span className="text-xs text-muted-foreground">dia {a.dia} · {a.anos} {a.anos === 1 ? 'ano' : 'anos'} de casa</span></div>
+                ))}
+              </div>
+            ) : <div className="text-sm text-muted-foreground">Nenhum aniversário de casa este mês.</div>}
           </CardContent>
         </Card>
       </div>
