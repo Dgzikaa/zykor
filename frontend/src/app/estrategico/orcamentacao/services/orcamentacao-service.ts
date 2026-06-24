@@ -436,10 +436,10 @@ export async function getOrcamentacaoCompleta(
     // Real = TODA a receita do Conta Azul no mês (bloco 'Receita': Stone Créd/Déb/Pix
     // + Pix Direto + Dinheiro + Receita de Eventos + Outras Receitas) + ajustes manuais
     // de receita (DRE Manual). É a base de receita que a DRE usa pros % de Var/CMV.
-    // Planejado = MANUAL (planilha 'FATURAMENTO META' — o sócio preenche).
-    // Espelha o /planejamento-comercial (decisão do sócio jun/2026):
-    //   Planejado = Meta M1 (Σ M1)  ·  Projetado = Empilhamento  ·  Realizado = Σ consolidado.
-    const fatPlan = m1Map.get(`${ano}-${mes}`) || 0;
+    // Planejado = MANUAL do BP (planilha 'FATURAMENTO META'); fallback no Σ M1 quando o
+    // BP do mês ainda não foi preenchido. Projetado = Empilhamento · Realizado = Σ consolidado.
+    const fatMetaManual = num(planilha('FATURAMENTO META')?.valor_planejado);
+    const fatPlan = fatMetaManual > 0 ? fatMetaManual : (m1Map.get(`${ano}-${mes}`) || 0);
     const fatProj = projMap.get(`${ano}-${mes}`) || 0;
     const fatReal = realRMap.get(`${ano}-${mes}`) || 0;
 

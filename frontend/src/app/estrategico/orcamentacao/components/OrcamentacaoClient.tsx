@@ -391,9 +391,9 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
           ) : (
             <>
               <HistoricoTooltip historico={getHistorico(sub.nome, 'planejado', idx)} cor="blue" />
-              <div className={cn("flex items-center gap-1 rounded px-1", !readonly && "cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30")} onClick={readonly ? undefined : () => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'planejado' }); setValorEdit((ehPctFat ? sub.pctFatPlan : sub.planejado).toString()); }}>
+              {/* Planejado é read-only: vem 100% do BP (Financeiro › BP). */}
+              <div className="flex items-center gap-1 rounded px-1" title="Planejado vem do BP (Financeiro › BP)">
                 <span className={cn("text-xs whitespace-nowrap text-blue-600", readonly ? "font-semibold" : "font-medium")}>{ehPctFat ? formatarPorcentagem(sub.pctFatPlan) : sub.isPercentage ? formatarPorcentagem(sub.planejado) : formatarMoeda(sinalDre(sub.planejado, tipo))}</span>
-                {!readonly && <Pencil className="h-2 w-2 text-blue-400 opacity-0 group-hover:opacity-100" />}
               </div>
             </>
           )}
@@ -641,7 +641,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                       {/* Planejado = Meta M1 (Σ M1 do planejamento comercial), automático (não editável). */}
                       <span
                         className="flex-1 text-xs font-bold text-center whitespace-nowrap text-blue-600"
-                        title="Planejado automático = Meta M1 (Σ M1 dos eventos no /planejamento-comercial)"
+                        title="Planejado = Faturamento Meta do BP (Financeiro › BP); fallback no Σ M1 do planejamento"
                       >{formatarMoeda(mes.totais.faturamento_meta_plan)}</span>
                       <div className="w-px h-3 bg-slate-300" />
                       {/* Projetado = Empilhamento M1, automático (não editável). */}
@@ -688,24 +688,14 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                       // ---- Bloco % (Custos Variáveis / CMV): 1 linha; Plan% e Proj% editáveis; Real% da DRE ----
                       if (categoria.modoPercentual) {
                         const pct = categoria.percentual ?? { plan: 0, proj: 0, real: 0 };
-                        const isEditPlanPct = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === categoria.nome && editando?.campo === 'planejado';
                         const isEditProjPct = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === categoria.nome && editando?.campo === 'projetado';
                         return (
                           <div key={categoria.nome} className={cn("flex items-center justify-between px-1 border-b border-gray-200", categoria.cor, "bg-opacity-60 dark:bg-opacity-30")} style={{ height: '44px' }}>
-                            {/* PLAN % */}
+                            {/* PLAN % — read-only: vem 100% do BP (Financeiro › BP). */}
                             <div className="flex-1 flex items-center justify-center">
-                              {isEditPlanPct ? (
-                                <div className="flex items-center gap-1">
-                                  <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-16 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
-                                  <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
-                                  <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={() => setEditando(null)}><X className="h-2.5 w-2.5 text-red-600" /></Button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-1" onClick={() => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: categoria.nome, campo: 'planejado' }); setValorEdit(String(pct.plan)); }}>
-                                  <span className="text-xs font-bold whitespace-nowrap text-blue-700 dark:text-blue-300">{formatarPorcentagem(pct.plan)}</span>
-                                  <Pencil className="h-2 w-2 text-blue-500" />
-                                </div>
-                              )}
+                              <div className="flex items-center gap-1 rounded px-1" title="Planejado vem do BP (Financeiro › BP)">
+                                <span className="text-xs font-bold whitespace-nowrap text-blue-700 dark:text-blue-300">{formatarPorcentagem(pct.plan)}</span>
+                              </div>
                             </div>
                             <div className="w-px h-3 bg-white/40" />
                             {/* PROJ % */}

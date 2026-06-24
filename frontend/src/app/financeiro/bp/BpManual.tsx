@@ -129,6 +129,23 @@ export function BpManual({ barId }: { barId: number }) {
                     <tr><th className="text-left px-3 py-2">Categoria / linha</th><th className="text-right px-3 py-2 w-40">Planejado</th></tr>
                   </thead>
                   <tbody>
+                    {/* Faturamento Meta (receita) — manual */}
+                    <tr className="bg-blue-50 dark:bg-blue-950/30 border-y"><td className="px-3 py-1.5 font-semibold">Receita</td><td className="px-3 py-1.5 text-right font-semibold tabular-nums text-blue-700 dark:text-blue-300">{fmtBRL(num(totais?.faturamento_meta_plan))}</td></tr>
+                    <tr className="border-b hover:bg-muted/20">
+                      <td className="px-3 py-1.5 text-muted-foreground">Faturamento Meta</td>
+                      <td className="px-3 py-1.5 text-right">
+                        {editKey === 'RECEITA|FATURAMENTO META' ? (
+                          <span className="inline-flex items-center gap-1 justify-end">
+                            <Input value={editVal} onChange={(e) => setEditVal(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') salvar('FATURAMENTO META', editVal); if (e.key === 'Escape') setEditKey(null); }}
+                              onBlur={() => salvar('FATURAMENTO META', editVal)} className="w-28 h-7 text-right text-xs" />
+                            {salvando === 'FATURAMENTO META' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                          </span>
+                        ) : (
+                          <button onClick={() => { setEditKey('RECEITA|FATURAMENTO META'); setEditVal(String(num(totais?.faturamento_meta_plan)).replace('.', ',')); }} className="tabular-nums hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-2 py-0.5 text-blue-600 dark:text-blue-400 font-medium">{fmtBRL(num(totais?.faturamento_meta_plan))}</button>
+                        )}
+                      </td>
+                    </tr>
                     {secoes.map((sec) => (
                       <Fragment key={sec.categoria}>
                         <tr className="bg-muted/30 border-y"><td className="px-3 py-1.5 font-semibold">{sec.categoria}</td><td className="px-3 py-1.5 text-right font-semibold tabular-nums">{fmtBRL(sec.subtotal)}</td></tr>
