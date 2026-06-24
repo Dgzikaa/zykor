@@ -309,13 +309,12 @@ export default function ConciliacaoPage() {
             </div>
 
             {resumo && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
                 <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Dias</div><div className="text-lg font-bold">{resumo.dias}</div></CardContent></Card>
                 <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-600" />Batendo</div><div className="text-lg font-bold text-emerald-600">{resumo.ok}</div></CardContent></Card>
                 <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-red-600" />Recebeu a menos</div><div className="text-lg font-bold text-red-600" title="ContaHub > Stone — vendeu e não recebeu (possível BO)">{rows.filter((x: any) => x.status !== 'ok' && Number(x.diferenca) > 0.5).length}</div></CardContent></Card>
                 <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-amber-600" />Recebeu a mais</div><div className="text-lg font-bold text-amber-600" title="Stone > ContaHub — ex.: venda fora do caixa não lançada">{rows.filter((x: any) => x.status !== 'ok' && Number(x.diferenca) < -0.5).length}</div></CardContent></Card>
                 <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Stone bruto</div><div className="text-base font-bold">{fmtBRL(resumo.stone_bruto_total)}</div></CardContent></Card>
-                <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Taxa (MDR)</div><div className="text-base font-bold">{fmtBRL(resumo.taxa_total)}</div></CardContent></Card>
               </div>
             )}
 
@@ -327,7 +326,7 @@ export default function ConciliacaoPage() {
                   <thead className="text-xs text-muted-foreground border-b"><tr>
                     <th className="px-3 py-2 w-8"></th><th className="text-left px-3 py-2">Dia</th><th className="text-left px-3 py-2">Status</th>
                     <th className="text-right px-3 py-2 whitespace-nowrap">ContaHub</th><th className="text-right px-3 py-2 whitespace-nowrap">Stone bruto</th>
-                    <th className="text-right px-3 py-2 whitespace-nowrap">Dif. (Stone−CH)</th><th className="text-right px-3 py-2 whitespace-nowrap">Taxa</th><th className="text-right px-3 py-2">Tx</th>
+                    <th className="text-right px-3 py-2 whitespace-nowrap">Dif. (Stone−CH)</th>
                   </tr></thead>
                   <tbody>
                     {rows.map((r) => {
@@ -341,11 +340,9 @@ export default function ConciliacaoPage() {
                             <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.contahub_cartao)}</td>
                             <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.stone_bruto)}</td>
                             <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corGravidade(r.diferenca, r.status)}`}>{fmtBRL(-Number(r.diferenca || 0))}</td>
-                            <td className="px-3 py-1.5 text-right whitespace-nowrap text-muted-foreground">{fmtBRL(r.stone_taxa)}</td>
-                            <td className="px-3 py-1.5 text-right text-muted-foreground">{r.stone_transacoes ?? '—'}</td>
                           </tr>
                           {aberto === r.data && (
-                            <tr className="border-b bg-muted/20"><td colSpan={8} className="px-3 py-3">
+                            <tr className="border-b bg-muted/20"><td colSpan={6} className="px-3 py-3">
                               {diaLoading === r.data ? <div className="py-6 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" /></div>
                               : dia ? (
                                 <div className="space-y-4">
@@ -455,12 +452,36 @@ export default function ConciliacaoPage() {
                 if (!cnpjMap.has(r.cnpj_indice)) cnpjMap.set(r.cnpj_indice, { cnpj_indice: r.cnpj_indice, cnpj_label: r.cnpj_label, cnpj_documento: r.cnpj_documento });
               });
               const cnpjsDoBar = Array.from(cnpjMap.values()).sort((a, b) => a.cnpj_indice - b.cnpj_indice);
+              // Totais do MÊS por CNPJ (igual tinha antes).
+              const porCnpjMes: Record<number, { label: string; doc: string; nf: number; stone: number }> = {};
+              nfStone.forEach((r: any) => {
+                const k = r.cnpj_indice;
+                if (!porCnpjMes[k]) porCnpjMes[k] = { label: r.cnpj_label, doc: r.cnpj_documento, nf: 0, stone: 0 };
+                porCnpjMes[k].nf += Number(r.nf_autorizado || 0);
+                porCnpjMes[k].stone += Number(r.stone_bruto || 0);
+              });
+              // Dias com venda (NF ou Stone) nos 2 CNPJs → ⚠ (possível venda no CNPJ errado).
+              const ativPorDia: Record<string, number> = {};
+              nfStone.forEach((r: any) => { if (Number(r.nf_autorizado || 0) > 0 || Number(r.stone_bruto || 0) > 0) ativPorDia[r.data] = (ativPorDia[r.data] || 0) + 1; });
+              const diasDoisCnpjs = new Set(Object.keys(ativPorDia).filter((d) => ativPorDia[d] >= 2));
               const frac = (a: number, b: number) => { const m = Math.max(Math.abs(a), Math.abs(b), 1); return Math.abs(a - b) / m; };
               const corOk = (f: number) => f > 0.05 ? 'text-red-600 dark:text-red-400 font-semibold' : f > 0.005 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
               const t = contahubNf.reduce((a: any, r: any) => ({ stone: a.stone + Number(r.stone_bruto || 0), cartao: a.cartao + Number(r.contahub_cartao || 0), nf: a.nf + Number(r.nf_autorizado || 0), total: a.total + Number(r.contahub_total || 0) }), { stone: 0, cartao: 0, nf: 0, total: 0 });
               return (
                 <>
-                  <p className="text-xs text-muted-foreground mb-3">Conferência por dia (base gerencial): <strong>NF emitida × ContaHub-total</strong> — emitiu nota de tudo? Se a NF está abaixo do ContaHub, foi <span className="text-amber-600 dark:text-amber-400 font-medium">falta de emissão de NF</span>, não furo de caixa. (A conferência do cartão Stone × ContaHub fica na aba <strong>Conciliação</strong>.) Clique no dia p/ ver NF × Stone por CNPJ.</p>
+                  <p className="text-xs text-muted-foreground mb-3">Conferência por dia (base gerencial): <strong>NF emitida × ContaHub-total</strong> — emitiu nota de tudo? NF abaixo do ContaHub = <span className="text-amber-600 dark:text-amber-400 font-medium">falta de emissão</span> (menos grave). <span className="text-amber-600 dark:text-amber-400 font-medium">⚠ no dia = teve venda nos 2 CNPJs</span> — confira se não vendeu/emitiu no CNPJ errado. Cartão Stone × ContaHub fica na aba <strong>Conciliação</strong>. Clique no dia p/ abrir os 2 CNPJs.</p>
+                  {/* Totais do mês por CNPJ (igual antes) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                    {cnpjsDoBar.map((cj, i) => { const p = porCnpjMes[cj.cnpj_indice] || { nf: 0, stone: 0 }; return (
+                      <Card key={i}><CardContent className="py-3">
+                        <div className="text-xs font-medium mb-1">{cj.cnpj_label} <span className="text-muted-foreground">({cj.cnpj_documento})</span></div>
+                        <div className="flex gap-6">
+                          <div><div className="text-[11px] text-muted-foreground">NF emitida (mês)</div><div className="text-base font-bold">{fmtBRL(p.nf)}</div></div>
+                          <div><div className="text-[11px] text-muted-foreground">Venda Stone (mês)</div><div className="text-base font-bold">{fmtBRL(p.stone)}</div></div>
+                        </div>
+                      </CardContent></Card>
+                    ); })}
+                  </div>
                   <div className="grid grid-cols-3 gap-2 mb-4">
                     <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Venda Stone</div><div className="text-base font-bold">{fmtBRL(t.stone)}</div></CardContent></Card>
                     <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">NF emitida</div><div className="text-base font-bold">{fmtBRL(t.nf)}</div></CardContent></Card>
@@ -486,7 +507,7 @@ export default function ConciliacaoPage() {
                             <Fragment key={r.data}>
                               <tr onClick={() => setConfDia(aberto ? null : r.data)} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer">
                                 <td className="px-3 py-1.5">{cnpjsDoBar.length > 0 && <ChevronDown className={`w-4 h-4 transition-transform ${aberto ? 'rotate-180' : ''}`} />}</td>
-                                <td className="px-3 py-1.5 whitespace-nowrap font-medium">{fmtData(r.data)}</td>
+                                <td className="px-3 py-1.5 whitespace-nowrap font-medium">{diasDoisCnpjs.has(r.data) && <AlertTriangle className="inline w-3.5 h-3.5 text-amber-500 mr-1 align-text-bottom" />}{fmtData(r.data)}</td>
                                 <td className="px-3 py-1.5 text-right whitespace-nowrap border-l">{fmtBRL(stone)}</td>
                                 <td className="px-3 py-1.5 text-right whitespace-nowrap border-l">{fmtBRL(nf)}</td>
                                 <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corOk(fNT)}`}>{fmtBRL(total)}</td>
