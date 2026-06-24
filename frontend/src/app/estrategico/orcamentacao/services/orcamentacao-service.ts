@@ -277,7 +277,7 @@ export async function getOrcamentacaoCompleta(
       .eq('bar_id', barId)
       .in('ano', anosUnicos),
     tbl(supabase, 'eventos_base')
-      .select('real_r, m1_r, data_evento, c_art, c_prod, c_art_projecao, c_prod_projecao')
+      .select('real_r, m1_r, data_evento, c_art, c_prod, c_artistico_plan, c_prod_plan, c_art_projecao, c_prod_projecao')
       .eq('bar_id', barId).gte('data_evento', dataInicio).lte('data_evento', dataFim).eq('ativo', true),
     // Ajustes manuais da aba "DRE Manual" (consumo de estoque, bonificações, etc.)
     // que somam ao realizado do Conta Azul por categoria/macro.
@@ -304,7 +304,7 @@ export async function getOrcamentacaoCompleta(
 
   const dadosPlanilha = (planilhaResult.data || []) as OrcamentoPlanilhaRow[];
   const dadosGold = (goldResult.data || []) as Array<{ ano: number; mes: number; categoria_zykor: string; bloco_dre: string | null; net: number | string }>;
-  const eventosBase = (eventosResult.data || []) as Array<{ m1_r: number | null; real_r: number | null; data_evento: string; c_art: number | null; c_prod: number | null; c_art_projecao: number | null; c_prod_projecao: number | null }>;
+  const eventosBase = (eventosResult.data || []) as Array<{ m1_r: number | null; real_r: number | null; data_evento: string; c_art: number | null; c_prod: number | null; c_artistico_plan: number | null; c_prod_plan: number | null; c_art_projecao: number | null; c_prod_projecao: number | null }>;
   const dadosManuais = ((manuaisResult as { data?: unknown }).data || []) as Array<{ valor: number | string; categoria: string | null; categoria_macro: string | null; data_competencia: string }>;
   const dadosConsumacao = ((consumacaoResult as { data?: unknown }).data || []) as Array<{ data: string; valor: number | string }>;
   const planComercial = ((planComResult as { data?: unknown }).data || []) as Array<{ data_evento: string; m1_r: number | null; faturamento_total_consolidado: number | null }>;
@@ -378,8 +378,11 @@ export async function getOrcamentacaoCompleta(
         ? (e.faturamento_total_consolidado || 0) : (e.m1_r || 0)), 0));
     // Custo artístico/produção (projeção de Atrações/Produção) seguem do eventos_base.
     const doMes = eventosBase.filter(e => e.data_evento >= ini && e.data_evento <= fim);
-    cArtMesMap.set(k, doMes.reduce((s, e) => s + ((e.c_art || 0) > 0 ? (e.c_art || 0) : (e.c_art_projecao || 0)), 0));
-    cProdMesMap.set(k, doMes.reduce((s, e) => s + ((e.c_prod || 0) > 0 ? (e.c_prod || 0) : (e.c_prod_projecao || 0)), 0));
+    // Prioridade igual ao planejamento-comercial: real c_art > override manual
+    // (c_artistico_plan) > projeção auto (c_art_projecao). Antes pulava o plan e
+    // ia direto pra projeção auto (inflava ex.: 29/06 Deboche = 24.792 em vez de 2.000).
+    cArtMesMap.set(k, doMes.reduce((s, e) => s + ((e.c_art || 0) > 0 ? (e.c_art || 0) : (e.c_artistico_plan || 0) > 0 ? (e.c_artistico_plan || 0) : (e.c_art_projecao || 0)), 0));
+    cProdMesMap.set(k, doMes.reduce((s, e) => s + ((e.c_prod || 0) > 0 ? (e.c_prod || 0) : (e.c_prod_plan || 0) > 0 ? (e.c_prod_plan || 0) : (e.c_prod_projecao || 0)), 0));
   });
 
   return mesesParaBuscar.map(({ mes, ano }) => {
@@ -427,12 +430,12 @@ export async function getOrcamentacaoCompleta(
         // planejamento comercial (Σ c_art / c_prod; real do dia fechado + projeção do futuro).
         if (s.nome === 'Atrações Programação') proj = cArtMesMap.get(`${ano}-${mes}`) ?? proj;
         else if (s.nome === 'Produção Eventos') proj = cProdMesMap.get(`${ano}-${mes}`) ?? proj;
-        // Item 3: Escritório Central = 4% do faturamento como DEFAULT. O valor
-        // digitado na planilha (>0) tem precedência — assim o sócio pode sobrescrever
-        // mês a mês (plan/proj editáveis na tela); mês em branco cai no 4% automático.
+        // Item 3: Escritório Central. PROJEÇÃO = SEMPRE 4% do Faturamento projetado
+        // (fixo, NÃO editável — decisão do sócio). Planejado segue 4% como default,
+        // mas o valor digitado na planilha (>0) ainda sobrescreve o planejado.
         if (s.nome === 'Escritório Central') {
           if (!(num(prow?.valor_planejado) > 0)) plan = 0.04 * fatPlan;
-          if (!(num(prow?.valor_projetado) > 0)) proj = 0.04 * fatProj;
+          proj = 0.04 * fatProj;
         }
         let real: number;
         let realizadoFonte: SubcategoriaOrcamento['realizadoFonte'];

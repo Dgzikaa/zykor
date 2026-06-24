@@ -374,6 +374,8 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
   const linhaSubValores = (sub: any, mes: any, idx: number, isMesAtual: boolean, tipo: string, isChild = false, readonly = false) => {
     const isEditPlan = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'planejado';
     const isEditProj = editando?.mes === mes.mes && editando?.ano === mes.ano && editando?.subcategoria === sub.nome && editando?.campo === 'projetado';
+    // Escritório Central: projeção é SEMPRE 4% do faturamento projetado — não editável.
+    const projReadonly = readonly || sub.nome === 'Escritório Central';
     return (
       <div key={sub.nome} onClick={() => setSubSelecionada(sub.nome)} className={cn("relative flex items-center justify-between px-1 border-b border-gray-100 dark:border-gray-700 group cursor-pointer", isMesAtual ? "bg-emerald-50/50" : "bg-white dark:bg-gray-800", isChild && "bg-gray-50/60 dark:bg-gray-800/40", subSelecionada === sub.nome && "!bg-amber-100 dark:!bg-amber-900/30")} style={{ height: '38px' }}>
         {/* PLANEJADO */}
@@ -397,7 +399,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
         <div className="w-px h-3 bg-gray-200" />
         {/* PROJETADO */}
         <div className="flex-1 flex items-center justify-center relative group/proj">
-          {isEditProj && !readonly ? (
+          {isEditProj && !projReadonly ? (
             <div className="flex items-center gap-1">
               <Input value={valorEdit} onChange={e => setValorEdit(e.target.value)} className="w-16 h-6 text-[11px] p-1 text-center" onKeyDown={e => { if(e.key === 'Enter') salvarValor(); if(e.key === 'Escape') setEditando(null); }} />
               <Button size="icon" variant="ghost" className="h-4 w-4 p-0" onClick={salvarValor}><Check className="h-2.5 w-2.5 text-emerald-600" /></Button>
@@ -406,13 +408,13 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
           ) : (
             <>
               <HistoricoTooltip historico={getHistorico(sub.nome, 'projecao', idx)} cor="green" />
-              <div className={cn("flex items-center gap-1 rounded px-1", !readonly && "cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30")} onClick={readonly ? undefined : () => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'projetado' }); setValorEdit(sub.projecao.toString()); }}>
+              <div className={cn("flex items-center gap-1 rounded px-1", !projReadonly && "cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30")} onClick={projReadonly ? undefined : () => { setEditando({ mes: mes.mes, ano: mes.ano, subcategoria: sub.nome, campo: 'projetado' }); setValorEdit(sub.projecao.toString()); }}>
                 <span className={cn("text-xs whitespace-nowrap", readonly ? "font-semibold" : "font-medium", sub.projecao > 0 ? "text-gray-900 dark:text-white" : "text-gray-400")}>{sub.isPercentage ? formatarPorcentagem(sub.projecao) : formatarMoeda(sinalDre(sub.projecao, tipo))}</span>
                 {/* item 6: % do faturamento ao lado da Projeção (igual à DRE) */}
                 {!sub.isPercentage && tipo === 'despesa' && (mes.totais?.faturamento_meta_proj || 0) > 0 && sub.projecao !== 0 && (
                   <span className="text-[9px] text-gray-400 dark:text-gray-500 whitespace-nowrap">{((Math.abs(sub.projecao) / mes.totais.faturamento_meta_proj) * 100).toFixed(1)}%</span>
                 )}
-                {!readonly && <Pencil className="h-2 w-2 text-green-400 opacity-0 group-hover:opacity-100" />}
+                {!projReadonly && <Pencil className="h-2 w-2 text-green-400 opacity-0 group-hover:opacity-100" />}
               </div>
             </>
           )}
