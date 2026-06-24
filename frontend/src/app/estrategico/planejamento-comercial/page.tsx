@@ -1,5 +1,6 @@
 import { PlanejamentoClient } from './components/PlanejamentoClient';
 import { getPlanejamentoComercial } from './services/planejamento-service';
+import { getOrcamentacaoCompleta } from '../orcamentacao/services/orcamentacao-service';
 import { createClient } from '@supabase/supabase-js';
 import { getBarIdServer } from '@/lib/auth-server';
 import { BarSyncCheck } from '@/components/BarSyncCheck';
@@ -54,11 +55,28 @@ export default async function PlanejamentoComercialPage({
 
   const dados = await getPlanejamentoComercial(supabase, barId, mesValido, anoValido);
 
+  // Lucro Líquido projetado do MÊS selecionado, vindo da Orçamentação (mesma fonte/fórmula
+  // do /estrategico/orcamentacao). Em try/catch pra nunca derrubar o planejamento se a
+  // orçamentação falhar — mostra só quando disponível.
+  let lucroLiquidoProjetado: number | null = null;
+  let margemProjetada: number | null = null;
+  try {
+    const orc = await getOrcamentacaoCompleta(supabase, barId, anoValido, mesValido, 1);
+    if (orc?.[0]?.totais) {
+      lucroLiquidoProjetado = orc[0].totais.lucro_projecao ?? null;
+      margemProjetada = orc[0].totais.margem_projecao ?? null;
+    }
+  } catch (e) {
+    console.error('[planejamento] Falha ao buscar Lucro Líquido projetado da orçamentação:', e);
+  }
+
   return (
-    <PlanejamentoClient 
-      initialData={dados} 
-      serverMes={mesValido} 
-      serverAno={anoValido} 
+    <PlanejamentoClient
+      initialData={dados}
+      serverMes={mesValido}
+      serverAno={anoValido}
+      lucroLiquidoProjetado={lucroLiquidoProjetado}
+      margemProjetada={margemProjetada}
     />
   );
 }

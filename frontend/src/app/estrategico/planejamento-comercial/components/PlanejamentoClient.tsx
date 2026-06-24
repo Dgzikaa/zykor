@@ -98,9 +98,11 @@ interface PlanejamentoClientProps {
   initialData: PlanejamentoData[];
   serverMes: number;
   serverAno: number;
+  lucroLiquidoProjetado?: number | null;
+  margemProjetada?: number | null;
 }
 
-export function PlanejamentoClient({ initialData, serverMes, serverAno }: PlanejamentoClientProps) {
+export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiquidoProjetado = null, margemProjetada = null }: PlanejamentoClientProps) {
   const { user } = useUser();
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
@@ -1439,6 +1441,32 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                          </div>
                       </div>
                     </div>
+                    {lucroLiquidoProjetado !== null && (
+                      <div className="pt-4 border-t border-[hsl(var(--border))]">
+                        <h3 className="font-semibold text-[hsl(var(--foreground))] flex items-center gap-2 mb-3"><TrendingUp className="h-4 w-4" /> Lucro Líquido Projetado</h3>
+                        <div className="space-y-1.5 text-xs">
+                          <div className="flex justify-between items-center">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-[hsl(var(--muted-foreground))] cursor-help underline decoration-dotted">Lucro Líquido (proj.):</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
+                                <div className="text-xs">
+                                  <p>Projeção do mês vinda da Orçamentação (empilhamento da receita menos custos variáveis, CMV e fixos, somando não operacionais). Atualiza junto com o planejamento.</p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                            <span className={`font-bold ${lucroLiquidoProjetado >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{formatarMoeda(lucroLiquidoProjetado)}</span>
+                          </div>
+                          {margemProjetada !== null && (
+                            <div className="flex justify-between">
+                              <span className="text-[hsl(var(--muted-foreground))]">Margem (proj.):</span>
+                              <span className={`font-medium ${margemProjetada >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{margemProjetada.toFixed(1)}%</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </Card>
               </div>
