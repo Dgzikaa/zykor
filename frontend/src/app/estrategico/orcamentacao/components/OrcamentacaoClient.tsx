@@ -212,10 +212,12 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     if (!selectedBar) { carregarDados(); return; }
     setLoading(true);
     try {
+      // Reprocessa o ANO exibido (não só os últimos 6 meses do cron).
+      const anoExibido = meses[mesAtualIdx]?.ano ?? meses[0]?.ano ?? new Date().getFullYear();
       const r = await fetch('/api/estrategico/orcamentacao/atualizar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bar_id: selectedBar.id }),
+        body: JSON.stringify({ bar_id: selectedBar.id, ano: anoExibido }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.success) {

@@ -6,13 +6,14 @@ import { createClient } from '@supabase/supabase-js';
  *
  * Atualiza a Orçamentação on-demand (botão "Atualizar"):
  *  1. Sincroniza o Conta Azul (delta incremental) -> bronze fresco.
- *  2. Recalcula o gold da orçamentação (realizado) via cron_refresh_gold_orcamentacao_diario.
+ *  2. Reprocessa silver+gold da orçamentação do ANO exibido (não só dos últimos 6
+ *     meses do cron) -> pega alterações antigas quando o sócio precisar.
  *
  * Diferente da DRE (que lê o bronze ao vivo), a Orçamentação lê a camada gold —
  * por isso o botão precisa forçar o refresh do gold, senão o realizado só mudaria
  * no cron (2x/dia).
  *
- * Body: { bar_id: number }
+ * Body: { bar_id: number, ano?: number }  (ano default = ano corrente)
  */
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const barId = Number(body.bar_id);
     if (!barId) return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
+    const ano = Number(body.ano) || new Date().getFullYear();
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -44,8 +46,11 @@ export async function POST(request: NextRequest) {
       console.warn('[orcamentacao/atualizar] sync CA falhou:', e);
     }
 
-    // 2. Recalcula o gold da orçamentação (realizado de despesas)
-    const { error: rpcErr } = await (supabase as any).rpc('cron_refresh_gold_orcamentacao_diario');
+    // 2. Reprocessa silver+gold da orçamentação do ANO exibido (cobre alterações > 6 meses)
+    const { error: rpcErr } = await (supabase as any).rpc('refresh_orcamentacao_ano', {
+      p_bar_id: barId,
+      p_ano: ano,
+    });
     if (rpcErr) {
       return NextResponse.json(
         { success: false, error: `Refresh do gold falhou: ${rpcErr.message}`, sync: syncStats },
@@ -53,7 +58,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, sync: syncStats });
+    return NextResponse.json({ success: true, ano, sync: syncStats });
   } catch (error: any) {
     console.error('[orcamentacao/atualizar] erro:', error);
     return NextResponse.json({ success: false, error: error?.message || 'Erro interno' }, { status: 500 });
