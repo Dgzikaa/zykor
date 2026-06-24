@@ -102,7 +102,9 @@ export async function POST(request: NextRequest) {
 
   const c = await credsDoBar(supabase, barId);
   const payload: any = { bar_id: barId, sistema: 'vmarket', username: email, password: senha, base_url, ativo: true, atualizado_em: new Date().toISOString() };
-  if (c) await supabase.from('api_credentials').update(payload).eq('id', c.id);
-  else await supabase.from('api_credentials').insert(payload);
+  const { error } = c
+    ? await supabase.from('api_credentials').update(payload).eq('id', c.id)
+    : await supabase.from('api_credentials').insert(payload);
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }
