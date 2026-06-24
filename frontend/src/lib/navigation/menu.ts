@@ -150,6 +150,7 @@ export const MENU_TREE: MenuSection[] = [
     subItems: [
       { icon: 'Bell', label: 'Notificações', href: '/configuracoes/notifications', permission: 'configuracoes' },
       { icon: 'Store', label: 'Bares', href: '/configuracoes/bares', permission: 'configuracoes' },
+      { icon: 'Zap', label: 'Integrações', href: '/configuracoes/integracoes', permission: 'configuracoes' },
       { icon: 'Users', label: 'Administração', href: '/configuracoes/administracao/usuarios', permission: 'configuracoes' },
       { icon: 'Activity', label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },
       { icon: 'Server', label: 'Painel Supabase', href: '/configuracoes/painel', permission: 'configuracoes' },
