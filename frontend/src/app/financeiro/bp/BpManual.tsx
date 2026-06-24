@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
-import { ClipboardList, Loader2, Check } from 'lucide-react';
+import { ClipboardList, Loader2, Check, ChevronRight, ChevronDown } from 'lucide-react';
 
 const MESES = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const num = (v: any) => Number(v) || 0;
@@ -17,7 +17,8 @@ const fmtBRL = (n: number) => `${n < 0 ? '-' : ''}R$ ${Math.abs(n).toLocaleStrin
 const fmtPct = (n: number) => `${num(n).toFixed(1).replace('.', ',')}%`;
 
 // Cada linha editável do BP (= planejado da orçamentação). value já vem do serviço.
-type Linha = { nome: string; valor: number; isPct: boolean; indent?: boolean };
+// Linha-pai (com filhos) é read-only (soma dos filhos); filhos são editáveis.
+type Linha = { nome: string; valor: number; isPct: boolean; filhos?: Linha[] };
 
 export function BpManual({ barId }: { barId: number }) {
   const { selectedBar } = useBar();
@@ -31,6 +32,9 @@ export function BpManual({ barId }: { barId: number }) {
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editVal, setEditVal] = useState('');
   const [salvando, setSalvando] = useState<string | null>(null);
+  // Colapso (padrão: tudo fechado). abertas = categorias; paisAbertos = linhas-pai com filhos.
+  const [abertas, setAbertas] = useState<Record<string, boolean>>({});
+  const [paisAbertos, setPaisAbertos] = useState<Record<string, boolean>>({});
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -43,7 +47,7 @@ export function BpManual({ barId }: { barId: number }) {
 
   const mesData = useMemo(() => dados.find((m) => m.mes === mesSel), [dados, mesSel]);
 
-  // Extrai as linhas editáveis (planejado) de um mês, na ordem da estrutura.
+  // Extrai as linhas editáveis (planejado) de um mês, na ordem da estrutura (hierárquico).
   const linhasDoMes = useCallback((mes: any): { categoria: string; cor: string; tipo: string; linhas: Linha[]; subtotal: number }[] => {
     if (!mes) return [];
     return (mes.categorias || []).map((cat: any) => {
@@ -53,8 +57,7 @@ export function BpManual({ barId }: { barId: number }) {
       } else {
         for (const s of cat.subcategorias || []) {
           if (s.filhos?.length) {
-            linhas.push({ nome: s.nome, valor: num(s.planejado), isPct: false }); // pai (read-only via sum)
-            for (const f of s.filhos) linhas.push({ nome: f.nome, valor: num(f.planejado), isPct: false, indent: true });
+            linhas.push({ nome: s.nome, valor: num(s.planejado), isPct: false, filhos: s.filhos.map((f: any) => ({ nome: f.nome, valor: num(f.planejado), isPct: false })) });
           } else if (s.pctFatPlan !== undefined && s.pctFatPlan !== null) {
             linhas.push({ nome: s.nome, valor: num(s.pctFatPlan), isPct: true });
           } else {
@@ -65,12 +68,6 @@ export function BpManual({ barId }: { barId: number }) {
       const subtotal = (cat.subcategorias || []).reduce((acc: number, s: any) => acc + num(s.planejado), 0);
       return { categoria: cat.nome, cor: cat.cor, tipo: cat.tipo, linhas, subtotal };
     });
-  }, []);
-
-  // Linhas-pai (com filhos) não são editáveis (são soma).
-  const ehPai = useCallback((mes: any, nome: string) => {
-    for (const c of mes?.categorias || []) for (const s of c.subcategorias || []) if (s.nome === nome && s.filhos?.length) return true;
-    return false;
   }, []);
 
   const salvar = async (nome: string, valorStr: string) => {
@@ -85,6 +82,22 @@ export function BpManual({ barId }: { barId: number }) {
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao salvar', message: e?.message }); }
     finally { setSalvando(null); }
   };
+
+  // Célula de valor editável (reuso: Faturamento Meta, linhas normais e filhos).
+  const celValor = (nome: string, valor: number, isPct: boolean) => (
+    editKey === nome ? (
+      <span className="inline-flex items-center gap-1 justify-end">
+        <Input value={editVal} onChange={(e) => setEditVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') salvar(nome, editVal); if (e.key === 'Escape') setEditKey(null); }}
+          onBlur={() => salvar(nome, editVal)} className="w-28 h-7 text-right text-xs" />
+        {salvando === nome ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 text-emerald-600" />}
+      </span>
+    ) : (
+      <button onClick={() => { setEditKey(nome); setEditVal(String(valor).replace('.', ',')); }} className="tabular-nums hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-2 py-0.5 text-blue-600 dark:text-blue-400 font-medium">
+        {isPct ? fmtPct(valor) : fmtBRL(valor)}
+      </button>
+    )
+  );
 
   const totais = mesData?.totais;
   const secoes = linhasDoMes(mesData);
@@ -132,51 +145,46 @@ export function BpManual({ barId }: { barId: number }) {
                     {/* Faturamento Meta (receita) — manual */}
                     <tr className="bg-blue-50 dark:bg-blue-950/30 border-y"><td className="px-3 py-1.5 font-semibold">Receita</td><td className="px-3 py-1.5 text-right font-semibold tabular-nums text-blue-700 dark:text-blue-300">{fmtBRL(num(totais?.faturamento_meta_plan))}</td></tr>
                     <tr className="border-b hover:bg-muted/20">
-                      <td className="px-3 py-1.5 text-muted-foreground">Faturamento Meta</td>
-                      <td className="px-3 py-1.5 text-right">
-                        {editKey === 'RECEITA|FATURAMENTO META' ? (
-                          <span className="inline-flex items-center gap-1 justify-end">
-                            <Input value={editVal} onChange={(e) => setEditVal(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === 'Enter') salvar('FATURAMENTO META', editVal); if (e.key === 'Escape') setEditKey(null); }}
-                              onBlur={() => salvar('FATURAMENTO META', editVal)} className="w-28 h-7 text-right text-xs" />
-                            {salvando === 'FATURAMENTO META' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                          </span>
-                        ) : (
-                          <button onClick={() => { setEditKey('RECEITA|FATURAMENTO META'); setEditVal(String(num(totais?.faturamento_meta_plan)).replace('.', ',')); }} className="tabular-nums hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-2 py-0.5 text-blue-600 dark:text-blue-400 font-medium">{fmtBRL(num(totais?.faturamento_meta_plan))}</button>
-                        )}
-                      </td>
+                      <td className="px-3 py-1.5 text-muted-foreground pl-7">Faturamento Meta</td>
+                      <td className="px-3 py-1.5 text-right">{celValor('FATURAMENTO META', num(totais?.faturamento_meta_plan), false)}</td>
                     </tr>
-                    {secoes.map((sec) => (
-                      <Fragment key={sec.categoria}>
-                        <tr className="bg-muted/30 border-y"><td className="px-3 py-1.5 font-semibold">{sec.categoria}</td><td className="px-3 py-1.5 text-right font-semibold tabular-nums">{fmtBRL(sec.subtotal)}</td></tr>
-                        {sec.linhas.map((l) => {
-                          const k = `${sec.categoria}|${l.nome}`;
-                          const pai = ehPai(mesData, l.nome);
-                          const editando = editKey === k;
-                          return (
-                            <tr key={k} className="border-b last:border-0 hover:bg-muted/20">
-                              <td className={cn('px-3 py-1.5 text-muted-foreground', l.indent && 'pl-7', pai && 'font-medium text-foreground')}>{l.nome}</td>
-                              <td className="px-3 py-1.5 text-right">
-                                {pai ? (
-                                  <span className="tabular-nums text-muted-foreground">{fmtBRL(l.valor)}</span>
-                                ) : editando ? (
-                                  <span className="inline-flex items-center gap-1 justify-end">
-                                    <Input value={editVal} onChange={(e) => setEditVal(e.target.value)}
-                                      onKeyDown={(e) => { if (e.key === 'Enter') salvar(l.nome, editVal); if (e.key === 'Escape') setEditKey(null); }}
-                                      onBlur={() => salvar(l.nome, editVal)} className="w-28 h-7 text-right text-xs" />
-                                    {salvando === l.nome ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                                  </span>
-                                ) : (
-                                  <button onClick={() => { setEditKey(k); setEditVal(String(l.valor).replace('.', ',')); }} className="tabular-nums hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded px-2 py-0.5 text-blue-600 dark:text-blue-400 font-medium">
-                                    {l.isPct ? fmtPct(l.valor) : fmtBRL(l.valor)}
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </Fragment>
-                    ))}
+                    {secoes.map((sec) => {
+                      const aberta = abertas[sec.categoria] ?? false;
+                      return (
+                        <Fragment key={sec.categoria}>
+                          <tr className="bg-muted/30 border-y cursor-pointer hover:bg-muted/50" onClick={() => setAbertas((p) => ({ ...p, [sec.categoria]: !aberta }))}>
+                            <td className="px-3 py-1.5 font-semibold"><span className="inline-flex items-center gap-1">{aberta ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}{sec.categoria}</span></td>
+                            <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{fmtBRL(sec.subtotal)}</td>
+                          </tr>
+                          {aberta && sec.linhas.map((l) => {
+                            if (l.filhos?.length) {
+                              const pk = `${sec.categoria}|${l.nome}`;
+                              const paiAberto = paisAbertos[pk] ?? false;
+                              return (
+                                <Fragment key={pk}>
+                                  <tr className="border-b hover:bg-muted/20 cursor-pointer" onClick={() => setPaisAbertos((p) => ({ ...p, [pk]: !paiAberto }))}>
+                                    <td className="px-3 py-1.5 pl-7 font-medium"><span className="inline-flex items-center gap-1">{paiAberto ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}{l.nome}</span></td>
+                                    <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{fmtBRL(l.valor)}</td>
+                                  </tr>
+                                  {paiAberto && l.filhos.map((f) => (
+                                    <tr key={f.nome} className="border-b hover:bg-muted/20">
+                                      <td className="px-3 py-1.5 pl-12 text-muted-foreground">{f.nome}</td>
+                                      <td className="px-3 py-1.5 text-right">{celValor(f.nome, f.valor, f.isPct)}</td>
+                                    </tr>
+                                  ))}
+                                </Fragment>
+                              );
+                            }
+                            return (
+                              <tr key={l.nome} className="border-b last:border-0 hover:bg-muted/20">
+                                <td className="px-3 py-1.5 pl-7 text-muted-foreground">{l.nome}</td>
+                                <td className="px-3 py-1.5 text-right">{celValor(l.nome, l.valor, l.isPct)}</td>
+                              </tr>
+                            );
+                          })}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </Card>
