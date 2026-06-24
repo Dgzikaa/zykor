@@ -454,7 +454,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                 </div>
               ) : (() => {
                 const podeDrill = sub.realizadoFonte === 'ca' && !!sub.goldCategorias?.length && sub.realizado !== 0;
-                const conteudo = sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sinalDre(sub.realizado, tipo));
+                const conteudo = ehPctFat ? formatarPorcentagem(sub.pctFatReal) : sub.isPercentage ? formatarPorcentagem(sub.realizado) : formatarMoeda(sinalDre(sub.realizado, tipo));
                 if (!podeDrill) {
                   return <span className={cn("text-xs whitespace-nowrap", corClasse)} title="Automático: Conta Azul + ajustes da DRE Manual">{conteudo}</span>;
                 }

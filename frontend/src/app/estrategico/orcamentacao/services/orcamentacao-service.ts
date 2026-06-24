@@ -39,6 +39,7 @@ export interface SubcategoriaOrcamento {
   // renderiza a célula como % editável.
   pctFatPlan?: number;
   pctFatProj?: number;
+  pctFatReal?: number;
   // Linhas-filhas (ex.: CMO Fixo -> CUSTO-EMPRESA, Adicionais, ...). Quando presente,
   // o pai é a soma dos filhos e a UI permite expandir/recolher pra ver o detalhe.
   filhos?: SubcategoriaOrcamento[];
@@ -435,6 +436,7 @@ export async function getOrcamentacaoCompleta(
         // o %, mas planejado/projecao seguem em R$ (=%×fat) pros totais/Real Fixo.
         let pctFatPlan: number | undefined;
         let pctFatProj: number | undefined;
+        let pctFatReal: number | undefined;
         // Item 4: Atrações Programação / Produção Eventos -> projeção = somatório do
         // planejamento comercial (Σ c_art / c_prod; real do dia fechado + projeção do futuro).
         if (s.nome === 'Atrações Programação') proj = cArtMesMap.get(`${ano}-${mes}`) ?? proj;
@@ -469,7 +471,9 @@ export async function getOrcamentacaoCompleta(
           realizadoFonte = 'ca';
           goldCategorias = s.gold;
         }
-        return { nome: nomeBar, planejado: plan, projecao: proj, realizado: real, isPercentage: false, manual: !!s.orcOnly, realizadoFonte, goldCategorias, pctFatPlan, pctFatProj };
+        // Linha % do faturamento: realizado também vira % (R$ realizado / faturamento realizado).
+        if (pctFatPlan !== undefined) pctFatReal = fatReal > 0 ? (real / fatReal) * 100 : 0;
+        return { nome: nomeBar, planejado: plan, projecao: proj, realizado: real, isPercentage: false, manual: !!s.orcOnly, realizadoFonte, goldCategorias, pctFatPlan, pctFatProj, pctFatReal };
       };
       const subcategorias = bloco.subs.map(s => {
         // Linha-pai com filhos (ex.: CMO Fixo): soma dos filhos; UI expande pra ver o detalhe.
