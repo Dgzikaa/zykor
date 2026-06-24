@@ -501,6 +501,14 @@ async function syncCategorias(
     return 0
   }
 
+  // Central de Categorias: expande o mapeamento pai->filhos na DRE, pra categoria nova
+  // (criada sob um pai já mapeado) entrar automática no grupo certo. Best-effort.
+  try {
+    await supabase.schema('meta').rpc('aplicar_grupos_dre', { p_bar: barId })
+  } catch (e) {
+    console.error('[contaazul-sync] aplicar_grupos_dre falhou:', e)
+  }
+
   return categorias.length
 }
 
