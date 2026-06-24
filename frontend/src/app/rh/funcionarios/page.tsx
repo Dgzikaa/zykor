@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp } from 'lucide-react';
+import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp, LayoutGrid, List, Download, Network } from 'lucide-react';
 import { FuncionarioDialog } from './_components/FuncionarioDialog';
 import { DossieDialog } from './_components/DossieDialog';
 import { DashboardRH } from './_components/DashboardRH';
@@ -62,6 +62,7 @@ export default function FuncionariosPage() {
   const [formAberto, setFormAberto] = useState(false);
   const [editando, setEditando] = useState<Funcionario | null>(null);
   const [dossieId, setDossieId] = useState<number | null>(null);
+  const [vista, setVista] = useState<'cards' | 'tabela'>('cards');
 
   const carregar = useCallback(async () => {
     if (!selectedBar) return;
@@ -97,6 +98,23 @@ export default function FuncionariosPage() {
     return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
   }, []);
 
+  // Organograma: agrupa por área (e ordena por cargo dentro).
+  const porArea = useMemo(() => {
+    const m = new Map<string, Funcionario[]>();
+    for (const f of lista) { const k = f.area_nome || 'Sem área'; const a = m.get(k) || []; a.push(f); m.set(k, a); }
+    return Array.from(m.entries()).map(([area, fs]) => ({ area, fs: fs.sort((a, b) => (a.cargo_nome || '').localeCompare(b.cargo_nome || '')) }))
+      .sort((a, b) => b.fs.length - a.fs.length);
+  }, [lista]);
+
+  const exportarCSV = () => {
+    const head = ['Nome', 'CPF', 'Cargo', 'Área', 'Tipo', 'Admissão', 'Tempo de casa', 'Ativo'];
+    const linhas = lista.map((f) => [f.nome, f.cpf || '', f.cargo_nome || '', f.area_nome || '', f.tipo_contratacao || '', f.data_admissao || '', tempoDeCasa(f.data_admissao), f.ativo ? 'Sim' : 'Não']);
+    const csv = [head, ...linhas].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob); const a = document.createElement('a');
+    a.href = url; a.download = `funcionarios_${selectedBar?.id || ''}_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
+  };
+
   return (
     <ProtectedRoute>
       <div className="container mx-auto px-3 py-5 max-w-6xl">
@@ -123,6 +141,7 @@ export default function FuncionariosPage() {
           <TabsList className="mb-4">
             <TabsTrigger value="visao"><LayoutDashboard className="w-4 h-4 mr-1.5" />Visão geral</TabsTrigger>
             <TabsTrigger value="equipe"><Users className="w-4 h-4 mr-1.5" />Equipe</TabsTrigger>
+            <TabsTrigger value="organograma"><Network className="w-4 h-4 mr-1.5" />Organograma</TabsTrigger>
             <TabsTrigger value="indicadores"><TrendingUp className="w-4 h-4 mr-1.5" />Indicadores</TabsTrigger>
           </TabsList>
 
@@ -151,12 +170,38 @@ export default function FuncionariosPage() {
               <select value={filtroAtivo} onChange={(e) => setFiltroAtivo(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
                 <option value="1">Ativos</option><option value="0">Inativos</option><option value="">Todos</option>
               </select>
+              <div className="flex items-center rounded-md border border-input overflow-hidden h-9">
+                <button onClick={() => setVista('cards')} className={`px-2 h-full ${vista === 'cards' ? 'bg-indigo-600 text-white' : 'hover:bg-muted'}`} title="Cards"><LayoutGrid className="w-4 h-4" /></button>
+                <button onClick={() => setVista('tabela')} className={`px-2 h-full ${vista === 'tabela' ? 'bg-indigo-600 text-white' : 'hover:bg-muted'}`} title="Tabela"><List className="w-4 h-4" /></button>
+              </div>
+              <Button variant="outline" size="sm" className="h-9" onClick={exportarCSV} disabled={!lista.length}><Download className="w-4 h-4 mr-1.5" />CSV</Button>
             </div>
 
             {loading ? (
               <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
             ) : lista.length === 0 ? (
               <Card><CardContent className="py-12 text-center text-muted-foreground"><Users className="w-9 h-9 mx-auto mb-2 opacity-40" />Nenhum funcionário.</CardContent></Card>
+            ) : vista === 'cards' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {lista.map((f) => (
+                  <Card key={f.id} onClick={() => setDossieId(f.id)} className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${corAvatar(f.nome)}`}>{iniciais(f.nome)}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold truncate flex items-center gap-1">{f.nome}{!f.ativo && <span className="text-[10px] text-muted-foreground">(inativo)</span>}</div>
+                          <div className="text-xs text-muted-foreground truncate">{[f.cargo_nome, f.area_nome].filter(Boolean).join(' · ') || 'Sem cargo'}</div>
+                        </div>
+                        {!!f.alertas?.length && <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 inline-flex items-center gap-0.5 shrink-0" title={f.alertas.map((a) => a.label).join(', ')}><AlertTriangle className="w-2.5 h-2.5" />{f.alertas.length}</span>}
+                      </div>
+                      <div className="flex items-center justify-between mt-3">
+                        <span className={`text-[10px] rounded px-1.5 py-0.5 ${tipoTag(f.tipo_contratacao)}`}>{f.tipo_contratacao || '—'}</span>
+                        <span className="text-[11px] text-muted-foreground">{tempoDeCasa(f.data_admissao)} de casa</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             ) : (
               <Card className="p-0 overflow-x-auto rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
                 <table className="w-full text-sm">
@@ -193,6 +238,37 @@ export default function FuncionariosPage() {
                   </tbody>
                 </table>
               </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="organograma">
+            {loading ? (
+              <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {porArea.map(({ area, fs }) => (
+                  <Card key={area} className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
+                    <CardContent className="py-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-semibold">{area}</div>
+                        <span className="text-[11px] rounded-full bg-muted px-2 py-0.5">{fs.length}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {fs.map((f) => (
+                          <div key={f.id} onClick={() => setDossieId(f.id)} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 cursor-pointer">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${corAvatar(f.nome)}`}>{iniciais(f.nome)}</div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-medium truncate">{f.nome}</div>
+                              <div className="text-[11px] text-muted-foreground truncate">{f.cargo_nome || '—'}</div>
+                            </div>
+                            <span className={`text-[9px] rounded px-1 py-0.5 shrink-0 ${tipoTag(f.tipo_contratacao)}`}>{f.tipo_contratacao || '—'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             )}
           </TabsContent>
         </Tabs>
