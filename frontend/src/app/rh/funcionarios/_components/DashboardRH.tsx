@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import {
@@ -40,18 +41,18 @@ export function DashboardRH() {
   return (
     <div className="space-y-4">
       {/* ── KPIs ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-        <Kpi icon={Users} label="Ativos" value={d.headcount.ativos} sub={`${d.headcount.inativos} inativos`} />
-        <Kpi icon={Palmtree} label="Em férias" value={d.ocorrencias.em_ferias.length} cor="text-sky-600" />
-        <Kpi icon={CalendarX} label="Faltas (mês)" value={d.ocorrencias.faltas_mes} cor="text-orange-600" />
-        <Kpi icon={AlertTriangle} label="Com alertas" value={d.alertas.com_alertas} cor="text-red-600" />
-        <Kpi icon={Smile} label="Felicidade" value={fel ? `${fel.pct}%` : '—'} cor="text-emerald-600" sub={fel ? `${fel.respostas} resp.` : 'sem pesquisa'} />
-        <Kpi icon={Clock} label="Tempo de casa" value={tempoTxt} sub="média" />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Kpi icon={Users} label="Ativos" value={d.headcount.ativos} sub={`${d.headcount.inativos} inativos`} tint="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300" />
+        <Kpi icon={Palmtree} label="Em férias" value={d.ocorrencias.em_ferias.length} cor="text-sky-600 dark:text-sky-400" tint="bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300" />
+        <Kpi icon={CalendarX} label="Faltas (mês)" value={d.ocorrencias.faltas_mes} cor="text-orange-600 dark:text-orange-400" tint="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300" />
+        <Kpi icon={AlertTriangle} label="Com alertas" value={d.alertas.com_alertas} cor="text-red-600 dark:text-red-400" tint="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" />
+        <Kpi icon={Smile} label="Felicidade" value={fel ? `${fel.pct}%` : '—'} cor="text-emerald-600 dark:text-emerald-400" sub={fel ? `${fel.respostas} resp.` : 'sem pesquisa'} tint="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" />
+        <Kpi icon={Clock} label="Tempo de casa" value={tempoTxt} sub="média" tint="bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {/* ── Quadro por área ── */}
-        <Card>
+        <Card className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
           <CardContent className="py-4">
             <div className="text-sm font-semibold mb-2 flex items-center gap-1.5"><Users className="w-4 h-4" />Quadro por área</div>
             <div className="flex items-center gap-1.5 mb-3 flex-wrap text-[11px]">
@@ -77,7 +78,7 @@ export function DashboardRH() {
         </Card>
 
         {/* ── Clima / Felicidade ── */}
-        <Card>
+        <Card className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
           <CardContent className="py-4">
             <div className="text-sm font-semibold mb-2 flex items-center gap-1.5"><Smile className="w-4 h-4" />Clima · Felicidade {fel && <span className="text-muted-foreground font-normal text-xs">(pesquisa {fmtData(fel.data)})</span>}</div>
             {fel ? (
@@ -110,7 +111,7 @@ export function DashboardRH() {
 
       {/* ── Atenção + Em férias ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Card>
+        <Card className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
           <CardContent className="py-4">
             <div className="text-sm font-semibold mb-2 flex items-center gap-1.5"><FileWarning className="w-4 h-4 text-red-500" />Pendências</div>
             {Object.keys(d.alertas.por_tipo).length ? (
@@ -124,7 +125,7 @@ export function DashboardRH() {
             ) : <div className="text-sm text-emerald-600 flex items-center gap-1.5"><ClipboardCheck className="w-4 h-4" />Tudo em dia — nenhuma pendência.</div>}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
           <CardContent className="py-4">
             <div className="text-sm font-semibold mb-2 flex items-center gap-1.5"><Palmtree className="w-4 h-4 text-sky-500" />Em férias agora</div>
             {d.ocorrencias.em_ferias.length ? (
@@ -139,7 +140,7 @@ export function DashboardRH() {
       </div>
 
       {/* ── Avaliações (pré-construído) ── */}
-      <Card className="border-dashed">
+      <Card className="rounded-2xl border-dashed bg-muted/20">
         <CardContent className="py-4 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-semibold"><ClipboardCheck className="w-4 h-4 text-violet-500" />Avaliações de desempenho</div>
           <span className="text-xs text-muted-foreground">módulo de Avaliação/Calibração — em breve</span>
@@ -149,13 +150,18 @@ export function DashboardRH() {
   );
 }
 
-function Kpi({ icon: Icon, label, value, sub, cor }: { icon: any; label: string; value: any; sub?: string; cor?: string }) {
+function Kpi({ icon: Icon, label, value, sub, cor, tint }: { icon: any; label: string; value: any; sub?: string; cor?: string; tint?: string }) {
   return (
-    <Card>
-      <CardContent className="py-3">
-        <div className="text-[11px] text-muted-foreground flex items-center gap-1"><Icon className="w-3 h-3" />{label}</div>
-        <div className={`text-2xl font-bold leading-tight ${cor || ''}`}>{value}</div>
-        {sub && <div className="text-[10px] text-muted-foreground">{sub}</div>}
+    <Card className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+          <span className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', tint || 'bg-muted text-foreground')}>
+            <Icon className="w-4 h-4" />
+          </span>
+        </div>
+        <div className={cn('text-2xl font-bold mt-2 leading-none', cor)}>{value}</div>
+        {sub && <div className="text-[11px] text-muted-foreground mt-1">{sub}</div>}
       </CardContent>
     </Card>
   );

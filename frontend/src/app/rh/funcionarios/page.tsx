@@ -98,12 +98,24 @@ export default function FuncionariosPage() {
 
   return (
     <ProtectedRoute>
-      <div className="container mx-auto px-3 py-5 max-w-5xl">
-        <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Users className="w-5 h-5" /><h1 className="text-xl font-bold">Funcionários</h1>
+      <div className="container mx-auto px-3 py-5 max-w-6xl">
+        {/* Header com destaque (gradiente) */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 p-5 mb-5 shadow-sm">
+          <div className="absolute -right-10 -top-10 w-44 h-44 rounded-full bg-white/10 blur-2xl pointer-events-none" />
+          <div className="relative flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 text-white">
+              <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0">
+                <Users className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold leading-tight">Funcionários</h1>
+                <p className="text-sm text-white/80">Central de RH — equipe, documentos e indicadores</p>
+              </div>
+            </div>
+            <Button onClick={novo} className="bg-white text-indigo-700 hover:bg-white/90 shadow-sm">
+              <Plus className="w-4 h-4 mr-1.5" />Novo funcionário
+            </Button>
           </div>
-          <Button size="sm" onClick={novo}><Plus className="w-4 h-4 mr-1.5" />Novo funcionário</Button>
         </div>
 
         <Tabs defaultValue="visao" className="w-full">
@@ -140,9 +152,9 @@ export default function FuncionariosPage() {
             ) : lista.length === 0 ? (
               <Card><CardContent className="py-12 text-center text-muted-foreground"><Users className="w-9 h-9 mx-auto mb-2 opacity-40" />Nenhum funcionário.</CardContent></Card>
             ) : (
-              <Card className="p-0 overflow-x-auto">
+              <Card className="p-0 overflow-x-auto rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
                 <table className="w-full text-sm">
-                  <thead className="text-xs text-muted-foreground border-b"><tr>
+                  <thead className="text-[11px] uppercase tracking-wide text-muted-foreground border-b bg-muted/40"><tr>
                     <th className="text-left px-3 py-2 min-w-[200px]">Nome</th>
                     <th className="text-left px-3 py-2 whitespace-nowrap">Cargo</th>
                     <th className="text-left px-3 py-2 whitespace-nowrap">Área</th>
@@ -151,7 +163,7 @@ export default function FuncionariosPage() {
                   </tr></thead>
                   <tbody>
                     {lista.map((f) => (
-                      <tr key={f.id} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer" onClick={() => setDossieId(f.id)}>
+                      <tr key={f.id} className="border-b last:border-0 hover:bg-indigo-50/60 dark:hover:bg-indigo-900/10 transition-colors cursor-pointer" onClick={() => setDossieId(f.id)}>
                         <td className="px-3 py-1.5">
                           <div className="flex items-center gap-2.5">
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${corAvatar(f.nome)}`}>{iniciais(f.nome)}</div>
