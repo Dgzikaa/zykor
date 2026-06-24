@@ -2052,6 +2052,11 @@ export function DesempenhoClient({
                                                             return fatNum >= metaM1 ? 'verde' : 'vermelho';
                                                           }
                                                         }
+                                                        // Reservas: a meta (ex.: 850) é por PESSOAS (2º nº), não mesas (1º nº).
+                                                        // Comparar o valor de pessoas com a meta, senão fica vermelho indevido.
+                                                        if (metricaPrincipal.formato === 'reservas' && metricaPrincipal.keyPessoas) {
+                                                          return verificarMeta(valorPessoasPrincipal, metricaPrincipal.key, metas);
+                                                        }
                                                         return verificarMeta(valorPrincipal, metricaPrincipal.key, metas);
                                                       })()))}>{valorPrincipalFormatado}</span>
                                                       {metricaPrincipal.key === 'faturamento_total' && visao === 'semanal' && (() => {

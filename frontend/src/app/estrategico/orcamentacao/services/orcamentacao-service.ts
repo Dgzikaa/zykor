@@ -171,21 +171,37 @@ const ESTRUTURA: BlocoDef[] = [
   },
   {
     nome: 'Despesas Comerciais', tipo: 'despesa', cor: COR.comercial, modo: 'fixo', subs: [
-      // Marketing separado em 3 (re-categorizado no Conta Azul jun/2026): Mídia /
-      // Disparos / Produção. 'Marketing Mídia' também puxa o legado 'Marketing'
-      // (bar 4 ainda não foi re-categorizado no CA), pra não perder realizado.
-      { nome: 'Marketing Mídia', gold: ['Marketing Mídia', 'Marketing'] },
-      { nome: 'Marketing Disparos', gold: ['Marketing Disparos'] },
-      { nome: 'Marketing Produção', gold: ['Marketing Produção'] },
-      // Consumações com os MESMOS nomes/itens/ordem da DRE (Despesas Comerciais).
-      { nome: '[Consumação] Aniversários', gold: ['[Consumação] Aniversários'] },
-      { nome: '[Consumação] Benefício Clientes', gold: ['[Consumação] Benefício Clientes'] },
-      { nome: '[Consumação] Programa de Pontos', gold: ['[Consumação] Programa de Pontos'] },
-      { nome: '[Consumação] Influencers', gold: ['[Consumação] Influencers'] },
-      { nome: 'Atrações Programação', gold: ['Atrações Programação'] },
-      { nome: '[Consumação] Artistas', gold: ['[Consumação] Artistas'] },
-      { nome: 'Produção Eventos', gold: ['Produção Eventos'] },
-      { nome: 'Produção Mensal Fixo', gold: ['Produção Mensal Fixo'] },
+      // 4 categorias intermediárias (linhas-pai expansíveis), cada uma soma seus filhos —
+      // mesmo esquema da Mão-de-Obra. Atrações/Produção mantêm a projeção do planejamento
+      // comercial (montarSub roda em cada filho).
+      {
+        nome: 'Marketing', filhos: [
+          { nome: 'Marketing Disparos', gold: ['Marketing Disparos'] },
+          // 'Marketing Mídia' também puxa o legado 'Marketing' (bar 4 não re-categorizado no CA).
+          { nome: 'Marketing Mídia', gold: ['Marketing Mídia', 'Marketing'] },
+          { nome: 'Marketing Produção', gold: ['Marketing Produção'] },
+        ]
+      },
+      {
+        nome: 'Consumações Mkt', filhos: [
+          { nome: '[Consumação] Benefício Clientes', gold: ['[Consumação] Benefício Clientes'] },
+          { nome: '[Consumação] Aniversários', gold: ['[Consumação] Aniversários'] },
+          { nome: '[Consumação] Influencers', gold: ['[Consumação] Influencers'] },
+          { nome: '[Consumação] Programa de Pontos', gold: ['[Consumação] Programa de Pontos'] },
+        ]
+      },
+      {
+        nome: 'Artístico', filhos: [
+          { nome: 'Atrações Programação', gold: ['Atrações Programação'] },
+          { nome: '[Consumação] Artistas', gold: ['[Consumação] Artistas'] },
+        ]
+      },
+      {
+        nome: 'Produção', filhos: [
+          { nome: 'Produção Eventos', gold: ['Produção Eventos'] },
+          { nome: 'Produção Mensal Fixo', gold: ['Produção Mensal Fixo'] },
+        ]
+      },
     ]
   },
   {

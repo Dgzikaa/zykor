@@ -50,31 +50,29 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const c_prod_plan = body.c_prod_plan;
     const observacoes = body.observacoes;
 
-    // Verificar se o evento existe e pertence ao bar do usuário
-    const { data: evento, error: eventoError } = await supabase
-      .from('eventos_base')
-      .select('id, nome, bar_id')
-      .eq('id', eventoId)
-      .eq('bar_id', barId)
-      .single();
+    // Resolve a entidade editável. gold.planejamento.id ≠ eventos_base.id: eventos que
+    // são só PROJEÇÃO (futuros) não têm linha no eventos_base, então o planejamento manda
+    // o id do gold e o update por id dava 404 (M1 não salvava). Resolvemos/criamos por
+    // (bar, data_evento). Vale pros 2 bares.
+    const DIAS_PT = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    const dataEvento: string | undefined = body.data_evento;
 
-    if (eventoError || !evento) {
-      console.error('❌ Evento não encontrado:', eventoError);
-      return NextResponse.json({ error: 'Evento não encontrado' }, { status: 404 });
+    let evento: { id: number; nome: string; versao_calculo: number | null } | null = null;
+    const { data: porId } = await supabase
+      .from('eventos_base').select('id, nome, versao_calculo')
+      .eq('id', eventoId).eq('bar_id', barId).maybeSingle();
+    if (porId) evento = porId as any;
+
+    if (!evento && dataEvento) {
+      const { data: porData } = await supabase
+        .from('eventos_base').select('id, nome, versao_calculo')
+        .eq('bar_id', barId).eq('data_evento', dataEvento).maybeSingle();
+      if (porData) evento = porData as any;
     }
 
-    // Verificar se o evento já tem versão manual (999)
-    const { data: eventoAtual } = await supabase
-      .from('eventos_base')
-      .select('versao_calculo')
-      .eq('id', eventoId)
-      .single();
-
-    // Atualizar os dados de planejamento na tabela eventos_base
-    // SEMPRE salvar os dados de planejamento, independente da versão
-    // Usar valores diretos das variáveis
+    // Dados de planejamento (sempre gravados, independente da versão).
     const updateData: any = {
-      nome: nome || evento.nome,
+      nome: nome || evento?.nome || 'Evento',
       m1_r: m1_r !== undefined && m1_r !== null && !isNaN(m1_r) ? m1_r : null,
       cl_plan: cl_plan !== undefined && cl_plan !== null && !isNaN(cl_plan) ? cl_plan : null,
       te_plan: te_plan !== undefined && te_plan !== null && !isNaN(te_plan) ? te_plan : null,
@@ -84,35 +82,42 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       observacoes: observacoes || null,
       atualizado_em: new Date().toISOString()
     };
-
     // Só alterar versao_calculo se não for manual (999)
-    if (eventoAtual?.versao_calculo !== 999) {
+    if (evento?.versao_calculo !== 999) {
       updateData.precisa_recalculo = true;
       updateData.versao_calculo = 1;
     }
 
-    const { data: eventoAtualizado, error: updateError } = await supabase
-      .from('eventos_base')
-      .update(updateData)
-      .eq('id', eventoId)
-      .eq('bar_id', barId)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('❌ Erro ao atualizar evento:', updateError);
-      return NextResponse.json({ 
-        error: 'Erro ao atualizar evento',
-        details: updateError.message 
-      }, { status: 500 });
+    let eventoAtualizado: any = null;
+    if (evento) {
+      const { data, error: updateError } = await supabase
+        .from('eventos_base').update(updateData)
+        .eq('id', evento.id).eq('bar_id', barId).select().single();
+      if (updateError) {
+        console.error('❌ Erro ao atualizar evento:', updateError);
+        return NextResponse.json({ error: 'Erro ao atualizar evento', details: updateError.message }, { status: 500 });
+      }
+      eventoAtualizado = data;
+    } else {
+      // Sem linha no eventos_base: o evento era só projeção do gold → materializa ao salvar.
+      if (!dataEvento) {
+        return NextResponse.json({ error: 'Evento não encontrado (sem data_evento p/ criar)' }, { status: 404 });
+      }
+      const diaSemana = DIAS_PT[new Date(`${dataEvento}T12:00:00`).getDay()];
+      const { data, error: insError } = await supabase
+        .from('eventos_base')
+        .insert({ bar_id: barId, data_evento: dataEvento, dia_semana: diaSemana, ativo: true, ...updateData })
+        .select().single();
+      if (insError) {
+        console.error('❌ Erro ao criar evento:', insError);
+        return NextResponse.json({ error: 'Erro ao criar evento', details: insError.message }, { status: 500 });
+      }
+      eventoAtualizado = data;
     }
 
     if (!eventoAtualizado) {
-      console.error('❌ Nenhum evento foi atualizado - possível problema de permissão');
-      return NextResponse.json({ 
-        error: 'Nenhum evento foi atualizado',
-        details: 'Verifique se o evento existe e pertence ao usuário' 
-      }, { status: 404 });
+      console.error('❌ Nenhum evento foi atualizado');
+      return NextResponse.json({ error: 'Nenhum evento foi atualizado' }, { status: 404 });
     }
 
     return NextResponse.json({ 

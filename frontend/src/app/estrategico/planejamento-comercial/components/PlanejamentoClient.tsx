@@ -387,6 +387,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar?.id || '') },
         body: JSON.stringify({
+          // data_evento p/ a API resolver/criar por (bar, data) quando o evento é só
+          // projeção do gold (sem linha no eventos_base) — senão o M1 não salvava.
+          data_evento: eventoEdicao.data_evento,
           nome: eventoEdicao.nome,
           m1_r: eventoEdicao.m1_r,
           cl_plan: eventoEdicao.cl_plan,
@@ -398,7 +401,13 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
         })
       });
 
-      await apiCall(`/api/eventos/${eventoEdicao.id}/valores-reais`, {
+      // Reais só existem pra evento que já aconteceu. Pra evento futuro/projeção, pular
+      // o PUT de valores-reais: evita 404 (sem linha no eventos_base) e impede marcar
+      // versao_calculo=999 (manual) com zeros, o que travaria o recálculo quando o real
+      // do dia chegar. (O M1/planejado já foi salvo no PUT anterior.)
+      const hojeStr = new Date().toISOString().slice(0, 10);
+      const jaAconteceu = (eventoEdicao.data_evento || '') < hojeStr;
+      if (jaAconteceu) await apiCall(`/api/eventos/${eventoEdicao.id}/valores-reais`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar?.id || '') },
         body: JSON.stringify({
