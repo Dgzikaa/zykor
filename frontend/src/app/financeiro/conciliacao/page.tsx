@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Scale, Loader2, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Banknote, CreditCard, Percent, CalendarClock, PieChart, ShieldAlert, ListChecks } from 'lucide-react';
+import { Scale, Loader2, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Banknote, CreditCard, Percent, CalendarClock, PieChart, ShieldAlert, ListChecks, Building2, Receipt } from 'lucide-react';
 
 type Row = {
   data: string; status: string; stone_cnpjs: string | null;
@@ -42,6 +42,8 @@ const labelMes = (ym: string) => { const [y, m] = ym.split('-'); return `${MESES
 
 const ABAS = [
   { id: 'conciliacao', label: 'Conciliação', icon: Scale },
+  { id: 'nf_stone', label: 'NF × Stone (CNPJ)', icon: Building2 },
+  { id: 'contahub_nf', label: 'ContaHub × NF', icon: Receipt },
   { id: 'pendencias', label: 'Pendências', icon: ListChecks },
   { id: 'taxas', label: 'Taxas (MDR)', icon: Percent },
   { id: 'recebiveis', label: 'Recebíveis', icon: CalendarClock },
@@ -84,6 +86,10 @@ export default function ConciliacaoPage() {
   const [loading, setLoading] = useState(false);
   const [loadingAn, setLoadingAn] = useState(false);
   const [loadingPend, setLoadingPend] = useState(false);
+  const [nfStone, setNfStone] = useState<any[]>([]);
+  const [contahubNf, setContahubNf] = useState<any[]>([]);
+  const [loadingNfStone, setLoadingNfStone] = useState(false);
+  const [loadingContahubNf, setLoadingContahubNf] = useState(false);
 
   const [aberto, setAberto] = useState<string | null>(null);
   const [diaCache, setDiaCache] = useState<Record<string, any>>({});
@@ -143,9 +149,33 @@ export default function ConciliacaoPage() {
     } finally { setLoadingPend(false); }
   }, [selectedBar, periodo, showToast]);
 
+  const carregarNfStone = useCallback(async () => {
+    if (!selectedBar || !periodo.de) return;
+    setLoadingNfStone(true);
+    try {
+      const r = await api.get(`/api/financeiro/conciliacao/nf-stone-cnpj?de=${periodo.de}&ate=${periodo.ate}`);
+      setNfStone(r.linhas || []);
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Erro ao carregar NF × Stone', message: e?.message });
+    } finally { setLoadingNfStone(false); }
+  }, [selectedBar, periodo, showToast]);
+
+  const carregarContahubNf = useCallback(async () => {
+    if (!selectedBar || !periodo.de) return;
+    setLoadingContahubNf(true);
+    try {
+      const r = await api.get(`/api/financeiro/conciliacao/contahub-nf?de=${periodo.de}&ate=${periodo.ate}`);
+      setContahubNf(r.linhas || []);
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Erro ao carregar ContaHub × NF', message: e?.message });
+    } finally { setLoadingContahubNf(false); }
+  }, [selectedBar, periodo, showToast]);
+
   useEffect(() => { carregar(); }, [carregar]);
   useEffect(() => { carregarAnalise(); }, [carregarAnalise]);
   useEffect(() => { if (aba === 'pendencias') carregarPendencias(); }, [aba, carregarPendencias]);
+  useEffect(() => { if (aba === 'nf_stone') carregarNfStone(); }, [aba, carregarNfStone]);
+  useEffect(() => { if (aba === 'contahub_nf') carregarContahubNf(); }, [aba, carregarContahubNf]);
 
   const abrirDia = useCallback(async (data: string) => {
     if (aberto === data) { setAberto(null); return; }
@@ -379,6 +409,95 @@ export default function ConciliacaoPage() {
               </Card>
             )}
           </>
+        )}
+
+        {/* ===================== ABA NF × STONE (CNPJ) ===================== */}
+        {aba === 'nf_stone' && (
+          loadingNfStone ? <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
+          : nfStone.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground"><Building2 className="w-9 h-9 mx-auto mb-2 opacity-40" />Sem dados no período.</CardContent></Card>
+          : (() => {
+              const totNf = nfStone.reduce((a: number, r: any) => a + Number(r.nf_autorizado || 0), 0);
+              const totStone = nfStone.reduce((a: number, r: any) => a + Number(r.stone_bruto || 0), 0);
+              return (
+                <>
+                  <p className="text-xs text-muted-foreground mb-3">NF emitida = todas as vendas (dinheiro + pix + cartão). Stone = só cartão. A diferença esperada é o não-cartão; valores muito fora podem indicar NF emitida no CNPJ errado.</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">NF emitida (total)</div><div className="text-base font-bold">{fmtBRL(totNf)}</div></CardContent></Card>
+                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Stone venda (total)</div><div className="text-base font-bold">{fmtBRL(totStone)}</div></CardContent></Card>
+                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Diferença (NF − Stone)</div><div className="text-base font-bold">{fmtBRL(totNf - totStone)}</div></CardContent></Card>
+                  </div>
+                  <Card className="p-0 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-xs text-muted-foreground border-b"><tr>
+                        <th className="text-left px-3 py-2">Dia</th><th className="text-left px-3 py-2">CNPJ</th>
+                        <th className="text-right px-3 py-2 whitespace-nowrap">NF emitida</th><th className="text-right px-3 py-2">NFs</th>
+                        <th className="text-right px-3 py-2 whitespace-nowrap">Stone venda</th><th className="text-right px-3 py-2">Tx</th>
+                        <th className="text-right px-3 py-2 whitespace-nowrap">Diferença</th>
+                      </tr></thead>
+                      <tbody>
+                        {nfStone.map((r: any) => (
+                          <tr key={`${r.data}-${r.cnpj_indice}`} className="border-b last:border-0 hover:bg-muted/30">
+                            <td className="px-3 py-1.5 whitespace-nowrap font-medium">{fmtData(r.data)}</td>
+                            <td className="px-3 py-1.5 text-xs">{r.cnpj_label}<span className="text-muted-foreground ml-1">({r.cnpj_documento})</span></td>
+                            <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.nf_autorizado)}</td>
+                            <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtNum(r.nf_qtd)}</td>
+                            <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.stone_bruto)}</td>
+                            <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtNum(r.stone_qtd)}</td>
+                            <td className="px-3 py-1.5 text-right whitespace-nowrap font-medium">{fmtBRL(r.diferenca)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </Card>
+                </>
+              );
+            })()
+        )}
+
+        {/* ===================== ABA CONTAHUB × NF ===================== */}
+        {aba === 'contahub_nf' && (
+          loadingContahubNf ? <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
+          : contahubNf.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground"><Receipt className="w-9 h-9 mx-auto mb-2 opacity-40" />Sem dados no período.</CardContent></Card>
+          : (() => {
+              const totCh = contahubNf.reduce((a: number, r: any) => a + Number(r.contahub_total || 0), 0);
+              const totNf = contahubNf.reduce((a: number, r: any) => a + Number(r.nf_autorizado || 0), 0);
+              const corDif = (ch: number, nf: number) => {
+                const m = Math.max(Math.abs(ch), Math.abs(nf), 1); const d = Math.abs(ch - nf);
+                return d / m > 0.05 ? 'text-red-600 dark:text-red-400 font-semibold' : d >= 0.5 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground';
+              };
+              return (
+                <>
+                  <p className="text-xs text-muted-foreground mb-3">Venda total do ContaHub (todos os meios) × NF emitida no dia. Os dois deveriam bater de perto; diferença grande (vermelho) sugere NF não emitida ou emitida fora do dia.</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">ContaHub venda (total)</div><div className="text-base font-bold">{fmtBRL(totCh)}</div></CardContent></Card>
+                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">NF emitida (total)</div><div className="text-base font-bold">{fmtBRL(totNf)}</div></CardContent></Card>
+                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Diferença (ContaHub − NF)</div><div className="text-base font-bold">{fmtBRL(totCh - totNf)}</div></CardContent></Card>
+                  </div>
+                  <Card className="p-0 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-xs text-muted-foreground border-b"><tr>
+                        <th className="text-left px-3 py-2">Dia</th>
+                        <th className="text-right px-3 py-2 whitespace-nowrap">ContaHub venda</th><th className="text-right px-3 py-2">Pgtos</th>
+                        <th className="text-right px-3 py-2 whitespace-nowrap">NF emitida</th><th className="text-right px-3 py-2">NFs</th>
+                        <th className="text-right px-3 py-2 whitespace-nowrap">Diferença</th>
+                      </tr></thead>
+                      <tbody>
+                        {contahubNf.map((r: any) => (
+                          <tr key={r.data} className="border-b last:border-0 hover:bg-muted/30">
+                            <td className="px-3 py-1.5 whitespace-nowrap font-medium">{fmtData(r.data)}</td>
+                            <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.contahub_total)}</td>
+                            <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtNum(r.contahub_qtd)}</td>
+                            <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.nf_autorizado)}</td>
+                            <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtNum(r.nf_qtd)}</td>
+                            <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corDif(Number(r.contahub_total || 0), Number(r.nf_autorizado || 0))}`}>{fmtBRL(r.diferenca)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </Card>
+                </>
+              );
+            })()
         )}
 
         {/* ===================== ABA PENDÊNCIAS ===================== */}
