@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Scale, Loader2, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Banknote, CreditCard, Percent, CalendarClock, PieChart, ShieldAlert, ListChecks, Building2 } from 'lucide-react';
+import { Scale, Loader2, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Banknote, CreditCard, Percent, CalendarClock, PieChart, ShieldAlert, ListChecks, Building2, Undo2 } from 'lucide-react';
 
 type Row = {
   data: string; status: string; stone_cnpjs: string | null;
@@ -350,7 +350,7 @@ export default function ConciliacaoPage() {
                                           <div className="text-[11px] font-medium text-muted-foreground mb-1">Só na Stone — cobrado, faltando no ContaHub ({dia.divergencias.resumo.so_stone_qtd} · {fmtBRL(dia.divergencias.resumo.so_stone_valor)})</div>
                                           {dia.divergencias.so_stone.length === 0 ? <div className="text-[11px] text-muted-foreground">—</div> : (
                                             <table className="text-[11px] w-full"><thead className="text-muted-foreground"><tr><th className="text-left py-0.5 pr-2">Hora</th><th className="text-left py-0.5 pr-2">Tipo</th><th className="text-left py-0.5 pr-2">Bandeira</th><th className="text-left py-0.5 pr-2">Cartão</th><th className="text-right py-0.5">Valor</th></tr></thead>
-                                              <tbody>{dia.divergencias.so_stone.map((t: any, i: number) => (<tr key={i} className="border-t border-border/40"><td className="py-0.5 pr-2 text-muted-foreground">{fmtHora(t.hora)}</td><td className="py-0.5 pr-2">{t.tipo}</td><td className="py-0.5 pr-2">{brandName(t.brand_id)}</td><td className="py-0.5 pr-2 font-mono">{t.cartao}</td><td className="py-0.5 text-right font-medium">{fmtBRL(t.valor)}</td></tr>))}</tbody>
+                                              <tbody>{dia.divergencias.so_stone.map((t: any, i: number) => { const est = Number(t.valor) < 0; return (<tr key={i} className={`border-t border-border/40 ${est ? 'bg-amber-100/70 dark:bg-amber-900/20' : ''}`}><td className="py-0.5 pr-2 text-muted-foreground">{fmtHora(t.hora)}</td><td className="py-0.5 pr-2">{est && <span className="text-amber-700 dark:text-amber-300 font-semibold mr-1">estorno</span>}{t.tipo}</td><td className="py-0.5 pr-2">{brandName(t.brand_id)}</td><td className="py-0.5 pr-2 font-mono">{t.cartao}</td><td className="py-0.5 text-right font-medium">{est ? <span className="text-amber-700 dark:text-amber-300 font-bold inline-flex items-center gap-1" title="Estorno/ajuste — investigar se era pra estornar mesmo"><Undo2 className="w-3.5 h-3.5" />{fmtBRL(t.valor)}</span> : fmtBRL(t.valor)}</td></tr>); })}</tbody>
                                             </table>
                                           )}
                                         </div>
@@ -358,12 +358,12 @@ export default function ConciliacaoPage() {
                                           <div className="text-[11px] font-medium text-muted-foreground mb-1">Só no ContaHub — lançado, faltando na Stone ({dia.divergencias.resumo.so_ch_qtd} · {fmtBRL(dia.divergencias.resumo.so_ch_valor)})</div>
                                           {dia.divergencias.so_ch.length === 0 ? <div className="text-[11px] text-muted-foreground">—</div> : (
                                             <table className="text-[11px] w-full"><thead className="text-muted-foreground"><tr><th className="text-left py-0.5 pr-2">Tipo</th><th className="text-left py-0.5 pr-2">Cliente</th><th className="text-left py-0.5 pr-2">Mesa</th><th className="text-left py-0.5 pr-2">Meio</th><th className="text-right py-0.5">Valor</th></tr></thead>
-                                              <tbody>{dia.divergencias.so_ch.map((t: any, i: number) => (<tr key={i} className="border-t border-border/40"><td className="py-0.5 pr-2">{t.tipo}</td><td className="py-0.5 pr-2">{t.cliente || '—'}</td><td className="py-0.5 pr-2 text-muted-foreground">{t.mesa || '—'}</td><td className="py-0.5 pr-2 text-muted-foreground">{t.meio || '—'}</td><td className="py-0.5 text-right font-medium">{fmtBRL(t.valor)}</td></tr>))}</tbody>
+                                              <tbody>{dia.divergencias.so_ch.map((t: any, i: number) => { const est = Number(t.valor) < 0; return (<tr key={i} className={`border-t border-border/40 ${est ? 'bg-amber-100/70 dark:bg-amber-900/20' : ''}`}><td className="py-0.5 pr-2">{est && <span className="text-amber-700 dark:text-amber-300 font-semibold mr-1">estorno</span>}{t.tipo}</td><td className="py-0.5 pr-2">{t.cliente || '—'}</td><td className="py-0.5 pr-2 text-muted-foreground">{t.mesa || '—'}</td><td className="py-0.5 pr-2 text-muted-foreground">{t.meio || '—'}</td><td className="py-0.5 text-right font-medium">{est ? <span className="text-amber-700 dark:text-amber-300 font-bold inline-flex items-center gap-1" title="Estorno/ajuste — investigar se era pra estornar mesmo"><Undo2 className="w-3.5 h-3.5" />{fmtBRL(t.valor)}</span> : fmtBRL(t.valor)}</td></tr>); })}</tbody>
                                             </table>
                                           )}
                                         </div>
                                       </div>
-                                      <p className="text-[11px] text-muted-foreground mt-2">Match por tipo + valor (ContaHub não fornece NSU/autorização). Valores negativos = estornos/ajustes lançados no ContaHub.</p>
+                                      <p className="text-[11px] text-muted-foreground mt-2">Match por tipo + valor (ContaHub não fornece NSU/autorização). <span className="text-amber-700 dark:text-amber-300 font-medium">↩ estorno (valor negativo)</span> = venda cancelada/ajustada de um lado mas não do outro — investigar se era pra estornar mesmo ou se o cliente acabou pago.</p>
                                     </div>
                                   )}
 
