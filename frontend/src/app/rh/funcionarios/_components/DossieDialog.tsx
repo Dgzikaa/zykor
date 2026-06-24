@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import {
   Loader2, Pencil, Upload, FileText, Trash2, ExternalLink, X,
   Briefcase, Building2, CalendarDays, Cake, Phone, Mail, CreditCard,
-  Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Smile, ClipboardCheck, GraduationCap,
+  Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Smile, ClipboardCheck, GraduationCap, Check,
 } from 'lucide-react';
 import type { Funcionario } from '../page';
 
@@ -63,6 +63,7 @@ type Ocorr = { id: string; tipo: string; data_inicio: string; data_fim: string |
 type Alerta = { tipo: string; label: string; nivel: string };
 type Avaliacao = { id: string; periodo: string; avaliador: string | null; criterios: { criterio: string; nota: number }[]; nota_geral: number | null; pontos_fortes: string | null; pontos_desenvolver: string | null; criado_em: string };
 type Treino = { id: string; nome: string; instituicao: string | null; data_conclusao: string | null; validade: string | null; observacao: string | null };
+type Onb = { id: string; item: string; concluido: boolean; ordem: number };
 
 const CRITERIOS_PADRAO = ['Pontualidade', 'Postura e atitude', 'Trabalho em equipe', 'Qualidade do trabalho', 'Proatividade', 'Atendimento ao cliente'];
 const notaCls = (n: number) => n >= 4 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : n >= 3 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
@@ -90,6 +91,8 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const [treinos, setTreinos] = useState<Treino[]>([]);
   const [novoTreino, setNovoTreino] = useState({ nome: '', instituicao: '', data_conclusao: '', validade: '' });
   const [salvandoTreino, setSalvandoTreino] = useState(false);
+  const [onbItens, setOnbItens] = useState<Onb[]>([]);
+  const [novoOnb, setNovoOnb] = useState('');
 
   const carregar = useCallback(async () => {
     if (!funcionarioId) return;
@@ -103,6 +106,8 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
       setAvaliacoes(ares.avaliacoes || []);
       const tres = await api.get(`/api/rh/funcionarios/${funcionarioId}/treinamentos`);
       setTreinos(tres.treinamentos || []);
+      const ores = await api.get(`/api/rh/funcionarios/${funcionarioId}/onboarding`);
+      setOnbItens(ores.itens || []);
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao abrir dossiê', message: e?.message }); }
     finally { setLoading(false); }
   }, [funcionarioId, showToast]);
@@ -194,6 +199,25 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
       setTreinos((p) => p.filter((t) => t.id !== tId));
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
   };
+  const toggleOnb = async (it: Onb) => {
+    const novo = !it.concluido;
+    setOnbItens((p) => p.map((x) => x.id === it.id ? { ...x, concluido: novo } : x));
+    try { await fetch(`/api/rh/funcionarios/${funcionarioId}/onboarding`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ id: it.id, concluido: novo }) }); }
+    catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); carregar(); }
+  };
+  const addOnb = async () => {
+    if (!novoOnb.trim()) return;
+    try {
+      const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/onboarding`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ item: novoOnb }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || 'Falha');
+      setNovoOnb(''); carregar();
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
+  };
+  const removeOnb = async (itemId: string) => {
+    try { await fetch(`/api/rh/funcionarios/${funcionarioId}/onboarding?item_id=${itemId}`, { method: 'DELETE', credentials: 'include' }); setOnbItens((p) => p.filter((x) => x.id !== itemId)); }
+    catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
+  };
 
   const freela = func?.tipo_contratacao === 'Freela';
   const venceu = (d: string | null) => { if (!d) return false; try { return new Date(d) < new Date(); } catch { return false; } };
@@ -243,6 +267,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
             <Tabs defaultValue="geral" className="w-full">
               <TabsList className="mx-6 mt-3 flex-wrap h-auto">
                 <TabsTrigger value="geral">Visão geral</TabsTrigger>
+                <TabsTrigger value="onboarding">Onboarding{onbItens.length > 0 && ` (${onbItens.filter((i) => i.concluido).length}/${onbItens.length})`}</TabsTrigger>
                 <TabsTrigger value="docs">Documentos ({docs.length})</TabsTrigger>
                 <TabsTrigger value="ocorr">Ocorrências ({ocorrencias.length})</TabsTrigger>
                 <TabsTrigger value="avaliacoes">Avaliações ({avaliacoes.length})</TabsTrigger>
@@ -266,6 +291,31 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                   <Info icon={CreditCard} label="PIX" value={func.chave_pix ? `${func.chave_pix}${func.tipo_chave_pix ? ` (${func.tipo_chave_pix})` : ''}` : null} />
                 </Secao>
                 {func.observacoes && <p className="sm:col-span-2 text-xs text-muted-foreground bg-muted/40 rounded-md border-l-2 border-muted-foreground/30 px-3 py-2 mt-2">{func.observacoes}</p>}
+              </TabsContent>
+
+              {/* Onboarding */}
+              <TabsContent value="onboarding" className="px-6 py-4">
+                {(() => { const done = onbItens.filter((i) => i.concluido).length; const tot = onbItens.length; const pct = tot ? Math.round((done / tot) * 100) : 0; return (
+                  <>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden"><div className={cn('h-full transition-all', pct === 100 ? 'bg-emerald-500' : 'bg-blue-500')} style={{ width: `${pct}%` }} /></div>
+                      <span className="text-xs font-semibold tabular-nums">{done}/{tot}</span>
+                    </div>
+                    <div className="space-y-1 mb-3">
+                      {onbItens.map((it) => (
+                        <div key={it.id} className="group flex items-center gap-2.5 rounded-lg border bg-background px-3 py-2">
+                          <button onClick={() => toggleOnb(it)} className={cn('w-5 h-5 rounded flex items-center justify-center shrink-0 border', it.concluido ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-input hover:border-emerald-400')}>{it.concluido && <Check className="w-3.5 h-3.5" />}</button>
+                          <span className={cn('text-sm flex-1', it.concluido && 'line-through text-muted-foreground')}>{it.item}</span>
+                          <button onClick={() => removeOnb(it.id)} className="p-1 rounded text-muted-foreground/50 hover:text-red-500 opacity-0 group-hover:opacity-100 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input value={novoOnb} onChange={(e) => setNovoOnb(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addOnb(); }} placeholder="Adicionar item ao checklist…" className="h-9 text-sm" />
+                      <Button size="sm" variant="outline" className="h-9" onClick={addOnb}><Plus className="w-4 h-4" /></Button>
+                    </div>
+                  </>
+                ); })()}
               </TabsContent>
 
               {/* Documentos */}
