@@ -476,8 +476,14 @@ async function syncCategorias(
     bar_id: barId,
     nome: item.nome,
     tipo: item.tipo || null,
-    categoria_pai_id: item.id_pai || null,
+    // Campo correto do CA é `categoria_pai` (UUID), não `id_pai` (inexistente) — por
+    // isso a hierarquia vinha toda null. O pai habilita herança de grupo na Central de
+    // Categorias (filho novo herda o grupo do pai). Os nós-pai NÃO são expostos pela
+    // API (404 no GET), só referenciados aqui pelo UUID.
+    categoria_pai_id: item.categoria_pai || null,
     apenas_filhos: item.apenas_filhos || false,
+    entrada_dre: item.entrada_dre || null,
+    considera_custo_dre: item.considera_custo_dre ?? null,
     ativo: true,
     // BUG ate 2026-06: gravava 'updated_at' (coluna inexistente) -> upsert dava
     // erro silencioso (console.error + return 0) e o cadastro nunca atualizava.
