@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
+import { cn } from '@/lib/utils';
 import {
   Loader2, Pencil, Upload, FileText, Trash2, ExternalLink, X,
   Briefcase, Building2, CalendarDays, Cake, Phone, Mail, CreditCard,
@@ -60,6 +61,10 @@ const corOcorr = (t: string) =>
 type Doc = { id: string; tipo: string; descricao: string | null; nome_arquivo: string | null; validade: string | null; criado_em: string; url: string | null };
 type Ocorr = { id: string; tipo: string; data_inicio: string; data_fim: string | null; descricao: string | null };
 type Alerta = { tipo: string; label: string; nivel: string };
+type Avaliacao = { id: string; periodo: string; avaliador: string | null; criterios: { criterio: string; nota: number }[]; nota_geral: number | null; pontos_fortes: string | null; pontos_desenvolver: string | null; criado_em: string };
+
+const CRITERIOS_PADRAO = ['Pontualidade', 'Postura e atitude', 'Trabalho em equipe', 'Qualidade do trabalho', 'Proatividade', 'Atendimento ao cliente'];
+const notaCls = (n: number) => n >= 4 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : n >= 3 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
 
 export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   funcionarioId: number | null; onClose: () => void; onEditar: (f: Funcionario) => void;
@@ -77,6 +82,10 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const fileRef = useRef<HTMLInputElement>(null);
   const [novoOc, setNovoOc] = useState({ tipo: 'advertencia', data_inicio: '', data_fim: '', descricao: '' });
   const [salvandoOc, setSalvandoOc] = useState(false);
+  const [avaliacoes, setAvaliacoes] = useState<Avaliacao[]>([]);
+  const [novaAval, setNovaAval] = useState<{ periodo: string; avaliador: string; notas: Record<string, number>; pontos_fortes: string; pontos_desenvolver: string }>({ periodo: '', avaliador: '', notas: {}, pontos_fortes: '', pontos_desenvolver: '' });
+  const [salvandoAval, setSalvandoAval] = useState(false);
+  const [formAvalAberto, setFormAvalAberto] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!funcionarioId) return;
@@ -86,6 +95,8 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
       setFunc(res.funcionario); setOcorrencias(res.ocorrencias || []); setAlertas(res.alertas || []); setFelicidade(res.felicidade || null);
       const dres = await api.get(`/api/rh/funcionarios/${funcionarioId}/documentos`);
       setDocs(dres.documentos || []);
+      const ares = await api.get(`/api/rh/funcionarios/${funcionarioId}/avaliacoes`);
+      setAvaliacoes(ares.avaliacoes || []);
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao abrir dossiê', message: e?.message }); }
     finally { setLoading(false); }
   }, [funcionarioId, showToast]);
@@ -133,6 +144,28 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
     try {
       await fetch(`/api/rh/funcionarios/${funcionarioId}/ocorrencias?ocorrencia_id=${ocId}`, { method: 'DELETE', credentials: 'include' });
       setOcorrencias((p) => p.filter((o) => o.id !== ocId));
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
+  };
+  const salvarAval = async () => {
+    if (!novaAval.periodo.trim()) { showToast({ type: 'error', title: 'Informe o período' }); return; }
+    setSalvandoAval(true);
+    try {
+      const criterios = CRITERIOS_PADRAO.map((c) => ({ criterio: c, nota: novaAval.notas[c] || 0 })).filter((c) => c.nota > 0);
+      const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/avaliacoes`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ periodo: novaAval.periodo, avaliador: novaAval.avaliador, criterios, pontos_fortes: novaAval.pontos_fortes, pontos_desenvolver: novaAval.pontos_desenvolver }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || 'Falha ao salvar');
+      setNovaAval({ periodo: '', avaliador: '', notas: {}, pontos_fortes: '', pontos_desenvolver: '' });
+      setFormAvalAberto(false); carregar();
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
+    finally { setSalvandoAval(false); }
+  };
+  const excluirAval = async (avId: string) => {
+    try {
+      await fetch(`/api/rh/funcionarios/${funcionarioId}/avaliacoes?avaliacao_id=${avId}`, { method: 'DELETE', credentials: 'include' });
+      setAvaliacoes((p) => p.filter((a) => a.id !== avId));
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
   };
 
@@ -186,7 +219,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                 <TabsTrigger value="geral">Visão geral</TabsTrigger>
                 <TabsTrigger value="docs">Documentos ({docs.length})</TabsTrigger>
                 <TabsTrigger value="ocorr">Ocorrências ({ocorrencias.length})</TabsTrigger>
-                <TabsTrigger value="avaliacoes">Avaliações</TabsTrigger>
+                <TabsTrigger value="avaliacoes">Avaliações ({avaliacoes.length})</TabsTrigger>
                 <TabsTrigger value="felicidade">Felicidade</TabsTrigger>
               </TabsList>
 
@@ -268,13 +301,67 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                 </div>
               </TabsContent>
 
-              {/* Avaliações (pré-construído) */}
-              <TabsContent value="avaliacoes" className="px-6 py-8">
-                <div className="text-center text-muted-foreground">
-                  <ClipboardCheck className="w-9 h-9 mx-auto mb-2 opacity-40" />
-                  <div className="text-sm font-medium">Avaliações de desempenho</div>
-                  <div className="text-xs mt-1">Auto-avaliação, avaliação do líder e calibração aparecem aqui<br />quando o módulo de Avaliação for ativado.</div>
-                </div>
+              {/* Avaliações */}
+              <TabsContent value="avaliacoes" className="px-6 py-4">
+                {avaliacoes.length > 0 ? (
+                  <div className="space-y-2 mb-3">
+                    {avaliacoes.map((a) => (
+                      <div key={a.id} className="rounded-lg border bg-background px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium">{a.periodo}</span>
+                            {a.nota_geral != null && <span className={cn('text-[11px] rounded-full px-2 py-0.5 font-semibold', notaCls(a.nota_geral))}>{a.nota_geral.toFixed(1)}/5</span>}
+                            {a.avaliador && <span className="text-[11px] text-muted-foreground">por {a.avaliador}</span>}
+                          </div>
+                          <button onClick={() => excluirAval(a.id)} className="p-1.5 rounded-md hover:bg-muted text-red-500 shrink-0"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                        {a.criterios?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {a.criterios.map((c, i) => <span key={i} className="text-[10px] rounded bg-muted px-1.5 py-0.5">{c.criterio}: <b>{c.nota}</b></span>)}
+                          </div>
+                        )}
+                        {(a.pontos_fortes || a.pontos_desenvolver) && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 text-xs">
+                            {a.pontos_fortes && <div className="rounded bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1"><b className="text-emerald-700 dark:text-emerald-300">Fortes:</b> {a.pontos_fortes}</div>}
+                            {a.pontos_desenvolver && <div className="rounded bg-amber-50 dark:bg-amber-900/20 px-2 py-1"><b className="text-amber-700 dark:text-amber-300">Desenvolver:</b> {a.pontos_desenvolver}</div>}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="text-xs text-muted-foreground text-center py-6 mb-3 border border-dashed rounded-lg flex flex-col items-center"><ClipboardCheck className="w-8 h-8 mb-1.5 opacity-40" />Nenhuma avaliação registrada ainda.</div>}
+
+                {!formAvalAberto ? (
+                  <Button size="sm" variant="outline" onClick={() => setFormAvalAberto(true)}><Plus className="w-4 h-4 mr-1.5" />Nova avaliação</Button>
+                ) : (
+                  <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Período</span><Input value={novaAval.periodo} onChange={(e) => setNovaAval({ ...novaAval, periodo: e.target.value })} placeholder="ex: 1º semestre 2026" className="h-9 text-sm" /></label>
+                      <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Avaliador</span><Input value={novaAval.avaliador} onChange={(e) => setNovaAval({ ...novaAval, avaliador: e.target.value })} placeholder="opcional" className="h-9 text-sm" /></label>
+                    </div>
+                    <div className="space-y-1.5">
+                      {CRITERIOS_PADRAO.map((c) => (
+                        <div key={c} className="flex items-center justify-between gap-2">
+                          <span className="text-xs">{c}</span>
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <button key={n} type="button" onClick={() => setNovaAval((p) => ({ ...p, notas: { ...p.notas, [c]: n } }))}
+                                className={cn('w-6 h-6 rounded text-[11px] font-medium transition-colors', (novaAval.notas[c] || 0) >= n ? 'bg-amber-400 text-white' : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20')}>{n}</button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Pontos fortes</span><Input value={novaAval.pontos_fortes} onChange={(e) => setNovaAval({ ...novaAval, pontos_fortes: e.target.value })} className="h-9 text-sm" /></label>
+                      <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">A desenvolver</span><Input value={novaAval.pontos_desenvolver} onChange={(e) => setNovaAval({ ...novaAval, pontos_desenvolver: e.target.value })} className="h-9 text-sm" /></label>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setFormAvalAberto(false)}>Cancelar</Button>
+                      <Button size="sm" onClick={salvarAval} disabled={salvandoAval}>{salvandoAval ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar avaliação'}</Button>
+                    </div>
+                  </div>
+                )}
               </TabsContent>
 
               {/* Felicidade */}
