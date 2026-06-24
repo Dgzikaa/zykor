@@ -1278,8 +1278,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                       <tr className="font-bold text-[11px] text-gray-800 dark:text-gray-100">
                         {/* Fixos: sempre visíveis (item 1). Colspan=3 cobre Data+Dia+Artista. */}
                         <td colSpan={3} className={`${tfCls} text-left border-r`} style={{ position: 'sticky', left: 0, zIndex: 30 }}>TOTAIS · {totaisAgregados.totalEventos} ev</td>
-                        <td className={`${tfCls} text-right text-green-700 dark:text-green-400 border-r`} style={{ position: 'sticky', left: 226, zIndex: 30 }} title="Soma da receita real">{formatarMoeda(totaisAgregados.realizado)}</td>
-                        <td className={`${tfCls} text-right border-r-2`} style={{ position: 'sticky', left: 336, zIndex: 30 }} title="Soma da meta M1">{formatarMoeda(totaisAgregados.metaM1)}</td>
+                        <td className={`${tfCls} text-center text-green-700 dark:text-green-400 border-r`} style={{ position: 'sticky', left: 226, zIndex: 30 }} title="Soma da receita real">{formatarMoeda(totaisAgregados.realizado)}</td>
+                        <td className={`${tfCls} text-center border-r-2`} style={{ position: 'sticky', left: 336, zIndex: 30 }} title="Soma da meta M1">{formatarMoeda(totaisAgregados.metaM1)}</td>
 
                         {/* CLIENTES (soma) */}
                         {gruposAbertos.clientes ? (
@@ -1295,9 +1295,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         {/* TICKET (média) */}
                         {gruposAbertos.ticket ? (
                           <>
-                            <td className={`${tfCls} text-right border-r`} title="Média da entrada real">{formatarMoeda(totaisAgregados.colTeReal)}</td>
-                            <td className={`${tfCls} text-right border-r`} title="Média do bar real">{formatarMoeda(totaisAgregados.colTbReal)}</td>
-                            <td className={`${tfCls} text-right border-r-2`} title="Ticket médio">{formatarMoeda(totaisAgregados.colTMedio)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Média da entrada real">{formatarMoeda(totaisAgregados.colTeReal)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Média do bar real">{formatarMoeda(totaisAgregados.colTbReal)}</td>
+                            <td className={`${tfCls} text-center border-r-2`} title="Ticket médio">{formatarMoeda(totaisAgregados.colTMedio)}</td>
                           </>
                         ) : (
                           <td className={`${tfCls} border-r-2`}></td>
@@ -1306,12 +1306,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno }: Planej
                         {/* ARTÍSTICO (somas + médias dos %) */}
                         {gruposAbertos.artistico ? (
                           <>
-                            <td className={`${tfCls} text-right border-r`} title="Total custo artístico">{formatarMoeda(totaisAgregados.colCArt)}</td>
-                            <td className={`${tfCls} text-right border-r`} title="Total custo produção">{formatarMoeda(totaisAgregados.colCProd)}</td>
-                            <td className={`${tfCls} text-right border-r`} title="Total $ couvert">{formatarMoeda(totaisAgregados.colCouvert)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Total custo artístico">{formatarMoeda(totaisAgregados.colCArt)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Total custo produção">{formatarMoeda(totaisAgregados.colCProd)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Total $ couvert">{formatarMoeda(totaisAgregados.colCouvert)}</td>
                             <td className={`${tfCls} text-center border-r`} title="Média % art/fat">{formatarPercentual(totaisAgregados.colPercentArtFat)}</td>
                             <td className={`${tfCls} text-center border-r`} title="Média couv/art">{formatarPercentual(totaisAgregados.colCouvArt)}</td>
-                            <td className={`${tfCls} text-right border-r-2`} title="Total consumação">{formatarMoeda(totaisAgregados.colConsumacao)}</td>
+                            <td className={`${tfCls} text-center border-r-2`} title="Total consumação">{formatarMoeda(totaisAgregados.colConsumacao)}</td>
                           </>
                         ) : (
                           <td className={`${tfCls} border-r-2`}></td>
