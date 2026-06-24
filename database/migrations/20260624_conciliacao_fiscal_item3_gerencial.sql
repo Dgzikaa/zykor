@@ -1,0 +1,10 @@
+-- Item 3 (ContaHub × NF): NF passa a usar a data GERENCIAL (silver.contahub_notas_fiscais
+-- .vd_dtgerencial), não a contábil. NF emitida após a meia-noite caía no dia contábil
+-- seguinte e furava a comparação em TODOS os dias; na base gerencial bate na vírgula com
+-- o ContaHub (todos os meios: Crédito+Débito+Pix+Dinheiro+ContaAssinada). [insight Gonza]
+-- Ver corpo completo aplicado em prod: gold.fn_refresh_conciliacao_fiscal — item 3 CTE nf:
+--   SELECT vd_dtgerencial AS data, sum(valor_autorizado), sum(qtd_autorizada)
+--   FROM silver.contahub_notas_fiscais
+--   WHERE bar_id=p_bar_id AND vd_dtgerencial BETWEEN p_de AND p_ate AND vd_dtgerencial IS NOT NULL
+--   GROUP BY vd_dtgerencial
+-- Item 2 (NF × Stone) segue NF contábil / Stone corte 6h.

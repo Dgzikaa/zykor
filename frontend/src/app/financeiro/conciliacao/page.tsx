@@ -302,7 +302,7 @@ export default function ConciliacaoPage() {
                   <thead className="text-xs text-muted-foreground border-b"><tr>
                     <th className="px-3 py-2 w-8"></th><th className="text-left px-3 py-2">Dia</th><th className="text-left px-3 py-2">Status</th>
                     <th className="text-right px-3 py-2 whitespace-nowrap">ContaHub</th><th className="text-right px-3 py-2 whitespace-nowrap">Stone bruto</th>
-                    <th className="text-right px-3 py-2 whitespace-nowrap">Diferença</th><th className="text-right px-3 py-2 whitespace-nowrap">Taxa</th><th className="text-right px-3 py-2">Tx</th>
+                    <th className="text-right px-3 py-2 whitespace-nowrap">Dif. (Stone−CH)</th><th className="text-right px-3 py-2 whitespace-nowrap">Taxa</th><th className="text-right px-3 py-2">Tx</th>
                   </tr></thead>
                   <tbody>
                     {rows.map((r) => {
@@ -315,7 +315,7 @@ export default function ConciliacaoPage() {
                             <td className="px-3 py-1.5"><StatusBadge s={r.status} /></td>
                             <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.contahub_cartao)}</td>
                             <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.stone_bruto)}</td>
-                            <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corDifStatus(r.status)}`}>{fmtBRL(r.diferenca)}</td>
+                            <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corDifStatus(r.status)}`}>{fmtBRL(-Number(r.diferenca || 0))}</td>
                             <td className="px-3 py-1.5 text-right whitespace-nowrap text-muted-foreground">{fmtBRL(r.stone_taxa)}</td>
                             <td className="px-3 py-1.5 text-right text-muted-foreground">{r.stone_transacoes ?? '—'}</td>
                           </tr>
@@ -328,14 +328,14 @@ export default function ConciliacaoPage() {
                                     <div>
                                       <div className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Scale className="w-3.5 h-3.5" />Onde diverge (ContaHub × Stone)</div>
                                       <div className="overflow-x-auto"><table className="text-xs w-full max-w-md">
-                                        <thead className="text-muted-foreground"><tr><th className="text-left py-1 pr-3">Tipo</th><th className="text-right py-1 pr-3">ContaHub</th><th className="text-right py-1 pr-3">Stone</th><th className="text-right py-1">Diferença</th></tr></thead>
+                                        <thead className="text-muted-foreground"><tr><th className="text-left py-1 pr-3">Tipo</th><th className="text-right py-1 pr-3">ContaHub</th><th className="text-right py-1 pr-3">Stone</th><th className="text-right py-1">Dif. (Stone−CH)</th></tr></thead>
                                         <tbody>{dia.conciliacao.linhas.map((l: any, i: number) => {
                                           const ok = Math.abs(l.dif) < 0.5; const total = l.tipo === 'Total';
                                           return (<tr key={i} className={`border-t border-border/50 ${total ? 'font-semibold' : ''}`}>
                                             <td className="py-1 pr-3">{l.tipo}</td>
                                             <td className="py-1 pr-3 text-right">{fmtBRL(l.contahub)}</td>
                                             <td className="py-1 pr-3 text-right">{fmtBRL(l.stone)}</td>
-                                            <td className={`py-1 text-right ${ok ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400 font-semibold'}`}>{fmtBRL(l.dif)}{!ok && ' ◀'}</td>
+                                            <td className={`py-1 text-right ${ok ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400 font-semibold'}`}>{fmtBRL(-Number(l.dif || 0))}{!ok && ' ◀'}</td>
                                           </tr>);
                                         })}</tbody>
                                       </table></div>
@@ -425,9 +425,37 @@ export default function ConciliacaoPage() {
           : (() => {
               const totNf = nfStone.reduce((a: number, r: any) => a + Number(r.nf_autorizado || 0), 0);
               const totStone = nfStone.reduce((a: number, r: any) => a + Number(r.stone_bruto || 0), 0);
+              // Totais por CNPJ
+              const porCnpj: Record<string, { label: string; doc: string; nf: number; stone: number }> = {};
+              nfStone.forEach((r: any) => {
+                const k = String(r.cnpj_indice);
+                if (!porCnpj[k]) porCnpj[k] = { label: r.cnpj_label || '—', doc: r.cnpj_documento || '', nf: 0, stone: 0 };
+                porCnpj[k].nf += Number(r.nf_autorizado || 0);
+                porCnpj[k].stone += Number(r.stone_bruto || 0);
+              });
+              const cnpjsLista = Object.values(porCnpj);
+              // Dias com atividade (NF ou Stone) em 2+ CNPJs -> destaque com ⚠
+              const ativPorDia: Record<string, number> = {};
+              nfStone.forEach((r: any) => {
+                if (Number(r.nf_autorizado || 0) > 0 || Number(r.stone_bruto || 0) > 0)
+                  ativPorDia[r.data] = (ativPorDia[r.data] || 0) + 1;
+              });
+              const diasDoisCnpjs = new Set(Object.keys(ativPorDia).filter((d) => ativPorDia[d] >= 2));
               return (
                 <>
-                  <p className="text-xs text-muted-foreground mb-3">NF emitida = todas as vendas (dinheiro + pix + cartão). Stone = só cartão. A diferença esperada é o não-cartão; valores muito fora podem indicar NF emitida no CNPJ errado.</p>
+                  <p className="text-xs text-muted-foreground mb-3">NF emitida = todas as vendas (dinheiro + pix + cartão). Stone = só cartão. <span className="text-amber-600 dark:text-amber-400 font-medium">⚠ marca os dias com venda nos 2 CNPJs.</span></p>
+                  {/* Totais por CNPJ */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                    {cnpjsLista.map((c, i) => (
+                      <Card key={i}><CardContent className="py-3">
+                        <div className="text-xs font-medium mb-1">{c.label} <span className="text-muted-foreground">({c.doc})</span></div>
+                        <div className="flex gap-6">
+                          <div><div className="text-[11px] text-muted-foreground">NF emitida</div><div className="text-base font-bold">{fmtBRL(c.nf)}</div></div>
+                          <div><div className="text-[11px] text-muted-foreground">Stone venda</div><div className="text-base font-bold">{fmtBRL(c.stone)}</div></div>
+                        </div>
+                      </CardContent></Card>
+                    ))}
+                  </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
                     <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">NF emitida (total)</div><div className="text-base font-bold">{fmtBRL(totNf)}</div></CardContent></Card>
                     <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Stone venda (total)</div><div className="text-base font-bold">{fmtBRL(totStone)}</div></CardContent></Card>
@@ -442,17 +470,20 @@ export default function ConciliacaoPage() {
                         <th className="text-right px-3 py-2 whitespace-nowrap">Diferença</th>
                       </tr></thead>
                       <tbody>
-                        {nfStone.map((r: any) => (
-                          <tr key={`${r.data}-${r.cnpj_indice}`} className="border-b last:border-0 hover:bg-muted/30">
-                            <td className="px-3 py-1.5 whitespace-nowrap font-medium">{fmtData(r.data)}</td>
-                            <td className="px-3 py-1.5 text-xs">{r.cnpj_label}<span className="text-muted-foreground ml-1">({r.cnpj_documento})</span></td>
-                            <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.nf_autorizado)}</td>
-                            <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtNum(r.nf_qtd)}</td>
-                            <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.stone_bruto)}</td>
-                            <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtNum(r.stone_qtd)}</td>
-                            <td className="px-3 py-1.5 text-right whitespace-nowrap font-medium">{fmtBRL(r.diferenca)}</td>
-                          </tr>
-                        ))}
+                        {nfStone.map((r: any) => {
+                          const doisCnpj = diasDoisCnpjs.has(r.data);
+                          return (
+                            <tr key={`${r.data}-${r.cnpj_indice}`} className={`border-b last:border-0 hover:bg-muted/30 ${doisCnpj ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
+                              <td className="px-3 py-1.5 whitespace-nowrap font-medium">{doisCnpj && <AlertTriangle className="inline w-3.5 h-3.5 text-amber-500 mr-1 align-text-bottom" />}{fmtData(r.data)}</td>
+                              <td className="px-3 py-1.5 text-xs">{r.cnpj_label}<span className="text-muted-foreground ml-1">({r.cnpj_documento})</span></td>
+                              <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.nf_autorizado)}</td>
+                              <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtNum(r.nf_qtd)}</td>
+                              <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.stone_bruto)}</td>
+                              <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtNum(r.stone_qtd)}</td>
+                              <td className="px-3 py-1.5 text-right whitespace-nowrap font-medium">{fmtBRL(r.diferenca)}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </Card>
