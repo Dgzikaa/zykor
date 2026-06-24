@@ -84,6 +84,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'HandCoins', label: 'Freelas', href: '/rh/freelas', permission: 'gestao' },
       { icon: 'Clock', label: 'Ponto', href: '/rh/ponto', permission: 'gestao' },
       { icon: 'Briefcase', label: 'Recrutamento', href: '/rh/recrutamento', permission: 'gestao' },
+      { icon: 'Coins', label: 'Custo de MO', href: '/rh/custo-mo', permission: 'gestao' },
     ],
   },
   {
