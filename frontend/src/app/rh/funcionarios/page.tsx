@@ -9,10 +9,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle, LayoutDashboard } from 'lucide-react';
+import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp } from 'lucide-react';
 import { FuncionarioDialog } from './_components/FuncionarioDialog';
 import { DossieDialog } from './_components/DossieDialog';
 import { DashboardRH } from './_components/DashboardRH';
+import { IndicadoresRH } from './_components/IndicadoresRH';
 
 export type Funcionario = {
   id: number; nome: string; cpf: string | null; telefone: string | null; email: string | null;
@@ -122,10 +123,15 @@ export default function FuncionariosPage() {
           <TabsList className="mb-4">
             <TabsTrigger value="visao"><LayoutDashboard className="w-4 h-4 mr-1.5" />Visão geral</TabsTrigger>
             <TabsTrigger value="equipe"><Users className="w-4 h-4 mr-1.5" />Equipe</TabsTrigger>
+            <TabsTrigger value="indicadores"><TrendingUp className="w-4 h-4 mr-1.5" />Indicadores</TabsTrigger>
           </TabsList>
 
           <TabsContent value="visao">
             <DashboardRH />
+          </TabsContent>
+
+          <TabsContent value="indicadores">
+            <IndicadoresRH />
           </TabsContent>
 
           <TabsContent value="equipe">
