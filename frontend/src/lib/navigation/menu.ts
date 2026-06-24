@@ -96,6 +96,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Layers', label: 'Balanço Patrimonial', href: '/financeiro/balanco', permission: 'home' },
       { icon: 'Scale', label: 'Conciliação', href: '/financeiro/conciliacao', permission: 'home' },
       { icon: 'ReceiptText', label: 'Notas Fiscais', href: '/financeiro/notas-fiscais', permission: 'home' },
+      { icon: 'FolderTree', label: 'Categorias', href: '/financeiro/categorias', permission: 'home' },
       { icon: 'FileSearch', label: 'Consultas CA', href: '/ferramentas/consultas', permission: 'financeiro_agendamento' },
     ],
   },
