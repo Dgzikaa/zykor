@@ -26,16 +26,27 @@ const fmtData = (d: string) => { try { const [y, m, dd] = d.split('-'); return `
 const fmtHora = (iso: string) => { try { return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
 const pct = (taxa: number, bruto: number) => bruto > 0 ? `${(taxa / bruto * 100).toFixed(2)}%` : '—';
 
-const STATUS_BADGE: Record<string, { cls: string; txt: string }> = {
-  ok: { cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', txt: '● bate' },
-  leve: { cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', txt: '◆ pequena dif.' },
-  verificar: { cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', txt: '▲ verificar' },
-};
-const StatusBadge = ({ s }: { s: string }) => {
-  const b = STATUS_BADGE[s] || STATUS_BADGE.verificar;
-  return <span className={`text-[10px] rounded px-1.5 py-0.5 ${b.cls}`}>{b.txt}</span>;
+// Badge por DIREÇÃO (pedido do sócio). dif = ContaHub − Stone:
+//   d > 0 = recebeu a MENOS (vendeu e não recebeu — possível BO) → vermelho.
+//   d < 0 = recebeu a MAIS (ex.: venda fora do caixa não lançada no ContaHub) → amarelo.
+const StatusBadge = ({ s, dif }: { s: string; dif?: any }) => {
+  const d = Number(dif || 0);
+  const b = (s === 'ok' || Math.abs(d) < 0.5)
+    ? { cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', txt: '● bate' }
+    : d > 0
+      ? { cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', txt: '▲ recebeu a menos' }
+      : { cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', txt: '◆ recebeu a mais' };
+  return <span className={`text-[10px] rounded px-1.5 py-0.5 whitespace-nowrap ${b.cls}`}>{b.txt}</span>;
 };
 const corDifStatus = (s: string) => s === 'ok' ? 'text-muted-foreground' : s === 'leve' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400 font-semibold';
+// Gravidade por DIREÇÃO (pedido do sócio). diferenca = ContaHub − Stone:
+//   ContaHub > Stone (dif > 0) = PROBLEMA (vermelho): venda lançada que a Stone não cobrou (dinheiro não entrou).
+//   Stone > ContaHub (dif < 0) = OK-ish (amarelo): ex. estorno/ajuste lançado só no ContaHub.
+const corGravidade = (dif: any, status: string): string => {
+  const d = Number(dif || 0);
+  if (status === 'ok' || Math.abs(d) < 0.5) return 'text-muted-foreground';
+  return d > 0 ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-amber-600 dark:text-amber-400 font-semibold';
+};
 
 const MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const labelMes = (ym: string) => { const [y, m] = ym.split('-'); return `${MESES_PT[Number(m) - 1]}/${y}`; };
@@ -301,8 +312,8 @@ export default function ConciliacaoPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
                 <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Dias</div><div className="text-lg font-bold">{resumo.dias}</div></CardContent></Card>
                 <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-600" />Batendo</div><div className="text-lg font-bold text-emerald-600">{resumo.ok}</div></CardContent></Card>
-                <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-amber-600" />Pequena dif.</div><div className="text-lg font-bold text-amber-600">{resumo.leve ?? 0}</div></CardContent></Card>
-                <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-red-600" />Verificar</div><div className="text-lg font-bold text-red-600">{resumo.verificar}</div></CardContent></Card>
+                <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-red-600" />Recebeu a menos</div><div className="text-lg font-bold text-red-600" title="ContaHub > Stone — vendeu e não recebeu (possível BO)">{rows.filter((x: any) => x.status !== 'ok' && Number(x.diferenca) > 0.5).length}</div></CardContent></Card>
+                <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-amber-600" />Recebeu a mais</div><div className="text-lg font-bold text-amber-600" title="Stone > ContaHub — ex.: venda fora do caixa não lançada">{rows.filter((x: any) => x.status !== 'ok' && Number(x.diferenca) < -0.5).length}</div></CardContent></Card>
                 <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Stone bruto</div><div className="text-base font-bold">{fmtBRL(resumo.stone_bruto_total)}</div></CardContent></Card>
                 <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Taxa (MDR)</div><div className="text-base font-bold">{fmtBRL(resumo.taxa_total)}</div></CardContent></Card>
               </div>
@@ -326,10 +337,10 @@ export default function ConciliacaoPage() {
                           <tr onClick={() => abrirDia(r.data)} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer">
                             <td className="px-3 py-1.5"><ChevronDown className={`w-4 h-4 transition-transform ${aberto === r.data ? 'rotate-180' : ''}`} /></td>
                             <td className="px-3 py-1.5 whitespace-nowrap font-medium">{fmtData(r.data)}</td>
-                            <td className="px-3 py-1.5"><StatusBadge s={r.status} /></td>
+                            <td className="px-3 py-1.5"><StatusBadge s={r.status} dif={r.diferenca} /></td>
                             <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.contahub_cartao)}</td>
                             <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.stone_bruto)}</td>
-                            <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corDifStatus(r.status)}`}>{fmtBRL(-Number(r.diferenca || 0))}</td>
+                            <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corGravidade(r.diferenca, r.status)}`}>{fmtBRL(-Number(r.diferenca || 0))}</td>
                             <td className="px-3 py-1.5 text-right whitespace-nowrap text-muted-foreground">{fmtBRL(r.stone_taxa)}</td>
                             <td className="px-3 py-1.5 text-right text-muted-foreground">{r.stone_transacoes ?? '—'}</td>
                           </tr>
@@ -349,11 +360,11 @@ export default function ConciliacaoPage() {
                                             <td className="py-1 pr-3">{l.tipo}</td>
                                             <td className="py-1 pr-3 text-right">{fmtBRL(l.contahub)}</td>
                                             <td className="py-1 pr-3 text-right">{fmtBRL(l.stone)}</td>
-                                            <td className={`py-1 text-right ${ok ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400 font-semibold'}`}>{fmtBRL(-Number(l.dif || 0))}{!ok && ' ◀'}</td>
+                                            <td className={`py-1 text-right ${ok ? 'text-muted-foreground' : (Number(l.dif) > 0 ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-amber-600 dark:text-amber-400 font-semibold')}`}>{fmtBRL(-Number(l.dif || 0))}{!ok && ' ◀'}</td>
                                           </tr>);
                                         })}</tbody>
                                       </table></div>
-                                      <p className="text-[11px] text-muted-foreground mt-1">A linha com ◀ em vermelho é onde está o furo (crédito ou débito). ContaHub crédito = vendas Cred; Stone crédito = bandeira créd/private label.</p>
+                                      <p className="text-[11px] text-muted-foreground mt-1"><span className="text-red-600 dark:text-red-400 font-medium">◀ vermelho = ContaHub &gt; Stone</span> (recebeu a MENOS — vendeu e não recebeu, possível BO). <span className="text-amber-600 dark:text-amber-400 font-medium">◀ âmbar = Stone &gt; ContaHub</span> (recebeu a MAIS — ex.: venda fora do caixa não lançada). ContaHub crédito = vendas Cred; Stone crédito = bandeira créd/private label.</p>
                                     </div>
                                   )}
 
