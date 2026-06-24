@@ -97,6 +97,7 @@ export default function ConciliacaoPage() {
   const [loadingNfStone, setLoadingNfStone] = useState(false);
   const [loadingContahubNf, setLoadingContahubNf] = useState(false);
   const [confDia, setConfDia] = useState<string | null>(null);
+  const [taxasModal, setTaxasModal] = useState<{ open: boolean; titulo: string; loading: boolean; rows: any[]; erro: string | null }>({ open: false, titulo: '', loading: false, rows: [], erro: null });
 
   const [aberto, setAberto] = useState<string | null>(null);
   const [diaCache, setDiaCache] = useState<Record<string, any>>({});
@@ -177,6 +178,20 @@ export default function ConciliacaoPage() {
       showToast({ type: 'error', title: 'Erro ao carregar ContaHub × NF', message: e?.message });
     } finally { setLoadingContahubNf(false); }
   }, [selectedBar, periodo, showToast]);
+
+  const abrirTaxasDia = useCallback(async (brandId: any, accountType: any) => {
+    if (!selectedBar || !periodo.de) return;
+    setTaxasModal({ open: true, titulo: `${brandName(brandId)} · ${accountName(accountType)}`, loading: true, rows: [], erro: null });
+    try {
+      const qs = new URLSearchParams({ de: periodo.de, ate: periodo.ate });
+      if (brandId !== null && brandId !== undefined) qs.set('brand_id', String(brandId));
+      if (accountType !== null && accountType !== undefined) qs.set('account_type', String(accountType));
+      const r = await api.get(`/api/financeiro/conciliacao/taxas-dia?${qs.toString()}`);
+      setTaxasModal(m => ({ ...m, loading: false, rows: r.dias || [] }));
+    } catch (e: any) {
+      setTaxasModal(m => ({ ...m, loading: false, erro: e?.message || 'Erro ao carregar' }));
+    }
+  }, [selectedBar, periodo]);
 
   useEffect(() => { carregar(); }, [carregar]);
   useEffect(() => { if (aba === 'analises' && analiseSub !== 'pendencias') carregarAnalise(); }, [aba, analiseSub, carregarAnalise]);
@@ -572,8 +587,8 @@ export default function ConciliacaoPage() {
                       <thead className="text-xs text-muted-foreground border-b"><tr><th className="text-left px-3 py-2">Bandeira</th><th className="text-left px-3 py-2">Tipo</th><th className="text-right px-3 py-2">Qtd</th><th className="text-right px-3 py-2">Bruto</th><th className="text-right px-3 py-2">Taxa</th><th className="text-right px-3 py-2">MDR %</th></tr></thead>
                       <tbody>{bandeiras.map((b, i) => {
                         const mdr = Number(b.bruto) > 0 ? Number(b.taxa) / Number(b.bruto) * 100 : 0;
-                        return (<tr key={i} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="px-3 py-1.5 font-medium">{brandName(b.brand_id)}</td><td className="px-3 py-1.5 text-muted-foreground">{accountName(b.account_type)}</td>
+                        return (<tr key={i} onClick={() => abrirTaxasDia(b.brand_id, b.account_type)} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer" title="Clique para ver a taxa por dia">
+                          <td className="px-3 py-1.5 font-medium"><span className="inline-flex items-center gap-1"><ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />{brandName(b.brand_id)}</span></td><td className="px-3 py-1.5 text-muted-foreground">{accountName(b.account_type)}</td>
                           <td className="px-3 py-1.5 text-right">{fmtNum(b.qtd)}</td><td className="px-3 py-1.5 text-right">{fmtBRL(b.bruto)}</td><td className="px-3 py-1.5 text-right text-muted-foreground">{fmtBRL(b.taxa)}</td>
                           <td className={`px-3 py-1.5 text-right font-medium ${mdr >= 2 ? 'text-red-600' : mdr >= 1.5 ? 'text-amber-600' : ''}`}>{mdr.toFixed(2)}%</td>
                         </tr>);
@@ -661,6 +676,48 @@ export default function ConciliacaoPage() {
               )}
             </>
           )
+        )}
+
+        {/* Modal: taxa por dia de uma bandeira+tipo (clique numa linha da aba Taxas) */}
+        {taxasModal.open && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4" onClick={() => setTaxasModal(m => ({ ...m, open: false }))}>
+            <div className="bg-background rounded-lg shadow-xl border border-border max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-3 border-b">
+                <div className="font-semibold text-sm flex items-center gap-2"><CreditCard className="w-4 h-4" />Taxa por dia — {taxasModal.titulo}</div>
+                <button onClick={() => setTaxasModal(m => ({ ...m, open: false }))} className="text-muted-foreground hover:text-foreground text-lg leading-none">✕</button>
+              </div>
+              <div className="overflow-auto">
+                {taxasModal.loading ? <div className="py-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></div>
+                : taxasModal.erro ? <div className="py-8 text-center text-sm text-red-600">{taxasModal.erro}</div>
+                : taxasModal.rows.length === 0 ? <div className="py-8 text-center text-sm text-muted-foreground">Sem transações no período.</div>
+                : (() => {
+                    const tot = taxasModal.rows.reduce((a: any, r: any) => ({ bruto: a.bruto + Number(r.bruto || 0), taxa: a.taxa + Number(r.taxa || 0), qtd: a.qtd + Number(r.qtd || 0) }), { bruto: 0, taxa: 0, qtd: 0 });
+                    const mdrTot = tot.bruto > 0 ? tot.taxa / tot.bruto * 100 : 0;
+                    return (
+                      <table className="w-full text-sm">
+                        <thead className="text-xs text-muted-foreground border-b sticky top-0 bg-background"><tr><th className="text-left px-3 py-2">Dia</th><th className="text-right px-3 py-2">Qtd</th><th className="text-right px-3 py-2">Bruto</th><th className="text-right px-3 py-2">Taxa</th><th className="text-right px-3 py-2">MDR %</th></tr></thead>
+                        <tbody>{taxasModal.rows.map((r: any, i: number) => { const mdr = Number(r.mdr || 0); return (
+                          <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
+                            <td className="px-3 py-1.5 font-medium whitespace-nowrap">{fmtData(r.data)}</td>
+                            <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtNum(r.qtd)}</td>
+                            <td className="px-3 py-1.5 text-right">{fmtBRL(r.bruto)}</td>
+                            <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtBRL(r.taxa)}</td>
+                            <td className={`px-3 py-1.5 text-right font-medium ${mdr >= 2 ? 'text-red-600' : mdr >= 1.5 ? 'text-amber-600' : ''}`}>{mdr.toFixed(2)}%</td>
+                          </tr>); })}
+                        </tbody>
+                        <tfoot className="border-t bg-muted/30 font-semibold"><tr>
+                          <td className="px-3 py-2">Total</td>
+                          <td className="px-3 py-2 text-right">{fmtNum(tot.qtd)}</td>
+                          <td className="px-3 py-2 text-right">{fmtBRL(tot.bruto)}</td>
+                          <td className="px-3 py-2 text-right">{fmtBRL(tot.taxa)}</td>
+                          <td className="px-3 py-2 text-right">{mdrTot.toFixed(2)}%</td>
+                        </tr></tfoot>
+                      </table>
+                    );
+                  })()}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </ProtectedRoute>
