@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   const supabase = await getAdminClient();
   const { data, error } = await (supabase as any).schema('gold')
     .from('conciliacao_contahub_nf_diaria')
-    .select('data, contahub_total, contahub_qtd, nf_autorizado, nf_qtd, diferenca')
+    .select('data, contahub_total, contahub_cartao, stone_bruto, contahub_qtd, nf_autorizado, nf_qtd, diferenca')
     .eq('bar_id', user.bar_id)
     .gte('data', de).lte('data', ate)
     .order('data', { ascending: false });

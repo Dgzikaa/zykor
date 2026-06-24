@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Scale, Loader2, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Banknote, CreditCard, Percent, CalendarClock, PieChart, ShieldAlert, ListChecks, Building2, Receipt } from 'lucide-react';
+import { Scale, Loader2, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Banknote, CreditCard, Percent, CalendarClock, PieChart, ShieldAlert, ListChecks, Building2 } from 'lucide-react';
 
 type Row = {
   data: string; status: string; stone_cnpjs: string | null;
@@ -42,8 +42,7 @@ const labelMes = (ym: string) => { const [y, m] = ym.split('-'); return `${MESES
 
 const ABAS = [
   { id: 'conciliacao', label: 'Conciliação', icon: Scale },
-  { id: 'nf_stone', label: 'NF × Stone (CNPJ)', icon: Building2 },
-  { id: 'contahub_nf', label: 'ContaHub × NF', icon: Receipt },
+  { id: 'conferencia', label: 'Conferência (NF × Stone × ContaHub)', icon: Building2 },
   { id: 'analises', label: 'Análises', icon: PieChart },
 ] as const;
 type AbaId = typeof ABAS[number]['id'];
@@ -97,6 +96,7 @@ export default function ConciliacaoPage() {
   const [contahubNf, setContahubNf] = useState<any[]>([]);
   const [loadingNfStone, setLoadingNfStone] = useState(false);
   const [loadingContahubNf, setLoadingContahubNf] = useState(false);
+  const [confDia, setConfDia] = useState<string | null>(null);
 
   const [aberto, setAberto] = useState<string | null>(null);
   const [diaCache, setDiaCache] = useState<Record<string, any>>({});
@@ -181,8 +181,7 @@ export default function ConciliacaoPage() {
   useEffect(() => { carregar(); }, [carregar]);
   useEffect(() => { if (aba === 'analises' && analiseSub !== 'pendencias') carregarAnalise(); }, [aba, analiseSub, carregarAnalise]);
   useEffect(() => { if (aba === 'analises' && analiseSub === 'pendencias') carregarPendencias(); }, [aba, analiseSub, carregarPendencias]);
-  useEffect(() => { if (aba === 'nf_stone') carregarNfStone(); }, [aba, carregarNfStone]);
-  useEffect(() => { if (aba === 'contahub_nf') carregarContahubNf(); }, [aba, carregarContahubNf]);
+  useEffect(() => { if (aba === 'conferencia') { carregarContahubNf(); carregarNfStone(); } }, [aba, carregarContahubNf, carregarNfStone]);
 
   const abrirDia = useCallback(async (data: string) => {
     if (aberto === data) { setAberto(null); return; }
@@ -418,70 +417,70 @@ export default function ConciliacaoPage() {
           </>
         )}
 
-        {/* ===================== ABA NF × STONE (CNPJ) ===================== */}
-        {aba === 'nf_stone' && (
-          loadingNfStone ? <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
-          : nfStone.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground"><Building2 className="w-9 h-9 mx-auto mb-2 opacity-40" />Sem dados no período.</CardContent></Card>
+        {/* ===================== ABA CONFERÊNCIA (NF × Stone × ContaHub) ===================== */}
+        {aba === 'conferencia' && (
+          (loadingContahubNf || loadingNfStone) ? <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
+          : contahubNf.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground"><Building2 className="w-9 h-9 mx-auto mb-2 opacity-40" />Sem dados no período.</CardContent></Card>
           : (() => {
-              const totNf = nfStone.reduce((a: number, r: any) => a + Number(r.nf_autorizado || 0), 0);
-              const totStone = nfStone.reduce((a: number, r: any) => a + Number(r.stone_bruto || 0), 0);
-              // Totais por CNPJ
-              const porCnpj: Record<string, { label: string; doc: string; nf: number; stone: number }> = {};
-              nfStone.forEach((r: any) => {
-                const k = String(r.cnpj_indice);
-                if (!porCnpj[k]) porCnpj[k] = { label: r.cnpj_label || '—', doc: r.cnpj_documento || '', nf: 0, stone: 0 };
-                porCnpj[k].nf += Number(r.nf_autorizado || 0);
-                porCnpj[k].stone += Number(r.stone_bruto || 0);
-              });
-              const cnpjsLista = Object.values(porCnpj);
-              // Dias com atividade (NF ou Stone) em 2+ CNPJs -> destaque com ⚠
-              const ativPorDia: Record<string, number> = {};
-              nfStone.forEach((r: any) => {
-                if (Number(r.nf_autorizado || 0) > 0 || Number(r.stone_bruto || 0) > 0)
-                  ativPorDia[r.data] = (ativPorDia[r.data] || 0) + 1;
-              });
-              const diasDoisCnpjs = new Set(Object.keys(ativPorDia).filter((d) => ativPorDia[d] >= 2));
+              const cnpjPorDia: Record<string, any[]> = {};
+              nfStone.forEach((r: any) => { (cnpjPorDia[r.data] ??= []).push(r); });
+              const frac = (a: number, b: number) => { const m = Math.max(Math.abs(a), Math.abs(b), 1); return Math.abs(a - b) / m; };
+              const corOk = (f: number) => f > 0.05 ? 'text-red-600 dark:text-red-400 font-semibold' : f > 0.005 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
+              const t = contahubNf.reduce((a: any, r: any) => ({ stone: a.stone + Number(r.stone_bruto || 0), cartao: a.cartao + Number(r.contahub_cartao || 0), nf: a.nf + Number(r.nf_autorizado || 0), total: a.total + Number(r.contahub_total || 0) }), { stone: 0, cartao: 0, nf: 0, total: 0 });
               return (
                 <>
-                  <p className="text-xs text-muted-foreground mb-3">NF emitida = todas as vendas (dinheiro + pix + cartão). Stone = só cartão. <span className="text-amber-600 dark:text-amber-400 font-medium">⚠ marca os dias com venda nos 2 CNPJs.</span></p>
-                  {/* Totais por CNPJ */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                    {cnpjsLista.map((c, i) => (
-                      <Card key={i}><CardContent className="py-3">
-                        <div className="text-xs font-medium mb-1">{c.label} <span className="text-muted-foreground">({c.doc})</span></div>
-                        <div className="flex gap-6">
-                          <div><div className="text-[11px] text-muted-foreground">NF emitida</div><div className="text-base font-bold">{fmtBRL(c.nf)}</div></div>
-                          <div><div className="text-[11px] text-muted-foreground">Stone venda</div><div className="text-base font-bold">{fmtBRL(c.stone)}</div></div>
-                        </div>
-                      </CardContent></Card>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">NF emitida (total)</div><div className="text-base font-bold">{fmtBRL(totNf)}</div></CardContent></Card>
-                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Stone venda (total)</div><div className="text-base font-bold">{fmtBRL(totStone)}</div></CardContent></Card>
-                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Diferença (NF − Stone)</div><div className="text-base font-bold">{fmtBRL(totNf - totStone)}</div></CardContent></Card>
+                  <p className="text-xs text-muted-foreground mb-3">Conferência por dia (base gerencial): <strong>Stone × ContaHub-cartão</strong> (o dinheiro do cartão entrou?) e <strong>NF × ContaHub-total</strong> (emitiu nota de tudo?). Se a Stone bate com o cartão mas a NF está abaixo, foi <span className="text-amber-600 dark:text-amber-400 font-medium">falta de emissão de NF</span> — não furo de caixa. Clique no dia p/ ver NF × Stone por CNPJ.</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Venda Stone</div><div className="text-base font-bold">{fmtBRL(t.stone)}</div></CardContent></Card>
+                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">ContaHub cartão</div><div className="text-base font-bold">{fmtBRL(t.cartao)}</div></CardContent></Card>
+                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">NF emitida</div><div className="text-base font-bold">{fmtBRL(t.nf)}</div></CardContent></Card>
+                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">ContaHub total</div><div className="text-base font-bold">{fmtBRL(t.total)}</div></CardContent></Card>
                   </div>
                   <Card className="p-0 overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="text-xs text-muted-foreground border-b"><tr>
-                        <th className="text-left px-3 py-2">Dia</th><th className="text-left px-3 py-2">CNPJ</th>
-                        <th className="text-right px-3 py-2 whitespace-nowrap">NF emitida</th><th className="text-right px-3 py-2">NFs</th>
-                        <th className="text-right px-3 py-2 whitespace-nowrap">Stone venda</th><th className="text-right px-3 py-2">Tx</th>
-                        <th className="text-right px-3 py-2 whitespace-nowrap">Diferença</th>
+                        <th className="px-3 py-2 w-8"></th><th className="text-left px-3 py-2">Dia</th>
+                        <th className="text-right px-3 py-2 whitespace-nowrap">Venda Stone</th><th className="text-right px-3 py-2 whitespace-nowrap">CH cartão</th>
+                        <th className="text-right px-3 py-2 whitespace-nowrap border-l">NF emitida</th><th className="text-right px-3 py-2 whitespace-nowrap">CH total</th>
+                        <th className="text-left px-3 py-2">Diagnóstico</th>
                       </tr></thead>
                       <tbody>
-                        {nfStone.map((r: any) => {
-                          const doisCnpj = diasDoisCnpjs.has(r.data);
+                        {contahubNf.map((r: any) => {
+                          const stone = Number(r.stone_bruto || 0), cartao = Number(r.contahub_cartao || 0), nf = Number(r.nf_autorizado || 0), total = Number(r.contahub_total || 0);
+                          const fSC = frac(stone, cartao), fNT = frac(nf, total);
+                          const cnpjs = cnpjPorDia[r.data] || [];
+                          let diag = '🟢 OK', diagCls = 'text-emerald-600 dark:text-emerald-400';
+                          if (fNT > 0.05 && nf < total) { diag = '🟡 NF a emitir'; diagCls = 'text-amber-600 dark:text-amber-400 font-medium'; }
+                          if (fSC > 0.05) { diag = '🔴 Verificar cartão/Stone'; diagCls = 'text-red-600 dark:text-red-400 font-medium'; }
+                          const aberto = confDia === r.data;
                           return (
-                            <tr key={`${r.data}-${r.cnpj_indice}`} className={`border-b last:border-0 hover:bg-muted/30 ${doisCnpj ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
-                              <td className="px-3 py-1.5 whitespace-nowrap font-medium">{doisCnpj && <AlertTriangle className="inline w-3.5 h-3.5 text-amber-500 mr-1 align-text-bottom" />}{fmtData(r.data)}</td>
-                              <td className="px-3 py-1.5 text-xs">{r.cnpj_label}<span className="text-muted-foreground ml-1">({r.cnpj_documento})</span></td>
-                              <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.nf_autorizado)}</td>
-                              <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtNum(r.nf_qtd)}</td>
-                              <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.stone_bruto)}</td>
-                              <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtNum(r.stone_qtd)}</td>
-                              <td className="px-3 py-1.5 text-right whitespace-nowrap font-medium">{fmtBRL(r.diferenca)}</td>
-                            </tr>
+                            <Fragment key={r.data}>
+                              <tr onClick={() => setConfDia(aberto ? null : r.data)} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer">
+                                <td className="px-3 py-1.5">{cnpjs.length > 0 && <ChevronDown className={`w-4 h-4 transition-transform ${aberto ? 'rotate-180' : ''}`} />}</td>
+                                <td className="px-3 py-1.5 whitespace-nowrap font-medium">{fmtData(r.data)}</td>
+                                <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(stone)}</td>
+                                <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corOk(fSC)}`}>{fmtBRL(cartao)}</td>
+                                <td className="px-3 py-1.5 text-right whitespace-nowrap border-l">{fmtBRL(nf)}</td>
+                                <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corOk(fNT)}`}>{fmtBRL(total)}</td>
+                                <td className={`px-3 py-1.5 text-xs whitespace-nowrap ${diagCls}`}>{diag}</td>
+                              </tr>
+                              {aberto && cnpjs.length > 0 && (
+                                <tr className="border-b bg-muted/20"><td colSpan={7} className="px-3 py-2">
+                                  <div className="text-[11px] font-medium text-muted-foreground mb-1">NF × Stone por CNPJ — Stone e NF têm CNPJ; o ContaHub não separa por CNPJ.</div>
+                                  <table className="text-xs w-full max-w-xl">
+                                    <thead className="text-muted-foreground"><tr><th className="text-left py-1 pr-3">CNPJ</th><th className="text-right py-1 pr-3">NF emitida</th><th className="text-right py-1 pr-3">Venda Stone</th><th className="text-right py-1">Diferença</th></tr></thead>
+                                    <tbody>{cnpjs.map((c: any, i: number) => (
+                                      <tr key={i} className="border-t border-border/40">
+                                        <td className="py-1 pr-3">{c.cnpj_label}<span className="text-muted-foreground ml-1">({c.cnpj_documento})</span></td>
+                                        <td className="py-1 pr-3 text-right">{fmtBRL(c.nf_autorizado)}</td>
+                                        <td className="py-1 pr-3 text-right">{fmtBRL(c.stone_bruto)}</td>
+                                        <td className="py-1 text-right">{fmtBRL(Number(c.nf_autorizado || 0) - Number(c.stone_bruto || 0))}</td>
+                                      </tr>
+                                    ))}</tbody>
+                                  </table>
+                                </td></tr>
+                              )}
+                            </Fragment>
                           );
                         })}
                       </tbody>
@@ -492,51 +491,6 @@ export default function ConciliacaoPage() {
             })()
         )}
 
-        {/* ===================== ABA CONTAHUB × NF ===================== */}
-        {aba === 'contahub_nf' && (
-          loadingContahubNf ? <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
-          : contahubNf.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground"><Receipt className="w-9 h-9 mx-auto mb-2 opacity-40" />Sem dados no período.</CardContent></Card>
-          : (() => {
-              const totCh = contahubNf.reduce((a: number, r: any) => a + Number(r.contahub_total || 0), 0);
-              const totNf = contahubNf.reduce((a: number, r: any) => a + Number(r.nf_autorizado || 0), 0);
-              const corDif = (ch: number, nf: number) => {
-                const m = Math.max(Math.abs(ch), Math.abs(nf), 1); const d = Math.abs(ch - nf);
-                return d / m > 0.05 ? 'text-red-600 dark:text-red-400 font-semibold' : d >= 0.5 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground';
-              };
-              return (
-                <>
-                  <p className="text-xs text-muted-foreground mb-3">Venda total do ContaHub (todos os meios) × NF emitida no dia. Os dois deveriam bater de perto; diferença grande (vermelho) sugere NF não emitida ou emitida fora do dia.</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">ContaHub venda (total)</div><div className="text-base font-bold">{fmtBRL(totCh)}</div></CardContent></Card>
-                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">NF emitida (total)</div><div className="text-base font-bold">{fmtBRL(totNf)}</div></CardContent></Card>
-                    <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Diferença (ContaHub − NF)</div><div className="text-base font-bold">{fmtBRL(totCh - totNf)}</div></CardContent></Card>
-                  </div>
-                  <Card className="p-0 overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="text-xs text-muted-foreground border-b"><tr>
-                        <th className="text-left px-3 py-2">Dia</th>
-                        <th className="text-right px-3 py-2 whitespace-nowrap">ContaHub venda</th><th className="text-right px-3 py-2">Pgtos</th>
-                        <th className="text-right px-3 py-2 whitespace-nowrap">NF emitida</th><th className="text-right px-3 py-2">NFs</th>
-                        <th className="text-right px-3 py-2 whitespace-nowrap">Diferença</th>
-                      </tr></thead>
-                      <tbody>
-                        {contahubNf.map((r: any) => (
-                          <tr key={r.data} className="border-b last:border-0 hover:bg-muted/30">
-                            <td className="px-3 py-1.5 whitespace-nowrap font-medium">{fmtData(r.data)}</td>
-                            <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.contahub_total)}</td>
-                            <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtNum(r.contahub_qtd)}</td>
-                            <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.nf_autorizado)}</td>
-                            <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtNum(r.nf_qtd)}</td>
-                            <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corDif(Number(r.contahub_total || 0), Number(r.nf_autorizado || 0))}`}>{fmtBRL(r.diferenca)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </Card>
-                </>
-              );
-            })()
-        )}
 
         {/* ===================== ABA ANÁLISES (sub-abas) ===================== */}
         {aba === 'analises' && (
