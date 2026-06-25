@@ -11,7 +11,7 @@
 import { isPublicRoute } from '@/lib/auth/public-routes';
 
 export interface ApiOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   headers?: Record<string, string>;
 }
@@ -98,6 +98,9 @@ export const api = {
 
   put: (endpoint: string, body?: unknown, headers?: Record<string, string>) =>
     apiCall(endpoint, { method: 'PUT', body, headers }),
+
+  patch: (endpoint: string, body?: unknown, headers?: Record<string, string>) =>
+    apiCall(endpoint, { method: 'PATCH', body, headers }),
 
   delete: (endpoint: string, headers?: Record<string, string>) =>
     apiCall(endpoint, { method: 'DELETE', headers }),
