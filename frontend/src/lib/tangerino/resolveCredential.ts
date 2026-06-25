@@ -36,7 +36,9 @@ export async function resolveTangerinoCredential(row: any): Promise<ResolvedTang
   };
 }
 
-/** Header Authorization da Tangerino: `Basic <token>` (token já pronto). */
+/** Header Authorization da Tangerino: `Basic <token>` (token já pronto).
+ *  Sanitiza: tira espaços/quebras e um eventual prefixo "Basic " colado junto. */
 export function tangerinoAuthHeader(token: string): string {
-  return `Basic ${token}`;
+  const t = token.replace(/\s+/g, '').replace(/^Basic/i, '');
+  return `Basic ${t}`;
 }
