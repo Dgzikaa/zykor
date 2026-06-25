@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Package, RefreshCw, Search, Boxes, ChefHat } from 'lucide-react';
+import { Package, RefreshCw, Search, Boxes, ChefHat, Plus, Pencil, Trash2, X, ListTree } from 'lucide-react';
+import Link from 'next/link';
 
 interface Produto {
   id_produto_sisfood_cotacao: number;
@@ -88,6 +89,44 @@ export default function InsumosPage() {
   }, [produtos, busca, secaoSel]);
 
   const semDepara = produtos.filter(p => !p.cod_interno).length;
+
+  // ----- Produções (cadastro de preparos internos) -----
+  const vazio = { nome: '', unidade: 'un', rendimento: '1', secao: '', observacao: '' };
+  const [producoes, setProducoes] = useState<any[]>([]);
+  const [form, setForm] = useState<any>(vazio);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [salvando, setSalvando] = useState(false);
+
+  const carregarProducoes = useCallback(async () => {
+    if (!barId) return;
+    try {
+      const r = await api.get(`/api/operacional/producoes?bar_id=${barId}`);
+      if (r.success) setProducoes(r.producoes || []);
+    } catch { /* silencioso */ }
+  }, [barId]);
+  useEffect(() => { carregarProducoes(); }, [carregarProducoes]);
+
+  const salvarProducao = async () => {
+    if (!barId || !form.nome.trim()) { toast({ title: 'Informe o nome da produção', variant: 'destructive' }); return; }
+    setSalvando(true);
+    try {
+      const payload = { ...form, bar_id: barId, rendimento: Number(form.rendimento) || 1 };
+      const r = editId ? await api.put('/api/operacional/producoes', { ...payload, id: editId })
+                       : await api.post('/api/operacional/producoes', payload);
+      if (!r.success) throw new Error(r.error);
+      toast({ title: editId ? 'Produção atualizada' : 'Produção criada' });
+      setForm(vazio); setEditId(null);
+      await carregarProducoes();
+    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+    finally { setSalvando(false); }
+  };
+  const editarProducao = (p: any) => { setEditId(p.id); setForm({ nome: p.nome || '', unidade: p.unidade || 'un', rendimento: String(p.rendimento ?? '1'), secao: p.secao || '', observacao: p.observacao || '' }); };
+  const excluirProducao = async (id: number) => {
+    if (!confirm('Excluir esta produção e a ficha dela?')) return;
+    try { const r = await api.delete(`/api/operacional/producoes?id=${id}`); if (!r.success) throw new Error(r.error); await carregarProducoes(); }
+    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+  const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'porção'];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
@@ -174,15 +213,79 @@ export default function InsumosPage() {
           </TabsContent>
 
           {/* ===== PRODUÇÕES ===== */}
-          <TabsContent value="producoes">
+          <TabsContent value="producoes" className="space-y-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Produções são preparos internos (ex.: massa de quibe, molhos) que não existem no VMarket. Cadastre aqui o preparo e o quanto ele rende; a receita (insumos) é montada na <strong>Ficha Técnica</strong>.
+            </p>
+
+            {/* Formulário */}
             <Card className="card-dark">
-              <CardContent className="py-12 text-center">
-                <ChefHat className="w-10 h-10 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Produções (preparos)</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-md mx-auto">
-                  Preparos internos (ex.: massa de quibe, molhos) não existem no VMarket — eles nascem na <strong>Ficha Técnica</strong>,
-                  montando insumos. Esta aba será preenchida quando o módulo de Ficha Técnica entrar.
-                </p>
+              <CardContent className="py-3">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                  <div className="sm:col-span-4">
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Nome da produção *</label>
+                    <Input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} placeholder="Ex.: Molho da casa" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Rende</label>
+                    <Input type="number" step="0.01" value={form.rendimento} onChange={e => setForm({ ...form, rendimento: e.target.value })} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Unidade</label>
+                    <select value={form.unidade} onChange={e => setForm({ ...form, unidade: e.target.value })}
+                      className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
+                      {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Seção</label>
+                    <Input value={form.secao} onChange={e => setForm({ ...form, secao: e.target.value })} placeholder="Cozinha…" />
+                  </div>
+                  <div className="sm:col-span-2 flex gap-1">
+                    <Button onClick={salvarProducao} disabled={salvando} className="flex-1">
+                      <Plus className="w-4 h-4 mr-1" />{editId ? 'Salvar' : 'Adicionar'}
+                    </Button>
+                    {editId && <Button variant="outline" onClick={() => { setEditId(null); setForm(vazio); }}><X className="w-4 h-4" /></Button>}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Lista */}
+            <Card className="card-dark overflow-hidden">
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase">
+                      <tr>
+                        <th className="text-left font-medium px-3 py-2">Produção</th>
+                        <th className="text-left font-medium px-3 py-2">Rendimento</th>
+                        <th className="text-left font-medium px-3 py-2">Seção</th>
+                        <th className="text-right font-medium px-3 py-2">Itens na ficha</th>
+                        <th className="text-right font-medium px-3 py-2">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {producoes.length === 0 ? (
+                        <tr><td colSpan={5} className="px-3 py-10 text-center text-gray-400">Nenhuma produção cadastrada ainda.</td></tr>
+                      ) : producoes.map(p => (
+                        <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                          <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}{!p.ativo && <span className="text-xs text-gray-400"> (inativa)</span>}</td>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{Number(p.rendimento || 0).toLocaleString('pt-BR')} {p.unidade}</td>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.secao || '—'}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-gray-500">{p.qtd_componentes}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center justify-end gap-1">
+                              <Link href={`/operacional/fichas-tecnicas?producao=${p.id}`} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-indigo-600 dark:text-indigo-400" title="Abrir ficha técnica"><ListTree className="w-4 h-4" /></Link>
+                              <button onClick={() => editarProducao(p)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500" title="Editar"><Pencil className="w-4 h-4" /></button>
+                              <button onClick={() => excluirProducao(p.id)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500" title="Excluir"><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
