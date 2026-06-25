@@ -11,10 +11,17 @@ import { api } from '@/lib/api-client';
 import { Search, Loader2, Check, ChevronLeft, Save, TrendingUp } from 'lucide-react';
 
 type Area = { nome: string; itens: number };
-type Item = { insumo_id: number; codigo: string; nome: string; categoria: string | null; unidade_medida: string | null; custo_unitario: number | null; ultimo_final: number | null; contado: number | null };
+type Item = { insumo_id: number; codigo: string; nome: string; categoria: string | null; unidade_medida: string | null; custo_unitario: number | null; preco_atual: number | null; frequencia: string | null; tipo_item: string | null; ultimo_final: number | null; contado: number | null };
 
+const FREQS = [
+  { v: '', label: 'Todas' },
+  { v: 'diaria', label: 'Diária' },
+  { v: 'semanal', label: 'Semanal' },
+  { v: 'mensal', label: 'Mensal' },
+];
 const hoje = () => new Date().toISOString().slice(0, 10);
 const num = (v: string) => (v === '' || v == null ? null : Number(String(v).replace(',', '.')));
+const brl = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
 
 export function EstoqueContagem() {
   const { selectedBar } = useBar();
@@ -25,6 +32,7 @@ export function EstoqueContagem() {
   const [itens, setItens] = useState<Item[]>([]);
   const [valores, setValores] = useState<Record<number, string>>({});
   const [busca, setBusca] = useState('');
+  const [freq, setFreq] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -63,13 +71,20 @@ export function EstoqueContagem() {
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    const arr = q ? itens.filter(i => i.nome.toLowerCase().includes(q)) : itens;
+    const arr = itens.filter(i =>
+      (!freq || i.frequencia === freq) &&
+      (!q || i.nome.toLowerCase().includes(q)));
     const grupos: Record<string, Item[]> = {};
     arr.forEach(i => { const c = i.categoria || 'Sem categoria'; (grupos[c] ||= []).push(i); });
     return Object.entries(grupos);
-  }, [itens, busca]);
+  }, [itens, busca, freq]);
 
   const contados = useMemo(() => Object.values(valores).filter(v => v !== '' && v != null).length, [valores]);
+  const valorTotal = useMemo(() =>
+    itens.reduce((s, i) => {
+      const q = num(valores[i.insumo_id] ?? '');
+      return s + (q != null ? q * (Number(i.preco_atual) || 0) : 0);
+    }, 0), [itens, valores]);
 
   // ---- Seleção de área ----
   if (!area) {
@@ -114,9 +129,17 @@ export function EstoqueContagem() {
         <div className="h-full bg-emerald-500 transition-all" style={{ width: `${itens.length ? (contados / itens.length) * 100 : 0}%` }} />
       </div>
 
-      <div className="relative mb-3">
+      <div className="relative mb-2">
         <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-muted-foreground" />
         <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar item…" className="pl-8" />
+      </div>
+      <div className="flex gap-1.5 mb-3">
+        {FREQS.map(f => (
+          <button key={f.v} onClick={() => setFreq(f.v)}
+            className={`text-xs px-2.5 py-1 rounded-full border transition ${freq === f.v ? 'bg-foreground text-background' : 'hover:bg-muted/50'}`}>
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -139,6 +162,7 @@ export function EstoqueContagem() {
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-xs text-muted-foreground">
                           {i.unidade_medida || 'un'} · anterior: <b>{i.ultimo_final ?? '—'}</b>
+                          {contado && i.preco_atual ? <> · <b className="text-foreground">{brl((num(v) ?? 0) * Number(i.preco_atual))}</b></> : null}
                         </span>
                         <Input value={v} onChange={e => setValores(p => ({ ...p, [i.insumo_id]: e.target.value }))}
                           inputMode="decimal" placeholder="0" className="w-24 text-center text-base h-11 shrink-0" />
@@ -155,6 +179,11 @@ export function EstoqueContagem() {
 
       <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur px-3 py-2.5 z-20">
         <div className="container mx-auto max-w-2xl">
+          {valorTotal > 0 && (
+            <div className="flex justify-between text-xs text-muted-foreground mb-1.5 px-0.5">
+              <span>Valor contado (preço atual)</span><b className="text-foreground tabular-nums">{brl(valorTotal)}</b>
+            </div>
+          )}
           <Button onClick={salvar} disabled={saving} className="w-full h-11">
             {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando…</> : <><Save className="w-4 h-4 mr-2" />Salvar contagem ({contados})</>}
           </Button>

@@ -5,10 +5,11 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EstoqueContagem } from '@/components/estoque/EstoqueContagem';
 import { SugestaoCompras } from '@/components/estoque/SugestaoCompras';
-import { CadastroInsumos } from '@/components/estoque/CadastroInsumos';
+import { Categorizacao } from '@/components/estoque/Categorizacao';
+import { ComparativoContagem } from '@/components/estoque/ComparativoContagem';
 import { Boxes } from 'lucide-react';
 
-type Aba = 'contagem' | 'compras' | 'cadastro';
+type Aba = 'contagem' | 'comparativo' | 'compras' | 'categorizacao';
 
 export default function EstoqueHubPage() {
   const [aba, setAba] = useState<Aba>('contagem');
@@ -21,14 +22,16 @@ export default function EstoqueHubPage() {
         <Tabs value={aba} onValueChange={(v) => setAba(v as Aba)} className="mb-4">
           <TabsList>
             <TabsTrigger value="contagem">Contagem</TabsTrigger>
+            <TabsTrigger value="comparativo">Comparativo</TabsTrigger>
             <TabsTrigger value="compras">Pedido de Compra</TabsTrigger>
-            <TabsTrigger value="cadastro">Cadastro de Insumos</TabsTrigger>
+            <TabsTrigger value="categorizacao">Categorização</TabsTrigger>
           </TabsList>
         </Tabs>
 
         {aba === 'contagem' && <EstoqueContagem />}
+        {aba === 'comparativo' && <ComparativoContagem />}
         {aba === 'compras' && <SugestaoCompras />}
-        {aba === 'cadastro' && <CadastroInsumos />}
+        {aba === 'categorizacao' && <Categorizacao />}
       </div>
     </ProtectedRoute>
   );
