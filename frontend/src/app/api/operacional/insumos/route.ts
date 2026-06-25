@@ -38,12 +38,17 @@ export async function GET(request: NextRequest) {
   // Último preço (e o anterior) de cada insumo, vindo dos pedidos (gold.vmarket_insumo_preco)
   const { data: precos } = await (supabase as any).schema('gold')
     .from('vmarket_insumo_preco')
-    .select('id_prod, preco_atual, data_atual, preco_anterior')
+    .select('id_prod, preco_atual, data_atual, preco_anterior, fornecedor_atual')
     .eq('bar_id', barId);
   const precoMap = new Map<number, any>((precos || []).map((p: any) => [p.id_prod, p]));
   const produtosComPreco = (produtos || []).map((p: any) => {
     const pr = precoMap.get(p.id_produto_sisfood_cotacao);
-    return { ...p, preco_atual: pr?.preco_atual ?? null, preco_data: pr?.data_atual ?? null, preco_anterior: pr?.preco_anterior ?? null };
+    return {
+      ...p,
+      preco_atual: pr?.preco_atual ?? null, preco_data: pr?.data_atual ?? null, preco_anterior: pr?.preco_anterior ?? null,
+      // fornecedor = de onde veio a última compra (cai pro cadastro VMarket se nunca comprou)
+      fornecedor_ultimo: pr?.fornecedor_atual ?? p.nome_fornecedor ?? null,
+    };
   });
 
   return NextResponse.json({

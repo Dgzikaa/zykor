@@ -18,7 +18,7 @@ const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR'
 interface Produto {
   id_produto_sisfood_cotacao: number; cod_interno: string | null; nome: string | null; marca: string | null;
   gramatura: string | null; estoque: number | null; nome_secao: string | null; id_secao_cotacao: number | null;
-  nome_fornecedor: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
+  nome_fornecedor: string | null; fornecedor_ultimo: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
 }
 interface Secao { id_secao_cotacao: number; nome: string | null; }
 
@@ -66,7 +66,7 @@ export default function CadastrosPage() {
       if (secaoSel !== 'todas' && String(p.id_secao_cotacao) !== secaoSel) return false;
       if (!q) return true;
       return (p.nome || '').toLowerCase().includes(q) || (p.cod_interno || '').toLowerCase().includes(q)
-        || (p.marca || '').toLowerCase().includes(q) || (p.nome_fornecedor || '').toLowerCase().includes(q);
+        || (p.marca || '').toLowerCase().includes(q) || (p.fornecedor_ultimo || '').toLowerCase().includes(q);
     });
   }, [produtos, busca, secaoSel]);
   const semDepara = produtos.filter(p => !p.cod_interno).length;
@@ -232,7 +232,7 @@ export default function CadastrosPage() {
                           {subiu && <TrendingUp className="inline w-3 h-3 ml-1 text-red-500" />}
                           {caiu && <TrendingDown className="inline w-3 h-3 ml-1 text-emerald-500" />}
                         </td>
-                        <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_fornecedor || '—'}</td>
+                        <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.fornecedor_ultimo || '—'}</td>
                       </tr>
                     );
                   })}
