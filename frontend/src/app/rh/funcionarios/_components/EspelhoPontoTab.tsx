@@ -24,6 +24,7 @@ const SIT: Record<string, { dot: string; txt: string }> = {
   ok: { dot: 'bg-emerald-500', txt: 'text-emerald-600 dark:text-emerald-400' },
   atraso: { dot: 'bg-amber-500', txt: 'text-amber-600 dark:text-amber-400' },
   falta: { dot: 'bg-red-500', txt: 'text-red-600 dark:text-red-400' },
+  agendada: { dot: 'bg-sky-400', txt: 'text-sky-600 dark:text-sky-400' },
   sem_marcacao: { dot: 'bg-muted-foreground/40', txt: 'text-muted-foreground' },
 };
 

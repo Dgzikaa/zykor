@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import {
-  Loader2, Pencil, Upload, FileText, Trash2, ExternalLink, X,
+  Loader2, Pencil, Upload, FileText, Trash2, ExternalLink,
   CalendarDays, Cake, Phone, Mail, CreditCard,
   Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Smile, ClipboardCheck, GraduationCap, Check, Link as LinkIcon,
 } from 'lucide-react';
@@ -225,8 +225,10 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const venceu = (d: string | null) => { if (!d) return false; try { return new Date(d) < new Date(); } catch { return false; } };
   const idade = func?.data_nascimento ? Math.floor((Date.now() - new Date(func.data_nascimento).getTime()) / 31557600000) : null;
   const fotoPerfil = (func as any)?.foto_ponto_url || func?.foto_url || null;
-  const salarioVal = freela ? func?.valor_diaria : (func?.salario_base ?? (func as any)?.salario_ca);
-  const salarioCA = !freela && func?.salario_base == null && (func as any)?.salario_ca != null;
+  const salHist = (((func as any)?.salario_ca_historico) || []) as any[];
+  const salarioMedia = salHist.length ? salHist.reduce((a, s) => a + Number(s.valor_pago || 0), 0) / salHist.length : null;
+  const salarioVal = freela ? func?.valor_diaria : (func?.salario_base ?? salarioMedia);
+  const salarioCA = !freela && func?.salario_base == null && salarioMedia != null;
 
   return (
     <Dialog open={funcionarioId != null} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -255,7 +257,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
               <div className="grid grid-cols-2 gap-2 p-3">
                 <Destaque icon={Clock} label="Tempo de casa" value={tempoDeCasa(func.data_admissao) || '—'} />
                 <Destaque icon={CalendarDays} label="Admissão" value={fmtData(func.data_admissao) || '—'} />
-                <Destaque icon={Banknote} label={freela ? 'Diária' : salarioCA ? 'Salário (CA)' : 'Salário'} value={fmtBRL(salarioVal ?? null) || '—'} accent="text-emerald-600 dark:text-emerald-400" />
+                <Destaque icon={Banknote} label={freela ? 'Diária' : salarioCA ? `Salário (CA · média ${salHist.length}m)` : 'Salário'} value={fmtBRL(salarioVal ?? null) || '—'} accent="text-emerald-600 dark:text-emerald-400" />
                 <Destaque icon={Cake} label="Idade" value={idade != null ? `${idade} anos` : '—'} />
               </div>
 
@@ -302,7 +304,6 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
 
             {/* ── Conteúdo (abas) ── */}
             <div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
-              <button onClick={onClose} className="absolute top-3 right-3 z-10 text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
               <Tabs defaultValue="ponto" className="flex-1 flex flex-col min-h-0">
                 <TabsList className="mx-4 mt-4 mb-0 flex-wrap h-auto justify-start shrink-0 pr-8">
                   <TabsTrigger value="ponto"><Clock className="w-3.5 h-3.5 mr-1" />Ponto</TabsTrigger>
