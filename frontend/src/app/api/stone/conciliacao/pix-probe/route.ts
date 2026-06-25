@@ -53,6 +53,12 @@ export async function POST(req: NextRequest) {
     .eq('bar_id', barId).eq('sistema', 'stone').eq('ativo', true);
   if (credErr) return NextResponse.json({ error: credErr.message }, { status: 500 });
 
+  // CNPJ (document) por stone_code — vem do mapa que a conciliação já usa.
+  const { data: cnpjMap } = await (supabase as any)
+    .schema('financial').from('stone_cnpj_map').select('stone_code, cnpj_documento').eq('bar_id', barId);
+  const docByCode: Record<string, string> = {};
+  for (const m of cnpjMap || []) docByCode[String(m.stone_code)] = String(m.cnpj_documento || '').replace(/\D/g, '');
+
   const filtroDoc = body?.cnpj ? String(body.cnpj).replace(/\D/g, '') : null;
   const resultados: any[] = [];
 
@@ -64,8 +70,8 @@ export async function POST(req: NextRequest) {
       resultados.push({ empresa: cred?.empresa_nome ?? null, ok: false, erro: e?.message });
       continue;
     }
-    const doc = String(resolved.cnpj || '').replace(/\D/g, '');
-    if (!doc) { resultados.push({ empresa: resolved.empresaNome, ok: false, erro: 'credencial sem CNPJ' }); continue; }
+    const doc = (resolved.stoneCodes.map((c) => docByCode[c]).find(Boolean) || String(resolved.cnpj || '').replace(/\D/g, ''));
+    if (!doc) { resultados.push({ empresa: resolved.empresaNome, ok: false, erro: 'sem CNPJ no stone_cnpj_map' }); continue; }
     if (filtroDoc && doc !== filtroDoc) continue;
 
     const authHeader = stoneBasicAuthHeader(resolved.apiKey);
