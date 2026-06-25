@@ -207,7 +207,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
-                    <th className="text-center font-medium px-2 py-1.5 w-10" title="Insumo mestre (principal)">Mestre</th>
+                    {kind === 'producao' && <th className="text-center font-medium px-2 py-1.5 w-10" title="Insumo mestre (principal)">Mestre</th>}
                     <th className="text-left font-medium px-2 py-1.5">Código</th>
                     <th className="text-left font-medium px-2 py-1.5">Componente</th>
                     <th className="text-left font-medium px-2 py-1.5">Tipo</th>
@@ -218,15 +218,17 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                     <th className="w-14"></th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {loadingItens ? <tr><td colSpan={9} className="px-2 py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-                    : itens.length === 0 ? <tr><td colSpan={9} className="px-2 py-6 text-center text-gray-400">Ficha vazia — adicione os insumos/produções acima.</td></tr>
+                    {loadingItens ? <tr><td colSpan={kind === 'producao' ? 9 : 8} className="px-2 py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                    : itens.length === 0 ? <tr><td colSpan={kind === 'producao' ? 9 : 8} className="px-2 py-6 text-center text-gray-400">Ficha vazia — adicione os insumos/produções acima.</td></tr>
                     : itens.map(it => (
                       <tr key={it.id} className={it.is_mestre ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}>
-                        <td className="px-2 py-1.5 text-center">
-                          <button onClick={() => marcarMestre(it)} title={it.is_mestre ? 'Insumo mestre' : 'Marcar como mestre'}>
-                            <Star className={`w-4 h-4 mx-auto ${it.is_mestre ? 'text-amber-500 fill-amber-500' : 'text-gray-300 hover:text-amber-400'}`} />
-                          </button>
-                        </td>
+                        {kind === 'producao' && (
+                          <td className="px-2 py-1.5 text-center">
+                            <button onClick={() => marcarMestre(it)} title={it.is_mestre ? 'Insumo mestre' : 'Marcar como mestre'}>
+                              <Star className={`w-4 h-4 mx-auto ${it.is_mestre ? 'text-amber-500 fill-amber-500' : 'text-gray-300 hover:text-amber-400'}`} />
+                            </button>
+                          </td>
+                        )}
                         <td className="px-2 py-1.5 font-mono text-xs text-gray-500">{it.componente_codigo || '—'}</td>
                         <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">{it.nome_componente || it.componente_codigo || `#${it.producao_ref}`}</td>
                         <td className="px-2 py-1.5"><span className={`text-[10px] rounded px-1.5 py-0.5 ${it.componente_tipo === 'producao' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>{it.componente_tipo === 'producao' ? 'Produção' : 'Insumo'}</span></td>
