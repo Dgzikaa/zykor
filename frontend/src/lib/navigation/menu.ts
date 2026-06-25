@@ -133,6 +133,7 @@ export const MENU_TREE: MenuSection[] = [
     subItems: [
       { icon: 'TrendingUp', label: 'Gestão CMV', href: '/ferramentas/cmv-semanal/tabela', permission: 'gestao' },
       { icon: 'Package', label: 'Insumos', href: '/operacional/insumos', permission: 'gestao' },
+      { icon: 'ShoppingCart', label: 'Compras', href: '/operacional/compras', permission: 'gestao' },
       { icon: 'Boxes', label: 'Estoque (contagem, compras, insumos)', href: '/operacional/contagem', permission: 'gestao' },
       { icon: 'AlertTriangle', label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
     ],
