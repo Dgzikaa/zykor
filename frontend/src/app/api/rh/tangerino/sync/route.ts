@@ -105,8 +105,8 @@ export async function POST(req: NextRequest) {
       if (pagina > 200) break; // backstop
     }
 
-    // ETL bronze -> hr.ponto_registro (de-para por tangerino_employee_id)
-    const { data: etl } = await (supabase as any).schema('hr').rpc('fn_tangerino_punch_to_ponto', { p_bar_id: barId });
+    // ETL bronze -> hr.ponto_registro (liga por employee.id -> funcionario; bar = bar-casa; agrega por dia operacional)
+    const { data: etl } = await (supabase as any).schema('hr').rpc('fn_tangerino_punch_to_ponto');
 
     return NextResponse.json({ success: true, periodo: { de, ate: hoje }, marcacoes_gravadas: gravados, total_tangerino: total, etl });
   } catch (e: any) {
