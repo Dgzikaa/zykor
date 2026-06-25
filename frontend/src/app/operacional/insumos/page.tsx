@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Package, RefreshCw, Search, Boxes, ChefHat, Plus, Pencil, Trash2, X, ListTree, Utensils, TrendingUp, TrendingDown, Download, Loader2, ChevronDown, Star } from 'lucide-react';
+import { Package, RefreshCw, Search, Boxes, ChefHat, Plus, Pencil, Trash2, X, ListTree, Utensils, TrendingUp, TrendingDown, Download, Loader2, ChevronDown, Star, SprayCan } from 'lucide-react';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
@@ -199,16 +199,21 @@ export default function CadastrosPage() {
     finally { setSincronizando(false); }
   };
 
+  // Materiais de limpeza/descartáveis NÃO são insumos — vão pra aba própria e não contam como erro
+  const ehMaterial = (s: string | null) => /limpeza|descart/i.test(s || '');
+  const insumosBase = useMemo(() => produtos.filter(p => !ehMaterial(p.nome_secao)), [produtos]);
+  const materiais = useMemo(() => produtos.filter(p => ehMaterial(p.nome_secao)), [produtos]);
+  const [filtroEsp, setFiltroEsp] = useState<'variacoes' | 'invalido' | null>(null);
+
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    return produtos.filter(p => {
+    return insumosBase.filter(p => {
       if (secaoSel !== 'todas' && String(p.id_secao_cotacao) !== secaoSel) return false;
       if (!q) return true;
       return (p.nome || '').toLowerCase().includes(q) || (p.cod_interno || '').toLowerCase().includes(q)
-        || (p.marca || '').toLowerCase().includes(q) || (p.fornecedor_ultimo || '').toLowerCase().includes(q);
+        || (p.fornecedor_ultimo || '').toLowerCase().includes(q);
     });
-  }, [produtos, busca, secaoSel]);
-  const semDepara = produtos.filter(p => !p.cod_interno).length;
+  }, [insumosBase, busca, secaoSel]);
 
   const salvarUnidade = async (p: Produto, patch: { base?: string; embalagem?: number }) => {
     setProdutos(prev => prev.map(x => x.id_produto_sisfood_cotacao === p.id_produto_sisfood_cotacao ? { ...x, ...patch } : x));
@@ -235,6 +240,13 @@ export default function CadastrosPage() {
       return { key, rep, produtos: prods, nVar: prods.length };
     }).sort((a, b) => String(a.rep.nome || '').localeCompare(String(b.rep.nome || '')));
   }, [filtrados]);
+  const nVariacoes = grupos.filter(g => g.nVar > 1).length;
+  const nInvalidos = insumosBase.filter(p => p.cod_invalido).length;
+  const gruposView = useMemo(() => {
+    if (filtroEsp === 'variacoes') return grupos.filter(g => g.nVar > 1);
+    if (filtroEsp === 'invalido') return grupos.filter(g => g.rep.cod_invalido);
+    return grupos;
+  }, [grupos, filtroEsp]);
 
   // ---------- PRODUTOS (cardápio) ----------
   const [prodCard, setProdCard] = useState<any[]>([]);
@@ -353,6 +365,7 @@ export default function CadastrosPage() {
           <TabsList>
             <TabsTrigger value="insumos"><Boxes className="w-4 h-4 mr-1.5" />Insumos</TabsTrigger>
             <TabsTrigger value="produtos"><Utensils className="w-4 h-4 mr-1.5" />Produtos</TabsTrigger>
+            <TabsTrigger value="materiais"><SprayCan className="w-4 h-4 mr-1.5" />Materiais</TabsTrigger>
             <TabsTrigger value="producoes"><ChefHat className="w-4 h-4 mr-1.5" />Produções</TabsTrigger>
             <TabsTrigger value="variacao"><TrendingUp className="w-4 h-4 mr-1.5" />Variação de Preço</TabsTrigger>
           </TabsList>
@@ -370,26 +383,25 @@ export default function CadastrosPage() {
               </select>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <Badge variant="outline">{grupos.length} insumos{produtos.length !== grupos.length ? ` (${produtos.length} variações)` : ''}</Badge>
-              {grupos.filter(g => g.nVar > 1).length > 0 && <Badge variant="outline" className="text-blue-600 border-blue-300">{grupos.filter(g => g.nVar > 1).length} com variações</Badge>}
-              {produtos.filter(p => p.cod_invalido).length > 0 && <Badge variant="outline" className="text-red-600 border-red-300">{produtos.filter(p => p.cod_invalido).length} com código inválido</Badge>}
+              <button onClick={() => setFiltroEsp(null)}><Badge variant="outline" className={`cursor-pointer ${!filtroEsp ? 'ring-1 ring-emerald-400' : ''}`}>{grupos.length} insumos{insumosBase.length !== grupos.length ? ` (${insumosBase.length} variações)` : ''}</Badge></button>
+              {nVariacoes > 0 && <button onClick={() => setFiltroEsp(f => f === 'variacoes' ? null : 'variacoes')}><Badge variant="outline" className={`cursor-pointer text-blue-600 border-blue-300 ${filtroEsp === 'variacoes' ? 'ring-1 ring-blue-400' : ''}`}>{nVariacoes} com variações</Badge></button>}
+              {nInvalidos > 0 && <button onClick={() => setFiltroEsp(f => f === 'invalido' ? null : 'invalido')}><Badge variant="outline" className={`cursor-pointer text-red-600 border-red-300 ${filtroEsp === 'invalido' ? 'ring-1 ring-red-400' : ''}`}>{nInvalidos} com código inválido</Badge></button>}
             </div>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
                   <th className="text-left font-medium px-3 py-2">Cód.</th>
                   <th className="text-left font-medium px-3 py-2">Insumo</th>
-                  <th className="text-left font-medium px-3 py-2">Marca</th>
                   <th className="text-left font-medium px-3 py-2">Seção</th>
-                  <th className="text-center font-medium px-3 py-2">Unid. base</th>
-                  <th className="text-right font-medium px-3 py-2">Embalagem</th>
+                  <th className="text-center font-medium px-3 py-2">Unid. medida</th>
+                  <th className="text-right font-medium px-3 py-2" title="Quantidade da unidade-base na embalagem de compra (ex.: 1000 g = 1 kg, 5000 ml = 5 L)">Quantidade</th>
                   <th className="text-right font-medium px-3 py-2">Preço (últ.)</th>
                   <th className="text-left font-medium px-3 py-2">Fornecedor</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {loading ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
-                  : grupos.length === 0 ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
-                  : grupos.map(g => {
+                  {loading ? <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
+                  : gruposView.length === 0 ? <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
+                  : gruposView.map(g => {
                     const p = g.rep;
                     const subiu = p.preco_anterior != null && p.preco_atual != null && p.preco_atual > p.preco_anterior;
                     const caiu = p.preco_anterior != null && p.preco_atual != null && p.preco_atual < p.preco_anterior;
@@ -410,7 +422,6 @@ export default function CadastrosPage() {
                               </button>
                             ) : p.nome}
                           </td>
-                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.marca || '—'}</td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
                           <td className="px-3 py-2 text-center">
                             <select value={p.base || 'g'} onChange={e => salvarUnidade(p, { base: e.target.value })}
@@ -434,7 +445,6 @@ export default function CadastrosPage() {
                           <tr key={v.id_produto_sisfood_cotacao} className="bg-gray-50/60 dark:bg-gray-800/30 text-xs">
                             <td></td>
                             <td className="px-3 py-1 pl-7 text-gray-600 dark:text-gray-300">↳ {v.nome}</td>
-                            <td className="px-3 py-1 text-gray-500">{v.marca || '—'}</td>
                             <td className="px-3 py-1 text-gray-500">{v.nome_secao || '—'}</td>
                             <td></td><td></td>
                             <td className="px-3 py-1 text-right tabular-nums text-gray-500">{v.preco_atual != null ? fmtBRL(v.preco_atual) : '—'}</td>
@@ -479,6 +489,34 @@ export default function CadastrosPage() {
                       <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.categoria || '—'}</td>
                       <td className="px-3 py-2">{p.ativo ? <span className="text-emerald-600 text-xs">Sim</span> : <span className="text-gray-400 text-xs">Não</span>}</td>
                       <td className="px-3 py-2 text-right"><button onClick={() => excluirProduto(p.id)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500" title="Excluir"><Trash2 className="w-4 h-4" /></button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div></CardContent></Card>
+          </TabsContent>
+
+          {/* ===== MATERIAIS (limpeza / descartáveis — não são insumos) ===== */}
+          <TabsContent value="materiais" className="space-y-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">Material de limpeza e descartáveis (não entram no CMV/ficha técnica). {materiais.length} itens.</p>
+            <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+                  <th className="text-left font-medium px-3 py-2">Cód.</th>
+                  <th className="text-left font-medium px-3 py-2">Material</th>
+                  <th className="text-left font-medium px-3 py-2">Seção</th>
+                  <th className="text-right font-medium px-3 py-2">Preço (últ.)</th>
+                  <th className="text-left font-medium px-3 py-2">Fornecedor</th>
+                </tr></thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {materiais.length === 0 ? <tr><td colSpan={5} className="px-3 py-10 text-center text-gray-400">Nenhum material.</td></tr>
+                  : materiais.map(p => (
+                    <tr key={p.id_produto_sisfood_cotacao} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                      <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.cod_interno && /^i\d/.test(p.cod_interno) ? p.cod_interno : '—'}</td>
+                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}</td>
+                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtBRL(p.preco_atual)}</td>
+                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.fornecedor_ultimo || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
