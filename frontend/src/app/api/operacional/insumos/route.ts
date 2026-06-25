@@ -35,9 +35,20 @@ export async function GET(request: NextRequest) {
     .order('synced_em', { ascending: false })
     .limit(1);
 
+  // Último preço (e o anterior) de cada insumo, vindo dos pedidos (gold.vmarket_insumo_preco)
+  const { data: precos } = await (supabase as any).schema('gold')
+    .from('vmarket_insumo_preco')
+    .select('id_prod, preco_atual, data_atual, preco_anterior')
+    .eq('bar_id', barId);
+  const precoMap = new Map<number, any>((precos || []).map((p: any) => [p.id_prod, p]));
+  const produtosComPreco = (produtos || []).map((p: any) => {
+    const pr = precoMap.get(p.id_produto_sisfood_cotacao);
+    return { ...p, preco_atual: pr?.preco_atual ?? null, preco_data: pr?.data_atual ?? null, preco_anterior: pr?.preco_anterior ?? null };
+  });
+
   return NextResponse.json({
     success: true,
-    produtos: produtos || [],
+    produtos: produtosComPreco,
     secoes: secoes || [],
     synced_em: fresh?.[0]?.synced_em || null,
   });

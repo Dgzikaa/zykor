@@ -5,8 +5,15 @@ import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
+// Planilha mestre (cadastro inicial). Depois o cadastro é feito no Zykor.
 const SHEET = '1klPn-uVLKeoJ9UA9TkiSYqa7sV7NdUdDEELdgd1q4b8';
-const parseNumBR = (s: string): number => { const v = String(s || '').replace(/\./g, '').replace(',', '.').replace(/[^0-9.\-]/g, ''); const n = Number(v); return Number.isFinite(n) ? n : 0; };
+const BAR_PARA_F: Record<number, string> = { 3: '1', 4: '2' };
+
+const categoriaPorCodigo = (cod: string): string | null => {
+  const c = cod[0]?.toLowerCase();
+  return c === 'b' ? 'Bebida' : c === 'd' ? 'Drink' : c === 'c' ? 'Comida' : null;
+};
+
 async function fetchSheet(range: string, key: string): Promise<string[][]> {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET}/values/${encodeURIComponent(range)}?key=${key}`;
   const r = await fetch(url);
@@ -15,29 +22,18 @@ async function fetchSheet(range: string, key: string): Promise<string[][]> {
   return (j.values as string[][]) || [];
 }
 
-/** Cadastro de produções (preparos internos). CRUD master. */
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
   const barId = Number(new URL(request.url).searchParams.get('bar_id')) || user.bar_id;
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
-
   const supabase = await getAdminClient();
   const { data, error } = await supabase
-    .from('producao_base')
-    .select('id,codigo,nome,unidade,rendimento,secao,ativo,observacao,atualizado_em')
-    .eq('bar_id', barId)
-    .order('nome', { ascending: true });
+    .from('produto_cardapio')
+    .select('id,codigo,nome,categoria,ativo,origem,atualizado_em')
+    .eq('bar_id', barId).order('codigo', { ascending: true });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-
-  // contagem de itens da ficha por produção
-  const ids = (data || []).map((p) => p.id);
-  const contagem: Record<number, number> = {};
-  if (ids.length) {
-    const { data: itens } = await supabase.from('producao_ficha_item').select('producao_id').in('producao_id', ids);
-    (itens || []).forEach((i: any) => { contagem[i.producao_id] = (contagem[i.producao_id] || 0) + 1; });
-  }
-  return NextResponse.json({ success: true, producoes: (data || []).map((p) => ({ ...p, qtd_componentes: contagem[p.id] || 0 })) });
+  return NextResponse.json({ success: true, produtos: data ?? [] });
 }
 
 export async function POST(request: NextRequest) {
@@ -48,45 +44,53 @@ export async function POST(request: NextRequest) {
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();
 
-  // ----- IMPORTAR PREPAROS (planilha 'Lista - Preparos': A=cód, B=nome, C=rendimento) -----
+  // ----- IMPORTAR DO CARDÁPIO (planilha) -----
   if (body.action === 'importar') {
+    const fAlvo = BAR_PARA_F[barId];
+    if (!fAlvo) return NextResponse.json({ success: false, error: 'Bar sem mapeamento na planilha do cardápio' }, { status: 400 });
     const { data: creds } = await (supabase as any)
       .from('api_credentials').select('configuracoes').eq('sistema', 'google_sheets').eq('bar_id', 3).limit(1);
     const key = creds?.[0]?.configuracoes?.api_key;
     if (!key) return NextResponse.json({ success: false, error: 'API key do Google Sheets não encontrada' }, { status: 500 });
+
     let rows: string[][];
-    try { rows = await fetchSheet("'Lista - Preparos'!A5:C2000", key); }
+    try { rows = await fetchSheet("'Cardápio'!B7:F2000", key); }
     catch (e: any) { return NextResponse.json({ success: false, error: `Falha ao ler planilha: ${e?.message}` }, { status: 502 }); }
-    const { data: existentes } = await supabase.from('producao_base').select('codigo').eq('bar_id', barId).not('codigo', 'is', null);
+
+    const { data: existentes } = await supabase.from('produto_cardapio').select('codigo').eq('bar_id', barId);
     const jaExiste = new Set((existentes || []).map((e: any) => e.codigo));
+
     const novos: any[] = [];
+    let ignoradosOutroBar = 0;
     for (const row of rows) {
-      const codigo = (row[0] || '').toString().trim();
-      const nm = (row[1] || '').toString().trim();
-      const rend = parseNumBR((row[2] || '').toString());
-      if (!codigo || !nm || !/^[a-z]/i.test(codigo)) continue;
+      const ativo = (row[0] || '').toString().trim().toUpperCase() === 'S';
+      const codigo = (row[1] || '').toString().trim();
+      const nome = (row[2] || '').toString().trim();
+      const bar = (row[4] || '').toString().trim();
+      if (!codigo || !nome || !/^[a-z]+\d/i.test(codigo)) continue;
+      if (bar !== fAlvo) { ignoradosOutroBar++; continue; }
       if (jaExiste.has(codigo)) continue;
       jaExiste.add(codigo);
-      novos.push({ bar_id: barId, codigo, nome: nm, unidade: 'un', rendimento: rend || 1 });
+      novos.push({ bar_id: barId, codigo, nome, ativo, categoria: categoriaPorCodigo(codigo), origem: 'planilha' });
     }
-    if (novos.length) { const { error } = await supabase.from('producao_base').insert(novos); if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 }); }
-    return NextResponse.json({ success: true, importados: novos.length });
+    if (novos.length) {
+      const { error } = await supabase.from('produto_cardapio').insert(novos);
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, importados: novos.length, ignorados_outro_bar: ignoradosOutroBar });
   }
 
+  // ----- CADASTRO MANUAL -----
+  const codigo = String(body.codigo || '').trim();
   const nome = String(body.nome || '').trim();
-  if (!nome) return NextResponse.json({ success: false, error: 'Nome obrigatório' }, { status: 400 });
-
-  const payload = {
-    bar_id: barId, nome,
-    codigo: body.codigo ? String(body.codigo).trim() : null,
-    unidade: body.unidade ? String(body.unidade) : 'un',
-    rendimento: body.rendimento != null ? Number(body.rendimento) : 1,
-    secao: body.secao ? String(body.secao) : null,
-    observacao: body.observacao ? String(body.observacao) : null,
-  };
-  const { data, error } = await supabase.from('producao_base').insert(payload).select().single();
+  if (!codigo || !nome) return NextResponse.json({ success: false, error: 'Código e nome obrigatórios' }, { status: 400 });
+  const { data, error } = await supabase.from('produto_cardapio').insert({
+    bar_id: barId, codigo, nome,
+    categoria: body.categoria ? String(body.categoria) : categoriaPorCodigo(codigo),
+    ativo: body.ativo !== false, origem: 'manual',
+  }).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, producao: data });
+  return NextResponse.json({ success: true, produto: data });
 }
 
 export async function PUT(request: NextRequest) {
@@ -95,14 +99,12 @@ export async function PUT(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
-
   const supabase = await getAdminClient();
   const patch: any = { atualizado_em: new Date().toISOString() };
-  for (const k of ['nome', 'codigo', 'unidade', 'secao', 'observacao', 'ativo']) if (k in body) patch[k] = body[k];
-  if ('rendimento' in body) patch.rendimento = Number(body.rendimento);
-  const { data, error } = await supabase.from('producao_base').update(patch).eq('id', id).select().single();
+  for (const k of ['nome', 'categoria', 'ativo', 'codigo']) if (k in body) patch[k] = body[k];
+  const { data, error } = await supabase.from('produto_cardapio').update(patch).eq('id', id).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, producao: data });
+  return NextResponse.json({ success: true, produto: data });
 }
 
 export async function DELETE(request: NextRequest) {
@@ -111,7 +113,7 @@ export async function DELETE(request: NextRequest) {
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();
-  const { error } = await supabase.from('producao_base').delete().eq('id', id);
+  const { error } = await supabase.from('produto_cardapio').delete().eq('id', id);
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }
