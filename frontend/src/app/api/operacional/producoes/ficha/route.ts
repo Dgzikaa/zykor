@@ -25,17 +25,39 @@ export async function GET(request: NextRequest) {
   const { data, error } = await q;
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-  // último preço por insumo (gold.vmarket_insumo_preco)
+  const linhas = data || [];
+  // último preço + unidade-base por insumo
   let precoMap = new Map<number, number>();
+  let unidMap = new Map<number, { base: string; embalagem: number }>();
   if (barId) {
-    const { data: precos } = await (supabase as any).schema('gold')
-      .from('vmarket_insumo_preco').select('id_prod, preco_atual').eq('bar_id', barId);
+    const [{ data: precos }, { data: unids }] = await Promise.all([
+      (supabase as any).schema('gold').from('vmarket_insumo_preco').select('id_prod, preco_atual').eq('bar_id', barId),
+      supabase.from('insumo_unidade').select('id_prod, base, embalagem').eq('bar_id', barId),
+    ]);
     precoMap = new Map((precos || []).map((p: any) => [p.id_prod, Number(p.preco_atual)]));
+    unidMap = new Map((unids || []).map((u: any) => [u.id_prod, { base: u.base, embalagem: Number(u.embalagem) }]));
   }
-  const itens = (data || []).map((it: any) => ({
-    ...it,
-    preco_atual: it.insumo_id_vmarket ? (precoMap.get(it.insumo_id_vmarket) ?? null) : null,
-  }));
+  // código/nome das produções referenciadas (componentes do tipo produção)
+  const refIds = Array.from(new Set(linhas.filter((i: any) => i.producao_ref).map((i: any) => i.producao_ref)));
+  let refMap = new Map<number, string>();
+  if (refIds.length) {
+    const { data: refs } = await supabase.from('producao_base').select('id, codigo').in('id', refIds);
+    refMap = new Map((refs || []).map((r: any) => [r.id, r.codigo]));
+  }
+
+  const itens = linhas.map((it: any) => {
+    const preco = it.insumo_id_vmarket ? (precoMap.get(it.insumo_id_vmarket) ?? null) : null;
+    const u = it.insumo_id_vmarket ? unidMap.get(it.insumo_id_vmarket) : null;
+    let custo_atual: number | null = null;
+    if (preco != null && u && u.embalagem > 0) custo_atual = Number(it.quantidade || 0) * preco / u.embalagem;
+    return {
+      ...it,
+      preco_atual: preco,
+      base: u?.base ?? null,
+      componente_codigo: it.componente_tipo === 'producao' ? (refMap.get(it.producao_ref) ?? null) : it.insumo_codigo,
+      custo_atual,
+    };
+  });
   return NextResponse.json({ success: true, itens });
 }
 
