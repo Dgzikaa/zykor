@@ -42,6 +42,10 @@ export async function GET(request: NextRequest) {
     .eq('bar_id', barId);
   const precoMap = new Map<number, any>((precos || []).map((p: any) => [p.id_prod, p]));
 
+  // Unidade-base + embalagem por insumo (insumo_unidade)
+  const { data: unids } = await supabase.from('insumo_unidade').select('id_prod, base, embalagem').eq('bar_id', barId);
+  const unidMap = new Map<number, any>((unids || []).map((u: any) => [u.id_prod, u]));
+
   // Confere de integridade do código: cod_interno duplicado (2+ produtos) ou inválido (não i0XXX)
   const codCount = new Map<string, number>();
   for (const p of (produtos as any[]) || []) if (p.cod_interno) codCount.set(p.cod_interno, (codCount.get(p.cod_interno) || 0) + 1);
@@ -56,6 +60,8 @@ export async function GET(request: NextRequest) {
       fornecedor_ultimo: pr?.fornecedor_atual ?? p.nome_fornecedor ?? null,
       cod_duplicado: !!p.cod_interno && (codCount.get(p.cod_interno) || 0) > 1,
       cod_invalido: p.cod_interno != null && !valido(p.cod_interno),
+      base: unidMap.get(p.id_produto_sisfood_cotacao)?.base ?? null,
+      embalagem: unidMap.get(p.id_produto_sisfood_cotacao)?.embalagem ?? null,
     };
   });
 
@@ -74,9 +80,24 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const barId = Number(body.bar_id) || user.bar_id;
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
-  if (body.action !== 'sync') return NextResponse.json({ success: false, error: 'ação inválida' }, { status: 400 });
-
   const supabase = await getAdminClient();
+
+  // Salvar unidade-base/embalagem de um insumo (manual = não é sobrescrito pelo re-seed)
+  if (body.action === 'unidade') {
+    const idProd = Number(body.id_prod);
+    if (!idProd) return NextResponse.json({ success: false, error: 'id_prod obrigatório' }, { status: 400 });
+    const payload = {
+      bar_id: barId, id_prod: idProd, cod_interno: body.cod_interno ?? null,
+      base: ['g', 'ml', 'un'].includes(body.base) ? body.base : 'g',
+      embalagem: Math.max(Number(body.embalagem) || 1, 0.0001),
+      origem: 'manual', atualizado_em: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('insumo_unidade').upsert(payload, { onConflict: 'bar_id,id_prod' });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
+  }
+
+  if (body.action !== 'sync') return NextResponse.json({ success: false, error: 'ação inválida' }, { status: 400 });
   const { data, error } = await supabase.rpc('fn_vmarket_sync', { p_bar_id: barId });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, resultado: data });
