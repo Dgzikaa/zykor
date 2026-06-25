@@ -34,14 +34,16 @@ export async function GET(request: NextRequest) {
   const ids = (data || []).map((p) => p.id);
   const contagem: Record<number, number> = {};
   const custo: Record<number, number> = {};
+  const temMestre: Record<number, boolean> = {};
   if (ids.length) {
-    const { data: itens } = await supabase.from('producao_ficha_item').select('producao_id, custo_planilha').in('producao_id', ids);
+    const { data: itens } = await supabase.from('producao_ficha_item').select('producao_id, custo_planilha, is_mestre').in('producao_id', ids);
     (itens || []).forEach((i: any) => {
       contagem[i.producao_id] = (contagem[i.producao_id] || 0) + 1;
       custo[i.producao_id] = (custo[i.producao_id] || 0) + Number(i.custo_planilha || 0);
+      if (i.is_mestre) temMestre[i.producao_id] = true;
     });
   }
-  return NextResponse.json({ success: true, producoes: (data || []).map((p) => ({ ...p, qtd_componentes: contagem[p.id] || 0, custo_total: custo[p.id] || 0 })) });
+  return NextResponse.json({ success: true, producoes: (data || []).map((p) => ({ ...p, qtd_componentes: contagem[p.id] || 0, custo_total: custo[p.id] || 0, tem_mestre: !!temMestre[p.id] })) });
 }
 
 export async function POST(request: NextRequest) {

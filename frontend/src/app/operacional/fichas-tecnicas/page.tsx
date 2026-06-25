@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil } from 'lucide-react';
+import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes } from 'lucide-react';
 
 const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'porção'];
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -22,11 +22,13 @@ const fmtPeso = (q: any, u: string | null) => {
 interface FichaTabProps {
   kind: 'producao' | 'produto';
   lista: any[];
+  insumos: any[];
+  producoes: any[];
   reloadLista: () => void;
   preSel?: number | null;
 }
 
-function FichaTab({ kind, lista, reloadLista, preSel }: FichaTabProps) {
+function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: FichaTabProps) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
@@ -34,6 +36,7 @@ function FichaTab({ kind, lista, reloadLista, preSel }: FichaTabProps) {
 
   const [sel, setSel] = useState<number | null>(preSel ?? null);
   const [buscaLista, setBuscaLista] = useState('');
+  const [filtroLista, setFiltroLista] = useState<'zero' | 'sem_mestre' | null>(null);
   const [itens, setItens] = useState<any[]>([]);
   const [loadingItens, setLoadingItens] = useState(false);
 
@@ -48,10 +51,16 @@ function FichaTab({ kind, lista, reloadLista, preSel }: FichaTabProps) {
   }, [parentParam, barId]);
   useEffect(() => { if (sel) carregarItens(sel); else setItens([]); }, [sel, carregarItens]);
 
+  const nZero = lista.filter(p => (p.qtd_componentes ?? 0) === 0).length;
+  const nSemMestre = kind === 'producao' ? lista.filter(p => (p.qtd_componentes ?? 0) > 0 && !p.tem_mestre).length : 0;
   const listaView = useMemo(() => {
     const q = buscaLista.trim().toLowerCase();
-    return lista.filter(p => !q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q));
-  }, [lista, buscaLista]);
+    return lista.filter(p => {
+      if (filtroLista === 'zero' && (p.qtd_componentes ?? 0) !== 0) return false;
+      if (filtroLista === 'sem_mestre' && !((p.qtd_componentes ?? 0) > 0 && !p.tem_mestre)) return false;
+      return !q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q);
+    });
+  }, [lista, buscaLista, filtroLista]);
 
   const selObj = lista.find(p => p.id === sel) || null;
   const custoTotal = itens.reduce((s, it) => s + Number(it.custo_planilha || 0), 0);
@@ -82,6 +91,31 @@ function FichaTab({ kind, lista, reloadLista, preSel }: FichaTabProps) {
   const custoItemAtual = (it: any) => (it.custo_atual != null && !flagRevisar(it)) ? it.custo_atual : Number(it.custo_planilha || 0);
   const custoAtualTotal = itens.reduce((s, it) => s + custoItemAtual(it), 0);
 
+  // adicionar componente (modal de criação)
+  const [addOpen, setAddOpen] = useState(false);
+  const [addTipo, setAddTipo] = useState<'insumo' | 'producao'>('insumo');
+  const [addBusca, setAddBusca] = useState('');
+  const [addEscolhido, setAddEscolhido] = useState<any>(null);
+  const [addQtd, setAddQtd] = useState('1');
+  const [addUni, setAddUni] = useState('g');
+  const addOpcoes = useMemo(() => {
+    const q = addBusca.trim().toLowerCase();
+    if (addTipo === 'insumo') return insumos.filter(i => !q || (i.nome || '').toLowerCase().includes(q) || (i.cod_interno || '').toLowerCase().includes(q)).slice(0, 30);
+    return producoes.filter(p => p.id !== sel && (!q || (p.nome || '').toLowerCase().includes(q))).slice(0, 30);
+  }, [addTipo, addBusca, insumos, producoes, sel]);
+  const adicionar = async () => {
+    if (!sel || !addEscolhido) { toast({ title: 'Escolha o componente', variant: 'destructive' }); return; }
+    const payload: any = { [parentParam]: sel, componente_tipo: addTipo, quantidade: Number(addQtd) || 0, unidade: addUni };
+    if (addTipo === 'insumo') { payload.insumo_codigo = addEscolhido.cod_interno; payload.insumo_id_vmarket = addEscolhido.id_produto_sisfood_cotacao; payload.nome_componente = addEscolhido.nome; }
+    else { payload.producao_ref = addEscolhido.id; payload.nome_componente = addEscolhido.nome; }
+    try {
+      const r = await api.post('/api/operacional/producoes/ficha', payload);
+      if (!r.success) throw new Error(r.error);
+      setAddEscolhido(null); setAddBusca(''); setAddQtd('1'); setAddOpen(false);
+      if (sel) await carregarItens(sel); reloadLista();
+    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {/* Lista de fichas */}
@@ -92,6 +126,13 @@ function FichaTab({ kind, lista, reloadLista, preSel }: FichaTabProps) {
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input value={buscaLista} onChange={e => setBuscaLista(e.target.value)} placeholder={kind === 'producao' ? 'Buscar produção…' : 'Buscar produto…'} className="pl-9 h-9" />
             </div>
+            {(nZero > 0 || nSemMestre > 0) && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {nZero > 0 && <button onClick={() => setFiltroLista(f => f === 'zero' ? null : 'zero')} className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'zero' ? 'bg-red-600 text-white border-red-600' : 'border-red-300 text-red-600'}`}>{nZero} sem ficha</button>}
+                {nSemMestre > 0 && <button onClick={() => setFiltroLista(f => f === 'sem_mestre' ? null : 'sem_mestre')} className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'sem_mestre' ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-300 text-amber-600'}`}>{nSemMestre} sem mestre</button>}
+                {filtroLista && <button onClick={() => setFiltroLista(null)} className="text-[10px] text-gray-400 underline px-1">limpar</button>}
+              </div>
+            )}
           </div>
           <div className="max-h-[60vh] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
             {listaView.length === 0 ? (
@@ -139,7 +180,11 @@ function FichaTab({ kind, lista, reloadLista, preSel }: FichaTabProps) {
                 </div>
               </div>
 
-              {/* Componentes da ficha (montagem/edição é feita em Cadastros › Produções) */}
+              <div className="flex justify-end mb-2">
+                <Button size="sm" onClick={() => { setAddOpen(true); setAddEscolhido(null); setAddBusca(''); setAddQtd('1'); }}><Plus className="w-4 h-4 mr-1" />Adicionar componente</Button>
+              </div>
+
+              {/* Componentes da ficha */}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
@@ -205,6 +250,46 @@ function FichaTab({ kind, lista, reloadLista, preSel }: FichaTabProps) {
                     </div>
                   </div>
                 )}
+
+                {/* Modal de adicionar componente */}
+                {addOpen && (
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setAddOpen(false)}>
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-lg space-y-2" onClick={e => e.stopPropagation()}>
+                      <h4 className="font-semibold text-gray-900 dark:text-white">Adicionar componente</h4>
+                      <div className="flex gap-1">
+                        <button onClick={() => { setAddTipo('insumo'); setAddEscolhido(null); }} className={`text-xs rounded px-2.5 py-1 flex items-center gap-1 ${addTipo === 'insumo' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}><Boxes className="w-3.5 h-3.5" />Insumo</button>
+                        <button onClick={() => { setAddTipo('producao'); setAddEscolhido(null); }} className={`text-xs rounded px-2.5 py-1 flex items-center gap-1 ${addTipo === 'producao' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}><ChefHat className="w-3.5 h-3.5" />Produção</button>
+                      </div>
+                      {addEscolhido ? (
+                        <div className="flex flex-wrap items-end gap-2">
+                          <div className="flex-1 min-w-[160px]"><label className="text-xs text-gray-500">Componente</label>
+                            <div className="h-10 flex items-center px-3 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm justify-between"><span className="truncate">{addEscolhido.nome}</span><button onClick={() => setAddEscolhido(null)} className="text-gray-400 text-xs ml-2">trocar</button></div>
+                          </div>
+                          <div className="w-24"><label className="text-xs text-gray-500">Qtd</label><Input type="number" step="0.001" value={addQtd} onChange={e => setAddQtd(e.target.value)} /></div>
+                          <div className="w-24"><label className="text-xs text-gray-500">Unidade</label>
+                            <select value={addUni} onChange={e => setAddUni(e.target.value)} className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">{UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}</select>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="relative"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={addBusca} onChange={e => setAddBusca(e.target.value)} placeholder={addTipo === 'insumo' ? 'Buscar insumo (nome ou i0XXX)…' : 'Buscar produção…'} className="pl-9" /></div>
+                          {addBusca && (
+                            <div className="max-h-48 overflow-y-auto rounded border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
+                              {addOpcoes.length === 0 ? <div className="px-3 py-3 text-xs text-gray-400">Nada encontrado.</div>
+                              : addOpcoes.map((o: any) => (
+                                <button key={addTipo === 'insumo' ? o.id_produto_sisfood_cotacao : o.id} onClick={() => setAddEscolhido(o)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/40">{o.nome}{addTipo === 'insumo' && o.cod_interno && <span className="text-xs text-gray-400 font-mono"> · {o.cod_interno}</span>}</button>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                      <div className="flex justify-end gap-2 mt-2">
+                        <Button variant="outline" onClick={() => setAddOpen(false)}>Fechar</Button>
+                        <Button onClick={adicionar} disabled={!addEscolhido}><Plus className="w-4 h-4 mr-1" />Adicionar</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -223,10 +308,12 @@ function FichasInner() {
   const [aba, setAba] = useState<'producao' | 'finalizacao'>('producao');
   const [producoes, setProducoes] = useState<any[]>([]);
   const [produtos, setProdutos] = useState<any[]>([]);
+  const [insumos, setInsumos] = useState<any[]>([]);
 
   const loadProducoes = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/producoes?bar_id=${barId}`); if (r.success) setProducoes(r.producoes || []); }, [barId]);
   const loadProdutos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/produtos?bar_id=${barId}`); if (r.success) setProdutos(r.produtos || []); }, [barId]);
-  useEffect(() => { loadProducoes(); loadProdutos(); }, [loadProducoes, loadProdutos]);
+  const loadInsumos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/insumos?bar_id=${barId}`); if (r.success) setInsumos(r.produtos || []); }, [barId]);
+  useEffect(() => { loadProducoes(); loadProdutos(); loadInsumos(); }, [loadProducoes, loadProdutos, loadInsumos]);
 
   return (
     <>
@@ -235,8 +322,8 @@ function FichasInner() {
         <button onClick={() => setAba('finalizacao')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'finalizacao' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><Utensils className="w-4 h-4" />Finalização</button>
       </div>
       {aba === 'producao'
-        ? <FichaTab kind="producao" lista={producoes} reloadLista={loadProducoes} preSel={preSel} />
-        : <FichaTab kind="produto" lista={produtos} reloadLista={loadProdutos} />}
+        ? <FichaTab kind="producao" lista={producoes} insumos={insumos} producoes={producoes} reloadLista={loadProducoes} preSel={preSel} />
+        : <FichaTab kind="produto" lista={produtos} insumos={insumos} producoes={producoes} reloadLista={loadProdutos} />}
     </>
   );
 }
