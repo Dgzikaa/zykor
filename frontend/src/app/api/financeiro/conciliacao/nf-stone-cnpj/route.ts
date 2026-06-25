@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
   // Meta de NF do CNPJ do Simples Nacional = custo-empresa funcionário projetado (folha) do período.
   // Ideal não emitir NF acima da folha nesse CNPJ. Config por bar: qual CNPJ é o Simples.
-  const SIMPLES_POR_BAR: Record<number, { cnpj_indice: number }> = { 3: { cnpj_indice: 2 } };
+  const SIMPLES_POR_BAR: Record<number, { cnpj_indice: number }> = { 3: { cnpj_indice: 2 }, 4: { cnpj_indice: 3 } };
   let meta_nf: { cnpj_indice: number; valor: number } | null = null;
   const cfg = SIMPLES_POR_BAR[user.bar_id];
   if (cfg) {
