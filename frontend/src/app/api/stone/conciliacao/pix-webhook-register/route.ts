@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { gunzipSync } from 'zlib';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { resolveStoneCredential, stoneBasicAuthHeader } from '@/lib/stone/resolveCredential';
 import { timingSafeEqual } from 'crypto';
@@ -62,8 +63,12 @@ export async function POST(req: NextRequest) {
           headers: JSON.stringify({ 'x-zykor-stone-token': cfg.token }),
         }),
       });
-      const txt = await resp.text();
-      resultados.push({ empresa: resolved.empresaNome, ok: resp.ok, http_status: resp.status, resp: txt.slice(0, 600) });
+      const buf = Buffer.from(await resp.arrayBuffer());
+      const isGzip = buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b;
+      const txt = isGzip ? gunzipSync(buf).toString('utf8') : buf.toString('utf8');
+      const hdrs: Record<string, string> = {};
+      resp.headers.forEach((v, k) => { hdrs[k] = v; });
+      resultados.push({ empresa: resolved.empresaNome, ok: resp.ok, http_status: resp.status, bytes: buf.length, headers: hdrs, resp: txt.slice(0, 800) });
     } catch (e: any) {
       resultados.push({ empresa: resolved.empresaNome, ok: false, erro: e?.message });
     }
