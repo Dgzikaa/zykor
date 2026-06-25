@@ -482,8 +482,10 @@ export default function ConciliacaoPage() {
               const frac = (a: number, b: number) => { const m = Math.max(Math.abs(a), Math.abs(b), 1); return Math.abs(a - b) / m; };
               const corOk = (f: number) => f > 0.05 ? 'text-red-600 dark:text-red-400 font-semibold' : f > 0.005 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
               const t = contahubNf.reduce((a: any, r: any) => ({ stone: a.stone + Number(r.stone_bruto || 0), cartao: a.cartao + Number(r.contahub_cartao || 0), nf: a.nf + Number(r.nf_autorizado || 0), total: a.total + Number(r.contahub_total || 0) }), { stone: 0, cartao: 0, nf: 0, total: 0 });
-              // Flag: dias que emitiram MENOS NF do que venderam na Stone (sub-emissão; ex. venda na Stone do outro CNPJ).
-              const subem = contahubNf.reduce((a: any, r: any) => { const g = Number(r.stone_bruto || 0) - Number(r.nf_autorizado || 0); return (g > 0.5 && frac(Number(r.nf_autorizado || 0), Number(r.stone_bruto || 0)) > 0.01) ? { dias: a.dias + 1, total: a.total + g } : a; }, { dias: 0, total: 0 });
+              // Flag principal: venda Stone > NF emitida (POR CNPJ) = vendeu mais do que emitiu. Soma o excedente do dia.
+              const TOL = 0.5; // verde só quando a NF cobre a Stone (ignora só centavos de arredondamento)
+              const gapStoneDia = (d: string) => (cnpjPorDia[d] || []).reduce((s: number, c: any) => s + Math.max(0, Number(c.stone_bruto || 0) - Number(c.nf_autorizado || 0)), 0);
+              const subem = Object.keys(cnpjPorDia).reduce((a: any, d: string) => { const g = gapStoneDia(d); return g > TOL ? { dias: a.dias + 1, total: a.total + g } : a; }, { dias: 0, total: 0 });
               // PIOR caso: dias de bitributação (NF 100% num CNPJ, venda Stone 100% no outro).
               const bitrib = Object.keys(cnpjPorDia).reduce((n: number, d: string) => {
                 const cs = cnpjPorDia[d] || []; if (!diasDoisCnpjs.has(d)) return n;
@@ -499,7 +501,7 @@ export default function ConciliacaoPage() {
                       <CardContent className="py-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
                         <span className="flex items-center gap-1.5 font-semibold text-red-700 dark:text-red-300"><AlertTriangle className="w-4 h-4" />Alertas fiscais</span>
                         {bitrib > 0 && <span><strong className="text-red-600 dark:text-red-400">{bitrib}</strong> {bitrib === 1 ? 'dia' : 'dias'} de <strong>bitributação</strong> (NF num CNPJ, venda Stone no outro)</span>}
-                        {subem.dias > 0 && <span><strong className="text-red-600 dark:text-red-400">{subem.dias}</strong> {subem.dias === 1 ? 'dia' : 'dias'} emitindo menos NF que a Stone · {fmtBRL(subem.total)}</span>}
+                        {subem.dias > 0 && <span><strong className="text-red-600 dark:text-red-400">{subem.dias}</strong> {subem.dias === 1 ? 'dia' : 'dias'} com <strong>venda Stone acima da NF</strong> · {fmtBRL(subem.total)}</span>}
                       </CardContent>
                     </Card>
                   )}
@@ -532,18 +534,19 @@ export default function ConciliacaoPage() {
                         {contahubNf.map((r: any) => {
                           const stone = Number(r.stone_bruto || 0), nf = Number(r.nf_autorizado || 0), total = Number(r.contahub_total || 0);
                           const fNT = frac(nf, total);
-                          // 2 CNPJs no dia nunca fica verde. Vermelho quando algum CNPJ vendeu na Stone mais do que emitiu de NF
-                          // (vendeu a mais num CNPJ e emitiu a menos noutro); senão, amarelo (conferir os 2 CNPJs).
+                          // Regra: venda Stone > NF emitida (em qualquer CNPJ, ou no total do dia) = VERMELHO.
+                          // 2 CNPJs sem isso = amarelo (conferir). Pior caso = bitributação (NF num CNPJ, venda Stone no outro) = vermelho forte.
                           const cnpjsDia = cnpjPorDia[r.data] || [];
                           const dois = diasDoisCnpjs.has(r.data);
-                          const subEmiteAlgum = cnpjsDia.some((c: any) => (Number(c.stone_bruto || 0) - Number(c.nf_autorizado || 0) > 0.5) && frac(Number(c.nf_autorizado || 0), Number(c.stone_bruto || 0)) > 0.01);
-                          // PIOR caso = bitributação: um CNPJ vendeu na Stone sem emitir NF e o outro emitiu NF sem venda Stone.
+                          const gapStone = cnpjsDia.reduce((s: number, c: any) => s + Math.max(0, Number(c.stone_bruto || 0) - Number(c.nf_autorizado || 0)), 0);
+                          const excedenteStone = Math.max(gapStone, stone - nf);
+                          const stoneMaiorNf = excedenteStone > TOL;
                           const vendaSemNf = cnpjsDia.some((c: any) => Number(c.stone_bruto || 0) > 0.5 && Number(c.nf_autorizado || 0) < Number(c.stone_bruto || 0) * 0.5);
                           const nfSemVenda = cnpjsDia.some((c: any) => Number(c.nf_autorizado || 0) > 0.5 && Number(c.stone_bruto || 0) < Number(c.nf_autorizado || 0) * 0.5);
                           const bitributacao = dois && vendaSemNf && nfSemVenda;
                           let diag = '🟢 OK', diagCls = 'text-emerald-600 dark:text-emerald-400';
                           if (bitributacao) { diag = '🔴 BITRIBUTAÇÃO · NF num CNPJ, venda Stone no outro'; diagCls = 'text-red-600 dark:text-red-400 font-bold'; }
-                          else if (dois && subEmiteAlgum) { diag = '🔴 2 CNPJs · vendeu Stone num, emitiu menos NF noutro'; diagCls = 'text-red-600 dark:text-red-400 font-semibold'; }
+                          else if (stoneMaiorNf) { diag = `🔴 Venda Stone > NF emitida (−${fmtBRL(excedenteStone)})`; diagCls = 'text-red-600 dark:text-red-400 font-semibold'; }
                           else if (dois) { diag = '🟡 2 CNPJs · conferir'; diagCls = 'text-amber-600 dark:text-amber-400 font-medium'; }
                           else if (fNT > 0.05 && nf < total) { diag = '🟡 NF a emitir'; diagCls = 'text-amber-600 dark:text-amber-400 font-medium'; }
                           else if (fNT > 0.05 && nf > total) { diag = '🔴 NF acima do ContaHub'; diagCls = 'text-red-600 dark:text-red-400 font-medium'; }
