@@ -14,6 +14,7 @@ export type Categoria =
   | 'marketing'
   | 'comunicacao'
   | 'reviews'
+  | 'rh'
   | 'ia'
   | 'infra';
 
@@ -340,6 +341,20 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     fontesAuth: [{ tipo: 'env_global', envs: ['OPENAI_API_KEY'] }],
   },
 
+  // ─── RECURSOS HUMANOS ────────────────────────────────────────────────
+  {
+    id: 'tangerino',
+    nome: 'Tangerino (Sólides DP)',
+    descricao: 'Folha de ponto, jornada e férias — alimenta o ponto da Central do Funcionário',
+    categoria: 'rh',
+    logoLabel: 'TG',
+    logoCor: '#F59E0B',
+    acento: 'amber-500',
+    fontesAuth: [{ tipo: 'api_credentials', sistema: ['tangerino'] }],
+    volumeTabela: { schema: 'bronze', tabela: 'bronze_tangerino_punch', colunaTempo: 'synced_at' },
+    acoes: [{ id: 'config_tangerino', label: 'Configurar token', tipo: 'externa', url: '/configuracoes/integracoes/tangerino' }],
+  },
+
   // ─── INFRA ───────────────────────────────────────────────────────────
   {
     id: 'supabase',
@@ -393,6 +408,7 @@ export const CATEGORIA_INFO: Record<Categoria, { nome: string; descricao: string
   marketing: { nome: 'Marketing & Social', descricao: 'Redes sociais e Ads', cor: 'rose' },
   reviews: { nome: 'Reviews', descricao: 'Avaliações de clientes', cor: 'amber' },
   comunicacao: { nome: 'Comunicação', descricao: 'WhatsApp, NPS, notificações', cor: 'green' },
+  rh: { nome: 'Recursos Humanos', descricao: 'Ponto, jornada, férias', cor: 'violet' },
   ia: { nome: 'IA & Modelos', descricao: 'LLMs e embeddings', cor: 'amber' },
   infra: { nome: 'Infraestrutura', descricao: 'Hospedagem, banco, observabilidade', cor: 'slate' },
 };
@@ -405,6 +421,7 @@ export const ORDEM_CATEGORIAS: Categoria[] = [
   'marketing',
   'reviews',
   'comunicacao',
+  'rh',
   'ia',
   'infra',
 ];
