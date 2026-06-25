@@ -145,19 +145,22 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
               <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{selObj.nome}</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {selObj.codigo ? `${selObj.codigo} · ` : ''}{itens.length} componentes
-                    {kind === 'producao' && selObj.rendimento != null ? ` · rende ${Number(selObj.rendimento).toLocaleString('pt-BR')} ${selObj.unidade || ''}` : ''}
-                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{selObj.codigo ? `${selObj.codigo} · ` : ''}{itens.length} componentes</p>
                 </div>
-                <div className="flex gap-5 text-right">
-                  <div>
-                    <div className="text-[11px] text-muted-foreground">Custo (planilha)</div>
-                    <div className="text-lg font-bold">{fmtBRL(custoTotal)}</div>
+                <div className="flex flex-wrap gap-3 items-stretch">
+                  {kind === 'producao' && (
+                    <div className="px-4 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 text-center">
+                      <div className="text-[11px] font-medium text-indigo-600/80 dark:text-indigo-300/80 uppercase tracking-wide">Rendimento</div>
+                      <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300 leading-tight">{Number(selObj.rendimento || 0).toLocaleString('pt-BR')} <span className="text-base font-semibold">{selObj.unidade || ''}</span></div>
+                    </div>
+                  )}
+                  <div className="px-4 py-2 rounded-lg bg-gray-50 dark:bg-gray-800/40 text-center">
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Custo (planilha)</div>
+                    <div className="text-xl font-bold leading-tight mt-0.5">{fmtBRL(custoTotal)}</div>
                   </div>
-                  <div>
-                    <div className="text-[11px] text-muted-foreground">Custo (últ. preço)</div>
-                    <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fmtBRL(custoAtualTotal)}</div>
+                  <div className="px-4 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/15 text-center">
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Custo (últ. preço)</div>
+                    <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5">{fmtBRL(custoAtualTotal)}</div>
                   </div>
                 </div>
               </div>
