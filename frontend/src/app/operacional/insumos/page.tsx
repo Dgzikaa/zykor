@@ -16,8 +16,8 @@ const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR'
 const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'porção'];
 const fmtPeso = (q: any, u: string | null) => {
   const n = Number(q || 0);
-  if (u === 'kg') return n < 1 && n > 0 ? `${(n * 1000).toLocaleString('pt-BR')} g` : `${n.toLocaleString('pt-BR')} kg`;
-  if (u === 'L') return n < 1 && n > 0 ? `${(n * 1000).toLocaleString('pt-BR')} ml` : `${n.toLocaleString('pt-BR')} L`;
+  if (u === 'g' || u === 'kg') { const g = u === 'kg' ? n * 1000 : n; return g >= 1000 ? `${(g / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg` : `${g.toLocaleString('pt-BR')} g`; }
+  if (u === 'ml' || u === 'L') { const ml = u === 'L' ? n * 1000 : n; return ml >= 1000 ? `${(ml / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} L` : `${ml.toLocaleString('pt-BR')} ml`; }
   return `${n.toLocaleString('pt-BR')}${u ? ' ' + u : ''}`;
 };
 

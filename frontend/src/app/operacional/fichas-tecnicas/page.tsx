@@ -8,27 +8,25 @@ import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { ChefHat, Plus, Trash2, Search, Boxes, Utensils, Star, Loader2, Pencil } from 'lucide-react';
+import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil } from 'lucide-react';
 
 const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'porção'];
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtPeso = (q: any, u: string | null) => {
   const n = Number(q || 0);
-  if (u === 'kg') return n < 1 && n > 0 ? `${(n * 1000).toLocaleString('pt-BR')} g` : `${n.toLocaleString('pt-BR')} kg`;
-  if (u === 'L') return n < 1 && n > 0 ? `${(n * 1000).toLocaleString('pt-BR')} ml` : `${n.toLocaleString('pt-BR')} L`;
+  if (u === 'g' || u === 'kg') { const g = u === 'kg' ? n * 1000 : n; return g >= 1000 ? `${(g / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg` : `${g.toLocaleString('pt-BR')} g`; }
+  if (u === 'ml' || u === 'L') { const ml = u === 'L' ? n * 1000 : n; return ml >= 1000 ? `${(ml / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} L` : `${ml.toLocaleString('pt-BR')} ml`; }
   return `${n.toLocaleString('pt-BR')}${u ? ' ' + u : ''}`;
 };
 
 interface FichaTabProps {
   kind: 'producao' | 'produto';
   lista: any[];
-  insumos: any[];
-  producoes: any[];
   reloadLista: () => void;
   preSel?: number | null;
 }
 
-function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: FichaTabProps) {
+function FichaTab({ kind, lista, reloadLista, preSel }: FichaTabProps) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
@@ -38,12 +36,6 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
   const [buscaLista, setBuscaLista] = useState('');
   const [itens, setItens] = useState<any[]>([]);
   const [loadingItens, setLoadingItens] = useState(false);
-
-  const [tipo, setTipo] = useState<'insumo' | 'producao'>('insumo');
-  const [busca, setBusca] = useState('');
-  const [escolhido, setEscolhido] = useState<any>(null);
-  const [qtd, setQtd] = useState('1');
-  const [unidade, setUnidade] = useState('un');
 
   useEffect(() => { if (preSel) setSel(preSel); }, [preSel]);
 
@@ -64,24 +56,6 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
   const selObj = lista.find(p => p.id === sel) || null;
   const custoTotal = itens.reduce((s, it) => s + Number(it.custo_planilha || 0), 0);
 
-  const opcoes = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    if (tipo === 'insumo') return insumos.filter(i => !q || (i.nome || '').toLowerCase().includes(q) || (i.cod_interno || '').toLowerCase().includes(q)).slice(0, 30);
-    return producoes.filter(p => p.id !== sel && (!q || (p.nome || '').toLowerCase().includes(q))).slice(0, 30);
-  }, [tipo, busca, insumos, producoes, sel]);
-
-  const adicionar = async () => {
-    if (!sel || !escolhido) { toast({ title: 'Escolha o componente', variant: 'destructive' }); return; }
-    const payload: any = { [parentParam]: sel, componente_tipo: tipo, quantidade: Number(qtd) || 0, unidade };
-    if (tipo === 'insumo') { payload.insumo_codigo = escolhido.cod_interno; payload.insumo_id_vmarket = escolhido.id_produto_sisfood_cotacao; payload.nome_componente = escolhido.nome; }
-    else { payload.producao_ref = escolhido.id; payload.nome_componente = escolhido.nome; }
-    try {
-      const r = await api.post('/api/operacional/producoes/ficha', payload);
-      if (!r.success) throw new Error(r.error);
-      setEscolhido(null); setBusca(''); setQtd('1');
-      await carregarItens(sel); reloadLista();
-    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
-  };
   const remover = async (id: number) => {
     try { const r = await api.delete(`/api/operacional/producoes/ficha?id=${id}`); if (!r.success) throw new Error(r.error); if (sel) { await carregarItens(sel); reloadLista(); } }
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
@@ -165,48 +139,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                 </div>
               </div>
 
-              {/* Adicionar componente */}
-              <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3 space-y-2">
-                <div className="flex gap-1">
-                  <button onClick={() => { setTipo('insumo'); setEscolhido(null); }} className={`text-xs rounded px-2.5 py-1 flex items-center gap-1 ${tipo === 'insumo' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}><Boxes className="w-3.5 h-3.5" />Insumo</button>
-                  <button onClick={() => { setTipo('producao'); setEscolhido(null); }} className={`text-xs rounded px-2.5 py-1 flex items-center gap-1 ${tipo === 'producao' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}><ChefHat className="w-3.5 h-3.5" />Produção</button>
-                </div>
-                {escolhido ? (
-                  <div className="flex flex-wrap items-end gap-2">
-                    <div className="flex-1 min-w-[180px]">
-                      <label className="text-xs text-gray-500">Componente</label>
-                      <div className="h-10 flex items-center px-3 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm justify-between">
-                        <span className="truncate">{escolhido.nome}</span>
-                        <button onClick={() => setEscolhido(null)} className="text-gray-400 hover:text-gray-600 text-xs ml-2">trocar</button>
-                      </div>
-                    </div>
-                    <div className="w-24"><label className="text-xs text-gray-500">Qtd</label><Input type="number" step="0.001" value={qtd} onChange={e => setQtd(e.target.value)} /></div>
-                    <div className="w-28"><label className="text-xs text-gray-500">Unidade</label>
-                      <select value={unidade} onChange={e => setUnidade(e.target.value)} className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">{UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}</select>
-                    </div>
-                    <Button onClick={adicionar}><Plus className="w-4 h-4 mr-1" />Adicionar</Button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="relative">
-                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder={tipo === 'insumo' ? 'Buscar insumo (nome ou i0XXX)…' : 'Buscar produção…'} className="pl-9" />
-                    </div>
-                    {busca && (
-                      <div className="max-h-48 overflow-y-auto rounded border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
-                        {opcoes.length === 0 ? <div className="px-3 py-3 text-xs text-gray-400">Nada encontrado.</div>
-                        : opcoes.map((o: any) => (
-                          <button key={tipo === 'insumo' ? o.id_produto_sisfood_cotacao : o.id} onClick={() => setEscolhido(o)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                            {o.nome} {tipo === 'insumo' && o.cod_interno && <span className="text-xs text-gray-400 font-mono">· {o.cod_interno}</span>}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* Componentes da ficha */}
+              {/* Componentes da ficha (montagem/edição é feita em Cadastros › Produções) */}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
@@ -290,12 +223,10 @@ function FichasInner() {
   const [aba, setAba] = useState<'producao' | 'finalizacao'>('producao');
   const [producoes, setProducoes] = useState<any[]>([]);
   const [produtos, setProdutos] = useState<any[]>([]);
-  const [insumos, setInsumos] = useState<any[]>([]);
 
   const loadProducoes = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/producoes?bar_id=${barId}`); if (r.success) setProducoes(r.producoes || []); }, [barId]);
   const loadProdutos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/produtos?bar_id=${barId}`); if (r.success) setProdutos(r.produtos || []); }, [barId]);
-  const loadInsumos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/insumos?bar_id=${barId}`); if (r.success) setInsumos(r.produtos || []); }, [barId]);
-  useEffect(() => { loadProducoes(); loadProdutos(); loadInsumos(); }, [loadProducoes, loadProdutos, loadInsumos]);
+  useEffect(() => { loadProducoes(); loadProdutos(); }, [loadProducoes, loadProdutos]);
 
   return (
     <>
@@ -304,8 +235,8 @@ function FichasInner() {
         <button onClick={() => setAba('finalizacao')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'finalizacao' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><Utensils className="w-4 h-4" />Finalização</button>
       </div>
       {aba === 'producao'
-        ? <FichaTab kind="producao" lista={producoes} insumos={insumos} producoes={producoes} reloadLista={loadProducoes} preSel={preSel} />
-        : <FichaTab kind="produto" lista={produtos} insumos={insumos} producoes={producoes} reloadLista={loadProdutos} />}
+        ? <FichaTab kind="producao" lista={producoes} reloadLista={loadProducoes} preSel={preSel} />
+        : <FichaTab kind="produto" lista={produtos} reloadLista={loadProdutos} />}
     </>
   );
 }
