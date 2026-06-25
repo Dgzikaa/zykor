@@ -114,6 +114,13 @@ export default function ConciliacaoPage() {
   const [diaCache, setDiaCache] = useState<Record<string, any>>({});
   const [diaLoading, setDiaLoading] = useState<string | null>(null);
   const [verTxAte, setVerTxAte] = useState<Record<string, number>>({});
+  const [cardFiltro, setCardFiltro] = useState<'ok' | 'menos' | 'mais' | null>(null);
+  const rowsView = useMemo(() => {
+    if (!cardFiltro) return rows;
+    return rows.filter((r: any) => cardFiltro === 'ok' ? r.status === 'ok'
+      : cardFiltro === 'menos' ? (r.status !== 'ok' && Number(r.diferenca) > 0.5)
+      : (r.status !== 'ok' && Number(r.diferenca) < -0.5));
+  }, [rows, cardFiltro]);
 
   const periodo = useMemo(() => {
     if (usarRange && rangeDe && rangeAte) return { de: rangeDe, ate: rangeAte };
@@ -311,15 +318,15 @@ export default function ConciliacaoPage() {
             {resumo && (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
                 <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Dias</div><div className="text-lg font-bold">{resumo.dias}</div></CardContent></Card>
-                <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-600" />Batendo</div><div className="text-lg font-bold text-emerald-600">{resumo.ok}</div></CardContent></Card>
-                <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-red-600" />Recebeu a menos</div><div className="text-lg font-bold text-red-600" title="ContaHub > Stone — vendeu e não recebeu (possível BO)">{rows.filter((x: any) => x.status !== 'ok' && Number(x.diferenca) > 0.5).length}</div></CardContent></Card>
-                <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-amber-600" />Recebeu a mais</div><div className="text-lg font-bold text-amber-600" title="Stone > ContaHub — ex.: venda fora do caixa não lançada">{rows.filter((x: any) => x.status !== 'ok' && Number(x.diferenca) < -0.5).length}</div></CardContent></Card>
+                <Card onClick={() => setCardFiltro((f) => f === 'ok' ? null : 'ok')} className={`cursor-pointer transition hover:bg-muted/30 ${cardFiltro === 'ok' ? 'ring-2 ring-emerald-500' : ''}`}><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-600" />Batendo</div><div className="text-lg font-bold text-emerald-600">{resumo.ok}</div></CardContent></Card>
+                <Card onClick={() => setCardFiltro((f) => f === 'menos' ? null : 'menos')} className={`cursor-pointer transition hover:bg-muted/30 ${cardFiltro === 'menos' ? 'ring-2 ring-red-500' : ''}`}><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-red-600" />Recebeu a menos</div><div className="text-lg font-bold text-red-600" title="ContaHub > Stone — vendeu e não recebeu (possível BO)">{rows.filter((x: any) => x.status !== 'ok' && Number(x.diferenca) > 0.5).length}</div></CardContent></Card>
+                <Card onClick={() => setCardFiltro((f) => f === 'mais' ? null : 'mais')} className={`cursor-pointer transition hover:bg-muted/30 ${cardFiltro === 'mais' ? 'ring-2 ring-amber-500' : ''}`}><CardContent className="py-3"><div className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-amber-600" />Recebeu a mais</div><div className="text-lg font-bold text-amber-600" title="Stone > ContaHub — ex.: venda fora do caixa não lançada">{rows.filter((x: any) => x.status !== 'ok' && Number(x.diferenca) < -0.5).length}</div></CardContent></Card>
                 <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Stone bruto</div><div className="text-base font-bold">{fmtBRL(resumo.stone_bruto_total)}</div></CardContent></Card>
               </div>
             )}
 
             {loading ? <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
-            : rows.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground"><Scale className="w-9 h-9 mx-auto mb-2 opacity-40" />Sem dados no período.</CardContent></Card>
+            : rowsView.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground"><Scale className="w-9 h-9 mx-auto mb-2 opacity-40" />{cardFiltro ? <>Nenhum dia com esse status. <button onClick={() => setCardFiltro(null)} className="text-primary hover:underline">Limpar filtro</button></> : 'Sem dados no período.'}</CardContent></Card>
             : (
               <Card className="p-0 overflow-x-auto">
                 <table className="w-full text-sm">
@@ -329,7 +336,7 @@ export default function ConciliacaoPage() {
                     <th className="text-right px-3 py-2 whitespace-nowrap">Dif. (Stone−CH)</th>
                   </tr></thead>
                   <tbody>
-                    {rows.map((r) => {
+                    {rowsView.map((r) => {
                       const dia = diaCache[r.data]; const lim = verTxAte[r.data] || 50;
                       return (
                         <Fragment key={r.data}>
