@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,8 @@ import {
 type MatrizRow = {
   insumo_codigo: string; nome: string; categoria: string | null; tipo_local: string | null;
   tipo_item: string | null; unidade_medida: string | null; frequencia: string | null;
-  data_contagem: string; tipo_contagem: string; estoque_final: number | null; preco_atual: number | null;
+  data_contagem: string; tipo_contagem: string;
+  estoque_fechado: number | null; estoque_flutuante: number | null; estoque_final: number | null; preco_atual: number | null;
 };
 type ItemContar = {
   insumo_id: number; codigo: string; nome: string; categoria: string | null; tipo_local: string | null;
@@ -34,7 +35,7 @@ const TIPO_DOT: Record<string, string> = { mensal: 'bg-purple-500', semanal: 'bg
 const hoje = () => new Date().toISOString().slice(0, 10);
 const num = (v: string) => (v === '' || v == null ? null : Number(String(v).replace(',', '.')));
 const brl = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
-const qtd = (n: number | null | undefined) => (n == null ? '·' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(Number(n)));
+const qtd = (n: number | null | undefined) => (n == null ? '' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(Number(n)));
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const fmtData = (iso: string) => iso.split('-').reverse().join('/');
 const capitalize = (s: string | null) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '—');
@@ -52,6 +53,7 @@ export function EstoqueContagem() {
   const [loadingTab, setLoadingTab] = useState(false);
   const [buscaTab, setBuscaTab] = useState('');
   const [areaTab, setAreaTab] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // ---- modal + contagem ----
   const [modalOpen, setModalOpen] = useState(false);
@@ -83,14 +85,14 @@ export function EstoqueContagem() {
     setMes(m); setAno(a);
   };
 
-  // pivot item × data
+  // pivot item × data (fechado/flutuante/total)
   const { datas, tipoPorData, itensPivot, totaisPorData } = useMemo(() => {
     const dset = new Map<string, string>();
-    const map = new Map<string, { row: MatrizRow; vals: Record<string, number | null> }>();
+    const map = new Map<string, { row: MatrizRow; vals: Record<string, MatrizRow> }>();
     for (const r of linhas) {
       dset.set(r.data_contagem, r.tipo_contagem);
       const ex = map.get(r.insumo_codigo) || { row: r, vals: {} };
-      ex.vals[r.data_contagem] = r.estoque_final;
+      ex.vals[r.data_contagem] = r;
       map.set(r.insumo_codigo, ex);
     }
     const datas = [...dset.keys()].sort();
@@ -100,9 +102,23 @@ export function EstoqueContagem() {
       (!q || row.nome?.toLowerCase().includes(q) || (row.categoria || '').toLowerCase().includes(q)));
     arr = arr.sort((a, b) => (a.row.categoria || '').localeCompare(b.row.categoria || '') || (a.row.nome || '').localeCompare(b.row.nome || ''));
     const totais: Record<string, number> = {};
-    for (const d of datas) totais[d] = arr.reduce((s, { row, vals }) => s + ((vals[d] ?? 0) * (Number(row.preco_atual) || 0)), 0);
+    for (const d of datas) totais[d] = arr.reduce((s, { vals }) => {
+      const cell = vals[d]; return s + ((cell?.estoque_final ?? 0) * (Number(cell?.preco_atual) || 0));
+    }, 0);
     return { datas, tipoPorData: dset, itensPivot: arr, totaisPorData: totais };
   }, [linhas, buscaTab, areaTab]);
+
+  // ao carregar, centraliza no dia de hoje (ou data mais próxima <= hoje)
+  useEffect(() => {
+    if (!scrollRef.current || datas.length === 0) return;
+    const today = hoje();
+    const alvo = [...datas].filter(d => d <= today).pop() || datas[datas.length - 1];
+    const el = scrollRef.current.querySelector(`[data-date="${alvo}"]`) as HTMLElement | null;
+    if (el) {
+      const c = scrollRef.current;
+      c.scrollLeft = Math.max(0, el.offsetLeft - c.clientWidth / 2 + el.offsetWidth / 2);
+    }
+  }, [datas]);
 
   // ---- iniciar contagem ----
   const comecar = async () => {
@@ -134,10 +150,7 @@ export function EstoqueContagem() {
 
   const itensFiltrados = useMemo(() => {
     const q = buscaC.trim().toLowerCase();
-    const arr = itens.filter(i => (!areaC || i.tipo_local === areaC) && (!q || i.nome.toLowerCase().includes(q)));
-    const g: Record<string, ItemContar[]> = {};
-    arr.forEach(i => { const c = i.categoria || 'Sem categoria'; (g[c] ||= []).push(i); });
-    return Object.entries(g);
+    return itens.filter(i => (!areaC || i.tipo_local === areaC) && (!q || i.nome.toLowerCase().includes(q)));
   }, [itens, buscaC, areaC]);
 
   const contados = useMemo(() => Object.values(valores).filter(v => v !== '' && v != null).length, [valores]);
@@ -152,9 +165,10 @@ export function EstoqueContagem() {
 
   // ====================== MODO TABELÃO ======================
   if (mode === 'tabela') {
+    const thCell = 'sticky left-0 z-20 bg-muted/40 text-left font-medium px-3 py-2 min-w-[15rem] w-[15rem] border-r';
     return (
       <div>
-        <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
           <div className="flex items-center gap-1 rounded-lg border p-0.5">
             <Button variant="ghost" size="sm" className="px-2" onClick={() => mudarMes(-1)}><ChevronLeft className="w-4 h-4" /></Button>
             <span className="text-sm font-semibold w-32 text-center">{MESES[mes - 1]} {ano}</span>
@@ -169,6 +183,11 @@ export function EstoqueContagem() {
             <option value="bar">Bar</option>
             <option value="cozinha">Cozinha</option>
           </select>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground ml-1">
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-purple-500" /> mensal</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> semanal</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" /> diária</span>
+          </div>
           <Button onClick={() => { setNovoTipo('diaria'); setNovaData(hoje()); setModalOpen(true); }} className="ml-auto gap-1.5">
             <Plus className="w-4 h-4" /> Fazer contagem
           </Button>
@@ -182,13 +201,13 @@ export function EstoqueContagem() {
             Nenhuma contagem em {MESES[mes - 1]}. Clique em <b>Fazer contagem</b> para começar.
           </div>
         ) : (
-          <div className="overflow-x-auto border rounded-lg">
-            <table className="text-sm border-collapse w-full">
+          <div ref={scrollRef} className="overflow-auto border rounded-lg max-h-[calc(100vh-180px)]">
+            <table className="text-sm border-collapse">
               <thead>
-                <tr className="border-b bg-muted/30">
-                  <th className="sticky left-0 z-10 bg-muted/30 text-left font-medium px-3 py-2 min-w-[14rem] border-r">Item</th>
+                <tr className="bg-muted/40">
+                  <th rowSpan={2} className={`${thCell} z-30 align-bottom border-b`}>Item</th>
                   {datas.map(d => (
-                    <th key={d} className="px-2 py-2 font-medium text-center whitespace-nowrap min-w-[3.5rem]">
+                    <th key={d} data-date={d} colSpan={2} className="sticky top-0 z-10 bg-muted/40 px-2 pt-2 pb-1 font-medium text-center whitespace-nowrap border-l">
                       <div className="flex items-center justify-center gap-1">
                         <span className={`inline-block w-1.5 h-1.5 rounded-full ${TIPO_DOT[tipoPorData.get(d) || 'diaria']}`} />
                         {ddmm(d)}
@@ -196,39 +215,43 @@ export function EstoqueContagem() {
                     </th>
                   ))}
                 </tr>
+                <tr className="bg-muted/40">
+                  {datas.map(d => (
+                    <FragmentTH key={d} />
+                  ))}
+                </tr>
               </thead>
               <tbody>
                 {itensPivot.map(({ row, vals }) => (
                   <tr key={row.insumo_codigo} className="border-b hover:bg-muted/20">
-                    <td className="sticky left-0 z-10 bg-background px-3 py-1.5 border-r">
-                      <div className="font-medium leading-tight">{row.nome}</div>
-                      <div className="text-xs text-muted-foreground">{row.categoria || '—'} · {row.unidade_medida || 'un'}</div>
+                    <td className="sticky left-0 z-10 bg-background px-3 py-1.5 border-r w-[15rem] min-w-[15rem]">
+                      <div className="font-medium leading-tight truncate">{row.nome}</div>
+                      <div className="text-xs text-muted-foreground truncate">{row.categoria || '—'} · {capitalize(row.tipo_local)} · {row.unidade_medida || 'un'}</div>
                     </td>
-                    {datas.map(d => (
-                      <td key={d} className={`px-2 py-1.5 text-center tabular-nums ${vals[d] == null ? 'text-muted-foreground/40' : ''}`}>
-                        {qtd(vals[d])}
-                      </td>
-                    ))}
+                    {datas.map(d => {
+                      const c = vals[d];
+                      return (
+                        <FragmentCell key={d}
+                          fx={c?.estoque_fechado ?? null}
+                          fl={c?.estoque_flutuante ?? null} />
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t bg-muted/30 font-medium">
-                  <td className="sticky left-0 z-10 bg-muted/30 px-3 py-2 border-r">Valor (preço atual)</td>
+                <tr className="font-medium">
+                  <td className="sticky left-0 bottom-0 z-30 bg-muted/60 px-3 py-2 border-r border-t">Valor (preço atual)</td>
                   {datas.map(d => (
-                    <td key={d} className="px-2 py-2 text-center tabular-nums whitespace-nowrap text-xs">{brl(totaisPorData[d] || 0)}</td>
+                    <td key={d} colSpan={2} className="sticky bottom-0 z-10 bg-muted/60 px-2 py-2 text-center tabular-nums whitespace-nowrap text-xs border-l border-t">
+                      {brl(totaisPorData[d] || 0)}
+                    </td>
                   ))}
                 </tr>
               </tfoot>
             </table>
           </div>
         )}
-
-        <p className="text-xs text-muted-foreground mt-2 flex items-center gap-3">
-          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-purple-500" /> mensal</span>
-          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> semanal</span>
-          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" /> diária</span>
-        </p>
 
         {/* Modal: escolher o tipo de contagem */}
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
@@ -262,11 +285,11 @@ export function EstoqueContagem() {
     );
   }
 
-  // ====================== MODO CONTAGEM (mobile) ======================
+  // ====================== MODO CONTAGEM (tabela) ======================
   const tipoLabel = TIPOS.find(t => t.v === tipoC)?.label || tipoC;
   return (
-    <div className="max-w-2xl mx-auto pb-24">
-      <div className="flex items-center gap-2 mb-1">
+    <div className="pb-24">
+      <div className="flex items-center gap-2 mb-2">
         <Button variant="ghost" size="sm" className="px-2" onClick={() => setMode('tabela')}><ChevronLeft className="w-4 h-4" /></Button>
         <div className="flex-1">
           <h2 className="text-lg font-bold leading-tight flex items-center gap-2">
@@ -280,14 +303,14 @@ export function EstoqueContagem() {
         <div className="h-full bg-emerald-500 transition-all" style={{ width: `${itens.length ? (contados / itens.length) * 100 : 0}%` }} />
       </div>
 
-      <div className="relative mb-2">
-        <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-muted-foreground" />
-        <Input value={buscaC} onChange={e => setBuscaC(e.target.value)} placeholder="Buscar item…" className="pl-8" />
-      </div>
-      <div className="flex gap-1.5 mb-3">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="relative flex-1 min-w-[12rem] max-w-md">
+          <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-muted-foreground" />
+          <Input value={buscaC} onChange={e => setBuscaC(e.target.value)} placeholder="Buscar item…" className="pl-8 h-9" />
+        </div>
         {[{ v: '', l: 'Todas' }, { v: 'bar', l: 'Bar' }, { v: 'cozinha', l: 'Cozinha' }].map(a => (
           <button key={a.v} onClick={() => setAreaC(a.v)}
-            className={`text-xs px-2.5 py-1 rounded-full border transition ${areaC === a.v ? 'bg-foreground text-background' : 'hover:bg-muted/50'}`}>
+            className={`text-xs px-2.5 py-1.5 rounded-full border transition ${areaC === a.v ? 'bg-foreground text-background' : 'hover:bg-muted/50'}`}>
             {a.l}
           </button>
         ))}
@@ -296,37 +319,47 @@ export function EstoqueContagem() {
       {loadingC ? (
         <div className="py-12 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
       ) : (
-        <div className="space-y-4">
-          {itensFiltrados.map(([cat, lista]) => (
-            <div key={cat}>
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 sticky top-0 bg-background/95 py-1">{cat}</div>
-              <div className="divide-y rounded-lg border">
-                {lista.map(i => {
-                  const v = valores[i.insumo_id] ?? '';
-                  const feito = v !== '';
-                  return (
-                    <div key={i.insumo_id} className={`flex items-center gap-3 px-3 py-2 ${feito ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium truncate">{i.nome}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {i.unidade_medida || 'un'} · ant: {i.ultimo_final ?? '—'}
-                          {feito && i.preco_atual ? <> · <b className="text-foreground">{brl((num(v) ?? 0) * Number(i.preco_atual))}</b></> : null}
-                        </div>
-                      </div>
+        <div className="overflow-auto border rounded-lg max-h-[calc(100vh-260px)]">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-muted/40 text-left text-muted-foreground">
+                <th className="sticky left-0 top-0 z-30 bg-muted/40 px-3 py-2 font-medium min-w-[14rem] border-r">Item</th>
+                <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium">Setor</th>
+                <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium">Unid.</th>
+                <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium text-right">Anterior</th>
+                <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium text-right w-32">Contagem</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itensFiltrados.map(i => {
+                const v = valores[i.insumo_id] ?? '';
+                const feito = v !== '';
+                return (
+                  <tr key={i.insumo_id} className={`border-b ${feito ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : 'hover:bg-muted/20'}`}>
+                    <td className="sticky left-0 z-10 bg-background px-3 py-1.5 border-r">
+                      <div className="font-medium leading-tight">{i.nome}</div>
+                      <div className="text-xs text-muted-foreground">{i.categoria || '—'}</div>
+                    </td>
+                    <td className="px-3 py-1.5 capitalize text-muted-foreground">{i.tipo_local || '—'}</td>
+                    <td className="px-3 py-1.5 text-muted-foreground">{i.unidade_medida || 'un'}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{i.ultimo_final ?? '—'}</td>
+                    <td className="px-3 py-1.5 text-right">
                       <Input value={v} onChange={e => setValores(p => ({ ...p, [i.insumo_id]: e.target.value }))}
-                        inputMode="decimal" placeholder="0" className={`w-20 text-center text-base h-10 shrink-0 ${feito ? 'border-emerald-400' : ''}`} />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-          {itensFiltrados.length === 0 && <div className="py-8 text-center text-muted-foreground text-sm">Nenhum item.</div>}
+                        inputMode="decimal" placeholder="0" className={`w-24 text-center h-9 ml-auto ${feito ? 'border-emerald-400' : ''}`} />
+                    </td>
+                  </tr>
+                );
+              })}
+              {itensFiltrados.length === 0 && (
+                <tr><td colSpan={5} className="py-8 text-center text-muted-foreground text-sm">Nenhum item.</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       )}
 
       <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur px-3 py-2.5 z-20">
-        <div className="container mx-auto max-w-2xl">
+        <div className="container mx-auto max-w-3xl">
           {valorTotal > 0 && (
             <div className="flex justify-between text-xs text-muted-foreground mb-1.5 px-0.5">
               <span>Valor contado (preço atual)</span><b className="text-foreground tabular-nums">{brl(valorTotal)}</b>
@@ -338,5 +371,25 @@ export function EstoqueContagem() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Sub-cabeçalho E.FX / E.FL de cada data
+function FragmentTH() {
+  return (
+    <>
+      <th title="Estoque fechado" className="sticky top-[33px] z-10 bg-muted/40 px-1.5 pb-1.5 font-normal text-[10px] text-muted-foreground text-center border-l">E.FX</th>
+      <th title="Estoque flutuante" className="sticky top-[33px] z-10 bg-muted/40 px-1.5 pb-1.5 font-normal text-[10px] text-muted-foreground text-center">E.FL</th>
+    </>
+  );
+}
+
+// Par de células (fechado / flutuante) de uma data
+function FragmentCell({ fx, fl }: { fx: number | null; fl: number | null }) {
+  return (
+    <>
+      <td className={`px-1.5 py-1.5 text-center tabular-nums border-l ${fx == null ? 'text-muted-foreground/30' : ''}`}>{fx == null ? '·' : qtd(fx)}</td>
+      <td className={`px-1.5 py-1.5 text-center tabular-nums ${fl == null ? 'text-muted-foreground/30' : ''}`}>{fl == null ? '·' : qtd(fl)}</td>
+    </>
   );
 }
