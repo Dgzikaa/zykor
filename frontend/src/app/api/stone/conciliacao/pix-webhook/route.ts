@@ -41,17 +41,14 @@ export async function POST(req: NextRequest) {
   const { getAdminClient } = await import('@/lib/supabase-admin');
   const supabase = await getAdminClient();
 
-  const { data: cfg } = await (supabase as any)
-    .schema('financial').from('stone_pix_webhook').select('token').eq('id', 1).maybeSingle();
-  const token = cfg?.token;
-  if (!token || req.headers.get('x-zykor-stone-token') !== token) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  }
-
   if (body?.type !== 'pix' || !body?.url || !body?.document || !body?.referenceDate) {
     return NextResponse.json({ ok: true, ignored: true }, { status: 200 });
   }
 
+  // Segurança: a Stone NÃO aceita header custom no cadastro do webhook (o /v2/webhook
+  // dá 400 quando mandamos `headers`), então registramos só com a URL. Validamos por:
+  //  (1) o `document` tem que ser um CNPJ NOSSO (financial.stone_cnpj_map); e
+  //  (2) a URL pré-assinada só pode ser de domínio Stone/AWS.
   let host = '';
   try { host = new URL(String(body.url)).host; } catch { /* url inválida */ }
   if (!/(\.stone\.com\.br|amazonaws\.com|cloudfront\.net)$/i.test(host)) {
@@ -62,7 +59,10 @@ export async function POST(req: NextRequest) {
   const { data: maps } = await (supabase as any)
     .schema('financial').from('stone_cnpj_map').select('bar_id, cnpj_documento');
   const m = (maps || []).find((x: any) => String(x.cnpj_documento).replace(/\D/g, '') === doc);
-  const barId = m?.bar_id ?? null;
+  if (!m) {
+    return NextResponse.json({ error: 'cnpj desconhecido' }, { status: 401 });
+  }
+  const barId = m.bar_id;
 
   let csv = '', bytes = 0, status = 0, erro: string | null = null;
   try {
