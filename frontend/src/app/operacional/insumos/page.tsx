@@ -220,6 +220,22 @@ export default function CadastrosPage() {
     } catch (e: any) { toast({ title: 'Erro ao salvar unidade', description: e?.message, variant: 'destructive' }); }
   };
 
+  // Agrupa por código (mesmo i0XXX = mesmo insumo, várias descrições/fornecedores no VMarket)
+  const [codAberto, setCodAberto] = useState<string | null>(null);
+  const grupos = useMemo(() => {
+    const m = new Map<string, Produto[]>();
+    for (const p of filtrados) {
+      const ok = p.cod_interno && /^i\d/.test(p.cod_interno);
+      const key = ok ? `c:${p.cod_interno}` : `u:${p.id_produto_sisfood_cotacao}`;
+      if (!m.has(key)) m.set(key, []);
+      m.get(key)!.push(p);
+    }
+    return Array.from(m.entries()).map(([key, prods]) => {
+      const rep = [...prods].sort((a, b) => String(b.preco_data || '').localeCompare(String(a.preco_data || '')))[0];
+      return { key, rep, produtos: prods, nVar: prods.length };
+    }).sort((a, b) => String(a.rep.nome || '').localeCompare(String(b.rep.nome || '')));
+  }, [filtrados]);
+
   // ---------- PRODUTOS (cardápio) ----------
   const [prodCard, setProdCard] = useState<any[]>([]);
   const [buscaCard, setBuscaCard] = useState('');
@@ -354,9 +370,8 @@ export default function CadastrosPage() {
               </select>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <Badge variant="outline">{filtrados.length} de {produtos.length} insumos</Badge>
-              {semDepara > 0 && <Badge variant="outline" className="text-amber-600 border-amber-300">{semDepara} sem código</Badge>}
-              {produtos.filter(p => p.cod_duplicado).length > 0 && <Badge variant="outline" className="text-red-600 border-red-300">{produtos.filter(p => p.cod_duplicado).length} com código duplicado</Badge>}
+              <Badge variant="outline">{grupos.length} insumos{produtos.length !== grupos.length ? ` (${produtos.length} variações)` : ''}</Badge>
+              {grupos.filter(g => g.nVar > 1).length > 0 && <Badge variant="outline" className="text-blue-600 border-blue-300">{grupos.filter(g => g.nVar > 1).length} com variações</Badge>}
               {produtos.filter(p => p.cod_invalido).length > 0 && <Badge variant="outline" className="text-red-600 border-red-300">{produtos.filter(p => p.cod_invalido).length} com código inválido</Badge>}
             </div>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
@@ -373,39 +388,60 @@ export default function CadastrosPage() {
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {loading ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
-                  : filtrados.length === 0 ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
-                  : filtrados.map(p => {
+                  : grupos.length === 0 ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
+                  : grupos.map(g => {
+                    const p = g.rep;
                     const subiu = p.preco_anterior != null && p.preco_atual != null && p.preco_atual > p.preco_anterior;
                     const caiu = p.preco_anterior != null && p.preco_atual != null && p.preco_atual < p.preco_anterior;
+                    const aberto = codAberto === g.key;
                     return (
-                      <tr key={p.id_produto_sisfood_cotacao} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                        <td className="px-3 py-2 font-mono text-xs">
-                          {p.cod_invalido ? <span className="text-red-500" title="Código inválido no VMarket (não é i0XXX)">⚠ {p.cod_interno}</span>
-                            : p.cod_duplicado ? <span className="text-red-500" title="Código duplicado — outro insumo usa o mesmo código no VMarket">⚠ {p.cod_interno}</span>
-                            : p.cod_interno ? <span className="text-gray-600 dark:text-gray-300">{p.cod_interno}</span>
-                            : <span className="text-amber-500">—</span>}
-                        </td>
-                        <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}</td>
-                        <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.marca || '—'}</td>
-                        <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
-                        <td className="px-3 py-2 text-center">
-                          <select value={p.base || 'g'} onChange={e => salvarUnidade(p, { base: e.target.value })}
-                            className="h-7 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs">
-                            <option value="g">g/kg</option><option value="ml">ml/L</option><option value="un">un</option>
-                          </select>
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <input type="number" step="0.001" defaultValue={p.embalagem ?? 1}
-                            onBlur={e => { const v = Number(e.target.value) || 1; if (v !== (p.embalagem ?? 1)) salvarUnidade(p, { embalagem: v }); }}
-                            className="h-7 w-20 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs text-right" />
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums font-medium whitespace-nowrap">
-                          {fmtBRL(p.preco_atual)}
-                          {subiu && <TrendingUp className="inline w-3 h-3 ml-1 text-red-500" />}
-                          {caiu && <TrendingDown className="inline w-3 h-3 ml-1 text-emerald-500" />}
-                        </td>
-                        <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.fornecedor_ultimo || '—'}</td>
-                      </tr>
+                      <Fragment key={g.key}>
+                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                          <td className="px-3 py-2 font-mono text-xs">
+                            {p.cod_invalido ? <span className="text-red-500" title="Código inválido no VMarket (não é i0XXX)">⚠ {p.cod_interno}</span>
+                              : p.cod_interno ? <span className="text-gray-600 dark:text-gray-300">{p.cod_interno}</span>
+                              : <span className="text-amber-500">—</span>}
+                          </td>
+                          <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
+                            {g.nVar > 1 ? (
+                              <button onClick={() => setCodAberto(aberto ? null : g.key)} className="flex items-center gap-1 text-left hover:text-indigo-600">
+                                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${aberto ? 'rotate-180' : ''}`} />
+                                {p.nome} <span className="text-[10px] rounded-full px-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{g.nVar} variações</span>
+                              </button>
+                            ) : p.nome}
+                          </td>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.marca || '—'}</td>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
+                          <td className="px-3 py-2 text-center">
+                            <select value={p.base || 'g'} onChange={e => salvarUnidade(p, { base: e.target.value })}
+                              className="h-7 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs">
+                              <option value="g">g/kg</option><option value="ml">ml/L</option><option value="un">un</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <input type="number" step="0.001" defaultValue={p.embalagem ?? 1}
+                              onBlur={e => { const v = Number(e.target.value) || 1; if (v !== (p.embalagem ?? 1)) salvarUnidade(p, { embalagem: v }); }}
+                              className="h-7 w-20 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs text-right" />
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums font-medium whitespace-nowrap">
+                            {fmtBRL(p.preco_atual)}
+                            {subiu && <TrendingUp className="inline w-3 h-3 ml-1 text-red-500" />}
+                            {caiu && <TrendingDown className="inline w-3 h-3 ml-1 text-emerald-500" />}
+                          </td>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.fornecedor_ultimo || '—'}</td>
+                        </tr>
+                        {aberto && g.produtos.map(v => (
+                          <tr key={v.id_produto_sisfood_cotacao} className="bg-gray-50/60 dark:bg-gray-800/30 text-xs">
+                            <td></td>
+                            <td className="px-3 py-1 pl-7 text-gray-600 dark:text-gray-300">↳ {v.nome}</td>
+                            <td className="px-3 py-1 text-gray-500">{v.marca || '—'}</td>
+                            <td className="px-3 py-1 text-gray-500">{v.nome_secao || '—'}</td>
+                            <td></td><td></td>
+                            <td className="px-3 py-1 text-right tabular-nums text-gray-500">{v.preco_atual != null ? fmtBRL(v.preco_atual) : '—'}</td>
+                            <td className="px-3 py-1 text-gray-500">{v.fornecedor_ultimo || '—'}</td>
+                          </tr>
+                        ))}
+                      </Fragment>
                     );
                   })}
                 </tbody>
