@@ -54,31 +54,34 @@ export async function POST(req: NextRequest) {
     catch (e: any) { resultados.push({ empresa: cred?.empresa_nome, ok: false, erro: e?.message }); continue; }
 
     const authHeader = stoneBasicAuthHeader(resolved.apiKey);
-    // Testa 3 formatos do campo `headers` (a doc é ambígua: "string, JSON format").
-    const variantes: Array<{ nome: string; body: any }> = [
-      { nome: 'headers-obj', body: { url: cfg.callback_url, headers: { 'x-zykor-stone-token': cfg.token } } },
-      { nome: 'headers-str', body: { url: cfg.callback_url, headers: JSON.stringify({ 'x-zykor-stone-token': cfg.token }) } },
-      { nome: 'sem-headers', body: { url: cfg.callback_url } },
+    const tokenHdr = { 'x-zykor-stone-token': cfg.token };
+    const bodies: Array<{ nome: string; body: any }> = [
+      { nome: 'so-url', body: { url: cfg.callback_url } },
+      { nome: 'headers-obj', body: { url: cfg.callback_url, headers: tokenHdr } },
+      { nome: 'headers-str', body: { url: cfg.callback_url, headers: JSON.stringify(tokenHdr) } },
+    ];
+    const headerSets: Array<{ nome: string; h: Record<string, string> }> = [
+      { nome: 'com-usertype', h: { Authorization: authHeader, 'x-user-type': 'client', 'Content-Type': 'application/json' } },
+      { nome: 'sem-usertype', h: { Authorization: authHeader, 'Content-Type': 'application/json' } },
     ];
     const tentativas: any[] = [];
     let okCred = false;
-    for (const v of variantes) {
-      try {
-        const resp = await fetch('https://conciliation.stone.com.br/v2/webhook', {
-          method: 'POST',
-          headers: { Authorization: authHeader, 'x-user-type': 'client', 'Content-Type': 'application/json' },
-          body: JSON.stringify(v.body),
-        });
-        const buf = Buffer.from(await resp.arrayBuffer());
-        const isGzip = buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b;
-        const txt = isGzip ? gunzipSync(buf).toString('utf8') : buf.toString('utf8');
-        const hdrs: Record<string, string> = {};
-        resp.headers.forEach((val, k) => { hdrs[k] = val; });
-        tentativas.push({ variante: v.nome, http_status: resp.status, bytes: buf.length, headers: hdrs, resp: txt.slice(0, 500) });
-        if (resp.ok) { okCred = true; break; }
-      } catch (e: any) {
-        tentativas.push({ variante: v.nome, erro: e?.message });
+    for (const hs of headerSets) {
+      for (const b of bodies) {
+        try {
+          const resp = await fetch('https://conciliation.stone.com.br/v2/webhook', {
+            method: 'POST', headers: hs.h, body: JSON.stringify(b.body),
+          });
+          const buf = Buffer.from(await resp.arrayBuffer());
+          const isGzip = buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b;
+          const txt = isGzip ? gunzipSync(buf).toString('utf8') : buf.toString('utf8');
+          tentativas.push({ combo: `${hs.nome}/${b.nome}`, http_status: resp.status, bytes: buf.length, resp: txt.slice(0, 300) });
+          if (resp.ok) { okCred = true; break; }
+        } catch (e: any) {
+          tentativas.push({ combo: `${hs.nome}/${b.nome}`, erro: e?.message });
+        }
       }
+      if (okCred) break;
     }
     resultados.push({ empresa: resolved.empresaNome, ok: okCred, tentativas });
   }
