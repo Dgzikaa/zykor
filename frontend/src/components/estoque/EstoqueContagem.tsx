@@ -54,6 +54,9 @@ export function EstoqueContagem() {
   const [buscaTab, setBuscaTab] = useState('');
   const [areaTab, setAreaTab] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const countRef = useRef<HTMLDivElement>(null);
+  const [tabH, setTabH] = useState<number>();
+  const [contH, setContH] = useState<number>();
 
   // ---- modal + contagem ----
   const [modalOpen, setModalOpen] = useState(false);
@@ -107,6 +110,17 @@ export function EstoqueContagem() {
     }, 0);
     return { datas, tipoPorData: dset, itensPivot: arr, totaisPorData: totais };
   }, [linhas, buscaTab, areaTab]);
+
+  // altura disponível p/ a tabela caber na tela (rodapé/scrollbar sempre visíveis)
+  useEffect(() => {
+    const calc = () => {
+      if (scrollRef.current) setTabH(window.innerHeight - scrollRef.current.getBoundingClientRect().top - 16);
+      if (countRef.current) setContH(window.innerHeight - countRef.current.getBoundingClientRect().top - 96);
+    };
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, [mode, datas.length, loadingTab, loadingC, itens.length]);
 
   // ao carregar, centraliza no dia de hoje (ou data mais próxima <= hoje)
   useEffect(() => {
@@ -165,7 +179,6 @@ export function EstoqueContagem() {
 
   // ====================== MODO TABELÃO ======================
   if (mode === 'tabela') {
-    const thCell = 'sticky left-0 z-20 bg-muted/40 text-left font-medium px-3 py-2 min-w-[15rem] w-[15rem] border-r';
     return (
       <div>
         <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -201,21 +214,21 @@ export function EstoqueContagem() {
             Nenhuma contagem em {MESES[mes - 1]}. Clique em <b>Fazer contagem</b> para começar.
           </div>
         ) : (
-          <div ref={scrollRef} className="overflow-auto border rounded-lg max-h-[calc(100vh-180px)]">
+          <div ref={scrollRef} style={{ maxHeight: tabH }} className="overflow-auto border rounded-lg">
             <table className="text-sm border-collapse">
               <thead>
-                <tr className="bg-muted/40">
-                  <th rowSpan={2} className={`${thCell} z-30 align-bottom border-b`}>Item</th>
+                <tr>
+                  <th rowSpan={2} className="sticky left-0 top-0 z-30 bg-muted/50 text-left font-medium px-3 align-middle min-w-[15rem] w-[15rem] border-r border-b">Item</th>
                   {datas.map(d => (
-                    <th key={d} data-date={d} colSpan={2} className="sticky top-0 z-10 bg-muted/40 px-2 pt-2 pb-1 font-medium text-center whitespace-nowrap border-l">
-                      <div className="flex items-center justify-center gap-1">
-                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${TIPO_DOT[tipoPorData.get(d) || 'diaria']}`} />
+                    <th key={d} data-date={d} colSpan={2} className="sticky top-0 z-20 bg-muted/50 h-8 px-2 font-medium text-center whitespace-nowrap border-l-2 border-border/60">
+                      <span className="inline-flex items-center justify-center gap-1">
+                        <span className={`w-1.5 h-1.5 rounded-full ${TIPO_DOT[tipoPorData.get(d) || 'diaria']}`} />
                         {ddmm(d)}
-                      </div>
+                      </span>
                     </th>
                   ))}
                 </tr>
-                <tr className="bg-muted/40">
+                <tr>
                   {datas.map(d => (
                     <FragmentTH key={d} />
                   ))}
@@ -243,7 +256,7 @@ export function EstoqueContagem() {
                 <tr className="font-medium">
                   <td className="sticky left-0 bottom-0 z-30 bg-muted/60 px-3 py-2 border-r border-t">Valor (preço atual)</td>
                   {datas.map(d => (
-                    <td key={d} colSpan={2} className="sticky bottom-0 z-10 bg-muted/60 px-2 py-2 text-center tabular-nums whitespace-nowrap text-xs border-l border-t">
+                    <td key={d} colSpan={2} className="sticky bottom-0 z-20 bg-muted/60 px-2 py-2 text-center tabular-nums whitespace-nowrap text-xs border-l-2 border-border/60 border-t">
                       {brl(totaisPorData[d] || 0)}
                     </td>
                   ))}
@@ -319,7 +332,7 @@ export function EstoqueContagem() {
       {loadingC ? (
         <div className="py-12 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
       ) : (
-        <div className="overflow-auto border rounded-lg max-h-[calc(100vh-260px)]">
+        <div ref={countRef} style={{ maxHeight: contH }} className="overflow-auto border rounded-lg">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-muted/40 text-left text-muted-foreground">
@@ -374,12 +387,12 @@ export function EstoqueContagem() {
   );
 }
 
-// Sub-cabeçalho E.FX / E.FL de cada data
+// Sub-cabeçalho E.FX / E.FL de cada data (colado à linha da data: mesmo fundo, top=altura da 1ª linha)
 function FragmentTH() {
   return (
     <>
-      <th title="Estoque fechado" className="sticky top-[33px] z-10 bg-muted/40 px-1.5 pb-1.5 font-normal text-[10px] text-muted-foreground text-center border-l">E.FX</th>
-      <th title="Estoque flutuante" className="sticky top-[33px] z-10 bg-muted/40 px-1.5 pb-1.5 font-normal text-[10px] text-muted-foreground text-center">E.FL</th>
+      <th title="Estoque fechado" className="sticky top-8 z-20 bg-muted/50 px-1.5 pb-1 font-normal text-[10px] text-muted-foreground text-center border-l-2 border-border/60 border-b min-w-[3.25rem]">E.FX</th>
+      <th title="Estoque flutuante" className="sticky top-8 z-20 bg-muted/50 px-1.5 pb-1 font-normal text-[10px] text-muted-foreground text-center border-b min-w-[3.25rem]">E.FL</th>
     </>
   );
 }
@@ -388,7 +401,7 @@ function FragmentTH() {
 function FragmentCell({ fx, fl }: { fx: number | null; fl: number | null }) {
   return (
     <>
-      <td className={`px-1.5 py-1.5 text-center tabular-nums border-l ${fx == null ? 'text-muted-foreground/30' : ''}`}>{fx == null ? '·' : qtd(fx)}</td>
+      <td className={`px-1.5 py-1.5 text-center tabular-nums border-l-2 border-border/40 ${fx == null ? 'text-muted-foreground/30' : ''}`}>{fx == null ? '·' : qtd(fx)}</td>
       <td className={`px-1.5 py-1.5 text-center tabular-nums ${fl == null ? 'text-muted-foreground/30' : ''}`}>{fl == null ? '·' : qtd(fl)}</td>
     </>
   );
