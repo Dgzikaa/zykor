@@ -1,128 +1,279 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useBar } from '@/contexts/BarContext';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
 import { api } from '@/lib/api-client';
-import { Search, Loader2, Check, ChevronLeft, Save, TrendingUp } from 'lucide-react';
+import {
+  Search, Loader2, Save, ChevronLeft, ChevronRight, Plus, ClipboardList, CalendarDays,
+} from 'lucide-react';
 
-type Area = { nome: string; itens: number };
-type Item = { insumo_id: number; codigo: string; nome: string; categoria: string | null; unidade_medida: string | null; custo_unitario: number | null; preco_atual: number | null; frequencia: string | null; tipo_item: string | null; ultimo_final: number | null; contado: number | null };
+type MatrizRow = {
+  insumo_codigo: string; nome: string; categoria: string | null; tipo_local: string | null;
+  tipo_item: string | null; unidade_medida: string | null; frequencia: string | null;
+  data_contagem: string; tipo_contagem: string; estoque_final: number | null; preco_atual: number | null;
+};
+type ItemContar = {
+  insumo_id: number; codigo: string; nome: string; categoria: string | null; tipo_local: string | null;
+  unidade_medida: string | null; frequencia: string | null; preco_atual: number | null;
+  ultimo_final: number | null; contado: number | null;
+};
 
-const FREQS = [
-  { v: '', label: 'Todas' },
-  { v: 'diaria', label: 'Diária' },
-  { v: 'semanal', label: 'Semanal' },
-  { v: 'mensal', label: 'Mensal' },
+const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const TIPOS = [
+  { v: 'diaria', label: 'Diária', desc: 'Itens de giro alto, contados todo dia.' },
+  { v: 'semanal', label: 'Semanal', desc: 'Diários + os de contagem semanal (segundas).' },
+  { v: 'mensal', label: 'Mensal', desc: 'Inventário completo (todo dia 1º).' },
 ];
+const TIPO_DOT: Record<string, string> = { mensal: 'bg-purple-500', semanal: 'bg-blue-500', diaria: 'bg-muted-foreground/40' };
 const hoje = () => new Date().toISOString().slice(0, 10);
 const num = (v: string) => (v === '' || v == null ? null : Number(String(v).replace(',', '.')));
 const brl = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+const qtd = (n: number | null | undefined) => (n == null ? '·' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(Number(n)));
+const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+const fmtData = (iso: string) => iso.split('-').reverse().join('/');
+const capitalize = (s: string | null) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '—');
 
 export function EstoqueContagem() {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
-  const [areas, setAreas] = useState<Area[]>([]);
-  const [area, setArea] = useState<string | null>(null);
-  const [data, setData] = useState(hoje());
-  const [itens, setItens] = useState<Item[]>([]);
+  const now = new Date();
+  const [mode, setMode] = useState<'tabela' | 'contar'>('tabela');
+
+  // ---- tabelão ----
+  const [ano, setAno] = useState(now.getFullYear());
+  const [mes, setMes] = useState(now.getMonth() + 1);
+  const [linhas, setLinhas] = useState<MatrizRow[]>([]);
+  const [loadingTab, setLoadingTab] = useState(false);
+  const [buscaTab, setBuscaTab] = useState('');
+  const [areaTab, setAreaTab] = useState('');
+
+  // ---- modal + contagem ----
+  const [modalOpen, setModalOpen] = useState(false);
+  const [novoTipo, setNovoTipo] = useState('diaria');
+  const [novaData, setNovaData] = useState(hoje());
+  const [tipoC, setTipoC] = useState('diaria');
+  const [dataC, setDataC] = useState(hoje());
+  const [itens, setItens] = useState<ItemContar[]>([]);
   const [valores, setValores] = useState<Record<number, string>>({});
-  const [busca, setBusca] = useState('');
-  const [freq, setFreq] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [buscaC, setBuscaC] = useState('');
+  const [areaC, setAreaC] = useState('');
+  const [loadingC, setLoadingC] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const carregarAreas = useCallback(async () => {
+  const carregarMes = useCallback(async () => {
     if (!selectedBar?.id) return;
-    const res = await api.get('/api/operacional/contagem');
-    setAreas(res.areas || []);
-  }, [selectedBar?.id]);
-  useEffect(() => { carregarAreas(); }, [carregarAreas]);
-
-  const abrirArea = async (a: string) => {
-    setArea(a); setLoading(true); setBusca('');
+    setLoadingTab(true);
     try {
-      const res = await api.get(`/api/operacional/contagem?area=${encodeURIComponent(a)}&data=${data}`);
-      const its: Item[] = res.itens || [];
+      const res = await api.get(`/api/operacional/contagem/mes?ano=${ano}&mes=${mes}`);
+      setLinhas(res.linhas || []);
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao carregar', message: e?.message }); }
+    finally { setLoadingTab(false); }
+  }, [selectedBar?.id, ano, mes, showToast]);
+  useEffect(() => { carregarMes(); }, [carregarMes]);
+
+  const mudarMes = (delta: number) => {
+    let m = mes + delta, a = ano;
+    if (m < 1) { m = 12; a -= 1; } if (m > 12) { m = 1; a += 1; }
+    setMes(m); setAno(a);
+  };
+
+  // pivot item × data
+  const { datas, tipoPorData, itensPivot, totaisPorData } = useMemo(() => {
+    const dset = new Map<string, string>();
+    const map = new Map<string, { row: MatrizRow; vals: Record<string, number | null> }>();
+    for (const r of linhas) {
+      dset.set(r.data_contagem, r.tipo_contagem);
+      const ex = map.get(r.insumo_codigo) || { row: r, vals: {} };
+      ex.vals[r.data_contagem] = r.estoque_final;
+      map.set(r.insumo_codigo, ex);
+    }
+    const datas = [...dset.keys()].sort();
+    const q = buscaTab.trim().toLowerCase();
+    let arr = [...map.values()].filter(({ row }) =>
+      (!areaTab || row.tipo_local === areaTab) &&
+      (!q || row.nome?.toLowerCase().includes(q) || (row.categoria || '').toLowerCase().includes(q)));
+    arr = arr.sort((a, b) => (a.row.categoria || '').localeCompare(b.row.categoria || '') || (a.row.nome || '').localeCompare(b.row.nome || ''));
+    const totais: Record<string, number> = {};
+    for (const d of datas) totais[d] = arr.reduce((s, { row, vals }) => s + ((vals[d] ?? 0) * (Number(row.preco_atual) || 0)), 0);
+    return { datas, tipoPorData: dset, itensPivot: arr, totaisPorData: totais };
+  }, [linhas, buscaTab, areaTab]);
+
+  // ---- iniciar contagem ----
+  const comecar = async () => {
+    setTipoC(novoTipo); setDataC(novaData); setModalOpen(false);
+    setMode('contar'); setLoadingC(true); setBuscaC(''); setAreaC('');
+    try {
+      const res = await api.get(`/api/operacional/contagem/itens?tipo=${novoTipo}&data=${novaData}`);
+      const its: ItemContar[] = res.itens || [];
       setItens(its);
       const v: Record<number, string> = {};
       its.forEach(i => { if (i.contado != null) v[i.insumo_id] = String(i.contado); });
       setValores(v);
-    } finally { setLoading(false); }
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao carregar itens', message: e?.message }); }
+    finally { setLoadingC(false); }
   };
 
   const salvar = async () => {
-    const payload = Object.entries(valores)
-      .filter(([, v]) => v !== '' && v != null)
+    const payload = Object.entries(valores).filter(([, v]) => v !== '' && v != null)
       .map(([id, v]) => ({ insumo_id: Number(id), estoque_final: num(v) }));
     if (!payload.length) return showToast({ type: 'error', title: 'Conte ao menos 1 item' });
     setSaving(true);
     try {
-      const res = await api.post('/api/operacional/contagem', { area, data, itens: payload });
-      showToast({ type: 'success', title: `Contagem salva`, message: `${res.salvos} item(ns) — área ${area}.` });
-      carregarAreas();
+      const res = await api.post('/api/operacional/contagem', { data: dataC, itens: payload });
+      showToast({ type: 'success', title: 'Contagem salva', message: `${res.salvos} item(ns).` });
+      setMode('tabela'); carregarMes();
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao salvar', message: e?.message }); }
     finally { setSaving(false); }
   };
 
-  const filtrados = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    const arr = itens.filter(i =>
-      (!freq || i.frequencia === freq) &&
-      (!q || i.nome.toLowerCase().includes(q)));
-    const grupos: Record<string, Item[]> = {};
-    arr.forEach(i => { const c = i.categoria || 'Sem categoria'; (grupos[c] ||= []).push(i); });
-    return Object.entries(grupos);
-  }, [itens, busca, freq]);
+  const itensFiltrados = useMemo(() => {
+    const q = buscaC.trim().toLowerCase();
+    const arr = itens.filter(i => (!areaC || i.tipo_local === areaC) && (!q || i.nome.toLowerCase().includes(q)));
+    const g: Record<string, ItemContar[]> = {};
+    arr.forEach(i => { const c = i.categoria || 'Sem categoria'; (g[c] ||= []).push(i); });
+    return Object.entries(g);
+  }, [itens, buscaC, areaC]);
 
   const contados = useMemo(() => Object.values(valores).filter(v => v !== '' && v != null).length, [valores]);
-  const valorTotal = useMemo(() =>
-    itens.reduce((s, i) => {
-      const q = num(valores[i.insumo_id] ?? '');
-      return s + (q != null ? q * (Number(i.preco_atual) || 0) : 0);
-    }, 0), [itens, valores]);
+  const valorTotal = useMemo(() => itens.reduce((s, i) => {
+    const q = num(valores[i.insumo_id] ?? '');
+    return s + (q != null ? q * (Number(i.preco_atual) || 0) : 0);
+  }, 0), [itens, valores]);
 
-  // ---- Seleção de área ----
-  if (!area) {
+  if (!selectedBar?.id) {
+    return <div className="py-12 text-center text-muted-foreground">Selecione um bar.</div>;
+  }
+
+  // ====================== MODO TABELÃO ======================
+  if (mode === 'tabela') {
     return (
-      <div className="max-w-2xl">
-        <p className="text-sm text-muted-foreground mb-4">Escolha a área e conte pelo celular. Sem planilha.</p>
-        <div className="flex items-end justify-between gap-2 mb-4">
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1">Data da contagem</label>
-            <Input type="date" value={data} onChange={e => setData(e.target.value)} className="w-44" />
+      <div>
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <div className="flex items-center gap-1 rounded-lg border p-0.5">
+            <Button variant="ghost" size="sm" className="px-2" onClick={() => mudarMes(-1)}><ChevronLeft className="w-4 h-4" /></Button>
+            <span className="text-sm font-semibold w-32 text-center">{MESES[mes - 1]} {ano}</span>
+            <Button variant="ghost" size="sm" className="px-2" onClick={() => mudarMes(1)}><ChevronRight className="w-4 h-4" /></Button>
           </div>
-          <Link href="/operacional/contagem/resultado" className="text-sm text-blue-600 flex items-center gap-1 pb-2 hover:underline">
-            <TrendingUp className="w-4 h-4" /> Ver resultado
-          </Link>
+          <div className="relative flex-1 min-w-[12rem] max-w-xs">
+            <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-muted-foreground" />
+            <Input value={buscaTab} onChange={e => setBuscaTab(e.target.value)} placeholder="Buscar item…" className="pl-8 h-9" />
+          </div>
+          <select value={areaTab} onChange={e => setAreaTab(e.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
+            <option value="">Todas as áreas</option>
+            <option value="bar">Bar</option>
+            <option value="cozinha">Cozinha</option>
+          </select>
+          <Button onClick={() => { setNovoTipo('diaria'); setNovaData(hoje()); setModalOpen(true); }} className="ml-auto gap-1.5">
+            <Plus className="w-4 h-4" /> Fazer contagem
+          </Button>
         </div>
-        {areas.length === 0 ? (
-          <Card><CardContent className="py-10 text-center text-muted-foreground">Nenhuma área com itens cadastrados (defina o <b>local</b> dos insumos).</CardContent></Card>
+
+        {loadingTab ? (
+          <div className="py-16 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+        ) : datas.length === 0 ? (
+          <div className="py-16 text-center text-muted-foreground border rounded-lg">
+            <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-40" />
+            Nenhuma contagem em {MESES[mes - 1]}. Clique em <b>Fazer contagem</b> para começar.
+          </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {areas.map(a => (
-              <button key={a.nome} onClick={() => abrirArea(a.nome)}
-                className="text-left rounded-lg border p-4 hover:bg-muted/40 transition active:scale-[0.99]">
-                <div className="font-semibold capitalize">{a.nome}</div>
-                <div className="text-xs text-muted-foreground">{a.itens} itens</div>
-              </button>
-            ))}
+          <div className="overflow-x-auto border rounded-lg">
+            <table className="text-sm border-collapse w-full">
+              <thead>
+                <tr className="border-b bg-muted/30">
+                  <th className="sticky left-0 z-10 bg-muted/30 text-left font-medium px-3 py-2 min-w-[14rem] border-r">Item</th>
+                  {datas.map(d => (
+                    <th key={d} className="px-2 py-2 font-medium text-center whitespace-nowrap min-w-[3.5rem]">
+                      <div className="flex items-center justify-center gap-1">
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${TIPO_DOT[tipoPorData.get(d) || 'diaria']}`} />
+                        {ddmm(d)}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {itensPivot.map(({ row, vals }) => (
+                  <tr key={row.insumo_codigo} className="border-b hover:bg-muted/20">
+                    <td className="sticky left-0 z-10 bg-background px-3 py-1.5 border-r">
+                      <div className="font-medium leading-tight">{row.nome}</div>
+                      <div className="text-xs text-muted-foreground">{row.categoria || '—'} · {row.unidade_medida || 'un'}</div>
+                    </td>
+                    {datas.map(d => (
+                      <td key={d} className={`px-2 py-1.5 text-center tabular-nums ${vals[d] == null ? 'text-muted-foreground/40' : ''}`}>
+                        {qtd(vals[d])}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t bg-muted/30 font-medium">
+                  <td className="sticky left-0 z-10 bg-muted/30 px-3 py-2 border-r">Valor (preço atual)</td>
+                  {datas.map(d => (
+                    <td key={d} className="px-2 py-2 text-center tabular-nums whitespace-nowrap text-xs">{brl(totaisPorData[d] || 0)}</td>
+                  ))}
+                </tr>
+              </tfoot>
+            </table>
           </div>
         )}
+
+        <p className="text-xs text-muted-foreground mt-2 flex items-center gap-3">
+          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-purple-500" /> mensal</span>
+          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> semanal</span>
+          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" /> diária</span>
+        </p>
+
+        {/* Modal: escolher o tipo de contagem */}
+        <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Fazer contagem</DialogTitle>
+              <DialogDescription>Escolha o tipo de contagem e a data.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-1">
+              {TIPOS.map(t => (
+                <button key={t.v} onClick={() => setNovoTipo(t.v)}
+                  className={`w-full text-left rounded-lg border p-3 transition ${novoTipo === t.v ? 'border-primary ring-1 ring-primary bg-primary/5' : 'hover:bg-muted/40'}`}>
+                  <div className="flex items-center gap-2 font-semibold">
+                    <span className={`inline-block w-2 h-2 rounded-full ${TIPO_DOT[t.v]}`} />{t.label}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{t.desc}</div>
+                </button>
+              ))}
+              <div className="pt-1">
+                <label className="text-xs text-muted-foreground flex items-center gap-1 mb-1"><CalendarDays className="w-3.5 h-3.5" /> Data da contagem</label>
+                <Input type="date" value={novaData} onChange={e => setNovaData(e.target.value)} className="w-44" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
+              <Button onClick={comecar}>Começar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
 
-  // ---- Contagem da área ----
+  // ====================== MODO CONTAGEM (mobile) ======================
+  const tipoLabel = TIPOS.find(t => t.v === tipoC)?.label || tipoC;
   return (
-    <div className="max-w-2xl pb-24">
-      <div className="flex items-center gap-2 mb-2">
-        <Button variant="ghost" size="sm" className="px-2" onClick={() => setArea(null)}><ChevronLeft className="w-4 h-4" /></Button>
-        <h2 className="text-lg font-bold capitalize flex-1">{area}</h2>
+    <div className="max-w-2xl mx-auto pb-24">
+      <div className="flex items-center gap-2 mb-1">
+        <Button variant="ghost" size="sm" className="px-2" onClick={() => setMode('tabela')}><ChevronLeft className="w-4 h-4" /></Button>
+        <div className="flex-1">
+          <h2 className="text-lg font-bold leading-tight flex items-center gap-2">
+            <span className={`inline-block w-2 h-2 rounded-full ${TIPO_DOT[tipoC]}`} />Contagem {tipoLabel}
+          </h2>
+          <p className="text-xs text-muted-foreground">{fmtData(dataC)}</p>
+        </div>
         <span className="text-xs text-muted-foreground">{contados}/{itens.length}</span>
       </div>
       <div className="h-1.5 rounded bg-muted mb-3 overflow-hidden">
@@ -131,49 +282,46 @@ export function EstoqueContagem() {
 
       <div className="relative mb-2">
         <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-muted-foreground" />
-        <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar item…" className="pl-8" />
+        <Input value={buscaC} onChange={e => setBuscaC(e.target.value)} placeholder="Buscar item…" className="pl-8" />
       </div>
       <div className="flex gap-1.5 mb-3">
-        {FREQS.map(f => (
-          <button key={f.v} onClick={() => setFreq(f.v)}
-            className={`text-xs px-2.5 py-1 rounded-full border transition ${freq === f.v ? 'bg-foreground text-background' : 'hover:bg-muted/50'}`}>
-            {f.label}
+        {[{ v: '', l: 'Todas' }, { v: 'bar', l: 'Bar' }, { v: 'cozinha', l: 'Cozinha' }].map(a => (
+          <button key={a.v} onClick={() => setAreaC(a.v)}
+            className={`text-xs px-2.5 py-1 rounded-full border transition ${areaC === a.v ? 'bg-foreground text-background' : 'hover:bg-muted/50'}`}>
+            {a.l}
           </button>
         ))}
       </div>
 
-      {loading ? (
+      {loadingC ? (
         <div className="py-12 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
       ) : (
         <div className="space-y-4">
-          {filtrados.map(([cat, lista]) => (
+          {itensFiltrados.map(([cat, lista]) => (
             <div key={cat}>
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 sticky top-0 bg-background/95 py-1">{cat}</div>
-              <div className="space-y-1.5">
+              <div className="divide-y rounded-lg border">
                 {lista.map(i => {
                   const v = valores[i.insumo_id] ?? '';
-                  const contado = v !== '';
+                  const feito = v !== '';
                   return (
-                    <div key={i.insumo_id} className={`rounded-lg border p-3 ${contado ? 'border-emerald-400 bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
-                      <div className="text-sm font-medium mb-1.5 break-words flex items-start gap-1.5">
-                        {contado && <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />}
-                        <span>{i.nome || `(item ${i.codigo})`}</span>
+                    <div key={i.insumo_id} className={`flex items-center gap-3 px-3 py-2 ${feito ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium truncate">{i.nome}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {i.unidade_medida || 'un'} · ant: {i.ultimo_final ?? '—'}
+                          {feito && i.preco_atual ? <> · <b className="text-foreground">{brl((num(v) ?? 0) * Number(i.preco_atual))}</b></> : null}
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs text-muted-foreground">
-                          {i.unidade_medida || 'un'} · anterior: <b>{i.ultimo_final ?? '—'}</b>
-                          {contado && i.preco_atual ? <> · <b className="text-foreground">{brl((num(v) ?? 0) * Number(i.preco_atual))}</b></> : null}
-                        </span>
-                        <Input value={v} onChange={e => setValores(p => ({ ...p, [i.insumo_id]: e.target.value }))}
-                          inputMode="decimal" placeholder="0" className="w-24 text-center text-base h-11 shrink-0" />
-                      </div>
+                      <Input value={v} onChange={e => setValores(p => ({ ...p, [i.insumo_id]: e.target.value }))}
+                        inputMode="decimal" placeholder="0" className={`w-20 text-center text-base h-10 shrink-0 ${feito ? 'border-emerald-400' : ''}`} />
                     </div>
                   );
                 })}
               </div>
             </div>
           ))}
-          {filtrados.length === 0 && <div className="py-8 text-center text-muted-foreground text-sm">Nenhum item.</div>}
+          {itensFiltrados.length === 0 && <div className="py-8 text-center text-muted-foreground text-sm">Nenhum item.</div>}
         </div>
       )}
 
