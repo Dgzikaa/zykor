@@ -199,8 +199,9 @@ export default function CadastrosPage() {
     finally { setSincronizando(false); }
   };
 
-  // Materiais de limpeza/descartáveis NÃO são insumos — vão pra aba própria e não contam como erro
-  const ehMaterial = (s: string | null) => /limpeza|descart/i.test(s || '');
+  // Tudo que NÃO é insumo (limpeza, descartáveis, tabaco, impostos, frete = seções Limpeza/Descart/Outros)
+  // vai pra aba Materiais e não conta como erro.
+  const ehMaterial = (s: string | null) => /limpeza|descart|outros/i.test(s || '');
   const insumosBase = useMemo(() => produtos.filter(p => !ehMaterial(p.nome_secao)), [produtos]);
   const materiais = useMemo(() => produtos.filter(p => ehMaterial(p.nome_secao)), [produtos]);
   const [filtroEsp, setFiltroEsp] = useState<'variacoes' | 'invalido' | null>(null);
