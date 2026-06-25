@@ -36,8 +36,10 @@ export async function GET(request: NextRequest) {
   ]);
   if (precoRes.error) return NextResponse.json({ success: false, error: precoRes.error.message }, { status: 500 });
   const nomeMap = new Map<number, any>((prodRes.data || []).map((p: any) => [p.id_produto_sisfood_cotacao, p]));
+  // Materiais (limpeza/descartáveis/outros: tabaco, impostos, frete) não são insumos — fora da variação
+  const ehMaterial = (s: string | null) => /limpeza|descart|outros/i.test(s || '');
   const rows = (precoRes.data || [])
-    .filter((p: any) => p.preco_atual != null)
+    .filter((p: any) => p.preco_atual != null && !ehMaterial(nomeMap.get(p.id_prod)?.nome_secao))
     .map((p: any) => {
       const info = nomeMap.get(p.id_prod) || {};
       const atual = Number(p.preco_atual), ant = p.preco_anterior != null ? Number(p.preco_anterior) : null;
