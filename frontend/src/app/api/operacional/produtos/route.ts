@@ -47,9 +47,14 @@ export async function GET(request: NextRequest) {
   const { data: chRows } = await supabase.from('produto_contahub_map').select('prd, cod_interno').eq('bar_id', barId);
   (chRows || []).forEach((r: any) => { if (r.cod_interno) (chMap[r.cod_interno] ??= []).push(r.prd); });
 
+  // cód Yuzer por cod_interno
+  const yzMap: Record<string, string[]> = {};
+  const { data: yzRows } = await supabase.from('produto_yuzer_map').select('cod_yuzer, cod_interno').eq('bar_id', barId);
+  (yzRows || []).forEach((r: any) => { if (r.cod_interno) (yzMap[r.cod_interno] ??= []).push(r.cod_yuzer); });
+
   return NextResponse.json({
     success: true,
-    produtos: (data || []).map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [] })),
+    produtos: (data || []).map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [] })),
   });
 }
 

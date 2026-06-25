@@ -53,14 +53,22 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
 
   const nZero = lista.filter(p => (p.qtd_componentes ?? 0) === 0).length;
   const nSemMestre = kind === 'producao' ? lista.filter(p => (p.qtd_componentes ?? 0) > 0 && !p.tem_mestre).length : 0;
+  // categoria pelo prefixo do código: finalização b=Bebida d=Drink c=Comida o=Outros · produção pd=Bar pc=Cozinha
+  const cats = kind === 'produto' ? ['Bebida', 'Drink', 'Comida', 'Outros'] : ['Bar', 'Cozinha'];
+  const catDe = (p: any) => {
+    if (kind === 'produto') { const c = (p.codigo || '')[0]?.toLowerCase(); return c === 'b' ? 'Bebida' : c === 'd' ? 'Drink' : c === 'c' ? 'Comida' : 'Outros'; }
+    return (p.codigo || '').toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha';
+  };
+  const [catFiltro, setCatFiltro] = useState<string | null>(null);
   const listaView = useMemo(() => {
     const q = buscaLista.trim().toLowerCase();
     return lista.filter(p => {
+      if (catFiltro && catDe(p) !== catFiltro) return false;
       if (filtroLista === 'zero' && (p.qtd_componentes ?? 0) !== 0) return false;
       if (filtroLista === 'sem_mestre' && !((p.qtd_componentes ?? 0) > 0 && !p.tem_mestre)) return false;
       return !q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q);
     });
-  }, [lista, buscaLista, filtroLista]);
+  }, [lista, buscaLista, filtroLista, catFiltro]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selObj = lista.find(p => p.id === sel) || null;
   const custoTotal = itens.reduce((s, it) => s + Number(it.custo_planilha || 0), 0);
@@ -133,6 +141,11 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                 {filtroLista && <button onClick={() => setFiltroLista(null)} className="text-[10px] text-gray-400 underline px-1">limpar</button>}
               </div>
             )}
+            <div className="flex flex-wrap gap-1 mt-2">
+              {cats.map(c => (
+                <button key={c} onClick={() => setCatFiltro(f => f === c ? null : c)} className={`text-[10px] rounded px-2 py-0.5 border ${catFiltro === c ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>{c}</button>
+              ))}
+            </div>
           </div>
           <div className="max-h-[60vh] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
             {listaView.length === 0 ? (
