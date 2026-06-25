@@ -301,7 +301,8 @@ function calcularStatusGeral(
 }
 
 function acoesPara(cat: IntegracaoCatalogo, status: StatusGeral): IntegracaoResposta['acoes'] {
-  const acoes: IntegracaoResposta['acoes'] = [];
+  // ações declaradas no catálogo (ex.: Configurar token do Tangerino) + as hardcoded abaixo
+  const acoes: IntegracaoResposta['acoes'] = [...(cat.acoes || [])];
 
   if (cat.id === 'instagram') {
     if (status === 'conectada' || status === 'parcial') {
