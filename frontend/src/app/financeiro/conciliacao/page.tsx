@@ -500,11 +500,11 @@ export default function ConciliacaoPage() {
                     </Card>
                   )}
                   {/* Totais do mês por CNPJ (igual antes) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                  <div className="grid grid-cols-1 gap-2 mb-3">
                     {cnpjsDoBar.map((cj, i) => { const p = porCnpjMes[cj.cnpj_indice] || { nf: 0, stone: 0 }; return (
                       <Card key={i}><CardContent className="py-3">
                         <div className="text-xs font-medium mb-1">{cj.cnpj_label} <span className="text-muted-foreground">({cj.cnpj_documento})</span></div>
-                        <div className="flex flex-wrap gap-x-6 gap-y-2">
+                        <div className="flex flex-wrap sm:flex-nowrap gap-x-8 gap-y-2">
                           <div><div className="text-[11px] text-muted-foreground">NF emitida (mês)</div><div className="text-base font-bold">{fmtBRL(p.nf)}</div></div>
                           <div><div className="text-[11px] text-muted-foreground">Venda Stone (mês)</div><div className="text-base font-bold">{fmtBRL(p.stone)}</div></div>
                           {metaNf && cj.cnpj_indice === metaNf.cnpj_indice && (() => {
