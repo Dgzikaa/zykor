@@ -33,7 +33,15 @@ export async function GET(request: NextRequest) {
     .select('id,codigo,nome,categoria,ativo,origem,atualizado_em')
     .eq('bar_id', barId).order('codigo', { ascending: true });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, produtos: data ?? [] });
+
+  // contagem de itens da ficha (finalização) por produto
+  const ids = (data || []).map((p: any) => p.id);
+  const contagem: Record<number, number> = {};
+  if (ids.length) {
+    const { data: itens } = await supabase.from('producao_ficha_item').select('produto_id').in('produto_id', ids);
+    (itens || []).forEach((i: any) => { if (i.produto_id) contagem[i.produto_id] = (contagem[i.produto_id] || 0) + 1; });
+  }
+  return NextResponse.json({ success: true, produtos: (data || []).map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0 })) });
 }
 
 export async function POST(request: NextRequest) {
