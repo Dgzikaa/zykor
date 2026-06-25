@@ -104,6 +104,7 @@ export default function ConciliacaoPage() {
   const [loadingAn, setLoadingAn] = useState(false);
   const [loadingPend, setLoadingPend] = useState(false);
   const [nfStone, setNfStone] = useState<any[]>([]);
+  const [metaNf, setMetaNf] = useState<{ cnpj_indice: number; valor: number } | null>(null);
   const [contahubNf, setContahubNf] = useState<any[]>([]);
   const [loadingNfStone, setLoadingNfStone] = useState(false);
   const [loadingContahubNf, setLoadingContahubNf] = useState(false);
@@ -181,6 +182,7 @@ export default function ConciliacaoPage() {
     try {
       const r = await api.get(`/api/financeiro/conciliacao/nf-stone-cnpj?de=${periodo.de}&ate=${periodo.ate}`);
       setNfStone(r.linhas || []);
+      setMetaNf(r.meta_nf || null);
     } catch (e: any) {
       showToast({ type: 'error', title: 'Erro ao carregar NF × Stone', message: e?.message });
     } finally { setLoadingNfStone(false); }
@@ -502,9 +504,22 @@ export default function ConciliacaoPage() {
                     {cnpjsDoBar.map((cj, i) => { const p = porCnpjMes[cj.cnpj_indice] || { nf: 0, stone: 0 }; return (
                       <Card key={i}><CardContent className="py-3">
                         <div className="text-xs font-medium mb-1">{cj.cnpj_label} <span className="text-muted-foreground">({cj.cnpj_documento})</span></div>
-                        <div className="flex gap-6">
+                        <div className="flex flex-wrap gap-x-6 gap-y-2">
                           <div><div className="text-[11px] text-muted-foreground">NF emitida (mês)</div><div className="text-base font-bold">{fmtBRL(p.nf)}</div></div>
                           <div><div className="text-[11px] text-muted-foreground">Venda Stone (mês)</div><div className="text-base font-bold">{fmtBRL(p.stone)}</div></div>
+                          {metaNf && cj.cnpj_indice === metaNf.cnpj_indice && (() => {
+                            const pct = metaNf.valor > 0 ? (p.nf / metaNf.valor) * 100 : 0;
+                            const estourou = p.nf >= metaNf.valor;
+                            return (
+                              <div className="border-l pl-6">
+                                <div className="text-[11px] text-muted-foreground">Meta NF (folha projetada)</div>
+                                <div className="text-base font-bold">{fmtBRL(metaNf.valor)}</div>
+                                <div className={`text-[11px] font-medium ${estourou ? 'text-red-600 dark:text-red-400' : pct > 85 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                  {pct.toFixed(0)}% emitido{estourou ? ' · já passou a folha — emitir resto no outro CNPJ' : ''}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </CardContent></Card>
                     ); })}

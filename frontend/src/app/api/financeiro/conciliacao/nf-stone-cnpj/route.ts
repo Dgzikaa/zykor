@@ -27,5 +27,30 @@ export async function GET(request: NextRequest) {
     .order('data', { ascending: false }).order('cnpj_indice', { ascending: true });
 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, linhas: data ?? [] });
+
+  // Meta de NF do CNPJ do Simples Nacional = custo-empresa funcionário projetado (folha) do período.
+  // Ideal não emitir NF acima da folha nesse CNPJ. Config por bar: qual CNPJ é o Simples.
+  const SIMPLES_POR_BAR: Record<number, { cnpj_indice: number }> = { 3: { cnpj_indice: 2 } };
+  let meta_nf: { cnpj_indice: number; valor: number } | null = null;
+  const cfg = SIMPLES_POR_BAR[user.bar_id];
+  if (cfg) {
+    const meses: Array<{ ano: number; mes: number }> = [];
+    let y = Number(de.slice(0, 4)), m = Number(de.slice(5, 7));
+    const yf = Number(ate.slice(0, 4)), mf = Number(ate.slice(5, 7));
+    while (y < yf || (y === yf && m <= mf)) { meses.push({ ano: y, mes: m }); m++; if (m > 12) { m = 1; y++; } }
+    const anos = Array.from(new Set(meses.map((x) => x.ano)));
+    const mesesNum = Array.from(new Set(meses.map((x) => x.mes)));
+    const { data: plan } = await (supabase as any).schema('meta')
+      .from('orcamento_planilha')
+      .select('ano, mes, valor_planejado, valor_projetado')
+      .eq('bar_id', user.bar_id)
+      .ilike('categoria_nome', '%EMPRESA FUNCION%')
+      .in('ano', anos).in('mes', mesesNum);
+    const valor = (plan ?? [])
+      .filter((p: any) => meses.some((x) => x.ano === p.ano && x.mes === p.mes))
+      .reduce((s: number, p: any) => s + Number(p.valor_projetado ?? p.valor_planejado ?? 0), 0);
+    if (valor > 0) meta_nf = { cnpj_indice: cfg.cnpj_indice, valor };
+  }
+
+  return NextResponse.json({ success: true, linhas: data ?? [], meta_nf });
 }
