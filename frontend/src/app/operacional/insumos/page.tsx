@@ -157,6 +157,7 @@ interface Produto {
   id_produto_sisfood_cotacao: number; cod_interno: string | null; nome: string | null; marca: string | null;
   gramatura: string | null; estoque: number | null; nome_secao: string | null; id_secao_cotacao: number | null;
   nome_fornecedor: string | null; fornecedor_ultimo: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
+  cod_duplicado?: boolean; cod_invalido?: boolean;
 }
 interface Secao { id_secao_cotacao: number; nome: string | null; }
 
@@ -345,6 +346,8 @@ export default function CadastrosPage() {
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <Badge variant="outline">{filtrados.length} de {produtos.length} insumos</Badge>
               {semDepara > 0 && <Badge variant="outline" className="text-amber-600 border-amber-300">{semDepara} sem código</Badge>}
+              {produtos.filter(p => p.cod_duplicado).length > 0 && <Badge variant="outline" className="text-red-600 border-red-300">{produtos.filter(p => p.cod_duplicado).length} com código duplicado</Badge>}
+              {produtos.filter(p => p.cod_invalido).length > 0 && <Badge variant="outline" className="text-red-600 border-red-300">{produtos.filter(p => p.cod_invalido).length} com código inválido</Badge>}
             </div>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -364,7 +367,12 @@ export default function CadastrosPage() {
                     const caiu = p.preco_anterior != null && p.preco_atual != null && p.preco_atual < p.preco_anterior;
                     return (
                       <tr key={p.id_produto_sisfood_cotacao} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                        <td className="px-3 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{p.cod_interno || <span className="text-amber-500">—</span>}</td>
+                        <td className="px-3 py-2 font-mono text-xs">
+                          {p.cod_invalido ? <span className="text-red-500" title="Código inválido no VMarket (não é i0XXX)">⚠ {p.cod_interno}</span>
+                            : p.cod_duplicado ? <span className="text-red-500" title="Código duplicado — outro insumo usa o mesmo código no VMarket">⚠ {p.cod_interno}</span>
+                            : p.cod_interno ? <span className="text-gray-600 dark:text-gray-300">{p.cod_interno}</span>
+                            : <span className="text-amber-500">—</span>}
+                        </td>
                         <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}</td>
                         <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.marca || '—'}</td>
                         <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>

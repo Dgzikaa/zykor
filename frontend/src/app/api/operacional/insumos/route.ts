@@ -41,6 +41,12 @@ export async function GET(request: NextRequest) {
     .select('id_prod, preco_atual, data_atual, preco_anterior, fornecedor_atual')
     .eq('bar_id', barId);
   const precoMap = new Map<number, any>((precos || []).map((p: any) => [p.id_prod, p]));
+
+  // Confere de integridade do código: cod_interno duplicado (2+ produtos) ou inválido (não i0XXX)
+  const codCount = new Map<string, number>();
+  for (const p of (produtos as any[]) || []) if (p.cod_interno) codCount.set(p.cod_interno, (codCount.get(p.cod_interno) || 0) + 1);
+  const valido = (c: string | null) => !!c && /^i\d/.test(c);
+
   const produtosComPreco = (produtos || []).map((p: any) => {
     const pr = precoMap.get(p.id_produto_sisfood_cotacao);
     return {
@@ -48,6 +54,8 @@ export async function GET(request: NextRequest) {
       preco_atual: pr?.preco_atual ?? null, preco_data: pr?.data_atual ?? null, preco_anterior: pr?.preco_anterior ?? null,
       // fornecedor = de onde veio a última compra (cai pro cadastro VMarket se nunca comprou)
       fornecedor_ultimo: pr?.fornecedor_atual ?? p.nome_fornecedor ?? null,
+      cod_duplicado: !!p.cod_interno && (codCount.get(p.cod_interno) || 0) > 1,
+      cod_invalido: p.cod_interno != null && !valido(p.cod_interno),
     };
   });
 
