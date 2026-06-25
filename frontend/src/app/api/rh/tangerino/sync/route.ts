@@ -54,15 +54,18 @@ export async function POST(req: NextRequest) {
   catch (e: any) { return NextResponse.json({ error: e?.message }, { status: 400 }); }
 
   const authHeader = tangerinoAuthHeader(resolved.token);
+  // Datas da Tangerino são em MILISEGUNDOS (epoch). BRT -03:00.
+  const deMs = new Date(`${de}T00:00:00-03:00`).getTime();
+  const ateMs = new Date(`${hoje}T23:59:59-03:00`).getTime();
   let gravados = 0, pagina = 0, total = 0;
   const size = 200;
   try {
     // paginação do Page«Punch»
     for (;;) {
-      const url = `${TANGERINO.punch}/?startDate=${de}&endDate=${hoje}&page=${pagina}&size=${size}`; // CONFIRMAR formato das datas
+      const url = `${TANGERINO.punch}/?startDate=${deMs}&endDate=${ateMs}&page=${pagina}&size=${size}`;
       const resp = await fetch(url, { headers: { Authorization: authHeader } });
       if (!resp.ok) {
-        return NextResponse.json({ error: `Tangerino HTTP ${resp.status}`, corpo: (await resp.text()).slice(0, 400), pagina }, { status: 502 });
+        return NextResponse.json({ error: `Tangerino HTTP ${resp.status}`, corpo: (await resp.text()).slice(0, 400), url, pagina }, { status: 502 });
       }
       const json: any = await resp.json();
       const itens: any[] = json?.content ?? (Array.isArray(json) ? json : []);
