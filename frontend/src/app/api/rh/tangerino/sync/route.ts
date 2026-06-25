@@ -97,6 +97,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ employees: true, tentativas: out });
   }
 
+  // SYNC dos cadastros (cargo/setor/colaborador/escala) -> bronze. { cadastros:true }
+  if (body?.cadastros) {
+    const pullAll = async (path: string): Promise<{ items: any[]; error?: number }> => {
+      const items: any[] = [];
+      for (let page = 0; page < 60; page++) {
+        const sep = path.includes('?') ? '&' : '?';
+        const r = await fetch(`${TANGERINO.employer}${path}${sep}page=${page}&size=200`, { headers: { Authorization: authHeader } });
+        if (!r.ok) return { items, error: r.status };
+        const j: any = await r.json();
+        const c: any[] = j?.content ?? (Array.isArray(j) ? j : []);
+        items.push(...c);
+        if (j?.last === true || c.length < 200) break;
+      }
+      return { items };
+    };
+    const up = async (tabela: string, conflict: string, rows: any[]) => {
+      if (rows.length) await (supabase as any).schema('bronze').from(tabela).upsert(rows, { onConflict: conflict });
+    };
+    const jr = await pullAll('/job-role/find-all');
+    await up('bronze_tangerino_job_role', 'bar_id,job_role_id_ext', jr.items.map((x: any) => ({ bar_id: barId, job_role_id_ext: x.id, payload: x })));
+    const wp = await pullAll('/workplace/find-all');
+    await up('bronze_tangerino_workplace', 'bar_id,workplace_id_ext', wp.items.map((x: any) => ({ bar_id: barId, workplace_id_ext: x.id, payload: x })));
+    const emp = await pullAll('/employee/find-all');
+    await up('bronze_tangerino_employee', 'bar_id,employee_id_ext', emp.items.map((x: any) => ({ bar_id: barId, employee_id_ext: x.id, payload: x })));
+    const ws = await pullAll('/work-schedule');
+    await up('bronze_tangerino_work_schedule', 'bar_id,schedule_id_ext', ws.items.map((x: any) => ({ bar_id: barId, schedule_id_ext: x.id, payload: x })));
+    return NextResponse.json({ cadastros: true,
+      job_roles: jr.items.length, workplaces: wp.items.length, employees: emp.items.length, work_schedules: ws.items.length,
+      erros: { jr: jr.error, wp: wp.error, emp: emp.error, ws: ws.error } });
+  }
+
   let gravados = 0, pagina = 0, total = 0;
   const size = 200;
   try {
