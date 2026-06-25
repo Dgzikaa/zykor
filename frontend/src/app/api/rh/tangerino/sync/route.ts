@@ -57,6 +57,28 @@ export async function POST(req: NextRequest) {
   // Datas da Tangerino são em MILISEGUNDOS (epoch). BRT -03:00.
   const deMs = new Date(`${de}T00:00:00-03:00`).getTime();
   const ateMs = new Date(`${hoje}T23:59:59-03:00`).getTime();
+
+  // DEBUG: testa formatos do GET /api/punch numa tacada só (não grava). { debug:true }
+  if (body?.debug) {
+    const combos: Array<{ nome: string; url: string }> = [
+      { nome: 'ms-slash', url: `${TANGERINO.punch}/?startDate=${deMs}&endDate=${ateMs}&page=0&size=3` },
+      { nome: 'ms-noslash', url: `${TANGERINO.punch}?startDate=${deMs}&endDate=${ateMs}&page=0&size=3` },
+      { nome: 'iso-noslash', url: `${TANGERINO.punch}?startDate=${de}&endDate=${hoje}&page=0&size=3` },
+      { nome: 'isodt-noslash', url: `${TANGERINO.punch}?startDate=${de}T00:00:00&endDate=${hoje}T23:59:59&page=0&size=3` },
+      { nome: 'so-pagina', url: `${TANGERINO.punch}?page=0&size=3` },
+      { nome: 'lastUpdate-ms', url: `${TANGERINO.punch}?lastUpdate=${deMs}&page=0&size=3` },
+    ];
+    const out: any[] = [];
+    for (const c of combos) {
+      try {
+        const r = await fetch(c.url, { headers: { Authorization: authHeader } });
+        const t = await r.text();
+        out.push({ nome: c.nome, status: r.status, ct: r.headers.get('content-type'), body: t.slice(0, 220) });
+      } catch (e: any) { out.push({ nome: c.nome, erro: e?.message }); }
+    }
+    return NextResponse.json({ debug: true, de, ate: hoje, deMs, ateMs, tentativas: out });
+  }
+
   let gravados = 0, pagina = 0, total = 0;
   const size = 200;
   try {
