@@ -513,26 +513,21 @@ export default function ConciliacaoPage() {
                                 <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corOk(fNT)}`}>{fmtBRL(total)}</td>
                                 <td className={`px-3 py-1.5 text-xs whitespace-nowrap ${diagCls}`}>{diag}</td>
                               </tr>
-                              {aberto && cnpjsDoBar.length > 0 && (
-                                <tr className="border-b bg-muted/20"><td colSpan={6} className="px-3 py-2">
-                                  <div className="text-[11px] font-medium text-muted-foreground mb-1">NF × Stone por CNPJ (sempre os 2 CNPJs) — Stone e NF têm CNPJ; o ContaHub não separa por CNPJ.</div>
-                                  <table className="text-xs w-full max-w-xl">
-                                    <thead className="text-muted-foreground"><tr><th className="text-left py-1 pr-3">CNPJ</th><th className="text-right py-1 pr-3">NF emitida</th><th className="text-right py-1 pr-3">Venda Stone</th><th className="text-right py-1">Diferença</th></tr></thead>
-                                    <tbody>{cnpjsDoBar.map((cj, i) => {
-                                      const c = (cnpjPorDia[r.data] || []).find((x: any) => x.cnpj_indice === cj.cnpj_indice);
-                                      const nfv = Number(c?.nf_autorizado || 0), stv = Number(c?.stone_bruto || 0);
-                                      return (
-                                        <tr key={i} className="border-t border-border/40">
-                                          <td className="py-1 pr-3">{cj.cnpj_label}<span className="text-muted-foreground ml-1">({cj.cnpj_documento})</span></td>
-                                          <td className="py-1 pr-3 text-right">{fmtBRL(nfv)}</td>
-                                          <td className="py-1 pr-3 text-right">{fmtBRL(stv)}</td>
-                                          <td className="py-1 text-right">{fmtBRL(nfv - stv)}</td>
-                                        </tr>
-                                      );
-                                    })}</tbody>
-                                  </table>
-                                </td></tr>
-                              )}
+                              {aberto && cnpjsDoBar.map((cj) => {
+                                const c = (cnpjPorDia[r.data] || []).find((x: any) => x.cnpj_indice === cj.cnpj_indice);
+                                const nfv = Number(c?.nf_autorizado || 0), stv = Number(c?.stone_bruto || 0);
+                                const cardSemNf = stv - nfv > 0.5; // Stone (cartão) acima da NF nesse CNPJ → possível CNPJ errado / NF não emitida
+                                return (
+                                  <tr key={`${r.data}-${cj.cnpj_indice}`} className="bg-muted/20 text-xs border-b last:border-0">
+                                    <td></td>
+                                    <td className="px-3 py-1 pl-7 text-muted-foreground whitespace-nowrap">↳ {cj.cnpj_label} <span className="opacity-70">({cj.cnpj_documento})</span></td>
+                                    <td className="px-3 py-1 text-right whitespace-nowrap border-l">{fmtBRL(stv)}</td>
+                                    <td className="px-3 py-1 text-right whitespace-nowrap border-l">{fmtBRL(nfv)}</td>
+                                    <td className="px-3 py-1 text-right whitespace-nowrap text-muted-foreground/50">—</td>
+                                    <td className={`px-3 py-1 whitespace-nowrap ${cardSemNf ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>{cardSemNf && '🚨 '}NF − Stone: {fmtBRL(nfv - stv)}</td>
+                                  </tr>
+                                );
+                              })}
                             </Fragment>
                           );
                         })}
