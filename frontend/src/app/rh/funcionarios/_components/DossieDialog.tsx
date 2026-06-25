@@ -14,6 +14,7 @@ import {
   Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Smile, ClipboardCheck, GraduationCap, Check, Link as LinkIcon,
 } from 'lucide-react';
 import type { Funcionario } from '../page';
+import { EspelhoPontoTab } from './EspelhoPontoTab';
 
 const TIPO_DOC: Record<string, string> = {
   carteira_trabalho: 'Carteira de Trabalho', exame_admissional: 'Exame Admissional',
@@ -276,6 +277,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                 <TabsTrigger value="onboarding">Onboarding{onbItens.length > 0 && ` (${onbItens.filter((i) => i.concluido).length}/${onbItens.length})`}</TabsTrigger>
                 <TabsTrigger value="docs">Documentos ({docs.length})</TabsTrigger>
                 <TabsTrigger value="ocorr">Ocorrências ({ocorrencias.length})</TabsTrigger>
+                <TabsTrigger value="ponto"><Clock className="w-3.5 h-3.5 mr-1" />Ponto</TabsTrigger>
                 <TabsTrigger value="avaliacoes">Avaliações ({avaliacoes.length})</TabsTrigger>
                 <TabsTrigger value="treinos">Treinamentos ({treinos.length})</TabsTrigger>
                 <TabsTrigger value="felicidade">Felicidade</TabsTrigger>
@@ -297,6 +299,11 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                   <Info icon={CreditCard} label="PIX" value={func.chave_pix ? `${func.chave_pix}${func.tipo_chave_pix ? ` (${func.tipo_chave_pix})` : ''}` : null} />
                 </Secao>
                 {func.observacoes && <p className="sm:col-span-2 text-xs text-muted-foreground bg-muted/40 rounded-md border-l-2 border-muted-foreground/30 px-3 py-2 mt-2">{func.observacoes}</p>}
+              </TabsContent>
+
+              {/* Ponto (espelho de ponto × escala) */}
+              <TabsContent value="ponto" className="p-0">
+                <EspelhoPontoTab funcionarioId={func.id} />
               </TabsContent>
 
               {/* Onboarding */}
