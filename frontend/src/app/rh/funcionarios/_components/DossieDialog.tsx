@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import {
   Loader2, Pencil, Upload, FileText, Trash2, ExternalLink, X,
-  Briefcase, Building2, CalendarDays, Cake, Phone, Mail, CreditCard,
+  CalendarDays, Cake, Phone, Mail, CreditCard,
   Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Smile, ClipboardCheck, GraduationCap, Check, Link as LinkIcon,
 } from 'lucide-react';
 import type { Funcionario } from '../page';
@@ -75,6 +75,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [func, setFunc] = useState<Funcionario | null>(null);
+  const [imgErro, setImgErro] = useState(false);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [ocorrencias, setOcorrencias] = useState<Ocorr[]>([]);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
@@ -113,7 +114,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
     finally { setLoading(false); }
   }, [funcionarioId, showToast]);
 
-  useEffect(() => { if (funcionarioId) carregar(); }, [funcionarioId, carregar]);
+  useEffect(() => { if (funcionarioId) { setImgErro(false); carregar(); } }, [funcionarioId, carregar]);
 
   const enviarDoc = async () => {
     const file = fileRef.current?.files?.[0];
@@ -222,84 +223,81 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
 
   const freela = func?.tipo_contratacao === 'Freela';
   const venceu = (d: string | null) => { if (!d) return false; try { return new Date(d) < new Date(); } catch { return false; } };
+  const idade = func?.data_nascimento ? Math.floor((Date.now() - new Date(func.data_nascimento).getTime()) / 31557600000) : null;
+  const fotoPerfil = (func as any)?.foto_ponto_url || func?.foto_url || null;
 
   return (
     <Dialog open={funcionarioId != null} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0">
+      <DialogContent className="max-w-5xl w-[96vw] h-[88vh] p-0 gap-0 overflow-hidden">
         {loading || !func ? (
-          <div className="py-24 text-center"><Loader2 className="w-7 h-7 animate-spin mx-auto text-muted-foreground" /></div>
+          <div className="py-24 text-center w-full"><Loader2 className="w-7 h-7 animate-spin mx-auto text-muted-foreground" /></div>
         ) : (
-          <>
-            {/* ── Cabeçalho ── */}
-            <div className="relative bg-gradient-to-br from-muted/60 to-muted/20 px-6 pt-6 pb-5 border-b">
-              <button onClick={onClose} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
-              <div className="flex items-start gap-4">
-                {func.foto_url ? (
+          <div className="flex h-full min-h-0">
+            {/* ── Perfil (sidebar) ── */}
+            <aside className="w-72 shrink-0 border-r bg-gradient-to-b from-muted/50 via-background to-background flex flex-col overflow-y-auto">
+              <div className="p-5 flex flex-col items-center text-center border-b">
+                {fotoPerfil && !imgErro ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={func.foto_url} alt={func.nome} className="w-16 h-16 rounded-full object-cover shrink-0" />
+                  <img src={fotoPerfil} alt={func.nome} onError={() => setImgErro(true)} className="w-28 h-28 rounded-2xl object-cover ring-2 ring-background shadow-md" />
                 ) : (
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold shrink-0 ${corAvatar(func.nome)}`}>{iniciais(func.nome)}</div>
+                  <div className={`w-28 h-28 rounded-2xl flex items-center justify-center text-3xl font-bold shadow-md ${corAvatar(func.nome)}`}>{iniciais(func.nome)}</div>
                 )}
-                <div className="min-w-0 flex-1 pr-8">
-                  <h2 className="text-xl font-bold leading-tight truncate">{func.nome}</h2>
-                  <p className="text-sm text-muted-foreground truncate">{[func.cargo_nome, func.area_nome].filter(Boolean).join(' · ') || 'Sem cargo/área'}</p>
-                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                    <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${func.ativo ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>{func.ativo ? '● Ativo' : '○ Inativo'}</span>
-                    <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${tipoTag(func.tipo_contratacao)}`}>{func.tipo_contratacao || '—'}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {(func as any).portal_token && (
-                    <Button variant="outline" size="sm" title="Copiar link do portal do funcionário" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/portal/${(func as any).portal_token}`); showToast({ type: 'success', title: 'Link do portal copiado', message: 'Envie pro funcionário (WhatsApp/QR).' }); }}><LinkIcon className="w-3.5 h-3.5 mr-1.5" />Portal</Button>
-                  )}
-                  <Button variant="outline" size="sm" onClick={() => { const d = new Date(); window.open(`/recibo?id=${func.id}&mes=${d.getMonth() + 1}&ano=${d.getFullYear()}`, '_blank'); }}><ScrollText className="w-3.5 h-3.5 mr-1.5" />Recibo</Button>
-                  <Button variant="outline" size="sm" onClick={() => onEditar(func)}><Pencil className="w-3.5 h-3.5 mr-1.5" />Editar</Button>
+                <h2 className="text-lg font-bold leading-tight mt-3">{func.nome}</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{[func.cargo_nome, func.area_nome].filter(Boolean).join(' · ') || 'Sem cargo/área'}</p>
+                <div className="flex items-center justify-center gap-1.5 mt-2 flex-wrap">
+                  <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${func.ativo ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>{func.ativo ? '● Ativo' : '○ Inativo'}</span>
+                  <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${tipoTag(func.tipo_contratacao)}`}>{func.tipo_contratacao || '—'}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 mt-4">
+
+              <div className="grid grid-cols-2 gap-2 p-3">
                 <Destaque icon={Clock} label="Tempo de casa" value={tempoDeCasa(func.data_admissao) || '—'} />
                 <Destaque icon={CalendarDays} label="Admissão" value={fmtData(func.data_admissao) || '—'} />
                 <Destaque icon={Banknote} label={freela ? 'Diária' : 'Salário'} value={fmtBRL(freela ? func.valor_diaria : func.salario_base) || '—'} accent="text-emerald-600 dark:text-emerald-400" />
+                <Destaque icon={Cake} label="Idade" value={idade != null ? `${idade} anos` : '—'} />
               </div>
+
+              <div className="px-4 pb-1">
+                <Info icon={Fingerprint} label="CPF" value={func.cpf} />
+                <Info icon={Phone} label="Telefone" value={func.telefone} />
+                <Info icon={Mail} label="Email" value={func.email} />
+                <Info icon={CreditCard} label="PIX" value={func.chave_pix ? `${func.chave_pix}${func.tipo_chave_pix ? ` (${func.tipo_chave_pix})` : ''}` : null} />
+                <Info icon={Cake} label="Nascimento" value={fmtData(func.data_nascimento)} />
+                {func.data_demissao && <Info icon={CalendarX} label="Demissão" value={fmtData(func.data_demissao)} alerta />}
+              </div>
+
               {alertas.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-3">
+                <div className="px-4 pb-2 flex flex-wrap gap-1.5">
                   {alertas.map((a, i) => (
                     <span key={i} className={`text-[11px] rounded-full px-2 py-0.5 inline-flex items-center gap-1 ${a.nivel === 'alerta' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}><AlertTriangle className="w-3 h-3" />{a.label}</span>
                   ))}
                 </div>
               )}
-            </div>
+              {func.observacoes && <p className="mx-4 mb-2 text-xs text-muted-foreground bg-muted/40 rounded-md border-l-2 border-muted-foreground/30 px-3 py-2">{func.observacoes}</p>}
 
-            {/* ── Abas ── */}
-            <Tabs defaultValue="geral" className="w-full">
-              <TabsList className="mx-6 mt-3 flex-wrap h-auto">
-                <TabsTrigger value="geral">Visão geral</TabsTrigger>
-                <TabsTrigger value="onboarding">Onboarding{onbItens.length > 0 && ` (${onbItens.filter((i) => i.concluido).length}/${onbItens.length})`}</TabsTrigger>
-                <TabsTrigger value="docs">Documentos ({docs.length})</TabsTrigger>
-                <TabsTrigger value="ocorr">Ocorrências ({ocorrencias.length})</TabsTrigger>
-                <TabsTrigger value="ponto"><Clock className="w-3.5 h-3.5 mr-1" />Ponto</TabsTrigger>
-                <TabsTrigger value="avaliacoes">Avaliações ({avaliacoes.length})</TabsTrigger>
-                <TabsTrigger value="treinos">Treinamentos ({treinos.length})</TabsTrigger>
-                <TabsTrigger value="felicidade">Felicidade</TabsTrigger>
-              </TabsList>
+              <div className="mt-auto p-3 border-t flex flex-col gap-1.5">
+                <Button variant="outline" size="sm" className="justify-start" onClick={() => onEditar(func)}><Pencil className="w-3.5 h-3.5 mr-2" />Editar dados</Button>
+                <Button variant="outline" size="sm" className="justify-start" onClick={() => { const d = new Date(); window.open(`/recibo?id=${func.id}&mes=${d.getMonth() + 1}&ano=${d.getFullYear()}`, '_blank'); }}><ScrollText className="w-3.5 h-3.5 mr-2" />Gerar recibo</Button>
+                {(func as any).portal_token && (
+                  <Button variant="outline" size="sm" className="justify-start" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/portal/${(func as any).portal_token}`); showToast({ type: 'success', title: 'Link do portal copiado', message: 'Envie pro funcionário (WhatsApp/QR).' }); }}><LinkIcon className="w-3.5 h-3.5 mr-2" />Copiar link do portal</Button>
+                )}
+              </div>
+            </aside>
 
-              {/* Visão geral */}
-              <TabsContent value="geral" className="px-6 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
-                <Secao titulo="Dados pessoais">
-                  <Info icon={Cake} label="Nascimento" value={fmtData(func.data_nascimento)} />
-                  <Info icon={Fingerprint} label="CPF" value={func.cpf} />
-                  <Info icon={Phone} label="Telefone" value={func.telefone} />
-                  <Info icon={Mail} label="Email" value={func.email} />
-                </Secao>
-                <Secao titulo="Contratação & pagamento">
-                  <Info icon={Briefcase} label="Cargo" value={func.cargo_nome} />
-                  <Info icon={Building2} label="Área" value={func.area_nome} />
-                  {func.dias_trabalho_semana != null && <Info icon={CalendarDays} label="Dias/semana" value={String(func.dias_trabalho_semana)} />}
-                  {func.data_demissao && <Info icon={CalendarX} label="Demissão" value={fmtData(func.data_demissao)} alerta />}
-                  <Info icon={CreditCard} label="PIX" value={func.chave_pix ? `${func.chave_pix}${func.tipo_chave_pix ? ` (${func.tipo_chave_pix})` : ''}` : null} />
-                </Secao>
-                {func.observacoes && <p className="sm:col-span-2 text-xs text-muted-foreground bg-muted/40 rounded-md border-l-2 border-muted-foreground/30 px-3 py-2 mt-2">{func.observacoes}</p>}
-              </TabsContent>
+            {/* ── Conteúdo (abas) ── */}
+            <div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
+              <button onClick={onClose} className="absolute top-3 right-3 z-10 text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+              <Tabs defaultValue="ponto" className="flex-1 flex flex-col min-h-0">
+                <TabsList className="mx-4 mt-4 mb-0 flex-wrap h-auto justify-start shrink-0 pr-8">
+                  <TabsTrigger value="ponto"><Clock className="w-3.5 h-3.5 mr-1" />Ponto</TabsTrigger>
+                  <TabsTrigger value="onboarding">Onboarding{onbItens.length > 0 && ` (${onbItens.filter((i) => i.concluido).length}/${onbItens.length})`}</TabsTrigger>
+                  <TabsTrigger value="docs">Documentos ({docs.length})</TabsTrigger>
+                  <TabsTrigger value="ocorr">Ocorrências ({ocorrencias.length})</TabsTrigger>
+                  <TabsTrigger value="avaliacoes">Avaliações ({avaliacoes.length})</TabsTrigger>
+                  <TabsTrigger value="treinos">Treinamentos ({treinos.length})</TabsTrigger>
+                  <TabsTrigger value="felicidade">Felicidade</TabsTrigger>
+                </TabsList>
+                <div className="flex-1 overflow-y-auto">
 
               {/* Ponto (espelho de ponto × escala) */}
               <TabsContent value="ponto" className="p-0">
@@ -513,8 +511,10 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                   </div>
                 )}
               </TabsContent>
-            </Tabs>
-          </>
+                </div>
+              </Tabs>
+            </div>
+          </div>
         )}
       </DialogContent>
     </Dialog>
@@ -526,14 +526,6 @@ function Destaque({ icon: Icon, label, value, accent }: { icon: any; label: stri
     <div className="rounded-lg border bg-background/70 px-3 py-2">
       <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground"><Icon className="w-3 h-3" />{label}</div>
       <div className={`text-sm font-bold mt-0.5 truncate ${accent || ''}`}>{value}</div>
-    </div>
-  );
-}
-function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
-  return (
-    <div className="py-1">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{titulo}</div>
-      {children}
     </div>
   );
 }

@@ -32,11 +32,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   if (!f) return NextResponse.json({ success: false, error: 'Funcionário não encontrado' }, { status: 404 });
 
-  const [cargoRes, areaRes, docsRes, ocorrRes] = await Promise.all([
+  const [cargoRes, areaRes, docsRes, ocorrRes, fotoRes] = await Promise.all([
     f.cargo_id ? (supabase as any).schema('hr').from('cargos').select('nome').eq('id', f.cargo_id).maybeSingle() : Promise.resolve({ data: null }),
     f.area_id ? (supabase as any).schema('hr').from('areas').select('nome').eq('id', f.area_id).maybeSingle() : Promise.resolve({ data: null }),
     (supabase as any).schema('hr').from('documentos_funcionario').select('id, tipo, descricao, nome_arquivo, mime, tamanho_bytes, validade, criado_em').eq('funcionario_id', Number(id)).order('criado_em', { ascending: false }),
     (supabase as any).schema('hr').from('funcionario_ocorrencias').select('*').eq('funcionario_id', Number(id)).order('data_inicio', { ascending: false }),
+    // última selfie do ponto (Tangerino) -> avatar quando não há foto cadastrada
+    (supabase as any).schema('hr').from('ponto_registro').select('foto_in_url').eq('funcionario_id', Number(id)).not('foto_in_url', 'is', null).order('data', { ascending: false }).limit(1),
   ]);
 
   const documentos = docsRes.data || [];
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .select('data_pesquisa, media_geral, resultado_percentual, setor, eu_comigo_engajamento, eu_com_empresa_pertencimento, eu_com_colega_relacionamento, eu_com_gestor_lideranca, justica_reconhecimento')
     .eq('bar_id', user.bar_id).ilike('funcionario_nome', f.nome).order('data_pesquisa', { ascending: false }).limit(1);
 
-  const funcionario = { ...f, cargo_nome: cargoRes.data?.nome || null, area_nome: areaRes.data?.nome || null };
+  const funcionario = { ...f, cargo_nome: cargoRes.data?.nome || null, area_nome: areaRes.data?.nome || null, foto_ponto_url: fotoRes.data?.[0]?.foto_in_url || null };
   return NextResponse.json({ success: true, funcionario, data: funcionario, documentos, ocorrencias, alertas, felicidade: pesq?.[0] || null });
 }
 
