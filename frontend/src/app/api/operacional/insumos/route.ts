@@ -100,5 +100,7 @@ export async function POST(request: NextRequest) {
   if (body.action !== 'sync') return NextResponse.json({ success: false, error: 'ação inválida' }, { status: 400 });
   const { data, error } = await supabase.rpc('fn_vmarket_sync', { p_bar_id: barId });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  // semeia unidade-base dos insumos novos (não toca nos existentes/manuais)
+  await supabase.rpc('fn_vmarket_seed_unidades', { p_bar_id: barId });
   return NextResponse.json({ success: true, resultado: data });
 }
