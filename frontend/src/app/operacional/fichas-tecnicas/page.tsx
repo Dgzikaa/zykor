@@ -168,7 +168,7 @@ function FichaTab({ kind, lista, reloadLista, preSel }: FichaTabProps) {
                         <td className="px-2 py-1.5 font-mono text-xs text-gray-500">{it.componente_codigo || '—'}</td>
                         <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">{it.nome_componente || it.componente_codigo || `#${it.producao_ref}`}</td>
                         <td className="px-2 py-1.5"><span className={`text-[10px] rounded px-1.5 py-0.5 ${it.componente_tipo === 'producao' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>{it.componente_tipo === 'producao' ? 'Produção' : 'Insumo'}</span></td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{fmtPeso(it.quantidade, it.base || it.unidade)}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{fmtPeso(it.quantidade, it.unidade_exib)}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{it.preco_atual != null ? fmtBRL(it.preco_atual) : '—'}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(it.custo_planilha)}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums font-medium">

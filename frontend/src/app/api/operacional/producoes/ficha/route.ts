@@ -37,24 +37,28 @@ export async function GET(request: NextRequest) {
     precoMap = new Map((precos || []).map((p: any) => [p.id_prod, Number(p.preco_atual)]));
     unidMap = new Map((unids || []).map((u: any) => [u.id_prod, { base: u.base, embalagem: Number(u.embalagem) }]));
   }
-  // código/nome das produções referenciadas (componentes do tipo produção)
+  // código + unidade das produções referenciadas (componentes do tipo produção)
   const refIds = Array.from(new Set(linhas.filter((i: any) => i.producao_ref).map((i: any) => i.producao_ref)));
-  let refMap = new Map<number, string>();
+  const refMap = new Map<number, any>();
   if (refIds.length) {
-    const { data: refs } = await supabase.from('producao_base').select('id, codigo').in('id', refIds);
-    refMap = new Map((refs || []).map((r: any) => [r.id, r.codigo]));
+    const { data: refs } = await supabase.from('producao_base').select('id, codigo, unidade').in('id', refIds);
+    (refs || []).forEach((r: any) => refMap.set(r.id, r));
   }
 
   const itens = linhas.map((it: any) => {
     const preco = it.insumo_id_vmarket ? (precoMap.get(it.insumo_id_vmarket) ?? null) : null;
     const u = it.insumo_id_vmarket ? unidMap.get(it.insumo_id_vmarket) : null;
+    const ref = it.componente_tipo === 'producao' ? refMap.get(it.producao_ref) : null;
     let custo_atual: number | null = null;
     if (preco != null && u && u.embalagem > 0) custo_atual = Number(it.quantidade || 0) * preco / u.embalagem;
+    // unidade de exibição: o que o usuário editou no item vence; senão a base do insumo / a unidade do preparo
+    const unidade_exib = it.unidade || u?.base || ref?.unidade || null;
     return {
       ...it,
       preco_atual: preco,
       base: u?.base ?? null,
-      componente_codigo: it.componente_tipo === 'producao' ? (refMap.get(it.producao_ref) ?? null) : it.insumo_codigo,
+      unidade_exib,
+      componente_codigo: it.componente_tipo === 'producao' ? (ref?.codigo ?? null) : it.insumo_codigo,
       custo_atual,
     };
   });

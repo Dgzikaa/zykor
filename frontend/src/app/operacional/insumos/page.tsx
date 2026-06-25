@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Package, RefreshCw, Search, Boxes, ChefHat, Plus, Pencil, Trash2, X, ListTree, Utensils, TrendingUp, TrendingDown, Download, Loader2, ChevronDown, Star } from 'lucide-react';
+import { Package, RefreshCw, Search, Boxes, ChefHat, Plus, Trash2, X, ListTree, Utensils, TrendingUp, TrendingDown, Download, Loader2, ChevronDown, Star } from 'lucide-react';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
@@ -140,7 +140,7 @@ function FichaModal({ producao, barId, insumos, producoes, onClose, onChanged }:
                   <td className="px-2 py-1.5 text-center"><button onClick={() => marcarMestre(it)} title={it.is_mestre ? 'Insumo mestre' : 'Marcar como mestre'}><Star className={`w-4 h-4 mx-auto ${it.is_mestre ? 'text-amber-500 fill-amber-500' : 'text-gray-300 hover:text-amber-400'}`} /></button></td>
                   <td className="px-2 py-1.5 font-mono text-xs text-gray-500">{it.componente_codigo || '—'}</td>
                   <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">{it.nome_componente}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{fmtPeso(it.quantidade, it.base || it.unidade)}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{fmtPeso(it.quantidade, it.unidade_exib)}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(it.custo_planilha)}</td>
                   <td className="px-2 py-1.5 text-right"><button onClick={() => remover(it.id)} className="text-red-500 hover:text-red-600"><Trash2 className="w-4 h-4" /></button></td>
                 </tr>
@@ -279,11 +279,8 @@ export default function CadastrosPage() {
   }, [prodCard, buscaCard]);
 
   // ---------- PRODUÇÕES ----------
-  const vazio = { nome: '', secao: '' };
   const [producoes, setProducoes] = useState<any[]>([]);
-  const [form, setForm] = useState<any>(vazio);
-  const [editId, setEditId] = useState<number | null>(null);
-  const [salvando, setSalvando] = useState(false);
+  const [buscaProd, setBuscaProd] = useState('');
   const [importandoPrep, setImportandoPrep] = useState(false);
   const [fichaProd, setFichaProd] = useState<any | null>(null); // produção com modal de ficha aberto
   const carregarProducoes = useCallback(async () => {
@@ -291,24 +288,10 @@ export default function CadastrosPage() {
     try { const r = await api.get(`/api/operacional/producoes?bar_id=${barId}`); if (r.success) setProducoes(r.producoes || []); } catch { /* */ }
   }, [barId]);
   useEffect(() => { carregarProducoes(); }, [carregarProducoes]);
-  const salvarProducao = async () => {
-    if (!barId || !form.nome.trim()) { toast({ title: 'Informe o nome da produção', variant: 'destructive' }); return; }
-    setSalvando(true);
-    try {
-      const payload = { bar_id: barId, nome: form.nome, secao: form.secao };
-      const r = editId
-        ? await api.put('/api/operacional/producoes', { ...payload, id: editId })
-        : await api.post('/api/operacional/producoes', payload);
-      if (!r.success) throw new Error(r.error);
-      setForm(vazio); setEditId(null);
-      await carregarProducoes();
-      // ao criar uma nova produção, já abre o modal da ficha técnica
-      if (!editId && r.producao) { toast({ title: 'Produção criada', description: 'Agora monte a ficha técnica' }); setFichaProd({ ...r.producao, qtd_componentes: 0, custo_total: 0 }); }
-      else toast({ title: 'Produção atualizada' });
-    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
-    finally { setSalvando(false); }
-  };
-  const editarProducao = (p: any) => { setEditId(p.id); setForm({ nome: p.nome || '', secao: p.secao || '' }); };
+  const producoesView = useMemo(() => {
+    const q = buscaProd.trim().toLowerCase();
+    return producoes.filter(p => !q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q));
+  }, [producoes, buscaProd]);
   const excluirProducao = async (id: number) => {
     if (!confirm('Excluir esta produção e a ficha dela?')) return;
     try { const r = await api.delete(`/api/operacional/producoes?id=${id}`); if (!r.success) throw new Error(r.error); await carregarProducoes(); }
@@ -475,18 +458,20 @@ export default function CadastrosPage() {
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
-                  <th className="text-left font-medium px-3 py-2">Código</th>
+                  <th className="text-left font-medium px-3 py-2">Cód. interno</th>
                   <th className="text-left font-medium px-3 py-2">Produto</th>
+                  <th className="text-left font-medium px-3 py-2">Cód. CH</th>
                   <th className="text-left font-medium px-3 py-2">Categoria</th>
                   <th className="text-left font-medium px-3 py-2">Ativo</th>
                   <th className="text-right font-medium px-3 py-2">Ações</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {prodCard.length === 0 ? <tr><td colSpan={5} className="px-3 py-10 text-center text-gray-400">Nenhum produto. Use <strong>Importar do Cardápio</strong> pra puxar a planilha.</td></tr>
+                  {prodCard.length === 0 ? <tr><td colSpan={6} className="px-3 py-10 text-center text-gray-400">Nenhum produto. Use <strong>Importar do Cardápio</strong> pra puxar a planilha.</td></tr>
                   : cardFiltrado.map(p => (
                     <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                       <td className="px-3 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{p.codigo}</td>
                       <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.cods_ch?.length ? p.cods_ch.join(', ') : '—'}</td>
                       <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.categoria || '—'}</td>
                       <td className="px-3 py-2">{p.ativo ? <span className="text-emerald-600 text-xs">Sim</span> : <span className="text-gray-400 text-xs">Não</span>}</td>
                       <td className="px-3 py-2 text-right"><button onClick={() => excluirProduto(p.id)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500" title="Excluir"><Trash2 className="w-4 h-4" /></button></td>
@@ -499,23 +484,17 @@ export default function CadastrosPage() {
 
           {/* ===== PRODUÇÕES ===== */}
           <TabsContent value="producoes" className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Preparos internos (não existem no VMarket). A receita é montada na <strong>Ficha Técnica</strong>.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Preparos internos (não existem no VMarket). Rendimento e unidade vêm da ficha técnica. Custo unitário = custo total ÷ rendimento.</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Input value={buscaProd} onChange={e => setBuscaProd(e.target.value)} placeholder="Buscar produção (nome ou código)…" className="pl-9" />
+              </div>
               <Button onClick={importarPreparos} disabled={importandoPrep} variant="outline" className="whitespace-nowrap">
                 <Download className={`w-4 h-4 mr-2 ${importandoPrep ? 'animate-pulse' : ''}`} />{importandoPrep ? 'Importando…' : 'Importar preparos'}
               </Button>
             </div>
-            <Card className="card-dark"><CardContent className="py-3">
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
-                <div className="sm:col-span-6"><label className="text-xs text-gray-500 dark:text-gray-400">Nome da produção *</label><Input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} placeholder="Ex.: Molho da casa" /></div>
-                <div className="sm:col-span-3"><label className="text-xs text-gray-500 dark:text-gray-400">Seção</label><Input value={form.secao} onChange={e => setForm({ ...form, secao: e.target.value })} placeholder="Cozinha…" /></div>
-                <div className="sm:col-span-3 flex gap-1">
-                  <Button onClick={salvarProducao} disabled={salvando} className="flex-1"><Plus className="w-4 h-4 mr-1" />{editId ? 'Salvar' : 'Adicionar'}</Button>
-                  {editId && <Button variant="outline" onClick={() => { setEditId(null); setForm(vazio); }}><X className="w-4 h-4" /></Button>}
-                </div>
-              </div>
-              <p className="text-[11px] text-gray-400 mt-1">O rendimento e os insumos são definidos na ficha técnica (botão ao lado de cada produção).</p>
-            </CardContent></Card>
+            <Badge variant="outline">{producoesView.length} de {producoes.length} produções</Badge>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
@@ -524,28 +503,32 @@ export default function CadastrosPage() {
                   <th className="text-right font-medium px-3 py-2">Rendimento</th>
                   <th className="text-left font-medium px-3 py-2">Unidade</th>
                   <th className="text-right font-medium px-3 py-2">Custo total</th>
+                  <th className="text-right font-medium px-3 py-2">Custo unit.</th>
                   <th className="text-right font-medium px-3 py-2">Itens</th>
                   <th className="text-right font-medium px-3 py-2">Ações</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {producoes.length === 0 ? <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400">Nenhuma produção. Cadastre acima ou use <strong>Importar preparos</strong>.</td></tr>
-                  : producoes.map(p => (
+                  {producoesView.length === 0 ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Nenhuma produção. Use <strong>Importar preparos</strong>.</td></tr>
+                  : producoesView.map(p => {
+                    const custoUnit = Number(p.rendimento) > 0 ? Number(p.custo_total || 0) / Number(p.rendimento) : null;
+                    return (
                     <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                       <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.codigo || '—'}</td>
                       <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}{!p.ativo && <span className="text-xs text-gray-400"> (inativa)</span>}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500 dark:text-gray-400">{Number(p.rendimento || 0).toLocaleString('pt-BR')}</td>
                       <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.unidade || '—'}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{p.custo_total ? fmtBRL(p.custo_total) : '—'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium text-emerald-600 dark:text-emerald-400">{custoUnit != null && p.custo_total ? fmtBRL(custoUnit) : '—'}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{p.qtd_componentes}</td>
                       <td className="px-3 py-2"><div className="flex items-center justify-end gap-1">
                         {p.qtd_componentes > 0
                           ? <button onClick={() => setFichaProd(p)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-indigo-600 dark:text-indigo-400" title="Ver/editar ficha técnica"><ListTree className="w-4 h-4" /></button>
                           : <button onClick={() => setFichaProd(p)} className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700" title="Cadastrar ficha técnica"><Plus className="w-3.5 h-3.5" />Ficha</button>}
-                        <button onClick={() => editarProducao(p)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500" title="Editar nome"><Pencil className="w-4 h-4" /></button>
                         <button onClick={() => excluirProducao(p.id)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500" title="Excluir"><Trash2 className="w-4 h-4" /></button>
                       </div></td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div></CardContent></Card>

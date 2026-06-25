@@ -41,7 +41,16 @@ export async function GET(request: NextRequest) {
     const { data: itens } = await supabase.from('producao_ficha_item').select('produto_id').in('produto_id', ids);
     (itens || []).forEach((i: any) => { if (i.produto_id) contagem[i.produto_id] = (contagem[i.produto_id] || 0) + 1; });
   }
-  return NextResponse.json({ success: true, produtos: (data || []).map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0 })) });
+
+  // cód ContaHub (prd) por cod_interno — um produto pode ter vários (HH/PP/variações)
+  const chMap: Record<string, number[]> = {};
+  const { data: chRows } = await supabase.from('produto_contahub_map').select('prd, cod_interno').eq('bar_id', barId);
+  (chRows || []).forEach((r: any) => { if (r.cod_interno) (chMap[r.cod_interno] ??= []).push(r.prd); });
+
+  return NextResponse.json({
+    success: true,
+    produtos: (data || []).map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [] })),
+  });
 }
 
 export async function POST(request: NextRequest) {
