@@ -266,12 +266,20 @@ export default function ConciliacaoPage() {
 
         {/* Período + filtros (compartilhado) */}
         <div className="flex flex-wrap items-center gap-2 mb-3">
-          <div className="flex items-center gap-1">
-            <button onClick={() => irMes(+1)} disabled={mesIdx <= 0} className="p-1.5 rounded border disabled:opacity-30 hover:bg-muted/50"><ChevronLeft className="w-4 h-4" /></button>
-            <select value={usarRange ? '' : mesSel} onChange={(e) => { setUsarRange(false); setMesSel(e.target.value); setAberto(null); }} className="text-sm font-medium border rounded px-2 py-1.5 bg-background min-w-[140px]">
-              {meses.map((m) => <option key={m} value={m}>{labelMes(m)}</option>)}
-            </select>
-            <button onClick={() => irMes(-1)} disabled={mesIdx < 0 || mesIdx >= meses.length - 1} className="p-1.5 rounded border disabled:opacity-30 hover:bg-muted/50"><ChevronRight className="w-4 h-4" /></button>
+          <div className="inline-flex items-center rounded-lg border bg-background shadow-sm">
+            <button onClick={() => irMes(+1)} disabled={mesIdx < 0 || mesIdx >= meses.length - 1} title="Mês anterior"
+              className="px-2.5 py-2 rounded-l-lg hover:bg-muted disabled:opacity-25 disabled:hover:bg-transparent transition-colors">
+              <ChevronLeft className="w-4 h-4" /></button>
+            <div className="relative border-x">
+              <select value={usarRange ? '' : mesSel} onChange={(e) => { setUsarRange(false); setMesSel(e.target.value); setAberto(null); }}
+                className="appearance-none text-sm font-semibold px-3 py-2 pr-7 bg-transparent cursor-pointer focus:outline-none min-w-[150px] capitalize">
+                {meses.map((m) => <option key={m} value={m}>{labelMes(m)}</option>)}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground" />
+            </div>
+            <button onClick={() => irMes(-1)} disabled={mesIdx <= 0} title="Mês seguinte"
+              className="px-2.5 py-2 rounded-r-lg hover:bg-muted disabled:opacity-25 disabled:hover:bg-transparent transition-colors">
+              <ChevronRight className="w-4 h-4" /></button>
           </div>
           <label className="flex items-center gap-1.5 text-sm border rounded px-2 py-1.5 cursor-pointer hover:bg-muted/50">
             <input type="checkbox" checked={usarRange} onChange={(e) => { setUsarRange(e.target.checked); setAberto(null); }} />Intervalo custom
