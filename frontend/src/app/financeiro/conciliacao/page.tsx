@@ -491,18 +491,10 @@ export default function ConciliacaoPage() {
               return (
                 <>
                   <p className="text-xs text-muted-foreground mb-3">Conferência por dia (base gerencial): <strong>NF emitida × ContaHub-total</strong> — emitiu nota de tudo? NF abaixo do ContaHub = <span className="text-amber-600 dark:text-amber-400 font-medium">falta de emissão</span> (menos grave). <span className="text-amber-600 dark:text-amber-400 font-medium">⚠ no dia = teve venda nos 2 CNPJs</span> — confira se não vendeu/emitiu no CNPJ errado. Cartão Stone × ContaHub fica na aba <strong>Conciliação</strong>. Clique no dia p/ abrir os 2 CNPJs.</p>
-                  {subem.dias > 0 && (
-                    <Card className="mb-3 border-red-300 dark:border-red-800 bg-red-50/60 dark:bg-red-900/10">
-                      <CardContent className="py-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-                        <span className="flex items-center gap-1.5 font-semibold text-red-700 dark:text-red-300"><AlertTriangle className="w-4 h-4" />Alertas fiscais</span>
-                        <span><strong className="text-red-600 dark:text-red-400">{subem.dias}</strong> {subem.dias === 1 ? 'dia' : 'dias'} com <strong>venda Stone acima da NF</strong> · {fmtBRL(subem.total)}</span>
-                      </CardContent>
-                    </Card>
-                  )}
-                  {/* Totais do mês por CNPJ (igual antes) */}
-                  <div className="grid grid-cols-1 gap-2 mb-3">
+                  {/* Totais do mês por CNPJ — um quadrado só */}
+                  <Card className="mb-3"><CardContent className="py-3 space-y-3">
                     {cnpjsDoBar.map((cj, i) => { const p = porCnpjMes[cj.cnpj_indice] || { nf: 0, stone: 0 }; return (
-                      <Card key={i}><CardContent className="py-3">
+                      <div key={i} className={i > 0 ? 'pt-3 border-t border-gray-100 dark:border-gray-800' : ''}>
                         <div className="text-xs font-medium mb-1">{cj.cnpj_label} <span className="text-muted-foreground">({cj.cnpj_documento})</span></div>
                         <div className="flex flex-wrap sm:flex-nowrap gap-x-8 gap-y-2">
                           <div><div className="text-[11px] text-muted-foreground">NF emitida (mês)</div><div className="text-base font-bold">{fmtBRL(p.nf)}</div></div>
@@ -521,14 +513,22 @@ export default function ConciliacaoPage() {
                             );
                           })()}
                         </div>
-                      </CardContent></Card>
+                      </div>
                     ); })}
-                  </div>
+                  </CardContent></Card>
                   <div className="grid grid-cols-3 gap-2 mb-4">
                     <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">Venda Stone</div><div className="text-base font-bold">{fmtBRL(t.stone)}</div></CardContent></Card>
                     <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">NF emitida</div><div className="text-base font-bold">{fmtBRL(t.nf)}</div></CardContent></Card>
                     <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground">ContaHub total</div><div className="text-base font-bold">{fmtBRL(t.total)}</div></CardContent></Card>
                   </div>
+                  {subem.dias > 0 && (
+                    <Card className="mb-3 border-red-300 dark:border-red-800 bg-red-50/60 dark:bg-red-900/10">
+                      <CardContent className="py-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+                        <span className="flex items-center gap-1.5 font-semibold text-red-700 dark:text-red-300"><AlertTriangle className="w-4 h-4" />Alertas fiscais</span>
+                        <span><strong className="text-red-600 dark:text-red-400">{subem.dias}</strong> {subem.dias === 1 ? 'dia' : 'dias'} com <strong>venda Stone acima da NF</strong> · {fmtBRL(subem.total)}</span>
+                      </CardContent>
+                    </Card>
+                  )}
                   <Card className="p-0 overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="text-xs text-muted-foreground border-b"><tr>
