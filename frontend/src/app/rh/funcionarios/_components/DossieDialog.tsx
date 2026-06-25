@@ -225,6 +225,8 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const venceu = (d: string | null) => { if (!d) return false; try { return new Date(d) < new Date(); } catch { return false; } };
   const idade = func?.data_nascimento ? Math.floor((Date.now() - new Date(func.data_nascimento).getTime()) / 31557600000) : null;
   const fotoPerfil = (func as any)?.foto_ponto_url || func?.foto_url || null;
+  const salarioVal = freela ? func?.valor_diaria : (func?.salario_base ?? (func as any)?.salario_ca);
+  const salarioCA = !freela && func?.salario_base == null && (func as any)?.salario_ca != null;
 
   return (
     <Dialog open={funcionarioId != null} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -253,7 +255,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
               <div className="grid grid-cols-2 gap-2 p-3">
                 <Destaque icon={Clock} label="Tempo de casa" value={tempoDeCasa(func.data_admissao) || '—'} />
                 <Destaque icon={CalendarDays} label="Admissão" value={fmtData(func.data_admissao) || '—'} />
-                <Destaque icon={Banknote} label={freela ? 'Diária' : 'Salário'} value={fmtBRL(freela ? func.valor_diaria : func.salario_base) || '—'} accent="text-emerald-600 dark:text-emerald-400" />
+                <Destaque icon={Banknote} label={freela ? 'Diária' : salarioCA ? 'Salário (CA)' : 'Salário'} value={fmtBRL(salarioVal ?? null) || '—'} accent="text-emerald-600 dark:text-emerald-400" />
                 <Destaque icon={Cake} label="Idade" value={idade != null ? `${idade} anos` : '—'} />
               </div>
 
@@ -265,6 +267,20 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                 <Info icon={Cake} label="Nascimento" value={fmtData(func.data_nascimento)} />
                 {func.data_demissao && <Info icon={CalendarX} label="Demissão" value={fmtData(func.data_demissao)} alerta />}
               </div>
+
+              {(func as any).salario_ca_historico?.length > 0 && (
+                <div className="px-4 pb-2">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-1"><Banknote className="w-3 h-3" />Salário pago (Conta Azul)</div>
+                  <div className="space-y-0.5">
+                    {(func as any).salario_ca_historico.slice(0, 4).map((s: any, i: number) => (
+                      <div key={i} className="flex justify-between text-[11px]">
+                        <span className="text-muted-foreground truncate pr-2">{fmtData(s.data_pagamento)}</span>
+                        <span className="font-medium tabular-nums shrink-0">{fmtBRL(Number(s.valor_pago))}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {alertas.length > 0 && (
                 <div className="px-4 pb-2 flex flex-wrap gap-1.5">
