@@ -93,7 +93,8 @@ export async function POST(req: NextRequest) {
       const itens: any[] = json?.content ?? (Array.isArray(json) ? json : []);
       if (itens.length === 0) break;
       const linhas = itens.map((p: any) => ({
-        bar_id: barId, punch_id: Number(p.id), employee_id_ext: p.employeeId != null ? Number(p.employeeId) : null,
+        bar_id: barId, punch_id: Number(p.id),
+        employee_id_ext: p.employee?.id ?? (p.employeeId != null ? Number(p.employeeId) : null),
         payload: p, synced_at: new Date().toISOString(), parsed_em: null,
       }));
       await (supabase as any).schema('bronze').from('bronze_tangerino_punch')
