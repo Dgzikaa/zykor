@@ -21,6 +21,14 @@ export async function GET() {
   return NextResponse.json({ ok: true });
 }
 
+// A Stone pode fazer pré-check de reachability com HEAD/OPTIONS antes de cadastrar.
+export async function HEAD() {
+  return new NextResponse(null, { status: 200 });
+}
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 200 });
+}
+
 export async function POST(req: NextRequest) {
   let body: any = {};
   try { body = await req.json(); } catch { /* corpo vazio/!json */ }
