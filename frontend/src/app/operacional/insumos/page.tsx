@@ -9,11 +9,149 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Package, RefreshCw, Search, Boxes, ChefHat, Plus, Pencil, Trash2, X, ListTree, Utensils, TrendingUp, TrendingDown, Download, Loader2, ChevronDown } from 'lucide-react';
-import Link from 'next/link';
+import { Package, RefreshCw, Search, Boxes, ChefHat, Plus, Pencil, Trash2, X, ListTree, Utensils, TrendingUp, TrendingDown, Download, Loader2, ChevronDown, Star } from 'lucide-react';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
+const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'porção'];
+const fmtPeso = (q: any, u: string | null) => {
+  const n = Number(q || 0);
+  if (u === 'kg') return n < 1 && n > 0 ? `${(n * 1000).toLocaleString('pt-BR')} g` : `${n.toLocaleString('pt-BR')} kg`;
+  if (u === 'L') return n < 1 && n > 0 ? `${(n * 1000).toLocaleString('pt-BR')} ml` : `${n.toLocaleString('pt-BR')} L`;
+  return `${n.toLocaleString('pt-BR')}${u ? ' ' + u : ''}`;
+};
+
+// Modal de Ficha Técnica de uma Produção (rendimento + componentes)
+function FichaModal({ producao, barId, insumos, producoes, onClose, onChanged }: {
+  producao: any; barId: number; insumos: any[]; producoes: any[]; onClose: () => void; onChanged: () => void;
+}) {
+  const { toast } = useToast();
+  const [rend, setRend] = useState(String(producao.rendimento ?? '1'));
+  const [uni, setUni] = useState(producao.unidade || 'un');
+  const [itens, setItens] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tipo, setTipo] = useState<'insumo' | 'producao'>('insumo');
+  const [busca, setBusca] = useState('');
+  const [escolhido, setEscolhido] = useState<any>(null);
+  const [qtd, setQtd] = useState('1');
+  const [unid, setUnid] = useState('g');
+
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    try { const r = await api.get(`/api/operacional/producoes/ficha?producao_id=${producao.id}&bar_id=${barId}`); if (r.success) setItens(r.itens || []); }
+    finally { setLoading(false); }
+  }, [producao.id, barId]);
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const salvarRend = async () => {
+    try { await api.put('/api/operacional/producoes', { id: producao.id, rendimento: Number(rend) || 0, unidade: uni }); onChanged(); toast({ title: 'Rendimento salvo' }); }
+    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+
+  const opcoes = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    if (tipo === 'insumo') return insumos.filter(i => !q || (i.nome || '').toLowerCase().includes(q) || (i.cod_interno || '').toLowerCase().includes(q)).slice(0, 30);
+    return producoes.filter(p => p.id !== producao.id && (!q || (p.nome || '').toLowerCase().includes(q))).slice(0, 30);
+  }, [tipo, busca, insumos, producoes, producao.id]);
+
+  const adicionar = async () => {
+    if (!escolhido) { toast({ title: 'Escolha o componente', variant: 'destructive' }); return; }
+    const payload: any = { producao_id: producao.id, componente_tipo: tipo, quantidade: Number(qtd) || 0, unidade: unid };
+    if (tipo === 'insumo') { payload.insumo_codigo = escolhido.cod_interno; payload.insumo_id_vmarket = escolhido.id_produto_sisfood_cotacao; payload.nome_componente = escolhido.nome; }
+    else { payload.producao_ref = escolhido.id; payload.nome_componente = escolhido.nome; }
+    try { const r = await api.post('/api/operacional/producoes/ficha', payload); if (!r.success) throw new Error(r.error); setEscolhido(null); setBusca(''); setQtd('1'); await carregar(); onChanged(); }
+    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+  const remover = async (id: number) => { try { await api.delete(`/api/operacional/producoes/ficha?id=${id}`); await carregar(); onChanged(); } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); } };
+  const marcarMestre = async (it: any) => { try { await api.put('/api/operacional/producoes/ficha', { id: it.id, is_mestre: !it.is_mestre }); await carregar(); } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); } };
+
+  const custoTotal = itens.reduce((s, it) => s + Number(it.custo_planilha || 0), 0);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-900 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-4 space-y-3" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Ficha técnica · {producao.nome}</h3>
+            <p className="text-xs text-gray-400 font-mono">{producao.codigo || 'sem código'}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+        </div>
+
+        {/* Rendimento */}
+        <div className="flex items-end gap-2 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+          <div className="w-32"><label className="text-xs text-gray-500">Rendimento</label><Input type="number" step="0.01" value={rend} onChange={e => setRend(e.target.value)} /></div>
+          <div className="w-28"><label className="text-xs text-gray-500">Unidade</label>
+            <select value={uni} onChange={e => setUni(e.target.value)} className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">{UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}</select>
+          </div>
+          <Button variant="outline" onClick={salvarRend}>Salvar rendimento</Button>
+          <div className="flex-1" />
+          <div className="text-right"><div className="text-[11px] text-muted-foreground">Custo da ficha</div><div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fmtBRL(custoTotal)}</div></div>
+        </div>
+
+        {/* Adicionar componente */}
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2">
+          <div className="flex gap-1">
+            <button onClick={() => { setTipo('insumo'); setEscolhido(null); }} className={`text-xs rounded px-2.5 py-1 flex items-center gap-1 ${tipo === 'insumo' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}><Boxes className="w-3.5 h-3.5" />Insumo</button>
+            <button onClick={() => { setTipo('producao'); setEscolhido(null); }} className={`text-xs rounded px-2.5 py-1 flex items-center gap-1 ${tipo === 'producao' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}><ChefHat className="w-3.5 h-3.5" />Produção</button>
+          </div>
+          {escolhido ? (
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex-1 min-w-[160px]"><label className="text-xs text-gray-500">Componente</label>
+                <div className="h-10 flex items-center px-3 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm justify-between"><span className="truncate">{escolhido.nome}</span><button onClick={() => setEscolhido(null)} className="text-gray-400 text-xs ml-2">trocar</button></div>
+              </div>
+              <div className="w-24"><label className="text-xs text-gray-500">Qtd</label><Input type="number" step="0.001" value={qtd} onChange={e => setQtd(e.target.value)} /></div>
+              <div className="w-24"><label className="text-xs text-gray-500">Unidade</label>
+                <select value={unid} onChange={e => setUnid(e.target.value)} className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">{UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}</select>
+              </div>
+              <Button onClick={adicionar}><Plus className="w-4 h-4 mr-1" />Adicionar</Button>
+            </div>
+          ) : (
+            <>
+              <div className="relative"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={busca} onChange={e => setBusca(e.target.value)} placeholder={tipo === 'insumo' ? 'Buscar insumo (nome ou i0XXX)…' : 'Buscar produção…'} className="pl-9" /></div>
+              {busca && (
+                <div className="max-h-44 overflow-y-auto rounded border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
+                  {opcoes.length === 0 ? <div className="px-3 py-3 text-xs text-gray-400">Nada encontrado.</div>
+                  : opcoes.map((o: any) => (
+                    <button key={tipo === 'insumo' ? o.id_produto_sisfood_cotacao : o.id} onClick={() => setEscolhido(o)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/40">{o.nome}{tipo === 'insumo' && o.cod_interno && <span className="text-xs text-gray-400 font-mono"> · {o.cod_interno}</span>}</button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Componentes */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
+              <th className="text-center font-medium px-2 py-1.5 w-10">Mestre</th>
+              <th className="text-left font-medium px-2 py-1.5">Código</th>
+              <th className="text-left font-medium px-2 py-1.5">Componente</th>
+              <th className="text-right font-medium px-2 py-1.5">Peso/Qtd</th>
+              <th className="text-right font-medium px-2 py-1.5">Valor</th>
+              <th className="w-8"></th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {loading ? <tr><td colSpan={6} className="px-2 py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              : itens.length === 0 ? <tr><td colSpan={6} className="px-2 py-6 text-center text-gray-400">Ficha vazia — adicione os insumos acima.</td></tr>
+              : itens.map(it => (
+                <tr key={it.id} className={it.is_mestre ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}>
+                  <td className="px-2 py-1.5 text-center"><button onClick={() => marcarMestre(it)} title={it.is_mestre ? 'Insumo mestre' : 'Marcar como mestre'}><Star className={`w-4 h-4 mx-auto ${it.is_mestre ? 'text-amber-500 fill-amber-500' : 'text-gray-300 hover:text-amber-400'}`} /></button></td>
+                  <td className="px-2 py-1.5 font-mono text-xs text-gray-500">{it.componente_codigo || '—'}</td>
+                  <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">{it.nome_componente}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{fmtPeso(it.quantidade, it.base || it.unidade)}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(it.custo_planilha)}</td>
+                  <td className="px-2 py-1.5 text-right"><button onClick={() => remover(it.id)} className="text-red-500 hover:text-red-600"><Trash2 className="w-4 h-4" /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface Produto {
   id_produto_sisfood_cotacao: number; cod_interno: string | null; nome: string | null; marca: string | null;
@@ -101,12 +239,13 @@ export default function CadastrosPage() {
   }, [prodCard, buscaCard]);
 
   // ---------- PRODUÇÕES ----------
-  const vazio = { nome: '', unidade: 'un', rendimento: '1', secao: '', observacao: '' };
+  const vazio = { nome: '', secao: '' };
   const [producoes, setProducoes] = useState<any[]>([]);
   const [form, setForm] = useState<any>(vazio);
   const [editId, setEditId] = useState<number | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [importandoPrep, setImportandoPrep] = useState(false);
+  const [fichaProd, setFichaProd] = useState<any | null>(null); // produção com modal de ficha aberto
   const carregarProducoes = useCallback(async () => {
     if (!barId) return;
     try { const r = await api.get(`/api/operacional/producoes?bar_id=${barId}`); if (r.success) setProducoes(r.producoes || []); } catch { /* */ }
@@ -116,15 +255,20 @@ export default function CadastrosPage() {
     if (!barId || !form.nome.trim()) { toast({ title: 'Informe o nome da produção', variant: 'destructive' }); return; }
     setSalvando(true);
     try {
-      const payload = { ...form, bar_id: barId, rendimento: Number(form.rendimento) || 1 };
-      const r = editId ? await api.put('/api/operacional/producoes', { ...payload, id: editId }) : await api.post('/api/operacional/producoes', payload);
+      const payload = { bar_id: barId, nome: form.nome, secao: form.secao };
+      const r = editId
+        ? await api.put('/api/operacional/producoes', { ...payload, id: editId })
+        : await api.post('/api/operacional/producoes', payload);
       if (!r.success) throw new Error(r.error);
-      toast({ title: editId ? 'Produção atualizada' : 'Produção criada' });
-      setForm(vazio); setEditId(null); await carregarProducoes();
+      setForm(vazio); setEditId(null);
+      await carregarProducoes();
+      // ao criar uma nova produção, já abre o modal da ficha técnica
+      if (!editId && r.producao) { toast({ title: 'Produção criada', description: 'Agora monte a ficha técnica' }); setFichaProd({ ...r.producao, qtd_componentes: 0, custo_total: 0 }); }
+      else toast({ title: 'Produção atualizada' });
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
     finally { setSalvando(false); }
   };
-  const editarProducao = (p: any) => { setEditId(p.id); setForm({ nome: p.nome || '', unidade: p.unidade || 'un', rendimento: String(p.rendimento ?? '1'), secao: p.secao || '', observacao: p.observacao || '' }); };
+  const editarProducao = (p: any) => { setEditId(p.id); setForm({ nome: p.nome || '', secao: p.secao || '' }); };
   const excluirProducao = async (id: number) => {
     if (!confirm('Excluir esta produção e a ficha dela?')) return;
     try { const r = await api.delete(`/api/operacional/producoes?id=${id}`); if (!r.success) throw new Error(r.error); await carregarProducoes(); }
@@ -140,7 +284,6 @@ export default function CadastrosPage() {
     } catch (e: any) { toast({ title: 'Erro ao importar', description: e?.message, variant: 'destructive' }); }
     finally { setImportandoPrep(false); }
   };
-  const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'porção'];
 
   // ---------- VARIAÇÃO DE PREÇO ----------
   const [variacao, setVariacao] = useState<any[]>([]);
@@ -286,38 +429,41 @@ export default function CadastrosPage() {
             </div>
             <Card className="card-dark"><CardContent className="py-3">
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
-                <div className="sm:col-span-4"><label className="text-xs text-gray-500 dark:text-gray-400">Nome da produção *</label><Input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} placeholder="Ex.: Molho da casa" /></div>
-                <div className="sm:col-span-2"><label className="text-xs text-gray-500 dark:text-gray-400">Rende</label><Input type="number" step="0.01" value={form.rendimento} onChange={e => setForm({ ...form, rendimento: e.target.value })} /></div>
-                <div className="sm:col-span-2"><label className="text-xs text-gray-500 dark:text-gray-400">Unidade</label>
-                  <select value={form.unidade} onChange={e => setForm({ ...form, unidade: e.target.value })} className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">{UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}</select>
-                </div>
-                <div className="sm:col-span-2"><label className="text-xs text-gray-500 dark:text-gray-400">Seção</label><Input value={form.secao} onChange={e => setForm({ ...form, secao: e.target.value })} placeholder="Cozinha…" /></div>
-                <div className="sm:col-span-2 flex gap-1">
+                <div className="sm:col-span-6"><label className="text-xs text-gray-500 dark:text-gray-400">Nome da produção *</label><Input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} placeholder="Ex.: Molho da casa" /></div>
+                <div className="sm:col-span-3"><label className="text-xs text-gray-500 dark:text-gray-400">Seção</label><Input value={form.secao} onChange={e => setForm({ ...form, secao: e.target.value })} placeholder="Cozinha…" /></div>
+                <div className="sm:col-span-3 flex gap-1">
                   <Button onClick={salvarProducao} disabled={salvando} className="flex-1"><Plus className="w-4 h-4 mr-1" />{editId ? 'Salvar' : 'Adicionar'}</Button>
                   {editId && <Button variant="outline" onClick={() => { setEditId(null); setForm(vazio); }}><X className="w-4 h-4" /></Button>}
                 </div>
               </div>
+              <p className="text-[11px] text-gray-400 mt-1">O rendimento e os insumos são definidos na ficha técnica (botão ao lado de cada produção).</p>
             </CardContent></Card>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+                  <th className="text-left font-medium px-3 py-2">Código</th>
                   <th className="text-left font-medium px-3 py-2">Produção</th>
-                  <th className="text-left font-medium px-3 py-2">Rendimento</th>
-                  <th className="text-left font-medium px-3 py-2">Seção</th>
-                  <th className="text-right font-medium px-3 py-2">Itens na ficha</th>
+                  <th className="text-right font-medium px-3 py-2">Rendimento</th>
+                  <th className="text-left font-medium px-3 py-2">Unidade</th>
+                  <th className="text-right font-medium px-3 py-2">Custo total</th>
+                  <th className="text-right font-medium px-3 py-2">Itens</th>
                   <th className="text-right font-medium px-3 py-2">Ações</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {producoes.length === 0 ? <tr><td colSpan={5} className="px-3 py-10 text-center text-gray-400">Nenhuma produção. Cadastre acima ou use <strong>Importar preparos</strong>.</td></tr>
+                  {producoes.length === 0 ? <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400">Nenhuma produção. Cadastre acima ou use <strong>Importar preparos</strong>.</td></tr>
                   : producoes.map(p => (
                     <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                      <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.codigo || '—'}</td>
                       <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}{!p.ativo && <span className="text-xs text-gray-400"> (inativa)</span>}</td>
-                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{Number(p.rendimento || 0).toLocaleString('pt-BR')} {p.unidade}</td>
-                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.secao || '—'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-500 dark:text-gray-400">{Number(p.rendimento || 0).toLocaleString('pt-BR')}</td>
+                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.unidade || '—'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">{p.custo_total ? fmtBRL(p.custo_total) : '—'}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{p.qtd_componentes}</td>
                       <td className="px-3 py-2"><div className="flex items-center justify-end gap-1">
-                        <Link href={`/operacional/fichas-tecnicas?producao=${p.id}`} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-indigo-600 dark:text-indigo-400" title="Abrir ficha técnica"><ListTree className="w-4 h-4" /></Link>
-                        <button onClick={() => editarProducao(p)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500" title="Editar"><Pencil className="w-4 h-4" /></button>
+                        {p.qtd_componentes > 0
+                          ? <button onClick={() => setFichaProd(p)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-indigo-600 dark:text-indigo-400" title="Ver/editar ficha técnica"><ListTree className="w-4 h-4" /></button>
+                          : <button onClick={() => setFichaProd(p)} className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700" title="Cadastrar ficha técnica"><Plus className="w-3.5 h-3.5" />Ficha</button>}
+                        <button onClick={() => editarProducao(p)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500" title="Editar nome"><Pencil className="w-4 h-4" /></button>
                         <button onClick={() => excluirProducao(p.id)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500" title="Excluir"><Trash2 className="w-4 h-4" /></button>
                       </div></td>
                     </tr>
@@ -387,6 +533,11 @@ export default function CadastrosPage() {
             </div></CardContent></Card>
           </TabsContent>
         </Tabs>
+
+        {fichaProd && barId && (
+          <FichaModal producao={fichaProd} barId={barId} insumos={produtos} producoes={producoes}
+            onClose={() => setFichaProd(null)} onChanged={carregarProducoes} />
+        )}
       </div>
     </div>
   );

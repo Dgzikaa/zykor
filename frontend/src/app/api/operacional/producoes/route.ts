@@ -30,14 +30,18 @@ export async function GET(request: NextRequest) {
     .order('nome', { ascending: true });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-  // contagem de itens da ficha por produção
+  // contagem de itens + custo total (da ficha) por produção
   const ids = (data || []).map((p) => p.id);
   const contagem: Record<number, number> = {};
+  const custo: Record<number, number> = {};
   if (ids.length) {
-    const { data: itens } = await supabase.from('producao_ficha_item').select('producao_id').in('producao_id', ids);
-    (itens || []).forEach((i: any) => { contagem[i.producao_id] = (contagem[i.producao_id] || 0) + 1; });
+    const { data: itens } = await supabase.from('producao_ficha_item').select('producao_id, custo_planilha').in('producao_id', ids);
+    (itens || []).forEach((i: any) => {
+      contagem[i.producao_id] = (contagem[i.producao_id] || 0) + 1;
+      custo[i.producao_id] = (custo[i.producao_id] || 0) + Number(i.custo_planilha || 0);
+    });
   }
-  return NextResponse.json({ success: true, producoes: (data || []).map((p) => ({ ...p, qtd_componentes: contagem[p.id] || 0 })) });
+  return NextResponse.json({ success: true, producoes: (data || []).map((p) => ({ ...p, qtd_componentes: contagem[p.id] || 0, custo_total: custo[p.id] || 0 })) });
 }
 
 export async function POST(request: NextRequest) {
