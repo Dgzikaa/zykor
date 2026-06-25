@@ -79,6 +79,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ debug: true, de, ate: hoje, deMs, ateMs, tentativas: out });
   }
 
+  // PROBE: inspeciona os cadastros do Sólides (colaborador/cargo/setor) — { employees:true }
+  if (body?.employees) {
+    const urls = [
+      { nome: 'employee-find-all', url: `${TANGERINO.employer}/employee/find-all?page=0&size=2` },
+      { nome: 'job-role-find-all', url: `${TANGERINO.employer}/job-role/find-all?page=0&size=8` },
+      { nome: 'workplace-find-all', url: `${TANGERINO.employer}/workplace/find-all?page=0&size=8` },
+    ];
+    const out: any[] = [];
+    for (const u of urls) {
+      try {
+        const r = await fetch(u.url, { headers: { Authorization: authHeader } });
+        const t = await r.text();
+        out.push({ nome: u.nome, status: r.status, body: t.slice(0, 700) });
+      } catch (e: any) { out.push({ nome: u.nome, erro: e?.message }); }
+    }
+    return NextResponse.json({ employees: true, tentativas: out });
+  }
+
   let gravados = 0, pagina = 0, total = 0;
   const size = 200;
   try {
