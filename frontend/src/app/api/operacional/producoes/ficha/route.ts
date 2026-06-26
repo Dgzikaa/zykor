@@ -78,9 +78,14 @@ export async function GET(request: NextRequest) {
     }
     // unidade de exibição: o que o usuário editou no item vence; senão a base do insumo / a unidade do preparo
     const unidade_exib = it.unidade || u?.base || ref?.unidade || null;
+    // preço por unidade-base (insumo: último preço / embalagem; produção: custo da ficha / rendimento)
+    const preco_un = it.componente_tipo === 'producao'
+      ? (custoUnitRef.get(it.producao_ref) ?? null)
+      : (preco != null && u && u.embalagem > 0 ? preco / u.embalagem : null);
     return {
       ...it,
       preco_atual: preco,
+      preco_un,
       base: u?.base ?? null,
       unidade_exib,
       componente_codigo: it.componente_tipo === 'producao' ? (ref?.codigo ?? null) : it.insumo_codigo,

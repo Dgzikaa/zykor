@@ -19,6 +19,16 @@ const fmtPeso = (q: any, u: string | null) => {
   if (u === 'ml' || u === 'L') { const ml = u === 'L' ? n * 1000 : n; return ml >= 1000 ? `${(ml / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} L` : `${ml.toLocaleString('pt-BR')} ml`; }
   return `${n.toLocaleString('pt-BR')}${u ? ' ' + u : ''}`;
 };
+// preço por unidade-base normalizado: g→/kg, ml→/L, resto→/unidade
+const fmtPrecoUn = (precoUn: any, u: string | null) => {
+  if (precoUn == null) return '—';
+  const n = Number(precoUn);
+  if (u === 'g') return `${fmtBRL(n * 1000)}/kg`;
+  if (u === 'ml') return `${fmtBRL(n * 1000)}/L`;
+  if (u === 'kg') return `${fmtBRL(n)}/kg`;
+  if (u === 'L') return `${fmtBRL(n)}/L`;
+  return `${fmtBRL(n)}/${u || 'un'}`;
+};
 
 interface FichaTabProps {
   kind: 'producao' | 'produto';
@@ -262,7 +272,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                         <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">{it.nome_componente || it.componente_codigo || `#${it.producao_ref}`}</td>
                         <td className="px-2 py-1.5"><span className={`text-[10px] rounded px-1.5 py-0.5 ${it.componente_tipo === 'producao' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>{it.componente_tipo === 'producao' ? 'Produção' : 'Insumo'}</span></td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{fmtPeso(it.quantidade, it.unidade_exib)}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{it.preco_atual != null ? fmtBRL(it.preco_atual) : '—'}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtPrecoUn(it.preco_un, it.unidade_exib)}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums font-medium">
                           {flagRevisar(it) ? <span className="text-amber-500 text-xs" title="Custo destoa muito — revisar a unidade/embalagem do insumo">⚠ revisar</span>
                             : it.custo_atual != null ? fmtBRL(it.custo_atual) : '—'}
