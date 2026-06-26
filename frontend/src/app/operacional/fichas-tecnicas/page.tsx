@@ -194,6 +194,20 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
+  // editar produto (nome + código) — finalização
+  const [editProd, setEditProd] = useState(false);
+  const [prodNome, setProdNome] = useState('');
+  const [prodCod, setProdCod] = useState('');
+  const abrirEditProd = () => { setProdNome(selObj?.nome || ''); setProdCod(selObj?.codigo || ''); setEditProd(true); };
+  const salvarEditProd = async () => {
+    if (!sel) return;
+    if (!prodNome.trim()) { toast({ title: 'Informe o nome do produto', variant: 'destructive' }); return; }
+    try {
+      await api.put('/api/operacional/produtos', { id: sel, nome: prodNome.trim(), codigo: prodCod.trim() || null });
+      setEditProd(false); reloadLista();
+    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+
   // agrupar produto num principal (canônico) — ex.: sabores de Red Bull → Red Bull principal (que leva o cód CH/venda)
   const [editGrupo, setEditGrupo] = useState(false);
   const [grupoBusca, setGrupoBusca] = useState('');
@@ -294,7 +308,8 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     {selObj.nome}
                     {kind === 'producao' && <button onClick={abrirRend} className="text-gray-400 hover:text-indigo-600" title="Editar produção (nome, código, rendimento)"><Pencil className="w-4 h-4" /></button>}
-                    {kind === 'producao' && <button onClick={() => setConfirmDel(true)} className="text-red-500 hover:text-red-700" title="Excluir esta produção da base do Zykor"><Trash2 className="w-4 h-4" /></button>}
+                    {kind === 'produto' && <button onClick={abrirEditProd} className="text-gray-400 hover:text-indigo-600" title="Editar produto (nome, código)"><Pencil className="w-4 h-4" /></button>}
+                    <button onClick={() => setConfirmDel(true)} className="text-red-500 hover:text-red-700" title={kind === 'producao' ? 'Excluir esta produção da base do Zykor' : 'Excluir este produto da base do Zykor'}><Trash2 className="w-4 h-4" /></button>
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{selObj.codigo ? `${selObj.codigo} · ` : ''}{itens.length} componentes</p>
                   {kind === 'producao' && (
@@ -310,7 +325,6 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                       <span className="text-xs text-gray-500">Cód. CH: <span className="font-mono text-gray-600 dark:text-gray-300">{selObj.cods_ch?.length ? selObj.cods_ch.join(', ') : '—'}</span></span>
                       <span className="text-xs text-gray-500">ID Yuzer: <span className="font-mono text-gray-600 dark:text-gray-300">{selObj.cods_yuzer?.length ? selObj.cods_yuzer.join(', ') : '—'}</span></span>
                       <button onClick={abrirCods} className="text-indigo-500 hover:text-indigo-700 inline-flex items-center gap-1 text-xs" title="Editar códigos ContaHub / Yuzer"><Pencil className="w-3 h-3" />editar códigos</button>
-                      <button onClick={() => setConfirmDel(true)} className="text-red-500 hover:text-red-700 inline-flex items-center gap-1 text-xs" title="Excluir este produto da base do Zykor"><Trash2 className="w-3 h-3" />excluir</button>
                       {selObj.agrupado_em
                         ? <span className="text-xs text-violet-600 dark:text-violet-300 inline-flex items-center gap-1">agrupado em <b className="font-mono">{selObj.agrupado_em}</b><button onClick={() => salvarGrupo(null)} className="text-gray-400 hover:text-red-500 underline">desagrupar</button></span>
                         : <button onClick={() => { setEditGrupo(true); setGrupoBusca(''); }} className="text-violet-500 hover:text-violet-700 inline-flex items-center gap-1 text-xs" title="Agrupar este produto num principal (ex.: sabor → produto canônico que leva o código ContaHub)"><Boxes className="w-3 h-3" />agrupar</button>}
@@ -468,6 +482,23 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                       <div className="flex justify-end gap-2 mt-4">
                         <Button variant="outline" onClick={() => setEditRend(false)}>Cancelar</Button>
                         <Button onClick={salvarRend}>Salvar</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Modal de editar produto (nome + código) */}
+                {editProd && (
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditProd(false)}>
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Editar produto</h4>
+                      <div className="space-y-2">
+                        <div><label className="text-xs text-gray-500">Nome *</label><Input value={prodNome} onChange={e => setProdNome(e.target.value)} placeholder="Nome do produto" /></div>
+                        <div><label className="text-xs text-gray-500">Código</label><Input value={prodCod} onChange={e => setProdCod(e.target.value)} placeholder="b0000" /></div>
+                      </div>
+                      <div className="flex justify-end gap-2 mt-4">
+                        <Button variant="outline" onClick={() => setEditProd(false)}>Cancelar</Button>
+                        <Button onClick={salvarEditProd}>Salvar</Button>
                       </div>
                     </div>
                   </div>
