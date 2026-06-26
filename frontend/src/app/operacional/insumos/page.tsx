@@ -322,7 +322,9 @@ export default function CadastrosPage() {
                             <td className="px-3 py-1 font-mono text-gray-400" title="Código no VMarket desta variação">{v.cod_interno || ''}</td>
                             <td className="px-3 py-1 pl-7 text-gray-600 dark:text-gray-300">↳ {v.nome}</td>
                             <td className="px-3 py-1 text-gray-500">{v.nome_secao || '—'}</td>
-                            <td></td><td></td><td></td>
+                            <td className="px-3 py-1 text-center">{v.fator_correcao ? <span className="text-amber-500" title="Fator de correção">✓</span> : <span className="text-gray-300">—</span>}</td>
+                            <td className="px-3 py-1 text-center text-gray-500" title="Unidade-base">{v.base || '—'}</td>
+                            <td className="px-3 py-1 text-right tabular-nums text-gray-500" title="Quantidade da embalagem (na unidade-base)">{v.embalagem ?? '—'}</td>
                             <td className="px-3 py-1 text-right tabular-nums text-gray-500">{v.preco_atual != null ? fmtBRL(v.preco_atual) : '—'}</td>
                             <td className="px-3 py-1 text-gray-500">{v.fornecedor_ultimo || '—'}</td>
                             <td></td>

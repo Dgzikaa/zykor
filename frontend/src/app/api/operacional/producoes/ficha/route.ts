@@ -26,6 +26,13 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
   const linhas = data || [];
+  // nome da SKU exata do VMarket usada em cada item (mostra na ficha qual variação foi escolhida)
+  const vmIdsItens = Array.from(new Set(linhas.filter((i: any) => i.insumo_id_vmarket).map((i: any) => Number(i.insumo_id_vmarket))));
+  const skuNomeMap = new Map<number, string>();
+  if (barId && vmIdsItens.length) {
+    const { data: skus } = await supabase.from('bronze_vmarket_produtos').select('id_produto_sisfood_cotacao, nome').eq('bar_id', barId).in('id_produto_sisfood_cotacao', vmIdsItens);
+    (skus || []).forEach((s: any) => skuNomeMap.set(Number(s.id_produto_sisfood_cotacao), s.nome));
+  }
   // último preço (VMarket) + unidade-base por insumo
   let precoMap = new Map<number, number>();
   let unidMap = new Map<number, { base: string; embalagem: number }>();
@@ -154,6 +161,7 @@ export async function GET(request: NextRequest) {
       insumo_fc: it.componente_tipo === 'insumo' ? ehFc(it.insumo_id_vmarket, it.insumo_codigo) : false,
       qtd_efetiva: qtdEf,
       custo_atual,
+      sku_nome: it.insumo_id_vmarket ? (skuNomeMap.get(Number(it.insumo_id_vmarket)) ?? null) : null,
     };
   });
   return NextResponse.json({ success: true, itens });
