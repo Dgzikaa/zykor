@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
@@ -187,6 +188,14 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{selObj.nome}</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{selObj.codigo ? `${selObj.codigo} · ` : ''}{itens.length} componentes</p>
+                  {kind === 'produto' && (
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      {selObj.categoria && <Badge variant="outline">{selObj.categoria}</Badge>}
+                      <Badge variant="outline" className={selObj.ativo ? 'text-emerald-600 border-emerald-300' : 'text-gray-400'}>{selObj.ativo ? 'Ativo' : 'Inativo'}</Badge>
+                      <span className="text-xs text-gray-500">Cód. CH: <span className="font-mono text-gray-600 dark:text-gray-300">{selObj.cods_ch?.length ? selObj.cods_ch.join(', ') : '—'}</span></span>
+                      <span className="text-xs text-gray-500">ID Yuzer: <span className="font-mono text-gray-600 dark:text-gray-300">{selObj.cods_yuzer?.length ? selObj.cods_yuzer.join(', ') : '—'}</span></span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-3 items-stretch">
                   {kind === 'producao' && (
