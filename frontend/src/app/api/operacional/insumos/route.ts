@@ -51,24 +51,6 @@ export async function GET(request: NextRequest) {
   for (const p of (produtos as any[]) || []) if (p.cod_interno) codCount.set(p.cod_interno, (codCount.get(p.cod_interno) || 0) + 1);
   const valido = (c: string | null) => !!c && /^i\d/.test(c);
 
-  const produtosComPreco = (produtos || []).map((p: any) => {
-    const pr = precoMap.get(p.id_produto_sisfood_cotacao);
-    return {
-      ...p,
-      fonte: 'vmarket',
-      preco_atual: pr?.preco_atual ?? null, preco_data: pr?.data_atual ?? null, preco_anterior: pr?.preco_anterior ?? null,
-      // fornecedor = de onde veio a última compra (cai pro cadastro VMarket se nunca comprou)
-      fornecedor_ultimo: pr?.fornecedor_atual ?? p.nome_fornecedor ?? null,
-      cod_duplicado: !!p.cod_interno && (codCount.get(p.cod_interno) || 0) > 1,
-      cod_invalido: p.cod_interno != null && !valido(p.cod_interno),
-      base: unidMap.get(p.id_produto_sisfood_cotacao)?.base ?? null,
-      embalagem: unidMap.get(p.id_produto_sisfood_cotacao)?.embalagem ?? null,
-    };
-  });
-
-  // Insumos comprados FORA do VMarket (só na contagem) — placeholder com preço da PLANILHA.
-  // Quando o mesmo cod_interno for cadastrado no VMarket, ele passa a vir pela lista VMarket (preço de pedido tem prioridade) e sai daqui.
-  const codsBronze = new Set((produtos || []).map((p: any) => p.cod_interno).filter(Boolean));
   // deriva base + embalagem do NOME (ex.: "500ml"→ml/500, "11kg"→g/11000, "1L"→ml/1000); senão cai na unidade_medida
   const deriveUnid = (nome: string, um: string | null): { base: string; embalagem: number } => {
     const m = (nome || '').match(/(\d+[.,]?\d*)\s*(kg|kilo|litro|lt|ml|gr|grama|l|g)\b/i);
@@ -87,8 +69,33 @@ export async function GET(request: NextRequest) {
     if (s === 'g' || s === 'grama') return { base: 'g', embalagem: 1 };
     return { base: 'un', embalagem: 1 };
   };
+  // catálogo da contagem (planilha) — preço placeholder por cod_interno (quando não há compra no VMarket)
   const { data: contagemIns } = await (supabase as any).schema('operations')
     .from('insumos').select('id, codigo, nome, categoria, unidade_medida, custo_unitario').eq('bar_id', barId);
+  const planilhaMap = new Map<string, number>();
+  for (const i of (contagemIns || [])) { const pv = Number(i.custo_unitario) || 0; if (i.codigo && pv > 0 && !planilhaMap.has(i.codigo)) planilhaMap.set(i.codigo, pv); }
+
+  const produtosComPreco = (produtos || []).map((p: any) => {
+    const pr = precoMap.get(p.id_produto_sisfood_cotacao);
+    const vmPreco = pr?.preco_atual ?? null;
+    const planPreco = p.cod_interno ? (planilhaMap.get(p.cod_interno) ?? null) : null;
+    // prioridade: último preço do VMarket; se nunca comprou, usa o preço da planilha (placeholder)
+    const usaPlan = vmPreco == null && planPreco != null;
+    return {
+      ...p,
+      fonte: usaPlan ? 'planilha' : 'vmarket',
+      preco_atual: vmPreco ?? planPreco, preco_data: pr?.data_atual ?? null, preco_anterior: pr?.preco_anterior ?? null,
+      // fornecedor = de onde veio a última compra (cai pro cadastro VMarket se nunca comprou)
+      fornecedor_ultimo: pr?.fornecedor_atual ?? (usaPlan ? 'Planilha' : (p.nome_fornecedor ?? null)),
+      cod_duplicado: !!p.cod_interno && (codCount.get(p.cod_interno) || 0) > 1,
+      cod_invalido: p.cod_interno != null && !valido(p.cod_interno),
+      base: unidMap.get(p.id_produto_sisfood_cotacao)?.base ?? null,
+      embalagem: unidMap.get(p.id_produto_sisfood_cotacao)?.embalagem ?? null,
+    };
+  });
+
+  // Insumos que existem SÓ na contagem (fora do VMarket) — placeholder com preço/unidade da PLANILHA.
+  const codsBronze = new Set((produtos || []).map((p: any) => p.cod_interno).filter(Boolean));
   const foraVmarket = (contagemIns || [])
     .filter((i: any) => /^i\d+$/.test(i.codigo) && !codsBronze.has(i.codigo))
     .map((i: any) => {

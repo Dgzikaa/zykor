@@ -224,7 +224,9 @@ export default function CadastrosPage() {
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums font-medium whitespace-nowrap">
                             {fmtBRL(p.preco_atual)}
-                            {p.fonte === 'planilha' && <span className="text-[10px] rounded px-1 ml-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" title="Preço da planilha (placeholder) — fora do VMarket">planilha</span>}
+                            {p.preco_atual != null && (p.fonte === 'planilha'
+                              ? <span className="text-[10px] rounded px-1 ml-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" title="Preço da planilha (ainda sem compra no VMarket)">planilha</span>
+                              : <span className="text-[10px] rounded px-1 ml-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" title="Última compra no VMarket">VMarket</span>)}
                             {subiu && <TrendingUp className="inline w-3 h-3 ml-1 text-red-500" />}
                             {caiu && <TrendingDown className="inline w-3 h-3 ml-1 text-emerald-500" />}
                           </td>
