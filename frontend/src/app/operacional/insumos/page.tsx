@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils, Pencil } from 'lucide-react';
+import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils, Pencil, Plus } from 'lucide-react';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
@@ -35,6 +35,15 @@ export default function CadastrosPage() {
   const [syncedEm, setSyncedEm] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [secaoSel, setSecaoSel] = useState<string>('todas');
+  // cadastro manual de insumo (mestre)
+  const [novoOpen, setNovoOpen] = useState(false);
+  const [nCod, setNCod] = useState('');
+  const [nNome, setNNome] = useState('');
+  const [nCat, setNCat] = useState('');
+  const [nUnid, setNUnid] = useState('un');
+  const [nPreco, setNPreco] = useState('');
+  const [nFc, setNFc] = useState(false);
+  const [criando, setCriando] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -46,6 +55,21 @@ export default function CadastrosPage() {
     finally { setLoading(false); }
   }, [barId, toast]);
   useEffect(() => { carregar(); }, [carregar]);
+
+  const criarInsumo = async () => {
+    if (!barId) return;
+    if (!/^i\d{2,}$/i.test(nCod.trim())) { toast({ title: 'Código inválido', description: 'Use i + números (ex.: i0638)', variant: 'destructive' }); return; }
+    if (!nNome.trim()) { toast({ title: 'Informe o nome', variant: 'destructive' }); return; }
+    setCriando(true);
+    try {
+      const r = await api.post('/api/operacional/insumos', { bar_id: barId, action: 'criar_insumo', codigo: nCod.trim().toLowerCase(), nome: nNome.trim(), categoria: nCat.trim(), unidade_medida: nUnid, custo_unitario: Number(String(nPreco).replace(',', '.')) || 0, fator_correcao: nFc });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: `Insumo ${r.codigo} cadastrado` });
+      setNovoOpen(false); setNCod(''); setNNome(''); setNCat(''); setNUnid('un'); setNPreco(''); setNFc(false);
+      await carregar();
+    } catch (e: any) { toast({ title: 'Erro ao cadastrar', description: e?.message, variant: 'destructive' }); }
+    finally { setCriando(false); }
+  };
 
   const sincronizar = async () => {
     if (!barId) return;
@@ -240,10 +264,40 @@ export default function CadastrosPage() {
               <p className="text-sm text-gray-500 dark:text-gray-400">Catálogo de insumos e variação de preço · {selectedBar?.nome || `Bar ${barId ?? ''}`}{syncedEm && <> · sync {new Date(syncedEm).toLocaleString('pt-BR')}</>}</p>
             </div>
           </div>
-          <Button onClick={sincronizar} disabled={sincronizando || !barId} variant="outline">
-            <RefreshCw className={`w-4 h-4 mr-2 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Sincronizando…' : 'Sincronizar VMarket'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setNovoOpen(true)} disabled={!barId}><Plus className="w-4 h-4 mr-1.5" />Adicionar insumo</Button>
+            <Button onClick={sincronizar} disabled={sincronizando || !barId} variant="outline">
+              <RefreshCw className={`w-4 h-4 mr-2 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Sincronizando…' : 'Sincronizar VMarket'}
+            </Button>
+          </div>
         </div>
+
+        {novoOpen && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setNovoOpen(false)}>
+            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-md space-y-3" onClick={e => e.stopPropagation()}>
+              <h4 className="font-semibold text-gray-900 dark:text-white">Adicionar insumo</h4>
+              <p className="text-xs text-gray-500">Cadastro manual no mestre. Use o código que vai casar com o VMarket quando a compra entrar (aí o sistema junta sozinho).</p>
+              <div className="flex gap-2">
+                <div className="w-32"><label className="text-xs text-gray-500">Código *</label><Input value={nCod} onChange={e => setNCod(e.target.value)} placeholder="i0638" /></div>
+                <div className="flex-1"><label className="text-xs text-gray-500">Nome *</label><Input value={nNome} onChange={e => setNNome(e.target.value)} placeholder="Ex.: Polpa África do Sul" /></div>
+              </div>
+              <div><label className="text-xs text-gray-500">Categoria / seção</label><Input value={nCat} onChange={e => setNCat(e.target.value)} placeholder="Ex.: BAR - HORTIFRUTI" /></div>
+              <div className="flex gap-2 items-end">
+                <div className="w-28"><label className="text-xs text-gray-500">Unidade</label>
+                  <select value={nUnid} onChange={e => setNUnid(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-2 text-sm">
+                    {['un', 'kg', 'g', 'L', 'ml'].map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+                <div className="flex-1"><label className="text-xs text-gray-500">Preço (R$)</label><Input value={nPreco} onChange={e => setNPreco(e.target.value)} placeholder="0,00" /></div>
+                <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 pb-2"><input type="checkbox" checked={nFc} onChange={e => setNFc(e.target.checked)} />FC</label>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => setNovoOpen(false)}>Cancelar</Button>
+                <Button onClick={criarInsumo} disabled={criando}><Plus className="w-4 h-4 mr-1" />{criando ? 'Salvando…' : 'Cadastrar'}</Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>

@@ -190,6 +190,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   }
 
+  // Cadastrar insumo manual no mestre (operations.insumos). Usa o código escolhido (i0XXX) pra casar com o VMarket quando a compra chegar.
+  if (body.action === 'criar_insumo') {
+    const codigo = String(body.codigo || '').trim().toLowerCase();
+    const nome = String(body.nome || '').trim();
+    if (!/^i\d{2,}$/.test(codigo)) return NextResponse.json({ success: false, error: 'Código deve ser i + números (ex.: i0638)' }, { status: 400 });
+    if (!nome) return NextResponse.json({ success: false, error: 'Nome obrigatório' }, { status: 400 });
+    const ops = (supabase as any).schema('operations');
+    const { data: ja } = await ops.from('insumos').select('id').eq('bar_id', barId).eq('codigo', codigo).maybeSingle();
+    if (ja) return NextResponse.json({ success: false, error: `Código ${codigo} já existe no cadastro` }, { status: 409 });
+    const payload: any = {
+      bar_id: barId, codigo, nome,
+      unidade_medida: ['un', 'kg', 'g', 'L', 'ml'].includes(body.unidade_medida) ? body.unidade_medida : 'un',
+      custo_unitario: Number(body.custo_unitario) || 0,
+      fator_correcao: !!body.fator_correcao,
+    };
+    if (body.categoria && String(body.categoria).trim()) payload.categoria = String(body.categoria).trim();
+    const { error } = await ops.from('insumos').insert(payload);
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, codigo });
+  }
+
   if (body.action !== 'sync') return NextResponse.json({ success: false, error: 'ação inválida' }, { status: 400 });
   const { data, error } = await supabase.rpc('fn_vmarket_sync', { p_bar_id: barId });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
