@@ -106,7 +106,8 @@ export async function GET(request: NextRequest) {
   });
 
   // Insumos que existem SÓ na contagem (fora do VMarket) — placeholder com preço/unidade da PLANILHA.
-  const codsBronze = new Set((produtos || []).map((p: any) => p.cod_interno).filter(Boolean));
+  // dedup pelo código EFETIVO (codigo_planilha||cod_interno): bronze com cod_interno lixo ('Sim') mas codigo_planilha=i0XXX já cobre o insumo
+  const codsBronze = new Set((produtos || []).map((p: any) => codEf(p)).filter(Boolean));
   const foraVmarket = (contagemIns || [])
     .filter((i: any) => /^i\d+$/.test(i.codigo) && !codsBronze.has(i.codigo))
     .map((i: any) => {
