@@ -30,13 +30,12 @@ export async function GET(request: NextRequest) {
     .order('nome', { ascending: true });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-  // contagem de itens + custo total (da ficha) por produção
-  const ids = (data || []).map((p) => p.id);
+  // contagem de itens + custo total (da ficha) por produção — sem .in() (URL grande trunca)
   const contagem: Record<number, number> = {};
   const custo: Record<number, number> = {};
   const temMestre: Record<number, boolean> = {};
-  if (ids.length) {
-    const { data: itens } = await supabase.from('producao_ficha_item').select('producao_id, custo_planilha, is_mestre').in('producao_id', ids);
+  {
+    const { data: itens } = await supabase.from('producao_ficha_item').select('producao_id, custo_planilha, is_mestre').not('producao_id', 'is', null);
     (itens || []).forEach((i: any) => {
       contagem[i.producao_id] = (contagem[i.producao_id] || 0) + 1;
       custo[i.producao_id] = (custo[i.producao_id] || 0) + Number(i.custo_planilha || 0);

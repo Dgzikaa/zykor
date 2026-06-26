@@ -35,12 +35,10 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
   // contagem de itens da ficha (finalização) por produto
-  const ids = (data || []).map((p: any) => p.id);
+  // contagem por produto — sem .in() (URL gigante com centenas de ids trunca e mostra 0 errado); conta todos e usa o mapa
   const contagem: Record<number, number> = {};
-  if (ids.length) {
-    const { data: itens } = await supabase.from('producao_ficha_item').select('produto_id').in('produto_id', ids);
-    (itens || []).forEach((i: any) => { if (i.produto_id) contagem[i.produto_id] = (contagem[i.produto_id] || 0) + 1; });
-  }
+  const { data: itens } = await supabase.from('producao_ficha_item').select('produto_id').not('produto_id', 'is', null);
+  (itens || []).forEach((i: any) => { if (i.produto_id) contagem[i.produto_id] = (contagem[i.produto_id] || 0) + 1; });
 
   // cód ContaHub (prd) + preço de venda (cardápio) por cod_interno — um produto pode ter vários (HH/PP/variações)
   const chMap: Record<string, number[]> = {};
