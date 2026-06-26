@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = await getAdminClient();
   let q = supabase.from('producao_ficha_item')
-    .select('id,componente_tipo,insumo_codigo,insumo_id_vmarket,producao_ref,nome_componente,quantidade,unidade,is_mestre,custo_planilha')
+    .select('id,componente_tipo,insumo_codigo,insumo_id_vmarket,producao_ref,nome_componente,quantidade,unidade,is_mestre,custo_planilha,fator_correcao')
     .order('is_mestre', { ascending: false }).order('id', { ascending: true });
   q = producaoId ? q.eq('producao_id', Number(producaoId)) : q.eq('produto_id', Number(produtoId));
   const { data, error } = await q;
@@ -37,6 +37,20 @@ export async function GET(request: NextRequest) {
     precoMap = new Map((precos || []).map((p: any) => [p.id_prod, Number(p.preco_atual)]));
     unidMap = new Map((unids || []).map((u: any) => [u.id_prod, { base: u.base, embalagem: Number(u.embalagem) }]));
   }
+
+  // insumos marcados com Fator de Correção (flag no cadastro) — por id VMarket e por código planilha
+  const fcIds = new Set<number>();
+  const fcCods = new Set<string>();
+  if (barId) {
+    const { data: fcRows } = await supabase.from('bronze_vmarket_produtos')
+      .select('id_produto_sisfood_cotacao, codigo_planilha, cod_interno').eq('bar_id', barId).eq('fator_correcao', true);
+    for (const r of (fcRows || []) as any[]) {
+      if (r.id_produto_sisfood_cotacao != null) fcIds.add(Number(r.id_produto_sisfood_cotacao));
+      const c = r.codigo_planilha || r.cod_interno; if (c) fcCods.add(c);
+    }
+  }
+  const ehFc = (idv: number | null, cod: string | null) => (idv != null && fcIds.has(idv)) || (!!cod && fcCods.has(cod));
+  const fcDe = (it: any) => { const f = Number(it.fator_correcao); return f > 0 ? f : 1; };
 
   // preço da PLANILHA (insumo fora do VMarket) por código — base/embalagem derivadas do nome
   const deriveUnid = (nome: string, um: string | null): { base: string; embalagem: number } => {
@@ -87,14 +101,15 @@ export async function GET(request: NextRequest) {
     const { data: refs } = await supabase.from('producao_base').select('id, codigo, unidade, rendimento').in('id', refIds);
     (refs || []).forEach((r: any) => refMap.set(r.id, r));
     const { data: refItens } = await supabase.from('producao_ficha_item')
-      .select('producao_id, insumo_id_vmarket, insumo_codigo, quantidade, custo_planilha, componente_tipo')
+      .select('producao_id, insumo_id_vmarket, insumo_codigo, quantidade, custo_planilha, componente_tipo, fator_correcao')
       .in('producao_id', refIds);
     const totalRef = new Map<number, number>();
     for (const ri of refItens || []) {
       let c = 0;
       if (ri.componente_tipo === 'insumo') {
         const info = insumoUn(ri.insumo_id_vmarket, ri.insumo_codigo);
-        c = info.precoUn != null ? Number(ri.quantidade || 0) * info.precoUn : Number(ri.custo_planilha || 0);
+        const qEf = Number(ri.quantidade || 0) / fcDe(ri);
+        c = info.precoUn != null ? qEf * info.precoUn : Number(ri.custo_planilha || 0);
       } else {
         c = Number(ri.custo_planilha || 0); // produção aninhada: usa o custo da planilha (1 nível)
       }
@@ -111,13 +126,15 @@ export async function GET(request: NextRequest) {
     const info = it.componente_tipo === 'insumo' ? insumoUn(it.insumo_id_vmarket, it.insumo_codigo) : null;
     let preco_un: number | null = null;
     let custo_atual: number | null = null;
+    const fc = fcDe(it);
+    const qtdEf = Number(it.quantidade || 0) / fc; // peso efetivo = quantidade ÷ FC
     if (it.componente_tipo === 'insumo') {
       preco_un = info?.precoUn ?? null;
-      if (preco_un != null) custo_atual = Number(it.quantidade || 0) * preco_un;
+      if (preco_un != null) custo_atual = qtdEf * preco_un;
     } else if (it.componente_tipo === 'producao') {
       const cu = custoUnitRef.get(it.producao_ref);
       preco_un = cu ?? null;
-      if (cu != null) custo_atual = Number(it.quantidade || 0) * cu;
+      if (cu != null) custo_atual = qtdEf * cu;
     }
     const base = it.componente_tipo === 'insumo' ? (info?.base ?? null) : null;
     // unidade de exibição segue o CADASTRO: base do insumo / unidade do preparo; só cai no it.unidade (legado) se não houver
@@ -129,6 +146,9 @@ export async function GET(request: NextRequest) {
       base,
       unidade_exib,
       componente_codigo: it.componente_tipo === 'producao' ? (ref?.codigo ?? null) : it.insumo_codigo,
+      fator_correcao: fc,
+      insumo_fc: it.componente_tipo === 'insumo' ? ehFc(it.insumo_id_vmarket, it.insumo_codigo) : false,
+      qtd_efetiva: qtdEf,
       custo_atual,
     };
   });
@@ -183,6 +203,7 @@ export async function PUT(request: NextRequest) {
   if ('is_mestre' in body) patch.is_mestre = body.is_mestre;
   if ('quantidade' in body) patch.quantidade = Number(body.quantidade);
   if ('unidade' in body) patch.unidade = body.unidade;
+  if ('fator_correcao' in body) { const f = Number(body.fator_correcao); patch.fator_correcao = f > 0 ? f : 1; }
   const { data, error } = await supabase.from('producao_ficha_item').update(patch).eq('id', id).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, item: data });

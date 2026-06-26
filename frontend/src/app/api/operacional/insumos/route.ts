@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   const { data: produtos, error } = await supabase
     .from('bronze_vmarket_produtos')
-    .select('id_produto_sisfood_cotacao,cod_interno,codigo_planilha,nome,marca,gramatura,gramatura_contagem,estoque,' +
+    .select('id_produto_sisfood_cotacao,cod_interno,codigo_planilha,fator_correcao,nome,marca,gramatura,gramatura_contagem,estoque,' +
             'nome_secao,id_secao_cotacao,nome_fornecedor,fator_embalagem,nao_requer_cotacao,fl_depara,' +
             'cod_barras,cod_omie,id_produto_erp,solicitacao_compra,id_status_registro,dt_alteracao')
     .eq('bar_id', barId)
@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
       return {
         id_produto_sisfood_cotacao: -Number(i.id), // chave sintética (negativa, não colide com ids VMarket)
         fonte: 'planilha',
-        cod_interno: i.codigo, codigo_planilha: i.codigo, nome: i.nome, marca: null, gramatura: null,
+        cod_interno: i.codigo, codigo_planilha: i.codigo, fator_correcao: false, nome: i.nome, marca: null, gramatura: null,
         nome_secao: i.categoria, id_secao_cotacao: null,
         nome_fornecedor: null, fornecedor_ultimo: 'Planilha',
         preco_atual: Number(i.custo_unitario) || null, preco_data: null, preco_anterior: null,
@@ -161,6 +161,16 @@ export async function POST(request: NextRequest) {
     const cod = (body.codigo_planilha ?? '').trim() || null;
     const { error } = await supabase.from('bronze_vmarket_produtos')
       .update({ codigo_planilha: cod }).eq('bar_id', barId).eq('id_produto_sisfood_cotacao', idProd);
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
+  }
+
+  // Marcar/desmarcar Fator de Correção do insumo (checkbox) — não é tocado pelo sync
+  if (body.action === 'fator_correcao') {
+    const idProd = Number(body.id_prod);
+    if (!idProd || idProd < 0) return NextResponse.json({ success: false, error: 'id_prod inválido' }, { status: 400 });
+    const { error } = await supabase.from('bronze_vmarket_produtos')
+      .update({ fator_correcao: !!body.fator_correcao }).eq('bar_id', barId).eq('id_produto_sisfood_cotacao', idProd);
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   }

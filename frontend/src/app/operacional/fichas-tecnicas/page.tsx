@@ -91,6 +91,12 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
     try { await api.put('/api/operacional/producoes/ficha', { id: it.id, is_mestre: !it.is_mestre }); if (sel) await carregarItens(sel); }
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
+  const salvarFcItem = async (it: any, valor: string) => {
+    const f = Number(String(valor).replace(',', '.')) || 1;
+    if (f === Number(it.fator_correcao || 1)) return;
+    try { await api.put('/api/operacional/producoes/ficha', { id: it.id, fator_correcao: f }); if (sel) await carregarItens(sel); }
+    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
 
   // edição de item (modal) — só a quantidade; a unidade segue o cadastro do insumo/preparo
   const [editItem, setEditItem] = useState<any>(null);
@@ -247,13 +253,14 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                     <th className="text-left font-medium px-2 py-1.5">Componente</th>
                     <th className="text-left font-medium px-2 py-1.5">Tipo</th>
                     <th className="text-right font-medium px-2 py-1.5">Peso/Qtd</th>
+                    <th className="text-right font-medium px-2 py-1.5" title="Fator de Correção (perda/limpeza): peso usado = quantidade ÷ FC">FC</th>
                     <th className="text-right font-medium px-2 py-1.5">Preço insumo</th>
                     <th className="text-right font-medium px-2 py-1.5">Valor</th>
                     <th className="w-14"></th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {loadingItens ? <tr><td colSpan={kind === 'producao' ? 8 : 7} className="px-2 py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-                    : itens.length === 0 ? <tr><td colSpan={kind === 'producao' ? 8 : 7} className="px-2 py-6 text-center text-gray-400">Ficha vazia — adicione os insumos/produções acima.</td></tr>
+                    {loadingItens ? <tr><td colSpan={kind === 'producao' ? 9 : 8} className="px-2 py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                    : itens.length === 0 ? <tr><td colSpan={kind === 'producao' ? 9 : 8} className="px-2 py-6 text-center text-gray-400">Ficha vazia — adicione os insumos/produções acima.</td></tr>
                     : itens.map(it => (
                       <tr key={it.id} className={it.is_mestre ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}>
                         {kind === 'producao' && (
@@ -267,6 +274,16 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                         <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">{it.nome_componente || it.componente_codigo || `#${it.producao_ref}`}</td>
                         <td className="px-2 py-1.5"><span className={`text-[10px] rounded px-1.5 py-0.5 ${it.componente_tipo === 'producao' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>{it.componente_tipo === 'producao' ? 'Produção' : 'Insumo'}</span></td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{fmtPeso(it.quantidade, it.unidade_exib)}</td>
+                        <td className="px-2 py-1.5 text-right">
+                          {it.insumo_fc ? (
+                            <div className="flex flex-col items-end">
+                              <input type="number" step="0.0001" defaultValue={it.fator_correcao ?? 1} key={`fc-${it.id}-${it.fator_correcao}`}
+                                onBlur={e => salvarFcItem(it, e.target.value)} title="Fator de Correção (ex.: filé 100/120 = 0,833)"
+                                className="h-7 w-16 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 px-1 text-xs text-right" />
+                              {Number(it.fator_correcao || 1) !== 1 && <span className="text-[10px] text-amber-600 dark:text-amber-400" title="Peso efetivo usado">→ {fmtPeso(it.qtd_efetiva, it.unidade_exib)}</span>}
+                            </div>
+                          ) : <span className="text-gray-300">—</span>}
+                        </td>
                         <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtPrecoUn(it.preco_un, it.unidade_exib)}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums font-medium">
                           {flagRevisar(it) ? <span className="text-amber-500 text-xs" title="Custo destoa muito — revisar a unidade/embalagem do insumo">⚠ revisar</span>

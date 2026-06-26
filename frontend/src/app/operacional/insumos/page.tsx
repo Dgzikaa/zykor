@@ -15,7 +15,7 @@ const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR',
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
 
 interface Produto {
-  id_produto_sisfood_cotacao: number; cod_interno: string | null; codigo_planilha?: string | null; nome: string | null; marca: string | null;
+  id_produto_sisfood_cotacao: number; cod_interno: string | null; codigo_planilha?: string | null; fator_correcao?: boolean; nome: string | null; marca: string | null;
   gramatura: string | null; estoque: number | null; nome_secao: string | null; id_secao_cotacao: number | null;
   nome_fornecedor: string | null; fornecedor_ultimo: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
   cod_duplicado?: boolean; cod_invalido?: boolean; base?: string | null; embalagem?: number | null; fonte?: string;
@@ -82,6 +82,14 @@ export default function CadastrosPage() {
         base: patch.base ?? p.base ?? 'g', embalagem: patch.embalagem ?? p.embalagem ?? 1,
       });
     } catch (e: any) { toast({ title: 'Erro ao salvar unidade', description: e?.message, variant: 'destructive' }); }
+  };
+
+  const salvarFc = async (p: Produto, valor: boolean) => {
+    if (p.id_produto_sisfood_cotacao < 0) return; // planilha-only não tem flag no VMarket
+    setProdutos(prev => prev.map(x => x.id_produto_sisfood_cotacao === p.id_produto_sisfood_cotacao ? { ...x, fator_correcao: valor } : x));
+    try {
+      await api.post('/api/operacional/insumos', { bar_id: barId, action: 'fator_correcao', id_prod: p.id_produto_sisfood_cotacao, fator_correcao: valor });
+    } catch (e: any) { toast({ title: 'Erro ao salvar Fator de Correção', description: e?.message, variant: 'destructive' }); }
   };
 
   const salvarCodigoPlanilha = async (p: Produto, valor: string) => {
@@ -202,14 +210,15 @@ export default function CadastrosPage() {
                   <th className="text-left font-medium px-3 py-2" title="Código correto/estável usado pelo sistema (editável)">Cód. Planilha</th>
                   <th className="text-left font-medium px-3 py-2">Insumo</th>
                   <th className="text-left font-medium px-3 py-2">Seção</th>
+                  <th className="text-center font-medium px-3 py-2" title="Fator de Correção: marque se o insumo tem perda/limpeza. O FC é preenchido por componente na ficha técnica (peso usado = quantidade ÷ FC).">FC</th>
                   <th className="text-center font-medium px-3 py-2">Unid. medida</th>
                   <th className="text-right font-medium px-3 py-2" title="Quantidade da unidade-base na embalagem de compra (ex.: 1000 g = 1 kg, 5000 ml = 5 L)">Quantidade</th>
                   <th className="text-right font-medium px-3 py-2">Preço (últ.)</th>
                   <th className="text-left font-medium px-3 py-2">Fornecedor</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {loading ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
-                  : gruposView.length === 0 ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
+                  {loading ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
+                  : gruposView.length === 0 ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
                   : gruposView.map(g => {
                     const p = g.rep;
                     const subiu = p.preco_anterior != null && p.preco_atual != null && p.preco_atual > p.preco_anterior;
@@ -235,6 +244,12 @@ export default function CadastrosPage() {
                             ) : p.nome}
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
+                          <td className="px-3 py-2 text-center">
+                            {p.id_produto_sisfood_cotacao >= 0 && (
+                              <input type="checkbox" checked={!!p.fator_correcao} onChange={e => salvarFc(p, e.target.checked)}
+                                className="h-4 w-4 cursor-pointer accent-amber-500" title="Insumo com fator de correção (perda/limpeza)" />
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-center">
                             <select value={p.base || 'g'} onChange={e => salvarUnidade(p, { base: e.target.value })}
                               className="h-7 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs">
@@ -262,7 +277,7 @@ export default function CadastrosPage() {
                             <td></td>
                             <td className="px-3 py-1 pl-7 text-gray-600 dark:text-gray-300">↳ {v.nome}</td>
                             <td className="px-3 py-1 text-gray-500">{v.nome_secao || '—'}</td>
-                            <td></td><td></td>
+                            <td></td><td></td><td></td>
                             <td className="px-3 py-1 text-right tabular-nums text-gray-500">{v.preco_atual != null ? fmtBRL(v.preco_atual) : '—'}</td>
                             <td className="px-3 py-1 text-gray-500">{v.fornecedor_ultimo || '—'}</td>
                           </tr>
