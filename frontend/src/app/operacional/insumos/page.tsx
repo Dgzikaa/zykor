@@ -62,6 +62,8 @@ export default function CadastrosPage() {
 
   // Materiais (limpeza/descartáveis/outros: tabaco, impostos, frete) não são insumos — viram um FILTRO
   const ehMaterial = (s: string | null) => /limpeza|descart|outros/i.test(s || '');
+  // VMarket com código errado: produto real do VMarket cujo cod_interno não bate com o Código Planilha (correto)
+  const vmErrado = (p: Produto) => p.id_produto_sisfood_cotacao >= 0 && !!p.codigo_planilha && (p.cod_interno || null) !== p.codigo_planilha;
   const [filtroEsp, setFiltroEsp] = useState<'variacoes' | 'invalido' | 'materiais' | null>(null);
 
   const filtrados = useMemo(() => {
@@ -121,11 +123,11 @@ export default function CadastrosPage() {
   const nInsumos = grupos.filter(g => !g.isMaterial).length;
   const nMateriais = grupos.filter(g => g.isMaterial).length;
   const nVariacoes = grupos.filter(g => !g.isMaterial && g.nVar > 1).length;
-  const nInvalidos = grupos.filter(g => !g.isMaterial && g.rep.cod_invalido).length;
+  const nInvalidos = grupos.filter(g => !g.isMaterial && vmErrado(g.rep)).length;
   const gruposView = useMemo(() => {
     if (filtroEsp === 'materiais') return grupos.filter(g => g.isMaterial);
     if (filtroEsp === 'variacoes') return grupos.filter(g => !g.isMaterial && g.nVar > 1);
-    if (filtroEsp === 'invalido') return grupos.filter(g => !g.isMaterial && g.rep.cod_invalido);
+    if (filtroEsp === 'invalido') return grupos.filter(g => !g.isMaterial && vmErrado(g.rep));
     return grupos.filter(g => !g.isMaterial);
   }, [grupos, filtroEsp]);
 
@@ -199,14 +201,13 @@ export default function CadastrosPage() {
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <button onClick={() => setFiltroEsp(null)}><Badge variant="outline" className={`cursor-pointer ${!filtroEsp ? 'ring-1 ring-emerald-400' : ''}`}>{nInsumos} insumos</Badge></button>
               {nVariacoes > 0 && <button onClick={() => setFiltroEsp(f => f === 'variacoes' ? null : 'variacoes')}><Badge variant="outline" className={`cursor-pointer text-blue-600 border-blue-300 ${filtroEsp === 'variacoes' ? 'ring-1 ring-blue-400' : ''}`}>{nVariacoes} com variações</Badge></button>}
-              {nInvalidos > 0 && <button onClick={() => setFiltroEsp(f => f === 'invalido' ? null : 'invalido')}><Badge variant="outline" className={`cursor-pointer text-red-600 border-red-300 ${filtroEsp === 'invalido' ? 'ring-1 ring-red-400' : ''}`}>{nInvalidos} com código inválido</Badge></button>}
+              {nInvalidos > 0 && <button onClick={() => setFiltroEsp(f => f === 'invalido' ? null : 'invalido')}><Badge variant="outline" className={`cursor-pointer text-red-600 border-red-300 ${filtroEsp === 'invalido' ? 'ring-1 ring-red-400' : ''}`}>{nInvalidos} c/ cód VMarket p/ corrigir</Badge></button>}
               {nMateriais > 0 && <button onClick={() => setFiltroEsp(f => f === 'materiais' ? null : 'materiais')}><Badge variant="outline" className={`cursor-pointer text-gray-500 ${filtroEsp === 'materiais' ? 'ring-1 ring-gray-400' : ''}`}>{nMateriais} materiais</Badge></button>}
             </div>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
-                  <th className="text-left font-medium px-3 py-2" title="Código cru do VMarket (o sync sobrescreve; pode vir errado)">Cód. VMarket</th>
-                  <th className="text-left font-medium px-3 py-2" title="Código correto/estável usado pelo sistema (editável)">Cód. Planilha</th>
+                  <th className="text-left font-medium px-3 py-2" title="Código do insumo (o correto/estável; o sistema sempre usa este). Editável.">Código</th>
                   <th className="text-left font-medium px-3 py-2">Insumo</th>
                   <th className="text-left font-medium px-3 py-2">Seção</th>
                   <th className="text-center font-medium px-3 py-2" title="Fator de Correção: marque se o insumo tem perda/limpeza. O FC é preenchido por componente na ficha técnica (peso usado = quantidade ÷ FC).">FC</th>
@@ -216,8 +217,8 @@ export default function CadastrosPage() {
                   <th className="text-left font-medium px-3 py-2">Fornecedor</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {loading ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
-                  : gruposView.length === 0 ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
+                  {loading ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
+                  : gruposView.length === 0 ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
                   : gruposView.map(g => {
                     const p = g.rep;
                     const subiu = p.preco_anterior != null && p.preco_atual != null && p.preco_atual > p.preco_anterior;
@@ -226,13 +227,15 @@ export default function CadastrosPage() {
                     return (
                       <Fragment key={g.key}>
                         <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                          <td className="px-3 py-2 font-mono text-xs text-gray-400">{p.cod_interno || '—'}</td>
                           <td className="px-3 py-2 font-mono text-xs">
                             {p.id_produto_sisfood_cotacao < 0
                               ? <span className="text-gray-600 dark:text-gray-300">{p.codigo_planilha || p.cod_interno}</span>
-                              : <input defaultValue={p.codigo_planilha ?? ''} key={`cp-${p.id_produto_sisfood_cotacao}-${p.codigo_planilha ?? ''}`}
-                                  onBlur={e => salvarCodigoPlanilha(p, e.target.value)} placeholder="i0XXX"
-                                  className={`h-7 w-20 rounded border bg-white dark:bg-gray-800 px-1 text-xs ${p.codigo_planilha ? 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200' : 'border-red-300 dark:border-red-700'}`} />}
+                              : <div className="flex items-center gap-1">
+                                  <input defaultValue={p.codigo_planilha ?? ''} key={`cp-${p.id_produto_sisfood_cotacao}-${p.codigo_planilha ?? ''}`}
+                                    onBlur={e => salvarCodigoPlanilha(p, e.target.value)} placeholder="i0XXX"
+                                    className={`h-7 w-20 rounded border bg-white dark:bg-gray-800 px-1 text-xs ${p.codigo_planilha ? 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200' : 'border-red-300 dark:border-red-700'}`} />
+                                  {vmErrado(p) && <span title={`No VMarket está como "${p.cod_interno || '—'}" — corrigir lá`} className="text-amber-500 cursor-help">⚠</span>}
+                                </div>}
                           </td>
                           <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
                             {g.nVar > 1 ? (
@@ -270,8 +273,7 @@ export default function CadastrosPage() {
                         </tr>
                         {aberto && g.produtos.map(v => (
                           <tr key={v.id_produto_sisfood_cotacao} className="bg-gray-50/60 dark:bg-gray-800/30 text-xs">
-                            <td className="px-3 py-1 font-mono text-gray-400">{v.cod_interno || ''}</td>
-                            <td></td>
+                            <td className="px-3 py-1 font-mono text-gray-400" title="Código no VMarket desta variação">{v.cod_interno || ''}</td>
                             <td className="px-3 py-1 pl-7 text-gray-600 dark:text-gray-300">↳ {v.nome}</td>
                             <td className="px-3 py-1 text-gray-500">{v.nome_secao || '—'}</td>
                             <td></td><td></td><td></td>
