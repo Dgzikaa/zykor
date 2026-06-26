@@ -106,6 +106,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, importados: novos.length, ignorados_outro_bar: ignoradosOutroBar });
   }
 
+  // ----- EDITAR CÓDIGOS (ContaHub / Yuzer) de um produto existente -----
+  if (body.action === 'codigos') {
+    const codInterno = String(body.codigo || '').trim();
+    if (!codInterno) return NextResponse.json({ success: false, error: 'codigo obrigatório' }, { status: 400 });
+    const nomeProd = String(body.nome || '').trim();
+    const parse = (v: any) => Array.from(new Set((Array.isArray(v) ? v : String(v ?? '').split(',')).map((x: any) => Number(String(x).trim())).filter((n: number) => Number.isFinite(n) && n > 0)));
+    const chArr = parse(body.cods_ch);
+    const yzArr = parse(body.cods_yuzer);
+    // ContaHub: adiciona os novos (preserva preço), remove os tirados
+    const { data: curCh } = await supabase.from('produto_contahub_map').select('prd').eq('bar_id', barId).eq('cod_interno', codInterno);
+    const curChSet = new Set((curCh || []).map((r: any) => Number(r.prd)));
+    const chRemove = [...curChSet].filter(p => !chArr.includes(p));
+    if (chRemove.length) await supabase.from('produto_contahub_map').delete().eq('bar_id', barId).eq('cod_interno', codInterno).in('prd', chRemove);
+    for (const prd of chArr) if (!curChSet.has(prd)) await supabase.from('produto_contahub_map').upsert({ bar_id: barId, prd, cod_interno: codInterno }, { onConflict: 'bar_id,prd' });
+    // Yuzer
+    const { data: curYz } = await supabase.from('produto_yuzer_map').select('yuzer_produto_id').eq('bar_id', barId).eq('cod_interno', codInterno);
+    const curYzSet = new Set((curYz || []).map((r: any) => Number(r.yuzer_produto_id)));
+    const yzRemove = [...curYzSet].filter(p => !yzArr.includes(p));
+    if (yzRemove.length) await supabase.from('produto_yuzer_map').delete().eq('bar_id', barId).eq('cod_interno', codInterno).in('yuzer_produto_id', yzRemove);
+    for (const yid of yzArr) if (!curYzSet.has(yid)) await supabase.from('produto_yuzer_map').upsert({ bar_id: barId, cod_yuzer: String(yid), yuzer_produto_id: yid, nome: nomeProd, cod_interno: codInterno }, { onConflict: 'bar_id,cod_yuzer,cod_interno' });
+    return NextResponse.json({ success: true });
+  }
+
   // ----- CADASTRO MANUAL -----
   const nome = String(body.nome || '').trim();
   if (!nome) return NextResponse.json({ success: false, error: 'Nome obrigatório' }, { status: 400 });

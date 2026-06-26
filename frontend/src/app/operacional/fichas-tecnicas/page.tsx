@@ -47,7 +47,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
 
   const [sel, setSel] = useState<number | null>(preSel ?? null);
   const [buscaLista, setBuscaLista] = useState('');
-  const [filtroLista, setFiltroLista] = useState<'zero' | 'sem_mestre' | null>(null);
+  const [filtroLista, setFiltroLista] = useState<'zero' | 'sem_mestre' | 'sem_ch' | null>(null);
   const [itens, setItens] = useState<any[]>([]);
   const [loadingItens, setLoadingItens] = useState(false);
 
@@ -64,6 +64,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
 
   const nZero = lista.filter(p => (p.qtd_componentes ?? 0) === 0).length;
   const nSemMestre = kind === 'producao' ? lista.filter(p => (p.qtd_componentes ?? 0) > 0 && !p.tem_mestre).length : 0;
+  const nSemCh = kind === 'produto' ? lista.filter(p => (p.cods_ch?.length ?? 0) === 0).length : 0;
   // categoria pelo prefixo do código: finalização b=Bebida d=Drink c=Comida o=Outros · produção pd=Bar pc=Cozinha
   const cats = kind === 'produto' ? ['Bebida', 'Drink', 'Comida', 'Outros'] : ['Bar', 'Cozinha'];
   const catDe = (p: any) => {
@@ -77,6 +78,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
       if (catFiltro && catDe(p) !== catFiltro) return false;
       if (filtroLista === 'zero' && (p.qtd_componentes ?? 0) !== 0) return false;
       if (filtroLista === 'sem_mestre' && !((p.qtd_componentes ?? 0) > 0 && !p.tem_mestre)) return false;
+      if (filtroLista === 'sem_ch' && (p.cods_ch?.length ?? 0) !== 0) return false;
       return !q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q);
     });
   }, [lista, buscaLista, filtroLista, catFiltro]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -133,6 +135,20 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
+  // editar códigos ContaHub / Yuzer do produto (finalização)
+  const [editCods, setEditCods] = useState(false);
+  const [chVal, setChVal] = useState('');
+  const [yzVal, setYzVal] = useState('');
+  const abrirCods = () => { setChVal((selObj?.cods_ch || []).join(', ')); setYzVal((selObj?.cods_yuzer || []).join(', ')); setEditCods(true); };
+  const salvarCods = async () => {
+    if (!selObj) return;
+    try {
+      const r = await api.post('/api/operacional/produtos', { bar_id: barId, action: 'codigos', codigo: selObj.codigo, nome: selObj.nome, cods_ch: chVal, cods_yuzer: yzVal });
+      if (!r.success) throw new Error(r.error);
+      setEditCods(false); reloadLista();
+    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+
   // adicionar componente (modal de criação)
   const [addOpen, setAddOpen] = useState(false);
   const [addTipo, setAddTipo] = useState<'insumo' | 'producao'>('insumo');
@@ -168,10 +184,11 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input value={buscaLista} onChange={e => setBuscaLista(e.target.value)} placeholder={kind === 'producao' ? 'Buscar produção…' : 'Buscar produto…'} className="pl-9 h-9" />
             </div>
-            {(nZero > 0 || nSemMestre > 0) && (
+            {(nZero > 0 || nSemMestre > 0 || nSemCh > 0) && (
               <div className="flex flex-wrap gap-1 mt-2">
                 {nZero > 0 && <button onClick={() => setFiltroLista(f => f === 'zero' ? null : 'zero')} className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'zero' ? 'bg-red-600 text-white border-red-600' : 'border-red-300 text-red-600'}`}>{nZero} sem ficha</button>}
                 {nSemMestre > 0 && <button onClick={() => setFiltroLista(f => f === 'sem_mestre' ? null : 'sem_mestre')} className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'sem_mestre' ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-300 text-amber-600'}`}>{nSemMestre} sem mestre</button>}
+                {nSemCh > 0 && <button onClick={() => setFiltroLista(f => f === 'sem_ch' ? null : 'sem_ch')} className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'sem_ch' ? 'bg-orange-500 text-white border-orange-500' : 'border-orange-300 text-orange-600'}`}>{nSemCh} sem cód CH</button>}
                 {filtroLista && <button onClick={() => setFiltroLista(null)} className="text-[10px] text-gray-400 underline px-1">limpar</button>}
               </div>
             )}
@@ -214,6 +231,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                       <Badge variant="outline" className={selObj.ativo ? 'text-emerald-600 border-emerald-300' : 'text-gray-400'}>{selObj.ativo ? 'Ativo' : 'Inativo'}</Badge>
                       <span className="text-xs text-gray-500">Cód. CH: <span className="font-mono text-gray-600 dark:text-gray-300">{selObj.cods_ch?.length ? selObj.cods_ch.join(', ') : '—'}</span></span>
                       <span className="text-xs text-gray-500">ID Yuzer: <span className="font-mono text-gray-600 dark:text-gray-300">{selObj.cods_yuzer?.length ? selObj.cods_yuzer.join(', ') : '—'}</span></span>
+                      <button onClick={abrirCods} className="text-indigo-500 hover:text-indigo-700 inline-flex items-center gap-1 text-xs" title="Editar códigos ContaHub / Yuzer"><Pencil className="w-3 h-3" />editar códigos</button>
                     </div>
                   )}
                 </div>
@@ -339,6 +357,23 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                       <div className="flex justify-end gap-2 mt-4">
                         <Button variant="outline" onClick={() => setEditRend(false)}>Cancelar</Button>
                         <Button onClick={salvarRend}>Salvar</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Modal de editar códigos ContaHub / Yuzer */}
+                {editCods && (
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditCods(false)}>
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Códigos do produto</h4>
+                      <p className="text-sm text-gray-500">{selObj?.nome} · {selObj?.codigo}</p>
+                      <div><label className="text-xs text-gray-500">Cód. ContaHub (prd) — separe por vírgula se tiver vários (HH/PP)</label><Input value={chVal} onChange={e => setChVal(e.target.value)} placeholder="ex.: 86, 381" /></div>
+                      <div><label className="text-xs text-gray-500">ID Yuzer — separe por vírgula se tiver vários</label><Input value={yzVal} onChange={e => setYzVal(e.target.value)} placeholder="ex.: 12345" /></div>
+                      <p className="text-[11px] text-gray-400">Deixe vazio pra remover. Liga o produto às vendas do ContaHub/Yuzer (entra no CMV).</p>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <Button variant="outline" onClick={() => setEditCods(false)}>Cancelar</Button>
+                        <Button onClick={salvarCods}>Salvar</Button>
                       </div>
                     </div>
                   </div>
