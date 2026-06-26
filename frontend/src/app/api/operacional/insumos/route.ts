@@ -215,12 +215,14 @@ export async function POST(request: NextRequest) {
     if (body.categoria && String(body.categoria).trim()) payload.categoria = String(body.categoria).trim();
     const { data: novo, error } = await ops.from('insumos').insert(payload).select('id').single();
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    // unidade-base + embalagem (quantidade) — override por id sintético negativo, como a tela faz
-    if (novo?.id && emb) {
-      await supabase.from('insumo_unidade').upsert({
-        bar_id: barId, id_prod: -Number(novo.id), cod_interno: codigo, base, embalagem: emb,
-        origem: 'manual', atualizado_em: new Date().toISOString(),
-      }, { onConflict: 'bar_id,id_prod' });
+    // se veio de um produto VMarket (cadastro a partir do banner): liga o produto ao código (codigo_planilha) e usa o id real do VMarket pra unidade
+    const vmId = Number(body.id_prod_vmarket) || 0;
+    if (vmId > 0) {
+      await supabase.from('bronze_vmarket_produtos').update({ codigo_planilha: codigo }).eq('bar_id', barId).eq('id_produto_sisfood_cotacao', vmId);
+      if (emb) await supabase.from('insumo_unidade').upsert({ bar_id: barId, id_prod: vmId, cod_interno: codigo, base, embalagem: emb, origem: 'manual', atualizado_em: new Date().toISOString() }, { onConflict: 'bar_id,id_prod' });
+    } else if (novo?.id && emb) {
+      // cadastro avulso (sem VMarket): override por id sintético negativo, como a tela faz
+      await supabase.from('insumo_unidade').upsert({ bar_id: barId, id_prod: -Number(novo.id), cod_interno: codigo, base, embalagem: emb, origem: 'manual', atualizado_em: new Date().toISOString() }, { onConflict: 'bar_id,id_prod' });
     }
     return NextResponse.json({ success: true, codigo });
   }

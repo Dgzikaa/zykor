@@ -44,6 +44,7 @@ export default function CadastrosPage() {
   const [nEmb, setNEmb] = useState('');
   const [nPreco, setNPreco] = useState('');
   const [nFc, setNFc] = useState(false);
+  const [nVmId, setNVmId] = useState<number | null>(null);
   const [criando, setCriando] = useState(false);
 
   const carregar = useCallback(async () => {
@@ -63,13 +64,27 @@ export default function CadastrosPage() {
     if (!nNome.trim()) { toast({ title: 'Informe o nome', variant: 'destructive' }); return; }
     setCriando(true);
     try {
-      const r = await api.post('/api/operacional/insumos', { bar_id: barId, action: 'criar_insumo', codigo: nCod.trim().toLowerCase(), nome: nNome.trim(), categoria: nCat.trim(), base: nUnid, embalagem: Number(String(nEmb).replace(',', '.')) || 0, custo_unitario: Number(String(nPreco).replace(',', '.')) || 0, fator_correcao: nFc });
+      const r = await api.post('/api/operacional/insumos', { bar_id: barId, action: 'criar_insumo', codigo: nCod.trim().toLowerCase(), nome: nNome.trim(), categoria: nCat.trim(), base: nUnid, embalagem: Number(String(nEmb).replace(',', '.')) || 0, custo_unitario: Number(String(nPreco).replace(',', '.')) || 0, fator_correcao: nFc, id_prod_vmarket: nVmId });
       if (!r.success) throw new Error(r.error);
       toast({ title: `Insumo ${r.codigo} cadastrado` });
-      setNovoOpen(false); setNCod(''); setNNome(''); setNCat(''); setNUnid('un'); setNEmb(''); setNPreco(''); setNFc(false);
+      setNovoOpen(false); setNCod(''); setNNome(''); setNCat(''); setNUnid('un'); setNEmb(''); setNPreco(''); setNFc(false); setNVmId(null);
       await carregar();
     } catch (e: any) { toast({ title: 'Erro ao cadastrar', description: e?.message, variant: 'destructive' }); }
     finally { setCriando(false); }
+  };
+
+  const abrirNovoBlank = () => { setNCod(''); setNNome(''); setNCat(''); setNUnid('un'); setNEmb(''); setNPreco(''); setNFc(false); setNVmId(null); setNovoOpen(true); };
+  const cadastrarDoVmarket = (g: any) => {
+    const p = g.rep;
+    setNCod(codShow(p) || '');
+    setNNome(p.nome || '');
+    setNCat(p.nome_secao || '');
+    setNUnid(['g', 'ml', 'un'].includes(p.base) ? p.base : 'un');
+    setNEmb(p.embalagem != null ? String(p.embalagem) : '');
+    setNPreco(p.preco_atual != null ? String(p.preco_atual) : '');
+    setNFc(!!p.fator_correcao);
+    setNVmId(p.id_produto_sisfood_cotacao);
+    setNovoOpen(true);
   };
 
   const [delConfirm, setDelConfirm] = useState<any | null>(null);
@@ -176,6 +191,7 @@ export default function CadastrosPage() {
   const nInvalidos = grupos.filter(g => !g.isMaterial && vmErrado(g.rep)).length;
   const nSemFicha = grupos.filter(g => !g.isMaterial && !g.temFicha).length;
   const nSemCadastro = grupos.filter(g => g.semCadastro).length;
+  const secoesLista = useMemo(() => Array.from(new Set(produtos.map(p => p.nome_secao).filter(Boolean))).sort() as string[], [produtos]);
   const gruposView = useMemo(() => {
     if (filtroEsp === 'materiais') return grupos.filter(g => g.isMaterial);
     if (filtroEsp === 'variacoes') return grupos.filter(g => !g.isMaterial && g.nVar > 1);
@@ -281,7 +297,7 @@ export default function CadastrosPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={() => setNovoOpen(true)} disabled={!barId}><Plus className="w-4 h-4 mr-1.5" />Adicionar insumo</Button>
+            <Button onClick={abrirNovoBlank} disabled={!barId}><Plus className="w-4 h-4 mr-1.5" />Adicionar insumo</Button>
             <Button onClick={sincronizar} disabled={sincronizando || !barId} variant="outline">
               <RefreshCw className={`w-4 h-4 mr-2 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Sincronizando…' : 'Sincronizar VMarket'}
             </Button>
@@ -297,7 +313,13 @@ export default function CadastrosPage() {
                 <div className="w-32"><label className="text-xs text-gray-500">Código *</label><Input value={nCod} onChange={e => setNCod(e.target.value)} placeholder="i0638" /></div>
                 <div className="flex-1"><label className="text-xs text-gray-500">Nome *</label><Input value={nNome} onChange={e => setNNome(e.target.value)} placeholder="Ex.: Polpa África do Sul" /></div>
               </div>
-              <div><label className="text-xs text-gray-500">Categoria / seção</label><Input value={nCat} onChange={e => setNCat(e.target.value)} placeholder="Ex.: BAR - HORTIFRUTI" /></div>
+              <div><label className="text-xs text-gray-500">Seção</label>
+                <select value={nCat} onChange={e => setNCat(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-2 text-sm">
+                  <option value="">— selecione —</option>
+                  {nCat && !secoesLista.includes(nCat) && <option value={nCat}>{nCat}</option>}
+                  {secoesLista.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
               <div className="flex gap-2 items-end">
                 <div className="w-20"><label className="text-xs text-gray-500">Unidade</label>
                   <select value={nUnid} onChange={e => setNUnid(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-2 text-sm">
@@ -420,6 +442,7 @@ export default function CadastrosPage() {
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.fornecedor_ultimo || '—'}</td>
                           <td className="px-3 py-2 text-right">
                             <div className="flex items-center justify-end gap-2">
+                              {g.semCadastro && <button onClick={() => cadastrarDoVmarket(g)} className="text-xs font-medium text-purple-600 hover:text-purple-800 dark:text-purple-300" title="Cadastrar este insumo no Zykor (já pré-preenchido)">cadastrar</button>}
                               <button onClick={() => abrirEditIns(p)} className="text-gray-400 hover:text-indigo-600" title="Editar código, FC e unidade"><Pencil className="w-4 h-4" /></button>
                               {g.temFicha
                                 ? <span className="text-gray-200 dark:text-gray-700" title="Em ficha técnica — não pode excluir"><Trash2 className="w-4 h-4" /></span>
