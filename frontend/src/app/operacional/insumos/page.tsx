@@ -18,7 +18,7 @@ interface Produto {
   id_produto_sisfood_cotacao: number; cod_interno: string | null; nome: string | null; marca: string | null;
   gramatura: string | null; estoque: number | null; nome_secao: string | null; id_secao_cotacao: number | null;
   nome_fornecedor: string | null; fornecedor_ultimo: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
-  cod_duplicado?: boolean; cod_invalido?: boolean; base?: string | null; embalagem?: number | null;
+  cod_duplicado?: boolean; cod_invalido?: boolean; base?: string | null; embalagem?: number | null; fonte?: string;
 }
 interface Secao { id_secao_cotacao: number; nome: string | null; }
 
@@ -208,18 +208,23 @@ export default function CadastrosPage() {
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
                           <td className="px-3 py-2 text-center">
-                            <select value={p.base || 'g'} onChange={e => salvarUnidade(p, { base: e.target.value })}
-                              className="h-7 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs">
-                              <option value="g">g</option><option value="ml">ml</option><option value="un">un</option>
-                            </select>
+                            {p.fonte === 'planilha' ? <span className="text-xs text-gray-500">{p.base || '—'}</span> : (
+                              <select value={p.base || 'g'} onChange={e => salvarUnidade(p, { base: e.target.value })}
+                                className="h-7 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs">
+                                <option value="g">g</option><option value="ml">ml</option><option value="un">un</option>
+                              </select>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-right">
-                            <input type="number" step="0.001" defaultValue={p.embalagem ?? 1}
-                              onBlur={e => { const v = Number(e.target.value) || 1; if (v !== (p.embalagem ?? 1)) salvarUnidade(p, { embalagem: v }); }}
-                              className="h-7 w-20 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs text-right" />
+                            {p.fonte === 'planilha' ? <span className="text-xs text-gray-500">{p.embalagem ?? 1}</span> : (
+                              <input type="number" step="0.001" defaultValue={p.embalagem ?? 1}
+                                onBlur={e => { const v = Number(e.target.value) || 1; if (v !== (p.embalagem ?? 1)) salvarUnidade(p, { embalagem: v }); }}
+                                className="h-7 w-20 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs text-right" />
+                            )}
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums font-medium whitespace-nowrap">
                             {fmtBRL(p.preco_atual)}
+                            {p.fonte === 'planilha' && <span className="text-[10px] rounded px-1 ml-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" title="Preço da planilha (placeholder) — fora do VMarket">planilha</span>}
                             {subiu && <TrendingUp className="inline w-3 h-3 ml-1 text-red-500" />}
                             {caiu && <TrendingDown className="inline w-3 h-3 ml-1 text-emerald-500" />}
                           </td>

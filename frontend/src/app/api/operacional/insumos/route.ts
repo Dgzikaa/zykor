@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
     const pr = precoMap.get(p.id_produto_sisfood_cotacao);
     return {
       ...p,
+      fonte: 'vmarket',
       preco_atual: pr?.preco_atual ?? null, preco_data: pr?.data_atual ?? null, preco_anterior: pr?.preco_anterior ?? null,
       // fornecedor = de onde veio a última compra (cai pro cadastro VMarket se nunca comprou)
       fornecedor_ultimo: pr?.fornecedor_atual ?? p.nome_fornecedor ?? null,
@@ -65,9 +66,28 @@ export async function GET(request: NextRequest) {
     };
   });
 
+  // Insumos comprados FORA do VMarket (só na contagem) — placeholder com preço da PLANILHA.
+  // Quando o mesmo cod_interno for cadastrado no VMarket, ele passa a vir pela lista VMarket (preço de pedido tem prioridade) e sai daqui.
+  const codsBronze = new Set((produtos || []).map((p: any) => p.cod_interno).filter(Boolean));
+  const baseDe = (u: string | null) => { const s = (u || '').toLowerCase().trim(); if (s === 'ml' || s === 'l' || s === 'litro') return 'ml'; if (s === 'kg' || s === 'g' || s === 'grama') return 'g'; return 'un'; };
+  const { data: contagemIns } = await (supabase as any).schema('operations')
+    .from('insumos').select('id, codigo, nome, categoria, unidade_medida, custo_unitario').eq('bar_id', barId);
+  const foraVmarket = (contagemIns || [])
+    .filter((i: any) => /^i\d+$/.test(i.codigo) && !codsBronze.has(i.codigo))
+    .map((i: any) => ({
+      id_produto_sisfood_cotacao: -Number(i.id), // chave sintética (negativa, não colide com ids VMarket)
+      fonte: 'planilha',
+      cod_interno: i.codigo, nome: i.nome, marca: null, gramatura: null,
+      nome_secao: i.categoria, id_secao_cotacao: null,
+      nome_fornecedor: null, fornecedor_ultimo: 'Planilha',
+      preco_atual: Number(i.custo_unitario) || null, preco_data: null, preco_anterior: null,
+      cod_duplicado: false, cod_invalido: false,
+      base: baseDe(i.unidade_medida), embalagem: 1,
+    }));
+
   return NextResponse.json({
     success: true,
-    produtos: produtosComPreco,
+    produtos: [...produtosComPreco, ...foraVmarket],
     secoes: secoes || [],
     synced_em: fresh?.[0]?.synced_em || null,
   });
