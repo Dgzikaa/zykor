@@ -181,15 +181,16 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
-  // excluir produto da base do Zykor (manual)
+  // excluir da base do Zykor (manual) — produção ou produto
   const [confirmDel, setConfirmDel] = useState(false);
   const excluirProduto = async () => {
     if (!selObj) return;
     try {
-      const r = await api.delete(`/api/operacional/produtos?id=${selObj.id}`);
+      const ep = kind === 'producao' ? `/api/operacional/producoes?id=${selObj.id}` : `/api/operacional/produtos?id=${selObj.id}`;
+      const r = await api.delete(ep);
       if (!r.success) throw new Error(r.error);
       setConfirmDel(false); setSel(null); reloadLista();
-      toast({ title: 'Produto excluído da base' });
+      toast({ title: kind === 'producao' ? 'Produção excluída' : 'Produto excluído da base' });
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
@@ -293,6 +294,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     {selObj.nome}
                     {kind === 'producao' && <button onClick={abrirRend} className="text-gray-400 hover:text-indigo-600" title="Editar produção (nome, código, rendimento)"><Pencil className="w-4 h-4" /></button>}
+                    {kind === 'producao' && <button onClick={() => setConfirmDel(true)} className="text-red-500 hover:text-red-700" title="Excluir esta produção da base do Zykor"><Trash2 className="w-4 h-4" /></button>}
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{selObj.codigo ? `${selObj.codigo} · ` : ''}{itens.length} componentes</p>
                   {kind === 'producao' && (
@@ -492,8 +494,10 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                 {confirmDel && (
                   <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setConfirmDel(false)}>
                     <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
-                      <h4 className="font-semibold text-gray-900 dark:text-white">Excluir produto</h4>
-                      <p className="text-sm text-gray-500">Excluir <b>{selObj?.nome}</b> ({selObj?.codigo}) e a ficha dele da base do Zykor? O de-para (ContaHub/Yuzer) é mantido. Não afeta o ContaHub.</p>
+                      <h4 className="font-semibold text-gray-900 dark:text-white">{kind === 'producao' ? 'Excluir produção' : 'Excluir produto'}</h4>
+                      <p className="text-sm text-gray-500">{kind === 'producao'
+                        ? <>Excluir <b>{selObj?.nome}</b> ({selObj?.codigo}) e a ficha dela da base do Zykor? Esta ação não pode ser desfeita.</>
+                        : <>Excluir <b>{selObj?.nome}</b> ({selObj?.codigo}) e a ficha dele da base do Zykor? O de-para (ContaHub/Yuzer) é mantido. Não afeta o ContaHub.</>}</p>
                       <div className="flex justify-end gap-2 pt-1">
                         <Button variant="outline" onClick={() => setConfirmDel(false)}>Cancelar</Button>
                         <Button onClick={excluirProduto} className="bg-red-600 hover:bg-red-700 text-white">Excluir</Button>
