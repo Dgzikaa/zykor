@@ -210,7 +210,7 @@ export default function CadastrosPage() {
                           <td className="px-3 py-2 text-center">
                             <select value={p.base || 'g'} onChange={e => salvarUnidade(p, { base: e.target.value })}
                               className="h-7 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs">
-                              <option value="g">g/kg</option><option value="ml">ml/L</option><option value="un">un</option>
+                              <option value="g">g</option><option value="ml">ml</option><option value="un">un</option>
                             </select>
                           </td>
                           <td className="px-3 py-2 text-right">
