@@ -11,6 +11,8 @@ import { FlaskConical, Search, Loader2, Download, ChevronDown, ChevronRight } fr
 
 const fmtNum = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 const isoDate = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+// padrão = ontem (o dia atual ainda não tem dado consolidado)
+const ontemISO = () => { const d = new Date(); d.setDate(d.getDate() - 1); return isoDate(d); };
 const fmtDataBR = (s: string) => s.split('-').reverse().join('/');
 function calcRange(gran: 'dia' | 'semana' | 'mes', ref: string): { ini: string; fim: string } {
   const dt = new Date(ref + 'T00:00:00');
@@ -32,7 +34,7 @@ export default function ConsumoInsumoPage() {
   const barId = selectedBar?.id;
 
   const [gran, setGran] = useState<'dia' | 'semana' | 'mes'>('dia');
-  const [dataRef, setDataRef] = useState(isoDate(new Date()));
+  const [dataRef, setDataRef] = useState(ontemISO());
   const range = useMemo(() => calcRange(gran, dataRef), [gran, dataRef]);
 
   const [insumos, setInsumos] = useState<any[]>([]);
@@ -40,12 +42,12 @@ export default function ConsumoInsumoPage() {
   const [busca, setBusca] = useState('');
   const [cat, setCat] = useState<string | null>(null);
   const [aberto, setAberto] = useState<string | null>(null);
-  const [serie, setSerie] = useState<any[] | null>(null);
-  const [loadingSerie, setLoadingSerie] = useState(false);
+  const [breakdown, setBreakdown] = useState<any[] | null>(null);
+  const [loadingBreak, setLoadingBreak] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!barId) return;
-    setLoading(true); setAberto(null); setSerie(null);
+    setLoading(true); setAberto(null); setBreakdown(null);
     try {
       const r = await api.get(`/api/operacional/consumo-insumo?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}`);
       if (!r.success) throw new Error(r.error);
@@ -55,15 +57,15 @@ export default function ConsumoInsumoPage() {
   }, [barId, range.ini, range.fim]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { carregar(); }, [carregar]);
 
-  const abrirSerie = async (codigo: string) => {
-    if (aberto === codigo) { setAberto(null); setSerie(null); return; }
-    setAberto(codigo); setSerie(null); setLoadingSerie(true);
+  const abrirBreak = async (codigo: string) => {
+    if (aberto === codigo) { setAberto(null); setBreakdown(null); return; }
+    setAberto(codigo); setBreakdown(null); setLoadingBreak(true);
     try {
       const r = await api.get(`/api/operacional/consumo-insumo?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}&codigo=${encodeURIComponent(codigo)}`);
       if (!r.success) throw new Error(r.error);
-      setSerie(r.serie || []);
+      setBreakdown(r.produtos || []);
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
-    finally { setLoadingSerie(false); }
+    finally { setLoadingBreak(false); }
   };
 
   const cats = useMemo(() => Array.from(new Set(insumos.map(i => i.categoria || 'Outros'))).sort(), [insumos]);
@@ -130,7 +132,7 @@ export default function ConsumoInsumoPage() {
                 <tbody>
                   {view.map((i: any) => (
                     <>
-                      <tr key={i.insumo_codigo} onClick={() => abrirSerie(i.insumo_codigo)} className="border-b border-gray-50 dark:border-gray-800/50 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                      <tr key={i.insumo_codigo} onClick={() => abrirBreak(i.insumo_codigo)} className="border-b border-gray-50 dark:border-gray-800/50 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40">
                         <td className="text-center text-gray-400">{aberto === i.insumo_codigo ? <ChevronDown className="w-4 h-4 inline" /> : <ChevronRight className="w-4 h-4 inline" />}</td>
                         <td className="px-3 py-2 font-mono text-xs text-gray-500">{i.insumo_codigo}</td>
                         <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{i.insumo_nome || <span className="text-gray-400 italic">sem cadastro</span>}</td>
@@ -141,16 +143,28 @@ export default function ConsumoInsumoPage() {
                       {aberto === i.insumo_codigo && (
                         <tr className="bg-gray-50/60 dark:bg-gray-800/20">
                           <td></td>
-                          <td colSpan={5} className="px-3 py-2">
-                            {loadingSerie ? <Loader2 className="w-4 h-4 animate-spin" />
-                            : !serie || serie.length === 0 ? <span className="text-xs text-gray-400">Sem detalhe diário.</span>
+                          <td colSpan={5} className="px-3 py-3">
+                            {loadingBreak ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : !breakdown || breakdown.length === 0 ? <span className="text-xs text-gray-400">Sem produtos no período.</span>
                             : (
-                              <div className="flex flex-wrap gap-2">
-                                {serie.map((s: any) => (
-                                  <span key={s.data} className="text-xs rounded bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-2 py-1">
-                                    {fmtDataBR(s.data)}: <b className="tabular-nums">{fmtNum(s.qtd_base)}</b>
-                                  </span>
-                                ))}
+                              <div className="space-y-0.5">
+                                <div className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Saiu em cada produto</div>
+                                <table className="w-full text-xs">
+                                  <thead className="text-gray-400"><tr>
+                                    <th className="text-left font-medium py-1">Produto</th>
+                                    <th className="text-right font-medium py-1 w-28">Qtd vendida</th>
+                                    <th className="text-right font-medium py-1 w-32">Consumo (ml/g/un)</th>
+                                  </tr></thead>
+                                  <tbody>
+                                    {breakdown.map((p: any) => (
+                                      <tr key={p.produto_cod} className="border-t border-gray-100 dark:border-gray-800/60">
+                                        <td className="py-1 text-gray-700 dark:text-gray-200">{p.produto_nome || p.produto_cod} <span className="text-gray-400 font-mono">· {p.produto_cod}</span></td>
+                                        <td className="py-1 text-right tabular-nums">{fmtNum(p.qtd_produto)}</td>
+                                        <td className="py-1 text-right tabular-nums font-medium">{fmtNum(p.qtd_insumo)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
                               </div>
                             )}
                           </td>

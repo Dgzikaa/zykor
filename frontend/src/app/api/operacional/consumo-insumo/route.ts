@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminClient, selectAll } from '@/lib/supabase-admin';
+import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 /**
  * Consumo teórico de insumo por período (saída de produto explodida na ficha técnica).
  * GET ?bar_id&ini&fim            → lista de insumos com qtd_base consumida no período
- * GET ?bar_id&ini&fim&codigo=i0X → série diária de um insumo
+ * GET ?bar_id&ini&fim&codigo=i0X → quebra por produto (quanto do insumo saiu em cada produto)
  */
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
@@ -22,10 +22,10 @@ export async function GET(request: NextRequest) {
   const admin = await getAdminClient();
   try {
     if (codigo) {
-      const serie = await selectAll((from, to) => (admin as any).schema('silver').from('v_consumo_insumo_dia')
-        .select('data, qtd_base').eq('bar_id', barId).eq('insumo_codigo', codigo).gte('data', ini).lte('data', fim)
-        .order('data', { ascending: true }).range(from, to));
-      return NextResponse.json({ success: true, serie });
+      // quebra por produto: quanto do insumo saiu em cada produto no período
+      const { data, error } = await (admin as any).schema('silver').rpc('fn_consumo_insumo_por_produto', { p_bar_id: barId, p_codigo: codigo, p_ini: ini, p_fim: fim });
+      if (error) throw error;
+      return NextResponse.json({ success: true, produtos: data || [] });
     }
     const { data, error } = await (admin as any).schema('silver').rpc('fn_consumo_insumo_periodo', { p_bar_id: barId, p_ini: ini, p_fim: fim });
     if (error) throw error;
