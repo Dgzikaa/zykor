@@ -58,7 +58,7 @@ export default function CardapioPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><ChefHat className="w-6 h-6 text-pink-600" /> Engenharia de Cardápio</h1>
-          <p className="text-sm text-gray-500">Star / Plowhorse / Puzzle / Dog com base em popularidade × margem.</p>
+          <p className="text-sm text-gray-500">Star / Plowhorse / Puzzle / Dog com base em popularidade × margem · custo da ficha técnica (CMV teórico), com fallback no custo manual/ContaHub.</p>
         </div>
         <select
           value={dias}
