@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap } from 'lucide-react';
+import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils } from 'lucide-react';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
@@ -188,6 +188,16 @@ export default function CadastrosPage() {
   useEffect(() => { if (tab === 'impacto') carregarImpacto(); }, [tab, carregarImpacto]);
   const corClasse = (c: string) => c === 'A' ? 'text-red-600 dark:text-red-400 border-red-300' : c === 'B' ? 'text-amber-600 dark:text-amber-400 border-amber-300' : 'text-gray-500 border-gray-300';
 
+  // modal: fichas onde o insumo é usado
+  const [fichasIns, setFichasIns] = useState<{ codigo: string; nome: string } | null>(null);
+  const [fichasData, setFichasData] = useState<any[] | null>(null);
+  const abrirFichas = async (codigo: string | null, nome: string | null) => {
+    if (!codigo) return;
+    setFichasIns({ codigo, nome: nome || codigo }); setFichasData(null);
+    try { const r = await api.get(`/api/operacional/insumos/fichas?bar_id=${barId}&codigo=${encodeURIComponent(codigo)}`); setFichasData(r.success ? (r.fichas || []) : []); }
+    catch { setFichasData([]); }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-4">
@@ -265,12 +275,15 @@ export default function CadastrosPage() {
                                 </div>}
                           </td>
                           <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
-                            {g.nVar > 1 ? (
-                              <button onClick={() => setCodAberto(aberto ? null : g.key)} className="flex items-center gap-1 text-left hover:text-indigo-600">
-                                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${aberto ? 'rotate-180' : ''}`} />
-                                {p.nome} <span className="text-[10px] rounded-full px-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{g.nVar} variações</span>
-                              </button>
-                            ) : p.nome}
+                            <div className="flex items-center gap-2">
+                              {g.nVar > 1 ? (
+                                <button onClick={() => setCodAberto(aberto ? null : g.key)} className="flex items-center gap-1 text-left hover:text-indigo-600">
+                                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${aberto ? 'rotate-180' : ''}`} />
+                                  {p.nome} <span className="text-[10px] rounded-full px-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{g.nVar} variações</span>
+                                </button>
+                              ) : <span>{p.nome}</span>}
+                              <button onClick={() => abrirFichas(p.codigo_planilha || p.cod_interno, p.nome)} className="text-gray-400 hover:text-indigo-600 shrink-0" title="Ver fichas técnicas que usam este insumo"><Utensils className="w-3.5 h-3.5" /></button>
+                            </div>
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
                           <td className="px-3 py-2 text-center">
@@ -481,6 +494,34 @@ export default function CadastrosPage() {
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Modal: fichas que usam o insumo */}
+        {fichasIns && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setFichasIns(null)}>
+            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <h4 className="font-semibold text-gray-900 dark:text-white">Fichas com {fichasIns.nome}</h4>
+              <p className="text-xs text-gray-400 mb-3 font-mono">{fichasIns.codigo}</p>
+              {fichasData == null ? <div className="py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-400" /></div>
+              : fichasData.length === 0 ? <div className="py-6 text-center"><span className="text-xs rounded-full px-3 py-1 bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">Não está atrelado a nenhuma ficha</span></div>
+              : (
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-gray-400 border-b"><tr><th className="text-left py-1">Tipo</th><th className="text-left py-1">Cód.</th><th className="text-left py-1">Ficha</th><th className="text-right py-1">Qtd</th></tr></thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {fichasData.map((f: any, i: number) => (
+                      <tr key={i}>
+                        <td className="py-1.5"><span className={`text-[10px] rounded px-1.5 py-0.5 ${f.tipo === 'producao' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>{f.tipo === 'producao' ? 'Produção' : 'Produto'}</span></td>
+                        <td className="py-1.5 font-mono text-xs text-gray-500">{f.codigo}</td>
+                        <td className="py-1.5 text-gray-900 dark:text-gray-100">{f.nome}</td>
+                        <td className="py-1.5 text-right tabular-nums text-gray-500">{f.quantidade}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <div className="flex justify-end mt-4"><Button variant="outline" onClick={() => setFichasIns(null)}>Fechar</Button></div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
