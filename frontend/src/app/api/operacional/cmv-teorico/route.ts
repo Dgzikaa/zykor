@@ -14,7 +14,8 @@ export async function GET(request: NextRequest) {
   if (!user) return authErrorResponse('Usuário não autenticado');
   const barId = Number(new URL(request.url).searchParams.get('bar_id')) || user.bar_id;
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
-  const gold = (await getAdminClient() as any).schema('gold');
+  const admin = await getAdminClient();
+  const gold = (admin as any).schema('gold');
 
   // MODO PERÍODO: ?ini&fim → CMV teórico ponderado pelas vendas do período (por produto + por categoria)
   const sp = new URL(request.url).searchParams;
@@ -50,6 +51,19 @@ export async function GET(request: NextRequest) {
       ...c, margem: c.faturamento - c.custo_total,
       cmv_pct: c.faturamento > 0 ? Number((c.custo_total / c.faturamento * 100).toFixed(2)) : null,
     })).sort((a, b) => b.faturamento - a.faturamento);
+    // fonte por dia (Yuzer x ContaHub) — pra indicar dia de evento e que usa preço Yuzer
+    const { data: fonteRows } = await (admin as any).schema('silver').from('vendas_consolidada_dia')
+      .select('data, fonte, valor').eq('bar_id', barId).gte('data', ini).lte('data', fim);
+    const fonteFat = new Map<string, number>();
+    const yuzerDias = new Set<string>();
+    for (const r of (fonteRows || []) as any[]) {
+      fonteFat.set(r.fonte, (fonteFat.get(r.fonte) || 0) + num(r.valor));
+      if (r.fonte === 'yuzer') yuzerDias.add(r.data);
+    }
+    (headline as any).fat_yuzer = Number((fonteFat.get('yuzer') || 0).toFixed(2));
+    (headline as any).fat_contahub = Number((fonteFat.get('contahub') || 0).toFixed(2));
+    (headline as any).dias_yuzer = Array.from(yuzerDias).sort();
+
     // produtos vendidos no ContaHub FORA do de-para (sem código interno → invisíveis no CMV)
     const { data: foraDp } = await gold.rpc('fn_vendido_fora_depara', { p_bar_id: barId, p_ini: ini, p_fim: fim });
     const foraLista = (foraDp || []) as any[];

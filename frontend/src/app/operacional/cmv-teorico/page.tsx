@@ -195,7 +195,7 @@ export default function CmvTeoricoPage() {
                 <th className="text-left font-medium px-3 py-2">Categoria</th>
                 <th className="text-right font-medium px-3 py-2">Custo (ficha)</th>
                 <th className="text-right font-medium px-3 py-2">Preço (CH)</th>
-                <th className="text-right font-medium px-3 py-2">Margem</th>
+                <th className="text-right font-medium px-3 py-2">Margem Bruta</th>
                 <th className="text-right font-medium px-3 py-2">CMV %</th>
                 {dataAnterior && <th className="text-right font-medium px-3 py-2" title={`vs ${dataAnterior}`}>Δ</th>}
               </tr></thead>
@@ -225,6 +225,11 @@ export default function CmvTeoricoPage() {
             {btnGran('dia', 'Dia')}{btnGran('semana', 'Semana')}{btnGran('mes', 'Mês')}
             <Input type="date" value={dataRef} onChange={e => setDataRef(e.target.value)} className="w-auto" />
             <span className="text-sm text-gray-500 dark:text-gray-400">{range.ini === range.fim ? fmtDataBR(range.ini) : `${fmtDataBR(range.ini)} → ${fmtDataBR(range.fim)}`}</span>
+            {periodo?.headline?.dias_yuzer?.length > 0 && (
+              <span className="text-xs rounded-full px-2 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" title={`Operação Yuzer — o CMV usa o preço do Yuzer nesses dias: ${periodo.headline.dias_yuzer.map((d: string) => fmtDataBR(d)).join(', ')}`}>
+                🎟️ {gran === 'dia' ? 'Operação Yuzer · usa preço Yuzer' : `${periodo.headline.dias_yuzer.length} dia(s) Yuzer · usam preço Yuzer`}
+              </span>
+            )}
           </div>
 
           {loadingPer ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
