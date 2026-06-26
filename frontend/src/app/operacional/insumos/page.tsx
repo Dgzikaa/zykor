@@ -18,7 +18,7 @@ interface Produto {
   id_produto_sisfood_cotacao: number; cod_interno: string | null; codigo_planilha?: string | null; fator_correcao?: boolean; nome: string | null; marca: string | null;
   gramatura: string | null; estoque: number | null; nome_secao: string | null; id_secao_cotacao: number | null;
   nome_fornecedor: string | null; fornecedor_ultimo: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
-  cod_duplicado?: boolean; cod_invalido?: boolean; tem_ficha?: boolean; base?: string | null; embalagem?: number | null; fonte?: string;
+  cod_duplicado?: boolean; cod_invalido?: boolean; tem_ficha?: boolean; cadastrado?: boolean; base?: string | null; embalagem?: number | null; fonte?: string;
 }
 interface Secao { id_secao_cotacao: number; nome: string | null; }
 
@@ -167,7 +167,7 @@ export default function CadastrosPage() {
     }
     return Array.from(m.entries()).map(([key, prods]) => {
       const rep = [...prods].sort((a, b) => String(b.preco_data || '').localeCompare(String(a.preco_data || '')))[0];
-      return { key, rep, produtos: prods, nVar: prods.length, isMaterial: ehMaterial(rep.nome_secao), temFicha: prods.some(p => p.tem_ficha), semCadastro: !ehMaterial(rep.nome_secao) && prods.every(p => p.id_produto_sisfood_cotacao >= 0) && !prods.some(p => codShow(p)) };
+      return { key, rep, produtos: prods, nVar: prods.length, isMaterial: ehMaterial(rep.nome_secao), temFicha: prods.some(p => p.tem_ficha), semCadastro: !ehMaterial(rep.nome_secao) && prods.some(p => p.id_produto_sisfood_cotacao >= 0) && !prods.some(p => p.cadastrado) };
     }).sort((a, b) => String(a.rep.nome || '').localeCompare(String(b.rep.nome || '')));
   }, [filtrados]);
   const nInsumos = grupos.filter(g => !g.isMaterial).length;
@@ -361,7 +361,7 @@ export default function CadastrosPage() {
             {nSemCadastro > 0 && (
               <button onClick={() => setFiltroEsp(f => f === 'sem_cadastro' ? null : 'sem_cadastro')}
                 className={`w-full text-left rounded-lg border px-3 py-2 text-sm transition ${filtroEsp === 'sem_cadastro' ? 'bg-purple-100 border-purple-400 dark:bg-purple-900/30' : 'bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/15 dark:border-purple-800 dark:text-purple-200 hover:bg-purple-100'}`}>
-                🔗 <b>{nSemCadastro}</b> insumo(s) comprado(s) no VMarket sem cadastro no Zykor — sem código interno, invisíveis no consumo/CMV · clique pra cadastrar
+                🔗 <b>{nSemCadastro}</b> insumo(s) no VMarket sem cadastro no Zykor (não estão na planilha mestre) — invisíveis no consumo/CMV · clique pra cadastrar
               </button>
             )}
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">

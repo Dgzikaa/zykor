@@ -84,6 +84,8 @@ export async function GET(request: NextRequest) {
     .from('insumos').select('id, codigo, nome, categoria, unidade_medida, custo_unitario, fator_correcao').eq('bar_id', barId).range(from, to)).catch(() => []);
   const planilhaMap = new Map<string, number>();
   for (const i of (contagemIns || [])) { const pv = Number(i.custo_unitario) || 0; if (i.codigo && pv > 0 && !planilhaMap.has(i.codigo)) planilhaMap.set(i.codigo, pv); }
+  // cadastro mestre = operations.insumos. Um produto VMarket é "cadastrado" se o código efetivo está no mestre.
+  const masterSet = new Set<string>((contagemIns || []).map((i: any) => i.codigo).filter(Boolean));
 
   // quais insumos estão em ALGUMA ficha técnica (por código i0XXX ou por id do VMarket)
   const fichaCods = new Set<string>();
@@ -108,6 +110,7 @@ export async function GET(request: NextRequest) {
       cod_duplicado: !!cEf && (codCount.get(cEf) || 0) > 1,
       cod_invalido: !valido(cEf),
       tem_ficha: temFicha(cEf, p.id_produto_sisfood_cotacao),
+      cadastrado: !!(cEf && masterSet.has(cEf)),
       base: unidMap.get(p.id_produto_sisfood_cotacao)?.base ?? null,
       embalagem: unidMap.get(p.id_produto_sisfood_cotacao)?.embalagem ?? null,
     };
@@ -128,7 +131,7 @@ export async function GET(request: NextRequest) {
         nome_secao: i.categoria, id_secao_cotacao: null,
         nome_fornecedor: null, fornecedor_ultimo: 'Planilha',
         preco_atual: Number(i.custo_unitario) || null, preco_data: null, preco_anterior: null,
-        cod_duplicado: false, cod_invalido: false, tem_ficha: temFicha(i.codigo, -Number(i.id)),
+        cod_duplicado: false, cod_invalido: false, tem_ficha: temFicha(i.codigo, -Number(i.id)), cadastrado: true,
         base: ov?.base ?? u.base, embalagem: ov?.embalagem ?? u.embalagem,
       };
     });
