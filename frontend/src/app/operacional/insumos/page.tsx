@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils, Pencil, Plus } from 'lucide-react';
+import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils, Pencil, Plus, Trash2 } from 'lucide-react';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
@@ -72,6 +72,17 @@ export default function CadastrosPage() {
     finally { setCriando(false); }
   };
 
+  const [delConfirm, setDelConfirm] = useState<any | null>(null);
+  const excluirInsumo = async (g: any) => {
+    try {
+      const r = await api.post('/api/operacional/insumos', { bar_id: barId, action: 'excluir_insumo', codigo: codShow(g.rep), id_prod: g.rep.id_produto_sisfood_cotacao });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: 'Insumo excluído' });
+      setDelConfirm(null);
+      await carregar();
+    } catch (e: any) { toast({ title: 'Erro ao excluir', description: e?.message, variant: 'destructive' }); }
+  };
+
   const sincronizar = async () => {
     if (!barId) return;
     setSincronizando(true);
@@ -103,7 +114,7 @@ export default function CadastrosPage() {
   const vmErrado = (p: Produto) => p.id_produto_sisfood_cotacao >= 0 && !!p.codigo_planilha && (p.cod_interno || null) !== p.codigo_planilha;
   // Código efetivo PARA EXIBIR: só código de insumo (i0XXX). Material (cod_interno tipo d0039) fica zerado.
   const codShow = (p: Produto): string | null => p.codigo_planilha || (/^i\d/.test(p.cod_interno || '') ? p.cod_interno! : null);
-  const [filtroEsp, setFiltroEsp] = useState<'variacoes' | 'invalido' | 'materiais' | 'sem_ficha' | 'unid_div' | null>(null);
+  const [filtroEsp, setFiltroEsp] = useState<'variacoes' | 'invalido' | 'materiais' | 'sem_ficha' | 'unid_div' | 'sem_cadastro' | null>(null);
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -156,7 +167,7 @@ export default function CadastrosPage() {
     }
     return Array.from(m.entries()).map(([key, prods]) => {
       const rep = [...prods].sort((a, b) => String(b.preco_data || '').localeCompare(String(a.preco_data || '')))[0];
-      return { key, rep, produtos: prods, nVar: prods.length, isMaterial: ehMaterial(rep.nome_secao), temFicha: prods.some(p => p.tem_ficha) };
+      return { key, rep, produtos: prods, nVar: prods.length, isMaterial: ehMaterial(rep.nome_secao), temFicha: prods.some(p => p.tem_ficha), semCadastro: !ehMaterial(rep.nome_secao) && prods.every(p => p.id_produto_sisfood_cotacao >= 0) && !prods.some(p => codShow(p)) };
     }).sort((a, b) => String(a.rep.nome || '').localeCompare(String(b.rep.nome || '')));
   }, [filtrados]);
   const nInsumos = grupos.filter(g => !g.isMaterial).length;
@@ -165,12 +176,14 @@ export default function CadastrosPage() {
   const nInvalidos = grupos.filter(g => !g.isMaterial && vmErrado(g.rep)).length;
   const nSemFicha = grupos.filter(g => !g.isMaterial && !g.temFicha).length;
   const nUnidDiverge = grupos.filter(g => !g.isMaterial && unidDiverge(g.rep)).length;
+  const nSemCadastro = grupos.filter(g => g.semCadastro).length;
   const gruposView = useMemo(() => {
     if (filtroEsp === 'materiais') return grupos.filter(g => g.isMaterial);
     if (filtroEsp === 'variacoes') return grupos.filter(g => !g.isMaterial && g.nVar > 1);
     if (filtroEsp === 'invalido') return grupos.filter(g => !g.isMaterial && vmErrado(g.rep));
     if (filtroEsp === 'sem_ficha') return grupos.filter(g => !g.isMaterial && !g.temFicha);
     if (filtroEsp === 'unid_div') return grupos.filter(g => !g.isMaterial && unidDiverge(g.rep));
+    if (filtroEsp === 'sem_cadastro') return grupos.filter(g => g.semCadastro);
     return grupos.filter(g => !g.isMaterial);
   }, [grupos, filtroEsp]);
 
@@ -304,6 +317,19 @@ export default function CadastrosPage() {
           </div>
         )}
 
+        {delConfirm && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setDelConfirm(null)}>
+            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+              <h4 className="font-semibold text-gray-900 dark:text-white">Excluir insumo?</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-300"><b>{delConfirm.rep?.nome}</b>{codShow(delConfirm.rep) ? <span className="text-gray-400 font-mono"> · {codShow(delConfirm.rep)}</span> : ''} será removido do cadastro. Não está em nenhuma ficha técnica.</p>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => setDelConfirm(null)}>Cancelar</Button>
+                <Button onClick={() => excluirInsumo(delConfirm)} className="bg-red-600 hover:bg-red-700 text-white"><Trash2 className="w-4 h-4 mr-1" />Excluir</Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="insumos"><Boxes className="w-4 h-4 mr-1.5" />Insumos</TabsTrigger>
@@ -332,6 +358,12 @@ export default function CadastrosPage() {
               {nUnidDiverge > 0 && <button onClick={() => setFiltroEsp(f => f === 'unid_div' ? null : 'unid_div')}><Badge variant="outline" className={`cursor-pointer text-amber-600 border-amber-300 ${filtroEsp === 'unid_div' ? 'ring-1 ring-amber-400' : ''}`}>{nUnidDiverge} unidade p/ revisar</Badge></button>}
               {nMateriais > 0 && <button onClick={() => setFiltroEsp(f => f === 'materiais' ? null : 'materiais')}><Badge variant="outline" className={`cursor-pointer text-gray-500 ${filtroEsp === 'materiais' ? 'ring-1 ring-gray-400' : ''}`}>{nMateriais} materiais</Badge></button>}
             </div>
+            {nSemCadastro > 0 && (
+              <button onClick={() => setFiltroEsp(f => f === 'sem_cadastro' ? null : 'sem_cadastro')}
+                className={`w-full text-left rounded-lg border px-3 py-2 text-sm transition ${filtroEsp === 'sem_cadastro' ? 'bg-purple-100 border-purple-400 dark:bg-purple-900/30' : 'bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/15 dark:border-purple-800 dark:text-purple-200 hover:bg-purple-100'}`}>
+                🔗 <b>{nSemCadastro}</b> insumo(s) comprado(s) no VMarket sem cadastro no Zykor — sem código interno, invisíveis no consumo/CMV · clique pra cadastrar
+              </button>
+            )}
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
@@ -390,7 +422,14 @@ export default function CadastrosPage() {
                             {caiu && <TrendingDown className="inline w-3 h-3 ml-1 text-emerald-500" />}
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.fornecedor_ultimo || '—'}</td>
-                          <td className="px-3 py-2 text-right"><button onClick={() => abrirEditIns(p)} className="text-gray-400 hover:text-indigo-600" title="Editar código, FC e unidade"><Pencil className="w-4 h-4" /></button></td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button onClick={() => abrirEditIns(p)} className="text-gray-400 hover:text-indigo-600" title="Editar código, FC e unidade"><Pencil className="w-4 h-4" /></button>
+                              {g.temFicha
+                                ? <span className="text-gray-200 dark:text-gray-700" title="Em ficha técnica — não pode excluir"><Trash2 className="w-4 h-4" /></span>
+                                : <button onClick={() => setDelConfirm(g)} className="text-gray-400 hover:text-red-600" title="Excluir insumo"><Trash2 className="w-4 h-4" /></button>}
+                            </div>
+                          </td>
                         </tr>
                         {aberto && g.produtos.map(v => (
                           <tr key={v.id_produto_sisfood_cotacao} className="bg-gray-50/60 dark:bg-gray-800/30 text-xs">

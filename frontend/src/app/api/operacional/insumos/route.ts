@@ -219,6 +219,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, codigo });
   }
 
+  // Excluir insumo — SÓ se não estiver em nenhuma ficha técnica
+  if (body.action === 'excluir_insumo') {
+    const codigo = String(body.codigo || '').trim().toLowerCase();
+    const idProd = Number(body.id_prod);
+    let temFicha = false;
+    if (codigo && /^i\d+$/.test(codigo)) {
+      const { count } = await supabase.from('producao_ficha_item').select('id', { count: 'exact', head: true }).eq('componente_tipo', 'insumo').eq('insumo_codigo', codigo);
+      if ((count || 0) > 0) temFicha = true;
+    }
+    if (!temFicha && idProd > 0) {
+      const { count } = await supabase.from('producao_ficha_item').select('id', { count: 'exact', head: true }).eq('componente_tipo', 'insumo').eq('insumo_id_vmarket', idProd);
+      if ((count || 0) > 0) temFicha = true;
+    }
+    if (temFicha) return NextResponse.json({ success: false, error: 'Insumo está em ficha técnica — não pode excluir.' }, { status: 409 });
+    const ops = (supabase as any).schema('operations');
+    if (codigo && /^i\d+$/.test(codigo)) {
+      await ops.from('insumos').delete().eq('bar_id', barId).eq('codigo', codigo);
+      await supabase.from('bronze_vmarket_produtos').delete().eq('bar_id', barId).or(`codigo_planilha.eq.${codigo},cod_interno.eq.${codigo}`);
+      await supabase.from('insumo_unidade').delete().eq('bar_id', barId).eq('cod_interno', codigo);
+    } else if (idProd < 0) {
+      await ops.from('insumos').delete().eq('bar_id', barId).eq('id', -idProd);
+      await supabase.from('insumo_unidade').delete().eq('bar_id', barId).eq('id_prod', idProd);
+    } else if (idProd > 0) {
+      await supabase.from('bronze_vmarket_produtos').delete().eq('bar_id', barId).eq('id_produto_sisfood_cotacao', idProd);
+      await supabase.from('insumo_unidade').delete().eq('bar_id', barId).eq('id_prod', idProd);
+    } else return NextResponse.json({ success: false, error: 'Insumo inválido' }, { status: 400 });
+    return NextResponse.json({ success: true });
+  }
+
   if (body.action !== 'sync') return NextResponse.json({ success: false, error: 'ação inválida' }, { status: 400 });
   const { data, error } = await supabase.rpc('fn_vmarket_sync', { p_bar_id: barId });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
