@@ -304,12 +304,27 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                           <div className="text-xl font-bold text-violet-600 dark:text-violet-400 leading-tight mt-0.5">{fmtBRL(selObj.preco_yuzer)}</div>
                         </div>
                       )}
-                      {Number(selObj.preco_venda ?? selObj.preco_yuzer) > 0 && (
-                        <div className="px-4 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/15 text-center">
-                          <div className="text-[11px] text-muted-foreground uppercase tracking-wide">CMV teórico</div>
-                          <div className="text-xl font-bold text-amber-600 dark:text-amber-400 leading-tight mt-0.5">{(custoAtualTotal / Number(selObj.preco_venda ?? selObj.preco_yuzer) * 100).toFixed(1)}%</div>
-                        </div>
-                      )}
+                      {(() => {
+                        const pch = Number(selObj.preco_venda) || 0;
+                        const pyz = Number(selObj.preco_yuzer) || 0;
+                        if (pch > 0 && pyz > 0) return (<>
+                          <div className="px-4 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/15 text-center">
+                            <div className="text-[11px] text-muted-foreground uppercase tracking-wide">CMV CH</div>
+                            <div className="text-xl font-bold text-amber-600 dark:text-amber-400 leading-tight mt-0.5">{(custoAtualTotal / pch * 100).toFixed(1)}%</div>
+                          </div>
+                          <div className="px-4 py-2 rounded-lg bg-violet-50 dark:bg-violet-900/15 text-center">
+                            <div className="text-[11px] text-muted-foreground uppercase tracking-wide">CMV Yuzer</div>
+                            <div className="text-xl font-bold text-violet-600 dark:text-violet-400 leading-tight mt-0.5">{(custoAtualTotal / pyz * 100).toFixed(1)}%</div>
+                          </div>
+                        </>);
+                        const p = pch > 0 ? pch : pyz;
+                        return p > 0 ? (
+                          <div className="px-4 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/15 text-center">
+                            <div className="text-[11px] text-muted-foreground uppercase tracking-wide">CMV teórico</div>
+                            <div className="text-xl font-bold text-amber-600 dark:text-amber-400 leading-tight mt-0.5">{(custoAtualTotal / p * 100).toFixed(1)}%</div>
+                          </div>
+                        ) : null;
+                      })()}
                     </>
                   )}
                 </div>
