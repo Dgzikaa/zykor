@@ -83,15 +83,14 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
-  // edição de item (modal)
+  // edição de item (modal) — só a quantidade; a unidade segue o cadastro do insumo/preparo
   const [editItem, setEditItem] = useState<any>(null);
   const [editQtd, setEditQtd] = useState('');
-  const [editUni, setEditUni] = useState('');
-  const abrirEdit = (it: any) => { setEditItem(it); setEditQtd(String(it.quantidade ?? '')); setEditUni(it.unidade || ''); };
+  const abrirEdit = (it: any) => { setEditItem(it); setEditQtd(String(it.quantidade ?? '')); };
   const salvarEdit = async () => {
     if (!editItem) return;
     try {
-      await api.put('/api/operacional/producoes/ficha', { id: editItem.id, quantidade: Number(editQtd) || 0, unidade: editUni || null });
+      await api.put('/api/operacional/producoes/ficha', { id: editItem.id, quantidade: Number(editQtd) || 0 });
       setEditItem(null); if (sel) await carregarItens(sel);
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
@@ -119,7 +118,6 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
   const [addBusca, setAddBusca] = useState('');
   const [addEscolhido, setAddEscolhido] = useState<any>(null);
   const [addQtd, setAddQtd] = useState('1');
-  const [addUni, setAddUni] = useState('g');
   const addOpcoes = useMemo(() => {
     const q = addBusca.trim().toLowerCase();
     if (addTipo === 'insumo') return insumos.filter(i => !q || (i.nome || '').toLowerCase().includes(q) || (i.cod_interno || '').toLowerCase().includes(q)).slice(0, 30);
@@ -127,7 +125,8 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
   }, [addTipo, addBusca, insumos, producoes, sel]);
   const adicionar = async () => {
     if (!sel || !addEscolhido) { toast({ title: 'Escolha o componente', variant: 'destructive' }); return; }
-    const payload: any = { [parentParam]: sel, componente_tipo: addTipo, quantidade: Number(addQtd) || 0, unidade: addUni };
+    // unidade NÃO é escolhida — segue o cadastro do insumo (base) / preparo (rendimento)
+    const payload: any = { [parentParam]: sel, componente_tipo: addTipo, quantidade: Number(addQtd) || 0, unidade: null };
     if (addTipo === 'insumo') { payload.insumo_codigo = addEscolhido.cod_interno; payload.insumo_id_vmarket = addEscolhido.id_produto_sisfood_cotacao; payload.nome_componente = addEscolhido.nome; }
     else { payload.producao_ref = addEscolhido.id; payload.nome_componente = addEscolhido.nome; }
     try {
@@ -271,14 +270,10 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                     <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm" onClick={e => e.stopPropagation()}>
                       <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Editar componente</h4>
                       <p className="text-sm text-gray-500 mb-3">{editItem.nome_componente}</p>
-                      <div className="flex gap-2">
-                        <div className="flex-1"><label className="text-xs text-gray-500">Quantidade</label><Input type="number" step="0.001" value={editQtd} onChange={e => setEditQtd(e.target.value)} /></div>
-                        <div className="w-28"><label className="text-xs text-gray-500">Unidade</label>
-                          <select value={editUni} onChange={e => setEditUni(e.target.value)} className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
-                            <option value="">—</option>{UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-                          </select>
-                        </div>
+                      <div className="flex gap-2 items-end">
+                        <div className="flex-1"><label className="text-xs text-gray-500">Quantidade ({editItem.unidade_exib || '—'})</label><Input type="number" step="0.001" value={editQtd} onChange={e => setEditQtd(e.target.value)} /></div>
                       </div>
+                      <p className="text-[11px] text-gray-400 mt-1">A unidade segue o cadastro do insumo/preparo.</p>
                       <div className="flex justify-end gap-2 mt-4">
                         <Button variant="outline" onClick={() => setEditItem(null)}>Cancelar</Button>
                         <Button onClick={salvarEdit}>Salvar</Button>
@@ -319,15 +314,15 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                         <button onClick={() => { setAddTipo('producao'); setAddEscolhido(null); }} className={`text-xs rounded px-2.5 py-1 flex items-center gap-1 ${addTipo === 'producao' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}><ChefHat className="w-3.5 h-3.5" />Produção</button>
                       </div>
                       {addEscolhido ? (
+                        <>
                         <div className="flex flex-wrap items-end gap-2">
                           <div className="flex-1 min-w-[160px]"><label className="text-xs text-gray-500">Componente</label>
                             <div className="h-10 flex items-center px-3 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm justify-between"><span className="truncate">{addEscolhido.nome}</span><button onClick={() => setAddEscolhido(null)} className="text-gray-400 text-xs ml-2">trocar</button></div>
                           </div>
-                          <div className="w-24"><label className="text-xs text-gray-500">Qtd</label><Input type="number" step="0.001" value={addQtd} onChange={e => setAddQtd(e.target.value)} /></div>
-                          <div className="w-24"><label className="text-xs text-gray-500">Unidade</label>
-                            <select value={addUni} onChange={e => setAddUni(e.target.value)} className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">{UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}</select>
-                          </div>
+                          <div className="w-28"><label className="text-xs text-gray-500">Qtd ({addTipo === 'insumo' ? (addEscolhido.base || '—') : (addEscolhido.unidade || '—')})</label><Input type="number" step="0.001" value={addQtd} onChange={e => setAddQtd(e.target.value)} /></div>
                         </div>
+                        <p className="text-[11px] text-gray-400">A unidade segue o cadastro do {addTipo === 'insumo' ? 'insumo' : 'preparo'} ({addTipo === 'insumo' ? (addEscolhido.base || 'sem unidade') : (addEscolhido.unidade || 'sem unidade')}).</p>
+                        </>
                       ) : (
                         <>
                           <div className="relative"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={addBusca} onChange={e => setAddBusca(e.target.value)} placeholder={addTipo === 'insumo' ? 'Buscar insumo (nome ou i0XXX)…' : 'Buscar produção…'} className="pl-9" /></div>
