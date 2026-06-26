@@ -48,6 +48,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
   const [sel, setSel] = useState<number | null>(preSel ?? null);
   const [buscaLista, setBuscaLista] = useState('');
   const [filtroLista, setFiltroLista] = useState<'zero' | 'sem_mestre' | 'sem_ch' | null>(null);
+  const [statusFiltro, setStatusFiltro] = useState<'todos' | 'ativo' | 'inativo'>('todos');
   const [itens, setItens] = useState<any[]>([]);
   const [loadingItens, setLoadingItens] = useState(false);
 
@@ -65,6 +66,8 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
   const nZero = lista.filter(p => (p.qtd_componentes ?? 0) === 0).length;
   const nSemMestre = kind === 'producao' ? lista.filter(p => (p.qtd_componentes ?? 0) > 0 && !p.tem_mestre).length : 0;
   const nSemCh = kind === 'produto' ? lista.filter(p => (p.cods_ch?.length ?? 0) === 0).length : 0;
+  const nAtivos = kind === 'produto' ? lista.filter(p => p.ativo).length : 0;
+  const nInativos = kind === 'produto' ? lista.filter(p => !p.ativo).length : 0;
   // categoria pelo prefixo do código: finalização b=Bebida d=Drink c=Comida o=Outros · produção pd=Bar pc=Cozinha
   const cats = kind === 'produto' ? ['Bebida', 'Drink', 'Comida', 'Outros'] : ['Bar', 'Cozinha'];
   const catDe = (p: any) => {
@@ -79,9 +82,10 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
       if (filtroLista === 'zero' && (p.qtd_componentes ?? 0) !== 0) return false;
       if (filtroLista === 'sem_mestre' && !((p.qtd_componentes ?? 0) > 0 && !p.tem_mestre)) return false;
       if (filtroLista === 'sem_ch' && (p.cods_ch?.length ?? 0) !== 0) return false;
+      if (kind === 'produto' && statusFiltro !== 'todos' && (statusFiltro === 'ativo' ? !p.ativo : !!p.ativo)) return false;
       return !q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q);
     });
-  }, [lista, buscaLista, filtroLista, catFiltro]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lista, buscaLista, filtroLista, catFiltro, statusFiltro, kind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selObj = lista.find(p => p.id === sel) || null;
 
@@ -197,6 +201,14 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                 <button key={c} onClick={() => setCatFiltro(f => f === c ? null : c)} className={`text-[10px] rounded px-2 py-0.5 border ${catFiltro === c ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>{c}</button>
               ))}
             </div>
+            {kind === 'produto' && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                <span className="text-[10px] text-gray-400 self-center mr-1">Status (ContaHub):</span>
+                {([['todos', `Todos`], ['ativo', `Ativos ${nAtivos}`], ['inativo', `Inativos ${nInativos}`]] as const).map(([v, label]) => (
+                  <button key={v} onClick={() => setStatusFiltro(v)} className={`text-[10px] rounded px-2 py-0.5 border ${statusFiltro === v ? (v === 'inativo' ? 'bg-gray-500 text-white border-gray-500' : 'bg-emerald-600 text-white border-emerald-600') : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>{label}</button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="max-h-[60vh] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
             {listaView.length === 0 ? (
