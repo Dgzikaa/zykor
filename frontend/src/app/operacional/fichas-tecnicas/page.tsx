@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download, RefreshCw } from 'lucide-react';
+import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
 
 const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'porção'];
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -37,9 +37,10 @@ interface FichaTabProps {
   producoes: any[];
   reloadLista: () => void;
   preSel?: number | null;
+  cmvMedias?: Record<string, number>;
 }
 
-function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: FichaTabProps) {
+function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMedias }: FichaTabProps) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
@@ -128,6 +129,21 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
   const flagRevisar = (it: any) => Number(it.custo_planilha || 0) > 0 && it.custo_atual != null && it.custo_atual > Number(it.custo_planilha) * 5;
   const custoItemAtual = (it: any) => (it.custo_atual != null && !flagRevisar(it)) ? it.custo_atual : Number(it.custo_planilha || 0);
   const custoAtualTotal = itens.reduce((s, it) => s + custoItemAtual(it), 0);
+
+  // indicador: CMV do produto vs média da categoria (CMV teórico, 90 dias) — verde se ≤ média (melhor), vermelho se acima
+  const cmvVsMedia = (cmv: number) => {
+    if (!selObj) return null;
+    const media = cmvMedias?.[catDe(selObj)];
+    if (!media || !isFinite(cmv) || cmv <= 0) return null;
+    const abaixo = cmv <= media;
+    const Icon = abaixo ? TrendingDown : TrendingUp;
+    return (
+      <div className={`flex items-center justify-center gap-0.5 text-[10px] mt-0.5 ${abaixo ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+        title={`Média ${catDe(selObj)} (CMV teórico, 90 dias): ${media.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`}>
+        <Icon className="w-3 h-3" />méd. {media.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
+      </div>
+    );
+  };
 
   // editar produção (nome, código, rendimento, unidade) — edição mora AQUI, na ficha técnica
   const [editRend, setEditRend] = useState(false);
@@ -337,10 +353,12 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                           <div className="px-4 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/15 text-center">
                             <div className="text-[11px] text-muted-foreground uppercase tracking-wide">CMV CH</div>
                             <div className="text-xl font-bold text-amber-600 dark:text-amber-400 leading-tight mt-0.5">{(custoAtualTotal / pch * 100).toFixed(1)}%</div>
+                            {cmvVsMedia(custoAtualTotal / pch * 100)}
                           </div>
                           <div className="px-4 py-2 rounded-lg bg-violet-50 dark:bg-violet-900/15 text-center">
                             <div className="text-[11px] text-muted-foreground uppercase tracking-wide">CMV Yuzer</div>
                             <div className="text-xl font-bold text-violet-600 dark:text-violet-400 leading-tight mt-0.5">{(custoAtualTotal / pyz * 100).toFixed(1)}%</div>
+                            {cmvVsMedia(custoAtualTotal / pyz * 100)}
                           </div>
                         </>);
                         const p = pch > 0 ? pch : pyz;
@@ -348,6 +366,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                           <div className="px-4 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/15 text-center">
                             <div className="text-[11px] text-muted-foreground uppercase tracking-wide">CMV teórico</div>
                             <div className="text-xl font-bold text-amber-600 dark:text-amber-400 leading-tight mt-0.5">{(custoAtualTotal / p * 100).toFixed(1)}%</div>
+                            {cmvVsMedia(custoAtualTotal / p * 100)}
                           </div>
                         ) : null;
                       })()}
@@ -565,12 +584,14 @@ function FichasInner() {
   const [producoes, setProducoes] = useState<any[]>([]);
   const [produtos, setProdutos] = useState<any[]>([]);
   const [insumos, setInsumos] = useState<any[]>([]);
+  const [cmvMedias, setCmvMedias] = useState<Record<string, number>>({});
   const [importando, setImportando] = useState(false);
 
   const loadProducoes = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/producoes?bar_id=${barId}`); if (r.success) setProducoes(r.producoes || []); }, [barId]);
   const loadProdutos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/produtos?bar_id=${barId}`); if (r.success) setProdutos(r.produtos || []); }, [barId]);
   const loadInsumos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/insumos?bar_id=${barId}`); if (r.success) setInsumos(r.produtos || []); }, [barId]);
-  useEffect(() => { loadProducoes(); loadProdutos(); loadInsumos(); }, [loadProducoes, loadProdutos, loadInsumos]);
+  const loadCmvMedias = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/producoes/cmv-categoria?bar_id=${barId}`); if (r.success) setCmvMedias(r.medias || {}); }, [barId]);
+  useEffect(() => { loadProducoes(); loadProdutos(); loadInsumos(); loadCmvMedias(); }, [loadProducoes, loadProdutos, loadInsumos, loadCmvMedias]);
 
   const importar = async () => {
     if (!barId) return; setImportando(true);
@@ -644,7 +665,7 @@ function FichasInner() {
       </div>
       {aba === 'producao'
         ? <FichaTab kind="producao" lista={producoes} insumos={insumos} producoes={producoes} reloadLista={loadProducoes} preSel={preSel} />
-        : <FichaTab kind="produto" lista={produtos} insumos={insumos} producoes={producoes} reloadLista={loadProdutos} />}
+        : <FichaTab kind="produto" lista={produtos} insumos={insumos} producoes={producoes} reloadLista={loadProdutos} cmvMedias={cmvMedias} />}
 
       {createOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setCreateOpen(false)}>
