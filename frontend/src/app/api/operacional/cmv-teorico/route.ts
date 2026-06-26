@@ -51,18 +51,10 @@ export async function GET(request: NextRequest) {
       ...c, margem: c.faturamento - c.custo_total,
       cmv_pct: c.faturamento > 0 ? Number((c.custo_total / c.faturamento * 100).toFixed(2)) : null,
     })).sort((a, b) => b.faturamento - a.faturamento);
-    // fonte por dia (Yuzer x ContaHub) — pra indicar dia de evento e que usa preço Yuzer
-    const { data: fonteRows } = await (admin as any).schema('silver').from('vendas_consolidada_dia')
-      .select('data, fonte, valor').eq('bar_id', barId).gte('data', ini).lte('data', fim);
-    const fonteFat = new Map<string, number>();
-    const yuzerDias = new Set<string>();
-    for (const r of (fonteRows || []) as any[]) {
-      fonteFat.set(r.fonte, (fonteFat.get(r.fonte) || 0) + num(r.valor));
-      if (r.fonte === 'yuzer') yuzerDias.add(r.data);
-    }
-    (headline as any).fat_yuzer = Number((fonteFat.get('yuzer') || 0).toFixed(2));
-    (headline as any).fat_contahub = Number((fonteFat.get('contahub') || 0).toFixed(2));
-    (headline as any).dias_yuzer = Array.from(yuzerDias).sort();
+    // dias de operação Yuzer no período (fonte da verdade = eventos_base.usa_yuzer) — indica que o CMV usa preço Yuzer nesses dias
+    const { data: evtRows } = await (admin as any).schema('operations').from('eventos_base')
+      .select('data_evento').eq('bar_id', barId).eq('usa_yuzer', true).gte('data_evento', ini).lte('data_evento', fim);
+    (headline as any).dias_yuzer = Array.from(new Set((evtRows || []).map((r: any) => r.data_evento))).sort();
 
     // produtos vendidos no ContaHub FORA do de-para (sem código interno → invisíveis no CMV)
     const { data: foraDp } = await gold.rpc('fn_vendido_fora_depara', { p_bar_id: barId, p_ini: ini, p_fim: fim });

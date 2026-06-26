@@ -63,11 +63,6 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
   }, [parentParam, barId]);
   useEffect(() => { if (sel) carregarItens(sel); else setItens([]); }, [sel, carregarItens]);
 
-  const nZero = lista.filter(p => (p.qtd_componentes ?? 0) === 0).length;
-  const nSemMestre = kind === 'producao' ? lista.filter(p => (p.qtd_componentes ?? 0) > 0 && !p.tem_mestre).length : 0;
-  const nSemCh = kind === 'produto' ? lista.filter(p => (p.cods_ch?.length ?? 0) === 0 && !p.agrupado_em).length : 0;
-  const nAtivos = kind === 'produto' ? lista.filter(p => p.ativo).length : 0;
-  const nInativos = kind === 'produto' ? lista.filter(p => !p.ativo).length : 0;
   // categoria pelo prefixo do código: finalização b=Bebida d=Drink c=Comida o=Outros · produção pd=Bar pc=Cozinha
   const cats = kind === 'produto' ? ['Bebida', 'Drink', 'Comida', 'Outros'] : ['Bar', 'Cozinha'];
   const catDe = (p: any) => {
@@ -75,6 +70,14 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
     return (p.codigo || '').toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha';
   };
   const [catFiltro, setCatFiltro] = useState<string | null>(null);
+  // contadores dos badges respeitam os outros filtros (categoria + ativo/inativo) pra combinarem entre si
+  const baseCat = useMemo(() => catFiltro ? lista.filter(p => catDe(p) === catFiltro) : lista, [lista, catFiltro]); // eslint-disable-line react-hooks/exhaustive-deps
+  const baseStat = useMemo(() => baseCat.filter(p => kind !== 'produto' || statusFiltro === 'todos' || (statusFiltro === 'ativo' ? !!p.ativo : !p.ativo)), [baseCat, statusFiltro, kind]);
+  const nZero = baseStat.filter(p => (p.qtd_componentes ?? 0) === 0).length;
+  const nSemMestre = kind === 'producao' ? baseStat.filter(p => (p.qtd_componentes ?? 0) > 0 && !p.tem_mestre).length : 0;
+  const nSemCh = kind === 'produto' ? baseStat.filter(p => (p.cods_ch?.length ?? 0) === 0 && !p.agrupado_em).length : 0;
+  const nAtivos = kind === 'produto' ? baseCat.filter(p => p.ativo).length : 0;
+  const nInativos = kind === 'produto' ? baseCat.filter(p => !p.ativo).length : 0;
   const listaView = useMemo(() => {
     const q = buscaLista.trim().toLowerCase();
     return lista.filter(p => {

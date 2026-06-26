@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminClient } from '@/lib/supabase-admin';
+import { getAdminClient, selectAll } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
@@ -13,14 +13,16 @@ export async function GET(request: NextRequest) {
 
   const supabase = await getAdminClient();
 
-  const { data: produtos, error } = await supabase
-    .from('bronze_vmarket_produtos')
-    .select('id_produto_sisfood_cotacao,cod_interno,codigo_planilha,fator_correcao,nome,marca,gramatura,gramatura_contagem,estoque,' +
-            'nome_secao,id_secao_cotacao,nome_fornecedor,fator_embalagem,nao_requer_cotacao,fl_depara,' +
-            'cod_barras,cod_omie,id_produto_erp,solicitacao_compra,id_status_registro,dt_alteracao')
-    .eq('bar_id', barId)
-    .order('nome', { ascending: true });
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  let produtos: any[];
+  try {
+    produtos = await selectAll((from, to) => supabase
+      .from('bronze_vmarket_produtos')
+      .select('id_produto_sisfood_cotacao,cod_interno,codigo_planilha,fator_correcao,nome,marca,gramatura,gramatura_contagem,estoque,' +
+              'nome_secao,id_secao_cotacao,nome_fornecedor,fator_embalagem,nao_requer_cotacao,fl_depara,' +
+              'cod_barras,cod_omie,id_produto_erp,solicitacao_compra,id_status_registro,dt_alteracao')
+      .eq('bar_id', barId)
+      .order('nome', { ascending: true }).range(from, to));
+  } catch (e: any) { return NextResponse.json({ success: false, error: e?.message || String(e) }, { status: 500 }); }
 
   const { data: secoes } = await supabase
     .from('bronze_vmarket_secoes')
@@ -36,15 +38,15 @@ export async function GET(request: NextRequest) {
     .limit(1);
 
   // Último preço (e o anterior) de cada insumo, vindo dos pedidos (gold.vmarket_insumo_preco)
-  const { data: precos } = await (supabase as any).schema('gold')
+  const precos = await selectAll((from, to) => (supabase as any).schema('gold')
     .from('vmarket_insumo_preco')
     .select('id_prod, preco_atual, data_atual, preco_anterior, fornecedor_atual')
-    .eq('bar_id', barId);
-  const precoMap = new Map<number, any>((precos || []).map((p: any) => [p.id_prod, p]));
+    .eq('bar_id', barId).range(from, to)).catch(() => []);
+  const precoMap = new Map<number, any>((precos || []).map((p: any) => [p.id_prod, p] as [number, any]));
 
   // Unidade-base + embalagem por insumo (insumo_unidade)
-  const { data: unids } = await supabase.from('insumo_unidade').select('id_prod, base, embalagem').eq('bar_id', barId);
-  const unidMap = new Map<number, any>((unids || []).map((u: any) => [u.id_prod, u]));
+  const unids = await selectAll((from, to) => supabase.from('insumo_unidade').select('id_prod, base, embalagem').eq('bar_id', barId).range(from, to)).catch(() => []);
+  const unidMap = new Map<number, any>((unids || []).map((u: any) => [u.id_prod, u] as [number, any]));
 
   // Código efetivo = Código Planilha (correto/estável) com fallback no cod_interno do VMarket (cru)
   const codEf = (p: any): string | null => p.codigo_planilha || p.cod_interno || null;
@@ -78,8 +80,8 @@ export async function GET(request: NextRequest) {
     return { base: 'un', embalagem: 1 };
   };
   // catálogo da contagem (planilha) — preço placeholder por cod_interno (quando não há compra no VMarket)
-  const { data: contagemIns } = await (supabase as any).schema('operations')
-    .from('insumos').select('id, codigo, nome, categoria, unidade_medida, custo_unitario, fator_correcao').eq('bar_id', barId);
+  const contagemIns = await selectAll((from, to) => (supabase as any).schema('operations')
+    .from('insumos').select('id, codigo, nome, categoria, unidade_medida, custo_unitario, fator_correcao').eq('bar_id', barId).range(from, to)).catch(() => []);
   const planilhaMap = new Map<string, number>();
   for (const i of (contagemIns || [])) { const pv = Number(i.custo_unitario) || 0; if (i.codigo && pv > 0 && !planilhaMap.has(i.codigo)) planilhaMap.set(i.codigo, pv); }
 

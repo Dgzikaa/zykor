@@ -53,4 +53,26 @@ function createServiceRoleClient() {
   });
 }
 
-export { getAdminClient, createServiceRoleClient };
+/**
+ * Pagina qualquer query PostgREST até esgotar (o PostgREST corta em ~1000 linhas por requisição).
+ * Use sempre que a query puder retornar muitas linhas, senão o resultado vem truncado silenciosamente.
+ *
+ * Ex.: const rows = await selectAll((from, to) =>
+ *        supabase.from('tabela').select('a,b').eq('bar_id', barId).range(from, to));
+ */
+async function selectAll<T = any>(
+  makeQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>,
+  pageSize = 1000
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await makeQuery(from, from + pageSize - 1);
+    if (error) throw error;
+    const rows = (data || []) as T[];
+    out.push(...rows);
+    if (rows.length < pageSize) break;
+  }
+  return out;
+}
+
+export { getAdminClient, createServiceRoleClient, selectAll };

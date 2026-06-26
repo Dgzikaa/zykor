@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminClient } from '@/lib/supabase-admin';
+import { getAdminClient, selectAll } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
@@ -28,43 +28,46 @@ export async function GET(request: NextRequest) {
   const barId = Number(new URL(request.url).searchParams.get('bar_id')) || user.bar_id;
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();
-  const { data, error } = await supabase
-    .from('produto_cardapio')
-    .select('id,codigo,nome,categoria,ativo,origem,atualizado_em,agrupado_em')
-    .eq('bar_id', barId).order('codigo', { ascending: true });
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  try {
+    // todas as queries paginadas (PostgREST corta em ~1000 linhas)
+    const data = await selectAll((from, to) => supabase
+      .from('produto_cardapio')
+      .select('id,codigo,nome,categoria,ativo,origem,atualizado_em,agrupado_em')
+      .eq('bar_id', barId).order('codigo', { ascending: true }).range(from, to));
 
-  // contagem de itens da ficha (finalização) por produto
-  // contagem por produto — sem .in() (URL gigante com centenas de ids trunca e mostra 0 errado); conta todos e usa o mapa
-  const contagem: Record<number, number> = {};
-  const { data: itens } = await supabase.from('producao_ficha_item').select('produto_id').not('produto_id', 'is', null);
-  (itens || []).forEach((i: any) => { if (i.produto_id) contagem[i.produto_id] = (contagem[i.produto_id] || 0) + 1; });
+    // contagem de itens da ficha (finalização) por produto — via view agregada (1 linha por produto)
+    const contagem: Record<number, number> = {};
+    const itens = await selectAll((from, to) => supabase.from('v_produto_ficha_count').select('produto_id, n').range(from, to));
+    itens.forEach((i: any) => { if (i.produto_id) contagem[i.produto_id] = i.n; });
 
-  // cód ContaHub (prd) + preço de venda (cardápio) por cod_interno — um produto pode ter vários (HH/PP/variações)
-  const chMap: Record<string, number[]> = {};
-  const precoVendaMap: Record<string, number> = {};
-  const { data: chRows } = await supabase.from('produto_contahub_map').select('prd, cod_interno, preco_venda').eq('bar_id', barId);
-  (chRows || []).forEach((r: any) => {
-    if (!r.cod_interno) return;
-    (chMap[r.cod_interno] ??= []).push(r.prd);
-    const pv = Number(r.preco_venda || 0);
-    if (pv > 0) precoVendaMap[r.cod_interno] = Math.max(precoVendaMap[r.cod_interno] || 0, pv);
-  });
+    // cód ContaHub (prd) + preço de venda (cardápio) por cod_interno — um produto pode ter vários (HH/PP/variações)
+    const chMap: Record<string, number[]> = {};
+    const precoVendaMap: Record<string, number> = {};
+    const chRows = await selectAll((from, to) => supabase.from('produto_contahub_map').select('prd, cod_interno, preco_venda').eq('bar_id', barId).range(from, to));
+    chRows.forEach((r: any) => {
+      if (!r.cod_interno) return;
+      (chMap[r.cod_interno] ??= []).push(r.prd);
+      const pv = Number(r.preco_venda || 0);
+      if (pv > 0) precoVendaMap[r.cod_interno] = Math.max(precoVendaMap[r.cod_interno] || 0, pv);
+    });
 
-  // ID Yuzer (produto_id real da Yuzer) por cod_interno
-  const yzMap: Record<string, string[]> = {};
-  const { data: yzRows } = await supabase.from('produto_yuzer_map').select('yuzer_produto_id, cod_interno').eq('bar_id', barId).not('yuzer_produto_id', 'is', null);
-  (yzRows || []).forEach((r: any) => { if (r.cod_interno) (yzMap[r.cod_interno] ??= []).push(String(r.yuzer_produto_id)); });
+    // ID Yuzer (produto_id real da Yuzer) por cod_interno
+    const yzMap: Record<string, string[]> = {};
+    const yzRows = await selectAll((from, to) => supabase.from('produto_yuzer_map').select('yuzer_produto_id, cod_interno').eq('bar_id', barId).not('yuzer_produto_id', 'is', null).range(from, to));
+    yzRows.forEach((r: any) => { if (r.cod_interno) (yzMap[r.cod_interno] ??= []).push(String(r.yuzer_produto_id)); });
 
-  // Preço de venda no Yuzer (último, automático) por cod_interno
-  const yzPrecoMap: Record<string, number> = {};
-  const { data: yzPrecos } = await (supabase as any).schema('gold').from('produto_preco_yuzer').select('cod_interno, preco_yuzer').eq('bar_id', barId);
-  (yzPrecos || []).forEach((r: any) => { if (r.cod_interno && r.preco_yuzer != null) yzPrecoMap[r.cod_interno] = Number(r.preco_yuzer); });
+    // Preço de venda no Yuzer (último, automático) por cod_interno
+    const yzPrecoMap: Record<string, number> = {};
+    const yzPrecos = await selectAll((from, to) => (supabase as any).schema('gold').from('produto_preco_yuzer').select('cod_interno, preco_yuzer').eq('bar_id', barId).range(from, to));
+    yzPrecos.forEach((r: any) => { if (r.cod_interno && r.preco_yuzer != null) yzPrecoMap[r.cod_interno] = Number(r.preco_yuzer); });
 
-  return NextResponse.json({
-    success: true,
-    produtos: (data || []).map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [], preco_venda: precoVendaMap[p.codigo] ?? null, preco_yuzer: yzPrecoMap[p.codigo] ?? null })),
-  });
+    return NextResponse.json({
+      success: true,
+      produtos: data.map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [], preco_venda: precoVendaMap[p.codigo] ?? null, preco_yuzer: yzPrecoMap[p.codigo] ?? null })),
+    });
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e?.message || String(e) }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {

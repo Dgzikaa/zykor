@@ -103,10 +103,10 @@ export default function CmvTeoricoPage() {
     finally { setRecalc(false); }
   };
 
-  const cats = useMemo(() => Array.from(new Set(produtos.map(p => p.categoria).filter(Boolean))).sort(), [produtos]);
+  const cats = useMemo(() => Array.from(new Set(produtos.map(p => p.categoria || 'Outros'))).sort(), [produtos]);
   const escopo = useMemo(() => {
     const s = busca.trim().toLowerCase();
-    return produtos.filter(p => (!cat || p.categoria === cat) && (!s || (p.nome || '').toLowerCase().includes(s) || (p.codigo || '').toLowerCase().includes(s)));
+    return produtos.filter(p => (!cat || (p.categoria || 'Outros') === cat) && (!s || (p.nome || '').toLowerCase().includes(s) || (p.codigo || '').toLowerCase().includes(s)));
   }, [produtos, busca, cat]);
   const semFichaFn = (p: any) => !p.custo || p.custo === 0;
   const semPrecoFn = (p: any) => !p.preco_venda;
@@ -206,7 +206,7 @@ export default function CmvTeoricoPage() {
                   <tr key={p.produto_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                     <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.codigo}</td>
                     <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}</td>
-                    <td className="px-3 py-2"><Badge variant="outline">{p.categoria || '—'}</Badge></td>
+                    <td className="px-3 py-2"><Badge variant="outline">{p.categoria || 'Outros'}</Badge></td>
                     <td className="px-3 py-2 text-right tabular-nums">{p.custo ? fmtBRL(p.custo) : '—'}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(p.preco_venda)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{p.margem != null ? fmtBRL(p.margem) : '—'}</td>
@@ -333,7 +333,7 @@ export default function CmvTeoricoPage() {
                     <tr key={p.codigo} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                       <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.codigo}</td>
                       <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}</td>
-                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.categoria || '—'}</td>
+                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.categoria || 'Outros'}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtNum(p.qtd)}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(p.preco_venda)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{p.custo_unit ? fmtBRL(p.custo_unit) : <span className="text-amber-500" title="Sem ficha/custo">—</span>}</td>
