@@ -208,19 +208,15 @@ export default function CadastrosPage() {
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
                           <td className="px-3 py-2 text-center">
-                            {p.fonte === 'planilha' ? <span className="text-xs text-gray-500">{p.base || '—'}</span> : (
-                              <select value={p.base || 'g'} onChange={e => salvarUnidade(p, { base: e.target.value })}
-                                className="h-7 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs">
-                                <option value="g">g</option><option value="ml">ml</option><option value="un">un</option>
-                              </select>
-                            )}
+                            <select value={p.base || 'g'} onChange={e => salvarUnidade(p, { base: e.target.value })}
+                              className="h-7 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs">
+                              <option value="g">g</option><option value="ml">ml</option><option value="un">un</option>
+                            </select>
                           </td>
                           <td className="px-3 py-2 text-right">
-                            {p.fonte === 'planilha' ? <span className="text-xs text-gray-500">{p.embalagem ?? 1}</span> : (
-                              <input type="number" step="0.001" defaultValue={p.embalagem ?? 1}
-                                onBlur={e => { const v = Number(e.target.value) || 1; if (v !== (p.embalagem ?? 1)) salvarUnidade(p, { embalagem: v }); }}
-                                className="h-7 w-20 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs text-right" />
-                            )}
+                            <input type="number" step="0.001" key={`${p.id_produto_sisfood_cotacao}-${p.embalagem}`} defaultValue={p.embalagem ?? 1}
+                              onBlur={e => { const v = Number(e.target.value) || 1; if (v !== (p.embalagem ?? 1)) salvarUnidade(p, { embalagem: v }); }}
+                              className="h-7 w-20 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs text-right" />
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums font-medium whitespace-nowrap">
                             {fmtBRL(p.preco_atual)}

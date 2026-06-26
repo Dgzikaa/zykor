@@ -100,6 +100,7 @@ export async function GET(request: NextRequest) {
     .filter((i: any) => /^i\d+$/.test(i.codigo) && !codsBronze.has(i.codigo))
     .map((i: any) => {
       const u = deriveUnid(i.nome, i.unidade_medida);
+      const ov = unidMap.get(-Number(i.id)); // override editado (insumo_unidade com id sintético)
       return {
         id_produto_sisfood_cotacao: -Number(i.id), // chave sintética (negativa, não colide com ids VMarket)
         fonte: 'planilha',
@@ -108,7 +109,7 @@ export async function GET(request: NextRequest) {
         nome_fornecedor: null, fornecedor_ultimo: 'Planilha',
         preco_atual: Number(i.custo_unitario) || null, preco_data: null, preco_anterior: null,
         cod_duplicado: false, cod_invalido: false,
-        base: u.base, embalagem: u.embalagem,
+        base: ov?.base ?? u.base, embalagem: ov?.embalagem ?? u.embalagem,
       };
     });
 

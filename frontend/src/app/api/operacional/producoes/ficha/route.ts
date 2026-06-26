@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
   const linhas = data || [];
-  // último preço + unidade-base por insumo
+  // último preço (VMarket) + unidade-base por insumo
   let precoMap = new Map<number, number>();
   let unidMap = new Map<number, { base: string; embalagem: number }>();
   if (barId) {
@@ -37,6 +37,45 @@ export async function GET(request: NextRequest) {
     precoMap = new Map((precos || []).map((p: any) => [p.id_prod, Number(p.preco_atual)]));
     unidMap = new Map((unids || []).map((u: any) => [u.id_prod, { base: u.base, embalagem: Number(u.embalagem) }]));
   }
+
+  // preço da PLANILHA (insumo fora do VMarket) por código — base/embalagem derivadas do nome
+  const deriveUnid = (nome: string, um: string | null): { base: string; embalagem: number } => {
+    const m = (nome || '').match(/(\d+[.,]?\d*)\s*(kg|kilo|litro|lt|ml|gr|grama|l|g)\b/i);
+    if (m) {
+      const num = parseFloat(m[1].replace('.', '').replace(',', '.')) || parseFloat(m[1].replace(',', '.'));
+      const u = m[2].toLowerCase();
+      if (u === 'kg' || u === 'kilo') return { base: 'g', embalagem: num * 1000 };
+      if (u === 'l' || u === 'lt' || u === 'litro') return { base: 'ml', embalagem: num * 1000 };
+      if (u === 'ml') return { base: 'ml', embalagem: num };
+      if (u === 'g' || u === 'gr' || u === 'grama') return { base: 'g', embalagem: num };
+    }
+    const s = (um || '').toLowerCase().trim();
+    if (s === 'ml') return { base: 'ml', embalagem: 1 };
+    if (s === 'l' || s === 'litro') return { base: 'ml', embalagem: 1000 };
+    if (s === 'kg') return { base: 'g', embalagem: 1000 };
+    if (s === 'g' || s === 'grama') return { base: 'g', embalagem: 1 };
+    return { base: 'un', embalagem: 1 };
+  };
+  const planMap = new Map<string, { precoUn: number | null; base: string }>();
+  if (barId) {
+    const { data: planIns } = await (supabase as any).schema('operations').from('insumos').select('codigo, nome, unidade_medida, custo_unitario').eq('bar_id', barId);
+    for (const i of (planIns || [])) {
+      if (!i.codigo || planMap.has(i.codigo)) continue;
+      const u = deriveUnid(i.nome, i.unidade_medida);
+      const cu = Number(i.custo_unitario) || 0;
+      planMap.set(i.codigo, { precoUn: (u.embalagem > 0 && cu > 0) ? cu / u.embalagem : null, base: u.base });
+    }
+  }
+  // preço por unidade-base de um insumo: VMarket (último preço/embalagem) tem prioridade; senão planilha
+  const insumoUn = (idv: number | null, cod: string | null): { precoUn: number | null; base: string | null } => {
+    if (idv) { const p = precoMap.get(idv); const u = unidMap.get(idv); if (p != null && u && u.embalagem > 0) return { precoUn: p / u.embalagem, base: u.base }; }
+    const pl = cod ? planMap.get(cod) : null;
+    if (pl && pl.precoUn != null) return { precoUn: pl.precoUn, base: pl.base };
+    if (idv && unidMap.get(idv)) return { precoUn: null, base: unidMap.get(idv)!.base };
+    if (pl) return { precoUn: null, base: pl.base };
+    return { precoUn: null, base: null };
+  };
+
   // código + unidade + rendimento das produções referenciadas (componentes do tipo produção)
   const refIds = Array.from(new Set(linhas.filter((i: any) => i.producao_ref).map((i: any) => i.producao_ref)));
   const refMap = new Map<number, any>();
@@ -44,16 +83,15 @@ export async function GET(request: NextRequest) {
   if (refIds.length) {
     const { data: refs } = await supabase.from('producao_base').select('id, codigo, unidade, rendimento').in('id', refIds);
     (refs || []).forEach((r: any) => refMap.set(r.id, r));
-    // custo da ficha de cada produção referenciada = soma dos itens; por unidade = total / rendimento
     const { data: refItens } = await supabase.from('producao_ficha_item')
-      .select('producao_id, insumo_id_vmarket, quantidade, custo_planilha, componente_tipo')
+      .select('producao_id, insumo_id_vmarket, insumo_codigo, quantidade, custo_planilha, componente_tipo')
       .in('producao_id', refIds);
     const totalRef = new Map<number, number>();
     for (const ri of refItens || []) {
       let c = 0;
-      if (ri.componente_tipo === 'insumo' && ri.insumo_id_vmarket) {
-        const p = precoMap.get(ri.insumo_id_vmarket); const u = unidMap.get(ri.insumo_id_vmarket);
-        c = (p != null && u && u.embalagem > 0) ? Number(ri.quantidade || 0) * p / u.embalagem : Number(ri.custo_planilha || 0);
+      if (ri.componente_tipo === 'insumo') {
+        const info = insumoUn(ri.insumo_id_vmarket, ri.insumo_codigo);
+        c = info.precoUn != null ? Number(ri.quantidade || 0) * info.precoUn : Number(ri.custo_planilha || 0);
       } else {
         c = Number(ri.custo_planilha || 0); // produção aninhada: usa o custo da planilha (1 nível)
       }
@@ -66,27 +104,26 @@ export async function GET(request: NextRequest) {
   }
 
   const itens = linhas.map((it: any) => {
-    const preco = it.insumo_id_vmarket ? (precoMap.get(it.insumo_id_vmarket) ?? null) : null;
-    const u = it.insumo_id_vmarket ? unidMap.get(it.insumo_id_vmarket) : null;
     const ref = it.componente_tipo === 'producao' ? refMap.get(it.producao_ref) : null;
+    const info = it.componente_tipo === 'insumo' ? insumoUn(it.insumo_id_vmarket, it.insumo_codigo) : null;
+    let preco_un: number | null = null;
     let custo_atual: number | null = null;
-    if (preco != null && u && u.embalagem > 0) custo_atual = Number(it.quantidade || 0) * preco / u.embalagem;
-    // componente que é produção: custo vem da ficha do preparo (custo/un × qtd usada)
-    if (it.componente_tipo === 'producao') {
+    if (it.componente_tipo === 'insumo') {
+      preco_un = info?.precoUn ?? null;
+      if (preco_un != null) custo_atual = Number(it.quantidade || 0) * preco_un;
+    } else if (it.componente_tipo === 'producao') {
       const cu = custoUnitRef.get(it.producao_ref);
+      preco_un = cu ?? null;
       if (cu != null) custo_atual = Number(it.quantidade || 0) * cu;
     }
+    const base = it.componente_tipo === 'insumo' ? (info?.base ?? null) : null;
     // unidade de exibição: o que o usuário editou no item vence; senão a base do insumo / a unidade do preparo
-    const unidade_exib = it.unidade || u?.base || ref?.unidade || null;
-    // preço por unidade-base (insumo: último preço / embalagem; produção: custo da ficha / rendimento)
-    const preco_un = it.componente_tipo === 'producao'
-      ? (custoUnitRef.get(it.producao_ref) ?? null)
-      : (preco != null && u && u.embalagem > 0 ? preco / u.embalagem : null);
+    const unidade_exib = it.unidade || base || ref?.unidade || null;
     return {
       ...it,
-      preco_atual: preco,
+      preco_atual: it.insumo_id_vmarket ? (precoMap.get(it.insumo_id_vmarket) ?? null) : null,
       preco_un,
-      base: u?.base ?? null,
+      base,
       unidade_exib,
       componente_codigo: it.componente_tipo === 'producao' ? (ref?.codigo ?? null) : it.insumo_codigo,
       custo_atual,
