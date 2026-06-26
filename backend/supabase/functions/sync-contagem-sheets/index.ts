@@ -48,7 +48,7 @@ function normNome(s: string): string {
 }
 
 async function fetchSheet(id: string): Promise<unknown[][]> {
-  const range = 'INSUMOS!A1:AMJ400'
+  const range = 'INSUMOS!A1:AMJ800' // 800 linhas: a aba tem ~482 e a seção FUNCIONÁRIOS (Alimentação/CMA) fica depois da linha 400
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}` +
     `?key=${GOOGLE_API_KEY}&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`
   const r = await fetch(url)
@@ -156,7 +156,7 @@ Deno.serve(async (req: Request) => {
   try {
     const url = new URL(req.url)
     const barParam = url.searchParams.get('bar_id')
-    const diasAtras = Math.max(1, Math.min(60, Number(url.searchParams.get('dias_atras')) || 14))
+    const diasAtras = Math.max(1, Math.min(400, Number(url.searchParams.get('dias_atras')) || 14)) // até 400 p/ backfill
     const bars = barParam ? [Number(barParam)] : [3, 4]
 
     const sb = createClient(
