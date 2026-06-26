@@ -1,14 +1,18 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 
 /**
- * 📦 SYNC-CONTAGEM-SHEETS (v3 — rework jun/2026)
+ * 📦 SYNC-CONTAGEM-SHEETS (v4 — medallion jun/2026)
  *
- * Lê a aba INSUMOS da planilha de Contagem de Estoque (uma por bar) e grava
- * em operations.contagem_estoque_insumos no modelo novo:
- *   - estoque_fechado + estoque_flutuante (estoque_final = soma)
- *   - tipo_contagem derivado da DATA: dia 1 = mensal > segunda = semanal > resto = diaria
- *   - chave única (bar_id, data_contagem, insumo_codigo) — lossless, sem AUTO_
- *   - casa por código; se o código mudou na planilha, casa por NOME normalizado
+ * MEDALLION:
+ *   Planilha (aba INSUMOS)
+ *     └─ aqui: parseia o GRID e grava as linhas CRUAS (tidy) em
+ *        public.bronze_contagem_sheet (bar, data, código, nome, fechado, flutuante)
+ *          └─ operations.fn_refresh_contagem_estoque (SQL): tipa + deriva tipo_contagem
+ *             + casa no cadastro (código→nome) + calcula final ─►
+ *             operations.contagem_estoque_insumos  ← a tela lê daqui
+ *
+ * Esta função NÃO enriquece mais (isso é SQL). Só landa o bronze e dispara o refresh.
+ * Assim o cru fica guardado e dá pra reprocessar sem reler a planilha.
  *
  * Parser mapeia colunas pelo CABEÇALHO (linha 6): a data fica na coluna
  * "ESTOQUE FECHADO" e o "ESTOQUE FLUTUANTE" é a coluna seguinte. NÃO usa offset fixo.
@@ -35,18 +39,6 @@ function toISO(s: unknown): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : null
 }
 
-function tipoFromDate(iso: string): 'mensal' | 'semanal' | 'diaria' {
-  const day = Number(iso.slice(8, 10))
-  const dow = new Date(iso + 'T00:00:00Z').getUTCDay() // 0=Dom 1=Seg
-  if (day === 1) return 'mensal'
-  if (dow === 1) return 'semanal'
-  return 'diaria'
-}
-
-function normNome(s: string): string {
-  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
-}
-
 async function fetchSheet(id: string): Promise<unknown[][]> {
   const range = 'INSUMOS!A1:AMJ800' // 800 linhas: a aba tem ~482 e a seção FUNCIONÁRIOS (Alimentação/CMA) fica depois da linha 400
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}` +
@@ -57,12 +49,13 @@ async function fetchSheet(id: string): Promise<unknown[][]> {
   return (j.values || []) as unknown[][]
 }
 
-interface Rec {
+interface BronzeRec {
   data_contagem: string; insumo_codigo: string; insumo_nome: string;
-  tipo_contagem: string; estoque_fechado: number | null; estoque_flutuante: number | null; estoque_final: number;
+  estoque_fechado: number | null; estoque_flutuante: number | null;
 }
 
-function parse(rows: unknown[][], fromISO: string, toISODate: string): Rec[] {
+/** Parseia o grid → linhas cruas (tidy) por (data, código). Soma duplicatas do mesmo código no dia. */
+function parse(rows: unknown[][], fromISO: string, toISODate: string): BronzeRec[] {
   const dateRow = (rows[3] || []) as unknown[]
   const header = (rows[5] || []) as unknown[]
   const dcols: { c: number; iso: string }[] = []
@@ -73,9 +66,8 @@ function parse(rows: unknown[][], fromISO: string, toISODate: string): Rec[] {
       if (h.includes('FECHADO')) dcols.push({ c, iso })
     }
   }
-  const agg = new Map<string, Rec>()
+  const agg = new Map<string, BronzeRec>()
   for (const { c, iso } of dcols) {
-    const tipo = tipoFromDate(iso)
     for (let i = 6; i < rows.length; i++) {
       const row = rows[i] as unknown[]
       if (!row) continue
@@ -91,12 +83,8 @@ function parse(rows: unknown[][], fromISO: string, toISODate: string): Rec[] {
       if (ex) {
         ex.estoque_fechado = (ex.estoque_fechado || 0) + (fechado || 0)
         ex.estoque_flutuante = (ex.estoque_flutuante || 0) + (flut || 0)
-        ex.estoque_final = (ex.estoque_fechado || 0) + (ex.estoque_flutuante || 0)
       } else {
-        agg.set(key, {
-          data_contagem: iso, insumo_codigo: cod, insumo_nome: nome, tipo_contagem: tipo,
-          estoque_fechado: fechado, estoque_flutuante: flut, estoque_final: (fechado || 0) + (flut || 0),
-        })
+        agg.set(key, { data_contagem: iso, insumo_codigo: cod, insumo_nome: nome, estoque_fechado: fechado, estoque_flutuante: flut })
       }
     }
   }
@@ -112,43 +100,32 @@ async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtr
   const rows = await fetchSheet(sheetId)
   const recs = parse(rows, from, today)
 
-  // catálogo do bar: code -> id, nome normalizado -> id
-  const { data: cat, error: ce } = await sb.schema('operations').from('insumos')
-    .select('id,codigo,nome,categoria,tipo_local,unidade_medida,custo_unitario').eq('bar_id', bar)
-  if (ce) throw ce
-  const byCode = new Map<string, any>(), byName = new Map<string, any>()
-  for (const r of (cat || []) as any[]) {
-    byCode.set(String(r.codigo).toUpperCase(), r)
-    byName.set(normNome(r.nome), r)
-  }
-
-  const semCadastro = new Set<string>()
+  // BRONZE: linhas cruas (tidy) da planilha
   const now = new Date().toISOString()
-  const payload = recs.map((r) => {
-    const m = byCode.get(r.insumo_codigo) || byName.get(normNome(r.insumo_nome))
-    if (!m) semCadastro.add(r.insumo_codigo)
-    return {
-      bar_id: bar, ...r,
-      insumo_id: m?.id ?? null,
-      categoria: m?.categoria ?? null,
-      tipo_local: m?.tipo_local ?? null,
-      unidade_medida: m?.unidade_medida ?? null,
-      custo_unitario: m?.custo_unitario ?? 0,
-      usuario_contagem: 'sync-contagem-sheets',
-      observacoes: 'sync-diario',
-      updated_at: now,
-    }
-  })
-
-  let upserted = 0
-  for (let i = 0; i < payload.length; i += 500) {
-    const chunk = payload.slice(i, i + 500)
-    const { error } = await sb.schema('operations').from('contagem_estoque_insumos')
+  const bronze = recs.map((r) => ({
+    bar_id: bar,
+    data_contagem: r.data_contagem,
+    insumo_codigo: r.insumo_codigo,
+    insumo_nome: r.insumo_nome,
+    estoque_fechado: r.estoque_fechado,
+    estoque_flutuante: r.estoque_flutuante,
+    ingested_em: now,
+  }))
+  let landed = 0
+  for (let i = 0; i < bronze.length; i += 500) {
+    const chunk = bronze.slice(i, i + 500)
+    const { error } = await sb.from('bronze_contagem_sheet')
       .upsert(chunk, { onConflict: 'bar_id,data_contagem,insumo_codigo' })
     if (error) throw error
-    upserted += chunk.length
+    landed += chunk.length
   }
-  return { bar, janela: { from, to: today }, linhas: payload.length, upserted, sem_cadastro: [...semCadastro] }
+
+  // SILVER/GOLD: refresh do operations a partir do bronze (enriquecimento em SQL)
+  const { data: upserted, error: re } = await (sb.schema('operations') as any)
+    .rpc('fn_refresh_contagem_estoque', { p_bar: bar, p_dias: diasAtras })
+  if (re) throw re
+
+  return { bar, janela: { from, to: today }, bronze: landed, upserted }
 }
 
 Deno.serve(async (req: Request) => {
