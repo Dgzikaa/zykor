@@ -75,8 +75,12 @@ export async function POST(request: NextRequest) {
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();
 
-  // ----- ATUALIZAR DO CONTAHUB (status ativo + preço de venda) -----
+  // ----- ATUALIZAR DO CONTAHUB (catálogo completo → status ativo + preço de venda) -----
   if (body.action === 'sync_contahub') {
+    // 1) atualiza o catálogo completo (ativo+inativo) no bronze (edge function, aguarda)
+    try { await (supabase as any).functions.invoke('contahub-produtos-catalogo', { body: { bar_id: barId } }); }
+    catch (e: any) { return NextResponse.json({ success: false, error: `Falha ao consultar ContaHub: ${e?.message}` }, { status: 502 }); }
+    // 2) sincroniza preço + status e recalcula o CMV
     const { data: precos } = await supabase.rpc('fn_sync_preco_contahub', { p_bar_id: barId });
     const { data: ativos } = await supabase.rpc('fn_sync_produto_ativo_contahub', { p_bar_id: barId });
     await (supabase as any).schema('gold').rpc('fn_cmv_teorico', { p_bar_id: barId });
