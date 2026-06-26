@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   const supabase = await getAdminClient();
   const { data, error } = await supabase
     .from('producao_base')
-    .select('id,codigo,nome,unidade,rendimento,secao,ativo,observacao,atualizado_em')
+    .select('id,codigo,nome,unidade,rendimento,secao,ativo,observacao,atualizado_em,controle_producao')
     .eq('bar_id', barId)
     .order('nome', { ascending: true });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -123,7 +123,7 @@ export async function PUT(request: NextRequest) {
 
   const supabase = await getAdminClient();
   const patch: any = { atualizado_em: new Date().toISOString() };
-  for (const k of ['nome', 'codigo', 'unidade', 'secao', 'observacao', 'ativo']) if (k in body) patch[k] = body[k];
+  for (const k of ['nome', 'codigo', 'unidade', 'secao', 'observacao', 'ativo', 'controle_producao']) if (k in body) patch[k] = body[k];
   if ('rendimento' in body) patch.rendimento = Number(body.rendimento);
   const { data, error } = await supabase.from('producao_base').update(patch).eq('id', id).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });

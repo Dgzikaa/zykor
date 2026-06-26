@@ -84,13 +84,14 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
   }, []);
 
   const secaoDe = (f: any) => (f.codigo || '').toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha';
+  const fichasControle = useMemo(() => fichas.filter(f => f.controle_producao), [fichas]);
   const fichasView = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    return fichas.filter(f => {
+    return fichasControle.filter(f => {
       if (secao && secaoDe(f) !== secao) return false;
       return !q || (f.nome || '').toLowerCase().includes(q) || (f.codigo || '').toLowerCase().includes(q);
     });
-  }, [fichas, busca, secao]);
+  }, [fichasControle, busca, secao]);
 
   const patch = useCallback((id: string, p: Partial<ActiveProd>) =>
     setProds(prev => prev.map(x => x.localId === id ? { ...x, ...p } : x)), []);
@@ -243,6 +244,13 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
                       {f.nome}<span className="block text-xs text-gray-400">{f.codigo ? `${f.codigo} · ` : ''}rend. {fmtNum(f.rendimento, 3)} {f.unidade || ''}</span>
                     </button>
                   ))}
+                </div>
+              )}
+              {picker && fichasView.length === 0 && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg px-3 py-3 text-xs text-gray-500">
+                  {fichasControle.length === 0
+                    ? 'Nenhuma produção marcada para o Controle. Marque as fichas em Fichas Técnicas → aba Produção (checkbox).'
+                    : 'Nenhuma produção encontrada com esse filtro/busca.'}
                 </div>
               )}
             </div>

@@ -129,17 +129,26 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
   const custoItemAtual = (it: any) => (it.custo_atual != null && !flagRevisar(it)) ? it.custo_atual : Number(it.custo_planilha || 0);
   const custoAtualTotal = itens.reduce((s, it) => s + custoItemAtual(it), 0);
 
-  // editar rendimento + unidade da produção (edição mora AQUI, na ficha técnica)
+  // editar produção (nome, código, rendimento, unidade) — edição mora AQUI, na ficha técnica
   const [editRend, setEditRend] = useState(false);
+  const [rendNome, setRendNome] = useState('');
+  const [rendCod, setRendCod] = useState('');
   const [rendVal, setRendVal] = useState('');
   const [rendUni, setRendUni] = useState('un');
-  const abrirRend = () => { setRendVal(String(selObj?.rendimento ?? '')); setRendUni(selObj?.unidade || 'un'); setEditRend(true); };
+  const abrirRend = () => { setRendNome(selObj?.nome || ''); setRendCod(selObj?.codigo || ''); setRendVal(String(selObj?.rendimento ?? '')); setRendUni(selObj?.unidade || 'un'); setEditRend(true); };
   const salvarRend = async () => {
     if (!sel) return;
+    if (!rendNome.trim()) { toast({ title: 'Informe o nome da produção', variant: 'destructive' }); return; }
     try {
-      await api.put('/api/operacional/producoes', { id: sel, rendimento: Number(rendVal) || 0, unidade: rendUni });
+      await api.put('/api/operacional/producoes', { id: sel, nome: rendNome.trim(), codigo: rendCod.trim() || null, rendimento: Number(rendVal) || 0, unidade: rendUni });
       setEditRend(false); reloadLista();
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+
+  // marca/desmarca a produção pra aparecer no Controle de Produção (curadoria)
+  const toggleControle = async (p: any) => {
+    try { await api.put('/api/operacional/producoes', { id: p.id, controle_producao: !p.controle_producao }); reloadLista(); }
+    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
   // editar códigos ContaHub / Yuzer do produto (finalização)
@@ -246,11 +255,16 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                 {kind === 'producao' ? 'Cadastre/importe produções em Cadastros › Produções.' : 'Importe o cardápio em Cadastros › Produtos.'}
               </div>
             ) : listaView.map(p => (
-              <button key={p.id} onClick={() => setSel(p.id)}
-                className={`w-full text-left px-3 py-2 text-sm transition ${sel === p.id ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
-                {p.nome}
-                <span className="block text-xs text-gray-400">{p.codigo ? `${p.codigo} · ` : ''}{p.qtd_componentes ?? 0} itens</span>
-              </button>
+              <div key={p.id} className={`flex items-center gap-2 px-3 transition ${sel === p.id ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
+                {kind === 'producao' && (
+                  <input type="checkbox" checked={!!p.controle_producao} onChange={() => toggleControle(p)} title="Aparece no Controle de Produção" className="shrink-0 w-4 h-4 accent-indigo-600 cursor-pointer" />
+                )}
+                <button onClick={() => setSel(p.id)}
+                  className={`flex-1 text-left py-2 text-sm transition ${sel === p.id ? 'text-indigo-700 dark:text-indigo-300 font-medium' : ''}`}>
+                  {p.nome}
+                  <span className="block text-xs text-gray-400">{p.codigo ? `${p.codigo} · ` : ''}{p.qtd_componentes ?? 0} itens{kind === 'producao' && p.controle_producao ? ' · no controle' : ''}</span>
+                </button>
+              </div>
             ))}
           </div>
         </CardContent>
@@ -265,8 +279,17 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
             <>
               <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{selObj.nome}</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    {selObj.nome}
+                    {kind === 'producao' && <button onClick={abrirRend} className="text-gray-400 hover:text-indigo-600" title="Editar produção (nome, código, rendimento)"><Pencil className="w-4 h-4" /></button>}
+                  </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{selObj.codigo ? `${selObj.codigo} · ` : ''}{itens.length} componentes</p>
+                  {kind === 'producao' && (
+                    <label className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                      <input type="checkbox" checked={!!selObj.controle_producao} onChange={() => toggleControle(selObj)} className="w-4 h-4 accent-indigo-600" />
+                      Aparece no Controle de Produção
+                    </label>
+                  )}
                   {kind === 'produto' && (
                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                       {selObj.categoria && <Badge variant="outline">{selObj.categoria}</Badge>}
@@ -413,14 +436,17 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                 {editRend && (
                   <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditRend(false)}>
                     <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm" onClick={e => e.stopPropagation()}>
-                      <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Rendimento da produção</h4>
-                      <p className="text-sm text-gray-500 mb-3">{selObj?.nome}</p>
-                      <div className="flex gap-2">
-                        <div className="flex-1"><label className="text-xs text-gray-500">Rendimento</label><Input type="number" step="0.001" value={rendVal} onChange={e => setRendVal(e.target.value)} /></div>
-                        <div className="w-28"><label className="text-xs text-gray-500">Unidade</label>
-                          <select value={rendUni} onChange={e => setRendUni(e.target.value)} className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
-                            {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-                          </select>
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Editar produção</h4>
+                      <div className="space-y-2">
+                        <div><label className="text-xs text-gray-500">Nome *</label><Input value={rendNome} onChange={e => setRendNome(e.target.value)} placeholder="Nome da produção" /></div>
+                        <div className="flex gap-2">
+                          <div className="w-32"><label className="text-xs text-gray-500">Código</label><Input value={rendCod} onChange={e => setRendCod(e.target.value)} placeholder="pc0000" /></div>
+                          <div className="flex-1"><label className="text-xs text-gray-500">Rendimento</label><Input type="number" step="0.001" value={rendVal} onChange={e => setRendVal(e.target.value)} /></div>
+                          <div className="w-24"><label className="text-xs text-gray-500">Unidade</label>
+                            <select value={rendUni} onChange={e => setRendUni(e.target.value)} className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
+                              {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                            </select>
+                          </div>
                         </div>
                       </div>
                       <div className="flex justify-end gap-2 mt-4">
