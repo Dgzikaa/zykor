@@ -117,8 +117,8 @@ export async function GET(request: NextRequest) {
       if (cu != null) custo_atual = Number(it.quantidade || 0) * cu;
     }
     const base = it.componente_tipo === 'insumo' ? (info?.base ?? null) : null;
-    // unidade de exibição: o que o usuário editou no item vence; senão a base do insumo / a unidade do preparo
-    const unidade_exib = it.unidade || base || ref?.unidade || null;
+    // unidade de exibição segue o CADASTRO: base do insumo / unidade do preparo; só cai no it.unidade (legado) se não houver
+    const unidade_exib = base || ref?.unidade || it.unidade || null;
     return {
       ...it,
       preco_atual: it.insumo_id_vmarket ? (precoMap.get(it.insumo_id_vmarket) ?? null) : null,
