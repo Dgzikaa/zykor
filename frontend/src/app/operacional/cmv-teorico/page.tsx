@@ -23,6 +23,7 @@ export default function CmvTeoricoPage() {
   const [recalc, setRecalc] = useState(false);
   const [busca, setBusca] = useState('');
   const [cat, setCat] = useState<string | null>(null);
+  const [flag, setFlag] = useState<'sem_ficha' | 'sem_preco' | null>(null);
   const [dataAnterior, setDataAnterior] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
@@ -46,15 +47,24 @@ export default function CmvTeoricoPage() {
   };
 
   const cats = useMemo(() => Array.from(new Set(produtos.map(p => p.categoria).filter(Boolean))).sort(), [produtos]);
-  const view = useMemo(() => {
+  // escopo = filtro de categoria + busca (os indicadores recalculam sobre ele)
+  const escopo = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return produtos.filter(p => (!cat || p.categoria === cat) && (!s || (p.nome || '').toLowerCase().includes(s) || (p.codigo || '').toLowerCase().includes(s)));
   }, [produtos, busca, cat]);
+  const semFichaFn = (p: any) => !p.custo || p.custo === 0;
+  const semPrecoFn = (p: any) => !p.preco_venda;
+  // view = escopo + filtro dos cards clicáveis (sem ficha / sem preço)
+  const view = useMemo(() => {
+    if (flag === 'sem_ficha') return escopo.filter(semFichaFn);
+    if (flag === 'sem_preco') return escopo.filter(semPrecoFn);
+    return escopo;
+  }, [escopo, flag]);
 
-  const comCmv = produtos.filter(p => p.cmv_pct != null);
+  const comCmv = escopo.filter(p => p.cmv_pct != null);
   const cmvMedio = comCmv.length ? comCmv.reduce((s, p) => s + Number(p.cmv_pct), 0) / comCmv.length : null;
-  const semFicha = produtos.filter(p => !p.custo || p.custo === 0).length;
-  const semPreco = produtos.filter(p => !p.preco_venda).length;
+  const semFicha = escopo.filter(semFichaFn).length;
+  const semPreco = escopo.filter(semPrecoFn).length;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
@@ -73,8 +83,12 @@ export default function CmvTeoricoPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">CMV médio</div><div className={`text-2xl font-bold ${corCmv(cmvMedio)}`}>{fmtPct(cmvMedio)}</div></CardContent></Card>
           <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Produtos c/ CMV</div><div className="text-2xl font-bold">{comCmv.length}</div></CardContent></Card>
-          <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Sem ficha</div><div className="text-2xl font-bold text-gray-400">{semFicha}</div></CardContent></Card>
-          <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Sem preço CH</div><div className="text-2xl font-bold text-gray-400">{semPreco}</div></CardContent></Card>
+          <button type="button" onClick={() => setFlag(f => f === 'sem_ficha' ? null : 'sem_ficha')} className="text-left w-full">
+            <Card className={`card-dark transition ${flag === 'sem_ficha' ? 'ring-2 ring-amber-400' : 'hover:ring-1 hover:ring-gray-300 dark:hover:ring-gray-600'}`}><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Sem ficha {flag === 'sem_ficha' && '· filtrando'}</div><div className="text-2xl font-bold text-gray-400">{semFicha}</div></CardContent></Card>
+          </button>
+          <button type="button" onClick={() => setFlag(f => f === 'sem_preco' ? null : 'sem_preco')} className="text-left w-full">
+            <Card className={`card-dark transition ${flag === 'sem_preco' ? 'ring-2 ring-amber-400' : 'hover:ring-1 hover:ring-gray-300 dark:hover:ring-gray-600'}`}><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Sem preço CH {flag === 'sem_preco' && '· filtrando'}</div><div className="text-2xl font-bold text-gray-400">{semPreco}</div></CardContent></Card>
+          </button>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2">

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   const { data: produtos, error } = await supabase
     .from('bronze_vmarket_produtos')
-    .select('id_produto_sisfood_cotacao,cod_interno,nome,marca,gramatura,gramatura_contagem,estoque,' +
+    .select('id_produto_sisfood_cotacao,cod_interno,codigo_planilha,nome,marca,gramatura,gramatura_contagem,estoque,' +
             'nome_secao,id_secao_cotacao,nome_fornecedor,fator_embalagem,nao_requer_cotacao,fl_depara,' +
             'cod_barras,cod_omie,id_produto_erp,solicitacao_compra,id_status_registro,dt_alteracao')
     .eq('bar_id', barId)
@@ -46,9 +46,11 @@ export async function GET(request: NextRequest) {
   const { data: unids } = await supabase.from('insumo_unidade').select('id_prod, base, embalagem').eq('bar_id', barId);
   const unidMap = new Map<number, any>((unids || []).map((u: any) => [u.id_prod, u]));
 
-  // Confere de integridade do código: cod_interno duplicado (2+ produtos) ou inválido (não i0XXX)
+  // Código efetivo = Código Planilha (correto/estável) com fallback no cod_interno do VMarket (cru)
+  const codEf = (p: any): string | null => p.codigo_planilha || p.cod_interno || null;
+  // Confere de integridade do código: código efetivo duplicado (2+ produtos) ou inválido (não i0XXX)
   const codCount = new Map<string, number>();
-  for (const p of (produtos as any[]) || []) if (p.cod_interno) codCount.set(p.cod_interno, (codCount.get(p.cod_interno) || 0) + 1);
+  for (const p of (produtos as any[]) || []) { const c = codEf(p); if (c) codCount.set(c, (codCount.get(c) || 0) + 1); }
   const valido = (c: string | null) => !!c && /^i\d/.test(c);
 
   // deriva base + embalagem do NOME (ex.: "500ml"→ml/500, "11kg"→g/11000, "1L"→ml/1000); senão cai na unidade_medida
@@ -84,7 +86,8 @@ export async function GET(request: NextRequest) {
   const produtosComPreco = (produtos || []).map((p: any) => {
     const pr = precoMap.get(p.id_produto_sisfood_cotacao);
     const vmPreco = pr?.preco_atual ?? null;
-    const planPreco = p.cod_interno ? (planilhaMap.get(p.cod_interno) ?? null) : null;
+    const cEf = codEf(p);
+    const planPreco = cEf ? (planilhaMap.get(cEf) ?? null) : null;
     // prioridade: último preço do VMarket; se nunca comprou, usa o preço da planilha (placeholder)
     const usaPlan = vmPreco == null && planPreco != null;
     return {
@@ -93,8 +96,8 @@ export async function GET(request: NextRequest) {
       preco_atual: vmPreco ?? planPreco, preco_data: pr?.data_atual ?? null, preco_anterior: pr?.preco_anterior ?? null,
       // fornecedor = de onde veio a última compra (cai pro cadastro VMarket se nunca comprou)
       fornecedor_ultimo: pr?.fornecedor_atual ?? (usaPlan ? 'Planilha' : (p.nome_fornecedor ?? null)),
-      cod_duplicado: !!p.cod_interno && (codCount.get(p.cod_interno) || 0) > 1,
-      cod_invalido: p.cod_interno != null && !valido(p.cod_interno),
+      cod_duplicado: !!cEf && (codCount.get(cEf) || 0) > 1,
+      cod_invalido: !valido(cEf),
       base: unidMap.get(p.id_produto_sisfood_cotacao)?.base ?? null,
       embalagem: unidMap.get(p.id_produto_sisfood_cotacao)?.embalagem ?? null,
     };
@@ -110,7 +113,7 @@ export async function GET(request: NextRequest) {
       return {
         id_produto_sisfood_cotacao: -Number(i.id), // chave sintética (negativa, não colide com ids VMarket)
         fonte: 'planilha',
-        cod_interno: i.codigo, nome: i.nome, marca: null, gramatura: null,
+        cod_interno: i.codigo, codigo_planilha: i.codigo, nome: i.nome, marca: null, gramatura: null,
         nome_secao: i.categoria, id_secao_cotacao: null,
         nome_fornecedor: null, fornecedor_ultimo: 'Planilha',
         preco_atual: Number(i.custo_unitario) || null, preco_data: null, preco_anterior: null,
@@ -147,6 +150,17 @@ export async function POST(request: NextRequest) {
       origem: 'manual', atualizado_em: new Date().toISOString(),
     };
     const { error } = await supabase.from('insumo_unidade').upsert(payload, { onConflict: 'bar_id,id_prod' });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
+  }
+
+  // Salvar Código Planilha (correto/estável) de um produto VMarket — não é tocado pelo sync
+  if (body.action === 'codigo_planilha') {
+    const idProd = Number(body.id_prod);
+    if (!idProd || idProd < 0) return NextResponse.json({ success: false, error: 'id_prod inválido' }, { status: 400 });
+    const cod = (body.codigo_planilha ?? '').trim() || null;
+    const { error } = await supabase.from('bronze_vmarket_produtos')
+      .update({ codigo_planilha: cod }).eq('bar_id', barId).eq('id_produto_sisfood_cotacao', idProd);
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   }

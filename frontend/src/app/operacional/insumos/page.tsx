@@ -15,7 +15,7 @@ const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR',
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
 
 interface Produto {
-  id_produto_sisfood_cotacao: number; cod_interno: string | null; nome: string | null; marca: string | null;
+  id_produto_sisfood_cotacao: number; cod_interno: string | null; codigo_planilha?: string | null; nome: string | null; marca: string | null;
   gramatura: string | null; estoque: number | null; nome_secao: string | null; id_secao_cotacao: number | null;
   nome_fornecedor: string | null; fornecedor_ultimo: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
   cod_duplicado?: boolean; cod_invalido?: boolean; base?: string | null; embalagem?: number | null; fonte?: string;
@@ -84,13 +84,25 @@ export default function CadastrosPage() {
     } catch (e: any) { toast({ title: 'Erro ao salvar unidade', description: e?.message, variant: 'destructive' }); }
   };
 
-  // Agrupa por código (mesmo i0XXX = mesmo insumo, várias descrições/fornecedores no VMarket)
+  const salvarCodigoPlanilha = async (p: Produto, valor: string) => {
+    const cod = valor.trim() || null;
+    if (cod === (p.codigo_planilha ?? null)) return;
+    setProdutos(prev => prev.map(x => x.id_produto_sisfood_cotacao === p.id_produto_sisfood_cotacao ? { ...x, codigo_planilha: cod } : x));
+    try {
+      await api.post('/api/operacional/insumos', {
+        bar_id: barId, action: 'codigo_planilha', id_prod: p.id_produto_sisfood_cotacao, codigo_planilha: cod,
+      });
+    } catch (e: any) { toast({ title: 'Erro ao salvar Código Planilha', description: e?.message, variant: 'destructive' }); }
+  };
+
+  // Agrupa por Código Planilha (correto/estável); fallback no cod_interno do VMarket
   const [codAberto, setCodAberto] = useState<string | null>(null);
   const grupos = useMemo(() => {
     const m = new Map<string, Produto[]>();
     for (const p of filtrados) {
-      const ok = p.cod_interno && /^i\d/.test(p.cod_interno);
-      const key = ok ? `c:${p.cod_interno}` : `u:${p.id_produto_sisfood_cotacao}`;
+      const cod = p.codigo_planilha || p.cod_interno;
+      const ok = cod && /^i\d/.test(cod);
+      const key = ok ? `c:${cod}` : `u:${p.id_produto_sisfood_cotacao}`;
       if (!m.has(key)) m.set(key, []);
       m.get(key)!.push(p);
     }
@@ -115,6 +127,18 @@ export default function CadastrosPage() {
   const [loadingVar, setLoadingVar] = useState(false);
   const [varAberto, setVarAberto] = useState<number | null>(null);
   const [serie, setSerie] = useState<Record<number, any[]>>({});
+  const [buscaVar, setBuscaVar] = useState('');
+  const variacaoView = useMemo(() => {
+    const q = buscaVar.trim().toLowerCase();
+    const arr = !q ? variacao : variacao.filter((v: any) =>
+      (v.nome || '').toLowerCase().includes(q) || (v.cod_interno || '').toLowerCase().includes(q) || (v.secao || '').toLowerCase().includes(q));
+    // ordena pela maior variação (módulo), nulos por último
+    return [...arr].sort((a: any, b: any) => {
+      const av = a.var_pct == null ? -1 : Math.abs(a.var_pct);
+      const bv = b.var_pct == null ? -1 : Math.abs(b.var_pct);
+      return bv - av;
+    });
+  }, [variacao, buscaVar]);
   const carregarVariacao = useCallback(async () => {
     if (!barId) return; setLoadingVar(true);
     try { const r = await api.get(`/api/operacional/insumos/precos?bar_id=${barId}`); if (r.success) setVariacao(r.insumos || []); }
@@ -174,7 +198,8 @@ export default function CadastrosPage() {
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
-                  <th className="text-left font-medium px-3 py-2">Cód.</th>
+                  <th className="text-left font-medium px-3 py-2" title="Código cru do VMarket (o sync sobrescreve; pode vir errado)">Cód. VMarket</th>
+                  <th className="text-left font-medium px-3 py-2" title="Código correto/estável usado pelo sistema (editável)">Cód. Planilha</th>
                   <th className="text-left font-medium px-3 py-2">Insumo</th>
                   <th className="text-left font-medium px-3 py-2">Seção</th>
                   <th className="text-center font-medium px-3 py-2">Unid. medida</th>
@@ -183,8 +208,8 @@ export default function CadastrosPage() {
                   <th className="text-left font-medium px-3 py-2">Fornecedor</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {loading ? <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
-                  : gruposView.length === 0 ? <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
+                  {loading ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
+                  : gruposView.length === 0 ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
                   : gruposView.map(g => {
                     const p = g.rep;
                     const subiu = p.preco_anterior != null && p.preco_atual != null && p.preco_atual > p.preco_anterior;
@@ -193,10 +218,13 @@ export default function CadastrosPage() {
                     return (
                       <Fragment key={g.key}>
                         <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                          <td className="px-3 py-2 font-mono text-xs text-gray-400">{p.cod_interno || '—'}</td>
                           <td className="px-3 py-2 font-mono text-xs">
-                            {p.cod_invalido ? <span className="text-red-500" title="Código inválido no VMarket (não é i0XXX)">⚠ {p.cod_interno}</span>
-                              : p.cod_interno ? <span className="text-gray-600 dark:text-gray-300">{p.cod_interno}</span>
-                              : <span className="text-amber-500">—</span>}
+                            {p.id_produto_sisfood_cotacao < 0
+                              ? <span className="text-gray-600 dark:text-gray-300">{p.codigo_planilha || p.cod_interno}</span>
+                              : <input defaultValue={p.codigo_planilha ?? ''} key={`cp-${p.id_produto_sisfood_cotacao}-${p.codigo_planilha ?? ''}`}
+                                  onBlur={e => salvarCodigoPlanilha(p, e.target.value)} placeholder="i0XXX"
+                                  className={`h-7 w-20 rounded border bg-white dark:bg-gray-800 px-1 text-xs ${p.codigo_planilha ? 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200' : 'border-red-300 dark:border-red-700'}`} />}
                           </td>
                           <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
                             {g.nVar > 1 ? (
@@ -230,6 +258,7 @@ export default function CadastrosPage() {
                         </tr>
                         {aberto && g.produtos.map(v => (
                           <tr key={v.id_produto_sisfood_cotacao} className="bg-gray-50/60 dark:bg-gray-800/30 text-xs">
+                            <td className="px-3 py-1 font-mono text-gray-400">{v.cod_interno || ''}</td>
                             <td></td>
                             <td className="px-3 py-1 pl-7 text-gray-600 dark:text-gray-300">↳ {v.nome}</td>
                             <td className="px-3 py-1 text-gray-500">{v.nome_secao || '—'}</td>
@@ -248,7 +277,11 @@ export default function CadastrosPage() {
 
           {/* ===== VARIAÇÃO DE PREÇO ===== */}
           <TabsContent value="variacao" className="space-y-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Variação do último preço de compra de cada insumo (vs. o pedido anterior). Clique pra ver o histórico completo.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Variação do último preço de compra de cada insumo (vs. o pedido anterior), ordenada da maior variação para a menor. Clique pra ver o histórico completo.</p>
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Input value={buscaVar} onChange={e => setBuscaVar(e.target.value)} placeholder="Buscar por nome, código (i0XXX) ou seção…" className="pl-9" />
+            </div>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
@@ -261,8 +294,8 @@ export default function CadastrosPage() {
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {loadingVar ? <tr><td colSpan={6} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
-                  : variacao.length === 0 ? <tr><td colSpan={6} className="px-3 py-10 text-center text-gray-400">Sem histórico de preço ainda (vem dos pedidos).</td></tr>
-                  : variacao.map(v => {
+                  : variacaoView.length === 0 ? <tr><td colSpan={6} className="px-3 py-10 text-center text-gray-400">{buscaVar ? 'Nenhum insumo encontrado.' : 'Sem histórico de preço ainda (vem dos pedidos).'}</td></tr>
+                  : variacaoView.map(v => {
                     const cls = v.var_pct == null ? 'text-gray-400' : v.var_pct > 0.5 ? 'text-red-600 dark:text-red-400' : v.var_pct < -0.5 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400';
                     return (
                       <Fragment key={v.id_prod}>
