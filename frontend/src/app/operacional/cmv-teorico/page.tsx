@@ -63,6 +63,7 @@ export default function CmvTeoricoPage() {
   const [loadingPer, setLoadingPer] = useState(false);
   const [buscaPer, setBuscaPer] = useState('');
   const [catPer, setCatPer] = useState<string | null>(null);
+  const [soSemFicha, setSoSemFicha] = useState(false);
   const range = useMemo(() => calcRange(gran, dataRef), [gran, dataRef]);
   const carregarPeriodo = useCallback(async () => {
     if (!barId) return; setLoadingPer(true);
@@ -106,8 +107,10 @@ export default function CmvTeoricoPage() {
   const perProdView = useMemo(() => {
     const lista: any[] = periodo?.produtos || [];
     const s = buscaPer.trim().toLowerCase();
-    return lista.filter(p => (!catPer || p.categoria === catPer) && (!s || (p.nome || '').toLowerCase().includes(s) || (p.codigo || '').toLowerCase().includes(s)));
-  }, [periodo, buscaPer, catPer]);
+    return lista.filter(p => (!catPer || p.categoria === catPer)
+      && (!soSemFicha || !p.custo_unit || Number(p.custo_unit) === 0)
+      && (!s || (p.nome || '').toLowerCase().includes(s) || (p.codigo || '').toLowerCase().includes(s)));
+  }, [periodo, buscaPer, catPer, soSemFicha]);
 
   const exportarCSV = () => {
     if (!perProdView.length) return;
@@ -217,6 +220,11 @@ export default function CmvTeoricoPage() {
             </div>
             {periodo.headline?.qtd_cortesia > 0 && (
               <p className="text-xs text-gray-500 dark:text-gray-400">Cortesia/consumação no período: <b>{fmtNum(periodo.headline.qtd_cortesia)}</b> itens · custo <b>{fmtBRL(periodo.headline.custo_cortesia)}</b> <span className="text-gray-400">(fora do CMV — dado de graça)</span></p>
+            )}
+            {periodo.headline?.sem_ficha_n > 0 && (
+              <button onClick={() => setSoSemFicha(v => !v)} className={`text-left text-xs rounded-md px-3 py-2 border w-full sm:w-auto ${soSemFicha ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300' : 'border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50/60 dark:hover:bg-red-900/10'}`}>
+                ⚠ <b>{periodo.headline.sem_ficha_n}</b> produtos venderam <b>sem ficha</b> ({fmtBRL(periodo.headline.sem_ficha_fat)} em vendas, fora do custo) · cobertura do CMV: <b>{fmtPct(periodo.headline.cobertura_pct)}</b> {soSemFicha ? '· mostrando só estes (clique p/ ver todos)' : '· clique p/ ver quais'}
+              </button>
             )}
 
             {/* por categoria */}
