@@ -271,16 +271,11 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                 {kind === 'producao' ? 'Cadastre/importe produções em Cadastros › Produções.' : 'Importe o cardápio em Cadastros › Produtos.'}
               </div>
             ) : listaView.map(p => (
-              <div key={p.id} className={`flex items-center gap-2 px-3 transition ${sel === p.id ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
-                {kind === 'producao' && (
-                  <input type="checkbox" checked={!!p.controle_producao} onChange={() => toggleControle(p)} title="Aparece no Controle de Produção" className="shrink-0 w-4 h-4 accent-indigo-600 cursor-pointer" />
-                )}
-                <button onClick={() => setSel(p.id)}
-                  className={`flex-1 text-left py-2 text-sm transition ${sel === p.id ? 'text-indigo-700 dark:text-indigo-300 font-medium' : ''}`}>
-                  {p.nome}
-                  <span className="block text-xs text-gray-400">{p.codigo ? `${p.codigo} · ` : ''}{p.qtd_componentes ?? 0} itens{kind === 'producao' && p.controle_producao ? ' · no controle' : ''}</span>
-                </button>
-              </div>
+              <button key={p.id} onClick={() => setSel(p.id)}
+                className={`w-full text-left px-3 py-2 text-sm transition ${sel === p.id ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
+                {p.nome}
+                <span className="block text-xs text-gray-400">{p.codigo ? `${p.codigo} · ` : ''}{p.qtd_componentes ?? 0} itens{kind === 'producao' && p.controle_producao ? ' · no controle' : ''}</span>
+              </button>
             ))}
           </div>
         </CardContent>
@@ -626,22 +621,29 @@ function FichasInner() {
   const [cCh, setCCh] = useState('');
   const [cYuzer, setCYuzer] = useState('');
   const [creating, setCreating] = useState(false);
+  const [cModelo, setCModelo] = useState<{ id: number; nome: string; codigo: string } | null>(null);
+  const [cModeloBusca, setCModeloBusca] = useState('');
   const cats = aba === 'producao' ? CATS_PROD : CATS_FIN;
-  const nova = () => { setCNome(''); setCCh(''); setCYuzer(''); setCPrefixo(cats[0].prefixo); setCreateOpen(true); };
+  const modeloLista = aba === 'producao' ? producoes : produtos;
+  const modeloOpcoes = useMemo(() => {
+    const q = cModeloBusca.trim().toLowerCase();
+    return modeloLista.filter((p: any) => (p.qtd_componentes ?? 0) > 0 && (!q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q))).slice(0, 30);
+  }, [modeloLista, cModeloBusca]);
+  const nova = () => { setCNome(''); setCCh(''); setCYuzer(''); setCPrefixo(cats[0].prefixo); setCModelo(null); setCModeloBusca(''); setCreateOpen(true); };
   const salvarNova = async () => {
     if (!barId || !cNome.trim() || !cPrefixo) { toast({ title: 'Informe nome e categoria', variant: 'destructive' }); return; }
     setCreating(true);
     try {
       if (aba === 'producao') {
-        const r = await api.post('/api/operacional/producoes', { bar_id: barId, nome: cNome.trim(), prefixo: cPrefixo });
+        const r = await api.post('/api/operacional/producoes', { bar_id: barId, nome: cNome.trim(), prefixo: cPrefixo, modelo_id: cModelo?.id });
         if (!r.success) throw new Error(r.error);
         await loadProducoes();
-        toast({ title: `Produção criada (${r.producao?.codigo || ''})`, description: 'Selecione na lista e monte a ficha.' });
+        toast({ title: `Produção criada (${r.producao?.codigo || ''})`, description: cModelo ? `Ficha copiada de ${cModelo.nome}.` : 'Selecione na lista e monte a ficha.' });
       } else {
-        const r = await api.post('/api/operacional/produtos', { bar_id: barId, nome: cNome.trim(), prefixo: cPrefixo, cod_ch: cCh.trim(), cod_yuzer: cYuzer.trim() });
+        const r = await api.post('/api/operacional/produtos', { bar_id: barId, nome: cNome.trim(), prefixo: cPrefixo, cod_ch: cCh.trim(), cod_yuzer: cYuzer.trim(), modelo_id: cModelo?.id });
         if (!r.success) throw new Error(r.error);
         await loadProdutos();
-        toast({ title: `Produto criado (${r.produto?.codigo || ''})`, description: 'Selecione na lista e monte a ficha.' });
+        toast({ title: `Produto criado (${r.produto?.codigo || ''})`, description: cModelo ? `Ficha copiada de ${cModelo.nome}.` : 'Selecione na lista e monte a ficha.' });
       }
       setCreateOpen(false);
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
@@ -688,6 +690,29 @@ function FichasInner() {
                 <div className="flex-1"><label className="text-xs text-gray-500">ID Yuzer (opcional)</label><Input value={cYuzer} onChange={e => setCYuzer(e.target.value)} placeholder="id" /></div>
               </div>
             )}
+            <div>
+              <label className="text-xs text-gray-500">Copiar ficha de (modelo, opcional)</label>
+              {cModelo ? (
+                <div className="flex items-center justify-between rounded border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/15 px-2.5 py-1.5 mt-1">
+                  <span className="text-sm text-gray-800 dark:text-gray-100">{cModelo.nome} <span className="text-xs text-gray-400 font-mono">· {cModelo.codigo}</span></span>
+                  <button onClick={() => { setCModelo(null); setCModeloBusca(''); }} className="text-gray-400 hover:text-red-500 text-xs underline">trocar</button>
+                </div>
+              ) : (
+                <div className="relative mt-1">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Input value={cModeloBusca} onChange={e => setCModeloBusca(e.target.value)} placeholder="Buscar ficha existente…" className="pl-9" />
+                  {cModeloBusca.trim() && (
+                    <div className="absolute z-10 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg divide-y divide-gray-100 dark:divide-gray-800">
+                      {modeloOpcoes.length === 0 ? <div className="px-3 py-2 text-xs text-gray-400">Nenhuma ficha com componentes encontrada.</div>
+                      : modeloOpcoes.map((o: any) => (
+                        <button key={o.id} onClick={() => { setCModelo({ id: o.id, nome: o.nome, codigo: o.codigo }); setCModeloBusca(''); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/40">{o.nome}<span className="text-xs text-gray-400 font-mono"> · {o.codigo} · {o.qtd_componentes} itens</span></button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <p className="text-[11px] text-gray-400 mt-1">Carrega os componentes do modelo na nova ficha; depois você ajusta o que precisar.</p>
+            </div>
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
               <Button onClick={salvarNova} disabled={creating}><Plus className="w-4 h-4 mr-1" />{creating ? 'Criando…' : 'Criar'}</Button>
