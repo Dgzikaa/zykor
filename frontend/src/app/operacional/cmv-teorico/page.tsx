@@ -64,6 +64,7 @@ export default function CmvTeoricoPage() {
   const [buscaPer, setBuscaPer] = useState('');
   const [catPer, setCatPer] = useState<string | null>(null);
   const [soSemFicha, setSoSemFicha] = useState(false);
+  const [mostrarForaDp, setMostrarForaDp] = useState(false);
   const range = useMemo(() => calcRange(gran, dataRef), [gran, dataRef]);
   const carregarPeriodo = useCallback(async () => {
     if (!barId) return; setLoadingPer(true);
@@ -242,6 +243,33 @@ export default function CmvTeoricoPage() {
               <button onClick={() => setSoSemFicha(v => !v)} className={`text-left text-xs rounded-md px-3 py-2 border w-full sm:w-auto ${soSemFicha ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300' : 'border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50/60 dark:hover:bg-red-900/10'}`}>
                 ⚠ <b>{periodo.headline.sem_ficha_n}</b> produtos venderam <b>sem ficha</b> ({fmtBRL(periodo.headline.sem_ficha_fat)} em vendas, fora do custo) · cobertura do CMV: <b>{fmtPct(periodo.headline.cobertura_pct)}</b> {soSemFicha ? '· mostrando só estes (clique p/ ver todos)' : '· clique p/ ver quais'}
               </button>
+            )}
+            {periodo.headline?.fora_depara_n > 0 && (
+              <button onClick={() => setMostrarForaDp(v => !v)} className={`text-left text-xs rounded-md px-3 py-2 border w-full sm:w-auto block ${mostrarForaDp ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300' : 'border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 hover:bg-orange-50/60 dark:hover:bg-orange-900/10'}`}>
+                🔗 <b>{periodo.headline.fora_depara_n}</b> produtos vendidos no ContaHub <b>fora do de-para</b> ({fmtBRL(periodo.headline.fora_depara_fat)}) — sem código interno/ficha, invisíveis no CMV · clique pra ver
+              </button>
+            )}
+            {mostrarForaDp && (periodo.fora_depara || []).length > 0 && (
+              <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-orange-50/60 dark:bg-orange-900/10 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+                    <th className="text-left font-medium px-3 py-2">Cód. CH</th>
+                    <th className="text-left font-medium px-3 py-2">Produto (ContaHub)</th>
+                    <th className="text-right font-medium px-3 py-2">Qtd</th>
+                    <th className="text-right font-medium px-3 py-2">Faturamento</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {(periodo.fora_depara || []).map((p: any) => (
+                      <tr key={p.prd} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.prd}</td>
+                        <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.prd_desc}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmtNum(p.qtd)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(p.valor)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div></CardContent></Card>
             )}
 
             {/* por categoria */}

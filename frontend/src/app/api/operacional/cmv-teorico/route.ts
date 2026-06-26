@@ -50,7 +50,12 @@ export async function GET(request: NextRequest) {
       ...c, margem: c.faturamento - c.custo_total,
       cmv_pct: c.faturamento > 0 ? Number((c.custo_total / c.faturamento * 100).toFixed(2)) : null,
     })).sort((a, b) => b.faturamento - a.faturamento);
-    return NextResponse.json({ success: true, modo: 'periodo', headline, categorias, produtos: lista });
+    // produtos vendidos no ContaHub FORA do de-para (sem código interno → invisíveis no CMV)
+    const { data: foraDp } = await gold.rpc('fn_vendido_fora_depara', { p_bar_id: barId, p_ini: ini, p_fim: fim });
+    const foraLista = (foraDp || []) as any[];
+    (headline as any).fora_depara_n = foraLista.length;
+    (headline as any).fora_depara_fat = Number(foraLista.reduce((s: number, r: any) => s + num(r.valor), 0).toFixed(2));
+    return NextResponse.json({ success: true, modo: 'periodo', headline, categorias, produtos: lista, fora_depara: foraLista });
   }
 
   // MODO TEÓRICO × REAL: ?vs_real=ano → compara nosso CMV teórico (fichas×vendas) com o CMV real (financial.cmv_mensal)
