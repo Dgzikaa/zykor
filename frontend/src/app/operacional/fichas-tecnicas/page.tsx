@@ -82,7 +82,6 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
   }, [lista, buscaLista, filtroLista, catFiltro]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selObj = lista.find(p => p.id === sel) || null;
-  const custoTotal = itens.reduce((s, it) => s + Number(it.custo_planilha || 0), 0);
 
   const remover = async (id: number) => {
     try { const r = await api.delete(`/api/operacional/producoes/ficha?id=${id}`); if (!r.success) throw new Error(r.error); if (sel) { await carregarItens(sel); reloadLista(); } }
@@ -214,12 +213,8 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                       <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300 leading-tight">{Number(selObj.rendimento || 0).toLocaleString('pt-BR')} <span className="text-base font-semibold">{selObj.unidade || ''}</span></div>
                     </div>
                   )}
-                  <div className="px-4 py-2 rounded-lg bg-gray-50 dark:bg-gray-800/40 text-center">
-                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Custo (planilha)</div>
-                    <div className="text-xl font-bold leading-tight mt-0.5">{fmtBRL(custoTotal)}</div>
-                  </div>
                   <div className="px-4 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/15 text-center">
-                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Custo (últ. preço)</div>
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Custo</div>
                     <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5">{fmtBRL(custoAtualTotal)}</div>
                   </div>
                   {kind === 'produto' && selObj.preco_venda != null && (
