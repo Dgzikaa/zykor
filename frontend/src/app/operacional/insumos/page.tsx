@@ -64,6 +64,8 @@ export default function CadastrosPage() {
   const ehMaterial = (s: string | null) => /limpeza|descart|outros/i.test(s || '');
   // VMarket com código errado: produto real do VMarket cujo cod_interno não bate com o Código Planilha (correto)
   const vmErrado = (p: Produto) => p.id_produto_sisfood_cotacao >= 0 && !!p.codigo_planilha && (p.cod_interno || null) !== p.codigo_planilha;
+  // Código efetivo PARA EXIBIR: só código de insumo (i0XXX). Material (cod_interno tipo d0039) fica zerado.
+  const codShow = (p: Produto): string | null => p.codigo_planilha || (/^i\d/.test(p.cod_interno || '') ? p.cod_interno! : null);
   const [filtroEsp, setFiltroEsp] = useState<'variacoes' | 'invalido' | 'materiais' | null>(null);
 
   const filtrados = useMemo(() => {
@@ -72,7 +74,7 @@ export default function CadastrosPage() {
       if (secaoSel !== 'todas' && String(p.id_secao_cotacao) !== secaoSel) return false;
       if (!q) return true;
       return (p.nome || '').toLowerCase().includes(q) || (p.cod_interno || '').toLowerCase().includes(q)
-        || (p.fornecedor_ultimo || '').toLowerCase().includes(q);
+        || (p.fornecedor_ultimo || '').toLowerCase().includes(q) || (p.nome_secao || '').toLowerCase().includes(q);
     });
   }, [produtos, busca, secaoSel]);
 
@@ -282,7 +284,7 @@ export default function CadastrosPage() {
                         <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                           <td className="px-3 py-2 font-mono text-xs">
                             <div className="flex items-center gap-1">
-                              <span className={p.codigo_planilha ? 'text-gray-700 dark:text-gray-200' : 'text-red-500'}>{p.codigo_planilha || p.cod_interno || '—'}</span>
+                              <span className={codShow(p) ? 'text-gray-700 dark:text-gray-200' : (g.isMaterial ? 'text-gray-400' : 'text-red-500')}>{codShow(p) || '—'}</span>
                               {vmErrado(p) && <span title={`No VMarket está como "${p.cod_interno || '—'}" — corrigir lá`} className="text-amber-500 cursor-help">⚠</span>}
                             </div>
                           </td>
@@ -294,7 +296,7 @@ export default function CadastrosPage() {
                                   {p.nome} <span className="text-[10px] rounded-full px-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{g.nVar} variações</span>
                                 </button>
                               ) : <span>{p.nome}</span>}
-                              <button onClick={() => abrirFichas(p.codigo_planilha || p.cod_interno, p.nome)} className="text-gray-400 hover:text-indigo-600 shrink-0" title="Ver fichas técnicas que usam este insumo"><Utensils className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => abrirFichas(codShow(p), p.nome)} className="text-gray-400 hover:text-indigo-600 shrink-0" title="Ver fichas técnicas que usam este insumo"><Utensils className="w-3.5 h-3.5" /></button>
                             </div>
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
