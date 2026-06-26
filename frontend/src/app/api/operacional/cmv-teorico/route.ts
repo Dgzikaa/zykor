@@ -16,6 +16,35 @@ export async function GET(request: NextRequest) {
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
   const gold = (await getAdminClient() as any).schema('gold');
 
+  // MODO PERÍODO: ?ini&fim → CMV teórico ponderado pelas vendas do período (por produto + por categoria)
+  const sp = new URL(request.url).searchParams;
+  const ini = sp.get('ini'); const fim = sp.get('fim');
+  if (ini && fim) {
+    const { data: rows, error: errP } = await gold.rpc('fn_cmv_teorico_periodo', { p_bar_id: barId, p_ini: ini, p_fim: fim });
+    if (errP) return NextResponse.json({ success: false, error: errP.message }, { status: 500 });
+    const lista = (rows || []) as any[];
+    const num = (v: any) => Number(v || 0);
+    const fat = lista.reduce((s, r) => s + num(r.faturamento), 0);
+    const custo = lista.reduce((s, r) => s + num(r.custo_total), 0);
+    const headline = {
+      faturamento: fat, custo_total: custo, margem: fat - custo,
+      cmv_pct: fat > 0 ? Number((custo / fat * 100).toFixed(2)) : null,
+      n_produtos: lista.length, qtd: lista.reduce((s, r) => s + num(r.qtd), 0),
+    };
+    const catMap = new Map<string, any>();
+    for (const r of lista) {
+      const k = r.categoria || '—';
+      const c = catMap.get(k) || { categoria: k, faturamento: 0, custo_total: 0, qtd: 0, itens: 0 };
+      c.faturamento += num(r.faturamento); c.custo_total += num(r.custo_total); c.qtd += num(r.qtd); c.itens += 1;
+      catMap.set(k, c);
+    }
+    const categorias = Array.from(catMap.values()).map((c: any) => ({
+      ...c, margem: c.faturamento - c.custo_total,
+      cmv_pct: c.faturamento > 0 ? Number((c.custo_total / c.faturamento * 100).toFixed(2)) : null,
+    })).sort((a, b) => b.faturamento - a.faturamento);
+    return NextResponse.json({ success: true, modo: 'periodo', headline, categorias, produtos: lista });
+  }
+
   const { data, error } = await gold.from('produto_cmv').select('*').eq('bar_id', barId).order('cmv_pct', { ascending: false, nullsFirst: false });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
