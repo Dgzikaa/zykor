@@ -41,6 +41,7 @@ export default function CadastrosPage() {
   const [nNome, setNNome] = useState('');
   const [nCat, setNCat] = useState('');
   const [nUnid, setNUnid] = useState('un');
+  const [nEmb, setNEmb] = useState('');
   const [nPreco, setNPreco] = useState('');
   const [nFc, setNFc] = useState(false);
   const [criando, setCriando] = useState(false);
@@ -62,10 +63,10 @@ export default function CadastrosPage() {
     if (!nNome.trim()) { toast({ title: 'Informe o nome', variant: 'destructive' }); return; }
     setCriando(true);
     try {
-      const r = await api.post('/api/operacional/insumos', { bar_id: barId, action: 'criar_insumo', codigo: nCod.trim().toLowerCase(), nome: nNome.trim(), categoria: nCat.trim(), unidade_medida: nUnid, custo_unitario: Number(String(nPreco).replace(',', '.')) || 0, fator_correcao: nFc });
+      const r = await api.post('/api/operacional/insumos', { bar_id: barId, action: 'criar_insumo', codigo: nCod.trim().toLowerCase(), nome: nNome.trim(), categoria: nCat.trim(), base: nUnid, embalagem: Number(String(nEmb).replace(',', '.')) || 0, custo_unitario: Number(String(nPreco).replace(',', '.')) || 0, fator_correcao: nFc });
       if (!r.success) throw new Error(r.error);
       toast({ title: `Insumo ${r.codigo} cadastrado` });
-      setNovoOpen(false); setNCod(''); setNNome(''); setNCat(''); setNUnid('un'); setNPreco(''); setNFc(false);
+      setNovoOpen(false); setNCod(''); setNNome(''); setNCat(''); setNUnid('un'); setNEmb(''); setNPreco(''); setNFc(false);
       await carregar();
     } catch (e: any) { toast({ title: 'Erro ao cadastrar', description: e?.message, variant: 'destructive' }); }
     finally { setCriando(false); }
@@ -94,7 +95,10 @@ export default function CadastrosPage() {
     if (/^(l|lt|litro|ml)$/.test(s)) return 'ml';
     return null;
   };
-  const unidDiverge = (p: Produto) => { const gb = gramBase(p.gramatura ?? null); return !!gb && !!p.base && gb !== p.base; };
+  const nomeTemMedida = (n: string | null) => /(\d+[.,]?\d*)\s*(kg|kilo|grama|gr|ml|lt|litro|l|g)\b/i.test(n || '');
+  const ehLiquido = (n: string | null) => /vinho|espumante|frisante|moscatel|prosecco|sparkling|whisky|vodka|\bgin\b|tequila|cacha|\brum\b|licor|conhaque|brandy|aperol|campari|cynar|vermouth|jager|bitter|absinto|steinha|amarula|cointreau|frangelico|limoncello|ballena|xarope|\bsuco\b|leite|\bagua\b|água|refri|cerveja|chopp|beats|energ|t[oô]nica|angostura|calda|azeite|\b[oó]leo\b|vinagre|bebida/i.test(n || '');
+  // divergência REAL: VMarket diz UN mas está em g/ml, sem medida no nome e não é líquido (ex.: Abacaxi un = ml/1500)
+  const unidDiverge = (p: Produto) => gramBase(p.gramatura ?? null) === 'un' && (p.base === 'g' || p.base === 'ml') && !nomeTemMedida(p.nome) && !ehLiquido(p.nome);
   // VMarket com código errado: produto real do VMarket cujo cod_interno não bate com o Código Planilha (correto)
   const vmErrado = (p: Produto) => p.id_produto_sisfood_cotacao >= 0 && !!p.codigo_planilha && (p.cod_interno || null) !== p.codigo_planilha;
   // Código efetivo PARA EXIBIR: só código de insumo (i0XXX). Material (cod_interno tipo d0039) fica zerado.
@@ -283,12 +287,13 @@ export default function CadastrosPage() {
               </div>
               <div><label className="text-xs text-gray-500">Categoria / seção</label><Input value={nCat} onChange={e => setNCat(e.target.value)} placeholder="Ex.: BAR - HORTIFRUTI" /></div>
               <div className="flex gap-2 items-end">
-                <div className="w-28"><label className="text-xs text-gray-500">Unidade</label>
+                <div className="w-20"><label className="text-xs text-gray-500">Unidade</label>
                   <select value={nUnid} onChange={e => setNUnid(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-2 text-sm">
-                    {['un', 'kg', 'g', 'L', 'ml'].map(u => <option key={u} value={u}>{u}</option>)}
+                    {['g', 'ml', 'un'].map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
-                <div className="flex-1"><label className="text-xs text-gray-500">Preço (R$)</label><Input value={nPreco} onChange={e => setNPreco(e.target.value)} placeholder="0,00" /></div>
+                <div className="flex-1"><label className="text-xs text-gray-500" title="Qtd da unidade-base na embalagem (ex.: 1000 g = 1 kg)">Quantidade</label><Input type="number" step="0.001" value={nEmb} onChange={e => setNEmb(e.target.value)} placeholder="ex.: 1000" /></div>
+                <div className="w-24"><label className="text-xs text-gray-500">Preço (R$)</label><Input value={nPreco} onChange={e => setNPreco(e.target.value)} placeholder="0,00" /></div>
                 <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 pb-2"><input type="checkbox" checked={nFc} onChange={e => setNFc(e.target.checked)} />FC</label>
               </div>
               <div className="flex justify-end gap-2 pt-1">
@@ -324,7 +329,7 @@ export default function CadastrosPage() {
               {nVariacoes > 0 && <button onClick={() => setFiltroEsp(f => f === 'variacoes' ? null : 'variacoes')}><Badge variant="outline" className={`cursor-pointer text-blue-600 border-blue-300 ${filtroEsp === 'variacoes' ? 'ring-1 ring-blue-400' : ''}`}>{nVariacoes} com variações</Badge></button>}
               {nInvalidos > 0 && <button onClick={() => setFiltroEsp(f => f === 'invalido' ? null : 'invalido')}><Badge variant="outline" className={`cursor-pointer text-red-600 border-red-300 ${filtroEsp === 'invalido' ? 'ring-1 ring-red-400' : ''}`}>{nInvalidos} c/ cód VMarket p/ corrigir</Badge></button>}
               {nSemFicha > 0 && <button onClick={() => setFiltroEsp(f => f === 'sem_ficha' ? null : 'sem_ficha')}><Badge variant="outline" className={`cursor-pointer text-orange-600 border-orange-300 ${filtroEsp === 'sem_ficha' ? 'ring-1 ring-orange-400' : ''}`}>{nSemFicha} insumos sem ficha técnica</Badge></button>}
-              {nUnidDiverge > 0 && <button onClick={() => setFiltroEsp(f => f === 'unid_div' ? null : 'unid_div')}><Badge variant="outline" className={`cursor-pointer text-amber-600 border-amber-300 ${filtroEsp === 'unid_div' ? 'ring-1 ring-amber-400' : ''}`}>{nUnidDiverge} unidade ≠ VMarket</Badge></button>}
+              {nUnidDiverge > 0 && <button onClick={() => setFiltroEsp(f => f === 'unid_div' ? null : 'unid_div')}><Badge variant="outline" className={`cursor-pointer text-amber-600 border-amber-300 ${filtroEsp === 'unid_div' ? 'ring-1 ring-amber-400' : ''}`}>{nUnidDiverge} unidade p/ revisar</Badge></button>}
               {nMateriais > 0 && <button onClick={() => setFiltroEsp(f => f === 'materiais' ? null : 'materiais')}><Badge variant="outline" className={`cursor-pointer text-gray-500 ${filtroEsp === 'materiais' ? 'ring-1 ring-gray-400' : ''}`}>{nMateriais} materiais</Badge></button>}
             </div>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">

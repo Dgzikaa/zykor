@@ -199,15 +199,23 @@ export async function POST(request: NextRequest) {
     const ops = (supabase as any).schema('operations');
     const { data: ja } = await ops.from('insumos').select('id').eq('bar_id', barId).eq('codigo', codigo).maybeSingle();
     if (ja) return NextResponse.json({ success: false, error: `Código ${codigo} já existe no cadastro` }, { status: 409 });
+    const base = ['g', 'ml', 'un'].includes(body.base) ? body.base : 'un';
+    const emb = Number(body.embalagem) > 0 ? Number(body.embalagem) : null;
     const payload: any = {
-      bar_id: barId, codigo, nome,
-      unidade_medida: ['un', 'kg', 'g', 'L', 'ml'].includes(body.unidade_medida) ? body.unidade_medida : 'un',
+      bar_id: barId, codigo, nome, unidade_medida: base,
       custo_unitario: Number(body.custo_unitario) || 0,
       fator_correcao: !!body.fator_correcao,
     };
     if (body.categoria && String(body.categoria).trim()) payload.categoria = String(body.categoria).trim();
-    const { error } = await ops.from('insumos').insert(payload);
+    const { data: novo, error } = await ops.from('insumos').insert(payload).select('id').single();
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    // unidade-base + embalagem (quantidade) — override por id sintético negativo, como a tela faz
+    if (novo?.id && emb) {
+      await supabase.from('insumo_unidade').upsert({
+        bar_id: barId, id_prod: -Number(novo.id), cod_interno: codigo, base, embalagem: emb,
+        origem: 'manual', atualizado_em: new Date().toISOString(),
+      }, { onConflict: 'bar_id,id_prod' });
+    }
     return NextResponse.json({ success: true, codigo });
   }
 
