@@ -29,6 +29,23 @@ export default function EstoqueHistoricoPage() {
   const [totalGeral, setTotalGeral] = useState(0);
   const [loading, setLoading] = useState(false);
   const [busca, setBusca] = useState('');
+  const [comparar, setComparar] = useState(false);
+  const [dataB, setDataB] = useState<string | null>(null);
+  const [comp, setComp] = useState<any | null>(null);
+  const [loadingComp, setLoadingComp] = useState(false);
+
+  const carregarComp = useCallback(async (a: string | null, b: string | null) => {
+    if (!a || !b || a === b) { setComp(null); return; }
+    setLoadingComp(true);
+    try { const r = await api.get(`/api/operacional/contagem/comparar?data_a=${a}&data_b=${b}`); if (r.success) setComp(r); }
+    finally { setLoadingComp(false); }
+  }, []);
+  const toggleComparar = () => {
+    if (comparar) { setComparar(false); return; }
+    const segunda = (datas.find((d: any) => d.data !== data)?.data) || null;
+    setDataB(segunda); setComparar(true); carregarComp(data, segunda);
+  };
+  const trocarDataB = (b: string) => { setDataB(b); carregarComp(data, b); };
 
   const carregar = useCallback(async (t: string, d?: string | null) => {
     if (!barId) return;
@@ -49,12 +66,17 @@ export default function EstoqueHistoricoPage() {
   // ao trocar de tipo, recarrega da data mais recente
   useEffect(() => { carregar(tipo, null); }, [tipo, carregar]);
 
-  const trocarData = (d: string) => { setData(d); carregar(tipo, d); };
+  const trocarData = (d: string) => { setData(d); carregar(tipo, d); if (comparar) carregarComp(d, dataB); };
 
   const itensView = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return itens.filter(i => !s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s));
   }, [itens, busca]);
+  const compView = useMemo(() => {
+    if (!comp) return [];
+    const s = busca.trim().toLowerCase();
+    return (comp.itens || []).filter((i: any) => !s || (i.nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s));
+  }, [comp, busca]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
@@ -92,15 +114,28 @@ export default function EstoqueHistoricoPage() {
           ))}
         </div>
 
-        {/* Seletor de data + busca */}
+        {/* Seletor de data + comparar + busca */}
         <div className="flex flex-col sm:flex-row gap-2">
-          <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
             <CalendarDays className="w-4 h-4 text-gray-400 shrink-0" />
             <select value={data || ''} onChange={e => trocarData(e.target.value)}
-              className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm flex-1 sm:flex-none sm:min-w-[260px]">
+              className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm sm:min-w-[220px]">
               {datas.length === 0 && <option value="">Sem contagens</option>}
               {datas.map((d: any) => <option key={d.data} value={d.data}>{fmtData(d.data)} · {d.itens} itens</option>)}
             </select>
+            <button onClick={toggleComparar}
+              className={`h-10 rounded-md px-3 text-sm border ${comparar ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}>
+              {comparar ? 'Comparando' : 'Comparar'}
+            </button>
+            {comparar && (
+              <>
+                <span className="text-gray-400 text-sm">com</span>
+                <select value={dataB || ''} onChange={e => trocarDataB(e.target.value)}
+                  className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm sm:min-w-[220px]">
+                  {datas.filter((d: any) => d.data !== data).map((d: any) => <option key={d.data} value={d.data}>{fmtData(d.data)} · {d.itens} itens</option>)}
+                </select>
+              </>
+            )}
           </div>
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -108,7 +143,16 @@ export default function EstoqueHistoricoPage() {
           </div>
         </div>
 
+        {comparar && comp?.resumo && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">{fmtData(comp.data_a)}</div><div className="text-xl font-bold">{fmtBRL(comp.resumo.valor_a)}</div></CardContent></Card>
+            <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">{fmtData(comp.data_b)}</div><div className="text-xl font-bold">{fmtBRL(comp.resumo.valor_b)}</div></CardContent></Card>
+            <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Diferença</div><div className={`text-xl font-bold ${comp.resumo.delta_valor < 0 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>{fmtBRL(comp.resumo.delta_valor)}</div></CardContent></Card>
+          </div>
+        )}
+
         {/* Tabela */}
+        {!comparar ? (
         <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
@@ -137,6 +181,38 @@ export default function EstoqueHistoricoPage() {
             </tbody>
           </table>
         </div></CardContent></Card>
+        ) : (
+        <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+              <th className="text-left font-medium px-3 py-2">Cód.</th>
+              <th className="text-left font-medium px-3 py-2">Insumo</th>
+              <th className="text-right font-medium px-3 py-2">Qtd {fmtData(comp?.data_a)}</th>
+              <th className="text-right font-medium px-3 py-2">Qtd {fmtData(comp?.data_b)}</th>
+              <th className="text-right font-medium px-3 py-2">Δ Qtd</th>
+              <th className="text-right font-medium px-3 py-2">Valor {fmtData(comp?.data_a)}</th>
+              <th className="text-right font-medium px-3 py-2">Valor {fmtData(comp?.data_b)}</th>
+              <th className="text-right font-medium px-3 py-2">Δ Valor</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {loadingComp ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              : compView.length === 0 ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Escolha duas datas pra comparar.</td></tr>
+              : compView.map((it: any, i: number) => (
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                  <td className="px-3 py-2 font-mono text-xs text-gray-500">{it.insumo_codigo || '—'}</td>
+                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.nome}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.qtd_a, it.unidade)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.qtd_b, it.unidade)}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${Number(it.delta_qtd) < 0 ? 'text-red-500' : Number(it.delta_qtd) > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{Number(it.delta_qtd) > 0 ? '+' : ''}{Number(it.delta_qtd || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtBRL(it.valor_a)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtBRL(it.valor_b)}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums font-medium ${Number(it.delta_valor) < 0 ? 'text-red-500' : Number(it.delta_valor) > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{fmtBRL(it.delta_valor)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div></CardContent></Card>
+        )}
       </div>
     </div>
   );
