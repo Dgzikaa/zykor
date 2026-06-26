@@ -60,8 +60,8 @@ export default function CadastrosPage() {
     finally { setSincronizando(false); }
   };
 
-  // Materiais (limpeza/descartáveis/outros: tabaco, impostos, frete) não são insumos — viram um FILTRO
-  const ehMaterial = (s: string | null) => /limpeza|descart|outros/i.test(s || '');
+  // Materiais (limpeza/descartáveis) não são insumos — viram um FILTRO. 'Outros' conta como insumo.
+  const ehMaterial = (s: string | null) => /limpeza|descart/i.test(s || '');
   // VMarket com código errado: produto real do VMarket cujo cod_interno não bate com o Código Planilha (correto)
   const vmErrado = (p: Produto) => p.id_produto_sisfood_cotacao >= 0 && !!p.codigo_planilha && (p.cod_interno || null) !== p.codigo_planilha;
   // Código efetivo PARA EXIBIR: só código de insumo (i0XXX). Material (cod_interno tipo d0039) fica zerado.
