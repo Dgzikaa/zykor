@@ -56,9 +56,14 @@ export async function GET(request: NextRequest) {
   const { data: yzRows } = await supabase.from('produto_yuzer_map').select('yuzer_produto_id, cod_interno').eq('bar_id', barId).not('yuzer_produto_id', 'is', null);
   (yzRows || []).forEach((r: any) => { if (r.cod_interno) (yzMap[r.cod_interno] ??= []).push(String(r.yuzer_produto_id)); });
 
+  // Preço de venda no Yuzer (último, automático) por cod_interno
+  const yzPrecoMap: Record<string, number> = {};
+  const { data: yzPrecos } = await (supabase as any).schema('gold').from('produto_preco_yuzer').select('cod_interno, preco_yuzer').eq('bar_id', barId);
+  (yzPrecos || []).forEach((r: any) => { if (r.cod_interno && r.preco_yuzer != null) yzPrecoMap[r.cod_interno] = Number(r.preco_yuzer); });
+
   return NextResponse.json({
     success: true,
-    produtos: (data || []).map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [], preco_venda: precoVendaMap[p.codigo] ?? null })),
+    produtos: (data || []).map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [], preco_venda: precoVendaMap[p.codigo] ?? null, preco_yuzer: yzPrecoMap[p.codigo] ?? null })),
   });
 }
 

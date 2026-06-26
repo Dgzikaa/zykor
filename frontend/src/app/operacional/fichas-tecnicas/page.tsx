@@ -272,16 +272,24 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                     <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Custo</div>
                     <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5">{fmtBRL(custoAtualTotal)}</div>
                   </div>
-                  {kind === 'produto' && selObj.preco_venda != null && (
+                  {kind === 'produto' && (selObj.preco_venda != null || selObj.preco_yuzer != null) && (
                     <>
-                      <div className="px-4 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/15 text-center">
-                        <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Preço Produto (CH)</div>
-                        <div className="text-xl font-bold text-blue-600 dark:text-blue-400 leading-tight mt-0.5">{fmtBRL(selObj.preco_venda)}</div>
-                      </div>
-                      {Number(selObj.preco_venda) > 0 && (
+                      {selObj.preco_venda != null && (
+                        <div className="px-4 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/15 text-center">
+                          <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Preço CH</div>
+                          <div className="text-xl font-bold text-blue-600 dark:text-blue-400 leading-tight mt-0.5">{fmtBRL(selObj.preco_venda)}</div>
+                        </div>
+                      )}
+                      {selObj.preco_yuzer != null && (
+                        <div className="px-4 py-2 rounded-lg bg-violet-50 dark:bg-violet-900/15 text-center">
+                          <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Preço Yuzer</div>
+                          <div className="text-xl font-bold text-violet-600 dark:text-violet-400 leading-tight mt-0.5">{fmtBRL(selObj.preco_yuzer)}</div>
+                        </div>
+                      )}
+                      {Number(selObj.preco_venda ?? selObj.preco_yuzer) > 0 && (
                         <div className="px-4 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/15 text-center">
                           <div className="text-[11px] text-muted-foreground uppercase tracking-wide">CMV teórico</div>
-                          <div className="text-xl font-bold text-amber-600 dark:text-amber-400 leading-tight mt-0.5">{(custoAtualTotal / Number(selObj.preco_venda) * 100).toFixed(1)}%</div>
+                          <div className="text-xl font-bold text-amber-600 dark:text-amber-400 leading-tight mt-0.5">{(custoAtualTotal / Number(selObj.preco_venda ?? selObj.preco_yuzer) * 100).toFixed(1)}%</div>
                         </div>
                       )}
                     </>
