@@ -184,5 +184,7 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   // semeia unidade-base dos insumos novos (não toca nos existentes/manuais)
   await supabase.rpc('fn_vmarket_seed_unidades', { p_bar_id: barId });
+  // reconcilia código planilha: cod_interno válido → nome (não sobrescreve o já gravado)
+  await supabase.rpc('fn_vmarket_reconciliar_codigos', { p_bar_id: barId });
   return NextResponse.json({ success: true, resultado: data });
 }
