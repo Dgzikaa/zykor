@@ -132,13 +132,13 @@ export default function CadastrosPage() {
   // ---------- VARIAÇÃO DE PREÇO ----------
   const [variacao, setVariacao] = useState<any[]>([]);
   const [loadingVar, setLoadingVar] = useState(false);
-  const [varAberto, setVarAberto] = useState<number | null>(null);
-  const [serie, setSerie] = useState<Record<number, any[]>>({});
+  const [varAberto, setVarAberto] = useState<string | null>(null);
+  const [serie, setSerie] = useState<Record<string, any[]>>({});
   const [buscaVar, setBuscaVar] = useState('');
   const variacaoView = useMemo(() => {
     const q = buscaVar.trim().toLowerCase();
     const arr = !q ? variacao : variacao.filter((v: any) =>
-      (v.nome || '').toLowerCase().includes(q) || (v.cod_interno || '').toLowerCase().includes(q) || (v.secao || '').toLowerCase().includes(q));
+      (v.nome || '').toLowerCase().includes(q) || (v.codigo_planilha || '').toLowerCase().includes(q) || (v.secao || '').toLowerCase().includes(q));
     // ordena pela maior variação (módulo), nulos por último
     return [...arr].sort((a: any, b: any) => {
       const av = a.var_pct == null ? -1 : Math.abs(a.var_pct);
@@ -153,11 +153,11 @@ export default function CadastrosPage() {
     finally { setLoadingVar(false); }
   }, [barId, toast]);
   useEffect(() => { carregarVariacao(); }, [carregarVariacao]);
-  const abrirSerie = async (id: number) => {
-    if (varAberto === id) { setVarAberto(null); return; }
-    setVarAberto(id);
-    if (!serie[id]) {
-      try { const r = await api.get(`/api/operacional/insumos/precos?bar_id=${barId}&id_prod=${id}`); if (r.success) setSerie(m => ({ ...m, [id]: r.serie || [] })); } catch { /* */ }
+  const abrirSerie = async (codigo: string) => {
+    if (varAberto === codigo) { setVarAberto(null); return; }
+    setVarAberto(codigo);
+    if (!serie[codigo]) {
+      try { const r = await api.get(`/api/operacional/insumos/precos?bar_id=${barId}&codigo=${encodeURIComponent(codigo)}`); if (r.success) setSerie(m => ({ ...m, [codigo]: r.serie || [] })); } catch { /* */ }
     }
   };
 
@@ -289,7 +289,7 @@ export default function CadastrosPage() {
 
           {/* ===== VARIAÇÃO DE PREÇO ===== */}
           <TabsContent value="variacao" className="space-y-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Variação do último preço de compra de cada insumo (vs. o pedido anterior), ordenada da maior variação para a menor. Clique pra ver o histórico completo.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Variação do último preço de compra vs. a compra anterior (a <span className="text-red-600 dark:text-red-400">compra 0</span> é o preço da planilha), ordenada da maior variação para a menor. Clique pra ver o histórico completo.</p>
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input value={buscaVar} onChange={e => setBuscaVar(e.target.value)} placeholder="Buscar por nome, código (i0XXX) ou seção…" className="pl-9" />
@@ -310,28 +310,33 @@ export default function CadastrosPage() {
                   : variacaoView.map(v => {
                     const cls = v.var_pct == null ? 'text-gray-400' : v.var_pct > 0.5 ? 'text-red-600 dark:text-red-400' : v.var_pct < -0.5 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400';
                     return (
-                      <Fragment key={v.id_prod}>
-                        <tr onClick={() => abrirSerie(v.id_prod)} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer">
-                          <td className="px-3 py-2"><ChevronDown className={`w-4 h-4 transition-transform ${varAberto === v.id_prod ? 'rotate-180' : ''}`} /></td>
-                          <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{v.nome}{v.cod_interno && <span className="text-xs text-gray-400 font-mono"> · {v.cod_interno}</span>}</td>
+                      <Fragment key={v.codigo_planilha}>
+                        <tr onClick={() => abrirSerie(v.codigo_planilha)} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer">
+                          <td className="px-3 py-2"><ChevronDown className={`w-4 h-4 transition-transform ${varAberto === v.codigo_planilha ? 'rotate-180' : ''}`} /></td>
+                          <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{v.nome}{v.codigo_planilha && <span className="text-xs text-gray-400 font-mono"> · {v.codigo_planilha}</span>}</td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{v.secao || '—'}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtBRL(v.preco_anterior)}</td>
                           <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtBRL(v.preco_atual)}</td>
                           <td className={`px-3 py-2 text-right tabular-nums font-medium ${cls}`}>{v.var_pct == null ? '—' : `${v.var_pct > 0 ? '+' : ''}${v.var_pct.toFixed(1)}%`}</td>
                         </tr>
-                        {varAberto === v.id_prod && (
+                        {varAberto === v.codigo_planilha && (
                           <tr className="bg-gray-50/60 dark:bg-gray-800/30"><td colSpan={6} className="px-3 py-2">
-                            {!serie[v.id_prod] ? <div className="py-3 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-400" /></div>
-                            : serie[v.id_prod].length === 0 ? <div className="py-2 text-center text-xs text-gray-400">Sem série.</div>
+                            {!serie[v.codigo_planilha] ? <div className="py-3 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-400" /></div>
+                            : serie[v.codigo_planilha].length === 0 ? <div className="py-2 text-center text-xs text-gray-400">Sem série.</div>
                             : (
                               <table className="w-full text-xs">
-                                <thead className="text-gray-400"><tr><th className="text-left px-2 py-1">Data</th><th className="text-left px-2 py-1">Fornecedor</th><th className="text-right px-2 py-1">Preço</th><th className="text-right px-2 py-1">Var.</th></tr></thead>
+                                <thead className="text-gray-400"><tr><th className="text-left px-2 py-1">Compra</th><th className="text-left px-2 py-1">Fornecedor</th><th className="text-right px-2 py-1">Preço</th><th className="text-right px-2 py-1">Var.</th></tr></thead>
                                 <tbody>
-                                  {serie[v.id_prod].map((s: any, idx: number) => {
-                                    const vp = s.preco_anterior && s.preco_anterior > 0 ? ((Number(s.preco) - Number(s.preco_anterior)) / Number(s.preco_anterior)) * 100 : null;
+                                  {serie[v.codigo_planilha].map((s: any, idx: number) => {
+                                    const prev = serie[v.codigo_planilha][idx - 1];
+                                    const vp = prev && Number(prev.preco) > 0 ? ((Number(s.preco) - Number(prev.preco)) / Number(prev.preco)) * 100 : null;
                                     return (
                                       <tr key={idx} className="border-t border-gray-100 dark:border-gray-800">
-                                        <td className="px-2 py-1 whitespace-nowrap">{fmtData(s.data)}</td>
+                                        <td className="px-2 py-1 whitespace-nowrap">
+                                          {s.fonte === 'planilha'
+                                            ? <span className="text-[10px] rounded px-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">Compra 0 · planilha</span>
+                                            : fmtData(s.data)}
+                                        </td>
                                         <td className="px-2 py-1 text-gray-500">{s.fornecedor || '—'}</td>
                                         <td className="px-2 py-1 text-right tabular-nums">{fmtBRL(s.preco)}</td>
                                         <td className={`px-2 py-1 text-right tabular-nums ${vp == null ? 'text-gray-400' : vp > 0 ? 'text-red-500' : vp < 0 ? 'text-emerald-500' : 'text-gray-400'}`}>{vp == null ? '—' : `${vp > 0 ? '+' : ''}${vp.toFixed(1)}%`}</td>

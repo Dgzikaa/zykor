@@ -5,9 +5,9 @@ import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/operacional/insumos/precos
- *  - ?bar_id            -> lista de insumos com último preço, preço anterior e variação
- *  - ?bar_id&id_prod=N  -> série histórica de preço daquele insumo (cada pedido)
+ * GET /api/operacional/insumos/precos  — ancorado no CÓDIGO PLANILHA
+ *  - ?bar_id           -> lista de insumos com último preço, anterior e variação (compra 0 = planilha)
+ *  - ?bar_id&codigo=X  -> série histórica do insumo (compra 0 da planilha + compras reais do VMarket)
  */
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
@@ -18,37 +18,32 @@ export async function GET(request: NextRequest) {
   const supabase = await getAdminClient();
   const gold = (supabase as any).schema('gold');
 
-  // histórico de um insumo
-  const idProd = sp.get('id_prod');
-  if (idProd) {
-    const { data, error } = await gold.from('vmarket_insumo_preco_hist')
-      .select('data, preco, preco_anterior, fornecedor, id_pedido')
-      .eq('bar_id', barId).eq('id_prod', Number(idProd))
-      .order('dt_inclusao', { ascending: true });
+  // série de um insumo (por código planilha): compra 0 (planilha) primeiro, depois compras reais
+  const codigo = sp.get('codigo');
+  if (codigo) {
+    const { data, error } = await gold.from('insumo_preco_serie')
+      .select('ordem, data, preco, fornecedor, fonte')
+      .eq('bar_id', barId).eq('codigo_planilha', codigo)
+      .order('ordem', { ascending: true }).order('data', { ascending: true, nullsFirst: true });
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, serie: data ?? [] });
   }
 
-  // lista com variação
-  const [precoRes, prodRes] = await Promise.all([
-    gold.from('vmarket_insumo_preco').select('id_prod, preco_atual, data_atual, preco_anterior, data_anterior').eq('bar_id', barId),
-    supabase.from('bronze_vmarket_produtos').select('id_produto_sisfood_cotacao, nome, cod_interno, nome_secao').eq('bar_id', barId),
-  ]);
-  if (precoRes.error) return NextResponse.json({ success: false, error: precoRes.error.message }, { status: 500 });
-  const nomeMap = new Map<number, any>((prodRes.data || []).map((p: any) => [p.id_produto_sisfood_cotacao, p]));
+  // lista com variação (último × anterior por código planilha)
+  const { data, error } = await gold.from('insumo_preco_variacao')
+    .select('codigo_planilha, nome, secao, preco_atual, data_atual, fonte_atual, preco_anterior, var_pct')
+    .eq('bar_id', barId);
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   // Materiais (limpeza/descartáveis/outros: tabaco, impostos, frete) não são insumos — fora da variação
   const ehMaterial = (s: string | null) => /limpeza|descart|outros/i.test(s || '');
-  const rows = (precoRes.data || [])
-    .filter((p: any) => p.preco_atual != null && !ehMaterial(nomeMap.get(p.id_prod)?.nome_secao))
-    .map((p: any) => {
-      const info = nomeMap.get(p.id_prod) || {};
-      const atual = Number(p.preco_atual), ant = p.preco_anterior != null ? Number(p.preco_anterior) : null;
-      const var_pct = ant && ant > 0 ? ((atual - ant) / ant) * 100 : null;
-      return {
-        id_prod: p.id_prod, nome: info.nome || `#${p.id_prod}`, cod_interno: info.cod_interno || null, secao: info.nome_secao || null,
-        preco_atual: atual, data_atual: p.data_atual, preco_anterior: ant, var_pct,
-      };
-    })
+  const rows = (data || [])
+    .filter((p: any) => p.preco_atual != null && !ehMaterial(p.secao))
+    .map((p: any) => ({
+      codigo_planilha: p.codigo_planilha, nome: p.nome || p.codigo_planilha, secao: p.secao || null,
+      preco_atual: Number(p.preco_atual), data_atual: p.data_atual, fonte_atual: p.fonte_atual,
+      preco_anterior: p.preco_anterior != null ? Number(p.preco_anterior) : null,
+      var_pct: p.var_pct != null ? Number(p.var_pct) : null,
+    }))
     .sort((a: any, b: any) => Math.abs(b.var_pct ?? 0) - Math.abs(a.var_pct ?? 0));
 
   return NextResponse.json({ success: true, insumos: rows });
