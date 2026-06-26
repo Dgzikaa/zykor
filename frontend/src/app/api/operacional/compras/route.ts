@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminClient } from '@/lib/supabase-admin';
+import { getAdminClient, selectAll } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
@@ -48,8 +48,17 @@ export async function GET(request: NextRequest) {
   ]);
   if (pedRes.error) return NextResponse.json({ success: false, error: pedRes.error.message }, { status: 500 });
 
-  const pedidos = pedRes.data ?? [];
+  let pedidos = pedRes.data ?? [];
   const cotacoes = cotRes.data ?? [];
+
+  // busca por PRODUTO (ex.: abacaxi): filtra os pedidos que têm algum item com o nome
+  const produto = (sp.get('produto') || '').trim();
+  if (produto) {
+    const itensMatch = await selectAll((from, to) => gold.from('vmarket_pedido_item')
+      .select('id_pedido').eq('bar_id', barId).ilike('nome_cotacao', `%${produto}%`).range(from, to)).catch(() => []);
+    const ids = new Set((itensMatch as any[]).map((r: any) => r.id_pedido));
+    pedidos = pedidos.filter((p: any) => ids.has(p.id_pedido));
+  }
 
   const totalComprado = pedidos.reduce((s: number, p: any) => s + Number(p.valor_total || 0), 0);
   const porFornecedor: Record<string, { fornecedor: string; valor: number; pedidos: number }> = {};

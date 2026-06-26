@@ -34,6 +34,8 @@ export default function ComprasPage() {
   const [resumo, setResumo] = useState<any>(null);
   const [topForn, setTopForn] = useState<any[]>([]);
   const [busca, setBusca] = useState('');
+  const [buscaProduto, setBuscaProduto] = useState('');
+  const [produtoQ, setProdutoQ] = useState('');
   const [fornFiltro, setFornFiltro] = useState<string | null>(null);
   const [aberto, setAberto] = useState<number | null>(null);
   const [itens, setItens] = useState<Record<number, any[]>>({});
@@ -43,7 +45,7 @@ export default function ComprasPage() {
     if (!barId) return;
     setLoading(true);
     try {
-      const r = await api.get(`/api/operacional/compras?bar_id=${barId}&de=${de}&ate=${ate}`);
+      const r = await api.get(`/api/operacional/compras?bar_id=${barId}&de=${de}&ate=${ate}${produtoQ ? `&produto=${encodeURIComponent(produtoQ)}` : ''}`);
       if (r.success) {
         setPedidos(r.pedidos || []);
         setCotacoes(r.cotacoes || []);
@@ -53,8 +55,10 @@ export default function ComprasPage() {
     } catch (e: any) {
       toast({ title: 'Erro', description: e?.message || 'Falha ao carregar compras', variant: 'destructive' });
     } finally { setLoading(false); }
-  }, [barId, de, ate, toast]);
+  }, [barId, de, ate, produtoQ, toast]);
   useEffect(() => { carregar(); }, [carregar]);
+  // debounce da busca por produto (consulta o backend)
+  useEffect(() => { const t = setTimeout(() => setProdutoQ(buscaProduto.trim()), 400); return () => clearTimeout(t); }, [buscaProduto]);
 
   const abrir = async (id: number) => {
     if (aberto === id) { setAberto(null); return; }
@@ -126,10 +130,18 @@ export default function ComprasPage() {
                 ))}
               </div>
             )}
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por fornecedor, CNPJ ou nº do pedido…" className="pl-9" />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por fornecedor, CNPJ ou nº do pedido…" className="pl-9" />
+              </div>
+              <div className="relative flex-1">
+                <Tag className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Input value={buscaProduto} onChange={(e) => setBuscaProduto(e.target.value)} placeholder="Buscar por produto (ex.: abacaxi)…" className="pl-9 pr-8" />
+                {buscaProduto !== produtoQ && <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" />}
+              </div>
             </div>
+            {produtoQ && !loading && <p className="text-xs text-gray-500">Mostrando {pedidosView.length} pedido(s) com &ldquo;{produtoQ}&rdquo;.</p>}
 
             <Card className="card-dark overflow-hidden">
               <CardContent className="p-0">
