@@ -34,18 +34,36 @@ export default function EstoqueHistoricoPage() {
   const [comp, setComp] = useState<any | null>(null);
   const [loadingComp, setLoadingComp] = useState(false);
 
-  const carregarComp = useCallback(async (a: string | null, b: string | null) => {
+  // compara duas contagens DO MESMO TIPO (data + tipo) — busca os dois lados já filtrados pelo tipo
+  const carregarComp = useCallback(async (t: string, a: string | null, b: string | null) => {
     if (!a || !b || a === b) { setComp(null); return; }
     setLoadingComp(true);
-    try { const r = await api.get(`/api/operacional/contagem/comparar?data_a=${a}&data_b=${b}`); if (r.success) setComp(r); }
-    finally { setLoadingComp(false); }
+    try {
+      const [ra, rb] = await Promise.all([
+        api.get(`/api/operacional/estoque-historico?tipo=${t}&data=${a}`),
+        api.get(`/api/operacional/estoque-historico?tipo=${t}&data=${b}`),
+      ]);
+      const chave = (i: any) => i.insumo_codigo || i.insumo_nome;
+      const mapA = new Map<string, any>((ra.itens || []).map((i: any) => [chave(i), i]));
+      const mapB = new Map<string, any>((rb.itens || []).map((i: any) => [chave(i), i]));
+      const keys = Array.from(new Set([...mapA.keys(), ...mapB.keys()]));
+      let va = 0, vb = 0;
+      const itens = keys.map((k) => {
+        const A = mapA.get(k), B = mapB.get(k);
+        const qa = Number(A?.estoque_final || 0), qb = Number(B?.estoque_final || 0);
+        const vAi = Number(A?.valor || 0), vBi = Number(B?.valor || 0);
+        va += vAi; vb += vBi;
+        return { insumo_codigo: A?.insumo_codigo || B?.insumo_codigo, nome: A?.insumo_nome || B?.insumo_nome, unidade: A?.unidade_medida || B?.unidade_medida, qtd_a: qa, qtd_b: qb, delta_qtd: qb - qa, valor_a: vAi, valor_b: vBi, delta_valor: vBi - vAi };
+      }).sort((x, y) => Math.abs(y.delta_valor) - Math.abs(x.delta_valor));
+      setComp({ data_a: a, data_b: b, itens, resumo: { valor_a: va, valor_b: vb, delta_valor: vb - va } });
+    } finally { setLoadingComp(false); }
   }, []);
   const toggleComparar = () => {
     if (comparar) { setComparar(false); return; }
     const segunda = (datas.find((d: any) => d.data !== data)?.data) || null;
-    setDataB(segunda); setComparar(true); carregarComp(data, segunda);
+    setDataB(segunda); setComparar(true); carregarComp(tipo, data, segunda);
   };
-  const trocarDataB = (b: string) => { setDataB(b); carregarComp(data, b); };
+  const trocarDataB = (b: string) => { setDataB(b); carregarComp(tipo, data, b); };
 
   const carregar = useCallback(async (t: string, d?: string | null) => {
     if (!barId) return;
@@ -66,7 +84,7 @@ export default function EstoqueHistoricoPage() {
   // ao trocar de tipo, recarrega da data mais recente
   useEffect(() => { carregar(tipo, null); }, [tipo, carregar]);
 
-  const trocarData = (d: string) => { setData(d); carregar(tipo, d); if (comparar) carregarComp(d, dataB); };
+  const trocarData = (d: string) => { setData(d); carregar(tipo, d); if (comparar) carregarComp(tipo, d, dataB); };
 
   const itensView = useMemo(() => {
     const s = busca.trim().toLowerCase();
@@ -93,7 +111,7 @@ export default function EstoqueHistoricoPage() {
         {/* Tipo de contagem */}
         <div className="flex flex-wrap gap-2">
           {TIPOS.map(t => (
-            <button key={t.key} onClick={() => setTipo(t.key)}
+            <button key={t.key} onClick={() => { setTipo(t.key); setComparar(false); setComp(null); }}
               className={`rounded-lg px-4 py-2 text-sm transition border ${tipo === t.key ? 'bg-amber-500 text-white border-amber-500' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
               <span className="font-semibold">{t.label}</span> <span className="text-xs opacity-80">· {t.sub}</span>
             </button>
