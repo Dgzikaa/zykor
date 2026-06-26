@@ -132,6 +132,7 @@ export const MENU_TREE: MenuSection[] = [
     permission: 'gestao',
     subItems: [
       { icon: 'TrendingUp', label: 'Gestão CMV', href: '/ferramentas/cmv-semanal/tabela', permission: 'gestao' },
+      { icon: 'BarChart3', label: 'CMV Teórico', href: '/operacional/cmv-teorico', permission: 'gestao' },
       { icon: 'Package', label: 'Insumos', href: '/operacional/insumos', permission: 'gestao' },
       { icon: 'ShoppingCart', label: 'Compras', href: '/operacional/compras', permission: 'gestao' },
       { icon: 'ChefHat', label: 'Fichas Técnicas', href: '/operacional/fichas-tecnicas', permission: 'gestao' },
