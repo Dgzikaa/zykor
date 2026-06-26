@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
       custo_real: round(custoReal, 4),
       aderencia_pct: aderenciaPct,
       peso_mestre_real: body.peso_mestre_real != null ? Number(body.peso_mestre_real) : null,
+      peso_bruto: body.peso_bruto != null ? Number(body.peso_bruto) : null,
       status: body.status ? String(body.status) : 'finalizada',
       observacao: body.observacao ? String(body.observacao) : null,
       criado_por: user.email ?? user.nome ?? null,

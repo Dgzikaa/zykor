@@ -36,6 +36,7 @@ interface FichaItem {
   unidade_exib: string | null;
   preco_un: number | null;
   is_mestre: boolean;
+  insumo_fc?: boolean; // insumo tem fator de correção (precisa de peso bruto → líquido)
 }
 
 // uma produção em execução (cronômetro próprio) — várias podem rodar em paralelo
@@ -45,6 +46,7 @@ interface ActiveProd {
   itens: FichaItem[];
   loadingItens: boolean;
   responsavelId: number | null;
+  pesoBruto: string;
   pesoMestre: string;
   rendimentoReal: string;
   observacao: string;
@@ -97,7 +99,7 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
     const localId = `p${++idRef.current}`;
     const nova: ActiveProd = {
       localId, ficha: f, itens: [], loadingItens: true, responsavelId: null,
-      pesoMestre: '', rendimentoReal: '', observacao: '', qtdReal: {}, segundos: 0, rodando: false,
+      pesoBruto: '', pesoMestre: '', rendimentoReal: '', observacao: '', qtdReal: {}, segundos: 0, rodando: false,
     };
     setProds(prev => [...prev, nova]);
     setSelId(localId);
@@ -153,7 +155,9 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
     const rreal = parseFloat(prod.rendimentoReal) || 0;
     if (rendEsperado > 0 && off(rreal, rendEsperado)) sus.push({ campo: 'Rendimento real', valor: rreal, unidade: prod.ficha.unidade, esperado: rendEsperado });
     const pm = parseFloat(prod.pesoMestre) || 0;
-    if (mestre && off(pm, mestreQtd)) sus.push({ campo: `Peso do mestre — ${mestre.nome_componente || ''}`.trim(), valor: pm, unidade: mestre.unidade_exib, esperado: mestreQtd });
+    if (mestre && off(pm, mestreQtd)) sus.push({ campo: `${mestre.insumo_fc ? 'Peso líquido' : 'Peso'} do mestre — ${mestre.nome_componente || ''}`.trim(), valor: pm, unidade: mestre.unidade_exib, esperado: mestreQtd });
+    const pb = parseFloat(prod.pesoBruto) || 0;
+    if (mestre?.insumo_fc && off(pb, mestreQtd)) sus.push({ campo: `Peso bruto do mestre — ${mestre.nome_componente || ''}`.trim(), valor: pb, unidade: mestre.unidade_exib, esperado: mestreQtd });
     for (const l of linhas) {
       if (off(l.real, l.qtdCalc)) sus.push({ campo: l.it.nome_componente || l.it.componente_codigo || 'Insumo', valor: l.real, unidade: l.it.unidade_exib, esperado: l.qtdCalc });
     }
@@ -173,7 +177,7 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
     setConfirmar(null);
     setSalvandoId(prod.localId);
     patch(prod.localId, { rodando: false });
-    const { linhas, rendEsperado } = calc(prod);
+    const { linhas, rendEsperado, mestre } = calc(prod);
     const agora = new Date();
     const inicio = new Date(agora.getTime() - prod.segundos * 1000);
     const resp = responsaveis.find(r => r.id === prod.responsavelId);
@@ -188,6 +192,7 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
       rendimento_esperado: rendEsperado || null,
       rendimento_real: parseFloat(prod.rendimentoReal) || null,
       peso_mestre_real: parseFloat(prod.pesoMestre) || null,
+      peso_bruto: mestre?.insumo_fc ? (parseFloat(prod.pesoBruto) || null) : null,
       observacao: prod.observacao.trim() || null,
       insumos: linhas.map(l => ({
         insumo_codigo: l.it.insumo_codigo ?? l.it.componente_codigo ?? null,
@@ -265,6 +270,10 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
         <Card className="card-dark"><CardContent className="py-16 text-center text-gray-400"><Timer className="w-10 h-10 mx-auto mb-2 opacity-40" />Adicione uma produção acima para iniciar. Você pode ter várias rodando ao mesmo tempo.</CardContent></Card>
       ) : (() => {
         const { mestre, mestreQtd, proporcao, linhas, custoPlan, custoReal, rendEsperado } = calc(sel);
+        const mestreFc = !!mestre?.insumo_fc;
+        const pbNum = parseFloat(sel.pesoBruto) || 0;
+        const plNum = parseFloat(sel.pesoMestre) || 0;
+        const fcReal = mestreFc && pbNum > 0 && plNum > 0 ? pbNum / plNum : 0;
         return (
           <Card className="card-dark"><CardContent className="py-3 space-y-4">
             {/* Cabeçalho + timer */}
@@ -295,11 +304,28 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
                   {responsaveis.map(r => <option key={r.id} value={r.id}>{r.nome}{r.cargo ? ` (${r.cargo})` : ''}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso real do mestre{mestre ? ` (${mestre.unidade_exib || ''})` : ''}</label>
-                <Input type="number" inputMode="decimal" step="any" value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })}
-                  placeholder={mestre ? `ficha: ${fmtNum(mestreQtd, 3)}` : 'sem insumo mestre'} disabled={!mestre} className="h-10" />
-              </div>
+              {mestreFc ? (
+                <div>
+                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso do mestre{mestre?.unidade_exib ? ` (${mestre.unidade_exib})` : ''} <span className="text-amber-500 font-medium">· FC</span></label>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] w-12 text-gray-400 shrink-0">Bruto</span>
+                      <Input type="number" inputMode="decimal" step="any" value={sel.pesoBruto} onChange={e => patch(sel.localId, { pesoBruto: e.target.value })} placeholder="antes de limpar" className="h-9" />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] w-12 text-gray-400 shrink-0">Líquido</span>
+                      <Input type="number" inputMode="decimal" step="any" value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })} placeholder={`limpo · ficha ${fmtNum(mestreQtd, 3)}`} className="h-9" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-0.5">{fcReal > 0 ? `FC real ${fmtNum(fcReal, 2)} · ` : ''}o líquido dirige a receita</p>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso real do mestre{mestre ? ` (${mestre.unidade_exib || ''})` : ''}</label>
+                  <Input type="number" inputMode="decimal" step="any" value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })}
+                    placeholder={mestre ? `ficha: ${fmtNum(mestreQtd, 3)}` : 'sem insumo mestre'} disabled={!mestre} className="h-10" />
+                </div>
+              )}
               <div>
                 <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real * {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado, 3)} {sel.ficha.unidade || ''}</span>}</label>
                 <Input type="number" inputMode="decimal" step="any" value={sel.rendimentoReal} onChange={e => patch(sel.localId, { rendimentoReal: e.target.value })} placeholder="produzido…" className="h-10" />
