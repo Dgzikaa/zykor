@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   const supabase = await getAdminClient();
   const { data, error } = await supabase
     .from('produto_cardapio')
-    .select('id,codigo,nome,categoria,ativo,origem,atualizado_em')
+    .select('id,codigo,nome,categoria,ativo,origem,atualizado_em,agrupado_em')
     .eq('bar_id', barId).order('codigo', { ascending: true });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
@@ -169,6 +169,7 @@ export async function PUT(request: NextRequest) {
   const supabase = await getAdminClient();
   const patch: any = { atualizado_em: new Date().toISOString() };
   for (const k of ['nome', 'categoria', 'ativo', 'codigo']) if (k in body) patch[k] = body[k];
+  if ('agrupado_em' in body) patch.agrupado_em = String(body.agrupado_em || '').trim() || null;
   const { data, error } = await supabase.from('produto_cardapio').update(patch).eq('id', id).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, produto: data });

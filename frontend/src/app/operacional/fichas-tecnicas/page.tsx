@@ -65,7 +65,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
 
   const nZero = lista.filter(p => (p.qtd_componentes ?? 0) === 0).length;
   const nSemMestre = kind === 'producao' ? lista.filter(p => (p.qtd_componentes ?? 0) > 0 && !p.tem_mestre).length : 0;
-  const nSemCh = kind === 'produto' ? lista.filter(p => (p.cods_ch?.length ?? 0) === 0).length : 0;
+  const nSemCh = kind === 'produto' ? lista.filter(p => (p.cods_ch?.length ?? 0) === 0 && !p.agrupado_em).length : 0;
   const nAtivos = kind === 'produto' ? lista.filter(p => p.ativo).length : 0;
   const nInativos = kind === 'produto' ? lista.filter(p => !p.ativo).length : 0;
   // categoria pelo prefixo do código: finalização b=Bebida d=Drink c=Comida o=Outros · produção pd=Bar pc=Cozinha
@@ -81,7 +81,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
       if (catFiltro && catDe(p) !== catFiltro) return false;
       if (filtroLista === 'zero' && (p.qtd_componentes ?? 0) !== 0) return false;
       if (filtroLista === 'sem_mestre' && !((p.qtd_componentes ?? 0) > 0 && !p.tem_mestre)) return false;
-      if (filtroLista === 'sem_ch' && (p.cods_ch?.length ?? 0) !== 0) return false;
+      if (filtroLista === 'sem_ch' && ((p.cods_ch?.length ?? 0) !== 0 || p.agrupado_em)) return false;
       if (kind === 'produto' && statusFiltro !== 'todos' && (statusFiltro === 'ativo' ? !p.ativo : !!p.ativo)) return false;
       return !q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q);
     });
@@ -164,6 +164,21 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
       toast({ title: 'Produto excluído da base' });
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
+
+  // agrupar produto num principal (canônico) — ex.: sabores de Red Bull → Red Bull principal (que leva o cód CH/venda)
+  const [editGrupo, setEditGrupo] = useState(false);
+  const [grupoBusca, setGrupoBusca] = useState('');
+  const salvarGrupo = async (codigoPrincipal: string | null) => {
+    if (!selObj) return;
+    try {
+      await api.put('/api/operacional/produtos', { id: selObj.id, agrupado_em: codigoPrincipal });
+      setEditGrupo(false); setGrupoBusca(''); reloadLista();
+    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+  const grupoOpcoes = useMemo(() => {
+    const q = grupoBusca.trim().toLowerCase();
+    return lista.filter(p => p.codigo !== selObj?.codigo && !p.agrupado_em && (!q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q))).slice(0, 30);
+  }, [lista, grupoBusca, selObj]);
 
   // adicionar componente (modal de criação)
   const [addOpen, setAddOpen] = useState(false);
@@ -257,6 +272,9 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                       <span className="text-xs text-gray-500">ID Yuzer: <span className="font-mono text-gray-600 dark:text-gray-300">{selObj.cods_yuzer?.length ? selObj.cods_yuzer.join(', ') : '—'}</span></span>
                       <button onClick={abrirCods} className="text-indigo-500 hover:text-indigo-700 inline-flex items-center gap-1 text-xs" title="Editar códigos ContaHub / Yuzer"><Pencil className="w-3 h-3" />editar códigos</button>
                       <button onClick={() => setConfirmDel(true)} className="text-red-500 hover:text-red-700 inline-flex items-center gap-1 text-xs" title="Excluir este produto da base do Zykor"><Trash2 className="w-3 h-3" />excluir</button>
+                      {selObj.agrupado_em
+                        ? <span className="text-xs text-violet-600 dark:text-violet-300 inline-flex items-center gap-1">agrupado em <b className="font-mono">{selObj.agrupado_em}</b><button onClick={() => salvarGrupo(null)} className="text-gray-400 hover:text-red-500 underline">desagrupar</button></span>
+                        : <button onClick={() => { setEditGrupo(true); setGrupoBusca(''); }} className="text-violet-500 hover:text-violet-700 inline-flex items-center gap-1 text-xs" title="Agrupar este produto num principal (ex.: sabor → produto canônico que leva o código ContaHub)"><Boxes className="w-3 h-3" />agrupar</button>}
                     </div>
                   )}
                 </div>
@@ -422,6 +440,24 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                         <Button variant="outline" onClick={() => setConfirmDel(false)}>Cancelar</Button>
                         <Button onClick={excluirProduto} className="bg-red-600 hover:bg-red-700 text-white">Excluir</Button>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Modal de agrupar produto */}
+                {editGrupo && (
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditGrupo(false)}>
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-md space-y-2" onClick={e => e.stopPropagation()}>
+                      <h4 className="font-semibold text-gray-900 dark:text-white">Agrupar produto</h4>
+                      <p className="text-sm text-gray-500">Escolha o produto <b>principal</b> que leva o código ContaHub e a venda. <b>{selObj?.nome}</b> vira variante dele (não conta como &ldquo;sem cód CH&rdquo; e não duplica venda).</p>
+                      <div className="relative"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={grupoBusca} onChange={e => setGrupoBusca(e.target.value)} placeholder="Buscar produto principal…" className="pl-9" /></div>
+                      <div className="max-h-60 overflow-y-auto rounded border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
+                        {grupoOpcoes.length === 0 ? <div className="px-3 py-3 text-xs text-gray-400">Nada encontrado.</div>
+                        : grupoOpcoes.map((o: any) => (
+                          <button key={o.id} onClick={() => salvarGrupo(o.codigo)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/40">{o.nome}<span className="text-xs text-gray-400 font-mono"> · {o.codigo}</span></button>
+                        ))}
+                      </div>
+                      <div className="flex justify-end pt-1"><Button variant="outline" onClick={() => setEditGrupo(false)}>Cancelar</Button></div>
                     </div>
                   </div>
                 )}
