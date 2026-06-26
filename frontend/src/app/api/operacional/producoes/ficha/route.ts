@@ -37,12 +37,32 @@ export async function GET(request: NextRequest) {
     precoMap = new Map((precos || []).map((p: any) => [p.id_prod, Number(p.preco_atual)]));
     unidMap = new Map((unids || []).map((u: any) => [u.id_prod, { base: u.base, embalagem: Number(u.embalagem) }]));
   }
-  // código + unidade das produções referenciadas (componentes do tipo produção)
+  // código + unidade + rendimento das produções referenciadas (componentes do tipo produção)
   const refIds = Array.from(new Set(linhas.filter((i: any) => i.producao_ref).map((i: any) => i.producao_ref)));
   const refMap = new Map<number, any>();
+  const custoUnitRef = new Map<number, number>(); // custo por unidade do preparo referenciado (da ficha dele)
   if (refIds.length) {
-    const { data: refs } = await supabase.from('producao_base').select('id, codigo, unidade').in('id', refIds);
+    const { data: refs } = await supabase.from('producao_base').select('id, codigo, unidade, rendimento').in('id', refIds);
     (refs || []).forEach((r: any) => refMap.set(r.id, r));
+    // custo da ficha de cada produção referenciada = soma dos itens; por unidade = total / rendimento
+    const { data: refItens } = await supabase.from('producao_ficha_item')
+      .select('producao_id, insumo_id_vmarket, quantidade, custo_planilha, componente_tipo')
+      .in('producao_id', refIds);
+    const totalRef = new Map<number, number>();
+    for (const ri of refItens || []) {
+      let c = 0;
+      if (ri.componente_tipo === 'insumo' && ri.insumo_id_vmarket) {
+        const p = precoMap.get(ri.insumo_id_vmarket); const u = unidMap.get(ri.insumo_id_vmarket);
+        c = (p != null && u && u.embalagem > 0) ? Number(ri.quantidade || 0) * p / u.embalagem : Number(ri.custo_planilha || 0);
+      } else {
+        c = Number(ri.custo_planilha || 0); // produção aninhada: usa o custo da planilha (1 nível)
+      }
+      totalRef.set(ri.producao_id, (totalRef.get(ri.producao_id) || 0) + c);
+    }
+    for (const id of refIds) {
+      const rend = Number(refMap.get(id)?.rendimento || 0);
+      if (rend > 0) custoUnitRef.set(id, (totalRef.get(id) || 0) / rend);
+    }
   }
 
   const itens = linhas.map((it: any) => {
@@ -51,6 +71,11 @@ export async function GET(request: NextRequest) {
     const ref = it.componente_tipo === 'producao' ? refMap.get(it.producao_ref) : null;
     let custo_atual: number | null = null;
     if (preco != null && u && u.embalagem > 0) custo_atual = Number(it.quantidade || 0) * preco / u.embalagem;
+    // componente que é produção: custo vem da ficha do preparo (custo/un × qtd usada)
+    if (it.componente_tipo === 'producao') {
+      const cu = custoUnitRef.get(it.producao_ref);
+      if (cu != null) custo_atual = Number(it.quantidade || 0) * cu;
+    }
     // unidade de exibição: o que o usuário editou no item vence; senão a base do insumo / a unidade do preparo
     const unidade_exib = it.unidade || u?.base || ref?.unidade || null;
     return {
