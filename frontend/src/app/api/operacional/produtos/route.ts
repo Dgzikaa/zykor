@@ -172,6 +172,12 @@ export async function POST(request: NextRequest) {
   const codYuzer = String(body.cod_yuzer || '').trim();
   if (codCh && /^\d+$/.test(codCh)) await supabase.from('produto_contahub_map').upsert({ bar_id: barId, prd: Number(codCh), cod_interno: codigo }, { onConflict: 'bar_id,prd' });
   if (codYuzer && /^\d+$/.test(codYuzer)) await supabase.from('produto_yuzer_map').upsert({ bar_id: barId, cod_yuzer: codYuzer, yuzer_produto_id: Number(codYuzer), nome, cod_interno: codigo }, { onConflict: 'bar_id,cod_yuzer,cod_interno' });
+  // copia a ficha de um modelo (outro produto) quando informado
+  if (body.modelo_id && data?.id) {
+    const { data: src } = await supabase.from('producao_ficha_item').select('*').eq('produto_id', Number(body.modelo_id));
+    const novos = (src || []).map((it: any) => { const { id, created_at, updated_at, ...rest } = it; void id; void created_at; void updated_at; return { ...rest, produto_id: data.id, producao_id: null }; });
+    if (novos.length) await supabase.from('producao_ficha_item').insert(novos);
+  }
   return NextResponse.json({ success: true, produto: data });
 }
 
