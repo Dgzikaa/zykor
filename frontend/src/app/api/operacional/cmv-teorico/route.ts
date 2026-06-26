@@ -53,6 +53,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, modo: 'periodo', headline, categorias, produtos: lista });
   }
 
+  // MODO TEÓRICO × REAL: ?vs_real=ano → compara nosso CMV teórico (fichas×vendas) com o CMV real (financial.cmv_mensal)
+  const vsReal = sp.get('vs_real');
+  if (vsReal) {
+    const { data: meses, error: errV } = await gold.rpc('fn_cmv_teorico_vs_real', { p_bar_id: barId, p_ano: Number(vsReal) });
+    if (errV) return NextResponse.json({ success: false, error: errV.message }, { status: 500 });
+    return NextResponse.json({ success: true, modo: 'vs_real', meses: meses || [] });
+  }
+
   const { data, error } = await gold.from('produto_cmv').select('*').eq('bar_id', barId).order('cmv_pct', { ascending: false, nullsFirst: false });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
