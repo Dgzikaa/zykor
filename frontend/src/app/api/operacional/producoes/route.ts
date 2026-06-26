@@ -61,19 +61,31 @@ export async function POST(request: NextRequest) {
     const key = creds?.[0]?.configuracoes?.api_key;
     if (!key) return NextResponse.json({ success: false, error: 'API key do Google Sheets não encontrada' }, { status: 500 });
     let rows: string[][];
-    try { rows = await fetchSheet("'Lista - Preparos'!A5:C2000", key); }
+    try { rows = await fetchSheet("'Lista - Preparos'!A5:F2000", key); }
     catch (e: any) { return NextResponse.json({ success: false, error: `Falha ao ler planilha: ${e?.message}` }, { status: 502 }); }
     const { data: existentes } = await supabase.from('producao_base').select('codigo').eq('bar_id', barId).not('codigo', 'is', null);
     const jaExiste = new Set((existentes || []).map((e: any) => e.codigo));
+    // Deriva a unidade do rendimento (a planilha não tem coluna de unidade):
+    // custo/un baixo (centavos) = peso/volume (g/ml); rend decimal pequeno = kg/L; rend=1 = un; "Molho/Bar"/nome líquido = ml/L
+    const ehLiquido = (nome: string, cat: string) => /^(molho|bar)$/i.test(cat.trim()) || /molho|calda|caldo|base|bechamel|suco|xarope|leite|agua|água|creme|maionese|vinagre|redu|caramelo|espuma|infus|bisque|demi|chá|drink|coquetel|\bmel\b|\bcha\b/i.test(nome);
+    const derivaUni = (rend: number | null, custo: number | null, nome: string, cat: string) => {
+      const liq = ehLiquido(nome, cat);
+      if (custo != null && custo < 0.5) return liq ? 'ml' : 'g';
+      if (rend === 1) return 'un';
+      if (rend != null && rend <= 5) return liq ? 'L' : 'kg';
+      return 'un';
+    };
     const novos: any[] = [];
     for (const row of rows) {
       const codigo = (row[0] || '').toString().trim();
       const nm = (row[1] || '').toString().trim();
       const rend = parseNumBR((row[2] || '').toString());
+      const custo = parseNumBR((row[3] || '').toString());
+      const cat = (row[5] || '').toString().trim();
       if (!codigo || !nm || !/^[a-z]/i.test(codigo)) continue;
       if (jaExiste.has(codigo)) continue;
       jaExiste.add(codigo);
-      novos.push({ bar_id: barId, codigo, nome: nm, unidade: 'un', rendimento: rend || 1 });
+      novos.push({ bar_id: barId, codigo, nome: nm, unidade: derivaUni(rend, custo, nm, cat), rendimento: rend || 1 });
     }
     if (novos.length) { const { error } = await supabase.from('producao_base').insert(novos); if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 }); }
     return NextResponse.json({ success: true, importados: novos.length });
