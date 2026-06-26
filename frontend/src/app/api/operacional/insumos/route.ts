@@ -85,6 +85,13 @@ export async function GET(request: NextRequest) {
   const planilhaMap = new Map<string, number>();
   for (const i of (contagemIns || [])) { const pv = Number(i.custo_unitario) || 0; if (i.codigo && pv > 0 && !planilhaMap.has(i.codigo)) planilhaMap.set(i.codigo, pv); }
 
+  // quais insumos estão em ALGUMA ficha técnica (por código i0XXX ou por id do VMarket)
+  const fichaCods = new Set<string>();
+  const fichaVmIds = new Set<number>();
+  const fichaItens = await selectAll((from, to) => supabase.from('producao_ficha_item').select('insumo_codigo, insumo_id_vmarket').eq('componente_tipo', 'insumo').range(from, to)).catch(() => []);
+  fichaItens.forEach((r: any) => { if (r.insumo_codigo) fichaCods.add(r.insumo_codigo); if (r.insumo_id_vmarket != null) fichaVmIds.add(Number(r.insumo_id_vmarket)); });
+  const temFicha = (cEf: string | null, vmId: number) => (!!cEf && fichaCods.has(cEf)) || fichaVmIds.has(vmId);
+
   const produtosComPreco = (produtos || []).map((p: any) => {
     const pr = precoMap.get(p.id_produto_sisfood_cotacao);
     const vmPreco = pr?.preco_atual ?? null;
@@ -100,6 +107,7 @@ export async function GET(request: NextRequest) {
       fornecedor_ultimo: pr?.fornecedor_atual ?? (usaPlan ? 'Planilha' : (p.nome_fornecedor ?? null)),
       cod_duplicado: !!cEf && (codCount.get(cEf) || 0) > 1,
       cod_invalido: !valido(cEf),
+      tem_ficha: temFicha(cEf, p.id_produto_sisfood_cotacao),
       base: unidMap.get(p.id_produto_sisfood_cotacao)?.base ?? null,
       embalagem: unidMap.get(p.id_produto_sisfood_cotacao)?.embalagem ?? null,
     };
@@ -120,7 +128,7 @@ export async function GET(request: NextRequest) {
         nome_secao: i.categoria, id_secao_cotacao: null,
         nome_fornecedor: null, fornecedor_ultimo: 'Planilha',
         preco_atual: Number(i.custo_unitario) || null, preco_data: null, preco_anterior: null,
-        cod_duplicado: false, cod_invalido: false,
+        cod_duplicado: false, cod_invalido: false, tem_ficha: temFicha(i.codigo, -Number(i.id)),
         base: ov?.base ?? u.base, embalagem: ov?.embalagem ?? u.embalagem,
       };
     });

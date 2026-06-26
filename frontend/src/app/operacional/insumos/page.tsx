@@ -18,7 +18,7 @@ interface Produto {
   id_produto_sisfood_cotacao: number; cod_interno: string | null; codigo_planilha?: string | null; fator_correcao?: boolean; nome: string | null; marca: string | null;
   gramatura: string | null; estoque: number | null; nome_secao: string | null; id_secao_cotacao: number | null;
   nome_fornecedor: string | null; fornecedor_ultimo: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
-  cod_duplicado?: boolean; cod_invalido?: boolean; base?: string | null; embalagem?: number | null; fonte?: string;
+  cod_duplicado?: boolean; cod_invalido?: boolean; tem_ficha?: boolean; base?: string | null; embalagem?: number | null; fonte?: string;
 }
 interface Secao { id_secao_cotacao: number; nome: string | null; }
 
@@ -66,7 +66,7 @@ export default function CadastrosPage() {
   const vmErrado = (p: Produto) => p.id_produto_sisfood_cotacao >= 0 && !!p.codigo_planilha && (p.cod_interno || null) !== p.codigo_planilha;
   // Código efetivo PARA EXIBIR: só código de insumo (i0XXX). Material (cod_interno tipo d0039) fica zerado.
   const codShow = (p: Produto): string | null => p.codigo_planilha || (/^i\d/.test(p.cod_interno || '') ? p.cod_interno! : null);
-  const [filtroEsp, setFiltroEsp] = useState<'variacoes' | 'invalido' | 'materiais' | null>(null);
+  const [filtroEsp, setFiltroEsp] = useState<'variacoes' | 'invalido' | 'materiais' | 'sem_ficha' | null>(null);
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -119,17 +119,19 @@ export default function CadastrosPage() {
     }
     return Array.from(m.entries()).map(([key, prods]) => {
       const rep = [...prods].sort((a, b) => String(b.preco_data || '').localeCompare(String(a.preco_data || '')))[0];
-      return { key, rep, produtos: prods, nVar: prods.length, isMaterial: ehMaterial(rep.nome_secao) };
+      return { key, rep, produtos: prods, nVar: prods.length, isMaterial: ehMaterial(rep.nome_secao), temFicha: prods.some(p => p.tem_ficha) };
     }).sort((a, b) => String(a.rep.nome || '').localeCompare(String(b.rep.nome || '')));
   }, [filtrados]);
   const nInsumos = grupos.filter(g => !g.isMaterial).length;
   const nMateriais = grupos.filter(g => g.isMaterial).length;
   const nVariacoes = grupos.filter(g => !g.isMaterial && g.nVar > 1).length;
   const nInvalidos = grupos.filter(g => !g.isMaterial && vmErrado(g.rep)).length;
+  const nSemFicha = grupos.filter(g => !g.isMaterial && !g.temFicha).length;
   const gruposView = useMemo(() => {
     if (filtroEsp === 'materiais') return grupos.filter(g => g.isMaterial);
     if (filtroEsp === 'variacoes') return grupos.filter(g => !g.isMaterial && g.nVar > 1);
     if (filtroEsp === 'invalido') return grupos.filter(g => !g.isMaterial && vmErrado(g.rep));
+    if (filtroEsp === 'sem_ficha') return grupos.filter(g => !g.isMaterial && !g.temFicha);
     return grupos.filter(g => !g.isMaterial);
   }, [grupos, filtroEsp]);
 
@@ -256,6 +258,7 @@ export default function CadastrosPage() {
               <button onClick={() => setFiltroEsp(null)}><Badge variant="outline" className={`cursor-pointer ${!filtroEsp ? 'ring-1 ring-emerald-400' : ''}`}>{nInsumos} insumos</Badge></button>
               {nVariacoes > 0 && <button onClick={() => setFiltroEsp(f => f === 'variacoes' ? null : 'variacoes')}><Badge variant="outline" className={`cursor-pointer text-blue-600 border-blue-300 ${filtroEsp === 'variacoes' ? 'ring-1 ring-blue-400' : ''}`}>{nVariacoes} com variações</Badge></button>}
               {nInvalidos > 0 && <button onClick={() => setFiltroEsp(f => f === 'invalido' ? null : 'invalido')}><Badge variant="outline" className={`cursor-pointer text-red-600 border-red-300 ${filtroEsp === 'invalido' ? 'ring-1 ring-red-400' : ''}`}>{nInvalidos} c/ cód VMarket p/ corrigir</Badge></button>}
+              {nSemFicha > 0 && <button onClick={() => setFiltroEsp(f => f === 'sem_ficha' ? null : 'sem_ficha')}><Badge variant="outline" className={`cursor-pointer text-orange-600 border-orange-300 ${filtroEsp === 'sem_ficha' ? 'ring-1 ring-orange-400' : ''}`}>{nSemFicha} insumos sem ficha técnica</Badge></button>}
               {nMateriais > 0 && <button onClick={() => setFiltroEsp(f => f === 'materiais' ? null : 'materiais')}><Badge variant="outline" className={`cursor-pointer text-gray-500 ${filtroEsp === 'materiais' ? 'ring-1 ring-gray-400' : ''}`}>{nMateriais} materiais</Badge></button>}
             </div>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
@@ -296,7 +299,7 @@ export default function CadastrosPage() {
                                   {p.nome} <span className="text-[10px] rounded-full px-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{g.nVar} variações</span>
                                 </button>
                               ) : <span>{p.nome}</span>}
-                              <button onClick={() => abrirFichas(codShow(p), p.nome)} className="text-gray-400 hover:text-indigo-600 shrink-0" title="Ver fichas técnicas que usam este insumo"><Utensils className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => abrirFichas(codShow(p), p.nome)} className={`shrink-0 ${!g.isMaterial && !g.temFicha ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-indigo-600'}`} title={!g.isMaterial && !g.temFicha ? 'Não está em nenhuma ficha técnica' : 'Ver fichas técnicas que usam este insumo'}><Utensils className="w-3.5 h-3.5" /></button>
                             </div>
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
