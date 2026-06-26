@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download } from 'lucide-react';
+import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download, RefreshCw } from 'lucide-react';
 
 const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'porção'];
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -539,6 +539,19 @@ function FichasInner() {
     } catch (e: any) { toast({ title: 'Erro ao importar', description: e?.message, variant: 'destructive' }); }
     finally { setImportando(false); }
   };
+
+  // atualizar status (ativo) + preço de venda do ContaHub
+  const [atualizandoCh, setAtualizandoCh] = useState(false);
+  const atualizarContahub = async () => {
+    if (!barId) return; setAtualizandoCh(true);
+    try {
+      const r = await api.post('/api/operacional/produtos', { bar_id: barId, action: 'sync_contahub' });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: 'Atualizado do ContaHub', description: `${r.ativos_atualizados ?? 0} status · ${r.precos_atualizados ?? 0} preços` });
+      await loadProdutos();
+    } catch (e: any) { toast({ title: 'Erro ao atualizar', description: e?.message, variant: 'destructive' }); }
+    finally { setAtualizandoCh(false); }
+  };
   // criação de nova ficha (modal): categoria → prefixo do código (gerado no servidor) + CH/Yuzer (finalização)
   const CATS_PROD = [{ label: 'Cozinha', prefixo: 'pc' }, { label: 'Bar', prefixo: 'pd' }];
   const CATS_FIN = [{ label: 'Comida', prefixo: 'c' }, { label: 'Bebida', prefixo: 'b' }, { label: 'Drink', prefixo: 'd' }, { label: 'Outros', prefixo: 'o' }];
@@ -579,6 +592,11 @@ function FichasInner() {
         <Button variant="outline" size="sm" onClick={importar} disabled={importando}>
           <Download className={`w-4 h-4 mr-1.5 ${importando ? 'animate-pulse' : ''}`} />{importando ? 'Importando…' : (aba === 'producao' ? 'Importar preparos' : 'Importar cardápio')}
         </Button>
+        {aba === 'finalizacao' && (
+          <Button variant="outline" size="sm" onClick={atualizarContahub} disabled={atualizandoCh} title="Consulta o ContaHub e atualiza status ativo/inativo e preço de venda dos produtos">
+            <RefreshCw className={`w-4 h-4 mr-1.5 ${atualizandoCh ? 'animate-spin' : ''}`} />{atualizandoCh ? 'Atualizando…' : 'Atualizar (ContaHub)'}
+          </Button>
+        )}
       </div>
       {aba === 'producao'
         ? <FichaTab kind="producao" lista={producoes} insumos={insumos} producoes={producoes} reloadLista={loadProducoes} preSel={preSel} />

@@ -75,6 +75,14 @@ export async function POST(request: NextRequest) {
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();
 
+  // ----- ATUALIZAR DO CONTAHUB (status ativo + preço de venda) -----
+  if (body.action === 'sync_contahub') {
+    const { data: precos } = await supabase.rpc('fn_sync_preco_contahub', { p_bar_id: barId });
+    const { data: ativos } = await supabase.rpc('fn_sync_produto_ativo_contahub', { p_bar_id: barId });
+    await (supabase as any).schema('gold').rpc('fn_cmv_teorico', { p_bar_id: barId });
+    return NextResponse.json({ success: true, precos_atualizados: precos ?? 0, ativos_atualizados: ativos ?? 0 });
+  }
+
   // ----- IMPORTAR DO CARDÁPIO (planilha) -----
   if (body.action === 'importar') {
     const fAlvo = BAR_PARA_F[barId];
