@@ -243,13 +243,12 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                     <th className="text-left font-medium px-2 py-1.5">Tipo</th>
                     <th className="text-right font-medium px-2 py-1.5">Peso/Qtd</th>
                     <th className="text-right font-medium px-2 py-1.5">Preço insumo</th>
-                    <th className="text-right font-medium px-2 py-1.5">Valor (plan.)</th>
-                    <th className="text-right font-medium px-2 py-1.5">Valor (últ.)</th>
+                    <th className="text-right font-medium px-2 py-1.5">Valor</th>
                     <th className="w-14"></th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {loadingItens ? <tr><td colSpan={kind === 'producao' ? 9 : 8} className="px-2 py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-                    : itens.length === 0 ? <tr><td colSpan={kind === 'producao' ? 9 : 8} className="px-2 py-6 text-center text-gray-400">Ficha vazia — adicione os insumos/produções acima.</td></tr>
+                    {loadingItens ? <tr><td colSpan={kind === 'producao' ? 8 : 7} className="px-2 py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                    : itens.length === 0 ? <tr><td colSpan={kind === 'producao' ? 8 : 7} className="px-2 py-6 text-center text-gray-400">Ficha vazia — adicione os insumos/produções acima.</td></tr>
                     : itens.map(it => (
                       <tr key={it.id} className={it.is_mestre ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}>
                         {kind === 'producao' && (
@@ -264,7 +263,6 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                         <td className="px-2 py-1.5"><span className={`text-[10px] rounded px-1.5 py-0.5 ${it.componente_tipo === 'producao' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>{it.componente_tipo === 'producao' ? 'Produção' : 'Insumo'}</span></td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{fmtPeso(it.quantidade, it.unidade_exib)}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{it.preco_atual != null ? fmtBRL(it.preco_atual) : '—'}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(it.custo_planilha)}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums font-medium">
                           {flagRevisar(it) ? <span className="text-amber-500 text-xs" title="Custo destoa muito — revisar a unidade/embalagem do insumo">⚠ revisar</span>
                             : it.custo_atual != null ? fmtBRL(it.custo_atual) : '—'}
