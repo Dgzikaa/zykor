@@ -50,8 +50,6 @@ export const MENU_TREE: MenuSection[] = [
     permission: 'relatorios',
     subItems: [
       { icon: 'Users', label: 'Clientes', href: '/analitico/clientes', permission: 'relatorios' },
-      { icon: 'PieChart', label: 'Segmentos (RFM)', href: '/analitico/clientes/segmentos', permission: 'relatorios' },
-      { icon: 'TrendingUp', label: 'Retenção', href: '/analitico/clientes/retencao', permission: 'relatorios' },
       { icon: 'BarChart3', label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
     ],
   },
@@ -62,15 +60,8 @@ export const MENU_TREE: MenuSection[] = [
     permission: 'gestao',
     subItems: [
       { icon: 'Instagram', label: 'Instagram', href: '/marketing/instagram', permission: 'gestao' },
-    ],
-  },
-  {
-    icon: 'ClipboardList',
-    label: 'Operacional',
-    href: '/operacional/nps',
-    permission: 'gestao',
-    subItems: [
-      { icon: 'Star', label: 'NPS Funcionários', href: '/operacional/nps', permission: 'gestao' },
+      { icon: 'PieChart', label: 'Segmentos (RFM)', href: '/analitico/clientes/segmentos', permission: 'relatorios' },
+      { icon: 'TrendingUp', label: 'Retenção', href: '/analitico/clientes/retencao', permission: 'relatorios' },
     ],
   },
   {
@@ -85,6 +76,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Clock', label: 'Ponto', href: '/rh/ponto', permission: 'gestao' },
       { icon: 'Briefcase', label: 'Recrutamento', href: '/rh/recrutamento', permission: 'gestao' },
       { icon: 'Coins', label: 'Custo de MO', href: '/rh/custo-mo', permission: 'gestao' },
+      { icon: 'Star', label: 'NPS Funcionários', href: '/operacional/nps', permission: 'gestao' },
     ],
   },
   {
