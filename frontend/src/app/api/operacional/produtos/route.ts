@@ -42,10 +42,16 @@ export async function GET(request: NextRequest) {
     (itens || []).forEach((i: any) => { if (i.produto_id) contagem[i.produto_id] = (contagem[i.produto_id] || 0) + 1; });
   }
 
-  // cód ContaHub (prd) por cod_interno — um produto pode ter vários (HH/PP/variações)
+  // cód ContaHub (prd) + preço de venda (cardápio) por cod_interno — um produto pode ter vários (HH/PP/variações)
   const chMap: Record<string, number[]> = {};
-  const { data: chRows } = await supabase.from('produto_contahub_map').select('prd, cod_interno').eq('bar_id', barId);
-  (chRows || []).forEach((r: any) => { if (r.cod_interno) (chMap[r.cod_interno] ??= []).push(r.prd); });
+  const precoVendaMap: Record<string, number> = {};
+  const { data: chRows } = await supabase.from('produto_contahub_map').select('prd, cod_interno, preco_venda').eq('bar_id', barId);
+  (chRows || []).forEach((r: any) => {
+    if (!r.cod_interno) return;
+    (chMap[r.cod_interno] ??= []).push(r.prd);
+    const pv = Number(r.preco_venda || 0);
+    if (pv > 0) precoVendaMap[r.cod_interno] = Math.max(precoVendaMap[r.cod_interno] || 0, pv);
+  });
 
   // ID Yuzer (produto_id real da Yuzer) por cod_interno
   const yzMap: Record<string, string[]> = {};
@@ -54,7 +60,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    produtos: (data || []).map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [] })),
+    produtos: (data || []).map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [], preco_venda: precoVendaMap[p.codigo] ?? null })),
   });
 }
 
@@ -103,15 +109,28 @@ export async function POST(request: NextRequest) {
   }
 
   // ----- CADASTRO MANUAL -----
-  const codigo = String(body.codigo || '').trim();
   const nome = String(body.nome || '').trim();
-  if (!codigo || !nome) return NextResponse.json({ success: false, error: 'Código e nome obrigatórios' }, { status: 400 });
+  if (!nome) return NextResponse.json({ success: false, error: 'Nome obrigatório' }, { status: 400 });
+  // gera o próximo código do prefixo da categoria (c=Comida, b=Bebida, d=Drink, o=Outros)
+  let codigo = String(body.codigo || '').trim();
+  const prefixo = ['b', 'c', 'd', 'o'].includes(String(body.prefixo)) ? String(body.prefixo) : null;
+  if (!codigo && prefixo) {
+    const { data: existts } = await supabase.from('produto_cardapio').select('codigo').eq('bar_id', barId).ilike('codigo', `${prefixo}%`);
+    const maxn = (existts || []).reduce((m: number, r: any) => Math.max(m, Number(String(r.codigo).replace(/\D/g, '')) || 0), 0);
+    codigo = `${prefixo}${String(maxn + 1).padStart(4, '0')}`;
+  }
+  if (!codigo) return NextResponse.json({ success: false, error: 'Código (ou categoria p/ gerar) obrigatório' }, { status: 400 });
   const { data, error } = await supabase.from('produto_cardapio').insert({
     bar_id: barId, codigo, nome,
     categoria: body.categoria ? String(body.categoria) : categoriaPorCodigo(codigo),
     ativo: body.ativo !== false, origem: 'manual',
   }).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  // de-paras opcionais informados na criação
+  const codCh = String(body.cod_ch || '').trim();
+  const codYuzer = String(body.cod_yuzer || '').trim();
+  if (codCh && /^\d+$/.test(codCh)) await supabase.from('produto_contahub_map').upsert({ bar_id: barId, prd: Number(codCh), cod_interno: codigo }, { onConflict: 'bar_id,prd' });
+  if (codYuzer && /^\d+$/.test(codYuzer)) await supabase.from('produto_yuzer_map').upsert({ bar_id: barId, cod_yuzer: codYuzer, yuzer_produto_id: Number(codYuzer), nome, cod_interno: codigo }, { onConflict: 'bar_id,cod_yuzer,cod_interno' });
   return NextResponse.json({ success: true, produto: data });
 }
 

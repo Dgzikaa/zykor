@@ -94,12 +94,20 @@ export async function POST(request: NextRequest) {
   const nome = String(body.nome || '').trim();
   if (!nome) return NextResponse.json({ success: false, error: 'Nome obrigatório' }, { status: 400 });
 
+  // gera o próximo código do prefixo (pc=Cozinha, pd=Bar) quando não vier um código pronto
+  let codigo: string | null = body.codigo ? String(body.codigo).trim() : null;
+  const prefixo = body.prefixo === 'pd' ? 'pd' : body.prefixo === 'pc' ? 'pc' : null;
+  if (!codigo && prefixo) {
+    const { data: existts } = await supabase.from('producao_base').select('codigo').eq('bar_id', barId).ilike('codigo', `${prefixo}%`);
+    const maxn = (existts || []).reduce((m: number, r: any) => Math.max(m, Number(String(r.codigo).replace(/\D/g, '')) || 0), 0);
+    codigo = `${prefixo}${String(maxn + 1).padStart(4, '0')}`;
+  }
+
   const payload = {
-    bar_id: barId, nome,
-    codigo: body.codigo ? String(body.codigo).trim() : null,
+    bar_id: barId, nome, codigo,
     unidade: body.unidade ? String(body.unidade) : 'un',
     rendimento: body.rendimento != null ? Number(body.rendimento) : 1,
-    secao: body.secao ? String(body.secao) : null,
+    secao: body.secao ? String(body.secao) : (prefixo === 'pd' ? 'Bar' : prefixo === 'pc' ? 'Cozinha' : null),
     observacao: body.observacao ? String(body.observacao) : null,
   };
   const { data, error } = await supabase.from('producao_base').insert(payload).select().single();

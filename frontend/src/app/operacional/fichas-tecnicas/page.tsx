@@ -212,6 +212,20 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                     <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Custo (últ. preço)</div>
                     <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5">{fmtBRL(custoAtualTotal)}</div>
                   </div>
+                  {kind === 'produto' && selObj.preco_venda != null && (
+                    <>
+                      <div className="px-4 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/15 text-center">
+                        <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Preço Produto (CH)</div>
+                        <div className="text-xl font-bold text-blue-600 dark:text-blue-400 leading-tight mt-0.5">{fmtBRL(selObj.preco_venda)}</div>
+                      </div>
+                      {Number(selObj.preco_venda) > 0 && (
+                        <div className="px-4 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/15 text-center">
+                          <div className="text-[11px] text-muted-foreground uppercase tracking-wide">CMV teórico</div>
+                          <div className="text-xl font-bold text-amber-600 dark:text-amber-400 leading-tight mt-0.5">{(custoAtualTotal / Number(selObj.preco_venda) * 100).toFixed(1)}%</div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -381,27 +395,35 @@ function FichasInner() {
     } catch (e: any) { toast({ title: 'Erro ao importar', description: e?.message, variant: 'destructive' }); }
     finally { setImportando(false); }
   };
-  const nova = async () => {
-    if (!barId) return;
+  // criação de nova ficha (modal): categoria → prefixo do código (gerado no servidor) + CH/Yuzer (finalização)
+  const CATS_PROD = [{ label: 'Cozinha', prefixo: 'pc' }, { label: 'Bar', prefixo: 'pd' }];
+  const CATS_FIN = [{ label: 'Comida', prefixo: 'c' }, { label: 'Bebida', prefixo: 'b' }, { label: 'Drink', prefixo: 'd' }, { label: 'Outros', prefixo: 'o' }];
+  const [createOpen, setCreateOpen] = useState(false);
+  const [cNome, setCNome] = useState('');
+  const [cPrefixo, setCPrefixo] = useState('');
+  const [cCh, setCCh] = useState('');
+  const [cYuzer, setCYuzer] = useState('');
+  const [creating, setCreating] = useState(false);
+  const cats = aba === 'producao' ? CATS_PROD : CATS_FIN;
+  const nova = () => { setCNome(''); setCCh(''); setCYuzer(''); setCPrefixo(cats[0].prefixo); setCreateOpen(true); };
+  const salvarNova = async () => {
+    if (!barId || !cNome.trim() || !cPrefixo) { toast({ title: 'Informe nome e categoria', variant: 'destructive' }); return; }
+    setCreating(true);
     try {
       if (aba === 'producao') {
-        const nome = window.prompt('Nome da nova produção (preparo):')?.trim();
-        if (!nome) return;
-        const r = await api.post('/api/operacional/producoes', { bar_id: barId, nome });
+        const r = await api.post('/api/operacional/producoes', { bar_id: barId, nome: cNome.trim(), prefixo: cPrefixo });
         if (!r.success) throw new Error(r.error);
         await loadProducoes();
-        toast({ title: 'Produção criada', description: 'Selecione na lista e monte a ficha (Adicionar componente).' });
+        toast({ title: `Produção criada (${r.producao?.codigo || ''})`, description: 'Selecione na lista e monte a ficha.' });
       } else {
-        const codigo = window.prompt('Código do produto (ex.: c0099 comida, b0099 bebida, d0099 drink, o0099 outros):')?.trim();
-        if (!codigo) return;
-        const nome = window.prompt('Nome do produto:')?.trim();
-        if (!nome) return;
-        const r = await api.post('/api/operacional/produtos', { bar_id: barId, codigo, nome });
+        const r = await api.post('/api/operacional/produtos', { bar_id: barId, nome: cNome.trim(), prefixo: cPrefixo, cod_ch: cCh.trim(), cod_yuzer: cYuzer.trim() });
         if (!r.success) throw new Error(r.error);
         await loadProdutos();
-        toast({ title: 'Produto criado', description: 'Selecione na lista e monte a ficha (Adicionar componente).' });
+        toast({ title: `Produto criado (${r.produto?.codigo || ''})`, description: 'Selecione na lista e monte a ficha.' });
       }
+      setCreateOpen(false);
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+    finally { setCreating(false); }
   };
 
   return (
@@ -417,6 +439,35 @@ function FichasInner() {
       {aba === 'producao'
         ? <FichaTab kind="producao" lista={producoes} insumos={insumos} producoes={producoes} reloadLista={loadProducoes} preSel={preSel} />
         : <FichaTab kind="produto" lista={produtos} insumos={insumos} producoes={producoes} reloadLista={loadProdutos} />}
+
+      {createOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setCreateOpen(false)}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+            <h4 className="font-semibold text-gray-900 dark:text-white">{aba === 'producao' ? 'Nova produção' : 'Novo produto'}</h4>
+            <div><label className="text-xs text-gray-500">Nome *</label><Input value={cNome} onChange={e => setCNome(e.target.value)} placeholder={aba === 'producao' ? 'Ex.: Molho da casa' : 'Ex.: Caipirinha de Limão'} /></div>
+            <div>
+              <label className="text-xs text-gray-500">Categoria *</label>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {cats.map(c => (
+                  <button key={c.prefixo} onClick={() => setCPrefixo(c.prefixo)}
+                    className={`text-xs rounded px-2.5 py-1 border ${cPrefixo === c.prefixo ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>{c.label}</button>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1">O código ({cPrefixo}0000) é gerado automático.</p>
+            </div>
+            {aba === 'finalizacao' && (
+              <div className="flex gap-2">
+                <div className="flex-1"><label className="text-xs text-gray-500">Cód. CH (opcional)</label><Input value={cCh} onChange={e => setCCh(e.target.value)} placeholder="prd" /></div>
+                <div className="flex-1"><label className="text-xs text-gray-500">ID Yuzer (opcional)</label><Input value={cYuzer} onChange={e => setCYuzer(e.target.value)} placeholder="id" /></div>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
+              <Button onClick={salvarNova} disabled={creating}><Plus className="w-4 h-4 mr-1" />{creating ? 'Criando…' : 'Criar'}</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
