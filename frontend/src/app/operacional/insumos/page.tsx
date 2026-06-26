@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils } from 'lucide-react';
+import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils, Pencil } from 'lucide-react';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
@@ -188,6 +188,21 @@ export default function CadastrosPage() {
   useEffect(() => { if (tab === 'impacto') carregarImpacto(); }, [tab, carregarImpacto]);
   const corClasse = (c: string) => c === 'A' ? 'text-red-600 dark:text-red-400 border-red-300' : c === 'B' ? 'text-amber-600 dark:text-amber-400 border-amber-300' : 'text-gray-500 border-gray-300';
 
+  // modal: editar insumo (código planilha, FC, unidade, quantidade)
+  const [editIns, setEditIns] = useState<Produto | null>(null);
+  const [fCod, setFCod] = useState(''); const [fFc, setFFc] = useState(false);
+  const [fBase, setFBase] = useState('g'); const [fEmb, setFEmb] = useState('1');
+  const abrirEditIns = (p: Produto) => { setEditIns(p); setFCod(p.codigo_planilha ?? ''); setFFc(!!p.fator_correcao); setFBase(p.base || 'g'); setFEmb(String(p.embalagem ?? 1)); };
+  const salvarEditIns = async () => {
+    if (!editIns) return;
+    const p = editIns;
+    if (p.id_produto_sisfood_cotacao >= 0 && (fCod.trim() || null) !== (p.codigo_planilha ?? null)) await salvarCodigoPlanilha(p, fCod);
+    if (!!fFc !== !!p.fator_correcao) await salvarFc(p, fFc);
+    const embN = Number(String(fEmb).replace(',', '.')) || 1;
+    if (fBase !== (p.base || 'g') || embN !== (p.embalagem ?? 1)) await salvarUnidade(p, { base: fBase, embalagem: embN });
+    setEditIns(null);
+  };
+
   // modal: fichas onde o insumo é usado
   const [fichasIns, setFichasIns] = useState<{ codigo: string; nome: string } | null>(null);
   const [fichasData, setFichasData] = useState<any[] | null>(null);
@@ -244,18 +259,19 @@ export default function CadastrosPage() {
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
-                  <th className="text-left font-medium px-3 py-2" title="Código do insumo (o correto/estável; o sistema sempre usa este). Editável.">Código</th>
+                  <th className="text-left font-medium px-3 py-2" title="Código do insumo (o correto/estável; o sistema sempre usa este).">Código</th>
                   <th className="text-left font-medium px-3 py-2">Insumo</th>
                   <th className="text-left font-medium px-3 py-2">Seção</th>
-                  <th className="text-center font-medium px-3 py-2" title="Fator de Correção: marque se o insumo tem perda/limpeza. O FC é preenchido por componente na ficha técnica (peso usado = quantidade ÷ FC).">FC</th>
+                  <th className="text-center font-medium px-3 py-2" title="Fator de Correção: insumo com perda/limpeza.">FC</th>
                   <th className="text-center font-medium px-3 py-2">Unid. medida</th>
-                  <th className="text-right font-medium px-3 py-2" title="Quantidade da unidade-base na embalagem de compra (ex.: 1000 g = 1 kg, 5000 ml = 5 L)">Quantidade</th>
+                  <th className="text-right font-medium px-3 py-2" title="Quantidade da unidade-base na embalagem (ex.: 1000 g = 1 kg)">Quantidade</th>
                   <th className="text-right font-medium px-3 py-2">Preço (últ.)</th>
                   <th className="text-left font-medium px-3 py-2">Fornecedor</th>
+                  <th className="w-10 px-3 py-2"></th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {loading ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
-                  : gruposView.length === 0 ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
+                  {loading ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
+                  : gruposView.length === 0 ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
                   : gruposView.map(g => {
                     const p = g.rep;
                     const subiu = p.preco_anterior != null && p.preco_atual != null && p.preco_atual > p.preco_anterior;
@@ -265,14 +281,10 @@ export default function CadastrosPage() {
                       <Fragment key={g.key}>
                         <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                           <td className="px-3 py-2 font-mono text-xs">
-                            {p.id_produto_sisfood_cotacao < 0
-                              ? <span className="text-gray-600 dark:text-gray-300">{p.codigo_planilha || p.cod_interno}</span>
-                              : <div className="flex items-center gap-1">
-                                  <input defaultValue={p.codigo_planilha ?? ''} key={`cp-${p.id_produto_sisfood_cotacao}-${p.codigo_planilha ?? ''}`}
-                                    onBlur={e => salvarCodigoPlanilha(p, e.target.value)} placeholder="i0XXX"
-                                    className={`h-7 w-20 rounded border bg-white dark:bg-gray-800 px-1 text-xs ${p.codigo_planilha ? 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200' : 'border-red-300 dark:border-red-700'}`} />
-                                  {vmErrado(p) && <span title={`No VMarket está como "${p.cod_interno || '—'}" — corrigir lá`} className="text-amber-500 cursor-help">⚠</span>}
-                                </div>}
+                            <div className="flex items-center gap-1">
+                              <span className={p.codigo_planilha ? 'text-gray-700 dark:text-gray-200' : 'text-red-500'}>{p.codigo_planilha || p.cod_interno || '—'}</span>
+                              {vmErrado(p) && <span title={`No VMarket está como "${p.cod_interno || '—'}" — corrigir lá`} className="text-amber-500 cursor-help">⚠</span>}
+                            </div>
                           </td>
                           <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
                             <div className="flex items-center gap-2">
@@ -286,21 +298,9 @@ export default function CadastrosPage() {
                             </div>
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
-                          <td className="px-3 py-2 text-center">
-                            <input type="checkbox" checked={!!p.fator_correcao} onChange={e => salvarFc(p, e.target.checked)}
-                              className="h-4 w-4 cursor-pointer accent-amber-500" title="Insumo com fator de correção (perda/limpeza)" />
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            <select value={p.base || 'g'} onChange={e => salvarUnidade(p, { base: e.target.value })}
-                              className="h-7 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs">
-                              <option value="g">g</option><option value="ml">ml</option><option value="un">un</option>
-                            </select>
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <input type="number" step="0.001" key={`${p.id_produto_sisfood_cotacao}-${p.embalagem}`} defaultValue={p.embalagem ?? 1}
-                              onBlur={e => { const v = Number(e.target.value) || 1; if (v !== (p.embalagem ?? 1)) salvarUnidade(p, { embalagem: v }); }}
-                              className="h-7 w-20 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-xs text-right" />
-                          </td>
+                          <td className="px-3 py-2 text-center">{p.fator_correcao ? <span className="text-amber-500" title="Tem fator de correção (perda/limpeza)">✓</span> : <span className="text-gray-300">—</span>}</td>
+                          <td className="px-3 py-2 text-center text-gray-600 dark:text-gray-300">{p.base || '—'}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-gray-600 dark:text-gray-300">{p.embalagem ?? '—'}</td>
                           <td className="px-3 py-2 text-right tabular-nums font-medium whitespace-nowrap">
                             {fmtBRL(p.preco_atual)}
                             {p.preco_atual != null && (p.fonte === 'planilha'
@@ -310,6 +310,7 @@ export default function CadastrosPage() {
                             {caiu && <TrendingDown className="inline w-3 h-3 ml-1 text-emerald-500" />}
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.fornecedor_ultimo || '—'}</td>
+                          <td className="px-3 py-2 text-right"><button onClick={() => abrirEditIns(p)} className="text-gray-400 hover:text-indigo-600" title="Editar código, FC e unidade"><Pencil className="w-4 h-4" /></button></td>
                         </tr>
                         {aberto && g.produtos.map(v => (
                           <tr key={v.id_produto_sisfood_cotacao} className="bg-gray-50/60 dark:bg-gray-800/30 text-xs">
@@ -319,6 +320,7 @@ export default function CadastrosPage() {
                             <td></td><td></td><td></td>
                             <td className="px-3 py-1 text-right tabular-nums text-gray-500">{v.preco_atual != null ? fmtBRL(v.preco_atual) : '—'}</td>
                             <td className="px-3 py-1 text-gray-500">{v.fornecedor_ultimo || '—'}</td>
+                            <td></td>
                           </tr>
                         ))}
                       </Fragment>
@@ -494,6 +496,38 @@ export default function CadastrosPage() {
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Modal: editar insumo */}
+        {editIns && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditIns(null)}>
+            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+              <h4 className="font-semibold text-gray-900 dark:text-white">Editar insumo</h4>
+              <p className="text-sm text-gray-500">{editIns.nome}</p>
+              <div>
+                <label className="text-xs text-gray-500">Código Planilha</label>
+                <Input value={fCod} onChange={e => setFCod(e.target.value)} placeholder="i0XXX" disabled={editIns.id_produto_sisfood_cotacao < 0} />
+                {editIns.id_produto_sisfood_cotacao < 0 && <p className="text-[11px] text-gray-400 mt-0.5">Insumo só-planilha: código fixo.</p>}
+                {editIns.cod_interno && editIns.cod_interno !== fCod && <p className="text-[11px] text-amber-500 mt-0.5">No VMarket está como &ldquo;{editIns.cod_interno}&rdquo;.</p>}
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                <input type="checkbox" checked={fFc} onChange={e => setFFc(e.target.checked)} className="h-4 w-4 accent-amber-500" />
+                Fator de correção (insumo com perda/limpeza)
+              </label>
+              <div className="flex gap-2">
+                <div className="w-24"><label className="text-xs text-gray-500">Unidade</label>
+                  <select value={fBase} onChange={e => setFBase(e.target.value)} className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
+                    <option value="g">g</option><option value="ml">ml</option><option value="un">un</option>
+                  </select>
+                </div>
+                <div className="flex-1"><label className="text-xs text-gray-500">Quantidade (na embalagem)</label><Input type="number" step="0.001" value={fEmb} onChange={e => setFEmb(e.target.value)} /></div>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => setEditIns(null)}>Cancelar</Button>
+                <Button onClick={salvarEditIns}>Salvar</Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Modal: fichas que usam o insumo */}
         {fichasIns && (
