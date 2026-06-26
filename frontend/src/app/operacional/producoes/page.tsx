@@ -9,8 +9,8 @@ import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Timer, Play, Pause, RotateCcw, Save, Search, ChefHat, User, UserPlus,
-  Loader2, History, AlertTriangle, Package, Clock, TrendingDown, DollarSign, X, Scale,
+  Timer, Play, Pause, RotateCcw, Save, Search, Plus, Trash2, User,
+  Loader2, History, Package, Clock, TrendingDown, DollarSign, X, Scale,
 } from 'lucide-react';
 
 // ---------- helpers ----------
@@ -38,41 +38,47 @@ interface FichaItem {
   is_mestre: boolean;
 }
 
+// uma produção em execução (cronômetro próprio) — várias podem rodar em paralelo
+interface ActiveProd {
+  localId: string;
+  ficha: any;
+  itens: FichaItem[];
+  loadingItens: boolean;
+  responsavelId: number | null;
+  pesoMestre: string;
+  rendimentoReal: string;
+  observacao: string;
+  qtdReal: Record<number, string>;
+  segundos: number;
+  rodando: boolean;
+}
+
 // =====================================================================================
-// ABA EXECUTAR
+// ABA EXECUTAR — múltiplas produções simultâneas, cada uma com seu timer
 // =====================================================================================
-function AbaExecutar({ fichas, responsaveis, reloadResponsaveis }: { fichas: any[]; responsaveis: any[]; reloadResponsaveis: () => void }) {
+function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: any[] }) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
 
+  // seleção de ficha para adicionar
   const [secao, setSecao] = useState<'Cozinha' | 'Bar' | null>(null);
   const [busca, setBusca] = useState('');
-  const [sel, setSel] = useState<any | null>(null);
-  const [itens, setItens] = useState<FichaItem[]>([]);
-  const [loadingItens, setLoadingItens] = useState(false);
+  const [picker, setPicker] = useState(false);
 
-  const [responsavelId, setResponsavelId] = useState<number | null>(null);
-  const [pesoMestre, setPesoMestre] = useState('');
-  const [rendimentoReal, setRendimentoReal] = useState('');
-  const [observacao, setObservacao] = useState('');
-  const [qtdReal, setQtdReal] = useState<Record<number, string>>({});
+  // produções ativas + qual está aberta no detalhe
+  const [prods, setProds] = useState<ActiveProd[]>([]);
+  const [selId, setSelId] = useState<string | null>(null);
+  const [salvandoId, setSalvandoId] = useState<string | null>(null);
+  const idRef = useRef(0);
 
-  // timer
-  const [rodando, setRodando] = useState(false);
-  const [segundos, setSegundos] = useState(0);
-  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // timer global: incrementa todas as produções rodando, a cada 1s
   useEffect(() => {
-    if (rodando) {
-      tickRef.current = setInterval(() => setSegundos(s => s + 1), 1000);
-      return () => { if (tickRef.current) clearInterval(tickRef.current); };
-    }
-  }, [rodando]);
-
-  const [salvando, setSalvando] = useState(false);
-  const [novaPessoa, setNovaPessoa] = useState(false);
-  const [npNome, setNpNome] = useState('');
-  const [npCargo, setNpCargo] = useState('');
+    const t = setInterval(() => {
+      setProds(prev => prev.some(p => p.rodando) ? prev.map(p => p.rodando ? { ...p, segundos: p.segundos + 1 } : p) : prev);
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const secaoDe = (f: any) => (f.codigo || '').toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha';
   const fichasView = useMemo(() => {
@@ -83,72 +89,82 @@ function AbaExecutar({ fichas, responsaveis, reloadResponsaveis }: { fichas: any
     });
   }, [fichas, busca, secao]);
 
-  const resetExecucao = useCallback(() => {
-    setRodando(false); setSegundos(0); setPesoMestre(''); setRendimentoReal('');
-    setObservacao(''); setQtdReal({}); setResponsavelId(null);
-  }, []);
+  const patch = useCallback((id: string, p: Partial<ActiveProd>) =>
+    setProds(prev => prev.map(x => x.localId === id ? { ...x, ...p } : x)), []);
 
-  const carregarItens = useCallback(async (f: any) => {
-    setLoadingItens(true); setItens([]);
+  const adicionar = async (f: any) => {
+    const localId = `p${++idRef.current}`;
+    const nova: ActiveProd = {
+      localId, ficha: f, itens: [], loadingItens: true, responsavelId: null,
+      pesoMestre: '', rendimentoReal: '', observacao: '', qtdReal: {}, segundos: 0, rodando: false,
+    };
+    setProds(prev => [...prev, nova]);
+    setSelId(localId);
+    setBusca(''); setPicker(false);
     try {
       const r = await api.get(`/api/operacional/producoes/ficha?producao_id=${f.id}&bar_id=${barId}`);
-      if (r.success) setItens(r.itens || []);
-    } finally { setLoadingItens(false); }
-  }, [barId]);
-
-  const selecionar = (f: any) => { setSel(f); resetExecucao(); carregarItens(f); };
-
-  const mestre = itens.find(i => i.is_mestre) || null;
-  const mestreQtd = Number(mestre?.quantidade || 0);
-  const pesoMestreNum = parseFloat(pesoMestre) || 0;
-  const proporcao = (mestre && pesoMestreNum > 0 && mestreQtd > 0) ? pesoMestreNum / mestreQtd : 1;
-
-  // linhas calculadas (proporção do mestre) + real (default = calculada)
-  const linhas = useMemo(() => itens.map(it => {
-    const qtdPlan = Number(it.quantidade || 0);
-    const qtdCalc = it.is_mestre ? (pesoMestreNum > 0 ? pesoMestreNum : qtdPlan) : qtdPlan * proporcao;
-    const ov = qtdReal[it.id];
-    const real = ov != null && ov !== '' ? (parseFloat(ov) || 0) : qtdCalc;
-    const precoUn = Number(it.preco_un || 0);
-    const cPlan = qtdCalc * precoUn;
-    const cReal = real * precoUn;
-    const desvio = qtdCalc > 0 ? (real - qtdCalc) / qtdCalc : null;
-    return { it, qtdPlan, qtdCalc, real, precoUn, cPlan, cReal, desvio };
-  }), [itens, proporcao, pesoMestreNum, qtdReal]);
-
-  const custoPlan = linhas.reduce((s, l) => s + l.cPlan, 0);
-  const custoReal = linhas.reduce((s, l) => s + l.cReal, 0);
-  const rendEsperado = Number(sel?.rendimento || 0) * proporcao;
-
-  const iniciar = () => {
-    if (!sel) return;
-    if (!responsavelId) { toast({ title: 'Selecione o responsável', variant: 'destructive' }); return; }
-    setRodando(true);
+      patch(localId, { itens: r.success ? (r.itens || []) : [], loadingItens: false });
+    } catch { patch(localId, { loadingItens: false }); }
   };
-  const pausar = () => setRodando(false);
-  const zerar = () => { setRodando(false); setSegundos(0); };
 
-  const salvar = async () => {
-    if (!sel || !barId) return;
-    if (!responsavelId) { toast({ title: 'Selecione o responsável', variant: 'destructive' }); return; }
-    if (!rendimentoReal.trim()) { toast({ title: 'Informe o rendimento real produzido', variant: 'destructive' }); return; }
-    setSalvando(true);
-    setRodando(false);
+  const remover = (id: string) => {
+    setProds(prev => {
+      const next = prev.filter(p => p.localId !== id);
+      setSelId(s => s === id ? (next[next.length - 1]?.localId ?? null) : s);
+      return next;
+    });
+  };
+
+  // cálculos derivados de uma produção (proporção do mestre, custo, desvio)
+  const calc = (prod: ActiveProd) => {
+    const mestre = prod.itens.find(i => i.is_mestre) || null;
+    const mestreQtd = Number(mestre?.quantidade || 0);
+    const pesoMestreNum = parseFloat(prod.pesoMestre) || 0;
+    const proporcao = (mestre && pesoMestreNum > 0 && mestreQtd > 0) ? pesoMestreNum / mestreQtd : 1;
+    const linhas = prod.itens.map(it => {
+      const qtdPlan = Number(it.quantidade || 0);
+      const qtdCalc = it.is_mestre ? (pesoMestreNum > 0 ? pesoMestreNum : qtdPlan) : qtdPlan * proporcao;
+      const ov = prod.qtdReal[it.id];
+      const real = ov != null && ov !== '' ? (parseFloat(ov) || 0) : qtdCalc;
+      const precoUn = Number(it.preco_un || 0);
+      const cPlan = qtdCalc * precoUn;
+      const cReal = real * precoUn;
+      const desvio = qtdCalc > 0 ? (real - qtdCalc) / qtdCalc : null;
+      return { it, qtdPlan, qtdCalc, real, precoUn, cPlan, cReal, desvio };
+    });
+    const custoPlan = linhas.reduce((s, l) => s + l.cPlan, 0);
+    const custoReal = linhas.reduce((s, l) => s + l.cReal, 0);
+    const rendEsperado = Number(prod.ficha?.rendimento || 0) * proporcao;
+    return { mestre, mestreQtd, proporcao, linhas, custoPlan, custoReal, rendEsperado };
+  };
+
+  const iniciar = (prod: ActiveProd) => {
+    if (!prod.responsavelId) { toast({ title: 'Selecione o responsável', variant: 'destructive' }); return; }
+    patch(prod.localId, { rodando: true });
+  };
+
+  const salvar = async (prod: ActiveProd) => {
+    if (!barId) return;
+    if (!prod.responsavelId) { toast({ title: 'Selecione o responsável', variant: 'destructive' }); return; }
+    if (!prod.rendimentoReal.trim()) { toast({ title: 'Informe o rendimento real produzido', variant: 'destructive' }); return; }
+    setSalvandoId(prod.localId);
+    patch(prod.localId, { rodando: false });
+    const { linhas, rendEsperado } = calc(prod);
     const agora = new Date();
-    const inicio = new Date(agora.getTime() - segundos * 1000);
-    const resp = responsaveis.find(r => r.id === responsavelId);
+    const inicio = new Date(agora.getTime() - prod.segundos * 1000);
+    const resp = responsaveis.find(r => r.id === prod.responsavelId);
     const payload = {
       bar_id: barId,
-      producao_id: sel.id,
-      responsavel_id: responsavelId,
+      producao_id: prod.ficha.id,
+      responsavel_id: prod.responsavelId,
       responsavel_nome: resp?.nome ?? null,
       inicio: inicio.toISOString(),
       fim: agora.toISOString(),
-      duracao_seg: segundos,
+      duracao_seg: prod.segundos,
       rendimento_esperado: rendEsperado || null,
-      rendimento_real: parseFloat(rendimentoReal) || null,
-      peso_mestre_real: pesoMestreNum || null,
-      observacao: observacao.trim() || null,
+      rendimento_real: parseFloat(prod.rendimentoReal) || null,
+      peso_mestre_real: parseFloat(prod.pesoMestre) || null,
+      observacao: prod.observacao.trim() || null,
       insumos: linhas.map(l => ({
         insumo_codigo: l.it.insumo_codigo ?? l.it.componente_codigo ?? null,
         insumo_id_vmarket: l.it.insumo_id_vmarket ?? null,
@@ -164,34 +180,22 @@ function AbaExecutar({ fichas, responsaveis, reloadResponsaveis }: { fichas: any
     try {
       const r = await api.post('/api/operacional/producoes/execucao', payload);
       if (!r.success) throw new Error(r.error);
-      toast({ title: 'Produção registrada', description: `Aderência ${fmtPct(r.aderencia_pct)} · custo real ${fmtBRL(r.custo_real)}` });
-      setSel(null); setItens([]); resetExecucao();
+      toast({ title: 'Produção registrada', description: `${prod.ficha.nome} · aderência ${fmtPct(r.aderencia_pct)} · custo real ${fmtBRL(r.custo_real)}` });
+      remover(prod.localId);
     } catch (e: any) { toast({ title: 'Erro ao salvar', description: e?.message, variant: 'destructive' }); }
-    finally { setSalvando(false); }
+    finally { setSalvandoId(null); }
   };
 
-  const salvarNovaPessoa = async () => {
-    if (!npNome.trim()) { toast({ title: 'Informe o nome', variant: 'destructive' }); return; }
-    try {
-      const r = await api.post('/api/operacional/pessoas-responsaveis', { bar_id: barId, nome: npNome.trim(), cargo: npCargo.trim() || null });
-      if (!r.success) throw new Error(r.error);
-      setNovaPessoa(false); setNpNome(''); setNpCargo('');
-      reloadResponsaveis();
-      if (r.data?.id) setResponsavelId(r.data.id);
-    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
-  };
+  const sel = prods.find(p => p.localId === selId) || null;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* Lista de fichas */}
-      <Card className="card-dark lg:col-span-1">
-        <CardContent className="p-0">
-          <div className="p-2 border-b border-gray-100 dark:border-gray-800">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar produção…" className="pl-9 h-9" />
-            </div>
-            <div className="flex gap-1 mt-2">
+    <div className="space-y-4">
+      {/* Adicionar produção */}
+      <Card className="card-dark">
+        <CardContent className="py-3 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1"><Plus className="w-4 h-4" />Iniciar produção</span>
+            <div className="flex gap-1">
               {(['Cozinha', 'Bar'] as const).map(c => (
                 <button key={c} onClick={() => setSecao(s => s === c ? null : c)}
                   className={`text-[11px] rounded px-2.5 py-0.5 border ${secao === c ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
@@ -199,156 +203,155 @@ function AbaExecutar({ fichas, responsaveis, reloadResponsaveis }: { fichas: any
                 </button>
               ))}
             </div>
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Input value={busca} onChange={e => { setBusca(e.target.value); setPicker(true); }} onFocus={() => setPicker(true)}
+                onBlur={() => setTimeout(() => setPicker(false), 200)} placeholder="Buscar produção para adicionar…" className="pl-9 h-9" />
+              {picker && fichasView.length > 0 && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg divide-y divide-gray-100 dark:divide-gray-800">
+                  {fichasView.slice(0, 30).map(f => (
+                    <button key={f.id} onMouseDown={() => adicionar(f)} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      {f.nome}<span className="block text-xs text-gray-400">{f.codigo ? `${f.codigo} · ` : ''}rend. {fmtNum(f.rendimento, 3)} {f.unidade || ''}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="max-h-[65vh] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
-            {fichasView.length === 0 ? (
-              <div className="px-3 py-8 text-center text-sm text-gray-400">Nenhuma produção. Cadastre fichas em Fichas Técnicas.</div>
-            ) : fichasView.map(f => (
-              <button key={f.id} onClick={() => selecionar(f)}
-                className={`w-full text-left px-3 py-2 text-sm transition ${sel?.id === f.id ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
-                {f.nome}
-                <span className="block text-xs text-gray-400">{f.codigo ? `${f.codigo} · ` : ''}rend. {fmtNum(f.rendimento, 3)} {f.unidade || ''}</span>
-              </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Execução */}
-      <Card className="card-dark lg:col-span-2">
-        <CardContent className="py-3">
-          {!sel ? (
-            <div className="py-16 text-center text-gray-400"><Timer className="w-10 h-10 mx-auto mb-2 opacity-40" />Selecione uma produção para iniciar a execução.</div>
-          ) : (
-            <div className="space-y-4">
-              {/* Cabeçalho */}
-              <div className="flex flex-wrap items-end justify-between gap-2">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{sel.nome}</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{sel.codigo ? `${sel.codigo} · ` : ''}rendimento ficha {fmtNum(sel.rendimento, 3)} {sel.unidade || ''}</p>
-                </div>
-                {/* Timer */}
-                <div className="flex items-center gap-2">
-                  <div className="px-4 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-center min-w-[110px]">
-                    <div className="text-[10px] text-blue-600/80 dark:text-blue-300/80 uppercase tracking-wide flex items-center justify-center gap-1"><Clock className="w-3 h-3" />Tempo</div>
-                    <div className="text-2xl font-mono font-bold text-blue-700 dark:text-blue-300 leading-tight">{fmtTempo(segundos)}</div>
-                  </div>
-                  {!rodando
-                    ? <Button size="sm" onClick={iniciar} className="bg-green-600 hover:bg-green-700"><Play className="w-4 h-4 mr-1" />{segundos > 0 ? 'Continuar' : 'Iniciar'}</Button>
-                    : <Button size="sm" onClick={pausar} variant="outline"><Pause className="w-4 h-4 mr-1" />Pausar</Button>}
-                  <Button size="sm" variant="ghost" onClick={zerar} title="Zerar tempo"><RotateCcw className="w-4 h-4" /></Button>
-                </div>
-              </div>
-
-              {/* Responsável + peso mestre + rendimento */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><User className="w-3.5 h-3.5" />Responsável *</label>
-                  <div className="flex gap-1">
-                    <select value={responsavelId ?? ''} onChange={e => setResponsavelId(e.target.value ? Number(e.target.value) : null)}
-                      className="h-10 flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
-                      <option value="">Selecione…</option>
-                      {responsaveis.map(r => <option key={r.id} value={r.id}>{r.nome}{r.cargo ? ` (${r.cargo})` : ''}</option>)}
-                    </select>
-                    <Button variant="outline" size="sm" className="h-10 px-2.5" onClick={() => setNovaPessoa(true)} title="Cadastrar responsável"><UserPlus className="w-4 h-4" /></Button>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso real do mestre{mestre ? ` (${mestre.unidade_exib || ''})` : ''}</label>
-                  <Input type="number" inputMode="decimal" value={pesoMestre} onChange={e => setPesoMestre(e.target.value)}
-                    placeholder={mestre ? `ficha: ${fmtNum(mestreQtd, 3)}` : 'sem insumo mestre'} disabled={!mestre} className="h-10" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real * {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado, 3)} {sel.unidade || ''}</span>}</label>
-                  <Input type="number" inputMode="decimal" value={rendimentoReal} onChange={e => setRendimentoReal(e.target.value)} placeholder="produzido…" className="h-10" />
-                </div>
-              </div>
-
-              {/* Resumo de custo */}
-              <div className="flex flex-wrap gap-2">
-                <div className="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/15 text-center">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Custo planejado</div>
-                  <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">{fmtBRL(custoPlan)}</div>
-                </div>
-                <div className="px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/15 text-center">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Custo real</div>
-                  <div className="text-base font-bold text-amber-600 dark:text-amber-400">{fmtBRL(custoReal)}</div>
-                </div>
-                {proporcao !== 1 && (
-                  <div className="px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/15 text-center">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Proporção</div>
-                    <div className="text-base font-bold text-indigo-600 dark:text-indigo-400">×{fmtNum(proporcao, 3)}</div>
-                  </div>
-                )}
-              </div>
-
-              {/* Insumos */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
-                    <th className="text-left font-medium px-2 py-1.5">Insumo</th>
-                    <th className="text-right font-medium px-2 py-1.5">Planejado</th>
-                    <th className="text-right font-medium px-2 py-1.5">Calculado</th>
-                    <th className="text-right font-medium px-2 py-1.5 w-28">Usado</th>
-                    <th className="text-right font-medium px-2 py-1.5">Desvio</th>
-                    <th className="text-right font-medium px-2 py-1.5">Custo real</th>
-                  </tr></thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {loadingItens ? <tr><td colSpan={6} className="px-2 py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-                    : linhas.length === 0 ? <tr><td colSpan={6} className="px-2 py-6 text-center text-gray-400">Ficha sem componentes.</td></tr>
-                    : linhas.map(l => (
-                      <tr key={l.it.id} className={l.it.is_mestre ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}>
-                        <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">
-                          {l.it.is_mestre && <span className="text-amber-500 mr-1" title="Insumo mestre">★</span>}
-                          {l.it.nome_componente || l.it.componente_codigo || `#${l.it.id}`}
-                          <span className="text-xs text-gray-400 ml-1">{l.it.unidade_exib || ''}</span>
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtNum(l.qtdPlan, 3)}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(l.qtdCalc, 3)}</td>
-                        <td className="px-2 py-1.5 text-right">
-                          <Input type="number" inputMode="decimal" value={qtdReal[l.it.id] ?? ''} onChange={e => setQtdReal(p => ({ ...p, [l.it.id]: e.target.value }))}
-                            placeholder={fmtNum(l.qtdCalc, 3)} className="h-8 text-right text-sm" />
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">
-                          {l.desvio == null ? '—' : (
-                            <span className={Math.abs(l.desvio) < 0.05 ? 'text-emerald-600' : Math.abs(l.desvio) < 0.15 ? 'text-amber-600' : 'text-red-600'}>
-                              {l.desvio > 0 ? '+' : ''}{fmtPct(l.desvio * 100)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(l.cReal)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Observação + salvar */}
-              <div className="flex flex-col sm:flex-row gap-2 items-stretch">
-                <Input value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Observação (opcional)…" className="flex-1" />
-                <Button onClick={salvar} disabled={salvando} className="bg-indigo-600 hover:bg-indigo-700">
-                  {salvando ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}Salvar execução
-                </Button>
-              </div>
+          {/* Tabs das produções ativas (timers simultâneos) */}
+          {prods.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {prods.map(p => (
+                <button key={p.localId} onClick={() => setSelId(p.localId)}
+                  className={`group flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm transition ${selId === p.localId ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
+                  <span className={`w-2 h-2 rounded-full ${p.rodando ? 'bg-green-500 animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                  <span className="font-medium text-gray-900 dark:text-gray-100 max-w-[160px] truncate">{p.ficha.nome}</span>
+                  <span className="font-mono text-xs text-blue-600 dark:text-blue-400">{fmtTempo(p.segundos)}</span>
+                  <span onClick={(e) => { e.stopPropagation(); remover(p.localId); }} className="text-gray-300 hover:text-red-500" title="Remover"><X className="w-3.5 h-3.5" /></span>
+                </button>
+              ))}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Modal nova pessoa */}
-      {novaPessoa && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setNovaPessoa(false)}>
-          <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
-            <h4 className="font-semibold text-gray-900 dark:text-white">Novo responsável</h4>
-            <div><label className="text-xs text-gray-500">Nome *</label><Input value={npNome} onChange={e => setNpNome(e.target.value)} placeholder="Ex.: Isaías" /></div>
-            <div><label className="text-xs text-gray-500">Cargo</label><Input value={npCargo} onChange={e => setNpCargo(e.target.value)} placeholder="Ex.: Chefe de Produção" /></div>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" onClick={() => setNovaPessoa(false)}>Cancelar</Button>
-              <Button onClick={salvarNovaPessoa}>Salvar</Button>
+      {/* Detalhe da produção selecionada */}
+      {!sel ? (
+        <Card className="card-dark"><CardContent className="py-16 text-center text-gray-400"><Timer className="w-10 h-10 mx-auto mb-2 opacity-40" />Adicione uma produção acima para iniciar. Você pode ter várias rodando ao mesmo tempo.</CardContent></Card>
+      ) : (() => {
+        const { mestre, mestreQtd, proporcao, linhas, custoPlan, custoReal, rendEsperado } = calc(sel);
+        return (
+          <Card className="card-dark"><CardContent className="py-3 space-y-4">
+            {/* Cabeçalho + timer */}
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{sel.ficha.nome}</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{sel.ficha.codigo ? `${sel.ficha.codigo} · ` : ''}rendimento ficha {fmtNum(sel.ficha.rendimento, 3)} {sel.ficha.unidade || ''}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="px-4 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-center min-w-[110px]">
+                  <div className="text-[10px] text-blue-600/80 dark:text-blue-300/80 uppercase tracking-wide flex items-center justify-center gap-1"><Clock className="w-3 h-3" />Tempo</div>
+                  <div className="text-2xl font-mono font-bold text-blue-700 dark:text-blue-300 leading-tight">{fmtTempo(sel.segundos)}</div>
+                </div>
+                {!sel.rodando
+                  ? <Button size="sm" onClick={() => iniciar(sel)} className="bg-green-600 hover:bg-green-700"><Play className="w-4 h-4 mr-1" />{sel.segundos > 0 ? 'Continuar' : 'Iniciar'}</Button>
+                  : <Button size="sm" onClick={() => patch(sel.localId, { rodando: false })} variant="outline"><Pause className="w-4 h-4 mr-1" />Pausar</Button>}
+                <Button size="sm" variant="ghost" onClick={() => patch(sel.localId, { rodando: false, segundos: 0 })} title="Zerar tempo"><RotateCcw className="w-4 h-4" /></Button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+
+            {/* Responsável + peso mestre + rendimento */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><User className="w-3.5 h-3.5" />Responsável *</label>
+                <select value={sel.responsavelId ?? ''} onChange={e => patch(sel.localId, { responsavelId: e.target.value ? Number(e.target.value) : null })}
+                  className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
+                  <option value="">Selecione…</option>
+                  {responsaveis.map(r => <option key={r.id} value={r.id}>{r.nome}{r.cargo ? ` (${r.cargo})` : ''}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso real do mestre{mestre ? ` (${mestre.unidade_exib || ''})` : ''}</label>
+                <Input type="number" inputMode="decimal" value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })}
+                  placeholder={mestre ? `ficha: ${fmtNum(mestreQtd, 3)}` : 'sem insumo mestre'} disabled={!mestre} className="h-10" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real * {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado, 3)} {sel.ficha.unidade || ''}</span>}</label>
+                <Input type="number" inputMode="decimal" value={sel.rendimentoReal} onChange={e => patch(sel.localId, { rendimentoReal: e.target.value })} placeholder="produzido…" className="h-10" />
+              </div>
+            </div>
+
+            {/* Resumo de custo */}
+            <div className="flex flex-wrap gap-2">
+              <div className="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/15 text-center">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Custo planejado</div>
+                <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">{fmtBRL(custoPlan)}</div>
+              </div>
+              <div className="px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/15 text-center">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Custo real</div>
+                <div className="text-base font-bold text-amber-600 dark:text-amber-400">{fmtBRL(custoReal)}</div>
+              </div>
+              {proporcao !== 1 && (
+                <div className="px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/15 text-center">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Proporção</div>
+                  <div className="text-base font-bold text-indigo-600 dark:text-indigo-400">×{fmtNum(proporcao, 3)}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Insumos */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
+                  <th className="text-left font-medium px-2 py-1.5">Insumo</th>
+                  <th className="text-right font-medium px-2 py-1.5">Planejado</th>
+                  <th className="text-right font-medium px-2 py-1.5">Calculado</th>
+                  <th className="text-right font-medium px-2 py-1.5 w-28">Usado</th>
+                  <th className="text-right font-medium px-2 py-1.5">Desvio</th>
+                  <th className="text-right font-medium px-2 py-1.5">Custo real</th>
+                </tr></thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {sel.loadingItens ? <tr><td colSpan={6} className="px-2 py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                  : linhas.length === 0 ? <tr><td colSpan={6} className="px-2 py-6 text-center text-gray-400">Ficha sem componentes.</td></tr>
+                  : linhas.map(l => (
+                    <tr key={l.it.id} className={l.it.is_mestre ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}>
+                      <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">
+                        {l.it.is_mestre && <span className="text-amber-500 mr-1" title="Insumo mestre">★</span>}
+                        {l.it.nome_componente || l.it.componente_codigo || `#${l.it.id}`}
+                        <span className="text-xs text-gray-400 ml-1">{l.it.unidade_exib || ''}</span>
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtNum(l.qtdPlan, 3)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(l.qtdCalc, 3)}</td>
+                      <td className="px-2 py-1.5 text-right">
+                        <Input type="number" inputMode="decimal" value={sel.qtdReal[l.it.id] ?? ''} onChange={e => patch(sel.localId, { qtdReal: { ...sel.qtdReal, [l.it.id]: e.target.value } })}
+                          placeholder={fmtNum(l.qtdCalc, 3)} className="h-8 text-right text-sm" />
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">
+                        {l.desvio == null ? '—' : (
+                          <span className={Math.abs(l.desvio) < 0.05 ? 'text-emerald-600' : Math.abs(l.desvio) < 0.15 ? 'text-amber-600' : 'text-red-600'}>
+                            {l.desvio > 0 ? '+' : ''}{fmtPct(l.desvio * 100)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(l.cReal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Observação + ações */}
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch">
+              <Input value={sel.observacao} onChange={e => patch(sel.localId, { observacao: e.target.value })} placeholder="Observação (opcional)…" className="flex-1" />
+              <Button variant="outline" onClick={() => remover(sel.localId)} className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4 mr-1" />Descartar</Button>
+              <Button onClick={() => salvar(sel)} disabled={salvandoId === sel.localId} className="bg-indigo-600 hover:bg-indigo-700">
+                {salvandoId === sel.localId ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}Salvar execução
+              </Button>
+            </div>
+          </CardContent></Card>
+        );
+      })()}
     </div>
   );
 }
@@ -549,7 +552,7 @@ export default function ProducoesPage() {
           <div className="p-2.5 bg-orange-100 dark:bg-orange-900/30 rounded-xl"><Timer className="w-6 h-6 text-orange-600 dark:text-orange-400" /></div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Produções</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Execução com cronômetro, aderência à ficha e controle de tempo, custo e insumos</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Execução com cronômetro (várias em paralelo), aderência à ficha e controle de tempo, custo e insumos</p>
           </div>
         </div>
 
@@ -559,7 +562,7 @@ export default function ProducoesPage() {
         </div>
 
         {aba === 'executar'
-          ? <AbaExecutar fichas={fichas} responsaveis={responsaveis} reloadResponsaveis={loadResponsaveis} />
+          ? <AbaExecutar fichas={fichas} responsaveis={responsaveis} />
           : <AbaHistorico fichas={fichas} responsaveis={responsaveis} />}
       </div>
     </div>
