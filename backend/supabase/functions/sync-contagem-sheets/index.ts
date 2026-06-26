@@ -120,6 +120,12 @@ async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtr
     landed += chunk.length
   }
 
+  // ESPELHO: o que sumiu da planilha (não foi tocado nesta leitura) some do bronze na janela.
+  // As linhas relidas têm ingested_em = now; as órfãs ficaram com ingested_em antigo.
+  const { error: delErr } = await sb.from('bronze_contagem_sheet')
+    .delete().eq('bar_id', bar).gte('data_contagem', from).lt('ingested_em', now)
+  if (delErr) throw delErr
+
   // SILVER/GOLD: refresh do operations a partir do bronze (enriquecimento em SQL)
   const { data: upserted, error: re } = await (sb.schema('operations') as any)
     .rpc('fn_refresh_contagem_estoque', { p_bar: bar, p_dias: diasAtras })

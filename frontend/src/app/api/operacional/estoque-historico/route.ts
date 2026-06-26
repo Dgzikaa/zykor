@@ -39,27 +39,30 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'tipo inválido' }, { status: 400 });
   }
   const ops = (sb() as any).schema('operations');
+  const silver = (sb() as any).schema('silver');
 
-  // histórico de datas desse tipo
+  // histórico de datas desse tipo (datas vêm do operations; a silver espelha)
   const { data: datasRaw, error: e1 } = await ops.rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo });
   if (e1) return NextResponse.json({ success: false, error: e1.message }, { status: 500 });
   const datas = (datasRaw || []).map((d: any) => ({ data: d.data_contagem, itens: Number(d.itens || 0) }));
   const dataSel = spar.get('data') || datas[0]?.data || null;
   if (!dataSel) return NextResponse.json({ success: true, tipo, datas, data: null, itens: [], totais_area: [], total_geral: 0 });
 
-  // itens da contagem selecionada
-  const { data: rows, error: e2 } = await ops
-    .from('contagem_estoque_insumos')
-    .select('insumo_codigo, insumo_nome, tipo_local, categoria, unidade_medida, estoque_inicial, estoque_final, custo_unitario')
+  // itens da contagem selecionada — da SILVER (valorizada pelo preço do VMarket NA DATA da contagem)
+  const { data: rows, error: e2 } = await silver
+    .from('estoque_contagem')
+    .select('insumo_codigo, insumo_nome, tipo_local, categoria, unidade_medida, estoque_final, preco_vmarket, preco_fonte, valor')
     .eq('bar_id', user.bar_id).eq('tipo_contagem', tipo).eq('data_contagem', dataSel)
     .order('tipo_local', { ascending: true }).order('insumo_nome', { ascending: true });
   if (e2) return NextResponse.json({ success: false, error: e2.message }, { status: 500 });
 
-  const itens = (rows || []).map((r: any) => {
-    const qtd = Number(r.estoque_final ?? 0);
-    const custo = Number(r.custo_unitario ?? 0);
-    return { ...r, estoque_final: qtd, custo_unitario: custo, valor: qtd * custo, area: areaDe(r.categoria, r.insumo_codigo) };
-  });
+  const itens = (rows || []).map((r: any) => ({
+    ...r,
+    estoque_final: Number(r.estoque_final ?? 0),
+    custo_unitario: Number(r.preco_vmarket ?? 0), // coluna "Preço (na data)" = preço VMarket na data da contagem
+    valor: Number(r.valor ?? 0),
+    area: areaDe(r.categoria, r.insumo_codigo),
+  }));
 
   // total em estoque por área (Comidas / Salão / Drinks / Alimentação)
   const areaMap: Record<string, { area: string; itens: number; valor: number }> = {};

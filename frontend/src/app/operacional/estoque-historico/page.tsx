@@ -200,7 +200,7 @@ export default function EstoqueHistoricoPage() {
               <th className="text-left font-medium px-3 py-2">Área</th>
               <th className="text-left font-medium px-3 py-2">Categoria</th>
               <th className="text-right font-medium px-3 py-2">Qtd. contada</th>
-              <th className="text-right font-medium px-3 py-2">Preço (no momento)</th>
+              <th className="text-right font-medium px-3 py-2">Preço VMarket (na data)</th>
               <th className="text-right font-medium px-3 py-2">Valor</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
