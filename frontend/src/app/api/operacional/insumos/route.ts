@@ -69,21 +69,41 @@ export async function GET(request: NextRequest) {
   // Insumos comprados FORA do VMarket (só na contagem) — placeholder com preço da PLANILHA.
   // Quando o mesmo cod_interno for cadastrado no VMarket, ele passa a vir pela lista VMarket (preço de pedido tem prioridade) e sai daqui.
   const codsBronze = new Set((produtos || []).map((p: any) => p.cod_interno).filter(Boolean));
-  const baseDe = (u: string | null) => { const s = (u || '').toLowerCase().trim(); if (s === 'ml' || s === 'l' || s === 'litro') return 'ml'; if (s === 'kg' || s === 'g' || s === 'grama') return 'g'; return 'un'; };
+  // deriva base + embalagem do NOME (ex.: "500ml"→ml/500, "11kg"→g/11000, "1L"→ml/1000); senão cai na unidade_medida
+  const deriveUnid = (nome: string, um: string | null): { base: string; embalagem: number } => {
+    const m = (nome || '').match(/(\d+[.,]?\d*)\s*(kg|kilo|litro|lt|ml|gr|grama|l|g)\b/i);
+    if (m) {
+      const num = parseFloat(m[1].replace('.', '').replace(',', '.')) || parseFloat(m[1].replace(',', '.'));
+      const u = m[2].toLowerCase();
+      if (u === 'kg' || u === 'kilo') return { base: 'g', embalagem: num * 1000 };
+      if (u === 'l' || u === 'lt' || u === 'litro') return { base: 'ml', embalagem: num * 1000 };
+      if (u === 'ml') return { base: 'ml', embalagem: num };
+      if (u === 'g' || u === 'gr' || u === 'grama') return { base: 'g', embalagem: num };
+    }
+    const s = (um || '').toLowerCase().trim();
+    if (s === 'ml') return { base: 'ml', embalagem: 1 };
+    if (s === 'l' || s === 'litro') return { base: 'ml', embalagem: 1000 };
+    if (s === 'kg') return { base: 'g', embalagem: 1000 };
+    if (s === 'g' || s === 'grama') return { base: 'g', embalagem: 1 };
+    return { base: 'un', embalagem: 1 };
+  };
   const { data: contagemIns } = await (supabase as any).schema('operations')
     .from('insumos').select('id, codigo, nome, categoria, unidade_medida, custo_unitario').eq('bar_id', barId);
   const foraVmarket = (contagemIns || [])
     .filter((i: any) => /^i\d+$/.test(i.codigo) && !codsBronze.has(i.codigo))
-    .map((i: any) => ({
-      id_produto_sisfood_cotacao: -Number(i.id), // chave sintética (negativa, não colide com ids VMarket)
-      fonte: 'planilha',
-      cod_interno: i.codigo, nome: i.nome, marca: null, gramatura: null,
-      nome_secao: i.categoria, id_secao_cotacao: null,
-      nome_fornecedor: null, fornecedor_ultimo: 'Planilha',
-      preco_atual: Number(i.custo_unitario) || null, preco_data: null, preco_anterior: null,
-      cod_duplicado: false, cod_invalido: false,
-      base: baseDe(i.unidade_medida), embalagem: 1,
-    }));
+    .map((i: any) => {
+      const u = deriveUnid(i.nome, i.unidade_medida);
+      return {
+        id_produto_sisfood_cotacao: -Number(i.id), // chave sintética (negativa, não colide com ids VMarket)
+        fonte: 'planilha',
+        cod_interno: i.codigo, nome: i.nome, marca: null, gramatura: null,
+        nome_secao: i.categoria, id_secao_cotacao: null,
+        nome_fornecedor: null, fornecedor_ultimo: 'Planilha',
+        preco_atual: Number(i.custo_unitario) || null, preco_data: null, preco_anterior: null,
+        cod_duplicado: false, cod_invalido: false,
+        base: u.base, embalagem: u.embalagem,
+      };
+    });
 
   return NextResponse.json({
     success: true,
