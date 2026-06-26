@@ -47,10 +47,10 @@ export async function GET(request: NextRequest) {
   const { data: chRows } = await supabase.from('produto_contahub_map').select('prd, cod_interno').eq('bar_id', barId);
   (chRows || []).forEach((r: any) => { if (r.cod_interno) (chMap[r.cod_interno] ??= []).push(r.prd); });
 
-  // cód Yuzer por cod_interno
+  // ID Yuzer (produto_id real da Yuzer) por cod_interno
   const yzMap: Record<string, string[]> = {};
-  const { data: yzRows } = await supabase.from('produto_yuzer_map').select('cod_yuzer, cod_interno').eq('bar_id', barId);
-  (yzRows || []).forEach((r: any) => { if (r.cod_interno) (yzMap[r.cod_interno] ??= []).push(r.cod_yuzer); });
+  const { data: yzRows } = await supabase.from('produto_yuzer_map').select('yuzer_produto_id, cod_interno').eq('bar_id', barId).not('yuzer_produto_id', 'is', null);
+  (yzRows || []).forEach((r: any) => { if (r.cod_interno) (yzMap[r.cod_interno] ??= []).push(String(r.yuzer_produto_id)); });
 
   return NextResponse.json({
     success: true,

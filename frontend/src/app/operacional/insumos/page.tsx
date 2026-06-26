@@ -459,9 +459,9 @@ export default function CadastrosPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
                   <th className="text-left font-medium px-3 py-2">Cód. interno</th>
-                  <th className="text-left font-medium px-3 py-2">Produto</th>
                   <th className="text-left font-medium px-3 py-2">Cód. CH</th>
-                  <th className="text-left font-medium px-3 py-2">Cód. Yuzer</th>
+                  <th className="text-left font-medium px-3 py-2">ID Yuzer</th>
+                  <th className="text-left font-medium px-3 py-2">Produto</th>
                   <th className="text-left font-medium px-3 py-2">Categoria</th>
                   <th className="text-left font-medium px-3 py-2">Ativo</th>
                   <th className="text-right font-medium px-3 py-2">Ações</th>
@@ -471,9 +471,9 @@ export default function CadastrosPage() {
                   : cardFiltrado.map(p => (
                     <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                       <td className="px-3 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{p.codigo}</td>
-                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}</td>
                       <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.cods_ch?.length ? p.cods_ch.join(', ') : '—'}</td>
                       <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.cods_yuzer?.length ? p.cods_yuzer.join(', ') : '—'}</td>
+                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}</td>
                       <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.categoria || '—'}</td>
                       <td className="px-3 py-2">{p.ativo ? <span className="text-emerald-600 text-xs">Sim</span> : <span className="text-gray-400 text-xs">Não</span>}</td>
                       <td className="px-3 py-2 text-right"><button onClick={() => excluirProduto(p.id)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500" title="Excluir"><Trash2 className="w-4 h-4" /></button></td>
