@@ -48,6 +48,10 @@ export async function GET(request: NextRequest) {
       if (r.id_produto_sisfood_cotacao != null) fcIds.add(Number(r.id_produto_sisfood_cotacao));
       const c = r.codigo_planilha || r.cod_interno; if (c) fcCods.add(c);
     }
+    // insumos só-planilha marcados com FC (operations.insumos)
+    const { data: fcPlan } = await (supabase as any).schema('operations').from('insumos')
+      .select('codigo').eq('bar_id', barId).eq('fator_correcao', true);
+    for (const r of (fcPlan || []) as any[]) { if (r.codigo) fcCods.add(r.codigo); }
   }
   const ehFc = (idv: number | null, cod: string | null) => (idv != null && fcIds.has(idv)) || (!!cod && fcCods.has(cod));
   const fcDe = (it: any) => { const f = Number(it.fator_correcao); return f > 0 ? f : 1; };

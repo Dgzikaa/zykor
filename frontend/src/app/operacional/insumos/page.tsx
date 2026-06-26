@@ -85,7 +85,6 @@ export default function CadastrosPage() {
   };
 
   const salvarFc = async (p: Produto, valor: boolean) => {
-    if (p.id_produto_sisfood_cotacao < 0) return; // planilha-only não tem flag no VMarket
     setProdutos(prev => prev.map(x => x.id_produto_sisfood_cotacao === p.id_produto_sisfood_cotacao ? { ...x, fator_correcao: valor } : x));
     try {
       await api.post('/api/operacional/insumos', { bar_id: barId, action: 'fator_correcao', id_prod: p.id_produto_sisfood_cotacao, fator_correcao: valor });
@@ -245,10 +244,8 @@ export default function CadastrosPage() {
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
                           <td className="px-3 py-2 text-center">
-                            {p.id_produto_sisfood_cotacao >= 0 && (
-                              <input type="checkbox" checked={!!p.fator_correcao} onChange={e => salvarFc(p, e.target.checked)}
-                                className="h-4 w-4 cursor-pointer accent-amber-500" title="Insumo com fator de correção (perda/limpeza)" />
-                            )}
+                            <input type="checkbox" checked={!!p.fator_correcao} onChange={e => salvarFc(p, e.target.checked)}
+                              className="h-4 w-4 cursor-pointer accent-amber-500" title="Insumo com fator de correção (perda/limpeza)" />
                           </td>
                           <td className="px-3 py-2 text-center">
                             <select value={p.base || 'g'} onChange={e => salvarUnidade(p, { base: e.target.value })}
