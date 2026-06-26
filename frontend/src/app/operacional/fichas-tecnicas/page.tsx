@@ -381,15 +381,26 @@ function FichasInner() {
     } catch (e: any) { toast({ title: 'Erro ao importar', description: e?.message, variant: 'destructive' }); }
     finally { setImportando(false); }
   };
-  const novaProducao = async () => {
+  const nova = async () => {
     if (!barId) return;
-    const nome = window.prompt('Nome da nova produção (preparo):')?.trim();
-    if (!nome) return;
     try {
-      const r = await api.post('/api/operacional/producoes', { bar_id: barId, nome });
-      if (!r.success) throw new Error(r.error);
-      await loadProducoes();
-      toast({ title: 'Produção criada', description: 'Selecione na lista e monte a ficha (Adicionar componente).' });
+      if (aba === 'producao') {
+        const nome = window.prompt('Nome da nova produção (preparo):')?.trim();
+        if (!nome) return;
+        const r = await api.post('/api/operacional/producoes', { bar_id: barId, nome });
+        if (!r.success) throw new Error(r.error);
+        await loadProducoes();
+        toast({ title: 'Produção criada', description: 'Selecione na lista e monte a ficha (Adicionar componente).' });
+      } else {
+        const codigo = window.prompt('Código do produto (ex.: c0099 comida, b0099 bebida, d0099 drink, o0099 outros):')?.trim();
+        if (!codigo) return;
+        const nome = window.prompt('Nome do produto:')?.trim();
+        if (!nome) return;
+        const r = await api.post('/api/operacional/produtos', { bar_id: barId, codigo, nome });
+        if (!r.success) throw new Error(r.error);
+        await loadProdutos();
+        toast({ title: 'Produto criado', description: 'Selecione na lista e monte a ficha (Adicionar componente).' });
+      }
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
@@ -398,8 +409,8 @@ function FichasInner() {
       <div className="flex items-center gap-1.5 mb-4">
         <button onClick={() => setAba('producao')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'producao' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><ChefHat className="w-4 h-4" />Produção</button>
         <button onClick={() => setAba('finalizacao')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'finalizacao' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><Utensils className="w-4 h-4" />Finalização</button>
-        {aba === 'producao' && <Button size="sm" onClick={novaProducao} className="ml-auto"><Plus className="w-4 h-4 mr-1" />Nova produção</Button>}
-        <Button variant="outline" size="sm" onClick={importar} disabled={importando} className={aba === 'producao' ? '' : 'ml-auto'}>
+        <Button size="sm" onClick={nova} className="ml-auto"><Plus className="w-4 h-4 mr-1" />{aba === 'producao' ? 'Nova produção' : 'Novo produto'}</Button>
+        <Button variant="outline" size="sm" onClick={importar} disabled={importando}>
           <Download className={`w-4 h-4 mr-1.5 ${importando ? 'animate-pulse' : ''}`} />{importando ? 'Importando…' : (aba === 'producao' ? 'Importar preparos' : 'Importar cardápio')}
         </Button>
       </div>
