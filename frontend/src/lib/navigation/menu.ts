@@ -136,6 +136,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'ShoppingCart', label: 'Compras', href: '/operacional/compras', permission: 'gestao' },
       { icon: 'ChefHat', label: 'Fichas Técnicas', href: '/operacional/fichas-tecnicas', permission: 'gestao' },
       { icon: 'Boxes', label: 'Estoque (contagem, compras, insumos)', href: '/operacional/contagem', permission: 'gestao' },
+      { icon: 'ClipboardList', label: 'Estoque — Histórico', href: '/operacional/estoque-historico', permission: 'gestao' },
       { icon: 'AlertTriangle', label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
     ],
   },
