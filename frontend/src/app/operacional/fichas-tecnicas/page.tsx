@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes } from 'lucide-react';
+import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download } from 'lucide-react';
 
 const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'porção'];
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -99,6 +99,19 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
   const custoItemAtual = (it: any) => (it.custo_atual != null && !flagRevisar(it)) ? it.custo_atual : Number(it.custo_planilha || 0);
   const custoAtualTotal = itens.reduce((s, it) => s + custoItemAtual(it), 0);
 
+  // editar rendimento + unidade da produção (edição mora AQUI, na ficha técnica)
+  const [editRend, setEditRend] = useState(false);
+  const [rendVal, setRendVal] = useState('');
+  const [rendUni, setRendUni] = useState('un');
+  const abrirRend = () => { setRendVal(String(selObj?.rendimento ?? '')); setRendUni(selObj?.unidade || 'un'); setEditRend(true); };
+  const salvarRend = async () => {
+    if (!sel) return;
+    try {
+      await api.put('/api/operacional/producoes', { id: sel, rendimento: Number(rendVal) || 0, unidade: rendUni });
+      setEditRend(false); reloadLista();
+    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+
   // adicionar componente (modal de criação)
   const [addOpen, setAddOpen] = useState(false);
   const [addTipo, setAddTipo] = useState<'insumo' | 'producao'>('insumo');
@@ -177,7 +190,8 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                 </div>
                 <div className="flex flex-wrap gap-3 items-stretch">
                   {kind === 'producao' && (
-                    <div className="px-4 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 text-center">
+                    <div className="relative px-4 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 text-center">
+                      <button onClick={abrirRend} className="absolute top-1 right-1 text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-200" title="Editar rendimento e unidade"><Pencil className="w-3.5 h-3.5" /></button>
                       <div className="text-[11px] font-medium text-indigo-600/80 dark:text-indigo-300/80 uppercase tracking-wide">Rendimento</div>
                       <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300 leading-tight">{Number(selObj.rendimento || 0).toLocaleString('pt-BR')} <span className="text-base font-semibold">{selObj.unidade || ''}</span></div>
                     </div>
@@ -264,6 +278,28 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                   </div>
                 )}
 
+                {/* Modal de editar rendimento + unidade */}
+                {editRend && (
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditRend(false)}>
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Rendimento da produção</h4>
+                      <p className="text-sm text-gray-500 mb-3">{selObj?.nome}</p>
+                      <div className="flex gap-2">
+                        <div className="flex-1"><label className="text-xs text-gray-500">Rendimento</label><Input type="number" step="0.001" value={rendVal} onChange={e => setRendVal(e.target.value)} /></div>
+                        <div className="w-28"><label className="text-xs text-gray-500">Unidade</label>
+                          <select value={rendUni} onChange={e => setRendUni(e.target.value)} className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
+                            {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 mt-4">
+                        <Button variant="outline" onClick={() => setEditRend(false)}>Cancelar</Button>
+                        <Button onClick={salvarRend}>Salvar</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Modal de adicionar componente */}
                 {addOpen && (
                   <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setAddOpen(false)}>
@@ -318,21 +354,38 @@ function FichasInner() {
   const sp = useSearchParams();
   const preSel = sp.get('producao') ? Number(sp.get('producao')) : null;
 
+  const { toast } = useToast();
   const [aba, setAba] = useState<'producao' | 'finalizacao'>('producao');
   const [producoes, setProducoes] = useState<any[]>([]);
   const [produtos, setProdutos] = useState<any[]>([]);
   const [insumos, setInsumos] = useState<any[]>([]);
+  const [importando, setImportando] = useState(false);
 
   const loadProducoes = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/producoes?bar_id=${barId}`); if (r.success) setProducoes(r.producoes || []); }, [barId]);
   const loadProdutos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/produtos?bar_id=${barId}`); if (r.success) setProdutos(r.produtos || []); }, [barId]);
   const loadInsumos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/insumos?bar_id=${barId}`); if (r.success) setInsumos(r.produtos || []); }, [barId]);
   useEffect(() => { loadProducoes(); loadProdutos(); loadInsumos(); }, [loadProducoes, loadProdutos, loadInsumos]);
 
+  const importar = async () => {
+    if (!barId) return; setImportando(true);
+    try {
+      const ep = aba === 'producao' ? '/api/operacional/producoes' : '/api/operacional/produtos';
+      const r = await api.post(ep, { bar_id: barId, action: 'importar' });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: 'Importado', description: `${r.importados ?? 0} ${aba === 'producao' ? 'produções' : 'produtos'} novos` });
+      if (aba === 'producao') await loadProducoes(); else await loadProdutos();
+    } catch (e: any) { toast({ title: 'Erro ao importar', description: e?.message, variant: 'destructive' }); }
+    finally { setImportando(false); }
+  };
+
   return (
     <>
-      <div className="flex gap-1.5 mb-4">
+      <div className="flex items-center gap-1.5 mb-4">
         <button onClick={() => setAba('producao')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'producao' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><ChefHat className="w-4 h-4" />Produção</button>
         <button onClick={() => setAba('finalizacao')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'finalizacao' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><Utensils className="w-4 h-4" />Finalização</button>
+        <Button variant="outline" size="sm" onClick={importar} disabled={importando} className="ml-auto">
+          <Download className={`w-4 h-4 mr-1.5 ${importando ? 'animate-pulse' : ''}`} />{importando ? 'Importando…' : (aba === 'producao' ? 'Importar preparos' : 'Importar cardápio')}
+        </Button>
       </div>
       {aba === 'producao'
         ? <FichaTab kind="producao" lista={producoes} insumos={insumos} producoes={producoes} reloadLista={loadProducoes} preSel={preSel} />
