@@ -48,6 +48,7 @@ import {
   Boxes,
   FolderTree,
   Timer,
+  FlaskConical,
 } from 'lucide-react';
 
 export type MenuIcon = ComponentType<{ className?: string }>;
@@ -94,6 +95,7 @@ export const MENU_ICONS: Record<string, MenuIcon> = {
   Boxes,
   FolderTree,
   Timer,
+  FlaskConical,
 };
 
 /** Componente do ícone pelo nome; fallback em Activity se faltar. */
