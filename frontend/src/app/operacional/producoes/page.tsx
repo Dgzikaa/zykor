@@ -273,7 +273,7 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
         const mestreFc = !!mestre?.insumo_fc;
         const pbNum = parseFloat(sel.pesoBruto) || 0;
         const plNum = parseFloat(sel.pesoMestre) || 0;
-        const fcReal = mestreFc && pbNum > 0 && plNum > 0 ? pbNum / plNum : 0;
+        const fcReal = mestreFc && pbNum > 0 && plNum > 0 ? plNum / pbNum : 0; // aproveitamento (líquido/bruto), 0–1 — mesma convenção do FC da ficha
         return (
           <Card className="card-dark"><CardContent className="py-3 space-y-4">
             {/* Cabeçalho + timer */}
