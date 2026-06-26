@@ -10,7 +10,7 @@ import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import {
   Timer, Play, Pause, RotateCcw, Save, Search, Plus, Trash2, User,
-  Loader2, History, Package, Clock, TrendingDown, DollarSign, X, Scale,
+  Loader2, History, Package, Clock, TrendingDown, DollarSign, X, Scale, AlertTriangle,
 } from 'lucide-react';
 
 // ---------- helpers ----------
@@ -70,6 +70,7 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
   const [prods, setProds] = useState<ActiveProd[]>([]);
   const [selId, setSelId] = useState<string | null>(null);
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
+  const [confirmar, setConfirmar] = useState<{ prod: ActiveProd; suspeitos: { campo: string; valor: number; unidade: string | null; esperado: number }[] } | null>(null);
   const idRef = useRef(0);
 
   // timer global: incrementa todas as produções rodando, a cada 1s
@@ -143,10 +144,33 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
     patch(prod.localId, { rodando: true });
   };
 
-  const salvar = async (prod: ActiveProd) => {
-    if (!barId) return;
+  // detecta valores prováveis de erro de unidade (ex.: digitou 1,2 como se fosse kg onde a meta é 1.020 g)
+  const checarUnidades = (prod: ActiveProd) => {
+    const { mestre, mestreQtd, linhas, rendEsperado } = calc(prod);
+    const FATOR = 50; // diferença de ~50x+ quase sempre é confusão de unidade (g×kg, ml×L), não variação real
+    const off = (val: number, ref: number) => ref > 0 && val > 0 && (val / ref >= FATOR || ref / val >= FATOR);
+    const sus: { campo: string; valor: number; unidade: string | null; esperado: number }[] = [];
+    const rreal = parseFloat(prod.rendimentoReal) || 0;
+    if (rendEsperado > 0 && off(rreal, rendEsperado)) sus.push({ campo: 'Rendimento real', valor: rreal, unidade: prod.ficha.unidade, esperado: rendEsperado });
+    const pm = parseFloat(prod.pesoMestre) || 0;
+    if (mestre && off(pm, mestreQtd)) sus.push({ campo: `Peso do mestre — ${mestre.nome_componente || ''}`.trim(), valor: pm, unidade: mestre.unidade_exib, esperado: mestreQtd });
+    for (const l of linhas) {
+      if (off(l.real, l.qtdCalc)) sus.push({ campo: l.it.nome_componente || l.it.componente_codigo || 'Insumo', valor: l.real, unidade: l.it.unidade_exib, esperado: l.qtdCalc });
+    }
+    return sus;
+  };
+
+  const pedirSalvar = (prod: ActiveProd) => {
     if (!prod.responsavelId) { toast({ title: 'Selecione o responsável', variant: 'destructive' }); return; }
     if (!prod.rendimentoReal.trim()) { toast({ title: 'Informe o rendimento real produzido', variant: 'destructive' }); return; }
+    const suspeitos = checarUnidades(prod);
+    if (suspeitos.length) { setConfirmar({ prod, suspeitos }); return; }
+    executarSalvar(prod);
+  };
+
+  const executarSalvar = async (prod: ActiveProd) => {
+    if (!barId) return;
+    setConfirmar(null);
     setSalvandoId(prod.localId);
     patch(prod.localId, { rodando: false });
     const { linhas, rendEsperado } = calc(prod);
@@ -273,12 +297,12 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
               </div>
               <div>
                 <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso real do mestre{mestre ? ` (${mestre.unidade_exib || ''})` : ''}</label>
-                <Input type="number" inputMode="decimal" value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })}
+                <Input type="number" inputMode="decimal" step="any" value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })}
                   placeholder={mestre ? `ficha: ${fmtNum(mestreQtd, 3)}` : 'sem insumo mestre'} disabled={!mestre} className="h-10" />
               </div>
               <div>
                 <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real * {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado, 3)} {sel.ficha.unidade || ''}</span>}</label>
-                <Input type="number" inputMode="decimal" value={sel.rendimentoReal} onChange={e => patch(sel.localId, { rendimentoReal: e.target.value })} placeholder="produzido…" className="h-10" />
+                <Input type="number" inputMode="decimal" step="any" value={sel.rendimentoReal} onChange={e => patch(sel.localId, { rendimentoReal: e.target.value })} placeholder="produzido…" className="h-10" />
               </div>
             </div>
 
@@ -324,7 +348,7 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
                       <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtNum(l.qtdPlan, 3)}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(l.qtdCalc, 3)}</td>
                       <td className="px-2 py-1.5 text-right">
-                        <Input type="number" inputMode="decimal" value={sel.qtdReal[l.it.id] ?? ''} onChange={e => patch(sel.localId, { qtdReal: { ...sel.qtdReal, [l.it.id]: e.target.value } })}
+                        <Input type="number" inputMode="decimal" step="any" value={sel.qtdReal[l.it.id] ?? ''} onChange={e => patch(sel.localId, { qtdReal: { ...sel.qtdReal, [l.it.id]: e.target.value } })}
                           placeholder={fmtNum(l.qtdCalc, 3)} className="h-8 text-right text-sm" />
                       </td>
                       <td className="px-2 py-1.5 text-right tabular-nums">
@@ -345,13 +369,38 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
             <div className="flex flex-col sm:flex-row gap-2 items-stretch">
               <Input value={sel.observacao} onChange={e => patch(sel.localId, { observacao: e.target.value })} placeholder="Observação (opcional)…" className="flex-1" />
               <Button variant="outline" onClick={() => remover(sel.localId)} className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4 mr-1" />Descartar</Button>
-              <Button onClick={() => salvar(sel)} disabled={salvandoId === sel.localId} className="bg-indigo-600 hover:bg-indigo-700">
+              <Button onClick={() => pedirSalvar(sel)} disabled={salvandoId === sel.localId} className="bg-indigo-600 hover:bg-indigo-700">
                 {salvandoId === sel.localId ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}Salvar execução
               </Button>
             </div>
           </CardContent></Card>
         );
       })()}
+
+      {/* Alerta de confirmação de unidade ao salvar */}
+      {confirmar && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setConfirmar(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-md space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="w-5 h-5" />
+              <h4 className="font-semibold">Confira as unidades</h4>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Alguns valores parecem fora da unidade esperada. Confira se não houve confusão de unidade (ex.: <b>g × kg</b>, <b>ml × L</b>):</p>
+            <div className="space-y-2">
+              {confirmar.suspeitos.map((s, i) => (
+                <div key={i} className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/15 px-3 py-2 text-sm">
+                  <div className="font-medium text-gray-900 dark:text-gray-100">{s.campo}</div>
+                  <div className="text-gray-700 dark:text-gray-300">Você digitou <b>{fmtNum(s.valor, 3)} {s.unidade || ''}</b> — esperado ~<b>{fmtNum(s.esperado, 3)} {s.unidade || ''}</b>.</div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setConfirmar(null)}>Voltar e corrigir</Button>
+              <Button onClick={() => executarSalvar(confirmar.prod)} className="bg-amber-600 hover:bg-amber-700">Está correto, salvar</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
