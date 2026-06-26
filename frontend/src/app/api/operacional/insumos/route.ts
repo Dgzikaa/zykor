@@ -53,20 +53,26 @@ export async function GET(request: NextRequest) {
 
   // deriva base + embalagem do NOME (ex.: "500ml"→ml/500, "11kg"→g/11000, "1L"→ml/1000); senão cai na unidade_medida
   const deriveUnid = (nome: string, um: string | null): { base: string; embalagem: number } => {
-    const m = (nome || '').match(/(\d+[.,]?\d*)\s*(kg|kilo|litro|lt|ml|gr|grama|l|g)\b/i);
+    const n = (nome || '').toLowerCase();
+    const m = n.match(/(\d+[.,]?\d*)\s*(kg|kilo|litro|lt|ml|gr|grama|l|g)\b/);
     if (m) {
       const num = parseFloat(m[1].replace('.', '').replace(',', '.')) || parseFloat(m[1].replace(',', '.'));
-      const u = m[2].toLowerCase();
+      const u = m[2];
       if (u === 'kg' || u === 'kilo') return { base: 'g', embalagem: num * 1000 };
       if (u === 'l' || u === 'lt' || u === 'litro') return { base: 'ml', embalagem: num * 1000 };
       if (u === 'ml') return { base: 'ml', embalagem: num };
       if (u === 'g' || u === 'gr' || u === 'grama') return { base: 'g', embalagem: num };
     }
+    // caixa/cartela com N unidades (ex.: "caixa 21und", "bdj c/ 30")
+    const mc = n.match(/c\/\s*(\d+)/) || n.match(/(\d+)\s*(und|unid|cx|caixa|pct|pacote|fardo)\b/);
+    if (mc) return { base: 'un', embalagem: parseInt(mc[1], 10) || 1 };
+    // destilados/vinhos sem volume no nome → garrafa padrão (vinho 750ml, destilado 1000ml)
+    if (/vinho|espumante|frisante|moscatel|prosecco|sparkling|(^|\s)v\.|(^|\s)esp\./.test(n)) return { base: 'ml', embalagem: 750 };
+    if (/whisky|vodka|\bgin\b|tequila|cacha|\brum\b|licor|conhaque|brandy|aperol|campari|cynar|vermouth|jager|bitter|absinto|steinha|amarula|cointreau|frangelico|limoncello|domecq|netuno|presidente|bananinha|\bjambu\b/.test(n)) return { base: 'ml', embalagem: 1000 };
+    // unidade_medida: o preço da planilha é por PACOTE (~ kg/L) quando o nome não traz o tamanho
     const s = (um || '').toLowerCase().trim();
-    if (s === 'ml') return { base: 'ml', embalagem: 1 };
-    if (s === 'l' || s === 'litro') return { base: 'ml', embalagem: 1000 };
-    if (s === 'kg') return { base: 'g', embalagem: 1000 };
-    if (s === 'g' || s === 'grama') return { base: 'g', embalagem: 1 };
+    if (s === 'ml' || s === 'l' || s === 'litro') return { base: 'ml', embalagem: 1000 };
+    if (s === 'kg' || s === 'g' || s === 'grama') return { base: 'g', embalagem: 1000 };
     return { base: 'un', embalagem: 1 };
   };
   // catálogo da contagem (planilha) — preço placeholder por cod_interno (quando não há compra no VMarket)
