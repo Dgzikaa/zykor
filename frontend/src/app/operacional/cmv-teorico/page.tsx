@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Calculator, RefreshCw, Search, Loader2, TrendingUp, TrendingDown, CalendarDays, ListChecks } from 'lucide-react';
+import { Calculator, RefreshCw, Search, Loader2, TrendingUp, TrendingDown, CalendarDays, ListChecks, Download } from 'lucide-react';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtPct = (v: any) => v == null ? '—' : `${Number(v).toFixed(1)}%`;
@@ -109,6 +109,16 @@ export default function CmvTeoricoPage() {
     return lista.filter(p => (!catPer || p.categoria === catPer) && (!s || (p.nome || '').toLowerCase().includes(s) || (p.codigo || '').toLowerCase().includes(s)));
   }, [periodo, buscaPer, catPer]);
 
+  const exportarCSV = () => {
+    if (!perProdView.length) return;
+    const head = ['Codigo', 'Produto', 'Categoria', 'Qtd', 'Preco venda', 'Custo unit', 'Faturamento', 'Custo total', 'Margem', 'CMV %'];
+    const linhas = perProdView.map((p: any) => [p.codigo, p.nome, p.categoria || '', p.qtd, p.preco_venda ?? '', p.custo_unit ?? '', p.faturamento ?? '', p.custo_total ?? '', p.margem ?? '', p.cmv_pct ?? '']
+      .map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';'));
+    const csv = '﻿' + [head.join(';'), ...linhas].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a'); a.href = url; a.download = `cmv-teorico_${range.ini}_${range.fim}.csv`; a.click(); URL.revokeObjectURL(url);
+  };
+
   const btnGran = (g: 'dia' | 'semana' | 'mes', label: string) => (
     <button onClick={() => setGran(g)} className={`text-xs rounded px-3 py-1.5 border ${gran === g ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>{label}</button>
   );
@@ -205,6 +215,9 @@ export default function CmvTeoricoPage() {
               <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Custo teórico</div><div className="text-2xl font-bold">{fmtBRL(periodo.headline?.custo_total)}</div></CardContent></Card>
               <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Margem</div><div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fmtBRL(periodo.headline?.margem)}</div></CardContent></Card>
             </div>
+            {periodo.headline?.qtd_cortesia > 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">Cortesia/consumação no período: <b>{fmtNum(periodo.headline.qtd_cortesia)}</b> itens · custo <b>{fmtBRL(periodo.headline.custo_cortesia)}</b> <span className="text-gray-400">(fora do CMV — dado de graça)</span></p>
+            )}
 
             {/* por categoria */}
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
@@ -241,6 +254,7 @@ export default function CmvTeoricoPage() {
                 <Input value={buscaPer} onChange={e => setBuscaPer(e.target.value)} placeholder="Buscar produto…" className="pl-9" />
               </div>
               {catPer && <button onClick={() => setCatPer(null)} className="text-xs text-amber-600 underline">limpar categoria: {catPer}</button>}
+              <Button variant="outline" size="sm" onClick={exportarCSV}><Download className="w-4 h-4 mr-1.5" />Exportar CSV</Button>
             </div>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">

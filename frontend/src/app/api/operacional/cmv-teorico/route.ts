@@ -26,10 +26,13 @@ export async function GET(request: NextRequest) {
     const num = (v: any) => Number(v || 0);
     const fat = lista.reduce((s, r) => s + num(r.faturamento), 0);
     const custo = lista.reduce((s, r) => s + num(r.custo_total), 0);
+    const qtdCortesia = lista.reduce((s, r) => s + Math.max(num(r.qtd_consumo) - num(r.qtd), 0), 0);
+    const custoCortesia = lista.reduce((s, r) => s + Math.max(num(r.qtd_consumo) - num(r.qtd), 0) * num(r.custo_unit), 0);
     const headline = {
       faturamento: fat, custo_total: custo, margem: fat - custo,
       cmv_pct: fat > 0 ? Number((custo / fat * 100).toFixed(2)) : null,
       n_produtos: lista.length, qtd: lista.reduce((s, r) => s + num(r.qtd), 0),
+      qtd_cortesia: qtdCortesia, custo_cortesia: Number(custoCortesia.toFixed(2)),
     };
     const catMap = new Map<string, any>();
     for (const r of lista) {
