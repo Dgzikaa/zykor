@@ -5,8 +5,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
-import { Boxes, Loader2, Search, CalendarDays } from 'lucide-react';
+import { Boxes, Loader2, Search, CalendarDays, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
@@ -20,8 +22,10 @@ const TIPOS = [
 
 export default function EstoqueHistoricoPage() {
   const { selectedBar } = useBar();
+  const { toast } = useToast();
   const barId = selectedBar?.id;
   const [tipo, setTipo] = useState('semanal');
+  const [sincronizando, setSincronizando] = useState(false);
   const [data, setData] = useState<string | null>(null);
   const [datas, setDatas] = useState<any[]>([]);
   const [itens, setItens] = useState<any[]>([]);
@@ -84,6 +88,20 @@ export default function EstoqueHistoricoPage() {
   // ao trocar de tipo, recarrega da data mais recente
   useEffect(() => { carregar(tipo, null); }, [tipo, carregar]);
 
+  // roda o sync da planilha de contagem (aba INSUMOS) pro bar atual e recarrega
+  const sincronizar = async () => {
+    if (!barId) return;
+    setSincronizando(true);
+    try {
+      const r = await api.post('/api/operacional/estoque-historico', { action: 'sync' });
+      if (!r.success) throw new Error(r.error);
+      const sem = (r.sem_cadastro || []).length;
+      toast({ title: 'Estoque sincronizado', description: `${r.upserted ?? 0} linhas atualizadas${sem ? ` · ${sem} sem cadastro` : ''}` });
+      await carregar(tipo, null);
+    } catch (e: any) { toast({ title: 'Erro ao sincronizar', description: e?.message, variant: 'destructive' }); }
+    finally { setSincronizando(false); }
+  };
+
   const trocarData = (d: string) => { setData(d); carregar(tipo, d); if (comparar) carregarComp(tipo, d, dataB); };
 
   const itensView = useMemo(() => {
@@ -102,10 +120,13 @@ export default function EstoqueHistoricoPage() {
         {/* Header */}
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl"><Boxes className="w-6 h-6 text-amber-600 dark:text-amber-400" /></div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Estoque — Histórico de Contagens</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Valor em estoque por área e por contagem · {selectedBar?.nome || `Bar ${barId ?? ''}`}</p>
           </div>
+          <Button onClick={sincronizar} disabled={sincronizando} variant="outline" className="shrink-0" title="Buscar o estoque dos últimos 14 dias da planilha de contagem (aba INSUMOS)">
+            <RefreshCw className={`w-4 h-4 mr-1.5 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Sincronizando…' : 'Sincronizar planilha'}
+          </Button>
         </div>
 
         {/* Tipo de contagem */}

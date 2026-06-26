@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
 const sb = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
 // Área = seção da planilha de contagem (COZINHA/SALÃO/DRINKS/FUNCIONÁRIOS), refletida no sufixo da categoria:
@@ -74,4 +75,34 @@ export async function GET(request: NextRequest) {
   const totais_area = Object.values(areaMap).sort((a, b) => (ordem.indexOf(a.area) - ordem.indexOf(b.area)));
 
   return NextResponse.json({ success: true, tipo, datas, data: dataSel, itens, totais_area, total_geral });
+}
+
+/**
+ * POST { action:'sync', dias_atras? } — roda o sync da planilha de contagem (aba INSUMOS)
+ * pro bar do usuário, invocando a edge function sync-contagem-sheets. Mesmo fluxo do cron.
+ */
+export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
+  const body = await request.json().catch(() => ({}));
+  if (body.action !== 'sync') return NextResponse.json({ success: false, error: 'ação inválida' }, { status: 400 });
+
+  const dias = Math.max(1, Math.min(400, Number(body.dias_atras) || 14));
+  const fnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/sync-contagem-sheets?bar_id=${user.bar_id}&dias_atras=${dias}`;
+  try {
+    const r = await fetch(fnUrl, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' },
+    });
+    const txt = await r.text();
+    let res: any = null; try { res = JSON.parse(txt); } catch { res = { raw: txt }; }
+    if (!r.ok || res?.success === false) {
+      return NextResponse.json({ success: false, error: res?.error || `Falha no sync (HTTP ${r.status})` }, { status: 502 });
+    }
+    const meu = (res?.results || []).find((x: any) => Number(x?.bar) === Number(user.bar_id)) || res?.results?.[0] || null;
+    return NextResponse.json({ success: true, upserted: meu?.upserted ?? null, linhas: meu?.linhas ?? null, sem_cadastro: meu?.sem_cadastro ?? [] });
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e?.message || String(e) }, { status: 500 });
+  }
 }
