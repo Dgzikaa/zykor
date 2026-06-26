@@ -175,6 +175,8 @@ export async function DELETE(request: NextRequest) {
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();
+  // limpa a ficha do produto antes (evita órfãos); o de-para (ContaHub/Yuzer) é mantido
+  await supabase.from('producao_ficha_item').delete().eq('produto_id', id);
   const { error } = await supabase.from('produto_cardapio').delete().eq('id', id);
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });

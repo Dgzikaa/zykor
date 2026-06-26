@@ -153,6 +153,18 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
+  // excluir produto da base do Zykor (manual)
+  const [confirmDel, setConfirmDel] = useState(false);
+  const excluirProduto = async () => {
+    if (!selObj) return;
+    try {
+      const r = await api.delete(`/api/operacional/produtos?id=${selObj.id}`);
+      if (!r.success) throw new Error(r.error);
+      setConfirmDel(false); setSel(null); reloadLista();
+      toast({ title: 'Produto excluído da base' });
+    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+
   // adicionar componente (modal de criação)
   const [addOpen, setAddOpen] = useState(false);
   const [addTipo, setAddTipo] = useState<'insumo' | 'producao'>('insumo');
@@ -244,6 +256,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                       <span className="text-xs text-gray-500">Cód. CH: <span className="font-mono text-gray-600 dark:text-gray-300">{selObj.cods_ch?.length ? selObj.cods_ch.join(', ') : '—'}</span></span>
                       <span className="text-xs text-gray-500">ID Yuzer: <span className="font-mono text-gray-600 dark:text-gray-300">{selObj.cods_yuzer?.length ? selObj.cods_yuzer.join(', ') : '—'}</span></span>
                       <button onClick={abrirCods} className="text-indigo-500 hover:text-indigo-700 inline-flex items-center gap-1 text-xs" title="Editar códigos ContaHub / Yuzer"><Pencil className="w-3 h-3" />editar códigos</button>
+                      <button onClick={() => setConfirmDel(true)} className="text-red-500 hover:text-red-700 inline-flex items-center gap-1 text-xs" title="Excluir este produto da base do Zykor"><Trash2 className="w-3 h-3" />excluir</button>
                     </div>
                   )}
                 </div>
@@ -386,6 +399,20 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                       <div className="flex justify-end gap-2 pt-1">
                         <Button variant="outline" onClick={() => setEditCods(false)}>Cancelar</Button>
                         <Button onClick={salvarCods}>Salvar</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Modal de confirmar exclusão do produto */}
+                {confirmDel && (
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setConfirmDel(false)}>
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+                      <h4 className="font-semibold text-gray-900 dark:text-white">Excluir produto</h4>
+                      <p className="text-sm text-gray-500">Excluir <b>{selObj?.nome}</b> ({selObj?.codigo}) e a ficha dele da base do Zykor? O de-para (ContaHub/Yuzer) é mantido. Não afeta o ContaHub.</p>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <Button variant="outline" onClick={() => setConfirmDel(false)}>Cancelar</Button>
+                        <Button onClick={excluirProduto} className="bg-red-600 hover:bg-red-700 text-white">Excluir</Button>
                       </div>
                     </div>
                   </div>
