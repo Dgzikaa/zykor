@@ -207,7 +207,12 @@ export async function PUT(request: NextRequest) {
   if ('is_mestre' in body) patch.is_mestre = body.is_mestre;
   if ('quantidade' in body) patch.quantidade = Number(body.quantidade);
   if ('unidade' in body) patch.unidade = body.unidade;
-  if ('fator_correcao' in body) { const f = Number(body.fator_correcao); patch.fator_correcao = f > 0 ? f : 1; }
+  if ('fator_correcao' in body) {
+    const f = Number(body.fator_correcao);
+    // FC = aproveitamento (0 a 1). Rejeita fora da faixa (ex.: 90 em vez de 0,9)
+    if (!Number.isFinite(f) || f <= 0 || f > 1) return NextResponse.json({ success: false, error: 'FC deve estar entre 0 e 1 (ex.: 0,9 = 90%)' }, { status: 400 });
+    patch.fator_correcao = f;
+  }
   const { data, error } = await supabase.from('producao_ficha_item').update(patch).eq('id', id).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, item: data });

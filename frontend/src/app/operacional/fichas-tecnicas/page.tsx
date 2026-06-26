@@ -91,8 +91,14 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
     try { await api.put('/api/operacional/producoes/ficha', { id: it.id, is_mestre: !it.is_mestre }); if (sel) await carregarItens(sel); }
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
-  const salvarFcItem = async (it: any, valor: string) => {
-    const f = Number(String(valor).replace(',', '.')) || 1;
+  const salvarFcItem = async (it: any, valor: string, el?: HTMLInputElement) => {
+    const f = Number(String(valor).replace(',', '.'));
+    // FC = aproveitamento (0 a 1). Bloqueia erro comum: digitar 90 em vez de 0,9
+    if (!Number.isFinite(f) || f <= 0 || f > 1) {
+      toast({ title: 'FC inválido', description: 'O FC é o aproveitamento, de 0 a 1. Ex.: 0,9 = 90% (10% de perda). Não use 90.', variant: 'destructive' });
+      if (el) el.value = String(it.fator_correcao ?? 1);
+      return;
+    }
     if (f === Number(it.fator_correcao || 1)) return;
     try { await api.put('/api/operacional/producoes/ficha', { id: it.id, fator_correcao: f }); if (sel) await carregarItens(sel); }
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
@@ -277,8 +283,8 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel }: Fich
                         <td className="px-2 py-1.5 text-right">
                           {it.insumo_fc ? (
                             <div className="flex flex-col items-end">
-                              <input type="number" step="0.0001" defaultValue={it.fator_correcao ?? 1} key={`fc-${it.id}-${it.fator_correcao}`}
-                                onBlur={e => salvarFcItem(it, e.target.value)} title="Fator de Correção (ex.: filé 100/120 = 0,833)"
+                              <input type="number" step="0.0001" min={0.01} max={1} defaultValue={it.fator_correcao ?? 1} key={`fc-${it.id}-${it.fator_correcao}`}
+                                onBlur={e => salvarFcItem(it, e.target.value, e.target)} title="Fator de Correção = aproveitamento (0 a 1). Ex.: 0,9 = 90% · filé 100/120 = 0,833"
                                 className="h-7 w-16 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 px-1 text-xs text-right" />
                               {Number(it.fator_correcao || 1) !== 1 && <span className="text-[10px] text-amber-600 dark:text-amber-400" title="Peso efetivo usado">→ {fmtPeso(it.qtd_efetiva, it.unidade_exib)}</span>}
                             </div>
