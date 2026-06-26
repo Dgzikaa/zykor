@@ -47,6 +47,7 @@ import {
   ShoppingCart,
   Boxes,
   FolderTree,
+  Timer,
 } from 'lucide-react';
 
 export type MenuIcon = ComponentType<{ className?: string }>;
@@ -92,6 +93,7 @@ export const MENU_ICONS: Record<string, MenuIcon> = {
   ShoppingCart,
   Boxes,
   FolderTree,
+  Timer,
 };
 
 /** Componente do ícone pelo nome; fallback em Activity se faltar. */

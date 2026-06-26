@@ -28,9 +28,9 @@ export default function OperacoesPage() {
   const operacoes: OperacaoCard[] = [
     {
       icon: ChefHat,
-      title: 'Terminal de Produção',
-      description: 'Acompanhe a produção em tempo real',
-      href: '/ferramentas/terminal',
+      title: 'Produções',
+      description: 'Execução com cronômetro, aderência à ficha e controle de custo',
+      href: '/operacional/producoes',
       color: 'text-orange-600 dark:text-orange-400',
       bgGradient: 'from-orange-500 to-red-600',
     },

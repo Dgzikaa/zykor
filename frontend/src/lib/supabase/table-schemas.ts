@@ -49,6 +49,8 @@ export const TABLE_SCHEMAS = {
   faturamento_pagamentos: 'operations',
   grupos_produto: 'operations',
   insumos: 'operations',
+  producao_execucao: 'operations',
+  producao_execucao_insumo: 'operations',
   produtos: 'operations',
   tempos_producao: 'operations',
   vendas_item: 'operations',
