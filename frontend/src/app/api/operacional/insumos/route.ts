@@ -111,10 +111,13 @@ export async function GET(request: NextRequest) {
       cod_invalido: !valido(cEf),
       tem_ficha: temFicha(cEf, p.id_produto_sisfood_cotacao),
       cadastrado: !!(cEf && masterSet.has(cEf)),
+      tem_compra: vmPreco != null,
       base: unidMap.get(p.id_produto_sisfood_cotacao)?.base ?? null,
       embalagem: unidMap.get(p.id_produto_sisfood_cotacao)?.embalagem ?? null,
     };
-  });
+  })
+  // Zykor é o catálogo oficial: só mostra produto VMarket que está no mestre OU teve compra (esconde lixo de pré-cadastro do VMarket)
+  .filter((p: any) => p.cadastrado || p.tem_compra);
 
   // Insumos que existem SÓ na contagem (fora do VMarket) — placeholder com preço/unidade da PLANILHA.
   // dedup pelo código EFETIVO (codigo_planilha||cod_interno): bronze com cod_interno lixo ('Sim') mas codigo_planilha=i0XXX já cobre o insumo

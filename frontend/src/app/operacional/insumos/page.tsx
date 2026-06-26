@@ -175,7 +175,6 @@ export default function CadastrosPage() {
   const nVariacoes = grupos.filter(g => !g.isMaterial && g.nVar > 1).length;
   const nInvalidos = grupos.filter(g => !g.isMaterial && vmErrado(g.rep)).length;
   const nSemFicha = grupos.filter(g => !g.isMaterial && !g.temFicha).length;
-  const nUnidDiverge = grupos.filter(g => !g.isMaterial && unidDiverge(g.rep)).length;
   const nSemCadastro = grupos.filter(g => g.semCadastro).length;
   const gruposView = useMemo(() => {
     if (filtroEsp === 'materiais') return grupos.filter(g => g.isMaterial);
@@ -355,13 +354,12 @@ export default function CadastrosPage() {
               {nVariacoes > 0 && <button onClick={() => setFiltroEsp(f => f === 'variacoes' ? null : 'variacoes')}><Badge variant="outline" className={`cursor-pointer text-blue-600 border-blue-300 ${filtroEsp === 'variacoes' ? 'ring-1 ring-blue-400' : ''}`}>{nVariacoes} com variações</Badge></button>}
               {nInvalidos > 0 && <button onClick={() => setFiltroEsp(f => f === 'invalido' ? null : 'invalido')}><Badge variant="outline" className={`cursor-pointer text-red-600 border-red-300 ${filtroEsp === 'invalido' ? 'ring-1 ring-red-400' : ''}`}>{nInvalidos} c/ cód VMarket p/ corrigir</Badge></button>}
               {nSemFicha > 0 && <button onClick={() => setFiltroEsp(f => f === 'sem_ficha' ? null : 'sem_ficha')}><Badge variant="outline" className={`cursor-pointer text-orange-600 border-orange-300 ${filtroEsp === 'sem_ficha' ? 'ring-1 ring-orange-400' : ''}`}>{nSemFicha} insumos sem ficha técnica</Badge></button>}
-              {nUnidDiverge > 0 && <button onClick={() => setFiltroEsp(f => f === 'unid_div' ? null : 'unid_div')}><Badge variant="outline" className={`cursor-pointer text-amber-600 border-amber-300 ${filtroEsp === 'unid_div' ? 'ring-1 ring-amber-400' : ''}`}>{nUnidDiverge} unidade p/ revisar</Badge></button>}
               {nMateriais > 0 && <button onClick={() => setFiltroEsp(f => f === 'materiais' ? null : 'materiais')}><Badge variant="outline" className={`cursor-pointer text-gray-500 ${filtroEsp === 'materiais' ? 'ring-1 ring-gray-400' : ''}`}>{nMateriais} materiais</Badge></button>}
             </div>
             {nSemCadastro > 0 && (
               <button onClick={() => setFiltroEsp(f => f === 'sem_cadastro' ? null : 'sem_cadastro')}
                 className={`w-full text-left rounded-lg border px-3 py-2 text-sm transition ${filtroEsp === 'sem_cadastro' ? 'bg-purple-100 border-purple-400 dark:bg-purple-900/30' : 'bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/15 dark:border-purple-800 dark:text-purple-200 hover:bg-purple-100'}`}>
-                🔗 <b>{nSemCadastro}</b> insumo(s) no VMarket sem cadastro no Zykor (não estão na planilha mestre) — invisíveis no consumo/CMV · clique pra cadastrar
+                🔗 <b>{nSemCadastro}</b> insumo(s) comprado(s) no VMarket sem cadastro no Zykor — invisíveis no consumo/CMV · clique pra cadastrar
               </button>
             )}
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
@@ -408,9 +406,7 @@ export default function CadastrosPage() {
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
                           <td className="px-3 py-2 text-center">{p.fator_correcao ? <span className="text-amber-500" title="Tem fator de correção (perda/limpeza)">✓</span> : <span className="text-gray-300">—</span>}</td>
                           <td className="px-3 py-2 text-center text-gray-600 dark:text-gray-300">
-                            <span className={unidDiverge(p) ? 'text-amber-600 font-medium' : ''}>{p.base || '—'}</span>
-                            {unidDiverge(p) && <span className="text-amber-500 ml-1 cursor-help" title={`No VMarket é "${p.gramatura}" (${gramBase(p.gramatura)}), mas está cadastrado como ${p.base}. Conferir a unidade.`}>⚠</span>}
-                            {p.gramatura && <span className="block text-[10px] text-gray-400">VM: {p.gramatura}</span>}
+                            <span>{p.base || '—'}</span>
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums text-gray-600 dark:text-gray-300">{p.embalagem ?? '—'}</td>
                           <td className="px-3 py-2 text-right tabular-nums font-medium whitespace-nowrap">
