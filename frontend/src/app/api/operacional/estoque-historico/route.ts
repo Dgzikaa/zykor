@@ -5,6 +5,21 @@ import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 export const dynamic = 'force-dynamic';
 const sb = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
+// Área = seção da planilha de contagem (COZINHA/SALÃO/DRINKS/FUNCIONÁRIOS), refletida no sufixo da categoria:
+// (C)→Comidas · (S)→Salão · (B)/destilados→Drinks · (F)→Alimentação. "Não-alcóolicos" aparece nas 2 seções → resolve por código.
+const DRINK_NAOALC = new Set(['i0298', 'i0085', 'i0328', 'i0191', 'i0563']); // não-alcóolicos que ficam na seção DRINKS
+function areaDe(categoria: string | null, cod: string | null): string {
+  const c = (categoria || '').toUpperCase();
+  if (cod && DRINK_NAOALC.has(cod)) return 'Drinks';
+  if (/\(F\)/.test(c)) return 'Alimentação';
+  if (/\(C\)/.test(c) || c.includes('PÃES') || c.includes('PAES') || c.includes('FEIJOADA')) return 'Comidas';
+  if (/\(S\)/.test(c) || c.includes('MERCADO (S)')) return 'Salão';
+  if (/\(B\)/.test(c) || ['DESTILADOS', 'IMPÉRIO', 'IMPERIO', 'POLPAS', 'PRÉ-BATCH', 'PRE-BATCH', 'OUTROS'].some((k) => c.includes(k))) return 'Drinks';
+  if (['ARTESANAL', 'LATA', 'LONG NECK', 'RETORNÁVEIS', 'RETORNAVEIS', 'VINHOS'].some((k) => c.includes(k))) return 'Salão';
+  if (c.includes('ALCÓOLICOS') || c.includes('ALCOOLICOS')) return 'Salão';
+  return 'Comidas';
+}
+
 /**
  * GET /api/operacional/estoque-historico?tipo=semanal&data=YYYY-MM-DD
  * Relatório (somente leitura) das contagens de estoque já gravadas:
@@ -42,20 +57,21 @@ export async function GET(request: NextRequest) {
   const itens = (rows || []).map((r: any) => {
     const qtd = Number(r.estoque_final ?? 0);
     const custo = Number(r.custo_unitario ?? 0);
-    return { ...r, estoque_final: qtd, custo_unitario: custo, valor: qtd * custo };
+    return { ...r, estoque_final: qtd, custo_unitario: custo, valor: qtd * custo, area: areaDe(r.categoria, r.insumo_codigo) };
   });
 
-  // total em estoque por área
+  // total em estoque por área (Comidas / Salão / Drinks / Alimentação)
   const areaMap: Record<string, { area: string; itens: number; valor: number }> = {};
   let total_geral = 0;
   for (const it of itens) {
-    const area = it.tipo_local || '(sem área)';
+    const area = it.area;
     (areaMap[area] ??= { area, itens: 0, valor: 0 });
     areaMap[area].itens += 1;
     areaMap[area].valor += it.valor;
     total_geral += it.valor;
   }
-  const totais_area = Object.values(areaMap).sort((a, b) => b.valor - a.valor);
+  const ordem = ['Comidas', 'Salão', 'Drinks', 'Alimentação'];
+  const totais_area = Object.values(areaMap).sort((a, b) => (ordem.indexOf(a.area) - ordem.indexOf(b.area)));
 
   return NextResponse.json({ success: true, tipo, datas, data: dataSel, itens, totais_area, total_geral });
 }

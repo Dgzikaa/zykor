@@ -189,7 +189,7 @@ export default function EstoqueHistoricoPage() {
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   <td className="px-3 py-2 font-mono text-xs text-gray-500">{it.insumo_codigo || '—'}</td>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}</td>
-                  <td className="px-3 py-2"><Badge variant="outline" className="capitalize">{it.tipo_local || '—'}</Badge></td>
+                  <td className="px-3 py-2"><Badge variant="outline">{it.area || '—'}</Badge></td>
                   <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{it.categoria || '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.estoque_final, it.unidade_medida)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{it.custo_unitario ? fmtBRL(it.custo_unitario) : '—'}</td>
