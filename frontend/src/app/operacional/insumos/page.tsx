@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown } from 'lucide-react';
+import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap } from 'lucide-react';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
@@ -163,6 +163,31 @@ export default function CadastrosPage() {
     }
   };
 
+  // ---------- CURVA ABC + IMPACTO DE VARIAÇÃO ----------
+  const [tab, setTab] = useState('insumos');
+  const [abcDias, setAbcDias] = useState(30);
+  const [abc, setAbc] = useState<any>(null);
+  const [loadingAbc, setLoadingAbc] = useState(false);
+  const carregarAbc = useCallback(async () => {
+    if (!barId) return; setLoadingAbc(true);
+    try { const r = await api.get(`/api/operacional/insumos/analises?bar_id=${barId}&tipo=abc&ini=${new Date(Date.now() - abcDias * 86400000).toISOString().slice(0, 10)}&fim=${new Date().toISOString().slice(0, 10)}`); if (r.success) setAbc(r); }
+    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+    finally { setLoadingAbc(false); }
+  }, [barId, abcDias, toast]);
+  useEffect(() => { if (tab === 'abc') carregarAbc(); }, [tab, carregarAbc]);
+
+  const [impacto, setImpacto] = useState<any[]>([]);
+  const [loadingImp, setLoadingImp] = useState(false);
+  const [impAberto, setImpAberto] = useState<string | null>(null);
+  const carregarImpacto = useCallback(async () => {
+    if (!barId) return; setLoadingImp(true);
+    try { const r = await api.get(`/api/operacional/insumos/analises?bar_id=${barId}&tipo=impacto`); if (r.success) setImpacto(r.insumos || []); }
+    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+    finally { setLoadingImp(false); }
+  }, [barId, toast]);
+  useEffect(() => { if (tab === 'impacto') carregarImpacto(); }, [tab, carregarImpacto]);
+  const corClasse = (c: string) => c === 'A' ? 'text-red-600 dark:text-red-400 border-red-300' : c === 'B' ? 'text-amber-600 dark:text-amber-400 border-amber-300' : 'text-gray-500 border-gray-300';
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-4">
@@ -180,10 +205,12 @@ export default function CadastrosPage() {
           </Button>
         </div>
 
-        <Tabs defaultValue="insumos">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="insumos"><Boxes className="w-4 h-4 mr-1.5" />Insumos</TabsTrigger>
             <TabsTrigger value="variacao"><TrendingUp className="w-4 h-4 mr-1.5" />Variação de Preço</TabsTrigger>
+            <TabsTrigger value="abc"><BarChart3 className="w-4 h-4 mr-1.5" />Curva ABC</TabsTrigger>
+            <TabsTrigger value="impacto"><Zap className="w-4 h-4 mr-1.5" />Impacto de Variação</TabsTrigger>
           </TabsList>
 
           {/* ===== INSUMOS (VMarket) ===== */}
@@ -356,6 +383,102 @@ export default function CadastrosPage() {
                 </tbody>
               </table>
             </div></CardContent></Card>
+          </TabsContent>
+
+          {/* ===== CURVA ABC ===== */}
+          <TabsContent value="abc" className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-gray-500 dark:text-gray-400">Período:</span>
+              <select value={abcDias} onChange={e => setAbcDias(Number(e.target.value))} className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm">
+                <option value={7}>7 dias</option><option value={30}>30 dias</option><option value={60}>60 dias</option><option value={90}>90 dias</option>
+              </select>
+              <span className="text-xs text-gray-400">Pareto do custo teórico (A = 80% do custo · B = próximos 15% · C = resto). Foco de negociação e contagem nos <b>A</b>.</span>
+            </div>
+            {loadingAbc ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+            : !abc?.insumos?.length ? <Card className="card-dark"><CardContent className="py-16 text-center text-gray-400">Sem consumo teórico no período (precisa de ficha + vendas).</CardContent></Card>
+            : (<>
+              <div className="grid grid-cols-3 gap-2">
+                {(['A', 'B', 'C'] as const).map(cl => (
+                  <Card key={cl} className="card-dark"><CardContent className="py-3">
+                    <div className={`text-xs uppercase font-bold ${corClasse(cl)}`}>Classe {cl}</div>
+                    <div className="text-xl font-bold">{abc.resumo?.[cl]?.n ?? 0} <span className="text-sm font-normal text-gray-400">insumos</span></div>
+                    <div className="text-xs text-gray-500">{fmtBRL(abc.resumo?.[cl]?.custo)}</div>
+                  </CardContent></Card>
+                ))}
+              </div>
+              <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+                    <th className="text-center font-medium px-3 py-2">Classe</th>
+                    <th className="text-left font-medium px-3 py-2">Cód.</th>
+                    <th className="text-left font-medium px-3 py-2">Insumo</th>
+                    <th className="text-right font-medium px-3 py-2">Custo teórico</th>
+                    <th className="text-right font-medium px-3 py-2">% do total</th>
+                    <th className="text-right font-medium px-3 py-2">% acum.</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {abc.insumos.map((r: any) => (
+                      <tr key={r.codigo} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                        <td className="px-3 py-2 text-center"><span className={`text-[10px] rounded-full border px-2 py-0.5 font-bold ${corClasse(r.classe)}`}>{r.classe}</span></td>
+                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{r.codigo}</td>
+                        <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{r.nome}</td>
+                        <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtBRL(r.custo_total)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-gray-500">{Number(r.pct).toFixed(1)}%</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-gray-500">{Number(r.pct_acum).toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div></CardContent></Card>
+            </>)}
+          </TabsContent>
+
+          {/* ===== IMPACTO DE VARIAÇÃO ===== */}
+          <TabsContent value="impacto" className="space-y-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">Insumos que mudaram de preço e os produtos afetados. <b>Δ pp</b> = impacto estimado no CMV do produto. Clique pra ver os produtos.</p>
+            {loadingImp ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+            : !impacto.length ? <Card className="card-dark"><CardContent className="py-16 text-center text-gray-400">Nenhuma variação de preço relevante.</CardContent></Card>
+            : (
+              <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+                    <th className="w-8 px-3 py-2"></th>
+                    <th className="text-left font-medium px-3 py-2">Insumo</th>
+                    <th className="text-right font-medium px-3 py-2">Variação</th>
+                    <th className="text-right font-medium px-3 py-2">Produtos afetados</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {impacto.map((g: any) => (
+                      <Fragment key={g.insumo_codigo}>
+                        <tr onClick={() => setImpAberto(a => a === g.insumo_codigo ? null : g.insumo_codigo)} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer">
+                          <td className="px-3 py-2"><ChevronDown className={`w-4 h-4 transition-transform ${impAberto === g.insumo_codigo ? 'rotate-180' : ''}`} /></td>
+                          <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{g.insumo_nome}<span className="text-xs text-gray-400 font-mono"> · {g.insumo_codigo}</span></td>
+                          <td className={`px-3 py-2 text-right tabular-nums font-medium ${g.var_pct > 0 ? 'text-red-600 dark:text-red-400' : g.var_pct < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{g.var_pct > 0 ? '+' : ''}{Number(g.var_pct).toFixed(1)}%</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{g.n_produtos}</td>
+                        </tr>
+                        {impAberto === g.insumo_codigo && (
+                          <tr className="bg-gray-50/60 dark:bg-gray-800/30"><td colSpan={4} className="px-3 py-2">
+                            <table className="w-full text-xs">
+                              <thead className="text-gray-400"><tr><th className="text-left px-2 py-1">Produto</th><th className="text-right px-2 py-1">Δ custo/un</th><th className="text-right px-2 py-1">CMV atual</th><th className="text-right px-2 py-1">Δ CMV</th></tr></thead>
+                              <tbody>
+                                {g.produtos.map((p: any, i: number) => (
+                                  <tr key={i} className="border-t border-gray-100 dark:border-gray-800">
+                                    <td className="px-2 py-1">{p.produto_nome}</td>
+                                    <td className="px-2 py-1 text-right tabular-nums">{fmtBRL(p.delta_custo)}</td>
+                                    <td className="px-2 py-1 text-right tabular-nums text-gray-500">{p.cmv_atual == null ? '—' : `${Number(p.cmv_atual).toFixed(1)}%`}</td>
+                                    <td className={`px-2 py-1 text-right tabular-nums ${p.delta_cmv_pp > 0 ? 'text-red-500' : p.delta_cmv_pp < 0 ? 'text-emerald-500' : 'text-gray-400'}`}>{p.delta_cmv_pp == null ? '—' : `${p.delta_cmv_pp > 0 ? '+' : ''}${Number(p.delta_cmv_pp).toFixed(2)}pp`}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </td></tr>
+                        )}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div></CardContent></Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>
