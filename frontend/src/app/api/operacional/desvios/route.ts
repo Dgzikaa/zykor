@@ -45,7 +45,10 @@ export async function GET(request: NextRequest) {
     .rpc('fn_desvios', { p_bar: user.bar_id, p_ini: ini, p_fim: fim });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-  const itens = (data || []).map((r: any) => {
+  // na diária só faz sentido a Curva A (insumos contados todo dia); senão estoque ini/fim vem furado
+  const base = tipo === 'diaria' ? (data || []).filter((r: any) => r.frequencia === 'diaria') : (data || []);
+
+  const itens = base.map((r: any) => {
     const real = Number(r.saida_real || 0);
     const teorica = Number(r.saida_teorica || 0);
     // suspeita de ficha/unidade: saída teórica muito acima da real (mas já não distorce, pois é por qtd)
@@ -53,6 +56,7 @@ export async function GET(request: NextRequest) {
     return {
       insumo_codigo: r.insumo_codigo,
       insumo_nome: r.insumo_nome,
+      frequencia: r.frequencia,
       area: areaDe(r.categoria, r.insumo_codigo),
       estoque_ini: Number(r.estoque_ini || 0),
       compra: Number(r.compra || 0),

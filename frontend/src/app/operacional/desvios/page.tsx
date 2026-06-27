@@ -38,15 +38,15 @@ export default function DesviosPage() {
     });
   }, [barId, tipo]);
 
-  const carregar = useCallback(async (a: string, b: string) => {
+  const carregar = useCallback(async (a: string, b: string, t: string) => {
     if (!barId || !a || !b) return;
     setLoading(true);
     try {
-      const r = await api.get(`/api/operacional/desvios?ini=${a}&fim=${b}`);
+      const r = await api.get(`/api/operacional/desvios?ini=${a}&fim=${b}&tipo=${t}`);
       if (r.success) setRes(r);
     } finally { setLoading(false); }
   }, [barId]);
-  useEffect(() => { if (ini && fim) carregar(ini, fim); }, [ini, fim, carregar]);
+  useEffect(() => { if (ini && fim) carregar(ini, fim, tipo); }, [ini, fim, tipo, carregar]);
 
   const itensView = useMemo(() => {
     const s = busca.trim().toLowerCase();
