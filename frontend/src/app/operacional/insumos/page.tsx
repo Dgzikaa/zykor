@@ -18,7 +18,7 @@ const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR'
 interface Insumo {
   id: number; codigo: string; nome: string; categoria: string | null; unidade_medida: string | null;
   fator_correcao?: boolean; curva_a?: boolean; frequencia?: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
-  fornecedor: string | null; tem_compra?: boolean; tem_ficha?: boolean; tem_giro?: boolean; is_producao?: boolean; base?: string | null; embalagem?: number | null;
+  fornecedor: string | null; tem_compra?: boolean; tem_ficha?: boolean; base?: string | null; embalagem?: number | null;
 }
 interface SemCadastro { id_vmarket: number; cod_interno: string | null; codigo_vmarket: string | null; nome: string; nome_secao: string | null; preco: number | null; preco_data: string | null; fornecedor: string | null; }
 
@@ -34,7 +34,7 @@ export default function InsumosPage() {
   const [syncedEm, setSyncedEm] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [catSel, setCatSel] = useState('todas');
-  const [filtro, setFiltro] = useState<'sem_ficha' | 'sem_cadastro' | 'curva_a' | 'vende_sem_ficha' | null>(null);
+  const [filtro, setFiltro] = useState<'sem_ficha' | 'sem_cadastro' | 'curva_a' | null>(null);
   const [tab, setTab] = useState('insumos');
   // expandir compras de um item sem cadastro
   const [compraAberto, setCompraAberto] = useState<number | null>(null);
@@ -91,19 +91,12 @@ export default function InsumosPage() {
   const catList = useMemo(() => Array.from(new Set(insumos.map(i => i.categoria).filter(Boolean))).sort() as string[], [insumos]);
   const nSemFicha = useMemo(() => insumos.filter(i => !i.tem_ficha).length, [insumos]);
   const nCurvaA = useMemo(() => insumos.filter(i => i.curva_a).length, [insumos]);
-  // consome sem ficha = tem giro (estoque cai na contagem) MAS não está em ficha. Exclui produção e
-  // a refeição da equipe (categoria FUNCIONÁRIOS, que não é vendida → não tem ficha mesmo).
-  // OBS: categorias "(F)" NÃO são excluídas — pode ser feijoada (vendida) → gap real a revisar.
-  const ehFuncionario = (cat: string | null) => /FUNCION/i.test(cat || '');
-  const consomeSemFicha = (i: Insumo) => i.tem_giro && !i.tem_ficha && !i.is_producao && !ehFuncionario(i.categoria);
-  const nVendeSemFicha = useMemo(() => insumos.filter(consomeSemFicha).length, [insumos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const insumosView = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return insumos.filter(i => {
       if (catSel !== 'todas' && (i.categoria || '') !== catSel) return false;
       if (filtro === 'sem_ficha' && i.tem_ficha) return false;
-      if (filtro === 'vende_sem_ficha' && !consomeSemFicha(i)) return false;
       if (filtro === 'curva_a' && !i.curva_a) return false;
       if (!q) return true;
       return (i.nome || '').toLowerCase().includes(q) || (i.codigo || '').toLowerCase().includes(q) || (i.categoria || '').toLowerCase().includes(q) || (i.fornecedor || '').toLowerCase().includes(q);
@@ -181,14 +174,6 @@ export default function InsumosPage() {
     setFichasIns({ codigo, nome }); setFichasData(null);
     try { const r = await api.get(`/api/operacional/insumos/fichas?bar_id=${barId}&codigo=${encodeURIComponent(codigo)}`); setFichasData(r.success ? (r.fichas || []) : []); }
     catch { setFichasData([]); }
-  };
-  // movimento da contagem (o "giro" que classificou o insumo como vende-sem-ficha)
-  const [giroIns, setGiroIns] = useState<{ codigo: string; nome: string } | null>(null);
-  const [giroData, setGiroData] = useState<any | null>(null);
-  const abrirGiro = async (codigo: string, nome: string) => {
-    setGiroIns({ codigo, nome }); setGiroData(null);
-    try { const r = await api.get(`/api/operacional/insumos/giro?bar_id=${barId}&codigo=${encodeURIComponent(codigo)}&nome=${encodeURIComponent(nome)}`); setGiroData(r.success ? r : { movimentos: [] }); }
-    catch { setGiroData({ movimentos: [] }); }
   };
 
   // ---------- VARIAÇÃO DE PREÇO (camada de compras) ----------
@@ -279,7 +264,6 @@ export default function InsumosPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <button onClick={() => setFiltro(null)}><Badge variant="outline" className={`cursor-pointer ${!filtro ? 'ring-1 ring-emerald-400' : ''}`}>{insumos.length} insumos</Badge></button>
-              {nVendeSemFicha > 0 && <button onClick={() => setFiltro(f => f === 'vende_sem_ficha' ? null : 'vende_sem_ficha')} title="Insumos cujo estoque CAI na contagem (são consumidos) mas não estão em nenhuma ficha — distorcem o desvio/CMV. Clique no ícone de queda pra ver o movimento."><Badge variant="outline" className={`cursor-pointer text-red-600 border-red-300 ${filtro === 'vende_sem_ficha' ? 'ring-1 ring-red-400' : ''}`}>⚠ {nVendeSemFicha} consome sem ficha</Badge></button>}
               {nSemFicha > 0 && <button onClick={() => setFiltro(f => f === 'sem_ficha' ? null : 'sem_ficha')} title="Todos os insumos sem ficha técnica (inclui itens parados que não precisam de ficha)"><Badge variant="outline" className={`cursor-pointer text-orange-600 border-orange-300 ${filtro === 'sem_ficha' ? 'ring-1 ring-orange-400' : ''}`}>{nSemFicha} sem ficha técnica</Badge></button>}
               {nCurvaA > 0 && <button onClick={() => setFiltro(f => f === 'curva_a' ? null : 'curva_a')}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${filtro === 'curva_a' ? 'ring-1 ring-indigo-400' : ''}`}>{nCurvaA} curva A</Badge></button>}
               {/* legenda dos ícones da coluna nome */}
@@ -385,7 +369,6 @@ export default function InsumosPage() {
                               <button onClick={() => salvarCurvaA(i, !i.curva_a)} className="shrink-0" title={i.curva_a ? 'Curva A — entra na contagem diária. Clique para remover.' : 'Marcar como Curva A (contagem diária)'}>
                                 <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold transition ${i.curva_a ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-100 text-gray-300 hover:text-indigo-400 dark:bg-gray-800 dark:text-gray-600'}`}>A</span>
                               </button>
-                              {i.tem_giro && !i.is_producao && <button onClick={() => abrirGiro(i.codigo, i.nome)} className="shrink-0 text-red-500 hover:text-red-700" title="Tem giro na contagem — ver o movimento (quedas) que classificou como consumo/venda"><TrendingDown className="w-3.5 h-3.5" /></button>}
                             </div>
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{i.categoria || '—'}</td>
@@ -715,47 +698,6 @@ export default function InsumosPage() {
                 </table>
               )}
               <div className="flex justify-end mt-4"><Button variant="outline" onClick={() => setFichasIns(null)}>Fechar</Button></div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: movimento da contagem (giro) */}
-        {giroIns && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setGiroIns(null); }}>
-            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><TrendingDown className="w-4 h-4 text-red-500" />Movimento da contagem · {giroIns.nome}</h4>
-              <p className="text-xs text-gray-400 mb-1 font-mono">{giroIns.codigo}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Esse item entrou em <b>&ldquo;consome sem ficha&rdquo;</b> porque o estoque <b>caiu</b> na contagem (consumo), mas não está em nenhuma ficha. Abaixo, as quedas que somam esse consumo.</p>
-              {giroData == null ? <div className="py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-400" /></div>
-              : (giroData.movimentos || []).length === 0 ? <div className="py-6 text-center text-sm text-gray-400">Sem contagens recentes.</div>
-              : (
-                <>
-                  <div className="text-sm mb-2">Consumo no período: <b className="text-red-600 dark:text-red-400">{Number(giroData.consumo_total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</b> {giroData.movimentos?.[0]?.unidade || ''}</div>
-                  <table className="w-full text-sm">
-                    <thead className="text-xs text-gray-400 border-b"><tr><th className="text-left py-1">Data</th><th className="text-right py-1">Estoque</th><th className="text-right py-1">Variação</th></tr></thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                      {giroData.movimentos.map((m: any, i: number) => (
-                        <tr key={i}>
-                          <td className="py-1.5 text-gray-600 dark:text-gray-300">{fmtData(m.data)}</td>
-                          <td className="py-1.5 text-right tabular-nums">{Number(m.estoque).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</td>
-                          <td className={`py-1.5 text-right tabular-nums ${m.delta == null ? 'text-gray-300' : m.delta < 0 ? 'text-red-600 dark:text-red-400 font-medium' : m.delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{m.delta == null ? '—' : `${m.delta > 0 ? '+' : ''}${Number(m.delta).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {(giroData.candidatos || []).length > 0 && (
-                    <div className="mt-3 text-xs">
-                      <div className="text-gray-500 dark:text-gray-400 mb-1">Produtos com nome parecido (candidatos a ligar a ficha):</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {giroData.candidatos.map((c: any) => (
-                          <span key={c.codigo} className="rounded px-1.5 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"><span className="font-mono">{c.codigo}</span> {c.nome}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-              <div className="flex justify-end mt-4"><Button variant="outline" onClick={() => setGiroIns(null)}>Fechar</Button></div>
             </div>
           </div>
         )}
