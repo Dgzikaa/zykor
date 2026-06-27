@@ -101,7 +101,8 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
       if (filtroLista === 'sem_ch' && ((p.cods_ch?.length ?? 0) !== 0 || p.agrupado_em)) return false;
       if (filtroLista === 'item_zerado' && !zeradoCods.has(p.codigo)) return false;
       if (kind === 'produto' && statusFiltro !== 'todos' && (statusFiltro === 'ativo' ? !p.ativo : !!p.ativo)) return false;
-      return !q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q);
+      return !q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q)
+        || (p.cods_ch || []).some((c: any) => String(c).toLowerCase().includes(q));
     });
   }, [lista, buscaLista, filtroLista, catFiltro, statusFiltro, kind, zeradoCods]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -112,7 +113,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
   const marcarMestre = async (it: any) => {
-    try { await api.put('/api/operacional/producoes/ficha', { id: it.id, is_mestre: !it.is_mestre }); if (sel) await carregarItens(sel); }
+    try { await api.put('/api/operacional/producoes/ficha', { id: it.id, is_mestre: !it.is_mestre }); if (sel) await carregarItens(sel); reloadLista(); }
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
   const salvarFcItem = async (it: any, valor: string, el?: HTMLInputElement) => {
@@ -304,7 +305,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
               <button key={p.id} onClick={() => setSel(p.id)}
                 className={`w-full text-left px-3 py-2 text-sm transition ${sel === p.id ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
                 {p.nome}
-                <span className="block text-xs text-gray-400">{p.codigo ? `${p.codigo} · ` : ''}{p.qtd_componentes ?? 0} itens{kind === 'producao' && p.controle_producao ? ' · no controle' : ''}</span>
+                <span className="block text-xs text-gray-400">{p.codigo ? `${p.codigo} · ` : ''}{p.qtd_componentes ?? 0} itens{kind === 'produto' && (p.cods_ch?.length ?? 0) > 0 ? ` · ch: ${p.cods_ch.join(', ')}` : ''}{kind === 'producao' && p.controle_producao ? ' · no controle' : ''}</span>
               </button>
             ))}
           </div>
