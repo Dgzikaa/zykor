@@ -71,6 +71,23 @@ export default function InsumosPage() {
     finally { setSincronizando(false); }
   };
 
+  // vincular SKU comprado a um insumo já existente
+  const [vincSc, setVincSc] = useState<SemCadastro | null>(null);
+  const [vincBusca, setVincBusca] = useState('');
+  const vincOpcoes = useMemo(() => {
+    const q = vincBusca.trim().toLowerCase();
+    return insumos.filter(i => !q || (i.nome || '').toLowerCase().includes(q) || (i.codigo || '').toLowerCase().includes(q)).slice(0, 30);
+  }, [insumos, vincBusca]);
+  const vincular = async (codigo: string) => {
+    if (!vincSc) return;
+    try {
+      const r = await api.post('/api/operacional/insumos', { bar_id: barId, action: 'vincular_vmarket', id_prod_vmarket: vincSc.id_vmarket, codigo });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: `Vinculado a ${codigo}` });
+      setVincSc(null); setVincBusca(''); await carregar();
+    } catch (e: any) { toast({ title: 'Erro ao vincular', description: e?.message, variant: 'destructive' }); }
+  };
+
   const catList = useMemo(() => Array.from(new Set(insumos.map(i => i.categoria).filter(Boolean))).sort() as string[], [insumos]);
   const nSemFicha = useMemo(() => insumos.filter(i => !i.tem_ficha).length, [insumos]);
 
@@ -258,7 +275,7 @@ export default function InsumosPage() {
                     <th className="text-left font-medium px-3 py-2">Seção</th>
                     <th className="text-right font-medium px-3 py-2">Última compra</th>
                     <th className="text-left font-medium px-3 py-2">Fornecedor</th>
-                    <th className="w-24 px-3 py-2"></th>
+                    <th className="w-44 px-3 py-2"></th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                     {semCadastro.length === 0 ? <tr><td colSpan={6} className="px-3 py-10 text-center text-gray-400">Tudo cadastrado 🎉</td></tr>
@@ -277,7 +294,10 @@ export default function InsumosPage() {
                             {sc.preco_data && <div className="text-[11px] text-gray-400">{fmtData(sc.preco_data)}</div>}
                           </td>
                           <td className="px-3 py-2 text-gray-500">{sc.fornecedor || '—'}</td>
-                          <td className="px-3 py-2 text-right"><Button size="sm" onClick={() => cadastrarDoSemCadastro(sc)}><Plus className="w-3.5 h-3.5 mr-1" />cadastrar</Button></td>
+                          <td className="px-3 py-2 text-right whitespace-nowrap">
+                            <Button size="sm" variant="outline" className="mr-1.5" onClick={() => { setVincSc(sc); setVincBusca(''); }} title="Vincular a um insumo que já existe">vincular</Button>
+                            <Button size="sm" onClick={() => cadastrarDoSemCadastro(sc)}><Plus className="w-3.5 h-3.5 mr-1" />cadastrar</Button>
+                          </td>
                         </tr>
                         {compraAberto === sc.id_vmarket && (
                           <tr className="bg-gray-50/60 dark:bg-gray-800/30"><td colSpan={6} className="px-3 py-2">
@@ -557,6 +577,24 @@ export default function InsumosPage() {
                 <Button variant="outline" onClick={() => setNovoOpen(false)}>Cancelar</Button>
                 <Button onClick={criarInsumo} disabled={criando}><Plus className="w-4 h-4 mr-1" />{criando ? 'Salvando…' : 'Cadastrar'}</Button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: vincular SKU comprado a um insumo existente */}
+        {vincSc && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setVincSc(null)}>
+            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-md space-y-2" onClick={e => e.stopPropagation()}>
+              <h4 className="font-semibold text-gray-900 dark:text-white">Vincular ao insumo existente</h4>
+              <p className="text-sm text-gray-500">Compra: <b>{vincSc.nome}</b>{vincSc.cod_interno ? <span className="font-mono text-xs text-gray-400"> · {vincSc.cod_interno}</span> : ''}. Escolha o insumo do cadastro que ela representa.</p>
+              <div className="relative"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={vincBusca} onChange={e => setVincBusca(e.target.value)} placeholder="Buscar insumo (nome ou i0XXX)…" className="pl-9" /></div>
+              <div className="max-h-60 overflow-y-auto rounded border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
+                {vincOpcoes.length === 0 ? <div className="px-3 py-3 text-xs text-gray-400">Nada encontrado.</div>
+                : vincOpcoes.map(o => (
+                  <button key={o.id} onClick={() => vincular(o.codigo)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/40">{o.nome}<span className="text-xs text-gray-400 font-mono"> · {o.codigo}</span></button>
+                ))}
+              </div>
+              <div className="flex justify-end pt-1"><Button variant="outline" onClick={() => setVincSc(null)}>Cancelar</Button></div>
             </div>
           </div>
         )}

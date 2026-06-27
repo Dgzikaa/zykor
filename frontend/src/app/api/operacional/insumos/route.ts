@@ -121,6 +121,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   }
 
+  // Vincular um SKU comprado no VMarket a um insumo JÁ cadastrado (sem criar novo)
+  if (body.action === 'vincular_vmarket') {
+    const idVm = Number(body.id_prod_vmarket);
+    const codigo = String(body.codigo || '').trim().toLowerCase();
+    if (!idVm || !codigo) return NextResponse.json({ success: false, error: 'id e código obrigatórios' }, { status: 400 });
+    const { data: ins } = await ops.from('insumos').select('id').eq('bar_id', barId).eq('codigo', codigo).maybeSingle();
+    if (!ins) return NextResponse.json({ success: false, error: `Insumo ${codigo} não existe no cadastro` }, { status: 404 });
+    const { error } = await supabase.from('bronze_vmarket_produtos').update({ codigo_planilha: codigo }).eq('bar_id', barId).eq('id_produto_sisfood_cotacao', idVm);
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, codigo });
+  }
+
   // Cadastrar insumo no mestre (operations.insumos). Opcional id_prod_vmarket: liga o SKU comprado a esse código.
   if (body.action === 'criar_insumo') {
     const codigo = String(body.codigo || '').trim().toLowerCase();
