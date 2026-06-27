@@ -707,6 +707,13 @@ function FichasInner() {
   const loadInsumos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/insumos?bar_id=${barId}`); if (r.success) setInsumos(r.insumos || []); }, [barId]);
   const loadCmvMedias = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/producoes/cmv-categoria?bar_id=${barId}`); if (r.success) setCmvMedias(r.medias || {}); }, [barId]);
   useEffect(() => { loadProducoes(); loadProdutos(); loadInsumos(); loadCmvMedias(); }, [loadProducoes, loadProdutos, loadInsumos, loadCmvMedias]);
+  // ao voltar o foco pra esta aba, re-sincroniza insumos/produções (cadastrados em outra aba aparecem sem F5)
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') { loadInsumos(); loadProducoes(); } };
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => { document.removeEventListener('visibilitychange', refresh); window.removeEventListener('focus', refresh); };
+  }, [loadInsumos, loadProducoes]);
 
   const importar = async () => {
     if (!barId) return; setImportando(true);
