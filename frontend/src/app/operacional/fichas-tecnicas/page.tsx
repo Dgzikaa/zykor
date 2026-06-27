@@ -482,7 +482,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
 
                 {/* Modal de edição do item */}
                 {editItem && (
-                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditItem(null)}>
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditItem(null); }}>
                     <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm" onClick={e => e.stopPropagation()}>
                       <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Editar componente</h4>
                       <p className="text-sm text-gray-500 mb-3">{editItem.nome_componente}</p>
@@ -500,7 +500,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
 
                 {/* Modal de editar rendimento + unidade */}
                 {editRend && (
-                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditRend(false)}>
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditRend(false); }}>
                     <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm" onClick={e => e.stopPropagation()}>
                       <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Editar produção</h4>
                       <div className="space-y-2">
@@ -525,7 +525,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
 
                 {/* Modal de editar produto (nome + código) */}
                 {editProd && (
-                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditProd(false)}>
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditProd(false); }}>
                     <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm" onClick={e => e.stopPropagation()}>
                       <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Editar produto</h4>
                       <div className="space-y-2">
@@ -542,7 +542,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
 
                 {/* Modal de editar códigos ContaHub / Yuzer */}
                 {editCods && (
-                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditCods(false)}>
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditCods(false); }}>
                     <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
                       <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Códigos do produto</h4>
                       <p className="text-sm text-gray-500">{selObj?.nome} · {selObj?.codigo}</p>
@@ -559,7 +559,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
 
                 {/* Modal de confirmar exclusão do produto */}
                 {confirmDel && (
-                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setConfirmDel(false)}>
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setConfirmDel(false); }}>
                     <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
                       <h4 className="font-semibold text-gray-900 dark:text-white">{kind === 'producao' ? 'Excluir produção' : 'Excluir produto'}</h4>
                       <p className="text-sm text-gray-500">{kind === 'producao'
@@ -575,7 +575,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
 
                 {/* Modal de agrupar produto */}
                 {editGrupo && (
-                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditGrupo(false)}>
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditGrupo(false); }}>
                     <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-md space-y-2" onClick={e => e.stopPropagation()}>
                       <h4 className="font-semibold text-gray-900 dark:text-white">Agrupar produto</h4>
                       <p className="text-sm text-gray-500">Escolha o produto <b>principal</b> que leva o código ContaHub e a venda. <b>{selObj?.nome}</b> vira variante dele (não conta como &ldquo;sem cód CH&rdquo; e não duplica venda).</p>
@@ -593,7 +593,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
 
                 {/* Modal de adicionar componente */}
                 {addOpen && (
-                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setAddOpen(false)}>
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setAddOpen(false); }}>
                     <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-lg space-y-2" onClick={e => e.stopPropagation()}>
                       <h4 className="font-semibold text-gray-900 dark:text-white">Adicionar componente</h4>
                       <div className="flex gap-1">
@@ -741,7 +741,7 @@ function FichasInner() {
         : <FichaTab kind="produto" lista={produtos} insumos={insumos} producoes={producoes} reloadLista={loadProdutos} cmvMedias={cmvMedias} />}
 
       {createOpen && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setCreateOpen(false)}>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setCreateOpen(false); }}>
           <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
             <h4 className="font-semibold text-gray-900 dark:text-white">{aba === 'producao' ? 'Nova produção' : 'Novo produto'}</h4>
             <div><label className="text-xs text-gray-500">Nome *</label><Input value={cNome} onChange={e => setCNome(e.target.value)} placeholder={aba === 'producao' ? 'Ex.: Molho da casa' : 'Ex.: Caipirinha de Limão'} /></div>

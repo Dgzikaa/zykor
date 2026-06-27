@@ -118,22 +118,9 @@ const Input = React.forwardRef<HTMLInputElement, ModernInputProps>(
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             onChange={handleInputChange}
-            whileFocus={animated ? { scale: 1.02 } : undefined}
             transition={{ duration: 0.2 }}
             {...(props as any)}
           />
-
-          {/* Focus Ring Animation */}
-          {animated && isFocused && (
-            <motion.div
-              layoutId="inputFocusRing"
-              className="absolute inset-0 rounded-xl border-2 border-blue-500 dark:border-blue-400 pointer-events-none"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-            />
-          )}
 
           {/* Right Side Icons */}
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">

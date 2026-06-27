@@ -562,7 +562,7 @@ export default function InsumosPage() {
 
         {/* Modal: adicionar insumo */}
         {novoOpen && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setNovoOpen(false)}>
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setNovoOpen(false); }}>
             <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-md space-y-3" onClick={e => e.stopPropagation()}>
               <h4 className="font-semibold text-gray-900 dark:text-white">{nVmId ? 'Cadastrar insumo (do VMarket)' : 'Adicionar insumo'}</h4>
               <p className="text-xs text-gray-500">Cadastro no Zykor. {nVmId ? 'Ligado à compra do VMarket por este código.' : 'Use o código que vai casar com o VMarket quando a compra entrar.'}</p>
@@ -597,7 +597,7 @@ export default function InsumosPage() {
 
         {/* Modal: vincular SKU comprado a um insumo existente */}
         {vincSc && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setVincSc(null)}>
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setVincSc(null); }}>
             <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-md space-y-2" onClick={e => e.stopPropagation()}>
               <h4 className="font-semibold text-gray-900 dark:text-white">Vincular ao insumo existente</h4>
               <p className="text-sm text-gray-500">Compra: <b>{vincSc.nome}</b>{vincSc.cod_interno ? <span className="font-mono text-xs text-gray-400"> · {vincSc.cod_interno}</span> : ''}. Escolha o insumo do cadastro que ela representa.</p>
@@ -615,7 +615,7 @@ export default function InsumosPage() {
 
         {/* Modal: editar insumo */}
         {editIns && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditIns(null)}>
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditIns(null); }}>
             <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
               <h4 className="font-semibold text-gray-900 dark:text-white">Editar insumo</h4>
               <div className="flex gap-2">
@@ -662,7 +662,7 @@ export default function InsumosPage() {
 
         {/* Modal: excluir */}
         {delConfirm && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setDelConfirm(null)}>
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setDelConfirm(null); }}>
             <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
               <h4 className="font-semibold text-gray-900 dark:text-white">Excluir insumo?</h4>
               <p className="text-sm text-gray-600 dark:text-gray-300"><b>{delConfirm.nome}</b> <span className="text-gray-400 font-mono">· {delConfirm.codigo}</span> será removido do cadastro (as compras do VMarket ficam, mas desvinculadas).</p>
@@ -676,7 +676,7 @@ export default function InsumosPage() {
 
         {/* Modal: fichas que usam o insumo */}
         {fichasIns && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setFichasIns(null)}>
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setFichasIns(null); }}>
             <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <h4 className="font-semibold text-gray-900 dark:text-white">Fichas com {fichasIns.nome}</h4>
               <p className="text-xs text-gray-400 mb-3 font-mono">{fichasIns.codigo}</p>
