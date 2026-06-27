@@ -92,8 +92,9 @@ export default function InsumosPage() {
   const nSemFicha = useMemo(() => insumos.filter(i => !i.tem_ficha).length, [insumos]);
   const nCurvaA = useMemo(() => insumos.filter(i => i.curva_a).length, [insumos]);
   // consome sem ficha = tem giro (estoque cai na contagem) MAS não está em ficha. Exclui produção e
-  // categorias de Funcionários "(F)" (refeição da equipe não é vendida → não tem ficha mesmo).
-  const ehFuncionario = (cat: string | null) => /\(F\)|FUNCION/i.test(cat || '');
+  // a refeição da equipe (categoria FUNCIONÁRIOS, que não é vendida → não tem ficha mesmo).
+  // OBS: categorias "(F)" NÃO são excluídas — pode ser feijoada (vendida) → gap real a revisar.
+  const ehFuncionario = (cat: string | null) => /FUNCION/i.test(cat || '');
   const consomeSemFicha = (i: Insumo) => i.tem_giro && !i.tem_ficha && !i.is_producao && !ehFuncionario(i.categoria);
   const nVendeSemFicha = useMemo(() => insumos.filter(consomeSemFicha).length, [insumos]); // eslint-disable-line react-hooks/exhaustive-deps
 
