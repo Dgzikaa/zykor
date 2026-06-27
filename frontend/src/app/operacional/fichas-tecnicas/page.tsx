@@ -54,12 +54,15 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   const [loadingItens, setLoadingItens] = useState(false);
   // códigos com componente sem preço (R$0 — revisar)
   const [zeradoCods, setZeradoCods] = useState<Set<string>>(new Set());
-  useEffect(() => {
+  // re-busca o contador de "item R$0" — a view é ao vivo, então corrigir o preço de um
+  // insumo (aqui ou na tela de Insumos) reflete na hora; só precisamos re-puxar a contagem.
+  const reloadZerados = useCallback(() => {
     if (!barId) return;
     api.get(`/api/operacional/producoes/itens-zerados?bar_id=${barId}`)
       .then(r => { if (r.success) setZeradoCods(new Set((kind === 'producao' ? r.producoes : r.produtos) || [])); })
       .catch(() => {});
   }, [barId, kind]);
+  useEffect(() => { reloadZerados(); }, [reloadZerados]);
 
   useEffect(() => { if (preSel) setSel(preSel); }, [preSel]);
 
@@ -69,7 +72,8 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
       const r = await api.get(`/api/operacional/producoes/ficha?${parentParam}=${id}&bar_id=${barId}`);
       if (r.success) setItens(r.itens || []);
     } finally { setLoadingItens(false); }
-  }, [parentParam, barId]);
+    reloadZerados(); // mantém o badge "item R$0" fresco ao abrir/editar uma ficha
+  }, [parentParam, barId, reloadZerados]);
   useEffect(() => { if (sel) carregarItens(sel); else setItens([]); }, [sel, carregarItens]);
 
   // categoria pelo prefixo do código: finalização b=Bebida d=Drink c=Comida o=Outros · produção pd=Bar pc=Cozinha
