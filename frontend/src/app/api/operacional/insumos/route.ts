@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
     const base = ['g', 'ml', 'un'].includes(body.base) ? body.base : 'un';
     const emb = Number(body.embalagem) > 0 ? Number(body.embalagem) : null;
     const payload: any = {
-      bar_id: barId, codigo, nome, unidade_medida: base,
+      bar_id: barId, codigo, nome, unidade_medida: base === 'un' ? 'unid' : base, // operations.insumos aceita g/kg/ml/l/unid/pct (não 'un')
       custo_unitario: Number(body.custo_unitario) || 0,
       fator_correcao: !!body.fator_correcao,
     };
