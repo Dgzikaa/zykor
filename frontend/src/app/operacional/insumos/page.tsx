@@ -18,7 +18,7 @@ const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR'
 interface Insumo {
   id: number; codigo: string; nome: string; categoria: string | null; unidade_medida: string | null;
   fator_correcao?: boolean; curva_a?: boolean; frequencia?: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
-  fornecedor: string | null; tem_compra?: boolean; tem_ficha?: boolean; base?: string | null; embalagem?: number | null;
+  fornecedor: string | null; tem_compra?: boolean; tem_ficha?: boolean; tem_giro?: boolean; is_producao?: boolean; base?: string | null; embalagem?: number | null;
 }
 interface SemCadastro { id_vmarket: number; cod_interno: string | null; codigo_vmarket: string | null; nome: string; nome_secao: string | null; preco: number | null; preco_data: string | null; fornecedor: string | null; }
 
@@ -34,7 +34,7 @@ export default function InsumosPage() {
   const [syncedEm, setSyncedEm] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [catSel, setCatSel] = useState('todas');
-  const [filtro, setFiltro] = useState<'sem_ficha' | 'sem_cadastro' | 'curva_a' | null>(null);
+  const [filtro, setFiltro] = useState<'sem_ficha' | 'sem_cadastro' | 'curva_a' | 'vende_sem_ficha' | null>(null);
   const [tab, setTab] = useState('insumos');
   // expandir compras de um item sem cadastro
   const [compraAberto, setCompraAberto] = useState<number | null>(null);
@@ -91,12 +91,15 @@ export default function InsumosPage() {
   const catList = useMemo(() => Array.from(new Set(insumos.map(i => i.categoria).filter(Boolean))).sort() as string[], [insumos]);
   const nSemFicha = useMemo(() => insumos.filter(i => !i.tem_ficha).length, [insumos]);
   const nCurvaA = useMemo(() => insumos.filter(i => i.curva_a).length, [insumos]);
+  // vende sem ficha = tem giro (estoque cai na contagem) MAS não está em ficha → distorce desvio/CMV. Grave.
+  const nVendeSemFicha = useMemo(() => insumos.filter(i => i.tem_giro && !i.tem_ficha && !i.is_producao).length, [insumos]);
 
   const insumosView = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return insumos.filter(i => {
       if (catSel !== 'todas' && (i.categoria || '') !== catSel) return false;
       if (filtro === 'sem_ficha' && i.tem_ficha) return false;
+      if (filtro === 'vende_sem_ficha' && !(i.tem_giro && !i.tem_ficha && !i.is_producao)) return false;
       if (filtro === 'curva_a' && !i.curva_a) return false;
       if (!q) return true;
       return (i.nome || '').toLowerCase().includes(q) || (i.codigo || '').toLowerCase().includes(q) || (i.categoria || '').toLowerCase().includes(q) || (i.fornecedor || '').toLowerCase().includes(q);
@@ -264,7 +267,8 @@ export default function InsumosPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <button onClick={() => setFiltro(null)}><Badge variant="outline" className={`cursor-pointer ${!filtro ? 'ring-1 ring-emerald-400' : ''}`}>{insumos.length} insumos</Badge></button>
-              {nSemFicha > 0 && <button onClick={() => setFiltro(f => f === 'sem_ficha' ? null : 'sem_ficha')}><Badge variant="outline" className={`cursor-pointer text-orange-600 border-orange-300 ${filtro === 'sem_ficha' ? 'ring-1 ring-orange-400' : ''}`}>{nSemFicha} sem ficha técnica</Badge></button>}
+              {nVendeSemFicha > 0 && <button onClick={() => setFiltro(f => f === 'vende_sem_ficha' ? null : 'vende_sem_ficha')} title="Insumos que giram na contagem (vendem) mas não estão em nenhuma ficha — distorcem o desvio/CMV. Corrigir primeiro."><Badge variant="outline" className={`cursor-pointer text-red-600 border-red-300 ${filtro === 'vende_sem_ficha' ? 'ring-1 ring-red-400' : ''}`}>⚠ {nVendeSemFicha} vende sem ficha</Badge></button>}
+              {nSemFicha > 0 && <button onClick={() => setFiltro(f => f === 'sem_ficha' ? null : 'sem_ficha')} title="Todos os insumos sem ficha técnica (inclui itens parados que não precisam de ficha)"><Badge variant="outline" className={`cursor-pointer text-orange-600 border-orange-300 ${filtro === 'sem_ficha' ? 'ring-1 ring-orange-400' : ''}`}>{nSemFicha} sem ficha técnica</Badge></button>}
               {nCurvaA > 0 && <button onClick={() => setFiltro(f => f === 'curva_a' ? null : 'curva_a')}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${filtro === 'curva_a' ? 'ring-1 ring-indigo-400' : ''}`}>{nCurvaA} curva A</Badge></button>}
               {/* legenda dos ícones da coluna nome */}
               <span className="flex items-center gap-1 text-gray-400 ml-1"><Utensils className="w-3 h-3 text-red-500" /> sem ficha</span>

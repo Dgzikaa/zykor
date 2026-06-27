@@ -49,6 +49,16 @@ export async function GET(request: NextRequest) {
     const fichaCods = new Set<string>();
     const fichaItens = await selectAll((from, to) => supabase.from('producao_ficha_item').select('insumo_codigo').eq('componente_tipo', 'insumo').range(from, to)).catch(() => []);
     fichaItens.forEach((r: any) => { if (r.insumo_codigo) fichaCods.add(r.insumo_codigo); });
+    // produções (pc/pd): têm receita própria e são usadas via producao_ref — não são "insumo cru sem ficha"
+    const prodCods = new Set<string>();
+    const prodRows = await selectAll((from, to) => supabase.from('producao_base').select('codigo').eq('bar_id', barId).range(from, to)).catch(() => []);
+    prodRows.forEach((r: any) => { if (r.codigo) prodCods.add(String(r.codigo).toUpperCase()); });
+    // giro recente (consumo na contagem) por código — sinal de "tem venda" mesmo sem ficha
+    const giroMap = new Map<string, number>();
+    try {
+      const { data: giro } = await (supabase as any).schema('operations').rpc('fn_insumo_giro', { p_bar: barId, p_dias: 45 });
+      for (const r of (giro || [])) giroMap.set(String(r.cod).toUpperCase(), Number(r.consumo || 0));
+    } catch { /* sem giro = trata como parado */ }
     const { data: secoes } = await supabase.from('bronze_vmarket_secoes').select('id_secao_cotacao,nome,fl_calc_cmv_faturamento').eq('bar_id', barId).order('nome', { ascending: true });
     const { data: fresh } = await supabase.from('bronze_vmarket_produtos').select('synced_em').eq('bar_id', barId).order('synced_em', { ascending: false }).limit(1);
 
@@ -64,6 +74,8 @@ export async function GET(request: NextRequest) {
         fornecedor: i.fornecedor || (i.tem_compra ? null : 'Planilha'),
         tem_compra: !!i.tem_compra,
         tem_ficha: fichaCods.has(i.codigo),
+        is_producao: prodCods.has(String(i.codigo).toUpperCase()), // pc/pd: produção (receita própria, não é insumo cru)
+        tem_giro: (giroMap.get(String(i.codigo).toUpperCase()) || 0) > 0.001, // estoque caiu na contagem = está sendo vendido/consumido
         base: u.base, embalagem: u.embalagem,
       };
     });
