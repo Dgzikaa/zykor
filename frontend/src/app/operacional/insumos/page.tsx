@@ -460,7 +460,7 @@ export default function CadastrosPage() {
                             <td className="px-3 py-1 text-right tabular-nums text-gray-500" title="Quantidade da embalagem (na unidade-base)">{v.embalagem ?? '—'}</td>
                             <td className="px-3 py-1 text-right tabular-nums text-gray-500">{v.preco_atual != null ? fmtBRL(v.preco_atual) : '—'}</td>
                             <td className="px-3 py-1 text-gray-500">{v.fornecedor_ultimo || '—'}</td>
-                            <td></td>
+                            <td className="px-3 py-1 text-right"><button onClick={() => abrirEditIns(v)} className="text-gray-400 hover:text-indigo-600" title="Editar esta variação (código, FC, unidade, embalagem)"><Pencil className="w-4 h-4" /></button></td>
                           </tr>
                         ))}
                       </Fragment>
