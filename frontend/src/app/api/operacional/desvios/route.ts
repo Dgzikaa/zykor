@@ -193,7 +193,14 @@ export async function GET(request: NextRequest) {
   const { data: protRows } = await (sb() as any).schema('operations').from('insumos')
     .select('codigo').eq('bar_id', user.bar_id).eq('curva_a_proteina', true);
   const proteinSet = new Set((protRows || []).map((r: any) => String(r.codigo).toUpperCase()));
-  for (const i of itens) i.is_proteina = proteinSet.has(String(i.insumo_codigo).toUpperCase());
+  // insumos que estão em alguma ficha de produto (têm saída teórica possível)
+  const { data: fichaRows } = await (sb() as any).schema('silver').from('insumo_em_ficha')
+    .select('cod').eq('bar_id', user.bar_id);
+  const fichaSet = new Set((fichaRows || []).map((r: any) => String(r.cod).toUpperCase()));
+  for (const i of itens) {
+    i.is_proteina = proteinSet.has(String(i.insumo_codigo).toUpperCase());
+    i.tem_ficha = i.is_producao || fichaSet.has(String(i.insumo_codigo).toUpperCase());
+  }
   // headline/análise = só INSUMOS (produção e proteína têm aba própria)
   const insumosOnly = itens.filter((i: any) => !i.is_producao && !i.is_proteina);
 

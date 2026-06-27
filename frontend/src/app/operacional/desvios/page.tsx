@@ -51,6 +51,7 @@ export default function DesviosPage() {
   const [res, setRes] = useState<any | null>(null);
   const [busca, setBusca] = useState('');
   const [aba, setAba] = useState('insumos');
+  const [soCurvaA, setSoCurvaA] = useState(false);
   const [rowsProt, setRowsProt] = useState<any[]>([]);
   const [loadingAba, setLoadingAba] = useState(false);
 
@@ -94,8 +95,9 @@ export default function DesviosPage() {
     const s = busca.trim().toLowerCase();
     return (res?.itens || []).filter((i: any) => i.is_producao
       && (tipo !== 'diaria' || i.curva_a === true) // diária só Curva A
+      && (!soCurvaA || i.curva_a === true)         // filtro Só Curva A (semanal/mensal)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, tipo]);
+  }, [res, busca, tipo, soCurvaA]);
   const protView = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return rowsProt.filter((i: any) => !s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_cod || '').toLowerCase().includes(s));
@@ -111,12 +113,15 @@ export default function DesviosPage() {
     } catch { /* silencioso; recarrega no próximo */ }
   }, [ini, fim, tipo, carregar]);
 
-  // Insumos = só insumos (exclui produção e proteína, que têm aba própria)
+  // Insumos = só insumos (exclui produção e proteína, que têm aba própria).
+  // Semanal/mensal: esconde insumo fora de ficha (nunca tem saída teórica). Filtro Só Curva A.
   const itensView = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return (res?.itens || []).filter((i: any) => !i.is_producao && !i.is_proteina
+      && (tipo === 'diaria' || i.tem_ficha)
+      && (!soCurvaA || i.curva_a === true)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
-  }, [res, busca]);
+  }, [res, busca, tipo, soCurvaA]);
 
   const h = res?.headline;
 
@@ -159,10 +164,17 @@ export default function DesviosPage() {
             <TabsTrigger value="proteinas"><Drumstick className="w-4 h-4 mr-1.5" />Proteínas</TabsTrigger>
           </TabsList>
 
-          {/* Busca compartilhada */}
-          <div className="relative mt-3">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9" />
+          {/* Busca + filtro Curva A (some na aba Proteínas, que já é curva A proteína) */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9" />
+            </div>
+            {aba !== 'proteinas' && (
+              <button onClick={() => setSoCurvaA(v => !v)} title="Mostrar só itens Curva A (vale no semanal/mensal também)">
+                <Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${soCurvaA ? 'ring-1 ring-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>{soCurvaA ? '✓ ' : ''}Só Curva A</Badge>
+              </button>
+            )}
           </div>
 
           {/* ===== INSUMOS (VMarket → ContaHub, estoque âncora) ===== */}
