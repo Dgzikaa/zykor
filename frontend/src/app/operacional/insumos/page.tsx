@@ -14,50 +14,76 @@ import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, C
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
 
-interface Produto {
-  id_produto_sisfood_cotacao: number; cod_interno: string | null; codigo_planilha?: string | null; fator_correcao?: boolean; nome: string | null; marca: string | null;
-  gramatura: string | null; estoque: number | null; nome_secao: string | null; id_secao_cotacao: number | null;
-  nome_fornecedor: string | null; fornecedor_ultimo: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
-  cod_duplicado?: boolean; cod_invalido?: boolean; tem_ficha?: boolean; cadastrado?: boolean; nome_mestre?: string | null; base?: string | null; embalagem?: number | null; fonte?: string;
+// 1 insumo = 1 linha (cadastro Zykor). VMarket (compras) só alimenta o preço via silver.
+interface Insumo {
+  id: number; codigo: string; nome: string; categoria: string | null; unidade_medida: string | null;
+  fator_correcao?: boolean; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
+  fornecedor: string | null; tem_compra?: boolean; tem_ficha?: boolean; base?: string | null; embalagem?: number | null;
 }
-interface Secao { id_secao_cotacao: number; nome: string | null; }
+interface SemCadastro { id_vmarket: number; codigo_vmarket: string | null; nome: string; nome_secao: string | null; preco: number | null; preco_data: string | null; fornecedor: string | null; }
 
-export default function CadastrosPage() {
+export default function InsumosPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
 
-  // ---------- INSUMOS (catálogo VMarket) ----------
   const [loading, setLoading] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
-  const [produtos, setProdutos] = useState<Produto[]>([]);
-  const [secoes, setSecoes] = useState<Secao[]>([]);
+  const [insumos, setInsumos] = useState<Insumo[]>([]);
+  const [semCadastro, setSemCadastro] = useState<SemCadastro[]>([]);
   const [syncedEm, setSyncedEm] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
-  const [secaoSel, setSecaoSel] = useState<string>('todas');
-  // cadastro manual de insumo (mestre)
-  const [novoOpen, setNovoOpen] = useState(false);
-  const [nCod, setNCod] = useState('');
-  const [nNome, setNNome] = useState('');
-  const [nCat, setNCat] = useState('');
-  const [nUnid, setNUnid] = useState('un');
-  const [nEmb, setNEmb] = useState('');
-  const [nPreco, setNPreco] = useState('');
-  const [nFc, setNFc] = useState(false);
-  const [nVmId, setNVmId] = useState<number | null>(null);
-  const [criando, setCriando] = useState(false);
+  const [catSel, setCatSel] = useState('todas');
+  const [filtro, setFiltro] = useState<'sem_ficha' | 'sem_cadastro' | null>(null);
+  const [tab, setTab] = useState('insumos');
 
   const carregar = useCallback(async () => {
     if (!barId) return;
     setLoading(true);
     try {
       const r = await api.get(`/api/operacional/insumos?bar_id=${barId}`);
-      if (r.success) { setProdutos(r.produtos || []); setSecoes(r.secoes || []); setSyncedEm(r.synced_em || null); }
+      if (r.success) { setInsumos(r.insumos || []); setSemCadastro(r.sem_cadastro || []); setSyncedEm(r.synced_em || null); }
     } catch (e: any) { toast({ title: 'Erro', description: e?.message || 'Falha ao carregar insumos', variant: 'destructive' }); }
     finally { setLoading(false); }
   }, [barId, toast]);
   useEffect(() => { carregar(); }, [carregar]);
 
+  const sincronizar = async () => {
+    if (!barId) return;
+    setSincronizando(true);
+    try {
+      const r = await api.post('/api/operacional/insumos', { bar_id: barId, action: 'sync' });
+      if (!r.success) throw new Error(r.error || 'Falha no sync');
+      toast({ title: 'VMarket sincronizado', description: 'Compras atualizadas' });
+      await carregar();
+    } catch (e: any) { toast({ title: 'Erro no sync', description: e?.message || 'Falha', variant: 'destructive' }); }
+    finally { setSincronizando(false); }
+  };
+
+  const catList = useMemo(() => Array.from(new Set(insumos.map(i => i.categoria).filter(Boolean))).sort() as string[], [insumos]);
+  const nSemFicha = useMemo(() => insumos.filter(i => !i.tem_ficha).length, [insumos]);
+
+  const insumosView = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return insumos.filter(i => {
+      if (catSel !== 'todas' && (i.categoria || '') !== catSel) return false;
+      if (filtro === 'sem_ficha' && i.tem_ficha) return false;
+      if (!q) return true;
+      return (i.nome || '').toLowerCase().includes(q) || (i.codigo || '').toLowerCase().includes(q) || (i.categoria || '').toLowerCase().includes(q) || (i.fornecedor || '').toLowerCase().includes(q);
+    });
+  }, [insumos, busca, catSel, filtro]);
+
+  // ---------- cadastrar insumo ----------
+  const [novoOpen, setNovoOpen] = useState(false);
+  const [nCod, setNCod] = useState(''); const [nNome, setNNome] = useState(''); const [nCat, setNCat] = useState('');
+  const [nUnid, setNUnid] = useState('un'); const [nEmb, setNEmb] = useState(''); const [nPreco, setNPreco] = useState('');
+  const [nFc, setNFc] = useState(false); const [nVmId, setNVmId] = useState<number | null>(null); const [criando, setCriando] = useState(false);
+  const abrirNovoBlank = () => { setNCod(''); setNNome(''); setNCat(''); setNUnid('un'); setNEmb(''); setNPreco(''); setNFc(false); setNVmId(null); setNovoOpen(true); };
+  const cadastrarDoSemCadastro = (sc: SemCadastro) => {
+    setNCod(/^i\d+$/.test(sc.codigo_vmarket || '') ? sc.codigo_vmarket! : '');
+    setNNome(sc.nome || ''); setNCat(sc.nome_secao || ''); setNUnid('un'); setNEmb('');
+    setNPreco(sc.preco != null ? String(sc.preco) : ''); setNFc(false); setNVmId(sc.id_vmarket); setNovoOpen(true);
+  };
   const criarInsumo = async () => {
     if (!barId) return;
     if (!/^i\d{2,}$/i.test(nCod.trim())) { toast({ title: 'Código inválido', description: 'Use i + números (ex.: i0638)', variant: 'destructive' }); return; }
@@ -66,144 +92,54 @@ export default function CadastrosPage() {
     try {
       const r = await api.post('/api/operacional/insumos', { bar_id: barId, action: 'criar_insumo', codigo: nCod.trim().toLowerCase(), nome: nNome.trim(), categoria: nCat.trim(), base: nUnid, embalagem: Number(String(nEmb).replace(',', '.')) || 0, custo_unitario: Number(String(nPreco).replace(',', '.')) || 0, fator_correcao: nFc, id_prod_vmarket: nVmId });
       if (!r.success) throw new Error(r.error);
-      toast({ title: `Insumo ${r.codigo} cadastrado` });
-      setNovoOpen(false); setNCod(''); setNNome(''); setNCat(''); setNUnid('un'); setNEmb(''); setNPreco(''); setNFc(false); setNVmId(null);
+      toast({ title: r.ligado ? `Ligado ao insumo ${r.codigo}` : `Insumo ${r.codigo} cadastrado` });
+      setNovoOpen(false);
       await carregar();
     } catch (e: any) { toast({ title: 'Erro ao cadastrar', description: e?.message, variant: 'destructive' }); }
     finally { setCriando(false); }
   };
 
-  const abrirNovoBlank = () => { setNCod(''); setNNome(''); setNCat(''); setNUnid('un'); setNEmb(''); setNPreco(''); setNFc(false); setNVmId(null); setNovoOpen(true); };
-  const cadastrarDoVmarket = (g: any) => {
-    const p = g.rep;
-    setNCod(codShow(p) || '');
-    setNNome(p.nome || '');
-    setNCat(p.nome_secao || '');
-    setNUnid(['g', 'ml', 'un'].includes(p.base) ? p.base : 'un');
-    setNEmb(p.embalagem != null ? String(p.embalagem) : '');
-    setNPreco(p.preco_atual != null ? String(p.preco_atual) : '');
-    setNFc(!!p.fator_correcao);
-    setNVmId(p.id_produto_sisfood_cotacao);
-    setNovoOpen(true);
+  // ---------- editar insumo ----------
+  const [editIns, setEditIns] = useState<Insumo | null>(null);
+  const [fNome, setFNome] = useState(''); const [fCat, setFCat] = useState(''); const [fFc, setFFc] = useState(false);
+  const [fBase, setFBase] = useState('g'); const [fEmb, setFEmb] = useState('1');
+  const abrirEditIns = (i: Insumo) => { setEditIns(i); setFNome(i.nome || ''); setFCat(i.categoria || ''); setFFc(!!i.fator_correcao); setFBase(i.base || 'g'); setFEmb(String(i.embalagem ?? 1)); };
+  const salvarEditIns = async () => {
+    if (!editIns) return;
+    try {
+      await api.post('/api/operacional/insumos', {
+        bar_id: barId, action: 'editar', id: editIns.id, nome: fNome.trim(), categoria: fCat.trim(),
+        fator_correcao: fFc, unidade_medida: fBase, base: fBase, embalagem: Number(String(fEmb).replace(',', '.')) || 1,
+      });
+      setEditIns(null); await carregar();
+    } catch (e: any) { toast({ title: 'Erro ao salvar', description: e?.message, variant: 'destructive' }); }
+  };
+  const salvarFc = async (i: Insumo, valor: boolean) => {
+    setInsumos(prev => prev.map(x => x.id === i.id ? { ...x, fator_correcao: valor } : x));
+    try { await api.post('/api/operacional/insumos', { bar_id: barId, action: 'editar', id: i.id, fator_correcao: valor }); }
+    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
-  const [delConfirm, setDelConfirm] = useState<any | null>(null);
-  const excluirInsumo = async (g: any) => {
+  // ---------- excluir insumo ----------
+  const [delConfirm, setDelConfirm] = useState<Insumo | null>(null);
+  const excluirInsumo = async (i: Insumo) => {
     try {
-      const r = await api.post('/api/operacional/insumos', { bar_id: barId, action: 'excluir_insumo', codigo: codShow(g.rep), id_prod: g.rep.id_produto_sisfood_cotacao });
+      const r = await api.post('/api/operacional/insumos', { bar_id: barId, action: 'excluir_insumo', id: i.id, codigo: i.codigo });
       if (!r.success) throw new Error(r.error);
-      toast({ title: 'Insumo excluído' });
-      setDelConfirm(null);
-      await carregar();
+      toast({ title: 'Insumo excluído' }); setDelConfirm(null); await carregar();
     } catch (e: any) { toast({ title: 'Erro ao excluir', description: e?.message, variant: 'destructive' }); }
   };
 
-  const sincronizar = async () => {
-    if (!barId) return;
-    setSincronizando(true);
-    try {
-      const r = await api.post('/api/operacional/insumos', { bar_id: barId, action: 'sync' });
-      if (!r.success) throw new Error(r.error || 'Falha no sync');
-      const res = r.resultado || {};
-      toast({ title: 'VMarket sincronizado', description: `${res.produtos ?? 0} produtos · ${res.secoes ?? 0} seções` });
-      await carregar();
-    } catch (e: any) { toast({ title: 'Erro no sync', description: e?.message || 'Falha', variant: 'destructive' }); }
-    finally { setSincronizando(false); }
+  // ---------- fichas que usam o insumo ----------
+  const [fichasIns, setFichasIns] = useState<{ codigo: string; nome: string } | null>(null);
+  const [fichasData, setFichasData] = useState<any[] | null>(null);
+  const abrirFichas = async (codigo: string, nome: string) => {
+    setFichasIns({ codigo, nome }); setFichasData(null);
+    try { const r = await api.get(`/api/operacional/insumos/fichas?bar_id=${barId}&codigo=${encodeURIComponent(codigo)}`); setFichasData(r.success ? (r.fichas || []) : []); }
+    catch { setFichasData([]); }
   };
 
-  // Materiais (limpeza/descartáveis) não são insumos — viram um FILTRO. 'Outros' conta como insumo.
-  const ehMaterial = (s: string | null) => /limpeza|descart/i.test(s || '');
-  // unidade-base esperada pelo gramatura do VMarket (fonte da verdade)
-  const gramBase = (g: string | null): string | null => {
-    const s = (g || '').trim().toLowerCase();
-    if (/^(un|und|unid|dz|duzia|cx|caixa|pct|pacote|fardo|saco)$/.test(s)) return 'un';
-    if (/^(kg|kilo|g|gr|grama)$/.test(s)) return 'g';
-    if (/^(l|lt|litro|ml)$/.test(s)) return 'ml';
-    return null;
-  };
-  const nomeTemMedida = (n: string | null) => /(\d+[.,]?\d*)\s*(kg|kilo|grama|gr|ml|lt|litro|l|g)\b/i.test(n || '');
-  const ehLiquido = (n: string | null) => /vinho|espumante|frisante|moscatel|prosecco|sparkling|whisky|vodka|\bgin\b|tequila|cacha|\brum\b|licor|conhaque|brandy|aperol|campari|cynar|vermouth|jager|bitter|absinto|steinha|amarula|cointreau|frangelico|limoncello|ballena|xarope|\bsuco\b|leite|\bagua\b|água|refri|cerveja|chopp|beats|energ|t[oô]nica|angostura|calda|azeite|\b[oó]leo\b|vinagre|bebida/i.test(n || '');
-  // divergência REAL: VMarket diz UN mas está em g/ml, sem medida no nome e não é líquido (ex.: Abacaxi un = ml/1500)
-  const unidDiverge = (p: Produto) => gramBase(p.gramatura ?? null) === 'un' && (p.base === 'g' || p.base === 'ml') && !nomeTemMedida(p.nome) && !ehLiquido(p.nome);
-  // VMarket com código errado: produto real do VMarket cujo cod_interno não bate com o Código Planilha (correto)
-  const vmErrado = (p: Produto) => p.id_produto_sisfood_cotacao >= 0 && !!p.codigo_planilha && (p.cod_interno || null) !== p.codigo_planilha;
-  // Código efetivo PARA EXIBIR: só código de insumo (i0XXX). Material (cod_interno tipo d0039) fica zerado.
-  const codShow = (p: Produto): string | null => p.codigo_planilha || (/^i\d/.test(p.cod_interno || '') ? p.cod_interno! : null);
-  const [filtroEsp, setFiltroEsp] = useState<'variacoes' | 'invalido' | 'materiais' | 'sem_ficha' | 'unid_div' | 'sem_cadastro' | null>(null);
-
-  const filtrados = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    return produtos.filter(p => {
-      if (secaoSel !== 'todas' && String(p.id_secao_cotacao) !== secaoSel) return false;
-      if (!q) return true;
-      return (p.nome || '').toLowerCase().includes(q) || (p.cod_interno || '').toLowerCase().includes(q)
-        || (p.fornecedor_ultimo || '').toLowerCase().includes(q) || (p.nome_secao || '').toLowerCase().includes(q);
-    });
-  }, [produtos, busca, secaoSel]);
-
-  const salvarUnidade = async (p: Produto, patch: { base?: string; embalagem?: number }) => {
-    setProdutos(prev => prev.map(x => x.id_produto_sisfood_cotacao === p.id_produto_sisfood_cotacao ? { ...x, ...patch } : x));
-    try {
-      await api.post('/api/operacional/insumos', {
-        bar_id: barId, action: 'unidade', id_prod: p.id_produto_sisfood_cotacao, cod_interno: p.cod_interno,
-        base: patch.base ?? p.base ?? 'g', embalagem: patch.embalagem ?? p.embalagem ?? 1,
-      });
-    } catch (e: any) { toast({ title: 'Erro ao salvar unidade', description: e?.message, variant: 'destructive' }); }
-  };
-
-  const salvarFc = async (p: Produto, valor: boolean) => {
-    setProdutos(prev => prev.map(x => x.id_produto_sisfood_cotacao === p.id_produto_sisfood_cotacao ? { ...x, fator_correcao: valor } : x));
-    try {
-      await api.post('/api/operacional/insumos', { bar_id: barId, action: 'fator_correcao', id_prod: p.id_produto_sisfood_cotacao, fator_correcao: valor });
-    } catch (e: any) { toast({ title: 'Erro ao salvar Fator de Correção', description: e?.message, variant: 'destructive' }); }
-  };
-
-  const salvarCodigoPlanilha = async (p: Produto, valor: string) => {
-    const cod = valor.trim() || null;
-    if (cod === (p.codigo_planilha ?? null)) return;
-    setProdutos(prev => prev.map(x => x.id_produto_sisfood_cotacao === p.id_produto_sisfood_cotacao ? { ...x, codigo_planilha: cod } : x));
-    try {
-      await api.post('/api/operacional/insumos', {
-        bar_id: barId, action: 'codigo_planilha', id_prod: p.id_produto_sisfood_cotacao, codigo_planilha: cod,
-      });
-    } catch (e: any) { toast({ title: 'Erro ao salvar Código Planilha', description: e?.message, variant: 'destructive' }); }
-  };
-
-  // Agrupa por Código Planilha (correto/estável); fallback no cod_interno do VMarket
-  const [codAberto, setCodAberto] = useState<string | null>(null);
-  const grupos = useMemo(() => {
-    const m = new Map<string, Produto[]>();
-    for (const p of filtrados) {
-      const cod = p.codigo_planilha || p.cod_interno;
-      const ok = cod && /^i\d/.test(cod);
-      const key = ok ? `c:${cod}` : `u:${p.id_produto_sisfood_cotacao}`;
-      if (!m.has(key)) m.set(key, []);
-      m.get(key)!.push(p);
-    }
-    return Array.from(m.entries()).map(([key, prods]) => {
-      const rep = [...prods].sort((a, b) => String(b.preco_data || '').localeCompare(String(a.preco_data || '')))[0];
-      const nomeCanonico = (prods.map(p => p.nome_mestre).find(Boolean) as string | undefined) || rep.nome;
-      return { key, rep, nomeCanonico, produtos: prods, nVar: prods.length, isMaterial: ehMaterial(rep.nome_secao), temFicha: prods.some(p => p.tem_ficha), semCadastro: !ehMaterial(rep.nome_secao) && prods.some(p => p.id_produto_sisfood_cotacao >= 0) && !prods.some(p => p.cadastrado) };
-    }).sort((a, b) => String(a.nomeCanonico || '').localeCompare(String(b.nomeCanonico || '')));
-  }, [filtrados]);
-  const nInsumos = grupos.filter(g => !g.isMaterial).length;
-  const nMateriais = grupos.filter(g => g.isMaterial).length;
-  const nVariacoes = grupos.filter(g => !g.isMaterial && g.nVar > 1).length;
-  const nInvalidos = grupos.filter(g => !g.isMaterial && vmErrado(g.rep)).length;
-  const nSemFicha = grupos.filter(g => !g.isMaterial && !g.temFicha).length;
-  const nSemCadastro = grupos.filter(g => g.semCadastro).length;
-  const secoesLista = useMemo(() => Array.from(new Set(produtos.map(p => p.nome_secao).filter(Boolean))).sort() as string[], [produtos]);
-  const gruposView = useMemo(() => {
-    if (filtroEsp === 'materiais') return grupos.filter(g => g.isMaterial);
-    if (filtroEsp === 'variacoes') return grupos.filter(g => !g.isMaterial && g.nVar > 1);
-    if (filtroEsp === 'invalido') return grupos.filter(g => !g.isMaterial && vmErrado(g.rep));
-    if (filtroEsp === 'sem_ficha') return grupos.filter(g => !g.isMaterial && !g.temFicha);
-    if (filtroEsp === 'unid_div') return grupos.filter(g => !g.isMaterial && unidDiverge(g.rep));
-    if (filtroEsp === 'sem_cadastro') return grupos.filter(g => g.semCadastro);
-    return grupos.filter(g => !g.isMaterial);
-  }, [grupos, filtroEsp]);
-
-  // ---------- VARIAÇÃO DE PREÇO ----------
+  // ---------- VARIAÇÃO DE PREÇO (camada de compras) ----------
   const [variacao, setVariacao] = useState<any[]>([]);
   const [loadingVar, setLoadingVar] = useState(false);
   const [varAberto, setVarAberto] = useState<string | null>(null);
@@ -211,14 +147,8 @@ export default function CadastrosPage() {
   const [buscaVar, setBuscaVar] = useState('');
   const variacaoView = useMemo(() => {
     const q = buscaVar.trim().toLowerCase();
-    const arr = !q ? variacao : variacao.filter((v: any) =>
-      (v.nome || '').toLowerCase().includes(q) || (v.codigo_planilha || '').toLowerCase().includes(q) || (v.secao || '').toLowerCase().includes(q));
-    // ordena pela maior variação (módulo), nulos por último
-    return [...arr].sort((a: any, b: any) => {
-      const av = a.var_pct == null ? -1 : Math.abs(a.var_pct);
-      const bv = b.var_pct == null ? -1 : Math.abs(b.var_pct);
-      return bv - av;
-    });
+    const arr = !q ? variacao : variacao.filter((v: any) => (v.nome || '').toLowerCase().includes(q) || (v.codigo_planilha || '').toLowerCase().includes(q) || (v.secao || '').toLowerCase().includes(q));
+    return [...arr].sort((a: any, b: any) => (b.var_pct == null ? -1 : Math.abs(b.var_pct)) - (a.var_pct == null ? -1 : Math.abs(a.var_pct)));
   }, [variacao, buscaVar]);
   const carregarVariacao = useCallback(async () => {
     if (!barId) return; setLoadingVar(true);
@@ -226,17 +156,14 @@ export default function CadastrosPage() {
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
     finally { setLoadingVar(false); }
   }, [barId, toast]);
-  useEffect(() => { carregarVariacao(); }, [carregarVariacao]);
+  useEffect(() => { if (tab === 'variacao') carregarVariacao(); }, [tab, carregarVariacao]);
   const abrirSerie = async (codigo: string) => {
     if (varAberto === codigo) { setVarAberto(null); return; }
     setVarAberto(codigo);
-    if (!serie[codigo]) {
-      try { const r = await api.get(`/api/operacional/insumos/precos?bar_id=${barId}&codigo=${encodeURIComponent(codigo)}`); if (r.success) setSerie(m => ({ ...m, [codigo]: r.serie || [] })); } catch { /* */ }
-    }
+    if (!serie[codigo]) { try { const r = await api.get(`/api/operacional/insumos/precos?bar_id=${barId}&codigo=${encodeURIComponent(codigo)}`); if (r.success) setSerie(m => ({ ...m, [codigo]: r.serie || [] })); } catch { /* */ } }
   };
 
-  // ---------- CURVA ABC + IMPACTO DE VARIAÇÃO ----------
-  const [tab, setTab] = useState('insumos');
+  // ---------- ABC + IMPACTO ----------
   const [abcDias, setAbcDias] = useState(30);
   const [abc, setAbc] = useState<any>(null);
   const [loadingAbc, setLoadingAbc] = useState(false);
@@ -247,7 +174,6 @@ export default function CadastrosPage() {
     finally { setLoadingAbc(false); }
   }, [barId, abcDias, toast]);
   useEffect(() => { if (tab === 'abc') carregarAbc(); }, [tab, carregarAbc]);
-
   const [impacto, setImpacto] = useState<any[]>([]);
   const [loadingImp, setLoadingImp] = useState(false);
   const [impAberto, setImpAberto] = useState<string | null>(null);
@@ -260,97 +186,24 @@ export default function CadastrosPage() {
   useEffect(() => { if (tab === 'impacto') carregarImpacto(); }, [tab, carregarImpacto]);
   const corClasse = (c: string) => c === 'A' ? 'text-red-600 dark:text-red-400 border-red-300' : c === 'B' ? 'text-amber-600 dark:text-amber-400 border-amber-300' : 'text-gray-500 border-gray-300';
 
-  // modal: editar insumo (código planilha, FC, unidade, quantidade)
-  const [editIns, setEditIns] = useState<Produto | null>(null);
-  const [fCod, setFCod] = useState(''); const [fFc, setFFc] = useState(false);
-  const [fBase, setFBase] = useState('g'); const [fEmb, setFEmb] = useState('1');
-  const abrirEditIns = (p: Produto) => { setEditIns(p); setFCod(p.codigo_planilha ?? ''); setFFc(!!p.fator_correcao); setFBase(p.base || 'g'); setFEmb(String(p.embalagem ?? 1)); };
-  const salvarEditIns = async () => {
-    if (!editIns) return;
-    const p = editIns;
-    if (p.id_produto_sisfood_cotacao >= 0 && (fCod.trim() || null) !== (p.codigo_planilha ?? null)) await salvarCodigoPlanilha(p, fCod);
-    if (!!fFc !== !!p.fator_correcao) await salvarFc(p, fFc);
-    const embN = Number(String(fEmb).replace(',', '.')) || 1;
-    if (fBase !== (p.base || 'g') || embN !== (p.embalagem ?? 1)) await salvarUnidade(p, { base: fBase, embalagem: embN });
-    setEditIns(null);
-  };
-
-  // modal: fichas onde o insumo é usado
-  const [fichasIns, setFichasIns] = useState<{ codigo: string; nome: string } | null>(null);
-  const [fichasData, setFichasData] = useState<any[] | null>(null);
-  const abrirFichas = async (codigo: string | null, nome: string | null) => {
-    if (!codigo) return;
-    setFichasIns({ codigo, nome: nome || codigo }); setFichasData(null);
-    try { const r = await api.get(`/api/operacional/insumos/fichas?bar_id=${barId}&codigo=${encodeURIComponent(codigo)}`); setFichasData(r.success ? (r.fichas || []) : []); }
-    catch { setFichasData([]); }
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-4">
-        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl"><Package className="w-6 h-6 text-emerald-600 dark:text-emerald-400" /></div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Insumos</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Catálogo de insumos e variação de preço · {selectedBar?.nome || `Bar ${barId ?? ''}`}{syncedEm && <> · sync {new Date(syncedEm).toLocaleString('pt-BR')}</>}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Cadastro do Zykor (1 insumo por nome) · {selectedBar?.nome || `Bar ${barId ?? ''}`}{syncedEm && <> · compras VMarket sync {new Date(syncedEm).toLocaleString('pt-BR')}</>}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={abrirNovoBlank} disabled={!barId}><Plus className="w-4 h-4 mr-1.5" />Adicionar insumo</Button>
             <Button onClick={sincronizar} disabled={sincronizando || !barId} variant="outline">
-              <RefreshCw className={`w-4 h-4 mr-2 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Sincronizando…' : 'Sincronizar VMarket'}
+              <RefreshCw className={`w-4 h-4 mr-2 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Sincronizando…' : 'Sincronizar compras'}
             </Button>
           </div>
         </div>
-
-        {novoOpen && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setNovoOpen(false)}>
-            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-md space-y-3" onClick={e => e.stopPropagation()}>
-              <h4 className="font-semibold text-gray-900 dark:text-white">Adicionar insumo</h4>
-              <p className="text-xs text-gray-500">Cadastro manual no mestre. Use o código que vai casar com o VMarket quando a compra entrar (aí o sistema junta sozinho).</p>
-              <div className="flex gap-2">
-                <div className="w-32"><label className="text-xs text-gray-500">Código *</label><Input value={nCod} onChange={e => setNCod(e.target.value)} placeholder="i0638" /></div>
-                <div className="flex-1"><label className="text-xs text-gray-500">Nome *</label><Input value={nNome} onChange={e => setNNome(e.target.value)} placeholder="Ex.: Polpa África do Sul" /></div>
-              </div>
-              <div><label className="text-xs text-gray-500">Seção</label>
-                <select value={nCat} onChange={e => setNCat(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-2 text-sm">
-                  <option value="">— selecione —</option>
-                  {nCat && !secoesLista.includes(nCat) && <option value={nCat}>{nCat}</option>}
-                  {secoesLista.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div className="flex gap-2 items-end">
-                <div className="w-20"><label className="text-xs text-gray-500">Unidade</label>
-                  <select value={nUnid} onChange={e => setNUnid(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-2 text-sm">
-                    {['g', 'ml', 'un'].map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                </div>
-                <div className="flex-1"><label className="text-xs text-gray-500" title="conversão da unidade de compra para unidade de ficha técnica">Embalagem</label><Input type="number" step="0.001" value={nEmb} onChange={e => setNEmb(e.target.value)} placeholder="ex.: 1000" /></div>
-                <div className="w-24"><label className="text-xs text-gray-500">Preço (R$)</label><Input value={nPreco} onChange={e => setNPreco(e.target.value)} placeholder="0,00" /></div>
-                <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 pb-2"><input type="checkbox" checked={nFc} onChange={e => setNFc(e.target.checked)} />FC</label>
-              </div>
-              <div className="flex justify-end gap-2 pt-1">
-                <Button variant="outline" onClick={() => setNovoOpen(false)}>Cancelar</Button>
-                <Button onClick={criarInsumo} disabled={criando}><Plus className="w-4 h-4 mr-1" />{criando ? 'Salvando…' : 'Cadastrar'}</Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {delConfirm && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setDelConfirm(null)}>
-            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
-              <h4 className="font-semibold text-gray-900 dark:text-white">Excluir insumo?</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-300"><b>{delConfirm.rep?.nome}</b>{codShow(delConfirm.rep) ? <span className="text-gray-400 font-mono"> · {codShow(delConfirm.rep)}</span> : ''} será removido do cadastro. Não está em nenhuma ficha técnica.</p>
-              <div className="flex justify-end gap-2 pt-1">
-                <Button variant="outline" onClick={() => setDelConfirm(null)}>Cancelar</Button>
-                <Button onClick={() => excluirInsumo(delConfirm)} className="bg-red-600 hover:bg-red-700 text-white"><Trash2 className="w-4 h-4 mr-1" />Excluir</Button>
-              </div>
-            </div>
-          </div>
-        )}
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
@@ -360,121 +213,119 @@ export default function CadastrosPage() {
             <TabsTrigger value="impacto"><Zap className="w-4 h-4 mr-1.5" />Impacto de Variação</TabsTrigger>
           </TabsList>
 
-          {/* ===== INSUMOS (VMarket) ===== */}
+          {/* ===== INSUMOS (cadastro Zykor, 1:1) ===== */}
           <TabsContent value="insumos" className="space-y-3">
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nome, código (i0XXX), marca ou fornecedor…" className="pl-9" />
+                <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nome, código (i0XXX), seção ou fornecedor…" className="pl-9" />
               </div>
-              <select value={secaoSel} onChange={e => setSecaoSel(e.target.value)} className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm text-gray-900 dark:text-gray-100">
-                <option value="todas">Todas as seções ({produtos.length})</option>
-                {secoes.map(s => <option key={s.id_secao_cotacao} value={String(s.id_secao_cotacao)}>{s.nome}</option>)}
+              <select value={catSel} onChange={e => setCatSel(e.target.value)} className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm text-gray-900 dark:text-gray-100">
+                <option value="todas">Todas as seções ({insumos.length})</option>
+                {catList.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <button onClick={() => setFiltroEsp(null)}><Badge variant="outline" className={`cursor-pointer ${!filtroEsp ? 'ring-1 ring-emerald-400' : ''}`}>{nInsumos} insumos</Badge></button>
-              {nVariacoes > 0 && <button onClick={() => setFiltroEsp(f => f === 'variacoes' ? null : 'variacoes')}><Badge variant="outline" className={`cursor-pointer text-blue-600 border-blue-300 ${filtroEsp === 'variacoes' ? 'ring-1 ring-blue-400' : ''}`}>{nVariacoes} com variações</Badge></button>}
-              {nInvalidos > 0 && <button onClick={() => setFiltroEsp(f => f === 'invalido' ? null : 'invalido')}><Badge variant="outline" className={`cursor-pointer text-red-600 border-red-300 ${filtroEsp === 'invalido' ? 'ring-1 ring-red-400' : ''}`}>{nInvalidos} c/ cód VMarket p/ corrigir</Badge></button>}
-              {nSemFicha > 0 && <button onClick={() => setFiltroEsp(f => f === 'sem_ficha' ? null : 'sem_ficha')}><Badge variant="outline" className={`cursor-pointer text-orange-600 border-orange-300 ${filtroEsp === 'sem_ficha' ? 'ring-1 ring-orange-400' : ''}`}>{nSemFicha} insumos sem ficha técnica</Badge></button>}
-              {nMateriais > 0 && <button onClick={() => setFiltroEsp(f => f === 'materiais' ? null : 'materiais')}><Badge variant="outline" className={`cursor-pointer text-gray-500 ${filtroEsp === 'materiais' ? 'ring-1 ring-gray-400' : ''}`}>{nMateriais} materiais</Badge></button>}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <button onClick={() => setFiltro(null)}><Badge variant="outline" className={`cursor-pointer ${!filtro ? 'ring-1 ring-emerald-400' : ''}`}>{insumos.length} insumos</Badge></button>
+              {nSemFicha > 0 && <button onClick={() => setFiltro(f => f === 'sem_ficha' ? null : 'sem_ficha')}><Badge variant="outline" className={`cursor-pointer text-orange-600 border-orange-300 ${filtro === 'sem_ficha' ? 'ring-1 ring-orange-400' : ''}`}>{nSemFicha} sem ficha técnica</Badge></button>}
             </div>
-            {nSemCadastro > 0 && (
-              <button onClick={() => setFiltroEsp(f => f === 'sem_cadastro' ? null : 'sem_cadastro')}
-                className={`w-full text-left rounded-lg border px-3 py-2 text-sm transition ${filtroEsp === 'sem_cadastro' ? 'bg-purple-100 border-purple-400 dark:bg-purple-900/30' : 'bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/15 dark:border-purple-800 dark:text-purple-200 hover:bg-purple-100'}`}>
-                🔗 <b>{nSemCadastro}</b> insumo(s) comprado(s) no VMarket sem cadastro no Zykor — invisíveis no consumo/CMV · clique pra cadastrar
+            {semCadastro.length > 0 && (
+              <button onClick={() => setFiltro(f => f === 'sem_cadastro' ? null : 'sem_cadastro')}
+                className={`w-full text-left rounded-lg border px-3 py-2 text-sm transition ${filtro === 'sem_cadastro' ? 'bg-purple-100 border-purple-400 dark:bg-purple-900/30' : 'bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/15 dark:border-purple-800 dark:text-purple-200 hover:bg-purple-100'}`}>
+                🔗 <b>{semCadastro.length}</b> comprado(s) no VMarket sem cadastro no Zykor — clique pra {filtro === 'sem_cadastro' ? 'voltar aos insumos' : 'cadastrar'}
               </button>
             )}
-            <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
-                  <th className="text-left font-medium px-3 py-2" title="Código do insumo (o correto/estável; o sistema sempre usa este).">Código</th>
-                  <th className="text-left font-medium px-3 py-2">Insumo</th>
-                  <th className="text-left font-medium px-3 py-2">Seção</th>
-                  <th className="text-center font-medium px-3 py-2" title="Fator de Correção: insumo com perda/limpeza.">FC</th>
-                  <th className="text-center font-medium px-3 py-2">Unid. medida</th>
-                  <th className="text-right font-medium px-3 py-2" title="conversão da unidade de compra para unidade de ficha técnica">Embalagem</th>
-                  <th className="text-right font-medium px-3 py-2">Preço (últ.)</th>
-                  <th className="text-left font-medium px-3 py-2">Fornecedor</th>
-                  <th className="w-10 px-3 py-2"></th>
-                </tr></thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {loading ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
-                  : gruposView.length === 0 ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
-                  : gruposView.map(g => {
-                    const p = g.rep;
-                    const subiu = p.preco_anterior != null && p.preco_atual != null && p.preco_atual > p.preco_anterior;
-                    const caiu = p.preco_anterior != null && p.preco_atual != null && p.preco_atual < p.preco_anterior;
-                    const aberto = codAberto === g.key;
-                    return (
-                      <Fragment key={g.key}>
-                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                          <td className="px-3 py-2 font-mono text-xs">
-                            <div className="flex items-center gap-1">
-                              <span className={codShow(p) ? 'text-gray-700 dark:text-gray-200' : (g.isMaterial ? 'text-gray-400' : 'text-red-500')}>{codShow(p) || '—'}</span>
-                              {vmErrado(p) && <span title={`No VMarket está como "${p.cod_interno || '—'}" — corrigir lá`} className="text-amber-500 cursor-help">⚠</span>}
-                            </div>
-                          </td>
+
+            {filtro === 'sem_cadastro' ? (
+              <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+                    <th className="text-left font-medium px-3 py-2">Comprado no VMarket</th>
+                    <th className="text-left font-medium px-3 py-2">Seção</th>
+                    <th className="text-right font-medium px-3 py-2">Última compra</th>
+                    <th className="text-left font-medium px-3 py-2">Fornecedor</th>
+                    <th className="w-24 px-3 py-2"></th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {semCadastro.length === 0 ? <tr><td colSpan={5} className="px-3 py-10 text-center text-gray-400">Tudo cadastrado 🎉</td></tr>
+                    : semCadastro.map(sc => (
+                      <tr key={sc.id_vmarket} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                        <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{sc.nome}</td>
+                        <td className="px-3 py-2 text-gray-500">{sc.nome_secao || '—'}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmtBRL(sc.preco)}</td>
+                        <td className="px-3 py-2 text-gray-500">{sc.fornecedor || '—'}</td>
+                        <td className="px-3 py-2 text-right"><Button size="sm" onClick={() => cadastrarDoSemCadastro(sc)}><Plus className="w-3.5 h-3.5 mr-1" />cadastrar</Button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div></CardContent></Card>
+            ) : (
+              <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+                    <th className="text-left font-medium px-3 py-2">Código</th>
+                    <th className="text-left font-medium px-3 py-2">Insumo</th>
+                    <th className="text-left font-medium px-3 py-2">Seção</th>
+                    <th className="text-center font-medium px-3 py-2" title="Fator de Correção: insumo com perda/limpeza.">FC</th>
+                    <th className="text-center font-medium px-3 py-2">Unid.</th>
+                    <th className="text-right font-medium px-3 py-2" title="conversão da unidade de compra para unidade de ficha técnica">Embalagem</th>
+                    <th className="text-right font-medium px-3 py-2">Preço (últ.)</th>
+                    <th className="text-left font-medium px-3 py-2">Fornecedor</th>
+                    <th className="w-10 px-3 py-2"></th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {loading ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
+                    : insumosView.length === 0 ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
+                    : insumosView.map(i => {
+                      const subiu = i.preco_anterior != null && i.preco_atual != null && i.preco_atual > i.preco_anterior;
+                      const caiu = i.preco_anterior != null && i.preco_atual != null && i.preco_atual < i.preco_anterior;
+                      return (
+                        <tr key={i.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                          <td className="px-3 py-2 font-mono text-xs text-gray-500">{i.codigo}</td>
                           <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
                             <div className="flex items-center gap-2">
-                              {g.nVar > 1 ? (
-                                <button onClick={() => setCodAberto(aberto ? null : g.key)} className="flex items-center gap-1 text-left hover:text-indigo-600">
-                                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${aberto ? 'rotate-180' : ''}`} />
-                                  {g.nomeCanonico} <span className="text-[10px] rounded-full px-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{g.nVar} variações (compra)</span>
-                                </button>
-                              ) : <span>{g.nomeCanonico}</span>}
-                              <button onClick={() => abrirFichas(codShow(p), p.nome)} className={`shrink-0 ${!g.isMaterial && !g.temFicha ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-indigo-600'}`} title={!g.isMaterial && !g.temFicha ? 'Não está em nenhuma ficha técnica' : 'Ver fichas técnicas que usam este insumo'}><Utensils className="w-3.5 h-3.5" /></button>
+                              <span>{i.nome}</span>
+                              <button onClick={() => abrirFichas(i.codigo, i.nome)} className={`shrink-0 ${!i.tem_ficha ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-indigo-600'}`} title={!i.tem_ficha ? 'Não está em nenhuma ficha técnica' : 'Ver fichas que usam este insumo'}><Utensils className="w-3.5 h-3.5" /></button>
                             </div>
                           </td>
-                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.nome_secao || '—'}</td>
-                          <td className="px-3 py-2 text-center">{p.fator_correcao ? <span className="text-amber-500" title="Tem fator de correção (perda/limpeza)">✓</span> : <span className="text-gray-300">—</span>}</td>
-                          <td className="px-3 py-2 text-center text-gray-600 dark:text-gray-300">
-                            <span>{p.base || '—'}</span>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{i.categoria || '—'}</td>
+                          <td className="px-3 py-2 text-center">
+                            <button onClick={() => salvarFc(i, !i.fator_correcao)} title="Fator de correção (perda/limpeza)">
+                              {i.fator_correcao ? <span className="text-amber-500">✓</span> : <span className="text-gray-300 hover:text-amber-400">—</span>}
+                            </button>
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums text-gray-600 dark:text-gray-300">{p.embalagem ?? '—'}</td>
+                          <td className="px-3 py-2 text-center text-gray-600 dark:text-gray-300">{i.base || '—'}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-gray-600 dark:text-gray-300">{i.embalagem ?? '—'}</td>
                           <td className="px-3 py-2 text-right tabular-nums font-medium whitespace-nowrap">
-                            {fmtBRL(p.preco_atual)}
-                            {p.preco_atual != null && (p.fonte === 'planilha'
-                              ? <span className="text-[10px] rounded px-1 ml-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" title="Preço da planilha (ainda sem compra no VMarket)">planilha</span>
-                              : <span className="text-[10px] rounded px-1 ml-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" title="Última compra no VMarket">VMarket</span>)}
+                            {fmtBRL(i.preco_atual)}
+                            {i.preco_atual != null && (i.tem_compra
+                              ? <span className="text-[10px] rounded px-1 ml-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" title="Última compra no VMarket">VMarket</span>
+                              : <span className="text-[10px] rounded px-1 ml-1 bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" title="Preço do cadastro (ainda sem compra)">cadastro</span>)}
                             {subiu && <TrendingUp className="inline w-3 h-3 ml-1 text-red-500" />}
                             {caiu && <TrendingDown className="inline w-3 h-3 ml-1 text-emerald-500" />}
                           </td>
-                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.fornecedor_ultimo || '—'}</td>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{i.fornecedor || '—'}</td>
                           <td className="px-3 py-2 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              {g.semCadastro && <button onClick={() => cadastrarDoVmarket(g)} className="text-xs font-medium text-purple-600 hover:text-purple-800 dark:text-purple-300" title="Cadastrar este insumo no Zykor (já pré-preenchido)">cadastrar</button>}
-                              <button onClick={() => abrirEditIns(p)} className="text-gray-400 hover:text-indigo-600" title="Editar código, FC e unidade"><Pencil className="w-4 h-4" /></button>
-                              {g.temFicha
+                              <button onClick={() => abrirEditIns(i)} className="text-gray-400 hover:text-indigo-600" title="Editar insumo"><Pencil className="w-4 h-4" /></button>
+                              {i.tem_ficha
                                 ? <span className="text-gray-200 dark:text-gray-700" title="Em ficha técnica — não pode excluir"><Trash2 className="w-4 h-4" /></span>
-                                : <button onClick={() => setDelConfirm(g)} className="text-gray-400 hover:text-red-600" title="Excluir insumo"><Trash2 className="w-4 h-4" /></button>}
+                                : <button onClick={() => setDelConfirm(i)} className="text-gray-400 hover:text-red-600" title="Excluir insumo"><Trash2 className="w-4 h-4" /></button>}
                             </div>
                           </td>
                         </tr>
-                        {aberto && g.produtos.map(v => (
-                          <tr key={v.id_produto_sisfood_cotacao} className="bg-gray-50/60 dark:bg-gray-800/30 text-xs">
-                            <td className="px-3 py-1 font-mono text-gray-400" title="Código no VMarket desta variação">{v.cod_interno || ''}</td>
-                            <td className="px-3 py-1 pl-7 text-gray-600 dark:text-gray-300">↳ {v.nome}</td>
-                            <td className="px-3 py-1 text-gray-500">{v.nome_secao || '—'}</td>
-                            <td className="px-3 py-1 text-center">{v.fator_correcao ? <span className="text-amber-500" title="Fator de correção">✓</span> : <span className="text-gray-300">—</span>}</td>
-                            <td className="px-3 py-1 text-center text-gray-500" title="Unidade-base">{v.base || '—'}</td>
-                            <td className="px-3 py-1 text-right tabular-nums text-gray-500" title="Quantidade da embalagem (na unidade-base)">{v.embalagem ?? '—'}</td>
-                            <td className="px-3 py-1 text-right tabular-nums text-gray-500">{v.preco_atual != null ? fmtBRL(v.preco_atual) : '—'}</td>
-                            <td className="px-3 py-1 text-gray-500">{v.fornecedor_ultimo || '—'}</td>
-                            <td className="px-3 py-1 text-right"><button onClick={() => abrirEditIns(v)} className="text-gray-400 hover:text-indigo-600" title="Editar esta variação (código, FC, unidade, embalagem)"><Pencil className="w-4 h-4" /></button></td>
-                          </tr>
-                        ))}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div></CardContent></Card>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div></CardContent></Card>
+            )}
           </TabsContent>
 
-          {/* ===== VARIAÇÃO DE PREÇO ===== */}
+          {/* ===== VARIAÇÃO DE PREÇO (compras) ===== */}
           <TabsContent value="variacao" className="space-y-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Variação do último preço de compra vs. a compra anterior (a <span className="text-red-600 dark:text-red-400">compra 0</span> é o preço da planilha), ordenada da maior variação para a menor. Clique pra ver o histórico completo.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Variação do último preço de compra vs. a anterior (a <span className="text-red-600 dark:text-red-400">compra 0</span> é o preço da planilha). Aqui ficam as <b>variações de compra</b> do VMarket. Clique pra ver o histórico.</p>
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input value={buscaVar} onChange={e => setBuscaVar(e.target.value)} placeholder="Buscar por nome, código (i0XXX) ou seção…" className="pl-9" />
@@ -517,11 +368,7 @@ export default function CadastrosPage() {
                                     const vp = prev && Number(prev.preco) > 0 ? ((Number(s.preco) - Number(prev.preco)) / Number(prev.preco)) * 100 : null;
                                     return (
                                       <tr key={idx} className="border-t border-gray-100 dark:border-gray-800">
-                                        <td className="px-2 py-1 whitespace-nowrap">
-                                          {s.fonte === 'planilha'
-                                            ? <span className="text-[10px] rounded px-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">Compra 0 · planilha</span>
-                                            : fmtData(s.data)}
-                                        </td>
+                                        <td className="px-2 py-1 whitespace-nowrap">{s.fonte === 'planilha' ? <span className="text-[10px] rounded px-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">Compra 0 · planilha</span> : fmtData(s.data)}</td>
                                         <td className="px-2 py-1 text-gray-500">{s.fornecedor || '—'}</td>
                                         <td className="px-2 py-1 text-right tabular-nums">{fmtBRL(s.preco)}</td>
                                         <td className={`px-2 py-1 text-right tabular-nums ${vp == null ? 'text-gray-400' : vp > 0 ? 'text-red-500' : vp < 0 ? 'text-emerald-500' : 'text-gray-400'}`}>{vp == null ? '—' : `${vp > 0 ? '+' : ''}${vp.toFixed(1)}%`}</td>
@@ -548,7 +395,7 @@ export default function CadastrosPage() {
               <select value={abcDias} onChange={e => setAbcDias(Number(e.target.value))} className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm">
                 <option value={7}>7 dias</option><option value={30}>30 dias</option><option value={60}>60 dias</option><option value={90}>90 dias</option>
               </select>
-              <span className="text-xs text-gray-400">Pareto do custo teórico (A = 80% do custo · B = próximos 15% · C = resto). Foco de negociação e contagem nos <b>A</b>.</span>
+              <span className="text-xs text-gray-400">Pareto do custo teórico (A = 80% · B = +15% · C = resto).</span>
             </div>
             {loadingAbc ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
             : !abc?.insumos?.length ? <Card className="card-dark"><CardContent className="py-16 text-center text-gray-400">Sem consumo teórico no período (precisa de ficha + vendas).</CardContent></Card>
@@ -565,12 +412,8 @@ export default function CadastrosPage() {
               <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
-                    <th className="text-center font-medium px-3 py-2">Classe</th>
-                    <th className="text-left font-medium px-3 py-2">Cód.</th>
-                    <th className="text-left font-medium px-3 py-2">Insumo</th>
-                    <th className="text-right font-medium px-3 py-2">Custo teórico</th>
-                    <th className="text-right font-medium px-3 py-2">% do total</th>
-                    <th className="text-right font-medium px-3 py-2">% acum.</th>
+                    <th className="text-center font-medium px-3 py-2">Classe</th><th className="text-left font-medium px-3 py-2">Cód.</th><th className="text-left font-medium px-3 py-2">Insumo</th>
+                    <th className="text-right font-medium px-3 py-2">Custo teórico</th><th className="text-right font-medium px-3 py-2">% do total</th><th className="text-right font-medium px-3 py-2">% acum.</th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                     {abc.insumos.map((r: any) => (
@@ -591,17 +434,14 @@ export default function CadastrosPage() {
 
           {/* ===== IMPACTO DE VARIAÇÃO ===== */}
           <TabsContent value="impacto" className="space-y-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Insumos que mudaram de preço e os produtos afetados. <b>Δ pp</b> = impacto estimado no CMV do produto. Clique pra ver os produtos.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Insumos que mudaram de preço e os produtos afetados. <b>Δ pp</b> = impacto estimado no CMV. Clique pra ver os produtos.</p>
             {loadingImp ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
             : !impacto.length ? <Card className="card-dark"><CardContent className="py-16 text-center text-gray-400">Nenhuma variação de preço relevante.</CardContent></Card>
             : (
               <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
-                    <th className="w-8 px-3 py-2"></th>
-                    <th className="text-left font-medium px-3 py-2">Insumo</th>
-                    <th className="text-right font-medium px-3 py-2">Variação</th>
-                    <th className="text-right font-medium px-3 py-2">Produtos afetados</th>
+                    <th className="w-8 px-3 py-2"></th><th className="text-left font-medium px-3 py-2">Insumo</th><th className="text-right font-medium px-3 py-2">Variação</th><th className="text-right font-medium px-3 py-2">Produtos afetados</th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                     {impacto.map((g: any) => (
@@ -638,21 +478,57 @@ export default function CadastrosPage() {
           </TabsContent>
         </Tabs>
 
+        {/* Modal: adicionar insumo */}
+        {novoOpen && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setNovoOpen(false)}>
+            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-md space-y-3" onClick={e => e.stopPropagation()}>
+              <h4 className="font-semibold text-gray-900 dark:text-white">{nVmId ? 'Cadastrar insumo (do VMarket)' : 'Adicionar insumo'}</h4>
+              <p className="text-xs text-gray-500">Cadastro no Zykor. {nVmId ? 'Ligado à compra do VMarket por este código.' : 'Use o código que vai casar com o VMarket quando a compra entrar.'}</p>
+              <div className="flex gap-2">
+                <div className="w-32"><label className="text-xs text-gray-500">Código *</label><Input value={nCod} onChange={e => setNCod(e.target.value)} placeholder="i0638" /></div>
+                <div className="flex-1"><label className="text-xs text-gray-500">Nome *</label><Input value={nNome} onChange={e => setNNome(e.target.value)} placeholder="Ex.: Polpa de Maracujá" /></div>
+              </div>
+              <div><label className="text-xs text-gray-500">Seção</label>
+                <select value={nCat} onChange={e => setNCat(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-2 text-sm">
+                  <option value="">— selecione —</option>
+                  {nCat && !catList.includes(nCat) && <option value={nCat}>{nCat}</option>}
+                  {catList.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-2 items-end">
+                <div className="w-20"><label className="text-xs text-gray-500">Unidade</label>
+                  <select value={nUnid} onChange={e => setNUnid(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-2 text-sm">
+                    {['g', 'ml', 'un'].map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+                <div className="flex-1"><label className="text-xs text-gray-500" title="conversão da unidade de compra para unidade de ficha técnica">Embalagem</label><Input type="number" step="0.001" value={nEmb} onChange={e => setNEmb(e.target.value)} placeholder="ex.: 1000" /></div>
+                <div className="w-24"><label className="text-xs text-gray-500">Preço (R$)</label><Input value={nPreco} onChange={e => setNPreco(e.target.value)} placeholder="0,00" /></div>
+                <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 pb-2"><input type="checkbox" checked={nFc} onChange={e => setNFc(e.target.checked)} />FC</label>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => setNovoOpen(false)}>Cancelar</Button>
+                <Button onClick={criarInsumo} disabled={criando}><Plus className="w-4 h-4 mr-1" />{criando ? 'Salvando…' : 'Cadastrar'}</Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal: editar insumo */}
         {editIns && (
           <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditIns(null)}>
             <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
-              <h4 className="font-semibold text-gray-900 dark:text-white">Editar insumo</h4>
-              <p className="text-sm text-gray-500">{editIns.nome}</p>
-              <div>
-                <label className="text-xs text-gray-500">Código Planilha</label>
-                <Input value={fCod} onChange={e => setFCod(e.target.value)} placeholder="i0XXX" disabled={editIns.id_produto_sisfood_cotacao < 0} />
-                {editIns.id_produto_sisfood_cotacao < 0 && <p className="text-[11px] text-gray-400 mt-0.5">Insumo só-planilha: código fixo.</p>}
-                {editIns.cod_interno && editIns.cod_interno !== fCod && <p className="text-[11px] text-amber-500 mt-0.5">No VMarket está como &ldquo;{editIns.cod_interno}&rdquo;.</p>}
+              <h4 className="font-semibold text-gray-900 dark:text-white">Editar insumo <span className="text-xs text-gray-400 font-mono">{editIns.codigo}</span></h4>
+              <div><label className="text-xs text-gray-500">Nome</label><Input value={fNome} onChange={e => setFNome(e.target.value)} /></div>
+              <div><label className="text-xs text-gray-500">Seção</label>
+                <select value={fCat} onChange={e => setFCat(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-2 text-sm">
+                  <option value="">— selecione —</option>
+                  {fCat && !catList.includes(fCat) && <option value={fCat}>{fCat}</option>}
+                  {catList.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
               <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
                 <input type="checkbox" checked={fFc} onChange={e => setFFc(e.target.checked)} className="h-4 w-4 accent-amber-500" />
-                Fator de correção (insumo com perda/limpeza)
+                Fator de correção (perda/limpeza)
               </label>
               <div className="flex gap-2">
                 <div className="w-24"><label className="text-xs text-gray-500">Unidade</label>
@@ -665,6 +541,20 @@ export default function CadastrosPage() {
               <div className="flex justify-end gap-2 pt-1">
                 <Button variant="outline" onClick={() => setEditIns(null)}>Cancelar</Button>
                 <Button onClick={salvarEditIns}>Salvar</Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: excluir */}
+        {delConfirm && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setDelConfirm(null)}>
+            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+              <h4 className="font-semibold text-gray-900 dark:text-white">Excluir insumo?</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-300"><b>{delConfirm.nome}</b> <span className="text-gray-400 font-mono">· {delConfirm.codigo}</span> será removido do cadastro (as compras do VMarket ficam, mas desvinculadas).</p>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => setDelConfirm(null)}>Cancelar</Button>
+                <Button onClick={() => excluirInsumo(delConfirm)} className="bg-red-600 hover:bg-red-700 text-white"><Trash2 className="w-4 h-4 mr-1" />Excluir</Button>
               </div>
             </div>
           </div>
