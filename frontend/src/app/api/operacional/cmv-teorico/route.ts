@@ -25,20 +25,34 @@ export async function GET(request: NextRequest) {
     if (errP) return NextResponse.json({ success: false, error: errP.message }, { status: 500 });
     const lista = (rows || []) as any[];
     const num = (v: any) => Number(v || 0);
+    // categoria canônica pelo prefixo do código (b/d/c/o) — blinda contra drift de caixa/null
+    // na origem (ex.: 'drink' vs 'Drink', ou categoria nula em itens 'o') que separava o relatório.
+    const catDe = (r: any) => {
+      const c = (r.codigo || '')[0]?.toLowerCase();
+      return c === 'b' ? 'Bebida' : c === 'd' ? 'Drink' : c === 'c' ? 'Comida' : c === 'o' ? 'Outros' : (r.categoria || '—');
+    };
+    for (const r of lista) r.categoria = catDe(r);
     const fat = lista.reduce((s, r) => s + num(r.faturamento), 0);
     const custo = lista.reduce((s, r) => s + num(r.custo_total), 0);
     const qtdCortesia = lista.reduce((s, r) => s + Math.max(num(r.qtd_consumo) - num(r.qtd), 0), 0);
     const custoCortesia = lista.reduce((s, r) => s + Math.max(num(r.qtd_consumo) - num(r.qtd), 0) * num(r.custo_unit), 0);
-    const semFicha = lista.filter((r: any) => !r.custo_unit || num(r.custo_unit) === 0);
+    // custo não entra no CMV em 2 casos distintos:
+    //  - SEM FICHA: produto sem ficha técnica (itens_ficha = 0) → precisa cadastrar receita
+    //  - FICHA SEM PREÇO: tem ficha, mas insumo sem preço (custo 0) → precisa precificar o insumo (caso "item R$0")
+    const semFicha = lista.filter((r: any) => num(r.itens_ficha) === 0);
+    const fichaSemPreco = lista.filter((r: any) => num(r.itens_ficha) > 0 && (!r.custo_unit || num(r.custo_unit) === 0));
+    const fatSum = (arr: any[]) => Number(arr.reduce((s: number, r: any) => s + num(r.faturamento), 0).toFixed(2));
+    const semCustoFat = fatSum([...semFicha, ...fichaSemPreco]); // total fora do custo (cobertura)
     const headline = {
       faturamento: fat, custo_total: custo, margem: fat - custo,
       cmv_pct: fat > 0 ? Number((custo / fat * 100).toFixed(2)) : null,
       n_produtos: lista.length, qtd: lista.reduce((s, r) => s + num(r.qtd), 0),
       qtd_cortesia: qtdCortesia, custo_cortesia: Number(custoCortesia.toFixed(2)),
-      // produtos que venderam mas não têm ficha (custo não entra no CMV → cobertura furada)
       sem_ficha_n: semFicha.length,
-      sem_ficha_fat: Number(semFicha.reduce((s: number, r: any) => s + num(r.faturamento), 0).toFixed(2)),
-      cobertura_pct: fat > 0 ? Number(((fat - semFicha.reduce((s: number, r: any) => s + num(r.faturamento), 0)) / fat * 100).toFixed(1)) : null,
+      sem_ficha_fat: fatSum(semFicha),
+      ficha_sem_preco_n: fichaSemPreco.length,
+      ficha_sem_preco_fat: fatSum(fichaSemPreco),
+      cobertura_pct: fat > 0 ? Number(((fat - semCustoFat) / fat * 100).toFixed(1)) : null,
     };
     const catMap = new Map<string, any>();
     for (const r of lista) {

@@ -43,7 +43,7 @@ export default function CmvTeoricoPage() {
   const [recalc, setRecalc] = useState(false);
   const [busca, setBusca] = useState('');
   const [cat, setCat] = useState<string | null>(null);
-  const [flag, setFlag] = useState<'sem_ficha' | 'sem_preco' | null>(null);
+  const [flag, setFlag] = useState<'sem_ficha' | 'ficha_sem_preco' | 'sem_preco' | null>(null);
   const [dataAnterior, setDataAnterior] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
@@ -108,16 +108,20 @@ export default function CmvTeoricoPage() {
     const s = busca.trim().toLowerCase();
     return produtos.filter(p => (!cat || (p.categoria || 'Outros') === cat) && (!s || (p.nome || '').toLowerCase().includes(s) || (p.codigo || '').toLowerCase().includes(s)));
   }, [produtos, busca, cat]);
-  const semFichaFn = (p: any) => !p.custo || p.custo === 0;
+  // sem ficha = sem receita cadastrada (itens_ficha=0); ficha s/ preço = tem receita mas insumo sem preço (custo 0)
+  const semFichaFn = (p: any) => (p.itens_ficha ?? 0) === 0;
+  const fichaSemPrecoFn = (p: any) => (p.itens_ficha ?? 0) > 0 && (!p.custo || Number(p.custo) === 0);
   const semPrecoFn = (p: any) => !p.preco_venda;
   const view = useMemo(() => {
     if (flag === 'sem_ficha') return escopo.filter(semFichaFn);
+    if (flag === 'ficha_sem_preco') return escopo.filter(fichaSemPrecoFn);
     if (flag === 'sem_preco') return escopo.filter(semPrecoFn);
     return escopo;
   }, [escopo, flag]);
   const comCmv = escopo.filter(p => p.cmv_pct != null);
   const cmvMedio = comCmv.length ? comCmv.reduce((s, p) => s + Number(p.cmv_pct), 0) / comCmv.length : null;
   const semFicha = escopo.filter(semFichaFn).length;
+  const fichaSemPreco = escopo.filter(fichaSemPrecoFn).length;
   const semPreco = escopo.filter(semPrecoFn).length;
 
   // produtos do período filtrados
@@ -165,11 +169,14 @@ export default function CmvTeoricoPage() {
         </div>
 
         {modo === 'cardapio' ? (<>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
             <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">CMV médio</div><div className={`text-2xl font-bold ${corCmv(cmvMedio)}`}>{fmtPct(cmvMedio)}</div></CardContent></Card>
             <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Produtos c/ CMV</div><div className="text-2xl font-bold">{comCmv.length}</div></CardContent></Card>
             <button type="button" onClick={() => setFlag(f => f === 'sem_ficha' ? null : 'sem_ficha')} className="text-left w-full">
               <Card className={`card-dark transition ${flag === 'sem_ficha' ? 'ring-2 ring-amber-400' : 'hover:ring-1 hover:ring-gray-300 dark:hover:ring-gray-600'}`}><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Sem ficha {flag === 'sem_ficha' && '· filtrando'}</div><div className="text-2xl font-bold text-gray-400">{semFicha}</div></CardContent></Card>
+            </button>
+            <button type="button" onClick={() => setFlag(f => f === 'ficha_sem_preco' ? null : 'ficha_sem_preco')} className="text-left w-full">
+              <Card className={`card-dark transition ${flag === 'ficha_sem_preco' ? 'ring-2 ring-amber-400' : 'hover:ring-1 hover:ring-gray-300 dark:hover:ring-gray-600'}`}><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Ficha s/ preço {flag === 'ficha_sem_preco' && '· filtrando'}</div><div className="text-2xl font-bold text-amber-500">{fichaSemPreco}</div></CardContent></Card>
             </button>
             <button type="button" onClick={() => setFlag(f => f === 'sem_preco' ? null : 'sem_preco')} className="text-left w-full">
               <Card className={`card-dark transition ${flag === 'sem_preco' ? 'ring-2 ring-amber-400' : 'hover:ring-1 hover:ring-gray-300 dark:hover:ring-gray-600'}`}><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Sem preço CH {flag === 'sem_preco' && '· filtrando'}</div><div className="text-2xl font-bold text-gray-400">{semPreco}</div></CardContent></Card>
@@ -244,10 +251,20 @@ export default function CmvTeoricoPage() {
             {periodo.headline?.qtd_cortesia > 0 && (
               <p className="text-xs text-gray-500 dark:text-gray-400">Cortesia/consumação no período: <b>{fmtNum(periodo.headline.qtd_cortesia)}</b> itens · custo <b>{fmtBRL(periodo.headline.custo_cortesia)}</b> <span className="text-gray-400">(fora do CMV — dado de graça)</span></p>
             )}
-            {periodo.headline?.sem_ficha_n > 0 && (
-              <button onClick={() => setSoSemFicha(v => !v)} className={`text-left text-xs rounded-md px-3 py-2 border w-full sm:w-auto ${soSemFicha ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300' : 'border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50/60 dark:hover:bg-red-900/10'}`}>
-                ⚠ <b>{periodo.headline.sem_ficha_n}</b> produtos venderam <b>sem ficha</b> ({fmtBRL(periodo.headline.sem_ficha_fat)} em vendas, fora do custo) · cobertura do CMV: <b>{fmtPct(periodo.headline.cobertura_pct)}</b> {soSemFicha ? '· mostrando só estes (clique p/ ver todos)' : '· clique p/ ver quais'}
-              </button>
+            {(periodo.headline?.sem_ficha_n > 0 || periodo.headline?.ficha_sem_preco_n > 0) && (
+              <div className="space-y-1.5">
+                {periodo.headline?.sem_ficha_n > 0 && (
+                  <button onClick={() => setSoSemFicha(v => !v)} className={`text-left text-xs rounded-md px-3 py-2 border w-full sm:w-auto block ${soSemFicha ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300' : 'border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50/60 dark:hover:bg-red-900/10'}`}>
+                    ⚠ <b>{periodo.headline.sem_ficha_n}</b> produtos venderam <b>sem ficha técnica</b> ({fmtBRL(periodo.headline.sem_ficha_fat)}, fora do custo) — falta cadastrar a receita
+                  </button>
+                )}
+                {periodo.headline?.ficha_sem_preco_n > 0 && (
+                  <button onClick={() => setSoSemFicha(v => !v)} className={`text-left text-xs rounded-md px-3 py-2 border w-full sm:w-auto block ${soSemFicha ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300' : 'border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400 hover:bg-amber-50/60 dark:hover:bg-amber-900/10'}`}>
+                    💲 <b>{periodo.headline.ficha_sem_preco_n}</b> produtos têm <b>ficha, mas o insumo está sem preço</b> ({fmtBRL(periodo.headline.ficha_sem_preco_fat)}, custo zerado) — precifique o insumo
+                  </button>
+                )}
+                <p className="text-xs text-gray-500 dark:text-gray-400">Cobertura do CMV: <b>{fmtPct(periodo.headline.cobertura_pct)}</b> {soSemFicha ? '· mostrando só os fora do custo (clique no aviso p/ ver todos)' : '· clique num aviso p/ filtrar'}</p>
+              </div>
             )}
             {periodo.headline?.fora_depara_n > 0 && (
               <button onClick={() => setMostrarForaDp(v => !v)} className={`text-left text-xs rounded-md px-3 py-2 border w-full sm:w-auto block ${mostrarForaDp ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300' : 'border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 hover:bg-orange-50/60 dark:hover:bg-orange-900/10'}`}>
