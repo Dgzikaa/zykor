@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
     if ('unidade_medida' in body) patch.unidade_medida = mapUnidade(String(body.unidade_medida || ''));
     if ('fator_correcao' in body) patch.fator_correcao = !!body.fator_correcao;
     if ('curva_a' in body) { patch.curva_a = !!body.curva_a; patch.frequencia = body.curva_a ? 'diaria' : 'semanal'; }
+    if ('curva_a_proteina' in body) patch.curva_a_proteina = !!body.curva_a_proteina;
     if (Object.keys(patch).length) {
       const { error } = await ops.from('insumos').update(patch).eq('bar_id', barId).eq('id', id);
       if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });

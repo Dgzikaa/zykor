@@ -17,7 +17,7 @@ const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR'
 // 1 insumo = 1 linha (cadastro Zykor). VMarket (compras) só alimenta o preço via silver.
 interface Insumo {
   id: number; codigo: string; nome: string; categoria: string | null; unidade_medida: string | null;
-  fator_correcao?: boolean; curva_a?: boolean; frequencia?: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
+  fator_correcao?: boolean; curva_a?: boolean; curva_a_proteina?: boolean; frequencia?: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
   fornecedor: string | null; tem_compra?: boolean; tem_ficha?: boolean; base?: string | null; embalagem?: number | null;
 }
 interface SemCadastro { id_vmarket: number; cod_interno: string | null; codigo_vmarket: string | null; nome: string; nome_secao: string | null; preco: number | null; preco_data: string | null; fornecedor: string | null; }
@@ -34,7 +34,7 @@ export default function InsumosPage() {
   const [syncedEm, setSyncedEm] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [catSel, setCatSel] = useState('todas');
-  const [filtro, setFiltro] = useState<'sem_ficha' | 'sem_cadastro' | 'curva_a' | null>(null);
+  const [filtro, setFiltro] = useState<'sem_ficha' | 'sem_cadastro' | 'curva_a' | 'curva_a_proteina' | null>(null);
   const [tab, setTab] = useState('insumos');
   // expandir compras de um item sem cadastro
   const [compraAberto, setCompraAberto] = useState<number | null>(null);
@@ -91,6 +91,7 @@ export default function InsumosPage() {
   const catList = useMemo(() => Array.from(new Set(insumos.map(i => i.categoria).filter(Boolean))).sort() as string[], [insumos]);
   const nSemFicha = useMemo(() => insumos.filter(i => !i.tem_ficha).length, [insumos]);
   const nCurvaA = useMemo(() => insumos.filter(i => i.curva_a).length, [insumos]);
+  const nProteina = useMemo(() => insumos.filter(i => i.curva_a_proteina).length, [insumos]);
 
   const insumosView = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -98,6 +99,7 @@ export default function InsumosPage() {
       if (catSel !== 'todas' && (i.categoria || '') !== catSel) return false;
       if (filtro === 'sem_ficha' && i.tem_ficha) return false;
       if (filtro === 'curva_a' && !i.curva_a) return false;
+      if (filtro === 'curva_a_proteina' && !i.curva_a_proteina) return false;
       if (!q) return true;
       return (i.nome || '').toLowerCase().includes(q) || (i.codigo || '').toLowerCase().includes(q) || (i.categoria || '').toLowerCase().includes(q) || (i.fornecedor || '').toLowerCase().includes(q);
     });
@@ -133,14 +135,15 @@ export default function InsumosPage() {
   const [editIns, setEditIns] = useState<Insumo | null>(null);
   const [fCod, setFCod] = useState(''); const [fNome, setFNome] = useState(''); const [fCat, setFCat] = useState(''); const [fFc, setFFc] = useState(false);
   const [fCurvaA, setFCurvaA] = useState(false);
+  const [fProt, setFProt] = useState(false);
   const [fBase, setFBase] = useState('g'); const [fEmb, setFEmb] = useState('1');
-  const abrirEditIns = (i: Insumo) => { setEditIns(i); setFCod(i.codigo || ''); setFNome(i.nome || ''); setFCat(i.categoria || ''); setFFc(!!i.fator_correcao); setFCurvaA(!!i.curva_a); setFBase(i.base || 'g'); setFEmb(String(i.embalagem ?? 1)); };
+  const abrirEditIns = (i: Insumo) => { setEditIns(i); setFCod(i.codigo || ''); setFNome(i.nome || ''); setFCat(i.categoria || ''); setFFc(!!i.fator_correcao); setFCurvaA(!!i.curva_a); setFProt(!!i.curva_a_proteina); setFBase(i.base || 'g'); setFEmb(String(i.embalagem ?? 1)); };
   const salvarEditIns = async () => {
     if (!editIns) return;
     try {
       const r = await api.post('/api/operacional/insumos', {
         bar_id: barId, action: 'editar', id: editIns.id, codigo: fCod.trim().toLowerCase(), nome: fNome.trim(), categoria: fCat.trim(),
-        fator_correcao: fFc, curva_a: fCurvaA, unidade_medida: fBase, base: fBase, embalagem: Number(String(fEmb).replace(',', '.')) || 1,
+        fator_correcao: fFc, curva_a: fCurvaA, curva_a_proteina: fProt, unidade_medida: fBase, base: fBase, embalagem: Number(String(fEmb).replace(',', '.')) || 1,
       });
       if (!r.success) throw new Error(r.error);
       setEditIns(null); await carregar();
@@ -154,6 +157,11 @@ export default function InsumosPage() {
   const salvarCurvaA = async (i: Insumo, valor: boolean) => {
     setInsumos(prev => prev.map(x => x.id === i.id ? { ...x, curva_a: valor } : x));
     try { await api.post('/api/operacional/insumos', { bar_id: barId, action: 'editar', id: i.id, curva_a: valor }); }
+    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+  const salvarProteina = async (i: Insumo, valor: boolean) => {
+    setInsumos(prev => prev.map(x => x.id === i.id ? { ...x, curva_a_proteina: valor } : x));
+    try { await api.post('/api/operacional/insumos', { bar_id: barId, action: 'editar', id: i.id, curva_a_proteina: valor }); }
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
@@ -266,9 +274,11 @@ export default function InsumosPage() {
               <button onClick={() => setFiltro(null)}><Badge variant="outline" className={`cursor-pointer ${!filtro ? 'ring-1 ring-emerald-400' : ''}`}>{insumos.length} insumos</Badge></button>
               {nSemFicha > 0 && <button onClick={() => setFiltro(f => f === 'sem_ficha' ? null : 'sem_ficha')} title="Todos os insumos sem ficha técnica (inclui itens parados que não precisam de ficha)"><Badge variant="outline" className={`cursor-pointer text-orange-600 border-orange-300 ${filtro === 'sem_ficha' ? 'ring-1 ring-orange-400' : ''}`}>{nSemFicha} sem ficha técnica</Badge></button>}
               {nCurvaA > 0 && <button onClick={() => setFiltro(f => f === 'curva_a' ? null : 'curva_a')}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${filtro === 'curva_a' ? 'ring-1 ring-indigo-400' : ''}`}>{nCurvaA} curva A</Badge></button>}
+              {nProteina > 0 && <button onClick={() => setFiltro(f => f === 'curva_a_proteina' ? null : 'curva_a_proteina')}><Badge variant="outline" className={`cursor-pointer text-rose-600 border-rose-300 ${filtro === 'curva_a_proteina' ? 'ring-1 ring-rose-400' : ''}`}>{nProteina} curva A proteína</Badge></button>}
               {/* legenda dos ícones da coluna nome */}
               <span className="flex items-center gap-1 text-gray-400 ml-1"><Utensils className="w-3 h-3 text-red-500" /> sem ficha</span>
               <span className="flex items-center gap-1 text-gray-400"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-[9px] font-bold">A</span> curva A (contagem diária)</span>
+              <span className="flex items-center gap-1 text-gray-400"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 text-[9px] font-bold">P</span> curva A proteína</span>
             </div>
             {semCadastro.length > 0 && (
               <button onClick={() => setFiltro(f => f === 'sem_cadastro' ? null : 'sem_cadastro')}
@@ -368,6 +378,9 @@ export default function InsumosPage() {
                               <button onClick={() => abrirFichas(i.codigo, i.nome)} className={`shrink-0 ${!i.tem_ficha ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-indigo-600'}`} title={!i.tem_ficha ? 'Não está em nenhuma ficha técnica' : 'Ver fichas que usam este insumo'}><Utensils className="w-3.5 h-3.5" /></button>
                               <button onClick={() => salvarCurvaA(i, !i.curva_a)} className="shrink-0" title={i.curva_a ? 'Curva A — entra na contagem diária. Clique para remover.' : 'Marcar como Curva A (contagem diária)'}>
                                 <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold transition ${i.curva_a ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-100 text-gray-300 hover:text-indigo-400 dark:bg-gray-800 dark:text-gray-600'}`}>A</span>
+                              </button>
+                              <button onClick={() => salvarProteina(i, !i.curva_a_proteina)} className="shrink-0" title={i.curva_a_proteina ? 'Curva A Proteína — entra no desvio diário de proteínas. Clique para remover.' : 'Marcar como Curva A Proteína'}>
+                                <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold transition ${i.curva_a_proteina ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' : 'bg-gray-100 text-gray-300 hover:text-rose-400 dark:bg-gray-800 dark:text-gray-600'}`}>P</span>
                               </button>
                             </div>
                           </td>
@@ -643,6 +656,13 @@ export default function InsumosPage() {
                   {editIns?.frequencia === 'diaria' && !fCurvaA && <span className="block text-amber-600 dark:text-amber-400">💡 Sugestão: marcar — a frequência registrada é diária.</span>}
                   {editIns?.frequencia && editIns?.frequencia !== 'diaria' && fCurvaA && <span className="block text-amber-600 dark:text-amber-400">💡 A frequência registrada é {editIns.frequencia} — confirme se é Curva A mesmo.</span>}
                 </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
+                  <input type="checkbox" checked={fProt} onChange={e => setFProt(e.target.checked)} className="h-4 w-4 accent-rose-600" />
+                  Curva A Proteína
+                </label>
+                <p className="text-[11px] text-gray-500 mt-1 ml-6">Entra no desvio diário de <b>Proteínas</b> (compra VMarket × usado em produção).</p>
               </div>
               <div className="flex gap-2">
                 <div className="w-24"><label className="text-xs text-gray-500">Unidade</label>
