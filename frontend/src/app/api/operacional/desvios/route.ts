@@ -113,6 +113,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, datas: (datas || []).map((d: any) => d.data_contagem) });
   }
 
+  // abas Produções e Proteínas (cadeia VMarket→Produção→ContaHub) — leitura
+  const aba = sp.get('aba');
+  if (aba === 'producao' || aba === 'proteina') {
+    const fn = aba === 'producao' ? 'fn_desvios_producao' : 'fn_desvios_proteina';
+    const { data, error } = await (sb() as any).schema('gold').rpc(fn, { p_bar: user.bar_id, p_ini: ini, p_fim: fim });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, itens: data || [] });
+  }
+
   const { data, error } = await (sb() as any).schema('gold')
     .rpc('fn_desvios', { p_bar: user.bar_id, p_ini: ini, p_fim: fim });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });

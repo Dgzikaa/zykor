@@ -4,9 +4,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
-import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
+import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick } from 'lucide-react';
+
+// quantidade com unidade, arredondando g→kg e ml→L quando grande
+const fmtQU = (v: any, u: any) => {
+  if (v == null) return '—';
+  const n = Number(v); const un = String(u || '').toLowerCase();
+  if (un === 'g' && Math.abs(n) >= 1000) return `${(n / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg`;
+  if (un === 'ml' && Math.abs(n) >= 1000) return `${(n / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} L`;
+  const num = n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+  return un ? `${num} ${un}` : num;
+};
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtQtd = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
@@ -39,6 +50,10 @@ export default function DesviosPage() {
   const [loading, setLoading] = useState(false);
   const [res, setRes] = useState<any | null>(null);
   const [busca, setBusca] = useState('');
+  const [aba, setAba] = useState('insumos');
+  const [rowsProd, setRowsProd] = useState<any[]>([]);
+  const [rowsProt, setRowsProt] = useState<any[]>([]);
+  const [loadingAba, setLoadingAba] = useState(false);
 
   // carrega datas do tipo selecionado e pré-seleciona as 2 mais recentes
   useEffect(() => {
@@ -62,6 +77,27 @@ export default function DesviosPage() {
     } finally { setLoading(false); }
   }, [barId]);
   useEffect(() => { if (ini && fim) carregar(ini, fim, tipo); }, [ini, fim, tipo, carregar]);
+
+  // abas Produções / Proteínas (leitura) — carregam sob demanda
+  const carregarAba = useCallback(async () => {
+    if (!barId || !ini || !fim || (aba !== 'producoes' && aba !== 'proteinas')) return;
+    setLoadingAba(true);
+    try {
+      const param = aba === 'producoes' ? 'producao' : 'proteina';
+      const r = await api.get(`/api/operacional/desvios?ini=${ini}&fim=${fim}&aba=${param}`);
+      if (r.success) { if (aba === 'producoes') setRowsProd(r.itens || []); else setRowsProt(r.itens || []); }
+    } finally { setLoadingAba(false); }
+  }, [barId, ini, fim, aba]);
+  useEffect(() => { carregarAba(); }, [carregarAba]);
+
+  const prodView = useMemo(() => {
+    const s = busca.trim().toLowerCase();
+    return rowsProd.filter((i: any) => !s || (i.producao_nome || '').toLowerCase().includes(s) || (i.producao_cod || '').toLowerCase().includes(s));
+  }, [rowsProd, busca]);
+  const protView = useMemo(() => {
+    const s = busca.trim().toLowerCase();
+    return rowsProt.filter((i: any) => !s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_cod || '').toLowerCase().includes(s));
+  }, [rowsProt, busca]);
 
   // só edita produzido/desperdício na DIÁRIA (1 dia); semanal/mensal somam os lançamentos diários (read-only)
   const editavel = tipo === 'diaria' && !!ini;
@@ -113,6 +149,22 @@ export default function DesviosPage() {
           </select>
         </div>
 
+        <Tabs value={aba} onValueChange={setAba}>
+          <TabsList>
+            <TabsTrigger value="insumos"><Boxes className="w-4 h-4 mr-1.5" />Insumos</TabsTrigger>
+            <TabsTrigger value="producoes"><ChefHat className="w-4 h-4 mr-1.5" />Produções</TabsTrigger>
+            <TabsTrigger value="proteinas"><Drumstick className="w-4 h-4 mr-1.5" />Proteínas</TabsTrigger>
+          </TabsList>
+
+          {/* Busca compartilhada */}
+          <div className="relative mt-3">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9" />
+          </div>
+
+          {/* ===== INSUMOS (VMarket → ContaHub, estoque âncora) ===== */}
+          <TabsContent value="insumos" className="space-y-4 mt-3">
+
         {/* Headline */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <Card className="card-dark"><CardContent className="py-3">
@@ -157,12 +209,6 @@ export default function DesviosPage() {
             </div>
           );
         })()}
-
-        {/* Busca */}
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar insumo…" className="pl-9" />
-        </div>
 
         {editavel && (
           <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -232,6 +278,72 @@ export default function DesviosPage() {
             </tbody>
           </table>
         </div></CardContent></Card>
+          </TabsContent>
+
+          {/* ===== PRODUÇÕES (Controle de Produção → ContaHub) ===== */}
+          <TabsContent value="producoes" className="space-y-3 mt-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Produzido (fornadas lançadas na aba Insumos) × Consumido (vendas × ficha). Desvio positivo = produziu mais do que vendeu.</p>
+            <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+                  <th className="text-left font-medium px-3 py-2">Produção</th>
+                  <th className="text-right font-medium px-3 py-2" title="Quanto foi produzido (Controle de Produção)">Produzido</th>
+                  <th className="text-right font-medium px-3 py-2" title="Vendas × ficha técnica">Consumido</th>
+                  <th className="text-right font-medium px-3 py-2">Desvio</th>
+                </tr></thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {loadingAba ? <tr><td colSpan={4} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                  : prodView.length === 0 ? <tr><td colSpan={4} className="px-3 py-10 text-center text-gray-400">Sem dados nesse período.</td></tr>
+                  : prodView.map((it: any, i: number) => (
+                    <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.producao_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.producao_cod}</span></td>
+                      <td className="px-3 py-2 text-right tabular-nums">{it.produzido > 0 ? fmtQU(it.produzido, it.unidade) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQU(it.consumido, it.unidade)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.produzido <= 0 ? 'text-gray-300' : it.desvio < 0 ? 'text-red-600 dark:text-red-400' : it.desvio > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
+                        {it.produzido <= 0 ? '—' : `${it.desvio > 0 ? '+' : ''}${fmtQU(it.desvio, it.unidade)}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div></CardContent></Card>
+          </TabsContent>
+
+          {/* ===== PROTEÍNAS (VMarket → Controle de Produção) ===== */}
+          <TabsContent value="proteinas" className="space-y-3 mt-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Comprou (VMarket) × Usou em produção (fornadas × proteína na ficha, automático), ancorado no estoque. Desvio negativo = faltou (perda/furo). Valores em kg.</p>
+            <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+                  <th className="text-left font-medium px-3 py-2">Proteína</th>
+                  <th className="text-right font-medium px-3 py-2" title="Contagem no início">Estoque ini</th>
+                  <th className="text-right font-medium px-3 py-2" title="Compras VMarket no período">Comprou</th>
+                  <th className="text-right font-medium px-3 py-2" title="Entrou nas produções (fornadas × ficha)">Usou</th>
+                  <th className="text-right font-medium px-3 py-2" title="ini + comprou − usou">Estoque fim teórico</th>
+                  <th className="text-right font-medium px-3 py-2" title="Contagem do fim">Estoque real</th>
+                  <th className="text-right font-medium px-3 py-2" title="real − teórico (negativo = faltou)">Desvio</th>
+                </tr></thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {loadingAba ? <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                  : protView.length === 0 ? <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400">Sem proteína comprada/contada nesse período.</td></tr>
+                  : protView.map((it: any, i: number) => (
+                    <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_cod}</span></td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.comprou)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{it.usou > 0 ? fmtQtd(it.usou) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.desvio < -0.05 ? 'text-red-600 dark:text-red-400' : it.desvio > 0.05 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
+                        {it.desvio > 0 ? '+' : ''}{fmtQtd(it.desvio)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div></CardContent></Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
