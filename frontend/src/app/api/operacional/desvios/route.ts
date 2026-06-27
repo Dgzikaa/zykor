@@ -174,6 +174,10 @@ export async function GET(request: NextRequest) {
       it.rend_contagem = rend > 0 ? rend / fator : null; // unidades de contagem por fornada
       it.unidade_contagem = pb?.unidade_contagem || it.unidade;
       it.fornadas = fornMap.get(String(it.insumo_codigo).toUpperCase()) || null;
+      // sugestão de produzido (estimativa pelo movimento + vendas): produzido ≈ (fim − ini) + saída teórica + desperdício
+      const sug = (it.estoque_fim_real - it.estoque_ini) + it.saida_teorica + it.desperdicio;
+      it.produzido_sugerido = sug > 0.001 ? Math.round(sug * 100) / 100 : null;
+      it.fornadas_sugerido = (it.produzido_sugerido && it.rend_contagem) ? Math.round((it.produzido_sugerido / it.rend_contagem) * 100) / 100 : null;
     }
   }
 

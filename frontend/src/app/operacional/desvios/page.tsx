@@ -205,7 +205,13 @@ export default function DesviosPage() {
                           ? <span className="inline-flex items-center gap-1 justify-end">
                               <CellEdit value={it.fornadas} placeholder="forn." title={it.rend_contagem ? `1 fornada = ${fmtQtd(it.rend_contagem)} ${it.unidade_contagem || ''}` : 'rendimento não cadastrado'}
                                 onSave={(v) => salvar('produzido', it.insumo_codigo, { fornadas: v })} />
-                              {it.produzido > 0 && <span className="text-[10px] text-gray-400">={fmtQtd(it.produzido)}</span>}
+                              {it.produzido > 0
+                                ? <span className="text-[10px] text-gray-400">={fmtQtd(it.produzido)}</span>
+                                : (!it.fornadas && it.fornadas_sugerido
+                                    ? <button onClick={() => salvar('produzido', it.insumo_codigo, { fornadas: it.fornadas_sugerido })}
+                                        title={`Estimativa pelo movimento + vendas: ~${fmtQtd(it.produzido_sugerido)} ${it.unidade_contagem || ''}. Clique p/ preencher.`}
+                                        className="text-[10px] text-indigo-500 hover:text-indigo-700 underline">sug. {fmtQtd(it.fornadas_sugerido)}</button>
+                                    : null)}
                             </span>
                           : <span className="tabular-nums">{it.produzido ? fmtQtd(it.produzido) : '—'}</span>)
                       : <span className="text-gray-300">—</span>}
