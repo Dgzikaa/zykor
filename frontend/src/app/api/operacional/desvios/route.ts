@@ -129,27 +129,60 @@ export async function GET(request: NextRequest) {
     const consumo_fisico = estoque_ini + compra - estoque_fim_real;
     // suspeita de ficha/unidade: saída teórica muito acima do consumo físico + impacto alto
     const suspeita = Math.abs(teorica) > Math.abs(consumo_fisico) * 5 && Math.abs(Number(r.desvio_rs || 0)) > 200;
+    const is_producao = r.is_producao === true;
+    const produzido = Number(r.produzido || 0);
+    const desperdicio = Number(r.desperdicio || 0);
+    // produção em que o estoque SUBIU (produziu no período) sem o "produzido" informado → desvio não confiável
+    const pendente = is_producao && !r.produzido_informado && estoque_fim_real > estoque_ini;
     return {
       insumo_codigo: r.insumo_codigo,
       insumo_nome: r.insumo_nome,
       curva_a: r.curva_a,
+      is_producao,
+      unidade: r.unidade || null,
       area: areaDe(r.categoria, r.insumo_codigo),
       estoque_ini,
       compra,
+      produzido,
       saida_teorica: teorica,
+      desperdicio,
       estoque_fim_teorico: Number(r.estoque_fim_teorico || 0),
       estoque_fim_real,
       desvio_qtd: Number(r.desvio_qtd || 0),
       preco: r.preco == null ? null : Number(r.preco),
       desvio_rs: Number(r.desvio_rs || 0),
+      produzido_informado: !!r.produzido_informado,
+      pendente,
       suspeita,
     };
   });
 
+  // enriquece produções: fornadas lançadas no período + rendimento por fornada (atalho fornadas×rend → unidade de contagem)
+  const prodCods = itens.filter((i: any) => i.is_producao).map((i: any) => i.insumo_codigo);
+  if (prodCods.length) {
+    const [pbRes, enRes] = await Promise.all([
+      sb().from('producao_base').select('codigo, rendimento, fator_contagem, unidade_contagem').eq('bar_id', user.bar_id),
+      (sb() as any).schema('operations').from('producao_entrada_manual').select('producao_codigo, fornadas').eq('bar_id', user.bar_id).gte('data', ini).lt('data', fim),
+    ]);
+    const pbMap = new Map<string, any>((pbRes.data || []).map((r: any) => [String(r.codigo).toUpperCase(), r]));
+    const fornMap = new Map<string, number>();
+    for (const e of (enRes.data || [])) { const k = String(e.producao_codigo).toUpperCase(); fornMap.set(k, (fornMap.get(k) || 0) + Number(e.fornadas || 0)); }
+    for (const it of itens) {
+      if (!it.is_producao) continue;
+      const pb = pbMap.get(String(it.insumo_codigo).toUpperCase());
+      const rend = Number(pb?.rendimento || 0); const fator = Number(pb?.fator_contagem || 1) || 1;
+      it.rend_contagem = rend > 0 ? rend / fator : null; // unidades de contagem por fornada
+      it.unidade_contagem = pb?.unidade_contagem || it.unidade;
+      it.fornadas = fornMap.get(String(it.insumo_codigo).toUpperCase()) || null;
+    }
+  }
+
   // desvio = real − teórico. Negativo = faltou estoque (perda); positivo = sobrou (sobra).
-  const desvio_total = itens.reduce((s: number, i: any) => s + i.desvio_rs, 0);
-  const perdas = itens.reduce((s: number, i: any) => s + (i.desvio_rs < 0 ? i.desvio_rs : 0), 0);
-  const sobras = itens.reduce((s: number, i: any) => s + (i.desvio_rs > 0 ? i.desvio_rs : 0), 0);
+  // ignora itens pendentes (produção sem 'produzido' informado = sobra falsa) nos agregados.
+  const itensValidos = itens.filter((i: any) => !i.pendente);
+  const desvio_total = itensValidos.reduce((s: number, i: any) => s + i.desvio_rs, 0);
+  const perdas = itensValidos.reduce((s: number, i: any) => s + (i.desvio_rs < 0 ? i.desvio_rs : 0), 0);
+  const sobras = itensValidos.reduce((s: number, i: any) => s + (i.desvio_rs > 0 ? i.desvio_rs : 0), 0);
 
   // análise: compara a perda deste período com a do período anterior do mesmo tipo
   let analise: any = null;
@@ -166,7 +199,7 @@ export async function GET(request: NextRequest) {
       const pbase = tipo === 'diaria' ? (pdata || []).filter((r: any) => r.curva_a === true) : (pdata || []);
       for (const r of pbase) { const v = Number(r.desvio_rs || 0); if (v < 0) prevPerdas += v; }
     }
-    analise = buildAnalise(itens, { perdas, sobras }, { prevDate, prevPerdas }, tipo || 'semanal');
+    analise = buildAnalise(itensValidos, { perdas, sobras }, { prevDate, prevPerdas }, tipo || 'semanal');
   } catch { analise = null; }
 
   return NextResponse.json({
@@ -176,4 +209,69 @@ export async function GET(request: NextRequest) {
     headline: { desvio_total, perdas, sobras },
     analise,
   });
+}
+
+/**
+ * POST — lança o "produzido" (produção, por fornadas ou direto) e o "desperdício" (qualquer item).
+ *  body: { tipo:'produzido'|'desperdicio', codigo, data, ... }
+ *   - produzido: { fornadas? } (converte por rendimento×fator) OU { qtd } (direto na unidade de contagem)
+ *   - desperdicio: { qtd, motivo? }
+ * Lança com data = `data` (dia da operação). Qtd 0/null apaga o lançamento.
+ */
+export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
+  const body = await request.json().catch(() => ({}));
+  const codigo = String(body.codigo || '').trim();
+  const data = String(body.data || '').trim();
+  if (!codigo || !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+    return NextResponse.json({ success: false, error: 'codigo e data (YYYY-MM-DD) obrigatórios' }, { status: 400 });
+  }
+  const ops = (sb() as any).schema('operations');
+
+  if (body.tipo === 'produzido') {
+    // resolve a quantidade: por fornadas (× rendimento ÷ fator_contagem) ou direto
+    let produzido_qtd: number | null = null;
+    let fornadas: number | null = null;
+    if (body.fornadas != null && body.fornadas !== '') {
+      fornadas = Number(body.fornadas);
+      const { data: pb } = await sb().from('producao_base')
+        .select('rendimento, fator_contagem').eq('bar_id', user.bar_id).eq('codigo', codigo).maybeSingle();
+      const rend = Number(pb?.rendimento || 0);
+      const fator = Number(pb?.fator_contagem || 1) || 1;
+      produzido_qtd = rend > 0 ? (fornadas * rend) / fator : null;
+      if (produzido_qtd == null) return NextResponse.json({ success: false, error: 'rendimento da produção não cadastrado' }, { status: 400 });
+    } else {
+      produzido_qtd = Number(body.qtd);
+    }
+    if (!Number.isFinite(produzido_qtd as number) || (produzido_qtd as number) <= 0) {
+      const { error } = await ops.from('producao_entrada_manual').delete().eq('bar_id', user.bar_id).eq('producao_codigo', codigo).eq('data', data);
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true, removido: true });
+    }
+    const { error } = await ops.from('producao_entrada_manual').upsert({
+      bar_id: user.bar_id, producao_codigo: codigo, data,
+      fornadas, produzido_qtd, usuario: user.email || 'app', atualizado_em: new Date().toISOString(),
+    }, { onConflict: 'bar_id,producao_codigo,data' });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, produzido_qtd });
+  }
+
+  if (body.tipo === 'desperdicio') {
+    const qtd = Number(body.qtd);
+    if (!Number.isFinite(qtd) || qtd <= 0) {
+      const { error } = await ops.from('desvio_desperdicio_manual').delete().eq('bar_id', user.bar_id).eq('insumo_codigo', codigo).eq('data', data);
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true, removido: true });
+    }
+    const { error } = await ops.from('desvio_desperdicio_manual').upsert({
+      bar_id: user.bar_id, insumo_codigo: codigo, data, qtd,
+      motivo: body.motivo ? String(body.motivo) : null, usuario: user.email || 'app', atualizado_em: new Date().toISOString(),
+    }, { onConflict: 'bar_id,insumo_codigo,data' });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, qtd });
+  }
+
+  return NextResponse.json({ success: false, error: 'tipo inválido' }, { status: 400 });
 }
