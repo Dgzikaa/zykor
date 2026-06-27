@@ -75,6 +75,17 @@ export async function GET(request: NextRequest) {
     const foraLista = (foraDp || []) as any[];
     (headline as any).fora_depara_n = foraLista.length;
     (headline as any).fora_depara_fat = Number(foraLista.reduce((s: number, r: any) => s + num(r.valor), 0).toFixed(2));
+
+    // comparativo Mix × Compras vs o período anterior (dia→ontem, semana→sem. anterior, mês→mês anterior)
+    const gran = sp.get('gran') || 'dia';
+    const isoD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const di = new Date(ini + 'T00:00:00'); const df = new Date(fim + 'T00:00:00');
+    let pIni: Date, pFim: Date;
+    if (gran === 'mes') { pIni = new Date(di.getFullYear(), di.getMonth() - 1, 1); pFim = new Date(di.getFullYear(), di.getMonth(), 0); }
+    else { const dias = Math.round((df.getTime() - di.getTime()) / 86400000) + 1; pIni = new Date(di); pIni.setDate(di.getDate() - dias); pFim = new Date(df); pFim.setDate(df.getDate() - dias); }
+    const { data: cmp } = await gold.rpc('fn_cmv_teorico_comparativo', { p_bar: barId, p_ini: ini, p_fim: fim, p_ini_ant: isoD(pIni), p_fim_ant: isoD(pFim) });
+    if (cmp && cmp[0]) (headline as any).comparativo = { ...cmp[0], gran, ini_ant: isoD(pIni), fim_ant: isoD(pFim) };
+
     return NextResponse.json({ success: true, modo: 'periodo', headline, categorias, produtos: lista, fora_depara: foraLista });
   }
 

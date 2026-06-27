@@ -69,11 +69,11 @@ export default function CmvTeoricoPage() {
   const carregarPeriodo = useCallback(async () => {
     if (!barId) return; setLoadingPer(true);
     try {
-      const r = await api.get(`/api/operacional/cmv-teorico?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}`);
+      const r = await api.get(`/api/operacional/cmv-teorico?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}&gran=${gran}`);
       if (r.success) setPeriodo(r);
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
     finally { setLoadingPer(false); }
-  }, [barId, range, toast]);
+  }, [barId, range, gran, toast]);
   useEffect(() => { if (modo === 'periodo') carregarPeriodo(); }, [modo, carregarPeriodo]);
 
   // ---------- TEÓRICO × REAL ----------
@@ -248,6 +248,25 @@ export default function CmvTeoricoPage() {
               <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Custo teórico</div><div className="text-2xl font-bold">{fmtBRL(periodo.headline?.custo_total)}</div></CardContent></Card>
               <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Margem</div><div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fmtBRL(periodo.headline?.margem)}</div></CardContent></Card>
             </div>
+            {periodo.headline?.comparativo && (() => {
+              const c = periodo.headline.comparativo;
+              const d = Number(c.cmv_atual) - Number(c.cmv_ant);
+              const labelPer = c.gran === 'mes' ? 'o mês anterior' : c.gran === 'semana' ? 'a semana anterior' : 'o dia anterior';
+              const dir = d > 0.05 ? 'subiu' : d < -0.05 ? 'caiu' : 'estável';
+              const sinal = (v: any) => `${Number(v) > 0 ? '+' : ''}${Number(v).toFixed(2)}`;
+              const mix = Number(c.mix_pp), compras = Number(c.compras_pp);
+              const motor = Math.abs(mix) >= Math.abs(compras) ? 'Mix (o que vendeu)' : 'Compras (custo do insumo)';
+              const cls = dir === 'subiu' ? 'border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 bg-red-50/60 dark:bg-red-900/10'
+                : dir === 'caiu' ? 'border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 bg-emerald-50/60 dark:bg-emerald-900/10'
+                : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300';
+              return (
+                <div className={`text-xs rounded-md px-3 py-2 border ${cls}`}>
+                  📊 CMV {dir === 'estável' ? <>estável em <b>{fmtPct(c.cmv_atual)}</b></> : <>{dir} de {fmtPct(c.cmv_ant)} para <b>{fmtPct(c.cmv_atual)}</b> ({sinal(d)} p.p.)</>} vs {labelPer}.
+                  {' '}<span className="opacity-90">Mix <b>{sinal(mix)}</b> p.p. · Compras <b>{sinal(compras)}</b> p.p.</span>
+                  {dir !== 'estável' && <> — puxado por <b>{motor}</b>.</>}
+                </div>
+              );
+            })()}
             {periodo.headline?.qtd_cortesia > 0 && (
               <p className="text-xs text-gray-500 dark:text-gray-400">Cortesia/consumação no período: <b>{fmtNum(periodo.headline.qtd_cortesia)}</b> itens · custo <b>{fmtBRL(periodo.headline.custo_cortesia)}</b> <span className="text-gray-400">(fora do CMV — dado de graça)</span></p>
             )}

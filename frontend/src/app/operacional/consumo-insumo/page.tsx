@@ -174,7 +174,7 @@ export default function SaidasPage() {
                       {temDrill && aberto === i.codigo && (
                         <tr className="bg-gray-50/60 dark:bg-gray-800/20">
                           <td></td>
-                          <td colSpan={aba === 'geral' ? 6 : 5} className="px-3 py-3">
+                          <td colSpan={5} className="px-3 py-3">
                             {loadingBreak ? <Loader2 className="w-4 h-4 animate-spin" />
                             : !breakdown || breakdown.length === 0 ? <span className="text-xs text-gray-400">Sem produtos no período.</span>
                             : (
