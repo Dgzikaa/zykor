@@ -45,6 +45,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, itens: out });
   }
 
+  // --- análises do período (insights de compras) ---
+  if (sp.get('analises')) {
+    const de = sp.get('de'); const ate = sp.get('ate');
+    if (!de || !ate) return NextResponse.json({ success: false, error: 'de e ate obrigatórios' }, { status: 400 });
+    const { data, error } = await gold.rpc('fn_compras_analises', { p_bar: barId, p_ini: de, p_fim: ate });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, analises: data });
+  }
+
   // --- lista do período ---
   const de = sp.get('de');
   const ate = sp.get('ate');

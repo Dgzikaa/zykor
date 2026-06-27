@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { ShoppingCart, Search, ChevronDown, Loader2, ExternalLink, Tag } from 'lucide-react';
+import { ShoppingCart, Search, ChevronDown, Loader2, ExternalLink, Tag, BarChart3, TrendingUp, Users, Package, ArrowRightLeft } from 'lucide-react';
 
 const fmtBRL = (v: any) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
@@ -50,6 +50,9 @@ export default function ComprasPage() {
   const [aberto, setAberto] = useState<number | null>(null);
   const [itens, setItens] = useState<Record<number, any[]>>({});
   const [loadingItens, setLoadingItens] = useState<number | null>(null);
+  const [tab, setTab] = useState('pedidos');
+  const [analises, setAnalises] = useState<any>(null);
+  const [loadingAn, setLoadingAn] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -69,6 +72,19 @@ export default function ComprasPage() {
   useEffect(() => { carregar(); }, [carregar]);
   // debounce da busca por produto (consulta o backend)
   useEffect(() => { const t = setTimeout(() => setProdutoQ(buscaProduto.trim()), 400); return () => clearTimeout(t); }, [buscaProduto]);
+
+  // Análises (insights) — carrega sob demanda ao abrir a aba ou trocar o período
+  const carregarAnalises = useCallback(async () => {
+    if (!barId) return;
+    setLoadingAn(true);
+    try {
+      const r = await api.get(`/api/operacional/compras?bar_id=${barId}&analises=1&de=${de}&ate=${ate}`);
+      if (r.success) setAnalises(r.analises || null);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e?.message || 'Falha ao carregar análises', variant: 'destructive' });
+    } finally { setLoadingAn(false); }
+  }, [barId, de, ate, toast]);
+  useEffect(() => { if (tab === 'analises') carregarAnalises(); }, [tab, carregarAnalises]);
 
   const abrir = async (id: number) => {
     if (aberto === id) { setAberto(null); return; }
@@ -129,11 +145,19 @@ export default function ComprasPage() {
           </div>
         )}
 
-        <Tabs defaultValue="pedidos">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="pedidos"><ShoppingCart className="w-4 h-4 mr-1.5" />Pedidos ({pedidos.length})</TabsTrigger>
             <TabsTrigger value="cotacoes"><Tag className="w-4 h-4 mr-1.5" />Cotações ({cotacoes.length})</TabsTrigger>
+            <TabsTrigger value="analises"><BarChart3 className="w-4 h-4 mr-1.5" />Análises</TabsTrigger>
           </TabsList>
+
+          {/* ===== ANÁLISES ===== */}
+          <TabsContent value="analises" className="space-y-4">
+            {loadingAn ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+            : !analises ? <Card><CardContent className="py-16 text-center text-gray-400">Sem dados de compras no período.</CardContent></Card>
+            : <AnalisesCompras a={analises} />}
+          </TabsContent>
 
           {/* ===== PEDIDOS ===== */}
           <TabsContent value="pedidos" className="space-y-3">
@@ -286,6 +310,121 @@ export default function ComprasPage() {
           </TabsContent>
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+const fmtNum = (v: any) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+function AnalisesCompras({ a }: { a: any }) {
+  const h = a?.headline || {};
+  const topForn: any[] = a?.top_fornecedores || [];
+  const topProd: any[] = a?.top_produtos || [];
+  const subiu: any[] = a?.subiu_preco || [];
+  const comp: any[] = a?.comparativo_fornecedor || [];
+  const maxForn = Math.max(1, ...topForn.map((f) => Number(f.valor) || 0));
+  const maxProd = Math.max(1, ...topProd.map((p) => Number(p.valor) || 0));
+
+  return (
+    <div className="space-y-4">
+      {/* Headline */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Total comprado</div><div className="text-xl font-bold text-blue-600 dark:text-blue-400">{fmtBRL(h.valor_total)}</div></CardContent></Card>
+        <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Pedidos</div><div className="text-xl font-bold">{h.n_pedidos ?? 0}</div></CardContent></Card>
+        <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Fornecedores</div><div className="text-xl font-bold">{h.n_fornecedores ?? 0}</div></CardContent></Card>
+        <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Ticket médio</div><div className="text-xl font-bold">{fmtBRL(h.ticket_medio)}</div></CardContent></Card>
+        <Card><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Economia cotação</div><div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{fmtBRL(h.economia_cotacao)}</div></CardContent></Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Top Fornecedores */}
+        <Card><CardContent className="p-0">
+          <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2 text-sm font-semibold"><Users className="w-4 h-4 text-indigo-500" />Top 10 fornecedores</div>
+          <div className="divide-y divide-gray-50 dark:divide-gray-800/50">
+            {topForn.length === 0 ? <div className="px-4 py-6 text-center text-sm text-gray-400">Sem dados.</div> : topForn.map((f, i) => (
+              <div key={f.fornecedor} className="px-4 py-2 relative">
+                <div className="absolute inset-y-0 left-0 bg-indigo-50 dark:bg-indigo-900/10" style={{ width: `${(Number(f.valor) / maxForn) * 100}%` }} />
+                <div className="relative flex items-center justify-between gap-2">
+                  <div className="min-w-0"><span className="text-gray-400 text-xs mr-1.5">{i + 1}.</span><span className="text-sm text-gray-800 dark:text-gray-100 truncate">{f.fornecedor}</span>
+                    <span className="block text-[11px] text-gray-400">{f.n_pedidos} pedidos · ticket {fmtBRL(f.ticket)}</span></div>
+                  <span className="text-sm font-semibold tabular-nums whitespace-nowrap">{fmtBRL(f.valor)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent></Card>
+
+        {/* Top Produtos */}
+        <Card><CardContent className="p-0">
+          <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2 text-sm font-semibold"><Package className="w-4 h-4 text-violet-500" />Top 10 produtos</div>
+          <div className="divide-y divide-gray-50 dark:divide-gray-800/50">
+            {topProd.length === 0 ? <div className="px-4 py-6 text-center text-sm text-gray-400">Sem dados.</div> : topProd.map((p, i) => (
+              <div key={p.nome + i} className="px-4 py-2 relative">
+                <div className="absolute inset-y-0 left-0 bg-violet-50 dark:bg-violet-900/10" style={{ width: `${(Number(p.valor) / maxProd) * 100}%` }} />
+                <div className="relative flex items-center justify-between gap-2">
+                  <div className="min-w-0"><span className="text-gray-400 text-xs mr-1.5">{i + 1}.</span><span className="text-sm text-gray-800 dark:text-gray-100 truncate">{p.nome}</span>
+                    <span className="block text-[11px] text-gray-400">{fmtNum(p.qtd)} un · {p.n_compras} compras · méd {fmtBRL(p.preco_medio)}</span></div>
+                  <span className="text-sm font-semibold tabular-nums whitespace-nowrap">{fmtBRL(p.valor)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent></Card>
+      </div>
+
+      {/* Subiu de preço */}
+      <Card><CardContent className="p-0">
+        <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2 text-sm font-semibold"><TrendingUp className="w-4 h-4 text-red-500" />Produtos que subiram de preço<span className="text-xs font-normal text-gray-400">(1ª × última compra no período · exclui troca de unidade)</span></div>
+        {subiu.length === 0 ? <div className="px-4 py-6 text-center text-sm text-gray-400">Nenhuma alta de preço relevante no período.</div> : (
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead className="text-xs text-gray-500 border-b border-gray-100 dark:border-gray-800"><tr>
+              <th className="text-left font-medium px-4 py-2">Produto</th>
+              <th className="text-right font-medium px-3 py-2">Preço inicial</th>
+              <th className="text-right font-medium px-3 py-2">Preço atual</th>
+              <th className="text-right font-medium px-4 py-2">Variação</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
+              {subiu.map((s, i) => (
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                  <td className="px-4 py-2 text-gray-800 dark:text-gray-100">{s.nome}<span className="block text-[11px] text-gray-400">{fmtData(s.data_ini)} → {fmtData(s.data_fim)}</span></td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtBRL(s.preco_ini)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtBRL(s.preco_fim)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums font-semibold text-red-600 dark:text-red-400">+{fmtNum(s.var_pct)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
+        )}
+      </CardContent></Card>
+
+      {/* Comparativo de fornecedores */}
+      <Card><CardContent className="p-0">
+        <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2 text-sm font-semibold"><ArrowRightLeft className="w-4 h-4 text-amber-500" />Mesmo insumo, fornecedores diferentes<span className="text-xs font-normal text-gray-400">(oportunidade de economia)</span></div>
+        {comp.length === 0 ? <div className="px-4 py-6 text-center text-sm text-gray-400">Sem insumo comprado de 2+ fornecedores no período.</div> : (
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead className="text-xs text-gray-500 border-b border-gray-100 dark:border-gray-800"><tr>
+              <th className="text-left font-medium px-4 py-2">Insumo</th>
+              <th className="text-left font-medium px-3 py-2">Mais barato</th>
+              <th className="text-right font-medium px-3 py-2">Menor</th>
+              <th className="text-left font-medium px-3 py-2">Mais caro</th>
+              <th className="text-right font-medium px-3 py-2">Maior</th>
+              <th className="text-right font-medium px-4 py-2">Diferença</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
+              {comp.map((c, i) => (
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                  <td className="px-4 py-2 text-gray-800 dark:text-gray-100">{c.nome}<span className="text-gray-400 font-mono text-[11px]"> · {c.cod_interno}</span></td>
+                  <td className="px-3 py-2 text-emerald-600 dark:text-emerald-400 text-xs truncate max-w-[180px]">{c.forn_barato}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{fmtBRL(c.menor)}</td>
+                  <td className="px-3 py-2 text-red-600 dark:text-red-400 text-xs truncate max-w-[180px]">{c.forn_caro}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-red-600 dark:text-red-400">{fmtBRL(c.maior)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums font-semibold">+{fmtNum(c.spread_pct)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
+        )}
+      </CardContent></Card>
     </div>
   );
 }
