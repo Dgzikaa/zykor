@@ -94,6 +94,8 @@ export interface PlanejamentoData {
   c_prod: number;
   c_art_is_projecao: boolean; // true = valor é projeção (pré-lançado), não real do Conta Azul
   c_prod_is_projecao: boolean;
+  cmv_teorico_custo: number;       // custo teórico do dia (ficha × vendas) — gold.cmv_teorico_dia
+  cmv_teorico_pct: number | null;  // CMV% teórico do dia
   consumacao: number; // Consumação Artistas do dia (ContaHub vd_vrdescontos motivo='Artistas')
   percent_art_fat: number;
 
@@ -176,7 +178,7 @@ export async function getPlanejamentoComercial(
   // bug de double-counting (L268 subtraia quando real_r ja era consolidado)
   // REFACTOR 2026-04-23 (Etapa 6): lê também operations.config_metas_planejamento
   // para eliminar thresholds hardcoded. Ver docs/planning/06-auditoria-planejamento.md
-  const [{ data: eventosGold, error }, { data: eventosManuais }, { data: configMetas }, { data: consumacaoDias }, { data: mixConsolidado }] = await Promise.all([
+  const [{ data: eventosGold, error }, { data: eventosManuais }, { data: configMetas }, { data: consumacaoDias }, { data: mixConsolidado }, { data: cmvDias }] = await Promise.all([
     supabase
       .schema('gold' as never)
       .from('planejamento')
@@ -233,7 +235,16 @@ export async function getPlanejamentoComercial(
       p_bar_id: barId,
       p_ini: dataInicio,
       p_fim: dataFinalConsulta,
-    })
+    }),
+
+    // CMV teórico por dia (gold.cmv_teorico_dia) — colunas na seção Produção
+    supabase
+      .schema('gold' as never)
+      .from('cmv_teorico_dia')
+      .select('data, custo, cmv_pct')
+      .eq('bar_id', barId)
+      .gte('data', dataInicio)
+      .lt('data', dataFinalConsulta)
   ]);
 
   // data_evento -> mix consolidado (so aplicado quando o gold vem zerado)
@@ -251,6 +262,12 @@ export async function getPlanejamentoComercial(
   const consumacaoMap = new Map<string, number>();
   ((consumacaoDias as Array<{ data: string; valor: number | string }> | null) || []).forEach(c => {
     if (c.data) consumacaoMap.set(c.data, (consumacaoMap.get(c.data) || 0) + (Number(c.valor) || 0));
+  });
+
+  // data -> CMV teórico do dia (custo + %)
+  const cmvMap = new Map<string, { custo: number; pct: number | null }>();
+  ((cmvDias as Array<{ data: string; custo: number | string; cmv_pct: number | string | null }> | null) || []).forEach(c => {
+    if (c.data) cmvMap.set(c.data, { custo: Number(c.custo) || 0, pct: c.cmv_pct == null ? null : Number(c.cmv_pct) });
   });
 
   // Resolve metas — usa fallback SOMENTE quando config não existe ainda (migration pendente)
@@ -404,6 +421,8 @@ export async function getPlanejamentoComercial(
         : (Number(manual?.c_prod_projecao) || 0),
       c_art_is_projecao: !((Number(manual?.c_art) || 0) > 0) && ((Number(manual?.c_artistico_plan) || 0) > 0 || (Number(manual?.c_art_projecao) || 0) > 0),
       c_prod_is_projecao: !((Number(manual?.c_prod) || 0) > 0) && ((Number(manual?.c_prod_plan) || 0) > 0 || (Number(manual?.c_prod_projecao) || 0) > 0),
+      cmv_teorico_custo: cmvMap.get(evento.data_evento)?.custo ?? 0,
+      cmv_teorico_pct: cmvMap.get(evento.data_evento)?.pct ?? null,
       consumacao: consumacaoMap.get(evento.data_evento) || 0,
       percent_art_fat: Number(evento.percent_art_fat) || 0,
 
