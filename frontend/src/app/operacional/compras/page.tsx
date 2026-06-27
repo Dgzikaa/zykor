@@ -14,6 +14,7 @@ const fmtBRL = (v: any) => Number(v || 0).toLocaleString('pt-BR', { style: 'curr
 const fmtData = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
 const primeiroDiaMes = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; };
 const hojeISO = () => new Date().toISOString().slice(0, 10);
+const fmtPrazo = (d: string) => { const iso = String(d).slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso.split('-').reverse().join('/') : String(d); };
 
 const ORIGEM: Record<string, { txt: string; cls: string }> = {
   cotacao: { txt: 'Cotação', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
@@ -45,6 +46,7 @@ export default function ComprasPage() {
   const [buscaProduto, setBuscaProduto] = useState('');
   const [produtoQ, setProdutoQ] = useState('');
   const [fornFiltro, setFornFiltro] = useState<string | null>(null);
+  const [statusFiltro, setStatusFiltro] = useState<number | null>(null);
   const [aberto, setAberto] = useState<number | null>(null);
   const [itens, setItens] = useState<Record<number, any[]>>({});
   const [loadingItens, setLoadingItens] = useState<number | null>(null);
@@ -82,14 +84,21 @@ export default function ComprasPage() {
     }
   };
 
+  const statusList = useMemo(() => {
+    const m = new Map<number, { id: number; nome: string; n: number }>();
+    for (const p of pedidos) { const id = p.id_pedido_status; const o = m.get(id) || { id, nome: p.nm_status || `Status ${id}`, n: 0 }; o.n++; m.set(id, o); }
+    return Array.from(m.values()).sort((a, b) => b.n - a.n);
+  }, [pedidos]);
+
   const pedidosView = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return pedidos.filter((p) => {
       if (fornFiltro && p.fornecedor !== fornFiltro) return false;
+      if (statusFiltro != null && p.id_pedido_status !== statusFiltro) return false;
       if (!q) return true;
       return (p.fornecedor || '').toLowerCase().includes(q) || (p.cnpj || '').includes(q) || String(p.id_pedido).includes(q);
     });
-  }, [pedidos, busca, fornFiltro]);
+  }, [pedidos, busca, fornFiltro, statusFiltro]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
@@ -138,6 +147,16 @@ export default function ComprasPage() {
                 ))}
               </div>
             )}
+            {statusList.length > 1 && (
+              <div className="flex flex-wrap gap-1.5">
+                {statusList.map((s) => (
+                  <button key={s.id} onClick={() => setStatusFiltro((x) => x === s.id ? null : s.id)}
+                    className={`text-[11px] rounded-full px-2.5 py-1 border transition ${statusFiltro === s.id ? `${corStatus(s.id)} ring-1 ring-offset-1 ring-gray-400 border-transparent` : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                    {s.nome} <span className="opacity-70">· {s.n}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -180,7 +199,7 @@ export default function ComprasPage() {
                             <tr onClick={() => abrir(p.id_pedido)} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer">
                               <td className="px-3 py-2"><ChevronDown className={`w-4 h-4 transition-transform ${aberto === p.id_pedido ? 'rotate-180' : ''}`} /></td>
                               <td className="px-3 py-2 whitespace-nowrap">{fmtData(p.data)}</td>
-                              <td className="px-3 py-2 whitespace-nowrap text-gray-500">{p.dt_entrega ? fmtData(p.dt_entrega) : '—'}</td>
+                              <td className="px-3 py-2 whitespace-nowrap text-gray-500">{p.dt_entrega ? fmtData(p.dt_entrega) : (p.dt_prazo_entrega ? <span className="italic text-gray-400" title="Previsão de entrega (dt_prazo_entrega)">prev. {fmtPrazo(p.dt_prazo_entrega)}</span> : '—')}</td>
                               <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.fornecedor}</td>
                               <td className="px-3 py-2"><span className={`text-[10px] rounded px-1.5 py-0.5 ${corStatus(p.id_pedido_status)}`}>{p.nm_status || '—'}</span></td>
                               <td className="px-3 py-2"><span className={`text-[10px] rounded px-1.5 py-0.5 ${o.cls}`}>{o.txt}</span></td>
