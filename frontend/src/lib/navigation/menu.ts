@@ -126,7 +126,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'TrendingUp', label: 'Gestão CMV', href: '/ferramentas/cmv-semanal/tabela', permission: 'gestao' },
       { icon: 'BarChart3', label: 'CMV Teórico', href: '/operacional/cmv-teorico', permission: 'gestao' },
       { icon: 'Scale', label: 'Desvios de Consumo', href: '/operacional/desvios', permission: 'gestao' },
-      { icon: 'FlaskConical', label: 'Consumo de Insumo', href: '/operacional/consumo-insumo', permission: 'gestao' },
+      { icon: 'LogOut', label: 'Saídas', href: '/operacional/consumo-insumo', permission: 'gestao' },
       { icon: 'Package', label: 'Insumos', href: '/operacional/insumos', permission: 'gestao' },
       { icon: 'ShoppingCart', label: 'Compras', href: '/operacional/compras', permission: 'gestao' },
       { icon: 'ChefHat', label: 'Fichas Técnicas', href: '/operacional/fichas-tecnicas', permission: 'gestao' },

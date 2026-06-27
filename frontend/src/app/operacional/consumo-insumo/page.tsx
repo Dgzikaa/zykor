@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { FlaskConical, Search, Loader2, Download, ChevronDown, ChevronRight } from 'lucide-react';
+import { LogOut, Search, Loader2, Download, ChevronDown, ChevronRight } from 'lucide-react';
 
 const fmtNum = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const isoDate = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 // padrão = ontem (o dia atual ainda não tem dado consolidado)
 const ontemISO = () => { const d = new Date(); d.setDate(d.getDate() - 1); return isoDate(d); };
@@ -28,16 +29,24 @@ function calcRange(gran: 'dia' | 'semana' | 'mes', ref: string): { ini: string; 
   return { ini: isoDate(ini), fim: isoDate(fim) };
 }
 
-export default function ConsumoInsumoPage() {
+type Aba = 'insumo' | 'producao' | 'geral';
+const ABAS: { id: Aba; label: string }[] = [
+  { id: 'insumo', label: 'Insumos' },
+  { id: 'producao', label: 'Produções' },
+  { id: 'geral', label: 'Geral' },
+];
+
+export default function SaidasPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
 
+  const [aba, setAba] = useState<Aba>('insumo');
   const [gran, setGran] = useState<'dia' | 'semana' | 'mes'>('dia');
   const [dataRef, setDataRef] = useState(ontemISO());
   const range = useMemo(() => calcRange(gran, dataRef), [gran, dataRef]);
 
-  const [insumos, setInsumos] = useState<any[]>([]);
+  const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [busca, setBusca] = useState('');
   const [cat, setCat] = useState<string | null>(null);
@@ -45,44 +54,52 @@ export default function ConsumoInsumoPage() {
   const [breakdown, setBreakdown] = useState<any[] | null>(null);
   const [loadingBreak, setLoadingBreak] = useState(false);
 
+  const temDrill = aba !== 'geral'; // Geral não abre quebra por produto
+  const unidadeLabel = aba === 'insumo' ? 'ml / g / un' : aba === 'producao' ? 'un. da produção' : '—';
+
   const carregar = useCallback(async () => {
     if (!barId) return;
-    setLoading(true); setAberto(null); setBreakdown(null);
+    setLoading(true); setAberto(null); setBreakdown(null); setCat(null);
     try {
-      const r = await api.get(`/api/operacional/consumo-insumo?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}`);
+      const r = await api.get(`/api/operacional/consumo-insumo?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}&aba=${aba}`);
       if (!r.success) throw new Error(r.error);
-      setInsumos(r.insumos || []);
+      setRows(r.rows || []);
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
     finally { setLoading(false); }
-  }, [barId, range.ini, range.fim]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [barId, range.ini, range.fim, aba]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { carregar(); }, [carregar]);
 
   const abrirBreak = async (codigo: string) => {
+    if (!temDrill) return;
     if (aberto === codigo) { setAberto(null); setBreakdown(null); return; }
     setAberto(codigo); setBreakdown(null); setLoadingBreak(true);
     try {
-      const r = await api.get(`/api/operacional/consumo-insumo?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}&codigo=${encodeURIComponent(codigo)}`);
+      const r = await api.get(`/api/operacional/consumo-insumo?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}&aba=${aba}&codigo=${encodeURIComponent(codigo)}`);
       if (!r.success) throw new Error(r.error);
-      setBreakdown(r.produtos || []);
+      setBreakdown(r.breakdown || []);
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
     finally { setLoadingBreak(false); }
   };
 
-  const cats = useMemo(() => Array.from(new Set(insumos.map(i => i.categoria || 'Outros'))).sort(), [insumos]);
+  const cats = useMemo(() => Array.from(new Set(rows.map(i => i.categoria || 'Outros'))).sort(), [rows]);
   const view = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    return insumos.filter(i => (!cat || (i.categoria || 'Outros') === cat)
-      && (!q || (i.insumo_nome || '').toLowerCase().includes(q) || (i.insumo_codigo || '').toLowerCase().includes(q)));
-  }, [insumos, busca, cat]);
+    return rows.filter(i => (!cat || (i.categoria || 'Outros') === cat)
+      && (!q || (i.nome || '').toLowerCase().includes(q) || (i.codigo || '').toLowerCase().includes(q)));
+  }, [rows, busca, cat]);
 
   const exportCsv = () => {
     if (!view.length) return;
-    const head = ['Codigo', 'Insumo', 'Categoria', 'Consumo (base ml/g/un)', 'Dias'];
-    const linhas = view.map((i: any) => [i.insumo_codigo, i.insumo_nome || '', i.categoria || '', i.qtd_base ?? '', i.dias ?? '']
+    const head = aba === 'geral'
+      ? ['Tipo', 'Codigo', 'Nome', 'Categoria', 'Saida', 'Unidade', 'Faturamento', 'Dias']
+      : ['Codigo', 'Nome', 'Categoria', 'Saida', 'Unidade', 'Dias'];
+    const linhas = view.map((i: any) => (aba === 'geral'
+      ? [i.tipo, i.codigo, i.nome || '', i.categoria || '', i.qtd ?? '', i.unidade ?? '', i.valor ?? '', i.dias ?? '']
+      : [i.codigo, i.nome || '', i.categoria || '', i.qtd ?? '', i.unidade ?? '', i.dias ?? ''])
       .map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';'));
     const csv = '﻿' + [head.join(';'), ...linhas].join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    const a = document.createElement('a'); a.href = url; a.download = `consumo-insumo_${range.ini}_${range.fim}.csv`; a.click(); URL.revokeObjectURL(url);
+    const a = document.createElement('a'); a.href = url; a.download = `saidas-${aba}_${range.ini}_${range.fim}.csv`; a.click(); URL.revokeObjectURL(url);
   };
 
   const btnGran = (g: 'dia' | 'semana' | 'mes', label: string) => (
@@ -93,18 +110,28 @@ export default function ConsumoInsumoPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
       <div className="max-w-6xl mx-auto space-y-4">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl"><FlaskConical className="w-6 h-6 text-violet-600 dark:text-violet-400" /></div>
+          <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl"><LogOut className="w-6 h-6 text-violet-600 dark:text-violet-400" /></div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Consumo Teórico de Insumo</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Saída de produto explodida na ficha técnica → quanto saiu de cada insumo (em ml / g / un)</p>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Saídas</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Consumo teórico das vendas do ContaHub, explodido na ficha técnica — por insumo, por produção, e o geral.</p>
           </div>
+        </div>
+
+        {/* Abas */}
+        <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
+          {ABAS.map(a => (
+            <button key={a.id} onClick={() => setAba(a.id)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${aba === a.id ? 'border-violet-500 text-violet-600 dark:text-violet-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>
+              {a.label}
+            </button>
+          ))}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {btnGran('dia', 'Dia')}{btnGran('semana', 'Semana')}{btnGran('mes', 'Mês')}
           <Input type="date" value={dataRef} onChange={e => setDataRef(e.target.value)} className="w-auto h-8" />
           <span className="text-sm text-gray-500 dark:text-gray-400">{range.ini === range.fim ? fmtDataBR(range.ini) : `${fmtDataBR(range.ini)} → ${fmtDataBR(range.fim)}`}</span>
-          <div className="relative ml-auto"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar insumo…" className="pl-9 h-8 w-56" /></div>
+          <div className="relative ml-auto"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9 h-8 w-56" /></div>
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!view.length}><Download className="w-4 h-4 mr-1.5" />CSV</Button>
         </div>
 
@@ -116,51 +143,55 @@ export default function ConsumoInsumoPage() {
         )}
 
         {loading ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
-        : view.length === 0 ? <Card className="card-dark"><CardContent className="py-16 text-center text-gray-400">Sem consumo no período (ou fichas/de-para pendentes).</CardContent></Card>
+        : view.length === 0 ? <Card className="card-dark"><CardContent className="py-16 text-center text-gray-400">Sem saídas no período (ou fichas/de-para pendentes).</CardContent></Card>
         : (
           <Card className="card-dark">
             <CardContent className="p-0 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800"><tr>
-                  <th className="w-8"></th>
+                  {temDrill && <th className="w-8"></th>}
+                  {aba === 'geral' && <th className="text-left font-medium px-3 py-2">Tipo</th>}
                   <th className="text-left font-medium px-3 py-2">Cód.</th>
-                  <th className="text-left font-medium px-3 py-2">Insumo</th>
+                  <th className="text-left font-medium px-3 py-2">{aba === 'insumo' ? 'Insumo' : aba === 'producao' ? 'Produção' : 'Item'}</th>
                   <th className="text-left font-medium px-3 py-2">Categoria</th>
-                  <th className="text-right font-medium px-3 py-2">Consumo (ml/g/un)</th>
+                  <th className="text-right font-medium px-3 py-2">Saída ({unidadeLabel})</th>
+                  {aba === 'geral' && <th className="text-right font-medium px-3 py-2">Faturamento</th>}
                   <th className="text-right font-medium px-3 py-2">Dias</th>
                 </tr></thead>
                 <tbody>
                   {view.map((i: any) => (
                     <>
-                      <tr key={i.insumo_codigo} onClick={() => abrirBreak(i.insumo_codigo)} className="border-b border-gray-50 dark:border-gray-800/50 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                        <td className="text-center text-gray-400">{aberto === i.insumo_codigo ? <ChevronDown className="w-4 h-4 inline" /> : <ChevronRight className="w-4 h-4 inline" />}</td>
-                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{i.insumo_codigo}</td>
-                        <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{i.insumo_nome || <span className="text-gray-400 italic">sem cadastro</span>}</td>
+                      <tr key={`${i.tipo || ''}${i.codigo}`} onClick={() => abrirBreak(i.codigo)} className={`border-b border-gray-50 dark:border-gray-800/50 ${temDrill ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40' : ''}`}>
+                        {temDrill && <td className="text-center text-gray-400">{aberto === i.codigo ? <ChevronDown className="w-4 h-4 inline" /> : <ChevronRight className="w-4 h-4 inline" />}</td>}
+                        {aba === 'geral' && <td className="px-3 py-2"><span className={`text-[10px] rounded px-1.5 py-0.5 ${i.tipo === 'finalizacao' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>{i.tipo === 'finalizacao' ? 'Finalização' : 'Produção'}</span></td>}
+                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{i.codigo}</td>
+                        <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{i.nome || <span className="text-gray-400 italic">sem cadastro</span>} {i.unidade && aba !== 'geral' ? '' : i.unidade ? <span className="text-gray-400 text-xs">· {i.unidade}</span> : ''}</td>
                         <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{i.categoria || 'Outros'}</td>
-                        <td className="px-3 py-2 text-right tabular-nums font-semibold">{fmtNum(i.qtd_base)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold">{fmtNum(i.qtd)}</td>
+                        {aba === 'geral' && <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{i.tipo === 'finalizacao' ? fmtBRL(i.valor) : '—'}</td>}
                         <td className="px-3 py-2 text-right tabular-nums text-gray-500">{i.dias}</td>
                       </tr>
-                      {aberto === i.insumo_codigo && (
+                      {temDrill && aberto === i.codigo && (
                         <tr className="bg-gray-50/60 dark:bg-gray-800/20">
                           <td></td>
-                          <td colSpan={5} className="px-3 py-3">
+                          <td colSpan={aba === 'geral' ? 6 : 5} className="px-3 py-3">
                             {loadingBreak ? <Loader2 className="w-4 h-4 animate-spin" />
                             : !breakdown || breakdown.length === 0 ? <span className="text-xs text-gray-400">Sem produtos no período.</span>
                             : (
                               <div className="space-y-0.5">
-                                <div className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Saiu em cada produto</div>
+                                <div className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Puxado por cada produto vendido</div>
                                 <table className="w-full text-xs">
                                   <thead className="text-gray-400"><tr>
                                     <th className="text-left font-medium py-1">Produto</th>
-                                    <th className="text-right font-medium py-1 w-28">Qtd vendida</th>
-                                    <th className="text-right font-medium py-1 w-32">Consumo (ml/g/un)</th>
+                                    {aba === 'insumo' && <th className="text-right font-medium py-1 w-28">Qtd vendida</th>}
+                                    <th className="text-right font-medium py-1 w-32">Saída</th>
                                   </tr></thead>
                                   <tbody>
                                     {breakdown.map((p: any) => (
                                       <tr key={p.produto_cod} className="border-t border-gray-100 dark:border-gray-800/60">
                                         <td className="py-1 text-gray-700 dark:text-gray-200">{p.produto_nome || p.produto_cod} <span className="text-gray-400 font-mono">· {p.produto_cod}</span></td>
-                                        <td className="py-1 text-right tabular-nums">{fmtNum(p.qtd_produto)}</td>
-                                        <td className="py-1 text-right tabular-nums font-medium">{fmtNum(p.qtd_insumo)}</td>
+                                        {aba === 'insumo' && <td className="py-1 text-right tabular-nums">{fmtNum(p.qtd_venda)}</td>}
+                                        <td className="py-1 text-right tabular-nums font-medium">{fmtNum(p.qtd)}</td>
                                       </tr>
                                     ))}
                                   </tbody>
