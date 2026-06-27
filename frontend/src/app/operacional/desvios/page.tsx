@@ -134,7 +134,7 @@ export default function DesviosPage() {
                 <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${it.suspeita ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
                     {it.suspeita && <AlertTriangle className="w-3.5 h-3.5 inline text-amber-500 mr-1" />}
-                    {it.insumo_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span>
+                    {it.insumo_nome}{it.insumo_nome !== it.insumo_codigo && <span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span>}
                   </td>
                   <td className="px-3 py-2"><Badge variant="outline">{it.area}</Badge></td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
