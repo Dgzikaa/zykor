@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
   // na diária só faz sentido a Curva A (insumos contados todo dia); senão estoque ini/fim vem furado
-  const base = tipo === 'diaria' ? (data || []).filter((r: any) => r.frequencia === 'diaria') : (data || []);
+  const base = tipo === 'diaria' ? (data || []).filter((r: any) => r.curva_a === true) : (data || []);
 
   const itens = base.map((r: any) => {
     const real = Number(r.saida_real || 0);
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
     return {
       insumo_codigo: r.insumo_codigo,
       insumo_nome: r.insumo_nome,
-      frequencia: r.frequencia,
+      curva_a: r.curva_a,
       area: areaDe(r.categoria, r.insumo_codigo),
       estoque_ini: Number(r.estoque_ini || 0),
       compra: Number(r.compra || 0),

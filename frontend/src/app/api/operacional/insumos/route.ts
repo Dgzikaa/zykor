@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
       return {
         id: i.id, codigo: i.codigo, nome: i.nome, categoria: i.categoria, unidade_medida: i.unidade_medida,
         fator_correcao: !!i.fator_correcao,
+        curva_a: !!i.curva_a, frequencia: i.frequencia,
         preco_atual: i.preco != null ? Number(i.preco) : null,
         preco_anterior: i.preco_anterior != null ? Number(i.preco_anterior) : null,
         preco_data: i.preco_data,
@@ -93,6 +94,7 @@ export async function POST(request: NextRequest) {
     if ('categoria' in body) patch.categoria = String(body.categoria || '').trim() || null;
     if ('unidade_medida' in body) patch.unidade_medida = mapUnidade(String(body.unidade_medida || ''));
     if ('fator_correcao' in body) patch.fator_correcao = !!body.fator_correcao;
+    if ('curva_a' in body) { patch.curva_a = !!body.curva_a; patch.frequencia = body.curva_a ? 'diaria' : 'semanal'; }
     if (Object.keys(patch).length) {
       const { error } = await ops.from('insumos').update(patch).eq('bar_id', barId).eq('id', id);
       if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });

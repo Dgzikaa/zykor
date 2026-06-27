@@ -17,7 +17,7 @@ const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR'
 // 1 insumo = 1 linha (cadastro Zykor). VMarket (compras) só alimenta o preço via silver.
 interface Insumo {
   id: number; codigo: string; nome: string; categoria: string | null; unidade_medida: string | null;
-  fator_correcao?: boolean; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
+  fator_correcao?: boolean; curva_a?: boolean; frequencia?: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
   fornecedor: string | null; tem_compra?: boolean; tem_ficha?: boolean; base?: string | null; embalagem?: number | null;
 }
 interface SemCadastro { id_vmarket: number; codigo_vmarket: string | null; nome: string; nome_secao: string | null; preco: number | null; preco_data: string | null; fornecedor: string | null; }
@@ -102,14 +102,15 @@ export default function InsumosPage() {
   // ---------- editar insumo ----------
   const [editIns, setEditIns] = useState<Insumo | null>(null);
   const [fNome, setFNome] = useState(''); const [fCat, setFCat] = useState(''); const [fFc, setFFc] = useState(false);
+  const [fCurvaA, setFCurvaA] = useState(false);
   const [fBase, setFBase] = useState('g'); const [fEmb, setFEmb] = useState('1');
-  const abrirEditIns = (i: Insumo) => { setEditIns(i); setFNome(i.nome || ''); setFCat(i.categoria || ''); setFFc(!!i.fator_correcao); setFBase(i.base || 'g'); setFEmb(String(i.embalagem ?? 1)); };
+  const abrirEditIns = (i: Insumo) => { setEditIns(i); setFNome(i.nome || ''); setFCat(i.categoria || ''); setFFc(!!i.fator_correcao); setFCurvaA(!!i.curva_a); setFBase(i.base || 'g'); setFEmb(String(i.embalagem ?? 1)); };
   const salvarEditIns = async () => {
     if (!editIns) return;
     try {
       await api.post('/api/operacional/insumos', {
         bar_id: barId, action: 'editar', id: editIns.id, nome: fNome.trim(), categoria: fCat.trim(),
-        fator_correcao: fFc, unidade_medida: fBase, base: fBase, embalagem: Number(String(fEmb).replace(',', '.')) || 1,
+        fator_correcao: fFc, curva_a: fCurvaA, unidade_medida: fBase, base: fBase, embalagem: Number(String(fEmb).replace(',', '.')) || 1,
       });
       setEditIns(null); await carregar();
     } catch (e: any) { toast({ title: 'Erro ao salvar', description: e?.message, variant: 'destructive' }); }
@@ -530,6 +531,17 @@ export default function InsumosPage() {
                 <input type="checkbox" checked={fFc} onChange={e => setFFc(e.target.checked)} className="h-4 w-4 accent-amber-500" />
                 Fator de correção (perda/limpeza)
               </label>
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
+                  <input type="checkbox" checked={fCurvaA} onChange={e => setFCurvaA(e.target.checked)} className="h-4 w-4 accent-indigo-600" />
+                  Curva A (contagem diária)
+                </label>
+                <p className="text-[11px] text-gray-500 mt-1 ml-6">
+                  {fCurvaA ? 'Entra na contagem diária, semanal e mensal.' : 'Entra só na contagem semanal e mensal.'}
+                  {editIns?.frequencia === 'diaria' && !fCurvaA && <span className="block text-amber-600 dark:text-amber-400">💡 Sugestão: marcar — a frequência registrada é diária.</span>}
+                  {editIns?.frequencia && editIns?.frequencia !== 'diaria' && fCurvaA && <span className="block text-amber-600 dark:text-amber-400">💡 A frequência registrada é {editIns.frequencia} — confirme se é Curva A mesmo.</span>}
+                </p>
+              </div>
               <div className="flex gap-2">
                 <div className="w-24"><label className="text-xs text-gray-500">Unidade</label>
                   <select value={fBase} onChange={e => setFBase(e.target.value)} className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">

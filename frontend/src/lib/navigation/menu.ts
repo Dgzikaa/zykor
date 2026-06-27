@@ -128,7 +128,6 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Scale', label: 'Desvios de Consumo', href: '/operacional/desvios', permission: 'gestao' },
       { icon: 'FlaskConical', label: 'Consumo de Insumo', href: '/operacional/consumo-insumo', permission: 'gestao' },
       { icon: 'Package', label: 'Insumos', href: '/operacional/insumos', permission: 'gestao' },
-      { icon: 'Tag', label: 'Categorização (Curva A)', href: '/operacional/categorizacao', permission: 'gestao' },
       { icon: 'ShoppingCart', label: 'Compras', href: '/operacional/compras', permission: 'gestao' },
       { icon: 'ChefHat', label: 'Fichas Técnicas', href: '/operacional/fichas-tecnicas', permission: 'gestao' },
       { icon: 'Timer', label: 'Controle de Produção', href: '/operacional/producoes', permission: 'gestao' },
