@@ -48,10 +48,18 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
 
   const [sel, setSel] = useState<number | null>(preSel ?? null);
   const [buscaLista, setBuscaLista] = useState('');
-  const [filtroLista, setFiltroLista] = useState<'zero' | 'sem_mestre' | 'sem_ch' | null>(null);
+  const [filtroLista, setFiltroLista] = useState<'zero' | 'sem_mestre' | 'sem_ch' | 'item_zerado' | null>(null);
   const [statusFiltro, setStatusFiltro] = useState<'todos' | 'ativo' | 'inativo'>('todos');
   const [itens, setItens] = useState<any[]>([]);
   const [loadingItens, setLoadingItens] = useState(false);
+  // códigos com componente sem preço (R$0 — revisar)
+  const [zeradoCods, setZeradoCods] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!barId) return;
+    api.get(`/api/operacional/producoes/itens-zerados?bar_id=${barId}`)
+      .then(r => { if (r.success) setZeradoCods(new Set((kind === 'producao' ? r.producoes : r.produtos) || [])); })
+      .catch(() => {});
+  }, [barId, kind]);
 
   useEffect(() => { if (preSel) setSel(preSel); }, [preSel]);
 
@@ -75,6 +83,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   const baseCat = useMemo(() => catFiltro ? lista.filter(p => catDe(p) === catFiltro) : lista, [lista, catFiltro]); // eslint-disable-line react-hooks/exhaustive-deps
   const baseStat = useMemo(() => baseCat.filter(p => kind !== 'produto' || statusFiltro === 'todos' || (statusFiltro === 'ativo' ? !!p.ativo : !p.ativo)), [baseCat, statusFiltro, kind]);
   const nZero = baseStat.filter(p => (p.qtd_componentes ?? 0) === 0).length;
+  const nItemZero = baseStat.filter(p => zeradoCods.has(p.codigo)).length;
   const nSemMestre = kind === 'producao' ? baseStat.filter(p => (p.qtd_componentes ?? 0) > 0 && !p.tem_mestre).length : 0;
   const nSemCh = kind === 'produto' ? baseStat.filter(p => (p.cods_ch?.length ?? 0) === 0 && !p.agrupado_em).length : 0;
   const nAtivos = kind === 'produto' ? baseCat.filter(p => p.ativo).length : 0;
@@ -86,10 +95,11 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
       if (filtroLista === 'zero' && (p.qtd_componentes ?? 0) !== 0) return false;
       if (filtroLista === 'sem_mestre' && !((p.qtd_componentes ?? 0) > 0 && !p.tem_mestre)) return false;
       if (filtroLista === 'sem_ch' && ((p.cods_ch?.length ?? 0) !== 0 || p.agrupado_em)) return false;
+      if (filtroLista === 'item_zerado' && !zeradoCods.has(p.codigo)) return false;
       if (kind === 'produto' && statusFiltro !== 'todos' && (statusFiltro === 'ativo' ? !p.ativo : !!p.ativo)) return false;
       return !q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q);
     });
-  }, [lista, buscaLista, filtroLista, catFiltro, statusFiltro, kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lista, buscaLista, filtroLista, catFiltro, statusFiltro, kind, zeradoCods]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selObj = lista.find(p => p.id === sel) || null;
 
@@ -258,9 +268,10 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input value={buscaLista} onChange={e => setBuscaLista(e.target.value)} placeholder={kind === 'producao' ? 'Buscar produção…' : 'Buscar produto…'} className="pl-9 h-9" />
             </div>
-            {(nZero > 0 || nSemMestre > 0 || nSemCh > 0) && (
+            {(nZero > 0 || nSemMestre > 0 || nSemCh > 0 || nItemZero > 0) && (
               <div className="flex flex-wrap gap-1 mt-2">
                 {nZero > 0 && <button onClick={() => setFiltroLista(f => f === 'zero' ? null : 'zero')} className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'zero' ? 'bg-red-600 text-white border-red-600' : 'border-red-300 text-red-600'}`}>{nZero} sem ficha</button>}
+                {nItemZero > 0 && <button onClick={() => setFiltroLista(f => f === 'item_zerado' ? null : 'item_zerado')} title="Fichas com algum insumo sem preço (R$0) — revisar" className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'item_zerado' ? 'bg-purple-600 text-white border-purple-600' : 'border-purple-300 text-purple-600'}`}>{nItemZero} item R$0</button>}
                 {nSemMestre > 0 && <button onClick={() => setFiltroLista(f => f === 'sem_mestre' ? null : 'sem_mestre')} className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'sem_mestre' ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-300 text-amber-600'}`}>{nSemMestre} sem mestre</button>}
                 {nSemCh > 0 && <button onClick={() => setFiltroLista(f => f === 'sem_ch' ? null : 'sem_ch')} className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'sem_ch' ? 'bg-orange-500 text-white border-orange-500' : 'border-orange-300 text-orange-600'}`}>{nSemCh} sem cód CH</button>}
                 {filtroLista && <button onClick={() => setFiltroLista(null)} className="text-[10px] text-gray-400 underline px-1">limpar</button>}
