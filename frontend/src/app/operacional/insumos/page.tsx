@@ -91,15 +91,18 @@ export default function InsumosPage() {
   const catList = useMemo(() => Array.from(new Set(insumos.map(i => i.categoria).filter(Boolean))).sort() as string[], [insumos]);
   const nSemFicha = useMemo(() => insumos.filter(i => !i.tem_ficha).length, [insumos]);
   const nCurvaA = useMemo(() => insumos.filter(i => i.curva_a).length, [insumos]);
-  // vende sem ficha = tem giro (estoque cai na contagem) MAS não está em ficha → distorce desvio/CMV. Grave.
-  const nVendeSemFicha = useMemo(() => insumos.filter(i => i.tem_giro && !i.tem_ficha && !i.is_producao).length, [insumos]);
+  // consome sem ficha = tem giro (estoque cai na contagem) MAS não está em ficha. Exclui produção e
+  // categorias de Funcionários "(F)" (refeição da equipe não é vendida → não tem ficha mesmo).
+  const ehFuncionario = (cat: string | null) => /\(F\)|FUNCION/i.test(cat || '');
+  const consomeSemFicha = (i: Insumo) => i.tem_giro && !i.tem_ficha && !i.is_producao && !ehFuncionario(i.categoria);
+  const nVendeSemFicha = useMemo(() => insumos.filter(consomeSemFicha).length, [insumos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const insumosView = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return insumos.filter(i => {
       if (catSel !== 'todas' && (i.categoria || '') !== catSel) return false;
       if (filtro === 'sem_ficha' && i.tem_ficha) return false;
-      if (filtro === 'vende_sem_ficha' && !(i.tem_giro && !i.tem_ficha && !i.is_producao)) return false;
+      if (filtro === 'vende_sem_ficha' && !consomeSemFicha(i)) return false;
       if (filtro === 'curva_a' && !i.curva_a) return false;
       if (!q) return true;
       return (i.nome || '').toLowerCase().includes(q) || (i.codigo || '').toLowerCase().includes(q) || (i.categoria || '').toLowerCase().includes(q) || (i.fornecedor || '').toLowerCase().includes(q);
