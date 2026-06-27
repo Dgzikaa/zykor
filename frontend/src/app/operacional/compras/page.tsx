@@ -21,6 +21,14 @@ const ORIGEM: Record<string, { txt: string; cls: string }> = {
   pedido_manual: { txt: 'Manual', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
 };
 
+// cor do status do pedido VMarket (id_pedido_status): 6=Entrega Confirmada, 1/2=em andamento, 9=cancelado
+const corStatus = (id: number): string => {
+  if (id === 6) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+  if (id === 9) return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+  if (id === 1 || id === 2) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+  return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300';
+};
+
 export default function ComprasPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
@@ -150,8 +158,10 @@ export default function ComprasPage() {
                     <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase">
                       <tr>
                         <th className="w-8 px-3 py-2"></th>
-                        <th className="text-left font-medium px-3 py-2">Data</th>
+                        <th className="text-left font-medium px-3 py-2" title="Data do pedido (dt_inclusao)">Pedido</th>
+                        <th className="text-left font-medium px-3 py-2" title="Data de entrega (dt_entrega)">Entrega</th>
                         <th className="text-left font-medium px-3 py-2">Fornecedor</th>
+                        <th className="text-left font-medium px-3 py-2">Status</th>
                         <th className="text-left font-medium px-3 py-2">Origem</th>
                         <th className="text-right font-medium px-3 py-2">Itens</th>
                         <th className="text-right font-medium px-3 py-2">Valor</th>
@@ -160,9 +170,9 @@ export default function ComprasPage() {
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                       {loading ? (
-                        <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
+                        <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
                       ) : pedidosView.length === 0 ? (
-                        <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400">Nenhum pedido no período.</td></tr>
+                        <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400">Nenhum pedido no período.</td></tr>
                       ) : pedidosView.map((p) => {
                         const o = ORIGEM[p.origem] || { txt: p.origem || '—', cls: 'bg-gray-100 text-gray-600' };
                         return (
@@ -170,7 +180,9 @@ export default function ComprasPage() {
                             <tr onClick={() => abrir(p.id_pedido)} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer">
                               <td className="px-3 py-2"><ChevronDown className={`w-4 h-4 transition-transform ${aberto === p.id_pedido ? 'rotate-180' : ''}`} /></td>
                               <td className="px-3 py-2 whitespace-nowrap">{fmtData(p.data)}</td>
+                              <td className="px-3 py-2 whitespace-nowrap text-gray-500">{p.dt_entrega ? fmtData(p.dt_entrega) : '—'}</td>
                               <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.fornecedor}</td>
+                              <td className="px-3 py-2"><span className={`text-[10px] rounded px-1.5 py-0.5 ${corStatus(p.id_pedido_status)}`}>{p.nm_status || '—'}</span></td>
                               <td className="px-3 py-2"><span className={`text-[10px] rounded px-1.5 py-0.5 ${o.cls}`}>{o.txt}</span></td>
                               <td className="px-3 py-2 text-right tabular-nums text-gray-500">{p.qtd_itens}</td>
                               <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtBRL(p.valor_total)}</td>
@@ -178,7 +190,7 @@ export default function ComprasPage() {
                             </tr>
                             {aberto === p.id_pedido && (
                               <tr className="bg-gray-50/60 dark:bg-gray-800/30">
-                                <td colSpan={7} className="px-3 py-2">
+                                <td colSpan={9} className="px-3 py-2">
                                   {loadingItens === p.id_pedido ? <div className="py-4 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-400" /></div>
                                   : (itens[p.id_pedido] || []).length === 0 ? <div className="py-3 text-center text-xs text-gray-400">Sem itens.</div>
                                   : (

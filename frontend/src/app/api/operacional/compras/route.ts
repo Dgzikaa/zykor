@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 
   const [pedRes, cotRes] = await Promise.all([
     gold.from('vmarket_pedido')
-      .select('id_pedido,data,fornecedor,cnpj,origem,id_pedido_status,qtd_itens,valor_total,url_nfe,id_cotacao_sisfood')
+      .select('id_pedido,data,fornecedor,cnpj,origem,id_pedido_status,nm_status,dt_entrega,dt_prazo_entrega,qtd_itens,valor_total,url_nfe,id_cotacao_sisfood')
       .eq('bar_id', barId).gte('data', de).lte('data', ate)
       .order('data', { ascending: false }).order('valor_total', { ascending: false }),
     gold.from('vmarket_cotacao')
