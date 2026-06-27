@@ -203,10 +203,29 @@ export async function POST(request: NextRequest) {
     if (!/^i\d{2,}$/.test(codigo)) return NextResponse.json({ success: false, error: 'Código deve ser i + números (ex.: i0638)' }, { status: 400 });
     if (!nome) return NextResponse.json({ success: false, error: 'Nome obrigatório' }, { status: 400 });
     const ops = (supabase as any).schema('operations');
+    const vmId = Number(body.id_prod_vmarket) || 0;
     const { data: ja } = await ops.from('insumos').select('id').eq('bar_id', barId).eq('codigo', codigo).maybeSingle();
     if (ja) return NextResponse.json({ success: false, error: `Código ${codigo} já existe no cadastro` }, { status: 409 });
     const base = ['g', 'ml', 'un'].includes(body.base) ? body.base : 'un';
     const emb = Number(body.embalagem) > 0 ? Number(body.embalagem) : null;
+    // nome já existe no mestre? (unique lower+unaccent). Se veio do VMarket, liga no existente; senão, erro claro.
+    const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    const { data: ativos } = await ops.from('insumos').select('codigo, nome').eq('bar_id', barId).eq('ativo', true);
+    const dup = (ativos || []).find((i: any) => norm(i.nome || '') === norm(nome));
+    if (dup) {
+      const dupJunk = !/^i\d+$/.test(dup.codigo); // código malformado (ex.: i0046_pepino_jap) = lixo de import antigo
+      const { count: dupFicha } = await supabase.from('producao_ficha_item').select('id', { count: 'exact', head: true }).eq('componente_tipo', 'insumo').eq('insumo_codigo', dup.codigo);
+      if (dupJunk && (dupFicha || 0) === 0) {
+        // lixo antigo sem ficha: desativa (sai do índice único) e segue com o cadastro novo
+        await ops.from('insumos').update({ ativo: false }).eq('bar_id', barId).eq('codigo', dup.codigo);
+      } else if (vmId > 0) {
+        // cadastro legítimo: liga o produto VMarket no existente (não duplica)
+        await supabase.from('bronze_vmarket_produtos').update({ codigo_planilha: dup.codigo }).eq('bar_id', barId).eq('id_produto_sisfood_cotacao', vmId);
+        return NextResponse.json({ success: true, codigo: dup.codigo, ligado: true });
+      } else {
+        return NextResponse.json({ success: false, error: `Já existe o insumo "${dup.nome}" (${dup.codigo}). Use esse código.` }, { status: 409 });
+      }
+    }
     const payload: any = {
       bar_id: barId, codigo, nome, unidade_medida: base === 'un' ? 'unid' : base, // operations.insumos aceita g/kg/ml/l/unid/pct (não 'un')
       custo_unitario: Number(body.custo_unitario) || 0,
@@ -216,7 +235,6 @@ export async function POST(request: NextRequest) {
     const { data: novo, error } = await ops.from('insumos').insert(payload).select('id').single();
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     // se veio de um produto VMarket (cadastro a partir do banner): liga o produto ao código (codigo_planilha) e usa o id real do VMarket pra unidade
-    const vmId = Number(body.id_prod_vmarket) || 0;
     if (vmId > 0) {
       await supabase.from('bronze_vmarket_produtos').update({ codigo_planilha: codigo }).eq('bar_id', barId).eq('id_produto_sisfood_cotacao', vmId);
       if (emb) await supabase.from('insumo_unidade').upsert({ bar_id: barId, id_prod: vmId, cod_interno: codigo, base, embalagem: emb, origem: 'manual', atualizado_em: new Date().toISOString() }, { onConflict: 'bar_id,id_prod' });
