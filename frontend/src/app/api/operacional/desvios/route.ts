@@ -16,6 +16,8 @@ function areaDe(categoria: string | null, cod: string | null): string {
   if (/\(B\)/.test(c) || ['DESTILADOS', 'IMPÉRIO', 'IMPERIO', 'POLPAS', 'PRÉ-BATCH', 'PRE-BATCH', 'OUTROS'].some((k) => c.includes(k))) return 'Drinks';
   if (['ARTESANAL', 'LATA', 'LONG NECK', 'RETORNÁVEIS', 'RETORNAVEIS', 'VINHOS'].some((k) => c.includes(k))) return 'Salão';
   if (c.includes('ALCÓOLICOS') || c.includes('ALCOOLICOS')) return 'Salão';
+  // fornecedor de bebida cadastrado como categoria (ex.: AMBEV/HEINEKEN) → Salão, não Comidas
+  if (['AMBEV', 'HEINEKEN', 'KIRIN', 'CERVEJ', 'CHOPP'].some((k) => c.includes(k))) return 'Salão';
   return 'Comidas';
 }
 
