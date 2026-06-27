@@ -26,41 +26,18 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
   const linhas = data || [];
-  // nome da SKU exata do VMarket usada em cada item (mostra na ficha qual variação foi escolhida)
-  const vmIdsItens = Array.from(new Set(linhas.filter((i: any) => i.insumo_id_vmarket).map((i: any) => Number(i.insumo_id_vmarket))));
-  const skuNomeMap = new Map<number, string>();
-  if (barId && vmIdsItens.length) {
-    const { data: skus } = await supabase.from('bronze_vmarket_produtos').select('id_produto_sisfood_cotacao, nome').eq('bar_id', barId).in('id_produto_sisfood_cotacao', vmIdsItens);
-    (skus || []).forEach((s: any) => skuNomeMap.set(Number(s.id_produto_sisfood_cotacao), s.nome));
-  }
-  // último preço (VMarket) + unidade-base por insumo
-  let precoMap = new Map<number, number>();
-  let unidMap = new Map<number, { base: string; embalagem: number }>();
-  if (barId) {
-    const [{ data: precos }, { data: unids }] = await Promise.all([
-      (supabase as any).schema('gold').from('vmarket_insumo_preco').select('id_prod, preco_atual').eq('bar_id', barId),
-      supabase.from('insumo_unidade').select('id_prod, base, embalagem').eq('bar_id', barId),
-    ]);
-    precoMap = new Map((precos || []).map((p: any) => [p.id_prod, Number(p.preco_atual)]));
-    unidMap = new Map((unids || []).map((u: any) => [u.id_prod, { base: u.base, embalagem: Number(u.embalagem) }]));
-  }
 
-  // insumos marcados com Fator de Correção (flag no cadastro) — por id VMarket e por código planilha
-  const fcIds = new Set<number>();
+  // insumos marcados com Fator de Correção (flag no cadastro) — por código (a ficha não aponta pra SKU do VMarket)
   const fcCods = new Set<string>();
   if (barId) {
     const { data: fcRows } = await supabase.from('bronze_vmarket_produtos')
-      .select('id_produto_sisfood_cotacao, codigo_planilha, cod_interno').eq('bar_id', barId).eq('fator_correcao', true);
-    for (const r of (fcRows || []) as any[]) {
-      if (r.id_produto_sisfood_cotacao != null) fcIds.add(Number(r.id_produto_sisfood_cotacao));
-      const c = r.codigo_planilha || r.cod_interno; if (c) fcCods.add(c);
-    }
-    // insumos só-planilha marcados com FC (operations.insumos)
+      .select('codigo_planilha, cod_interno').eq('bar_id', barId).eq('fator_correcao', true);
+    for (const r of (fcRows || []) as any[]) { const c = r.codigo_planilha || r.cod_interno; if (c) fcCods.add(c); }
     const { data: fcPlan } = await (supabase as any).schema('operations').from('insumos')
       .select('codigo').eq('bar_id', barId).eq('fator_correcao', true);
     for (const r of (fcPlan || []) as any[]) { if (r.codigo) fcCods.add(r.codigo); }
   }
-  const ehFc = (idv: number | null, cod: string | null) => (idv != null && fcIds.has(idv)) || (!!cod && fcCods.has(cod));
+  const ehFc = (cod: string | null) => (!!cod && fcCods.has(cod));
   const fcDe = (it: any) => { const f = Number(it.fator_correcao); return f > 0 ? f : 1; };
 
   // preço da PLANILHA (insumo fora do VMarket) por código — base/embalagem derivadas do nome
@@ -84,28 +61,23 @@ export async function GET(request: NextRequest) {
     if (s === 'kg' || s === 'g' || s === 'grama') return { base: 'g', embalagem: 1000 };
     return { base: 'un', embalagem: 1 };
   };
-  const planMap = new Map<string, { precoUn: number | null; base: string }>();
-  const nomeCanonMap = new Map<string, string>(); // código → nome canônico do cadastro (Zykor) — é o que a ficha exibe
+  // catálogo por CÓDIGO (silver.insumo_catalogo já traz nome canônico + preço da última compra + base/embalagem)
+  const catMap = new Map<string, { precoUn: number | null; base: string | null; preco: number | null }>();
+  const nomeCanonMap = new Map<string, string>(); // código → nome canônico do cadastro (Zykor)
   if (barId) {
-    const { data: planIns } = await (supabase as any).schema('operations').from('insumos').select('codigo, nome, unidade_medida, custo_unitario').eq('bar_id', barId);
-    for (const i of (planIns || [])) {
-      if (!i.codigo) continue;
-      if (i.nome && !nomeCanonMap.has(i.codigo)) nomeCanonMap.set(i.codigo, i.nome);
-      if (planMap.has(i.codigo)) continue;
-      const u = deriveUnid(i.nome, i.unidade_medida);
-      const cu = Number(i.custo_unitario) || 0;
-      planMap.set(i.codigo, { precoUn: (u.embalagem > 0 && cu > 0) ? cu / u.embalagem : null, base: u.base });
+    const { data: cat } = await (supabase as any).schema('silver').from('insumo_catalogo').select('codigo, nome, unidade_medida, preco, base, embalagem').eq('bar_id', barId);
+    for (const c of (cat || [])) {
+      if (!c.codigo) continue;
+      if (c.nome && !nomeCanonMap.has(c.codigo)) nomeCanonMap.set(c.codigo, c.nome);
+      if (catMap.has(c.codigo)) continue;
+      const u = (c.base && Number(c.embalagem) > 0) ? { base: c.base as string, embalagem: Number(c.embalagem) } : deriveUnid(c.nome, c.unidade_medida);
+      const preco = c.preco != null ? Number(c.preco) : null;
+      catMap.set(c.codigo, { precoUn: (preco != null && u.embalagem > 0) ? preco / u.embalagem : null, base: u.base, preco });
     }
   }
-  // preço por unidade-base de um insumo: VMarket (último preço/embalagem) tem prioridade; senão planilha
-  const insumoUn = (idv: number | null, cod: string | null): { precoUn: number | null; base: string | null } => {
-    if (idv) { const p = precoMap.get(idv); const u = unidMap.get(idv); if (p != null && u && u.embalagem > 0) return { precoUn: p / u.embalagem, base: u.base }; }
-    const pl = cod ? planMap.get(cod) : null;
-    if (pl && pl.precoUn != null) return { precoUn: pl.precoUn, base: pl.base };
-    if (idv && unidMap.get(idv)) return { precoUn: null, base: unidMap.get(idv)!.base };
-    if (pl) return { precoUn: null, base: pl.base };
-    return { precoUn: null, base: null };
-  };
+  // preço por unidade-base de um insumo: SÓ por código (sem qualquer SKU do VMarket)
+  const insumoUn = (cod: string | null): { precoUn: number | null; base: string | null; preco: number | null } =>
+    (cod ? (catMap.get(cod) ?? { precoUn: null, base: null, preco: null }) : { precoUn: null, base: null, preco: null });
 
   // código + unidade + rendimento das produções referenciadas (componentes do tipo produção)
   const refIds = Array.from(new Set(linhas.filter((i: any) => i.producao_ref).map((i: any) => i.producao_ref)));
@@ -121,7 +93,7 @@ export async function GET(request: NextRequest) {
     for (const ri of refItens || []) {
       let c = 0;
       if (ri.componente_tipo === 'insumo') {
-        const info = insumoUn(ri.insumo_id_vmarket, ri.insumo_codigo);
+        const info = insumoUn(ri.insumo_codigo);
         const qEf = Number(ri.quantidade || 0) / fcDe(ri);
         c = info.precoUn != null ? qEf * info.precoUn : Number(ri.custo_planilha || 0);
       } else {
@@ -137,7 +109,7 @@ export async function GET(request: NextRequest) {
 
   const itens = linhas.map((it: any) => {
     const ref = it.componente_tipo === 'producao' ? refMap.get(it.producao_ref) : null;
-    const info = it.componente_tipo === 'insumo' ? insumoUn(it.insumo_id_vmarket, it.insumo_codigo) : null;
+    const info = it.componente_tipo === 'insumo' ? insumoUn(it.insumo_codigo) : null;
     let preco_un: number | null = null;
     let custo_atual: number | null = null;
     const fc = fcDe(it);
@@ -157,16 +129,15 @@ export async function GET(request: NextRequest) {
       ...it,
       // nome do componente = nome canônico do cadastro (Zykor), não a grafia do VMarket
       nome_componente: it.componente_tipo === 'insumo' ? (nomeCanonMap.get(it.insumo_codigo) ?? it.nome_componente) : it.nome_componente,
-      preco_atual: it.insumo_id_vmarket ? (precoMap.get(it.insumo_id_vmarket) ?? null) : null,
+      preco_atual: it.componente_tipo === 'insumo' ? (info?.preco ?? null) : null,
       preco_un,
       base,
       unidade_exib,
       componente_codigo: it.componente_tipo === 'producao' ? (ref?.codigo ?? null) : it.insumo_codigo,
       fator_correcao: fc,
-      insumo_fc: it.componente_tipo === 'insumo' ? ehFc(it.insumo_id_vmarket, it.insumo_codigo) : false,
+      insumo_fc: it.componente_tipo === 'insumo' ? ehFc(it.insumo_codigo) : false,
       qtd_efetiva: qtdEf,
       custo_atual,
-      sku_nome: it.insumo_id_vmarket ? (skuNomeMap.get(Number(it.insumo_id_vmarket)) ?? null) : null,
     };
   });
   return NextResponse.json({ success: true, itens });
@@ -183,19 +154,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'parent e componente_tipo válidos obrigatórios' }, { status: 400 });
   }
   const supabase = await getAdminClient();
-  // resolve o SKU do VMarket vinculado ao código (só pra precificar pela última compra; o display usa o nome canônico)
-  let vmId = tipo === 'insumo' && body.insumo_id_vmarket != null ? Number(body.insumo_id_vmarket) : null;
-  if (tipo === 'insumo' && !vmId && body.insumo_codigo) {
-    const barId = Number(body.bar_id) || user.bar_id;
-    const { data: bz } = await supabase.from('bronze_vmarket_produtos').select('id_produto_sisfood_cotacao').eq('bar_id', barId).eq('codigo_planilha', body.insumo_codigo).limit(1);
-    if (bz?.[0]) vmId = Number(bz[0].id_produto_sisfood_cotacao);
-  }
   const payload = {
     producao_id: producaoId,
     produto_id: produtoId,
     componente_tipo: tipo,
     insumo_codigo: tipo === 'insumo' ? (body.insumo_codigo || null) : null,
-    insumo_id_vmarket: vmId,
+    insumo_id_vmarket: null, // a ficha NÃO aponta pra SKU do VMarket — vínculo é por código do cadastro
     producao_ref: tipo === 'producao' && body.producao_ref != null ? Number(body.producao_ref) : null,
     nome_componente: body.nome_componente ? String(body.nome_componente) : null,
     quantidade: body.quantidade != null ? Number(body.quantidade) : 0,
