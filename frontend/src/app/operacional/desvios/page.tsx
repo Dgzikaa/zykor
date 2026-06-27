@@ -105,8 +105,8 @@ export default function DesviosPage() {
     return rowsProt.filter((i: any) => !s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_cod || '').toLowerCase().includes(s));
   }, [rowsProt, busca]);
 
-  // só edita produzido/desperdício na DIÁRIA (1 dia); semanal/mensal somam os lançamentos diários (read-only)
-  const editavel = tipo === 'diaria' && !!ini;
+  // edita em qualquer granularidade (lápis); salva no dia de início do período
+  const editavel = !!ini; // edita em qualquer granularidade; salva no dia de início do período
   const salvar = useCallback(async (kind: 'produzido' | 'desperdicio' | 'utilizado', codigo: string, payload: { fornadas?: number | null; qtd?: number | null }) => {
     if (!ini || !fim) return;
     try {
@@ -124,6 +124,17 @@ export default function DesviosPage() {
       && (!soCurvaA || i.curva_a === true)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
   }, [res, busca, tipo, soCurvaA]);
+
+  // contadores dos chips de filtro (igual /operacional/insumos) — base = aba ativa sem o filtro Curva A
+  const baseRows = useMemo(() => {
+    const s = busca.trim().toLowerCase();
+    const items = (res?.itens || []) as any[];
+    const match = (i: any) => !s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s);
+    if (aba === 'producoes') return items.filter((i) => i.is_producao && match(i));
+    return items.filter((i) => !i.is_producao && !i.is_proteina && i.tem_ficha && match(i));
+  }, [res, busca, aba]);
+  const cntTotal = baseRows.length;
+  const cntCurvaA = baseRows.filter((i: any) => i.curva_a === true).length;
 
   const h = res?.headline;
 
@@ -166,20 +177,18 @@ export default function DesviosPage() {
             <TabsTrigger value="proteinas"><Drumstick className="w-4 h-4 mr-1.5" />Proteínas</TabsTrigger>
           </TabsList>
 
-          {/* Busca + filtro Curva A (some na diária — já é só Curva A — e na aba Proteínas) */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9" />
-            </div>
-            {aba !== 'proteinas' && tipo !== 'diaria' && (
-              <button onClick={() => setSoCurvaA(v => !v)} title="Mostrar só itens Curva A"
-                className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 h-10 text-sm font-medium transition ${soCurvaA ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-indigo-300'}`}>
-                <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold ${soCurvaA ? 'bg-white/25' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'}`}>A</span>
-                Só Curva A
-              </button>
-            )}
+          {/* Busca */}
+          <div className="relative mt-3">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9" />
           </div>
+          {/* Filtros (contadores clicáveis, igual /operacional/insumos) — só semanal/mensal */}
+          {aba !== 'proteinas' && tipo !== 'diaria' && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button onClick={() => setSoCurvaA(false)}><Badge variant="outline" className={`cursor-pointer ${!soCurvaA ? 'ring-1 ring-emerald-400' : ''}`}>{cntTotal} {aba === 'producoes' ? 'produções' : 'insumos'}</Badge></button>
+              {cntCurvaA > 0 && <button onClick={() => setSoCurvaA(true)}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${soCurvaA ? 'ring-1 ring-indigo-400' : ''}`}>{cntCurvaA} curva A</Badge></button>}
+            </div>
+          )}
 
           {/* ===== INSUMOS (VMarket → ContaHub, estoque âncora) ===== */}
           <TabsContent value="insumos" className="space-y-4 mt-3">
@@ -231,7 +240,7 @@ export default function DesviosPage() {
 
         {editavel && (
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            ✏️ Na <b>diária</b> você lança o <b>Desperdício</b> (item que estourou/deu problema) direto na tabela. O <b>Produzido</b> das produções fica na aba <b>Produções</b>. Semanal/mensal somam os lançamentos do dia.
+            ✏️ Clique no <b>lápis</b> pra lançar o <b>Desperdício</b> (item que estourou/deu problema). O <b>Produzido</b> das produções fica na aba <b>Produções</b>.
           </p>
         )}
 
