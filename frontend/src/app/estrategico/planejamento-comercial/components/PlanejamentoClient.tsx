@@ -70,6 +70,8 @@ interface EventoEdicaoCompleta {
   c_prod: number;
   c_art_is_projecao?: boolean;
   c_prod_is_projecao?: boolean;
+  cmv_teorico_custo?: number;
+  cmv_teorico_pct?: number | null;
   consumacao?: number;
   couvert_vr_contahub?: number | null;
   percent_b: number;
@@ -344,6 +346,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
       // Realizado = só o que veio do Conta Azul (0 enquanto não lança).
       c_art: cArtReal,
       c_prod: cProdReal,
+      cmv_teorico_custo: evento.cmv_teorico_custo ?? 0,
+      cmv_teorico_pct: evento.cmv_teorico_pct ?? null,
       percent_b: evento.percent_b || 0,
       percent_d: evento.percent_d || 0,
       percent_c: evento.percent_c || 0,
@@ -583,13 +587,17 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
     const colAtrasaoBar = somar(e => e.atrasao_bar);
     const colStockoutDrinks = mediar(e => e.stockout_drinks_perc);
     const colStockoutComidas = mediar(e => e.stockout_comidas_perc);
+    // CMV teórico ponderado do período = Σ custo teórico ÷ Σ faturamento (dos dias com CMV)
+    const cmvCusto = dados.reduce((s, e) => s + (e.cmv_teorico_pct != null ? (e.cmv_teorico_custo || 0) : 0), 0);
+    const cmvFat = dados.reduce((s, e) => s + (e.cmv_teorico_pct != null ? (e.real_receita || 0) : 0), 0);
+    const colCmvTeorico = cmvFat > 0 ? (cmvCusto / cmvFat) * 100 : null;
 
     return {
       colClientesReais, colResTot, colResP,
       colTeReal, colTbReal, colTMedio,
       colCArt, colCProd, colCouvert, colPercentArtFat, colCouvArt, colConsumacao,
       colPercentB, colPercentD, colPercentC, colAtrasaoCoz, colAtrasaoBar,
-      colStockoutDrinks, colStockoutComidas,
+      colStockoutDrinks, colStockoutComidas, colCmvTeorico,
       realizado,
       empilhamento, 
       metaM1, 
@@ -713,7 +721,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
 
                         {/* Grupo PRODUÇÃO */}
                         <th
-                          colSpan={gruposAbertos.producao ? 7 : 1}
+                          colSpan={gruposAbertos.producao ? 8 : 1}
                           className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('producao')}
                         >
@@ -834,7 +842,15 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasão Coz</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}>Atrasão Drinks</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Stockout Drinks</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Stockout Comidas</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Stockout Comidas</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '95px', minWidth: '95px', maxWidth: '95px'}}>
+                              <Tooltip>
+                                <TooltipTrigger asChild><span className="cursor-help underline decoration-dotted">CMV Teórico</span></TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
+                                  <div className="text-xs">CMV teórico do dia = custo da ficha técnica × vendas do ContaHub ÷ faturamento. Atualiza junto com as fichas.</div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </th>
                           </>
                         ) : (
                           <th className="border-r-2 border-[hsl(var(--border))]"></th>
@@ -869,7 +885,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                             + (gruposAbertos.clientes ? 3 : 1)
                             + (gruposAbertos.ticket ? 3 : 1)
                             + (gruposAbertos.artistico ? 6 : 1)
-                            + (gruposAbertos.producao ? 7 : 1)
+                            + (gruposAbertos.producao ? 8 : 1)
                             + 1; // Ações
 
                           return (
@@ -1258,8 +1274,14 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'stockout_comidas' ? null : 'stockout_comidas');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_comidas' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_comidas' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_comidas_status === 'green' ? 'text-green-600 dark:text-green-400' : evento.stockout_comidas_status === 'yellow' ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_comidas_perc > 0 ? formatarPercentual(evento.stockout_comidas_perc) : '-'}</span></td>
+                                <td className="px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))]" style={{width: '95px', minWidth: '95px', maxWidth: '95px'}}
+                                  title={evento.cmv_teorico_custo ? `Custo teórico do dia: ${formatarMoeda(evento.cmv_teorico_custo)}` : undefined}>
+                                  {evento.cmv_teorico_pct != null ? (
+                                    <span className={`font-semibold ${Number(evento.cmv_teorico_pct) < 33 ? 'text-green-600 dark:text-green-400' : Number(evento.cmv_teorico_pct) < 45 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{formatarPercentual(evento.cmv_teorico_pct)}</span>
+                                  ) : <span className="text-[hsl(var(--muted-foreground))]">-</span>}
+                                </td>
                               </>
                             ) : (
                               <td className="px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '80px', minWidth: '80px', maxWidth: '80px'}}>•••</td>
@@ -1328,7 +1350,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                             <td className={`${tfCls} text-center border-r`} title="Total atrasão cozinha">{formatarContagem(totaisAgregados.colAtrasaoCoz)}</td>
                             <td className={`${tfCls} text-center border-r`} title="Total atrasão drinks">{formatarContagem(totaisAgregados.colAtrasaoBar)}</td>
                             <td className={`${tfCls} text-center border-r`} title="Média stockout drinks">{formatarPercentual(totaisAgregados.colStockoutDrinks)}</td>
-                            <td className={`${tfCls} text-center border-r-2`} title="Média stockout comidas">{formatarPercentual(totaisAgregados.colStockoutComidas)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Média stockout comidas">{formatarPercentual(totaisAgregados.colStockoutComidas)}</td>
+                            <td className={`${tfCls} text-center border-r-2`} title="CMV teórico ponderado do período">{totaisAgregados.colCmvTeorico != null ? formatarPercentual(totaisAgregados.colCmvTeorico) : '-'}</td>
                           </>
                         ) : (
                           <td className={`${tfCls} border-r-2`}></td>
