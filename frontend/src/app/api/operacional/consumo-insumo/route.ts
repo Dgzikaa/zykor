@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       if (codigo) {
         const { data, error } = await silver.rpc('fn_consumo_producao_por_produto', { p_bar_id: barId, p_codigo: codigo, p_ini: ini, p_fim: fim });
         if (error) throw error;
-        return NextResponse.json({ success: true, breakdown: (data || []).map((p: any) => ({ produto_cod: p.produto_cod, produto_nome: p.produto_nome, qtd: p.qtd })) });
+        return NextResponse.json({ success: true, breakdown: (data || []).map((p: any) => ({ produto_cod: p.produto_cod, produto_nome: p.produto_nome, qtd_venda: p.qtd_venda, por_produto: p.por_produto, qtd: p.qtd })) });
       }
       const { data, error } = await silver.rpc('fn_consumo_producao_periodo', { p_bar_id: barId, p_ini: ini, p_fim: fim });
       if (error) throw error;

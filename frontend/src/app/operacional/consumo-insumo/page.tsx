@@ -192,14 +192,16 @@ export default function SaidasPage() {
                                 <table className="w-full text-xs">
                                   <thead className="text-gray-400"><tr>
                                     <th className="text-left font-medium py-1">Produto</th>
-                                    {aba === 'insumo' && <th className="text-right font-medium py-1 w-28">Qtd vendida</th>}
+                                    <th className="text-right font-medium py-1 w-24">Qtd vendida</th>
+                                    {aba === 'producao' && <th className="text-right font-medium py-1 w-28">Por produto</th>}
                                     <th className="text-right font-medium py-1 w-32">Saída</th>
                                   </tr></thead>
                                   <tbody>
                                     {breakdown.map((p: any) => (
                                       <tr key={p.produto_cod} className="border-t border-gray-100 dark:border-gray-800/60">
                                         <td className="py-1 text-gray-700 dark:text-gray-200">{p.produto_nome || p.produto_cod} <span className="text-gray-400 font-mono">· {p.produto_cod}</span></td>
-                                        {aba === 'insumo' && <td className="py-1 text-right tabular-nums">{fmtNum(p.qtd_venda)}</td>}
+                                        <td className="py-1 text-right tabular-nums">{fmtNum(p.qtd_venda)}</td>
+                                        {aba === 'producao' && <td className="py-1 text-right tabular-nums text-gray-500">{fmtQtdUnidade(p.por_produto, abertoUnidade)}</td>}
                                         <td className="py-1 text-right tabular-nums font-medium">{fmtQtdUnidade(p.qtd, abertoUnidade)}</td>
                                       </tr>
                                     ))}
