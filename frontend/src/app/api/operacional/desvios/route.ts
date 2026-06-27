@@ -113,11 +113,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, datas: (datas || []).map((d: any) => d.data_contagem) });
   }
 
-  // abas Produções e Proteínas (cadeia VMarket→Produção→ContaHub) — leitura
-  const aba = sp.get('aba');
-  if (aba === 'producao' || aba === 'proteina') {
-    const fn = aba === 'producao' ? 'fn_desvios_producao' : 'fn_desvios_proteina';
-    const { data, error } = await (sb() as any).schema('gold').rpc(fn, { p_bar: user.bar_id, p_ini: ini, p_fim: fim });
+  // aba Proteínas (VMarket × Utilizado Produção, estoque âncora) — fn própria
+  if (sp.get('aba') === 'proteina') {
+    const { data, error } = await (sb() as any).schema('gold').rpc('fn_desvios_proteina', { p_bar: user.bar_id, p_ini: ini, p_fim: fim });
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, itens: data || [] });
   }
@@ -190,9 +188,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // marca proteína (curva_a_proteina) → o frontend separa as abas: Insumos (não-prod, não-prot),
+  // Produções (is_producao), Proteínas (is_proteina, via fn própria).
+  const { data: protRows } = await (sb() as any).schema('operations').from('insumos')
+    .select('codigo').eq('bar_id', user.bar_id).eq('curva_a_proteina', true);
+  const proteinSet = new Set((protRows || []).map((r: any) => String(r.codigo).toUpperCase()));
+  for (const i of itens) i.is_proteina = proteinSet.has(String(i.insumo_codigo).toUpperCase());
+  // headline/análise = só INSUMOS (produção e proteína têm aba própria)
+  const insumosOnly = itens.filter((i: any) => !i.is_producao && !i.is_proteina);
+
   // desvio = real − teórico. Negativo = faltou estoque (perda); positivo = sobrou (sobra).
   // ignora itens pendentes (produção sem 'produzido' informado = sobra falsa) nos agregados.
-  const itensValidos = itens.filter((i: any) => !i.pendente);
+  const itensValidos = insumosOnly.filter((i: any) => !i.pendente);
   const desvio_total = itensValidos.reduce((s: number, i: any) => s + i.desvio_rs, 0);
   const perdas = itensValidos.reduce((s: number, i: any) => s + (i.desvio_rs < 0 ? i.desvio_rs : 0), 0);
   const sobras = itensValidos.reduce((s: number, i: any) => s + (i.desvio_rs > 0 ? i.desvio_rs : 0), 0);

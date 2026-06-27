@@ -51,7 +51,6 @@ export default function DesviosPage() {
   const [res, setRes] = useState<any | null>(null);
   const [busca, setBusca] = useState('');
   const [aba, setAba] = useState('insumos');
-  const [rowsProd, setRowsProd] = useState<any[]>([]);
   const [rowsProt, setRowsProt] = useState<any[]>([]);
   const [loadingAba, setLoadingAba] = useState(false);
 
@@ -79,21 +78,24 @@ export default function DesviosPage() {
   useEffect(() => { if (ini && fim) carregar(ini, fim, tipo); }, [ini, fim, tipo, carregar]);
 
   // abas Produções / Proteínas (leitura) — carregam sob demanda
+  // Proteínas tem fn própria (balanço VMarket × utilizado produção); Produções vem do mesmo fn_desvios
   const carregarAba = useCallback(async () => {
-    if (!barId || !ini || !fim || (aba !== 'producoes' && aba !== 'proteinas')) return;
+    if (!barId || !ini || !fim || aba !== 'proteinas') return;
     setLoadingAba(true);
     try {
-      const param = aba === 'producoes' ? 'producao' : 'proteina';
-      const r = await api.get(`/api/operacional/desvios?ini=${ini}&fim=${fim}&aba=${param}`);
-      if (r.success) { if (aba === 'producoes') setRowsProd(r.itens || []); else setRowsProt(r.itens || []); }
+      const r = await api.get(`/api/operacional/desvios?ini=${ini}&fim=${fim}&aba=proteina&tipo=${tipo}`);
+      if (r.success) setRowsProt(r.itens || []);
     } finally { setLoadingAba(false); }
-  }, [barId, ini, fim, aba]);
+  }, [barId, ini, fim, aba, tipo]);
   useEffect(() => { carregarAba(); }, [carregarAba]);
 
+  // Produções = linhas is_producao do fn_desvios (balanço ancorado no estoque, com Produzido)
   const prodView = useMemo(() => {
     const s = busca.trim().toLowerCase();
-    return rowsProd.filter((i: any) => !s || (i.producao_nome || '').toLowerCase().includes(s) || (i.producao_cod || '').toLowerCase().includes(s));
-  }, [rowsProd, busca]);
+    return (res?.itens || []).filter((i: any) => i.is_producao
+      && (tipo !== 'diaria' || i.curva_a === true) // diária só Curva A
+      && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
+  }, [res, busca, tipo]);
   const protView = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return rowsProt.filter((i: any) => !s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_cod || '').toLowerCase().includes(s));
@@ -109,10 +111,11 @@ export default function DesviosPage() {
     } catch { /* silencioso; recarrega no próximo */ }
   }, [ini, fim, tipo, carregar]);
 
+  // Insumos = só insumos (exclui produção e proteína, que têm aba própria)
   const itensView = useMemo(() => {
     const s = busca.trim().toLowerCase();
-    return (res?.itens || []).filter((i: any) =>
-      !s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s));
+    return (res?.itens || []).filter((i: any) => !i.is_producao && !i.is_proteina
+      && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
   }, [res, busca]);
 
   const h = res?.headline;
@@ -212,7 +215,7 @@ export default function DesviosPage() {
 
         {editavel && (
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            ✏️ Na <b>diária</b> você lança o <b>Produzido</b> (nº de fornadas das produções) e o <b>Desperdício</b> (qualquer item) direto na tabela. Semanal/mensal somam os lançamentos do dia.
+            ✏️ Na <b>diária</b> você lança o <b>Desperdício</b> (item que estourou/deu problema) direto na tabela. O <b>Produzido</b> das produções fica na aba <b>Produções</b>. Semanal/mensal somam os lançamentos do dia.
           </p>
         )}
 
@@ -224,7 +227,6 @@ export default function DesviosPage() {
               <th className="text-left font-medium px-3 py-2">Área</th>
               <th className="text-right font-medium px-3 py-2" title="Contagem no início do período">Estoque ini</th>
               <th className="text-right font-medium px-3 py-2">Compras</th>
-              <th className="text-right font-medium px-3 py-2" title="Produção feita no período (só produções). Na diária: nº de fornadas (converte pelo rendimento).">Produzido</th>
               <th className="text-right font-medium px-3 py-2" title="Vendas × ficha técnica (consumo esperado)">Saída teórica</th>
               <th className="text-right font-medium px-3 py-2" title="Saída manual: lata que estourou, item que deu problema. Conta no fim do turno.">Desperdício</th>
               <th className="text-right font-medium px-3 py-2" title="ini + compras + produzido − saída teórica − desperdício">Estoque fim teórico</th>
@@ -233,8 +235,8 @@ export default function DesviosPage() {
               <th className="text-right font-medium px-3 py-2">Desvio (R$)</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading ? <tr><td colSpan={11} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-              : itensView.length === 0 ? <tr><td colSpan={11} className="px-3 py-10 text-center text-gray-400">Sem dados nesse período.</td></tr>
+              {loading ? <tr><td colSpan={10} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              : itensView.length === 0 ? <tr><td colSpan={10} className="px-3 py-10 text-center text-gray-400">Sem dados nesse período.</td></tr>
               : itensView.map((it: any, i: number) => (
                 <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${it.pendente ? 'bg-amber-50/60 dark:bg-amber-900/15' : it.suspeita ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
@@ -245,23 +247,6 @@ export default function DesviosPage() {
                   <td className="px-3 py-2"><Badge variant="outline">{it.area}</Badge></td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.compra)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {it.is_producao
-                      ? (editavel
-                          ? <span className="inline-flex items-center gap-1 justify-end">
-                              <CellEdit value={it.fornadas} placeholder="forn." title={it.rend_contagem ? `1 fornada = ${fmtQtd(it.rend_contagem)} ${it.unidade_contagem || ''}` : 'rendimento não cadastrado'}
-                                onSave={(v) => salvar('produzido', it.insumo_codigo, { fornadas: v })} />
-                              {it.produzido > 0
-                                ? <span className="text-[10px] text-gray-400">={fmtQtd(it.produzido)}</span>
-                                : (!it.fornadas && it.fornadas_sugerido
-                                    ? <button onClick={() => salvar('produzido', it.insumo_codigo, { fornadas: it.fornadas_sugerido })}
-                                        title={`Estimativa pelo movimento + vendas: ~${fmtQtd(it.produzido_sugerido)} ${it.unidade_contagem || ''}. Clique p/ preencher.`}
-                                        className="text-[10px] text-indigo-500 hover:text-indigo-700 underline">sug. {fmtQtd(it.fornadas_sugerido)}</button>
-                                    : null)}
-                            </span>
-                          : <span className="tabular-nums">{it.produzido ? fmtQtd(it.produzido) : '—'}</span>)
-                      : <span className="text-gray-300">—</span>}
-                  </td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
                   <td className="px-3 py-2 text-right">
                     <CellEdit value={it.desperdicio || null} readOnly={!editavel}
@@ -282,26 +267,48 @@ export default function DesviosPage() {
 
           {/* ===== PRODUÇÕES (Controle de Produção → ContaHub) ===== */}
           <TabsContent value="producoes" className="space-y-3 mt-3">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Produzido (fornadas lançadas na aba Insumos) × Consumido (vendas × ficha). Desvio positivo = produziu mais do que vendeu.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Balanço da produção: estoque ini + <b>Produzido</b> (fornadas na diária) − saída teórica (vendas×ficha) − desperdício. {editavel ? 'Na diária você lança as fornadas.' : 'Semanal/mensal somam as fornadas do dia.'} Diária só Curva A.</p>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
                   <th className="text-left font-medium px-3 py-2">Produção</th>
-                  <th className="text-right font-medium px-3 py-2" title="Quanto foi produzido (Controle de Produção)">Produzido</th>
-                  <th className="text-right font-medium px-3 py-2" title="Vendas × ficha técnica">Consumido</th>
-                  <th className="text-right font-medium px-3 py-2">Desvio</th>
+                  <th className="text-right font-medium px-3 py-2">Estoque ini</th>
+                  <th className="text-right font-medium px-3 py-2" title="Produção feita no período. Na diária: nº de fornadas (× rendimento).">Produzido</th>
+                  <th className="text-right font-medium px-3 py-2" title="Vendas × ficha técnica">Saída teórica</th>
+                  <th className="text-right font-medium px-3 py-2">Desperdício</th>
+                  <th className="text-right font-medium px-3 py-2" title="ini + produzido − saída teórica − desperdício">Estoque fim teórico</th>
+                  <th className="text-right font-medium px-3 py-2">Estoque real</th>
+                  <th className="text-right font-medium px-3 py-2">Desvio (qtd)</th>
+                  <th className="text-right font-medium px-3 py-2">Desvio (R$)</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {loadingAba ? <tr><td colSpan={4} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-                  : prodView.length === 0 ? <tr><td colSpan={4} className="px-3 py-10 text-center text-gray-400">Sem dados nesse período.</td></tr>
+                  {loading ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                  : prodView.length === 0 ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400">Sem produção nesse período.</td></tr>
                   : prodView.map((it: any, i: number) => (
-                    <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.producao_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.producao_cod}</span></td>
-                      <td className="px-3 py-2 text-right tabular-nums">{it.produzido > 0 ? fmtQU(it.produzido, it.unidade) : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQU(it.consumido, it.unidade)}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.produzido <= 0 ? 'text-gray-300' : it.desvio < 0 ? 'text-red-600 dark:text-red-400' : it.desvio > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
-                        {it.produzido <= 0 ? '—' : `${it.desvio > 0 ? '+' : ''}${fmtQU(it.desvio, it.unidade)}`}
+                    <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${it.pendente ? 'bg-amber-50/60 dark:bg-amber-900/15' : ''}`}>
+                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.pendente && <span title="Produção sem o 'produzido' informado — desvio não confiável"><AlertTriangle className="w-3.5 h-3.5 inline text-amber-500 mr-1" /></span>}{it.insumo_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span></td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
+                      <td className="px-3 py-2 text-right">
+                        {editavel
+                          ? <span className="inline-flex items-center gap-1 justify-end">
+                              <CellEdit value={it.fornadas} placeholder="forn." title={it.rend_contagem ? `1 fornada = ${fmtQtd(it.rend_contagem)} ${it.unidade_contagem || ''}` : 'rendimento não cadastrado'}
+                                onSave={(v) => salvar('produzido', it.insumo_codigo, { fornadas: v })} />
+                              {it.produzido > 0
+                                ? <span className="text-[10px] text-gray-400">={fmtQtd(it.produzido)}</span>
+                                : (!it.fornadas && it.fornadas_sugerido
+                                    ? <button onClick={() => salvar('produzido', it.insumo_codigo, { fornadas: it.fornadas_sugerido })}
+                                        title={`Estimativa: ~${fmtQtd(it.produzido_sugerido)} ${it.unidade_contagem || ''}. Clique p/ preencher.`}
+                                        className="text-[10px] text-indigo-500 hover:text-indigo-700 underline">sug. {fmtQtd(it.fornadas_sugerido)}</button>
+                                    : null)}
+                            </span>
+                          : <span className="tabular-nums">{it.produzido ? fmtQtd(it.produzido) : '—'}</span>}
                       </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
+                      <td className="px-3 py-2 text-right"><CellEdit value={it.desperdicio || null} readOnly={!editavel} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${it.pendente ? 'text-gray-300' : it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : `${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.pendente ? 'text-gray-300' : it.desvio_rs < -1 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : fmtBRL(it.desvio_rs)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -309,34 +316,36 @@ export default function DesviosPage() {
             </div></CardContent></Card>
           </TabsContent>
 
-          {/* ===== PROTEÍNAS (VMarket → Controle de Produção) ===== */}
+          {/* ===== PROTEÍNAS (VMarket → Utilizado Produção) ===== */}
           <TabsContent value="proteinas" className="space-y-3 mt-3">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Comprou (VMarket) × Usou em produção (fornadas × proteína na ficha, automático), ancorado no estoque. Desvio negativo = faltou (perda/furo). Valores em kg.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Balanço da proteína: estoque ini + <b>Compras</b> (VMarket) − <b>Utilizado Produção</b> (fornadas × proteína na ficha — automático) − desperdício. Desvio negativo = faltou (perda/furo). Em kg.</p>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
                   <th className="text-left font-medium px-3 py-2">Proteína</th>
-                  <th className="text-right font-medium px-3 py-2" title="Contagem no início">Estoque ini</th>
-                  <th className="text-right font-medium px-3 py-2" title="Compras VMarket no período">Comprou</th>
-                  <th className="text-right font-medium px-3 py-2" title="Entrou nas produções (fornadas × ficha)">Usou</th>
-                  <th className="text-right font-medium px-3 py-2" title="ini + comprou − usou">Estoque fim teórico</th>
-                  <th className="text-right font-medium px-3 py-2" title="Contagem do fim">Estoque real</th>
-                  <th className="text-right font-medium px-3 py-2" title="real − teórico (negativo = faltou)">Desvio</th>
+                  <th className="text-right font-medium px-3 py-2">Estoque ini</th>
+                  <th className="text-right font-medium px-3 py-2" title="Compras VMarket no período">Compras</th>
+                  <th className="text-right font-medium px-3 py-2" title="Entrou nas produções (fornadas × ficha)">Utilizado Produção</th>
+                  <th className="text-right font-medium px-3 py-2">Desperdício</th>
+                  <th className="text-right font-medium px-3 py-2" title="ini + compras − utilizado − desperdício">Estoque fim teórico</th>
+                  <th className="text-right font-medium px-3 py-2">Estoque real</th>
+                  <th className="text-right font-medium px-3 py-2">Desvio (qtd)</th>
+                  <th className="text-right font-medium px-3 py-2">Desvio (R$)</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {loadingAba ? <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-                  : protView.length === 0 ? <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400">Sem proteína comprada/contada nesse período.</td></tr>
+                  {loadingAba ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                  : protView.length === 0 ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400">Sem proteína (marque com o badge P em Insumos) comprada/contada nesse período.</td></tr>
                   : protView.map((it: any, i: number) => (
                     <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                       <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_cod}</span></td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.comprou)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{it.usou > 0 ? fmtQtd(it.usou) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{it.utilizado_producao > 0 ? fmtQtd(it.utilizado_producao) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-500">{it.desperdicio > 0 ? fmtQtd(it.desperdicio) : '—'}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.desvio < -0.05 ? 'text-red-600 dark:text-red-400' : it.desvio > 0.05 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
-                        {it.desvio > 0 ? '+' : ''}{fmtQtd(it.desvio)}
-                      </td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${it.desvio_qtd < -0.05 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0.05 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.desvio_qtd > 0 ? '+' : ''}{fmtQtd(it.desvio_qtd)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.desvio_rs < -1 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{fmtBRL(it.desvio_rs)}</td>
                     </tr>
                   ))}
                 </tbody>
