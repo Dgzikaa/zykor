@@ -178,6 +178,14 @@ export default function InsumosPage() {
     try { const r = await api.get(`/api/operacional/insumos/fichas?bar_id=${barId}&codigo=${encodeURIComponent(codigo)}`); setFichasData(r.success ? (r.fichas || []) : []); }
     catch { setFichasData([]); }
   };
+  // movimento da contagem (o "giro" que classificou o insumo como vende-sem-ficha)
+  const [giroIns, setGiroIns] = useState<{ codigo: string; nome: string } | null>(null);
+  const [giroData, setGiroData] = useState<any | null>(null);
+  const abrirGiro = async (codigo: string, nome: string) => {
+    setGiroIns({ codigo, nome }); setGiroData(null);
+    try { const r = await api.get(`/api/operacional/insumos/giro?bar_id=${barId}&codigo=${encodeURIComponent(codigo)}&nome=${encodeURIComponent(nome)}`); setGiroData(r.success ? r : { movimentos: [] }); }
+    catch { setGiroData({ movimentos: [] }); }
+  };
 
   // ---------- VARIAÇÃO DE PREÇO (camada de compras) ----------
   const [variacao, setVariacao] = useState<any[]>([]);
@@ -373,6 +381,7 @@ export default function InsumosPage() {
                               <button onClick={() => salvarCurvaA(i, !i.curva_a)} className="shrink-0" title={i.curva_a ? 'Curva A — entra na contagem diária. Clique para remover.' : 'Marcar como Curva A (contagem diária)'}>
                                 <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold transition ${i.curva_a ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-100 text-gray-300 hover:text-indigo-400 dark:bg-gray-800 dark:text-gray-600'}`}>A</span>
                               </button>
+                              {i.tem_giro && !i.is_producao && <button onClick={() => abrirGiro(i.codigo, i.nome)} className="shrink-0 text-red-500 hover:text-red-700" title="Tem giro na contagem — ver o movimento (quedas) que classificou como consumo/venda"><TrendingDown className="w-3.5 h-3.5" /></button>}
                             </div>
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{i.categoria || '—'}</td>
@@ -702,6 +711,47 @@ export default function InsumosPage() {
                 </table>
               )}
               <div className="flex justify-end mt-4"><Button variant="outline" onClick={() => setFichasIns(null)}>Fechar</Button></div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: movimento da contagem (giro) */}
+        {giroIns && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setGiroIns(null); }}>
+            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><TrendingDown className="w-4 h-4 text-red-500" />Movimento da contagem · {giroIns.nome}</h4>
+              <p className="text-xs text-gray-400 mb-1 font-mono">{giroIns.codigo}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Esse item entrou em <b>&ldquo;vende sem ficha&rdquo;</b> porque o estoque <b>caiu</b> na contagem (consumo), mas não há venda mapeada por ficha. Abaixo, as quedas que somam esse consumo.</p>
+              {giroData == null ? <div className="py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-400" /></div>
+              : (giroData.movimentos || []).length === 0 ? <div className="py-6 text-center text-sm text-gray-400">Sem contagens recentes.</div>
+              : (
+                <>
+                  <div className="text-sm mb-2">Consumo no período: <b className="text-red-600 dark:text-red-400">{Number(giroData.consumo_total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</b> {giroData.movimentos?.[0]?.unidade || ''}</div>
+                  <table className="w-full text-sm">
+                    <thead className="text-xs text-gray-400 border-b"><tr><th className="text-left py-1">Data</th><th className="text-right py-1">Estoque</th><th className="text-right py-1">Variação</th></tr></thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {giroData.movimentos.map((m: any, i: number) => (
+                        <tr key={i}>
+                          <td className="py-1.5 text-gray-600 dark:text-gray-300">{fmtData(m.data)}</td>
+                          <td className="py-1.5 text-right tabular-nums">{Number(m.estoque).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</td>
+                          <td className={`py-1.5 text-right tabular-nums ${m.delta == null ? 'text-gray-300' : m.delta < 0 ? 'text-red-600 dark:text-red-400 font-medium' : m.delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{m.delta == null ? '—' : `${m.delta > 0 ? '+' : ''}${Number(m.delta).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {(giroData.candidatos || []).length > 0 && (
+                    <div className="mt-3 text-xs">
+                      <div className="text-gray-500 dark:text-gray-400 mb-1">Produtos com nome parecido (candidatos a ligar a ficha):</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {giroData.candidatos.map((c: any) => (
+                          <span key={c.codigo} className="rounded px-1.5 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"><span className="font-mono">{c.codigo}</span> {c.nome}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="flex justify-end mt-4"><Button variant="outline" onClick={() => setGiroIns(null)}>Fechar</Button></div>
             </div>
           </div>
         )}
