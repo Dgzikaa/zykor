@@ -10,6 +10,15 @@ import { useToast } from '@/hooks/use-toast';
 import { LogOut, Search, Loader2, Download, ChevronDown, ChevronRight } from 'lucide-react';
 
 const fmtNum = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+// mostra a quantidade com unidade, arredondando g→kg e ml→L quando grande (5542 g → 5,54 kg)
+const fmtQtdUnidade = (v: any, unidade: any) => {
+  if (v == null) return '—';
+  const n = Number(v); const u = String(unidade || '').toLowerCase();
+  if (u === 'g' && Math.abs(n) >= 1000) return `${(n / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg`;
+  if (u === 'ml' && Math.abs(n) >= 1000) return `${(n / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} L`;
+  const num = n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+  return u ? `${num} ${u}` : num;
+};
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const isoDate = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 // padrão = ontem (o dia atual ainda não tem dado consolidado)
@@ -55,7 +64,6 @@ export default function SaidasPage() {
   const [loadingBreak, setLoadingBreak] = useState(false);
 
   const temDrill = aba !== 'geral'; // Geral não abre quebra por produto
-  const unidadeLabel = aba === 'insumo' ? 'ml / g / un' : aba === 'producao' ? 'un. da produção' : '—';
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -82,6 +90,7 @@ export default function SaidasPage() {
   };
 
   const cats = useMemo(() => Array.from(new Set(rows.map(i => i.categoria || 'Outros'))).sort(), [rows]);
+  const abertoUnidade = rows.find((r: any) => r.codigo === aberto)?.unidade ?? null; // unidade do item expandido (pro drill)
   const view = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return rows.filter(i => (!cat || (i.categoria || 'Outros') === cat)
@@ -154,7 +163,7 @@ export default function SaidasPage() {
                   <th className="text-left font-medium px-3 py-2">Cód.</th>
                   <th className="text-left font-medium px-3 py-2">{aba === 'insumo' ? 'Insumo' : aba === 'producao' ? 'Produção' : 'Item'}</th>
                   <th className="text-left font-medium px-3 py-2">Categoria</th>
-                  <th className="text-right font-medium px-3 py-2">Saída ({unidadeLabel})</th>
+                  <th className="text-right font-medium px-3 py-2">Saída</th>
                   {aba === 'geral' && <th className="text-right font-medium px-3 py-2">Faturamento</th>}
                   <th className="text-right font-medium px-3 py-2">Dias</th>
                 </tr></thead>
@@ -165,9 +174,9 @@ export default function SaidasPage() {
                         {temDrill && <td className="text-center text-gray-400">{aberto === i.codigo ? <ChevronDown className="w-4 h-4 inline" /> : <ChevronRight className="w-4 h-4 inline" />}</td>}
                         {aba === 'geral' && <td className="px-3 py-2"><span className={`text-[10px] rounded px-1.5 py-0.5 ${i.tipo === 'finalizacao' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>{i.tipo === 'finalizacao' ? 'Finalização' : 'Produção'}</span></td>}
                         <td className="px-3 py-2 font-mono text-xs text-gray-500">{i.codigo}</td>
-                        <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{i.nome || <span className="text-gray-400 italic">sem cadastro</span>} {i.unidade && aba !== 'geral' ? '' : i.unidade ? <span className="text-gray-400 text-xs">· {i.unidade}</span> : ''}</td>
+                        <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{i.nome || <span className="text-gray-400 italic">sem cadastro</span>}</td>
                         <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{i.categoria || 'Outros'}</td>
-                        <td className="px-3 py-2 text-right tabular-nums font-semibold">{fmtNum(i.qtd)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold">{fmtQtdUnidade(i.qtd, i.unidade)}</td>
                         {aba === 'geral' && <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{i.tipo === 'finalizacao' ? fmtBRL(i.valor) : '—'}</td>}
                         <td className="px-3 py-2 text-right tabular-nums text-gray-500">{i.dias}</td>
                       </tr>
@@ -191,7 +200,7 @@ export default function SaidasPage() {
                                       <tr key={p.produto_cod} className="border-t border-gray-100 dark:border-gray-800/60">
                                         <td className="py-1 text-gray-700 dark:text-gray-200">{p.produto_nome || p.produto_cod} <span className="text-gray-400 font-mono">· {p.produto_cod}</span></td>
                                         {aba === 'insumo' && <td className="py-1 text-right tabular-nums">{fmtNum(p.qtd_venda)}</td>}
-                                        <td className="py-1 text-right tabular-nums font-medium">{fmtNum(p.qtd)}</td>
+                                        <td className="py-1 text-right tabular-nums font-medium">{fmtQtdUnidade(p.qtd, abertoUnidade)}</td>
                                       </tr>
                                     ))}
                                   </tbody>

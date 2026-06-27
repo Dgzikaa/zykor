@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     }
     const { data, error } = await silver.rpc('fn_consumo_insumo_periodo', { p_bar_id: barId, p_ini: ini, p_fim: fim });
     if (error) throw error;
-    return NextResponse.json({ success: true, rows: (data || []).map((r: any) => ({ codigo: r.insumo_codigo, nome: r.insumo_nome, categoria: r.categoria || 'Outros', qtd: r.qtd_base, unidade: 'ml/g/un', dias: r.dias })) });
+    return NextResponse.json({ success: true, rows: (data || []).map((r: any) => ({ codigo: r.insumo_codigo, nome: r.insumo_nome, categoria: r.categoria || 'Outros', qtd: r.qtd_base, unidade: r.unidade, dias: r.dias })) });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || String(e) }, { status: 500 });
   }
